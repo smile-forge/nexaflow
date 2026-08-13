@@ -125,6 +125,18 @@ public class ConverterInverseLawTests
             ("'' |> fit(16) |> cstr()", ""),
         ]),
 
+        // The domain is the table as much as the value: a code that does not cover an octet cannot write
+        // it, and one whose end-of-stream code is under seven bits cannot finish a run. Both are refused
+        // where the table is read. The tiny code here is 0 → '0', 1 → '10', end → '1111111'.
+        new("packBits / unpackBits", "octets the code table covers, under a prefix-free table with an "
+                                   + "end-of-stream code at least 7 bits wide",
+        [
+            ("'0001' |> unhex() |> packBits(list(list(0, 0, 1), list(1, 2, 2), list(256, 127, 7))) "
+           + "|> unpackBits(list(list(0, 0, 1), list(1, 2, 2), list(256, 127, 7))) |> hex()", "0001"),
+            ("'' |> unhex() |> packBits(list(list(0, 0, 1), list(256, 127, 7))) "
+           + "|> unpackBits(list(list(0, 0, 1), list(256, 127, 7))) |> hex()", ""),
+        ]),
+
         new("reverse", "self-inverse on any octet run",
         [
             ("'0102030405' |> unhex() |> reverse() |> reverse() |> hex()", "0102030405"),

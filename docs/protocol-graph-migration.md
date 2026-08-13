@@ -56,6 +56,32 @@ that gap:
 | `Chain.Seed/Carry` **and** `Assorted.Seed/Arm.Carry` | one flow notion, spelled twice |
 | the addressability exemption for a kind's carry | an edge that starts in the wrong place |
 
+### Where it actually stopped
+
+HPACK was attempted on 2026-08-13 and is the first thing the corpus could not finish. It reads
+correctly — the RFC 7541 C.3 exchange decodes, the table is built across the run, a later component names
+what an earlier one added, a resize evicts — and **it cannot be written back**. Two independent refusals,
+both pinned by tests in `HeaderTableCaptureTests`:
+
+- **A carry that branches declares every branch.** The chain's carry is one expression with a case
+  analysis over four packings, and its dependencies are recovered by *scanning its text* for `fields.…`.
+  The scan cannot see that a read sits under a conditional, so every field named becomes a prerequisite of
+  every component and three quarters of them belong to packings that did not occur. The refusal is
+  correct; what is wrong is that reachability is being approximated by a regular expression over source
+  text. **Any chain carry that reads inside a choice hits this** — it is not specific to HPACK, and the
+  corpus had simply never written one.
+- **A bit group settles all at once.** A coded literal's length is measured off its body, and which
+  packing the body is depends on the head's coded bit. Two runs of one octet pointing opposite ways, no
+  run depending on itself — and a cycle, because the node is the *group*. `BitSlice.Value` let the runs
+  come from different places and stopped short of letting them settle at different times.
+
+Both are the same sentence: the thing that should be a node is not one. Neither has a fix inside the
+present design that is not a new compensation — teaching the scanner about branches is a seventh
+approximation of reachability, and per-arm carries on `Chain` is a twelfth sited expression plus a role
+constant plus a vocabulary row.
+
+**This is the trigger.** The note existed to say when the rope runs out; it has.
+
 ### The evidence, not the aesthetics
 
 The vocabulary table has been **wrong twice in one session**, both times committing the exact defect class it
@@ -66,6 +92,14 @@ the `room` ban and was its opposite: `Decode` takes a scope and always did), onc
 something else.
 
 Threading now needs its notion spelled in five places. Two containers is coincidence; the third will not be.
+
+"What names does this expression need" was implemented **twice** — `Vocabulary.RootsOf` and
+`Expr.FreeRootNames` — and the copy the vocabulary check used knew about `let` and not about lambda
+parameters. So bounded iteration was unusable at every site the table governs, and had been since the day
+the table landed: an ordinary fold reported three unknown roots. Nothing caught it because `map`/`fold`
+had only ever been written inside a transform, which uses the other one. `RootsOf` now delegates. The
+lesson is not "fix the copy" — it is that a question with two answers in one codebase will be answered
+differently, and this one is *exactly* the question the rewrite makes structural.
 
 ## What the target looks like
 
@@ -117,11 +151,19 @@ It is small, it does not presuppose the rewrite, and it protects step 3.
 
 ## What is left undone
 
-- **HPACK.** Needs a Huffman codec, the 61-entry static table, an N-bit-prefix integer encoding distinct from
-  `Varint`/`EscapedInline`/`Prefixed`, and a fold for eviction. The *table* needs no new primitive — it is a
-  threaded value, and threading now works on assortments.
-- **A fold converter.** Wanted by HPACK eviction. Adding one to a closed converter set either fits in a line
-  or turns the expression language into something else; decide deliberately.
+- **HPACK's encode side**, blocked as above. The decode side, both tables, the prefix integer and the
+  eviction fold are done and green; `HeaderTableCaptureTests` carries the working half and pins the two
+  refusals so they flip when the rewrite lands. The forecast in the previous version of this note was
+  wrong in two ways worth recording: the N-bit prefix integer needed **no new pattern** (a bit group whose
+  runs come from different places, a choice on whether the prefix saturated, and the existing continuation
+  integer), and eviction needed **no fold converter** — `fold`, `scan` and `takeWhile` were already in the
+  expression language. What HPACK actually cost the engine was one converter pair, `packBits`/`unpackBits`,
+  and even that takes its 257-row table from the document.
+- **A record literal in the expression language.** There is still no way to build a `Rec`, so HPACK's table
+  entries are two-element lists. Fine, but it is why `flatten(list(list(…), carried))` is how a document
+  prepends to a list — worth a `prepend` or a record constructor either way.
+- **`Context.Fixed` declares a value nothing reads.** The document states the constant and the caller
+  supplies it anyway. Either the codec should bind it or the kind should stop carrying a value.
 - **SIP**, blocked on there being no clock. Also wants composite instance identity — `Subject.Distinguishes`
   names one concept and SIP pairs on three.
 - **Sub-octet alignment.** `Pattern.Bits` refuses a group that is not a whole number of octets. Nothing in

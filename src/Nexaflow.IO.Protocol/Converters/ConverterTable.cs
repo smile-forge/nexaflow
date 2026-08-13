@@ -362,6 +362,23 @@ public sealed class ConverterTable
             },
             "pad to a fixed width, erroring on over-length — DHCP sname (64) and file (128)");
 
+        // The table is REQUIRED and there is no default one, which is the whole of what keeps this a
+        // notion. A prefix code is "symbols become bit runs of unequal length"; *which* runs is a
+        // specification's own content — hundreds of rows, printed in an appendix — and a converter shipping
+        // one family's appendix would be that family's mechanism in the engine wearing a general name.
+        t.Add("packBits", ValueKinds.Bytes, ValueKinds.Bytes, "unpackBits",
+            (v, a) => ProtoValue.Of(PrefixCode.Pack(
+                v.AsBytes(), Required(a, 0, "packBits", "the code table"))),
+            "octets to a variable-length prefix code, most significant bit first, the last octet filled "
+          + "from the end-of-stream code. table: rows of [symbol, code, bits] including symbol 256 — "
+          + "required");
+        t.Add("unpackBits", ValueKinds.Bytes, ValueKinds.Bytes, "packBits",
+            (v, a) => ProtoValue.Of(PrefixCode.Unpack(
+                v.AsBytes(), Required(a, 0, "unpackBits", "the code table"))),
+            "a variable-length prefix code back to octets. Padding wider than an octet needs, padding that "
+          + "is not the end-of-stream prefix, and the end-of-stream symbol inside the value are all errors: "
+          + "each would be a second encoding of the same value");
+
         t.Add("chunk", ValueKinds.Bytes, ValueKinds.List, null,
             (v, a) =>
             {

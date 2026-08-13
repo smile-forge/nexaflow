@@ -338,4 +338,33 @@ public class ScopeVocabularyTests
                                                && i.Contains("the structure is what is being worked out")),
             string.Join("\n", message.Validate()));
     }
+
+    /// <summary>
+    /// A lambda parameter is a binder, so the check that asks what an expression needs must not ask for it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This table's job is to catch a name nothing binds, and it did the reverse for a whole class of them:
+    /// it discounted <c>let</c>-bound names and not lambda parameters, so <c>map</c>, <c>fold</c>,
+    /// <c>filter</c> and <c>scan</c> were unusable at every site it governs — an accumulation over a list
+    /// was reported as naming three unknown roots. Bounded iteration had only ever been written inside a
+    /// transform, where a different and correct implementation of "what is free here" is used.
+    /// </para>
+    /// <para>
+    /// Two answers to one question, and the wrong one was load-bearing. There is now one.
+    /// </para>
+    /// </remarks>
+    [TestMethod]
+    public void A_lambda_parameter_is_bound_by_its_lambda_and_is_not_a_name_the_walk_owes_an_answer()
+    {
+        CollectionAssert.AreEqual(new[] { "fields" },
+            Vocabulary.RootsOf(Expr.Parse(
+                "fields.rows.value |> fold(0, (a, x) -> a + x) |> max(0)")).Order().ToArray());
+
+        // And the shadowing case, which the let-only version could not have got right either way round:
+        // the parameter is bound inside the body and the root of the same name outside it is not.
+        CollectionAssert.AreEqual(new[] { "item" },
+            Vocabulary.RootsOf(Expr.Parse(
+                "item.rows |> map(item -> item + 1)")).Order().ToArray());
+    }
 }

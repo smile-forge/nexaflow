@@ -240,17 +240,19 @@ public static class Vocabulary
     /// that quietly reads nothing.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A <c>let</c>-bound name is a root node too, and it is emphatically not the walk's business. Taking
     /// every root would report `let n = … in n &lt; 13` as naming an unknown root `n`, which is the
     /// check being wrong about the language rather than the document being wrong about the protocol.
+    /// </para>
+    /// <para>
+    /// This once did that reasoning itself, over <c>let</c> alone, and so was wrong about the other binder:
+    /// a lambda parameter was reported as an unknown root, which made <c>map</c>, <c>fold</c> and
+    /// <c>filter</c> unusable at every site this table governs. Nothing noticed because bounded iteration
+    /// had only ever been written inside a transform, where the containment rule is checked by
+    /// <see cref="Expr.FreeRootNames"/> — the correct version of this, which now simply <i>is</i> this.
+    /// Two answers to "what does this expression need", and only one of them knew about lambdas.
+    /// </para>
     /// </remarks>
-    public static IEnumerable<string> RootsOf(Expr expression)
-    {
-        var bound = expression.Descendants().OfType<Expr.Let>().Select(l => l.Name)
-                              .ToHashSet(StringComparer.Ordinal);
-
-        return expression.Descendants().OfType<Expr.Root>().Select(r => r.Name)
-                         .Where(name => !bound.Contains(name))
-                         .Distinct(StringComparer.Ordinal);
-    }
+    public static IEnumerable<string> RootsOf(Expr expression) => expression.FreeRootNames();
 }
