@@ -12,25 +12,66 @@ kinds of node — fields, state, and inputs. The engine looks up a message, pick
 current state, walks that packing to build the message, and runs each node's requirements path to resolve
 its value.
 
+## Two graphs
+
+The **protocol graph** is the static description. It is **complete before anything reads it** — nothing
+about it depends on a message, so no part of it may arrive late.
+
+The **run graph** is made from it per message, plus the input values and the initial state. A computed
+value is held **on the node, in the run graph**, so anything linked to that node is handed the value
+rather than recomputing it.
+
+> **The invariant, and it is the strong one.** Once the engine starts building a message, the only places
+> it may take information from are **the protocol graph and the run graph**. Reaching anywhere else — an
+> ambient scope, a field on the codec, a dictionary threaded through a call — is an illegal call. Most of
+> the compensations listed further down are exactly that kind of reach, which is why naming the rule is
+> worth more than fixing them one at a time. Worth a guard test once the run graph exists.
+
 ## Nodes
 
 | Node | What it is |
 |---|---|
 | `Message` | What is being spoken. Points at its packings. |
 | `Packing` | **New.** One arrangement of a message. A message has one or more. |
+| `FieldSet` | **New.** A named group the packing path may go through instead of a field — a header, a block. The engine expands it to its children and their order, then treats each child as it would any other field. |
 | `Field` | Something that occupies octets. |
 | `Slice` | **New as a node.** A run of bits inside an octet group, with facets of its own. |
-| `Term` | **New.** One node of a value computation — a literal, an operator, a call, a reference. |
 | `Context` | A value from outside the message. |
 | `Subject` / `Phase` / `Party` / `Recall` | State, as today. |
 | `Rule` / `ValueSet` / `Concept` / `Default` / `Subprotocol` | Meaning, as today. |
+
+### Computation nodes
+
+A field's value comes in along a **requires** edge, and that edge lands on exactly one of three kinds:
+
+| Kind | What it is |
+|---|---|
+| `Converter` | One member of the closed converter set. |
+| `Ast` | An expression the AST engine evaluates. |
+| `Code` | Custom code behind an interface. |
+
+All three behave identically from the graph's point of view: **inputs arrive on incoming edges, one value
+comes out.** A node that takes more than one input says so, and each incoming edge carries a `Sequence`
+giving its argument position — so the concrete call (converter, AST evaluation, or the code node's
+interface) receives them in order and returns a single value. The result is held at that node in the run
+graph, and feeds either the field's value or another node further down.
+
+This is deliberately coarser than one node per sub-expression, and coarser is right: an `Ast` node is a
+whole expression whose free names are bound by its incoming edges, not a tree the graph has to mirror.
+
+**Branching is not a computation concern.** There is no fork node, because a case analysis over packings
+is a *packing* question — several guarded `Then` edges, each arm with its own requires path. The
+alternative was pruning branches inside an expression's dependencies, which was tried and does not work
+(see 1b below).
 
 ## Edges, in three families
 
 **Arrangement — what follows what.**
 
 - `Packs` — message → packing.
-- `Starts` — packing → its first node.
+- `Starts` — packing → its first node, which may be a field or a fieldset.
+- `Holds { Order }` — fieldset → each of its children. The engine expands a fieldset when the walk reaches
+  it and follows the order on these edges; a child is then processed exactly as any other field.
 - `Then { When? }` — node → the node after it. The guard is a term. This single edge, guarded, is
   sequence, repetition and alternation: an unguarded `Then` is "and then"; a `Then` back to the node it
   left is a chain; several `Then` edges out of one node are a choice, and which one is taken is whichever
@@ -40,12 +81,12 @@ its value.
 
 **Computation — how a value is resolved.** Starts at the field, which is the intersection.
 
-- `Computes { Role }` — field or slice → the term rooted at its computation. Role survives only as long as
-  a node has more than one computation; see *open* below.
-- `Uses { Ordinal }` — term → operand term.
-- `Reads { Facet }` — term → the field or slice whose facet it denotes.
-- `Draws` — term → context.
-- `Recalls` — term → a state slot.
+- `Requires { Sequence }` — a field, slice or computation node → the node that produces one of its
+  inputs. `Sequence` is the argument position, so a converter's second argument is an edge and not a
+  literal buried in a declaration.
+- `Reads { Facet }` — a computation node → the field or slice whose facet it wants.
+- `Draws` — a computation node → context.
+- `Recalls` — a computation node → a state slot.
 
 **Meaning.** `Names`, `Admits`, `Constrains`, `Embeds`, `Speaks`, `Triggers`, `Moves`, `Viewed`,
 `Remembers`, `Assumes` — unchanged.
@@ -78,7 +119,8 @@ Everything below exists to stand in for a missing edge, and goes when the edge a
 | `Pattern.Group` | a stretch of a packing |
 | `Pattern.Choice`, `Arm`, `Offers.Key` | several `Then` edges with guards |
 | `Pattern.Chain`, `Pattern.Assorted` | a `Then` that returns, guarded |
-| `Chain.Seed/Carry`, `Assorted.Seed`, `Arm.Carry`, `Roles.Carrying` | a term reading the previous occurrence |
+| `Chain.Seed/Carry`, `Assorted.Seed`, `Arm.Carry` | a computation reading the previous occurrence |
+| the codec's scope threading (`EvalScope`, `NameFrame`, ambient roots) | values held on run-graph nodes |
 | `ExprSite`, `Vocabulary`, `Roles` | reachability |
 | `FieldReferences` / `ContextReferences` / `PresenceReferences` | edge traversal |
 | `Optionals`, `present.x` | no `Then` reached the node |
@@ -100,14 +142,11 @@ good. What changes is what parsing produces.
 
 ## Open
 
-- **Does arm selection unify with packing selection?** A guarded `Then` and a guarded `Packing` are the
-  same mechanism at two scales, and if they are, `Fits` is just `Then`'s guard on the edge out of the
-  message. Likely yes; decide before writing either.
-- **How does a term name a previous occurrence?** This is what replaces threading, and it is the sharpest
-  remaining question. Something like `Reads { Facet, Of = Previous }` — occurrence-relative rather than
-  node-relative. Everything about folds, tables and running totals rests on it.
-- **Does `Role` survive on `Computes`?** Only needed while one node has several computations. If a slice
-  is a node and a guard lives on an edge, a field may have exactly one.
+- ~~Does arm selection unify with packing selection?~~ **Yes** — settled. One guarded edge, used at both
+  scales.
+- **How does a computation name a previous occurrence?** What replaces threading, and the sharpest
+  question left. Occurrence-relative rather than node-relative. Its *spelling* is free — the author has
+  said naming is a serialisation concern, not a graph one — but the edge is not.
 - **Are terms memoised per occurrence?** Almost certainly yes, but say so.
 - **Width, byte order, signedness** — stay as pattern data on the field rather than becoming nodes.
   Recommended: yes, they are properties, not relationships.
@@ -117,7 +156,10 @@ good. What changes is what parsing produces.
 The author has said an intermediate broken state is acceptable, so this is a straight line rather than
 green-at-every-step. The corpus is the safety net at the end of it, not during.
 
-**1a. `Term` nodes exist and reads leave them. — done, 368 green.** `Expr.Parse` still parses; the graph
+**1a. Computation nodes exist and reads leave them. — done, 368 green.** *(Built as one node per
+sub-expression under the name `Term`; the settled model is coarser — three kinds, inputs by sequenced
+edge — so this is a step towards it and not the shape itself. `Term` becomes `Ast`, its `Uses` edges
+become `Requires`, and the per-sub-expression granularity collapses.)* `Expr.Parse` still parses; the graph
 now holds a `Term` per sub-expression, with `Computes` from the owning node, `Uses` between operands, and
 `Reads`/`Draws` from the term that denotes something. A reference collapses to *one* term rather than a
 stack of member accesses. `Roles` is deleted: `Refs`/`Present` take the expression and find its root by

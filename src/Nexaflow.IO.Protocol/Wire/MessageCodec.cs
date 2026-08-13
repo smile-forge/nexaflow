@@ -64,6 +64,17 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
     /// </summary>
     private ProtocolGraph Graph => _message.Graph;
 
+    // Forced here rather than on first touch. Once a build starts, the only two places anything may come
+    // from are this graph and the run being built against it — so this one has to be finished before the
+    // run exists, not assembled underneath it.
+    private readonly bool _settled = Settled(message);
+
+    private static bool Settled(MessageDef message)
+    {
+        message.Settle();
+        return true;
+    }
+
     /// <summary>What a node contains, in wire order.</summary>
     private IEnumerable<Field> Inside(Node node) => Graph.Children(node).OfType<Field>();
 

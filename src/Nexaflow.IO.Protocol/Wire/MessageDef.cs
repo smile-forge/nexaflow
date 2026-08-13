@@ -223,22 +223,22 @@ public sealed record MessageDef
     /// graph that is still being assembled. Unnoticed until a check walked <see cref="ProtocolGraph.Nodes"/>
     /// as a whole rather than following edges out of a node it already had.
     /// </remarks>
-    public ProtocolGraph Graph
-    {
-        get
-        {
-            if (_graph is { } already) return already;
-
-            // No lock, and therefore no field to forget to copy — which is what a lock here would have
-            // been. Two callers arriving together both build and one of the two graphs is thrown away;
-            // everyone leaves with the same one. Building twice costs nothing that matters and the
-            // alternative was a fourth instance of the trap this file already has three of.
-            var built = Build();
-            return Interlocked.CompareExchange(ref _graph, built, null) ?? built;
-        }
-    }
+    /// <summary>
+    /// The nodes and edges this declaration comes to.
+    /// </summary>
+    /// <remarks>
+    /// <b>Complete before anything reads it.</b> It used to be built on first touch, which made the
+    /// description of a protocol something that came into existence partway through using it — and
+    /// promptly produced a race the moment a check walked the node set rather than following edges out of
+    /// a node it already held. A protocol graph is the static thing; nothing about it depends on a
+    /// message, so there is no reason for any of it to arrive late.
+    /// </remarks>
+    public ProtocolGraph Graph => _graph ??= Build();
 
     private ProtocolGraph? _graph;
+
+    /// <summary>Builds the graph now, so that nothing later can be the first to ask for it.</summary>
+    internal void Settle() => _ = Graph;
 
     /// <summary>
     /// A copy starts with no graph.
