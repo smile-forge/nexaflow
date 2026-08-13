@@ -139,11 +139,35 @@ Two things that came out of doing it, both worth knowing before the next block:
 **1b. Terms are scheduled by the resolver.** Each term gets a `Value` facet; a field's value reads its root
 term's. This is what actually fixes the carry refusal: a `Conditional` settles its condition, then
 *realises only the taken branch*, exactly as a choice realises its arm — so reads under the branch not
-taken never become nodes, and the prerequisite is absent rather than optional. Note that higher-order
-calls (`map`, `fold`, `filter`, `scan`) cannot be static term nodes, because the lambda body runs once per
-item and the list is not known until its source settles: make the *call* one node that runs the evaluator
-over its body internally. Its body's reads are dependencies of the call node, which is sound because the
-body can read nothing the call cannot.
+taken never become nodes, and the prerequisite is absent rather than optional.
+
+Note that higher-order calls (`map`, `fold`, `filter`, `scan`) cannot be static term nodes, because the
+lambda body runs once per item and the list is not known until its source settles: make the *call* one
+node that runs the evaluator over its body internally. Its body's reads are dependencies of the call node,
+which is sound because the body can read nothing the call cannot.
+
+> **The cheap version was tried and does not work — don't retry it.** The shortcut is to keep one node per
+> expression, use its `Realised` facet to evaluate the guards, and have its `Value` facet then depend on
+> only the live branch's reads. It gets most of the way: on the HPACK carry it cut the unrealised set from
+> twenty nodes to fifteen, and the deepest branches pruned correctly. It cannot close, because **a nested
+> guard's own reads live inside a branch**. To know whether to require them you must already know the outer
+> guard's answer, so the dependency set has to grow *during* settling — and the resolver has no "not yet,
+> ask me again with more" signal from inside `Settle`. Adding one would be a compensation of exactly the
+> kind being deleted.
+>
+> The corollary is the thing to hold onto: **terms have to be value nodes, not dependency carriers.** A
+> fork's `Value` depends on its condition's `Value`, and after realisation on the taken branch's `Value`;
+> the tree of nodes does the aggregation and there is nothing to record into a captured variable. Every
+> half-measure fails the same way, because the evaluator wants the whole tree at once and the resolver
+> wants it one piece at a time. Only one of them can be right about that.
+>
+> One unexplained observation from the attempt, worth knowing before redoing it: giving threaded nodes a
+> `Realised` facet made an assortment throw `duplicate resolution node` on `items[0].addend.Value`. Seen,
+> not diagnosed.
+
+**Efficiency is not a constraint.** Stated by the author: a message may take up to ten minutes to build in
+the average case, so optimising is pointless and cleanliness wins every time. A node per term, a walk per
+lookup and no caching are all fine. Do not trade structure for speed anywhere in this work.
 
 **2. `Slice` nodes.** `BitSlice` becomes a class deriving from `Node` (it is a `readonly record struct`
 today), `Occurrence` and `NameFrame.Of` learn to carry a node that is not a `Field`, and

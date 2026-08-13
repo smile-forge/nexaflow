@@ -214,7 +214,30 @@ public sealed record MessageDef
     /// with each other.
     /// </para>
     /// </summary>
-    public ProtocolGraph Graph => _graph ??= Build();
+    /// <summary>
+    /// The nodes and edges this declaration comes to, built once.
+    /// </summary>
+    /// <remarks>
+    /// Locked, because a document is routinely a <c>static readonly</c> shared by everything that speaks
+    /// it, and two callers arriving together would otherwise both build — leaving one of them reading a
+    /// graph that is still being assembled. Unnoticed until a check walked <see cref="ProtocolGraph.Nodes"/>
+    /// as a whole rather than following edges out of a node it already had.
+    /// </remarks>
+    public ProtocolGraph Graph
+    {
+        get
+        {
+            if (_graph is { } already) return already;
+
+            // No lock, and therefore no field to forget to copy — which is what a lock here would have
+            // been. Two callers arriving together both build and one of the two graphs is thrown away;
+            // everyone leaves with the same one. Building twice costs nothing that matters and the
+            // alternative was a fourth instance of the trap this file already has three of.
+            var built = Build();
+            return Interlocked.CompareExchange(ref _graph, built, null) ?? built;
+        }
+    }
+
     private ProtocolGraph? _graph;
 
     /// <summary>
@@ -797,6 +820,7 @@ public sealed record MessageDef
             CheckDistinctness(issues);
             CheckReferences(issues);
             CheckAddressability(issues);
+            CheckNames(issues);
         }
 
         CheckChoices(here, issues);
@@ -805,27 +829,45 @@ public sealed record MessageDef
         // fields rather than these. The graph has always known that; this check did not, because until
         // the vocabulary check made the walk enumerate every expression, a carry was never scope-checked
         // at all. Skipped here and checked below against the scope it is actually read in.
-        foreach (var (owner, expression, what, site) in Expressions(here))
-            foreach (var referenced in FieldReferences(expression))
-                if (site is not ExprSite.Carry && !visible.Contains(referenced.Field))
-                    issues.Add($"message '{Id}': {what} of '{owner}' references '{referenced.Field}', "
-                             + "which is not a field in scope there");
-
         // Each scope of its own is checked against itself, with everything out here still visible: a
         // structure may read the message metadata around it.
         foreach (var field in here)
-        {
             foreach (var (_, scoped) in field.Pattern.Scoped) Check(scoped, visible, issues);
+    }
 
-            if (field.Pattern is not Pattern.Chain chain) continue;
+    /// <summary>
+    /// A name nothing answers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The graph resolves every reference once, in the scope it was written in, and a reference it could
+    /// not resolve leaves a term shaped like one with no edge out of it. So this is a question about the
+    /// graph rather than a second reading of the text — which is what the two scope checks it replaced
+    /// were, each with its own idea of what was visible where.
+    /// </para>
+    /// <para>
+    /// It has to exist. Without it an unresolvable name is simply a term with no <c>Reads</c>, the
+    /// expression quietly evaluates it as nothing, and every comparison against it is false — the exact
+    /// failure the vocabulary table was built for, one level down.
+    /// </para>
+    /// </remarks>
+    private void CheckNames(List<string> issues)
+    {
+        foreach (var term in Graph.Nodes.OfType<Term>())
+        {
+            if (term.Shape is not Expr.Member
+                    { Target: Expr.Member { Target: Expr.Root { Name: "fields" } } named }
+                || Graph.From<Reads>(term).Any())
+                continue;
 
-            var inside = new HashSet<string>(visible, StringComparer.Ordinal);
-            inside.UnionWith(ScopeFields([chain.Element]).Select(f => f.Id));
+            // A carry runs inside the structure the chain repeats, so the scope it missed is that one and
+            // saying "in scope there" would send the author looking in the wrong place.
+            bool carried = Belongs(term) is { } owned
+                        && owned.Owner is Field { Pattern: Pattern.Chain chain }
+                        && ReferenceEquals(owned.Root, chain.Carry);
 
-            foreach (var referenced in chain.Carry is null ? [] : FieldReferences(chain.Carry))
-                if (!inside.Contains(referenced.Field))
-                    issues.Add($"message '{Id}': the carry of '{field.Id}' references "
-                             + $"'{referenced.Field}', which is not a field of the structure it runs in");
+            issues.Add($"message '{Id}': {term.Label} references '{named.Name}', which is not a field "
+                     + (carried ? "of the structure it runs in" : "in scope there"));
         }
     }
 
