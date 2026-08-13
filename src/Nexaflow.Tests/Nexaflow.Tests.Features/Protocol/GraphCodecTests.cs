@@ -1,3 +1,4 @@
+using Nexaflow.IO.Protocol.Expressions;
 using Nexaflow.IO.Protocol.Resolution;
 using Nexaflow.IO.Protocol.Values;
 using Nexaflow.IO.Protocol.Wire;
@@ -101,6 +102,78 @@ public class GraphCodecTests
                 supplied[source.Key] = from.Value;
 
         CollectionAssert.AreEqual(Capture(), new GraphCodec(Ntp()).Encode(supplied));
+    }
+
+    // ── Bits, and what they make possible ─────────────────────────────────────
+
+    /// <summary>
+    /// A field that is not a whole number of octets.
+    /// </summary>
+    /// <remarks>
+    /// The reason emission counts in bits rather than octets. While a bit group had to come to a whole
+    /// octet, "these five bits, then those eleven" could be described and not written — and there are
+    /// protocols with them. Nothing here is a special case: the runs go out in order and an octet is what
+    /// falls out when eight bits have gone by, wherever the boundary lands.
+    /// </remarks>
+    [TestMethod]
+    public void Runs_that_straddle_an_octet_boundary_are_written_and_read_back()
+    {
+        var straddling = new MessageDef
+        {
+            Id = "straddle",
+            Context = Context.Given.These("first", "second", "third"),
+            Fields =
+            [
+                new Field
+                {
+                    Id = "packed",
+                    Pattern = new Pattern.Bits(
+                    [
+                        new BitSlice("first", 5, Expr.Parse("inputs.first")),
+                        new BitSlice("second", 11, Expr.Parse("inputs.second")),
+                    ]),
+                },
+            ],
+        };
+
+        // 5 + 11 is sixteen bits and neither run sits inside one octet.
+        var written = new GraphCodec(straddling).Encode(new Dictionary<string, ProtoValue>
+        {
+            ["first"] = ProtoValue.Of(0b10101L),
+            ["second"] = ProtoValue.Of(0b101_1001_1001L),
+        });
+
+        CollectionAssert.AreEqual(new byte[] { 0b10101101, 0b10011001 }, written);
+
+        var read = new GraphCodec(straddling).Decode(written);
+        var runs = (ProtoValue.Rec)read.Nodes.Single(n => n.Of is Field).Value;
+
+        Assert.AreEqual(0b10101L, runs.Members["first"].AsInt());
+        Assert.AreEqual(0b101_1001_1001L, runs.Members["second"].AsInt());
+    }
+
+    [TestMethod]
+    public void A_message_that_ends_mid_octet_is_refused_rather_than_padded()
+    {
+        var short_ = new MessageDef
+        {
+            Id = "ragged",
+            Context = Context.Given.These("only"),
+            Fields =
+            [
+                new Field
+                {
+                    Id = "packed",
+                    Pattern = new Pattern.Bits([new BitSlice("only", 5, Expr.Parse("inputs.only"))]),
+                },
+            ],
+        };
+
+        var refused = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new GraphCodec(short_).Encode(
+                new Dictionary<string, ProtoValue> { ["only"] = ProtoValue.Of(1L) }));
+
+        StringAssert.Contains(refused.Message, "not a whole number of octets");
     }
 
     // ── The rule it keeps ─────────────────────────────────────────────────────

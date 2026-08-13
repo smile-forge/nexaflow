@@ -40,24 +40,81 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     public byte[] Encode(IReadOnlyDictionary<string, ProtoValue> supplied)
     {
         var run = RunGraph.Begin(message.Graph, supplied);
-        List<byte> octets = [];
+        var wire = new Emission();
 
         foreach (var node in Path())
         {
             var appearance = run.For(node);
             var field = (Field)node;
+            int began = wire.Written;
 
             var value = Settle(run, appearance, field);
-            var written = Written(field, value);
+            Write(wire, field, value);
 
-            appearance.Settle(Facet.Extent, written.Length);
-            appearance.Settle(Facet.Position, octets.Count);
-            appearance.Settle(Facet.Emitted, ProtoValue.Of(written));
-
-            octets.AddRange(written);
+            appearance.Settle(Facet.Position, began / 8);
+            appearance.Settle(Facet.Extent, (wire.Written - began) / 8);
+            appearance.Settle(Facet.Emitted, ProtoValue.Of(wire.Since(began)));
         }
 
-        return [.. octets];
+        return wire.Done(message.Id);
+    }
+
+    /// <summary>
+    /// Octets, built out of bits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The engine's unit of emission is a <b>bit</b>, and an octet is what falls out when eight of them
+    /// have gone by. That is not only for bit groups: it is the one thing that makes a field which is not
+    /// a whole number of octets expressible at all, and there are protocols with them. While a group was
+    /// the alignment unit, "these five bits, then those eleven" could be described and not written.
+    /// </para>
+    /// <para>
+    /// A message that ends mid-octet is an error rather than something padded, for the reason padding is
+    /// always an error unless a document asked for it: the octets that go out have to be the ones the
+    /// document accounted for.
+    /// </para>
+    /// </remarks>
+    private sealed class Emission
+    {
+        private readonly List<byte> _octets = [];
+        private long _held;
+        private int _bits;
+
+        /// <summary>How many bits have gone by.</summary>
+        public int Written { get; private set; }
+
+        public void Put(long value, int width)
+        {
+            for (int at = width - 1; at >= 0; at--)
+            {
+                _held = (_held << 1) | ((value >> at) & 1);
+
+                if (++_bits != 8) continue;
+
+                _octets.Add((byte)_held);
+                _held = 0;
+                _bits = 0;
+            }
+
+            Written += width;
+        }
+
+        public void Put(byte[] octets) { foreach (var octet in octets) Put(octet, 8); }
+
+        /// <summary>What has been written since a mark, for a node to hold as its own octets.</summary>
+        public byte[] Since(int mark)
+            => mark % 8 != 0 || Written % 8 != 0
+                ? []
+                : [.. _octets.Skip(mark / 8).Take((Written - mark) / 8)];
+
+        public byte[] Done(string id)
+            => _bits == 0
+                ? [.. _octets]
+                : throw new ProtoTypeException(
+                      $"message '{id}' comes to {Written} bits, which is not a whole number of octets. "
+                    + "What goes out has to be what the document accounted for, so this is an error rather "
+                    + "than something padded.");
     }
 
     /// <summary>
@@ -76,9 +133,11 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         {
             Dictionary<string, ProtoValue> runs = new(StringComparer.Ordinal);
 
+            // Asked of the run, not of the group: the run owns its requirements path, which is the whole
+            // reason it is a node.
             foreach (var slice in assembled.Slices)
                 runs[slice.Name] = _evaluator.Eval(
-                    slice.Value!, Given(run, appearance, Computation(field, slice.Value!)));
+                    slice.Value!, Given(run, appearance, Computation(slice, slice.Value!)));
 
             var packed = new ProtoValue.Rec(runs);
             appearance.Settle(Facet.Value, packed);
@@ -96,9 +155,10 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         return value;
     }
 
-    private Computation Computation(Field field, Expr source)
-        => message.ComputationOf(field, source)
-        ?? throw new ProtoTypeException($"field '{field.Id}': nothing in the graph computes `{source.Render()}`");
+    private Computation Computation(Node owner, Expr source)
+        => message.ComputationOf(owner, source)
+        ?? throw new ProtoTypeException(
+               $"'{owner.Name}': nothing in the graph computes `{source.Render()}`");
 
     /// <summary>
     /// Everything one computation is allowed to see, assembled from the edges that say so.
@@ -209,13 +269,38 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         => field.Pattern.StaticWidth
         ?? throw new ProtoTypeException($"field '{field.Id}' has no width this walk can work out yet");
 
-    private byte[] Written(Field field, ProtoValue value) => field.Pattern switch
+    private static void Write(Emission wire, Field field, ProtoValue value)
     {
-        Pattern.Scalar scalar => Fixed(value.AsInt(), scalar),
-        Pattern.Opaque { Width: { } width } => Sized(value.AsBytes(), width, field),
-        Pattern.Bits bits => Packed(bits, value),
-        _ => throw new ProtoTypeException($"field '{field.Id}' cannot be written by this walk yet"),
-    };
+        switch (field.Pattern)
+        {
+            case Pattern.Scalar scalar:
+                wire.Put(scalar.BigEndian
+                    ? value.AsInt()
+                    : Unfixed(Fixed(value.AsInt(), scalar), scalar with { BigEndian = true }),
+                    scalar.Octets * 8);
+                break;
+
+            case Pattern.Opaque { Width: { } width }:
+                wire.Put(Sized(value.AsBytes(), width, field));
+                break;
+
+            // Run by run, in order, and the octet boundary is wherever it happens to land.
+            case Pattern.Bits bits:
+            {
+                var runs = value as ProtoValue.Rec
+                    ?? throw new ProtoTypeException(
+                           $"field '{field.Id}' is written from a record of its runs");
+
+                foreach (var run in bits.Slices)
+                    wire.Put(runs.Members.TryGetValue(run.Name, out var held) ? held.AsInt() : 0, run.Width);
+
+                break;
+            }
+
+            default:
+                throw new ProtoTypeException($"field '{field.Id}' cannot be written by this walk yet");
+        }
+    }
 
     private ProtoValue Read(Field field, byte[] taken)
     {
@@ -272,24 +357,6 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
             ? value
             : throw new ProtoTypeException(
                   $"field '{field.Id}' is {width} octet(s) and was given {value.Length}");
-
-    private static byte[] Packed(Pattern.Bits bits, ProtoValue value)
-    {
-        var runs = value as ProtoValue.Rec
-            ?? throw new ProtoTypeException("a bit group is written from a record of its runs");
-
-        long accumulated = 0;
-
-        foreach (var run in bits.Slices)
-            accumulated = (accumulated << run.Width)
-                        | (runs.Members.TryGetValue(run.Name, out var held) ? held.AsInt() : 0);
-
-        var octets = new byte[bits.TotalBits / 8];
-
-        for (int i = octets.Length - 1; i >= 0; i--) { octets[i] = (byte)(accumulated & 0xFF); accumulated >>= 8; }
-
-        return octets;
-    }
 
     private static ProtoValue Unpacked(Pattern.Bits bits, byte[] octets)
     {
