@@ -42,10 +42,9 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         var run = RunGraph.Begin(message.Graph, supplied);
         var wire = new Emission();
 
-        foreach (var node in Path())
+        foreach (var field in Path(run, reading: false))
         {
-            var appearance = run.For(node);
-            var field = (Field)node;
+            var appearance = run.For(field);
             int began = wire.Written;
 
             var value = Settle(run, appearance, field);
@@ -212,10 +211,9 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         var run = RunGraph.Begin(message.Graph, supplied);
         int at = 0;
 
-        foreach (var node in Path())
+        foreach (var field in Path(run, reading: true))
         {
-            var field = (Field)node;
-            var appearance = run.For(node);
+            var appearance = run.For(field);
             int width = Width(run, appearance, field);
 
             if (at + width > octets.Length)
@@ -238,29 +236,94 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     // ── The walk ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The nodes this message lays out, from the arrangement rather than from a field list.
+    /// Where the message goes, decided as it goes.
     /// </summary>
     /// <remarks>
-    /// One arrangement so far. Choosing between several is the same question the forks ask, one scale up,
-    /// and it lands here when a document can declare more than one.
+    /// <para>
+    /// Lazy on purpose. Each field is handed back before the next way on is worked out, so a fork is
+    /// decided against values that have actually settled — which is the whole difference between walking
+    /// the arrangement and linearising it. Nothing is planned ahead; the path is the run.
+    /// </para>
+    /// <para>
+    /// It starts at the message and not at an arrangement, because a message's ways on <i>are</i> its
+    /// arrangements. Choosing between several is the same fork as choosing between packings, one scale up,
+    /// and this code cannot tell which it is doing.
+    /// </para>
     /// </remarks>
-    private IEnumerable<Node> Path()
+    private IEnumerable<Field> Path(RunGraph run, bool reading)
+        => Chain(run, message.Root, reading);
+
+    private IEnumerable<Field> Chain(RunGraph run, Node? place, bool reading)
     {
-        var arrangement = message.Arrangements.SingleOrDefault()
-            ?? throw new ProtoTypeException($"message '{message.Id}' offers no arrangement to walk");
-
-        foreach (var node in message.Walk(arrangement))
+        while (place is not null)
         {
-            if (node is not Field field)
-                throw new ProtoTypeException($"'{node.Name}' is on the path and is not a field");
+            var members = message.Graph.From<Holds>(place).OrderBy(h => h.Order).ToList();
 
-            if (!Handles(field))
-                throw new ProtoTypeException(
-                    $"field '{field.Id}' is a {field.Pattern.GetType().Name.ToLowerInvariant()}, which "
-                  + "this walk does not read yet");
+            if (members.Count > 0)
+            {
+                // A container: its members in order, each its own local run of the path. Their ways on
+                // stay inside, so this cannot wander out of the thing it is walking.
+                foreach (var member in members)
+                    foreach (var field in Chain(run, member.To, reading)) yield return field;
+            }
+            else if (place is Field field)
+            {
+                if (!Handles(field))
+                    throw new ProtoTypeException(
+                        $"field '{field.Id}' is a {field.Pattern.GetType().Name.ToLowerInvariant()}, "
+                      + "which this walk does not read yet");
 
-            yield return field;
+                yield return field;
+            }
+
+            // Anything else — an arrangement, a fork, an empty packing — stands for part of the message
+            // and emits nothing. It is a place, not a thing on the wire.
+
+            place = Onward(run, place, reading);
         }
+    }
+
+    /// <summary>
+    /// The way on from here: the only one, or the one the deciding node picks.
+    /// </summary>
+    private Node? Onward(RunGraph run, Node place, bool reading)
+    {
+        var ways = message.Graph.From<Then>(place).ToList();
+
+        if (ways.Count == 0) return null;
+        if (ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise) return ways[0].To;
+
+        var chosen = Decided(run, place, reading);
+
+        return (ways.FirstOrDefault(w => !w.Otherwise && ProtoValue.Alike(w.Key, chosen))
+             ?? ways.FirstOrDefault(w => w.Otherwise)
+             ?? throw new ProtoTypeException(
+                    $"'{place.Name}': {chosen} picks none of the ways on, and none is the one taken when "
+                  + $"nothing matches. Offered: {string.Join(", ", ways.Select(w => w.Key?.ToString() ?? "*"))}"))
+            .To;
+    }
+
+    /// <summary>What the fork was decided on — a computation's answer, or a node's own value.</summary>
+    private ProtoValue Decided(RunGraph run, Node place, bool reading)
+    {
+        var decisions = message.Graph.From<Decides>(place).ToList();
+
+        var deciding = decisions.FirstOrDefault(d => d.Reading == reading)
+                    ?? decisions.FirstOrDefault()
+                    ?? throw new ProtoTypeException(
+                           $"'{place.Name}' offers several ways on and nothing says what decides");
+
+        return deciding.To switch
+        {
+            Evaluated evaluated => _evaluator.Eval(
+                evaluated.Source, Given(run, run.For(place), evaluated)),
+
+            // A run of unlike components is decided by what its token said, which is a node's value and
+            // needs no expression at all.
+            Field announced => run.Reach(run.For(place), announced).Value,
+
+            var other => throw new ProtoTypeException($"'{other.Name}' cannot decide a way on"),
+        };
     }
 
     // ── Octets ────────────────────────────────────────────────────────────────

@@ -220,6 +220,53 @@ public class GraphCodecTests
         Assert.AreEqual("length", counted.InputsOf(measures!).Single().To.Name);
     }
 
+    // ── Forks ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A message whose shape depends on what it said earlier.
+    /// </summary>
+    /// <remarks>
+    /// Modbus answers a read with a byte count and registers, and an error with an exception code, and
+    /// which arrived is the top bit of the function code. The walk decides that where it reaches it,
+    /// against a value that has actually settled — not by planning the path and then following it.
+    /// </remarks>
+    [DataTestMethod]
+    [DataRow(0, "the ordinary answer")]
+    [DataRow(1, "and the exception")]
+    public void A_fork_is_decided_where_the_walk_reaches_it(int which, string what)
+    {
+        var response = FramedChoiceCaptureTests.Response();
+        var capture = ProtocolCorpus.Get("modbus").Captures
+                                    .Where(c => c.Label.Contains("response", StringComparison.OrdinalIgnoreCase))
+                                    .ElementAt(which).Bytes;
+
+        var expected = new MessageCodec(response).Decode(capture);
+        var run = new GraphCodec(response).Decode(capture);
+
+        // Every field the walk reached is one the old codec also bound, holding the same value.
+        List<string> differs = [];
+
+        foreach (var appearance in run.Nodes.Where(n => n.Of is Field { Pattern: not Pattern.Group }))
+        {
+            var field = (Field)appearance.Of;
+            var theirs = expected[field.CaptureName];
+
+            if (theirs.IsNull || appearance.Value.ToString() == theirs.ToString()) continue;
+
+            differs.Add($"{field.Id}: walk says {appearance.Value}, the old codec says {theirs}");
+        }
+
+        Assert.AreEqual(0, differs.Count, what + ": " + string.Join(" / ", differs));
+
+        // And the arm that did not apply was never walked at all — its fields have no appearance.
+        var walked = run.Nodes.Select(n => n.Of).OfType<Field>().ToHashSet();
+        var choice = response.AllFields.First(f => f.Pattern is Pattern.Choice);
+        var arms = ((Pattern.Choice)choice.Pattern).Arms;
+
+        Assert.IsTrue(arms.Count(a => a.Fields.Any(walked.Contains)) <= 1,
+            "two packings cannot both have happened");
+    }
+
     // ── The rule it keeps ─────────────────────────────────────────────────────
 
     /// <summary>
