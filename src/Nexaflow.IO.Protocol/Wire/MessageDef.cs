@@ -343,7 +343,7 @@ public sealed record MessageDef
             foreach (var named in concept.Of)
                 graph.Add(new Names { From = concept, To = named });
 
-        LinkReads(graph, ScopeFields(Declared), null);
+        LinkReads(graph, Root, ScopeFields(Declared), null);
 
         // A conversion is a computation like any other: it takes the value coming past it, plus whatever
         // arguments it was given, and produces one value. Its arguments become nodes so that the graph can
@@ -402,19 +402,33 @@ public sealed record MessageDef
                 continue;
             }
 
-            // A condition over one scope wants to be a computation here, reached the way a confinement's
-            // set is, and Rule.Condition already folds the three surface forms into the one boolean the
-            // graph would hold. Two things are in the way, and only one of them is now fixed.
+            // A condition over one scope is a computation producing a verdict, reached the way a
+            // confinement's set is. LinkReads built it, in the scope the rule was written in; here it only
+            // has to be pointed at, which is why this looks it up rather than making it.
+            // Only what is read once per message. A rule scoped to one structure of a run is about a
+            // particular appearance, and the checker has no way yet to say which — it would evaluate
+            // against the message and quietly answer about the wrong structure, or about none. So those
+            // stay carried as themselves until presence of an appearance is something a check can name.
+            // Their computation is built regardless, in the right scope, waiting for that.
             //
-            // The flat bit-run addressing is gone: a rule used to say `fields.willFlag.value` where every
-            // other expression says `fields.connectFlags.value.willFlag`, and a requirements path needs a
-            // node per name.
-            //
-            // What remains is scope. A rule's Within may be one structure of a chain, and the fields it
-            // names live inside that structure — so resolving its names needs the scope stack LinkReads
-            // walks, not the message's own field list. Building conditions belongs there, where the scopes
-            // are known, rather than here where they are not. Until then a rule stays a node the checker
-            // reads directly.
+            // Queried off the graph being built, never off the property: reaching for that while it is
+            // still being assembled re-enters the build, and the recursion has no bottom.
+            if (Rules[i] is { Condition: { } holds, Scope: { } scope } && ReferenceEquals(scope, Root)
+                && graph.From<Computes>(Rules[i]).Select(e => e.To).OfType<Computation>()
+                        .FirstOrDefault(c => ReferenceEquals(c.Source, holds)) is { } asserted)
+            {
+                foreach (var target in Rules[i].Applies)
+                    graph.Add(new Checks
+                    {
+                        From = target, To = asserted, Because = Rules[i].Because, Order = order,
+                    });
+
+                continue;
+            }
+
+            // What is left is about several appearances at once — every structure of a run, or a structure
+            // and the one before it — which needs a scope the run graph supplies rather than a condition
+            // over one place. Carried as itself until that has somewhere to live.
             foreach (var target in Rules[i].Applies)
                 graph.Add(new Checks
                 {
@@ -746,7 +760,8 @@ public sealed record MessageDef
     /// Nothing about the text says that; the graph has to.
     /// </para>
     /// </summary>
-    private void LinkReads(ProtocolGraph graph, IReadOnlyList<Field> here, IReadOnlyList<Field>? outer)
+    private void LinkReads(ProtocolGraph graph, Node owner, IReadOnlyList<Field> here,
+                           IReadOnlyList<Field>? outer)
     {
         Field? Visible(string name)
             => here.FirstOrDefault(f => string.Equals(f.Id, name, StringComparison.Ordinal))
@@ -833,7 +848,7 @@ public sealed record MessageDef
                         Link(chain.Carry, "carry",
                              n => inside.FirstOrDefault(f => string.Equals(f.Id, n, StringComparison.Ordinal)));
 
-                    LinkReads(graph, inside, [.. here, .. outer ?? []]);
+                    LinkReads(graph, chain.Element, inside, [.. here, .. outer ?? []]);
                     break;
                 }
 
@@ -855,10 +870,23 @@ public sealed record MessageDef
                     // A kind that repeats gets its own scope, so its expressions resolve there first and
                     // outward after — the same arrangement a chain's instance has, for the same reason.
                     foreach (var (_, fields) in assorted.Scoped)
-                        LinkReads(graph, ScopeFields(fields), [.. here, .. outer ?? []]);
+                        LinkReads(graph, field, ScopeFields(fields), [.. here, .. outer ?? []]);
                     break;
             }
         }
+
+        // A rule's condition resolves here, in the scope it was written in, exactly as a field's value
+        // does. This is the whole reason it is built during the walk rather than afterwards: a rule may be
+        // about one structure of a chain, and the names it reads live inside that structure. Resolved
+        // against the message's own field list instead, every one of them is a name nothing answers.
+        //
+        // A rule belongs to this scope if it is about the thing that opened it, or about something in it.
+        // Both occur and mean the same: a rule on a chain's element and a rule on a field inside that
+        // element are read in one place, because there is only one place they could be read.
+        foreach (var rule in Rules)
+            if (rule is { Condition: { } holds, Scope: { } within }
+                && (ReferenceEquals(within, owner) || here.Any(f => ReferenceEquals(f, within))))
+                Compute(graph, rule, holds, $"{rule}", Visible);
     }
 
     /// <summary>

@@ -271,7 +271,16 @@ public abstract class Rule : Node
     /// Those need a scope the run graph supplies and are not this.
     /// </para>
     /// </remarks>
-    internal Expr? Condition => this switch
+    /// <remarks>
+    /// Built once and kept. Two of the forms compose a new expression, and a property that rebuilt it on
+    /// every read would hand out a different object each time — which matters because the graph finds a
+    /// computation by the identity of the expression it came from, not by what it says.
+    /// </remarks>
+    internal Expr? Condition => _condition ??= Composed();
+
+    private Expr? _condition;
+
+    private Expr? Composed() => this switch
     {
         Invariant i => i.Must,
 
