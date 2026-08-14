@@ -25,13 +25,27 @@ namespace Nexaflow.IO.Protocol.Wire;
 /// against containment is what keeps them honest until then.
 /// </para>
 /// </summary>
-public sealed class GraphCodec(MessageDef message, ConverterTable? converters = null)
+public sealed class GraphCodec(MessageDef message,
+                               ConverterTable? converters = null,
+                               Implementations? provided = null)
 {
     private readonly ConverterTable _converters = converters ?? ConverterTable.Default;
     private readonly Evaluator _evaluator = new(converters ?? ConverterTable.Default);
+    private readonly Implementations _provided = provided ?? Implementations.None;
 
     /// <summary>The declaration, reachable from the nested walk.</summary>
     private MessageDef Message => message;
+
+    /// <summary>
+    /// Which node a field stands as on the path.
+    /// </summary>
+    /// <remarks>
+    /// A field that carries another protocol is <i>replaced</i> on the path by its carrier, so a length
+    /// measuring that field has to reach the carrier's appearance — the carrier is what has an extent.
+    /// Without this the two would be one thing described by two nodes, with the facts landing on the one
+    /// nobody asked.
+    /// </remarks>
+    private static Node Stands(Field field) => field.Carries as Node ?? field;
 
     /// <summary>
     /// What this codec can walk, which is a consequence rather than a claim.
@@ -78,12 +92,16 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
         var wire = new BitWriter();
 
-        foreach (var field in laying.Order)
+        foreach (var place in laying.Order)
         {
-            var appearance = run.For(field);
+            var appearance = run.For(place);
             int began = wire.Written;
 
-            Write(wire, field, appearance.Value);
+            // A carrier's value is already the octets the inner message came to, so laying it down is
+            // putting them there. That is the whole of what a layer costs the outer walk.
+            if (place is Subprotocol) wire.Put(appearance.Value.AsBytes());
+            else Write(wire, (Field)place, appearance.Value);
+
             appearance.Settle(Facet.Position, began / 8);
             appearance.Settle(Facet.Emitted, ProtoValue.Of(wire.Since(began)));
         }
@@ -116,8 +134,8 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         /// second flag that could disagree with whether there is anything to read from.</summary>
         private bool Reading => source is not null;
 
-        /// <summary>The fields reached, in the order the path reached them.</summary>
-        public List<Field> Order { get; } = [];
+        /// <summary>The places that make octets, in the order the path reached them.</summary>
+        public List<Node> Order { get; } = [];
 
         public ResolutionNode Reaching(Node place, Node? previous)
         {
@@ -132,7 +150,9 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                     $"field '{field.Id}' is a {field.Pattern.GetType().Name.ToLowerInvariant()}, which "
                   + "this walk does not handle yet");
 
-            bool carries = field is not null;
+            // A carrier makes octets the way a field does — the inner message's, rather than one value's.
+            // Everything past here treats the two alike, which is the point of the carrier being a place.
+            bool carries = field is not null || place is Subprotocol;
 
             List<FacetRef> before = previous is null ? [] : [new FacetRef(run.For(previous), Facet.Realised)];
             before.AddRange(Deciding(place));
@@ -153,9 +173,11 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                 DependenciesFor = facet => facet switch
                 {
                     Facet.Realised => before,
-                    Facet.Value => carries && !Reading ? codec.Waits(run, appearance, field!) : [],
+                    Facet.Value => carries && !Reading && field is not null
+                        ? codec.Waits(run, appearance, field)
+                        : [],
 
-                    Facet.Extent => carries && !Reading && field!.Pattern.StaticWidth is null
+                    Facet.Extent => carries && !Reading && field?.Pattern.StaticWidth is null
                         ? [new FacetRef(appearance, Facet.Value)]
                         : [],
 
@@ -169,19 +191,22 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
                         case Facet.Realised:
                             if (carries)
                             {
-                                Order.Add(field!);
+                                Order.Add(place);
 
-                                if (source is not null) codec.Intake(run, appearance, field!, source);
+                                if (source is not null) codec.Intake(run, appearance, place, source);
                             }
 
                             return Next(place) is { } next
                                 ? FacetResult.Expanding(null, Reaching(next, place))
                                 : FacetResult.Of(null);
 
-                        case Facet.Value: return FacetResult.Of(codec.Settle(run, appearance, field!));
+                        case Facet.Value:
+                            return FacetResult.Of(field is not null
+                                ? codec.Settle(run, appearance, field)
+                                : codec.Sealed(run, appearance, (Subprotocol)place));
 
                         case Facet.Extent:
-                            var width = codec.Sized(appearance, field!);
+                            var width = codec.Sized(appearance, field);
                             appearance.Settle(Facet.Extent, width);
                             return FacetResult.Of(width);
 
@@ -204,10 +229,10 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
             {
                 Evaluated evaluated =>
                     [.. codec.Message.InputsOf(evaluated).Where(e => e.To is Field)
-                            .Select(e => new FacetRef(run.Reach(run.For(place), (Field)e.To),
+                            .Select(e => new FacetRef(run.Reach(run.For(place), Stands((Field)e.To)),
                                                       Named(e.Facet)))],
 
-                Field announced => [new FacetRef(run.Reach(run.For(place), announced), Facet.Value)],
+                Field announced => [new FacetRef(run.Reach(run.For(place), Stands(announced)), Facet.Value)],
 
                 _ => [],
             };
@@ -245,7 +270,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         foreach (var computation in asking)
             foreach (var wanted in message.InputsOf(computation))
                 if (wanted.To is Field part)
-                    waits.Add(new FacetRef(run.Reach(appearance, part), Named(wanted.Facet)));
+                    waits.Add(new FacetRef(run.Reach(appearance, Stands(part)), Named(wanted.Facet)));
 
         return [.. waits.Distinct()];
     }
@@ -253,8 +278,12 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// <summary>
     /// How wide this is: what the declaration fixes, or however many octets the value came to.
     /// </summary>
-    private int Sized(RunNode appearance, Field field)
+    private int Sized(RunNode appearance, Field? field)
     {
+        // A carrier is however many octets the inner message came to. Nothing measures it twice: the value
+        // is already those octets by the time anything asks.
+        if (field is null) return appearance.Value.AsBytes().Length;
+
         if (field.Pattern.StaticWidth is { } declared) return declared;
 
         var measured = new BitWriter();
@@ -262,6 +291,19 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
         return measured.Written / 8;
     }
+
+    /// <summary>
+    /// How far a carried layer runs: what measures it, or everything left.
+    /// </summary>
+    /// <remarks>
+    /// The measuring computation hangs off the field the carrier replaced, because that is where a
+    /// document writes it. One thing, one extent — reached from whichever of the two nodes is asking.
+    /// </remarks>
+    private int Reaches(RunGraph run, RunNode appearance, Subprotocol layer, BitCursor source)
+        => (message.ProducerOf(layer, "extent")
+            ?? (Carrier(layer) is { } span ? message.ProducerOf(span, "extent") : null)) is Evaluated measured
+            ? (int)_evaluator.Eval(measured.Runs, Given(run, appearance, measured)).AsInt()
+            : source.Remaining / 8;
 
     private static Facet Named(string facet) => facet switch
     {
@@ -320,6 +362,131 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
         return value;
     }
 
+    // ── Carried protocols ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// What a carrier comes to: the inner message, built, then whatever the seam does to it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Nothing crosses the seam yet, and that is a gap rather than a decision.</b> An inner document
+    /// that asks for an input is refused here, naming it. The tempting fix — hand the inner run whatever
+    /// outside values the outer run happens to hold — is precisely the ambient read this engine exists
+    /// without: the outer document would be feeding the inner one by coincidence of naming, with no edge
+    /// saying so and nothing able to check it.
+    /// </para>
+    /// <para>
+    /// What it wants is for the carrier to say what feeds the protocol beneath, in the outer document's
+    /// terms, as computations on <see cref="Requires"/> edges — the same shape as a converter's arguments.
+    /// Then a layer is fed the way everything else is, and a document that does not feed it says so at
+    /// authoring time rather than at the first octet.
+    /// </para>
+    /// </remarks>
+    private ProtoValue Sealed(RunGraph run, RunNode appearance, Subprotocol layer)
+    {
+        var octets = layer.Carries switch
+        {
+            Carriage.Described inner => ProtoValue.Of(
+                new GraphCodec(inner.Message, _converters, _provided)
+                    .Encode(Fed(run, appearance, layer, inner.Message))),
+
+            Carriage.Provided host => ProtoValue.Of(
+                _provided.Get(host.Implementation, layer.Id)
+                         .Encode(new ProtoValue.Rec((Dictionary<string, ProtoValue>)
+                             Fed(run, appearance, layer, null)))),
+
+            _ => throw new ProtoTypeException($"'{layer.Id}' does not say what it carries"),
+        };
+
+        if (layer.Through is { } transform) octets = transform.Apply(octets, null, _evaluator);
+
+        foreach (var via in layer.Via) octets = Through(via, octets, layer.Id);
+
+        appearance.Settle(Facet.Value, octets);
+        return octets;
+    }
+
+    /// <summary>The same journey backwards: undo the seam, then read the inner message.</summary>
+    private ProtoValue Unsealed(Subprotocol layer, byte[] octets)
+    {
+        ProtoValue value = ProtoValue.Of(octets);
+
+        foreach (var via in layer.Via.Reverse()) value = Through(Backwards(via, layer.Id), value, layer.Id);
+
+        if (layer.Through is { } transform) value = transform.Undo(value, null, _evaluator);
+
+        return layer.Carries switch
+        {
+            Carriage.Described inner => Gathered(
+                new GraphCodec(inner.Message, _converters, _provided).Decode(value.AsBytes())),
+
+            Carriage.Provided host => _provided.Get(host.Implementation, layer.Id).Decode(value.AsBytes()),
+
+            _ => throw new ProtoTypeException($"'{layer.Id}' does not say what it carries"),
+        };
+    }
+
+    /// <summary>What an inner run came to, as one value the outer message can hold.</summary>
+    private static ProtoValue Gathered(RunGraph inner)
+    {
+        Dictionary<string, ProtoValue> parts = new(StringComparer.Ordinal);
+
+        foreach (var node in inner.Nodes)
+            if (node.Of is Field part && node.Has(Facet.Value)) parts[part.Id] = node.Value;
+
+        return new ProtoValue.Rec(parts);
+    }
+
+    /// <summary>
+    /// What the protocol beneath is given, from the carrier's own edges.
+    /// </summary>
+    /// <remarks>
+    /// Each fed value is a computation on a <see cref="Requires"/> edge, run here and named by the inner
+    /// document's key. So a layer is fed exactly as a converter's arguments are, and what an inner
+    /// protocol depends on is a thing the graph records rather than a scope handed down at the seam.
+    /// </remarks>
+    private IReadOnlyDictionary<string, ProtoValue> Fed(RunGraph run, RunNode here,
+                                                        Subprotocol layer, MessageDef? inner)
+    {
+        Dictionary<string, ProtoValue> given = new(StringComparer.Ordinal);
+
+        foreach (var wanted in message.InputsOf(layer))
+            if (wanted.To is Computation feeding)
+                given[feeding.Label] = feeding switch
+                {
+                    Constant stated => stated.Holds,
+                    Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, here, evaluated)),
+                    var other => throw new ProtoTypeException(
+                                     $"'{layer.Id}': '{other.Name}' cannot feed a carried protocol"),
+                };
+
+        // An inner document asking for something the carrier never named is a hole, and it is the carrier's
+        // to fill: the inner protocol is a separate document and cannot know what the outer one calls things.
+        var missing = inner?.Graph.Nodes.OfType<Context>().Select(c => c.Key)
+                           .Where(k => !given.ContainsKey(k)).Order().ToList() ?? [];
+
+        return missing.Count == 0
+            ? given
+            : throw new ProtoTypeException(
+                  $"'{layer.Id}' carries '{inner!.Id}', which asks for {string.Join(", ", missing)} — and "
+                + "the carrier does not say what feeds that. Name it among the carrier's feeds, in this "
+                + "document's terms, the way a converter names its arguments.");
+    }
+
+    /// <summary>The field a carrier replaced on the path, which is where its extent is computed.</summary>
+    private Field? Carrier(Subprotocol layer)
+        => message.Graph.To<Embeds>(layer).FirstOrDefault()?.From as Field;
+
+    private ProtoValue Through(Conversion via, ProtoValue value, string owner)
+        => _converters.TryGet(via.Name, out var converter) && converter is not null
+            ? converter.Apply(value, via.Args)
+            : throw new ProtoTypeException($"'{owner}': unknown converter '{via.Name}'");
+
+    private Conversion Backwards(Conversion via, string owner)
+        => _converters.TryGet(via.Name, out var converter) && converter?.Inverse is { } inverse
+            ? via with { Name = inverse }
+            : throw new ProtoTypeException($"'{owner}': converter '{via.Name}' declares no inverse");
+
     private Computation Computation(Node owner, Expr source)
         => message.ComputationOf(owner, source)
         ?? throw new ProtoTypeException(
@@ -338,7 +505,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
             {
                 case Field part:
                 {
-                    var appearance = run.Reach(here, part);
+                    var appearance = run.Reach(here, Stands(part));
 
                     parts[part.Id] = EvalScope.Record(
                         ("value", Held(appearance, Facet.Value)),
@@ -413,9 +580,25 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
     /// and then "read that many octets", two functions of the same marker bits that had to agree by hand
     /// and scanned the same octets twice.
     /// </remarks>
-    private void Intake(RunGraph run, RunNode appearance, Field field, BitCursor source)
+    private void Intake(RunGraph run, RunNode appearance, Node place, BitCursor source)
     {
         int began = source.At;
+
+        // A carrier is told how far it runs, the same as a span is, and for the same reason: what is
+        // inside it may be transformed, so there is nothing to look at until the whole of it is in hand.
+        if (place is Subprotocol layer)
+        {
+            int span = Reaches(run, appearance, layer, source);
+            var carried = source.Octets(span, new Wiring(_converters, layer.Id));
+
+            appearance.Settle(Facet.Position, began / 8);
+            appearance.Settle(Facet.Extent, span);
+            appearance.Settle(Facet.Emitted, ProtoValue.Of(carried));
+            appearance.Settle(Facet.Value, Unsealed(layer, carried));
+            return;
+        }
+
+        var field = (Field)place;
 
         if (field.Pattern.Form is { SelfDelimiting: true } form && form.FixedOctets is null)
         {
@@ -484,7 +667,7 @@ public sealed class GraphCodec(MessageDef message, ConverterTable? converters = 
 
             // A run of unlike components is decided by what its token said, which is a node's value and
             // needs no expression at all.
-            Field announced => run.Reach(run.For(place), announced).Value,
+            Field announced => run.Reach(run.For(place), Stands(announced)).Value,
 
             var other => throw new ProtoTypeException($"'{other.Name}' cannot decide a way on"),
         };

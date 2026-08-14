@@ -75,6 +75,26 @@ public sealed class Subprotocol : Node
     /// rather than to any general notion.</summary>
     public Transform? Through { get; init; }
 
+    /// <summary>
+    /// What the protocol beneath is given, said in <i>this</i> document's terms: its input key, and the
+    /// expression that supplies it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The alternative is to hand the inner run whatever outside values the outer run happens to hold and
+    /// match them by name. That works wherever two independently-written documents agree on a spelling and
+    /// is silently wrong everywhere else — one protocol feeding another by coincidence, with no edge saying
+    /// so and nothing able to check it. It is the ambient scope this engine has removed twice.
+    /// </para>
+    /// <para>
+    /// So each entry becomes a computation on a <see cref="Requires"/> edge, exactly as a converter's
+    /// arguments do. A layer is then fed the way everything else is, the graph records which outer values
+    /// a carried protocol depends on, and a document that fails to feed one can be told at authoring time.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyDictionary<string, Expressions.Expr> Feeds { get; init; }
+        = new Dictionary<string, Expressions.Expr>();
+
     public string About { get; init; } = "";
 
     public override string ToString() => Carries switch

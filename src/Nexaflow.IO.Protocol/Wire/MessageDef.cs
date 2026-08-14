@@ -485,6 +485,13 @@ public sealed record MessageDef
     /// </remarks>
     private (Node Entry, IReadOnlyList<Node> Exits) Place(ProtocolGraph graph, Field field)
     {
+        // Where a message carries another protocol, the carrier is the place. It used to dangle off a span
+        // by an Embeds edge — the span stood on the path and the thing that said what was inside it did
+        // not — so the walk reached an opaque run of octets and had to be told separately to look in it. A
+        // carrier stands where the inner protocol is included, exactly as a set stands where its members
+        // are, and produces what the inner message produces.
+        if (field.Carries is { } carried) return (carried, [carried]);
+
         switch (field.Pattern)
         {
             case Pattern.Group group:
@@ -649,6 +656,24 @@ public sealed record MessageDef
                 => Compute(graph, field, expression, $"{field.Id}.{what}", lookup, "extent");
 
             if (field.Value is not null) Link(field.Value, "value", Visible);
+
+            // What the protocol beneath is given, as computations on ordinary Requires edges — the same
+            // shape as a converter's arguments. So the graph records which of this document's values a
+            // carried protocol depends on, rather than the two documents meeting by coincidence of naming
+            // in a scope handed down at the seam.
+            if (field.Carries is { } carrier)
+            {
+                int fed = 0;
+
+                foreach (var (key, supplies) in carrier.Feeds.OrderBy(f => f.Key, StringComparer.Ordinal))
+                    graph.Add(new Requires
+                    {
+                        From = carrier,
+                        To = Compute(graph, carrier, supplies, key, Visible),
+                        Sequence = fed++,
+                        Facet = "value",
+                    });
+            }
 
             // Each run of a bit group computes itself, and the group takes them in order. Three meanings
             // in one octet are three requirements paths, so the computation hangs off the run rather than
@@ -842,9 +867,16 @@ public sealed record MessageDef
             ? []
             : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Holds)];
 
-    /// <summary>Where a computation's inputs come from, in argument order.</summary>
-    public IEnumerable<Requires> InputsOf(Computation computation)
-        => Graph.From<Requires>(computation).OrderBy(e => e.Sequence);
+    /// <summary>
+    /// Where something's inputs come from, in argument order.
+    /// </summary>
+    /// <remarks>
+    /// A computation is the usual asker, but not the only one: a carrier declares what the protocol
+    /// beneath is given by the same edges, so a layer is fed the way a converter's arguments are. Anything
+    /// that takes inputs takes them this way, which is why this asks a node rather than a kind.
+    /// </remarks>
+    public IEnumerable<Requires> InputsOf(Node taker)
+        => Graph.From<Requires>(taker).OrderBy(e => e.Sequence);
 
     /// <summary>Where one of a node's computations takes its inputs from.</summary>
     public IEnumerable<Requires> InputsOf(Node owner, Expr? expression)
