@@ -393,8 +393,21 @@ public sealed class ProtocolGraph
     // document produced it.
 
     /// <summary>What computes a named fact about a node — its value, its extent, whether it is there.</summary>
-    public Computation? ProducerOf(Node owner, string facet)
-        => From<Computes>(owner).Where(e => e.Facet == facet)
+    /// <param name="when">
+    /// Which direction is asking, where the two get different answers. Null asks for whichever producer
+    /// there is, which is the ordinary case: a value is computed the same way whoever wants it.
+    ///
+    /// <para>
+    /// Presence is the case that needs it, and it is the same asymmetry a fork already has. Whether TCP's
+    /// options are there is answered on the way out by whether the caller asked for any, and on the way in
+    /// by what Data Offset said — and neither question can be asked in the other direction, because on the
+    /// way out Data Offset is derived from how long the header turned out to be.
+    /// </para>
+    /// </param>
+    public Computation? ProducerOf(Node owner, string facet, bool? when = null)
+        => From<Computes>(owner)
+               .Where(e => e.Facet == facet && (e.Reading is null || when is null || e.Reading == when))
+               .OrderBy(e => e.Reading is null)
                .Select(e => e.To).OfType<Computation>().FirstOrDefault();
 
     /// <summary>The computation a particular expression became, found by that expression's identity.</summary>

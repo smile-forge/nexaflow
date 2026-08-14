@@ -112,7 +112,10 @@ public sealed class RunGraph
         {
             var node = run.For(outside);
 
-            if (supplied?.TryGetValue(outside.Key, out var given) == true)
+            // By the node's own name, or by what the specification calls it — the second because somebody
+            // setting a value has the RFC in front of them rather than the graph.
+            if (supplied?.TryGetValue(outside.Name, out var given) == true
+             || (outside.As is { } called && supplied?.TryGetValue(called, out given) == true))
                 node.Settle(Facet.Value, given);
 
             // Anything else stays unsettled on purpose. A document that reads an input nobody supplied

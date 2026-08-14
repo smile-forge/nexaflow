@@ -149,6 +149,18 @@ public sealed record Computes : Edge
     /// </remarks>
     public string Facet { get; init; } = "value";
 
+    /// <summary>
+    /// Which direction this producer answers for, or null for both.
+    /// </summary>
+    /// <remarks>
+    /// The same asymmetry a fork already has, and it turns up for the same reason: some questions can only
+    /// be asked from one side. Whether TCP's options are there is answered on the way out by whether the
+    /// caller asked for any, and on the way in by what Data Offset said — and the second is not available
+    /// on the way out, because Data Offset is derived from how long the header turned out to be. Insisting
+    /// on one answer for both makes that a cycle rather than an asymmetry.
+    /// </remarks>
+    public bool? Reading { get; init; }
+
     public override string Verb => Facet == "value" ? "is computed by" : $"takes its {Facet} from";
 }
 

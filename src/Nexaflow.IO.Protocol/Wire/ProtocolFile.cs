@@ -126,7 +126,8 @@ public static class ProtocolFile
             As = Text(at["as"]),
         },
 
-        "outside" => Outside(at, id),
+        "input" => Outside(at, id, "input"),
+        "state" => Outside(at, id, "state"),
 
         "constant" => new Constant
         {
@@ -172,21 +173,22 @@ public static class ProtocolFile
         var other => throw Cannot(other, id, "a node kind"),
     };
 
-    private static Node Outside(JsonObject at, string id)
+    /// <summary>
+    /// A value from outside: one somebody hands in, or one the protocol keeps between messages.
+    /// </summary>
+    /// <remarks>
+    /// The key is what whoever sets it will call it, so it defaults to the specification's own term where
+    /// one is given. Naming it after the node would make every caller learn the description's vocabulary
+    /// to say something the RFC already has a word for.
+    /// </remarks>
+    private static Node Outside(JsonObject at, string id, string kind)
     {
-        string key = Text(at["key"]) ?? id, purpose = Text(at["purpose"]) ?? "";
+        string purpose = Text(at["purpose"]) ?? "";
+        string? called = Text(at["as"]);
 
-        return Text(at["of"]) switch
-        {
-            "prompted" => new Context.Prompted { Key = key, Purpose = purpose },
-            "secret" => new Context.Secret { Key = key, Purpose = purpose },
-            "remembered" => new Context.Remembered { Key = key, Purpose = purpose },
-            "ambient" => new Context.Ambient { Key = key, Purpose = purpose },
-            "known" => new Context.Known { Key = key, Purpose = purpose },
-            "counter" => new Context.Counter { Key = key, Purpose = purpose },
-            "given" or null => new Context.Given { Key = key, Purpose = purpose },
-            var other => throw Cannot(other, id, "a kind of outside value"),
-        };
+        return kind == "state"
+            ? new Context.State { Label = id, As = called, Purpose = purpose, Wants = [] }
+            : new Context.Input { Label = id, As = called, Purpose = purpose, Wants = [] };
     }
 
     /// <summary>An <see cref="Evaluated"/> whose wants are recovered from the expression it runs.</summary>
@@ -245,7 +247,12 @@ public static class ProtocolFile
             Facet = Text(at["facet"]) ?? "value",
         },
 
-        "computes" => new Computes { From = from, To = to, Facet = Text(at["facet"]) ?? "value" },
+        "computes" => new Computes
+        {
+            From = from, To = to,
+            Facet = Text(at["facet"]) ?? "value",
+            Reading = at["reading"] is { } side ? (bool)side : null,
+        },
 
         "checks" => new Checks
         {

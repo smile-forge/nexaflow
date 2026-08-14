@@ -65,6 +65,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // machinery, so a fork decided on a field waits for that field exactly as a length waits for the
         // span it measures — and a value fixed before anything ran is simply already settled.
         resolver.Add(laying.Reaching(graph.Root, previous: null));
+
+        // A set something requires but nothing reaches is built on a walk of its own, and that walk's
+        // order is thrown away: it says what those octets WOULD be, which is exactly what a pseudo-header
+        // is for and exactly why it must not end up in the message.
+        var aside = new Laying(this, run, source: null);
+        foreach (var set in Aside()) resolver.Add(aside.Reaching(set, previous: null));
+
         resolver.Resolve();
 
         var wire = new BitWriter();
@@ -143,7 +150,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // it changes where the path goes. An absent set is skipped whole, so the next place cannot be
             // known until presence is — which makes this a prerequisite of arriving, not a fact settled
             // afterwards. It is also what makes the two directions agree without arranging for them to.
-            if (Optional(place)) before.AddRange(codec.Awaits(run, appearance, place, "presence"));
+            if (Optional(place)) before.AddRange(codec.Awaits(run, appearance, place, "presence", Reading));
 
             return new ResolutionNode
             {
@@ -154,7 +161,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                 // Coming in, there is nothing to schedule — see Intake. So reading declares every facet
                 // settled on sight and does the work as the place is reached.
                 NotApplicable = spans
-                    ? new HashSet<Facet> { Facet.Present, Facet.Value, Facet.Position, Facet.Emitted }
+                    ? new HashSet<Facet> { Facet.Present, Facet.Value, Facet.Position }
                     : carries && !Reading
                         ? new HashSet<Facet> { Facet.Present, Facet.Position, Facet.Emitted }
                         : new HashSet<Facet>
@@ -168,9 +175,14 @@ public sealed class GraphCodec(ProtocolGraph graph,
                         ? codec.Waits(run, appearance, field)
                         : [],
 
-                    Facet.Extent when spans => codec.Spanned(run, place, Reading),
+                    Facet.Extent when spans => codec.Spanned(run, place, Reading, Facet.Extent),
+                    Facet.Emitted when spans => codec.Spanned(run, place, Reading, Facet.Value),
 
-                    Facet.Extent => carries && !Reading && field?.Form.FixedOctets is null
+                    // Fixed BITS, not fixed octets. A four-bit field has no fixed octet width — it does not
+                    // occupy an octet — so asking in octets says its width depends on its value, and TCP's
+                    // Data Offset is then a cycle: how wide it is waits on what it holds, which is how wide
+                    // the header is, which includes it.
+                    Facet.Extent => carries && !Reading && field?.Form.FixedBits is null
                         ? [new FacetRef(appearance, Facet.Value)]
                         : [],
 
@@ -182,7 +194,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     switch (facet)
                     {
                         case Facet.Realised:
-                            bool here = !Optional(place) || codec.Asked(run, appearance, place);
+                            bool here = !Optional(place) || codec.Asked(run, appearance, place, Reading);
 
                             if (Optional(place)) appearance.Settle(Facet.Present, here);
 
@@ -214,6 +226,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
                             return FacetResult.Of(field is not null
                                 ? codec.Settle(run, appearance, field)
                                 : codec.Sealed(run, appearance, (Subprotocol)place));
+
+                        case Facet.Emitted when spans:
+                            if (Missing(appearance)) return FacetResult.Of(Array.Empty<byte>());
+
+                            var laid = codec.Laid(run, appearance, place);
+                            appearance.Settle(Facet.Emitted, ProtoValue.Of(laid));
+                            return FacetResult.Of(laid);
 
                         case Facet.Extent when spans:
                             if (Missing(appearance)) return FacetResult.Of(0);
@@ -297,6 +316,113 @@ public sealed class GraphCodec(ProtocolGraph graph,
         }
     }
 
+    /// <summary>A node's name without the kind that prefixes it, where it carries one.</summary>
+    private static string Plainly(string name, string kind)
+        => name.StartsWith(kind, StringComparison.Ordinal) ? name[kind.Length..] : name;
+
+    /// <summary>What a computation answers, whichever kind it is.</summary>
+    private ProtoValue Produced(RunGraph run, RunNode appearance, Computation computation) => computation switch
+    {
+        // A constant answers without being run. That is what a constant is, and it is why a fixed
+        // delimiter needs no expression and can be pointed at by the span that ends before it.
+        Constant stated => stated.Holds,
+        Context outside => run.For(outside).Value,
+        Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)),
+        Converted applied => Through(applied.Applies, Gathering(run, appearance, applied), applied.Name),
+        var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a value here"),
+    };
+
+    /// <summary>
+    /// What a conversion is handed: the things it requires, in the order the edges number them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One input is handed over as itself; several are handed over as a list. That is not a special case —
+    /// a converter over octets either takes a run or takes several and joins them, and both are ordinary
+    /// enough that <c>concat</c> declared it long before this needed it.
+    /// </para>
+    /// <para>
+    /// This is what lets a checksum be described without a field ever holding two values. The sum requires
+    /// three things — the pseudo-header, the header with a zero where the checksum goes, and the payload —
+    /// and the middle one is itself a join of the fields before it, a constant zero, and the fields after.
+    /// So the octets that get summed contain a zero in that position, and the field whose value the sum
+    /// becomes never held anything else.
+    /// </para>
+    /// </remarks>
+    private ProtoValue Gathering(RunGraph run, RunNode appearance, Computation applied)
+    {
+        List<ProtoValue> given = [];
+
+        foreach (var wanted in graph.InputsOf(applied).OrderBy(e => e.Sequence))
+            given.Add(wanted.To switch
+            {
+                // A computation may require another. The join of a header's two halves around a zero is
+                // one, and it is nobody's field — inventing a field to hold it would put a value on the
+                // wire that the protocol does not have.
+                Computation inner => Produced(run, appearance, inner),
+                var other => Held(run.Reach(appearance, other), Named(wanted.Facet)),
+            });
+
+        return given.Count switch
+        {
+            0 => throw new ProtoTypeException(
+                     $"'{applied.Name}' converts something and nothing says what"),
+            1 => given[0],
+            _ => new ProtoValue.List(given),
+        };
+    }
+
+    /// <summary>
+    /// The octets a set comes to: each member's value, laid down by its own form, in the order held.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// From the <b>values</b> rather than from what was written, and that is what makes it work at all for
+    /// a set nothing walks to. A pseudo-header is never transmitted, so there is no stretch of wire to
+    /// point at — but its fields have values and forms, and that is all "what would these octets be" ever
+    /// needed.
+    /// </para>
+    /// <para>
+    /// Laying them down rather than joining what each member emitted is also the only thing that works
+    /// through bit fields: eight one-bit flags emit nothing individually and one octet together, and only
+    /// a writer keeping the bit position knows that.
+    /// </para>
+    /// </remarks>
+    private byte[] Laid(RunGraph run, RunNode appearance, Node set)
+    {
+        var wire = new BitWriter();
+        Lay(run, appearance, set, wire);
+        return wire.Done(graph.Id);
+    }
+
+    private void Lay(RunGraph run, RunNode appearance, Node set, BitWriter wire)
+    {
+        foreach (var member in graph.Members(set))
+        {
+            // The same appearance the dependency was declared against. Reaching for it by scope instead
+            // finds a different one, whose facets nothing ever settles.
+            var held = run.For(member);
+
+            if (held.Has(Facet.Present) && held.Settled(Facet.Present) is false) continue;
+
+            if (member is FieldSet nested) Lay(run, held, nested, wire);
+            else if (member is Field field) Write(wire, field, held.Value);
+        }
+    }
+
+    /// <summary>
+    /// The sets laid out because something requires them, rather than because the path arrives at them.
+    /// </summary>
+    /// <remarks>
+    /// A pseudo-header is the case that needs this, and it is not a peculiarity of one protocol: the family
+    /// TCP belongs to checksums over fields belonging to the layer underneath, which are genuinely part of
+    /// what is summed and genuinely not part of what is sent. Saying so needs a set with no step on the
+    /// path reaching it — and then something has to notice it is wanted, or it is a set nobody ever builds.
+    /// </remarks>
+    private IEnumerable<FieldSet> Aside()
+        => graph.Nodes.OfType<FieldSet>()
+                .Where(set => graph.To<Requires>(set).Any() && !graph.To<Then>(set).Any());
+
     /// <summary>
     /// What a set's span waits on, which is a different question in each direction.
     /// </summary>
@@ -312,10 +438,36 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// the moment the walk arrives at that inner set, which is before any of its contents exist.
     /// </para>
     /// </remarks>
-    private List<FacetRef> Spanned(RunGraph run, Node set, bool reading)
-        => reading
-            ? Last(set) is { } last ? [new FacetRef(run.For(last), Facet.Realised)] : []
-            : [.. graph.Members(set).Select(m => new FacetRef(run.For(m), Facet.Extent))];
+    private List<FacetRef> Spanned(RunGraph run, Node set, bool reading, Facet wanted)
+    {
+        // Coming in, one thing: the last place under the set having been read. Everything about the set is
+        // known then and nothing about it is known before, so there is no finer answer to give.
+        if (reading)
+            return Last(set) is { } last ? [new FacetRef(run.For(last), Facet.Realised)] : [];
+
+        // Going out, it depends on which question. How WIDE a set is falls out of its members' extents, and
+        // a fixed-width field has one before it has a value. What its OCTETS are needs the values — asking
+        // for extents there settles the moment the widths are known, which is before anything has been
+        // computed, and lays down a pseudo-header full of nothing.
+        List<FacetRef> waits = [];
+
+        // Only what makes octets. A set may hold a junction — a fork, a place the arms meet — and a
+        // junction has no extent and no value by construction, so waiting on one is waiting for something
+        // that will never be settled by anybody.
+        foreach (var member in graph.Members(set))
+            switch (member)
+            {
+                case FieldSet nested when wanted == Facet.Value:
+                    waits.AddRange(Spanned(run, nested, false, wanted));
+                    break;
+
+                case Field or Subprotocol or FieldSet:
+                    waits.Add(new FacetRef(run.For(member), wanted));
+                    break;
+            }
+
+        return waits;
+    }
 
     /// <summary>The last place under a set that is not itself a set.</summary>
     private Node? Last(Node set)
@@ -357,9 +509,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
     }
 
     /// <summary>What a named facet's computation waits on, taken from the edges that ask for it.</summary>
-    private List<FacetRef> Awaits(RunGraph run, RunNode appearance, Node place, string facet)
+    private List<FacetRef> Awaits(RunGraph run, RunNode appearance, Node place, string facet, bool reading)
     {
-        if (graph.ProducerOf(place, facet) is not { } producing) return [];
+        if (graph.ProducerOf(place, facet, reading) is not { } producing) return [];
 
         List<FacetRef> waits = [];
 
@@ -378,8 +530,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// optional step with no condition is refused at authoring time. So this answering true by default is
     /// about the ordinary case of a part that is simply always present, not a guess about an optional one.
     /// </remarks>
-    private bool Asked(RunGraph run, RunNode appearance, Node place)
-        => graph.ProducerOf(place, "presence") switch
+    private bool Asked(RunGraph run, RunNode appearance, Node place, bool reading)
+        => graph.ProducerOf(place, "presence", reading) switch
         {
             null => true,
             Constant stated => stated.Holds.AsBool(),
@@ -389,6 +541,30 @@ public sealed class GraphCodec(ProtocolGraph graph,
         };
 
     /// <summary>Every fact this appearance's value waits on, taken from the edges that ask for them.</summary>
+    /// <summary>
+    /// Everything a computation needs settled before it can run, following through the ones it requires.
+    /// </summary>
+    /// <remarks>
+    /// A set counts, which it did not before: a checksum waits on the octets of the header halves either
+    /// side of it, and those are facts about sets. Without this the sum is scheduled against nothing and
+    /// runs while the values it is summing are still unsettled — which does not fail, it produces a
+    /// plausible wrong number.
+    /// </remarks>
+    private void Wanting(RunGraph run, RunNode appearance, Computation computation, List<FacetRef> waits)
+    {
+        foreach (var wanted in graph.InputsOf(computation))
+            switch (wanted.To)
+            {
+                case Field or Subprotocol or FieldSet:
+                    waits.Add(new FacetRef(run.Reach(appearance, wanted.To), Named(wanted.Facet)));
+                    break;
+
+                case Computation inner:
+                    Wanting(run, appearance, inner, waits);
+                    break;
+            }
+    }
+
     private List<FacetRef> Waits(RunGraph run, RunNode appearance, Field field)
     {
         List<FacetRef> waits = [];
@@ -396,10 +572,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         IEnumerable<Computation> asking =
             graph.ProducerOf(field, "value") is { } one ? [one] : [];
 
-        foreach (var computation in asking)
-            foreach (var wanted in graph.InputsOf(computation))
-                if (wanted.To is Field or Subprotocol)
-                    waits.Add(new FacetRef(run.Reach(appearance, wanted.To), Named(wanted.Facet)));
+        foreach (var computation in asking) Wanting(run, appearance, computation, waits);
 
         return [.. waits.Distinct()];
     }
@@ -413,7 +586,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // is already those octets by the time anything asks.
         if (field is null) return appearance.Value.AsBytes().Length;
 
-        if (field.Form.FixedOctets is { } declared) return declared;
+        // A form that knows its own width does not need its value to be measured — and must not ask for
+        // one, because a field whose extent waits on its value cannot be part of what its value is computed
+        // from. Sub-octet widths come out as zero, which is right: a four-bit field occupies no octets, it
+        // occupies four bits of one, and the set holding it is what occupies octets.
+        if (field.Form.FixedBits is { } bits) return bits / 8;
 
         var measured = new BitWriter();
         Write(measured, field, appearance.Value);
@@ -453,12 +630,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         // A constant answers without being run. That is what a constant is, and it is why a fixed
         // delimiter needs no expression and can be pointed at by the span that ends before it.
-        var value = Produces(field) switch
-            {
-                Constant stated => stated.Holds,
-                Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)),
-                var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a value here"),
-            };
+        var value = Produced(run, appearance, Produces(field));
 
         if (field.Via is not null) value = Applied(field, value, forward: true);
 
@@ -567,7 +739,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         // An inner document asking for something the carrier never named is a hole, and it is the carrier's
         // to fill: the inner protocol is a separate document and cannot know what the outer one calls things.
-        var missing = inner?.Nodes.OfType<Context>().Select(c => c.Key)
+        var missing = inner?.Nodes.OfType<Context>().Select(c => c.Name)
                            .Where(k => !given.ContainsKey(k)).Order().ToList() ?? [];
 
         return missing.Count == 0
@@ -624,6 +796,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         Dictionary<string, ProtoValue> parts = new(StringComparer.Ordinal);
         Dictionary<string, ProtoValue> outside = new(StringComparer.Ordinal);
         Dictionary<string, ProtoValue> spans = new(StringComparer.Ordinal);
+        Dictionary<string, ProtoValue> kept = new(StringComparer.Ordinal);
 
         foreach (var wanted in graph.InputsOf(computation))
             switch (wanted.To)
@@ -654,15 +827,25 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     break;
                 }
 
-                case Context source:
-                    outside[source.Key] = run.For(source).Value;
+                // The two kinds of outside value answer under different names, because they fail
+                // differently. A missing input is a caller that did not say something it had to; a missing
+                // state is a conversation starting, which is ordinary.
+                // Under its own name, less the kind that prefixes it: the root an expression reaches it
+                // through already says which kind it is, so `inputs.input.syn` would be saying it twice.
+                case Context.Input given:
+                    outside[Plainly(given.Name, "input.")] = run.For(given).Value;
+                    break;
+
+                case Context.State carried:
+                    kept[Plainly(carried.Name, "state.")] = run.For(carried).Value;
                     break;
             }
 
         return new EvalScope()
             .Set("fields", new ProtoValue.Rec(parts))
             .Set("sets", new ProtoValue.Rec(spans))
-            .Set("inputs", new ProtoValue.Rec(outside));
+            .Set("inputs", new ProtoValue.Rec(outside))
+            .Set("state", new ProtoValue.Rec(kept));
     }
 
     /// <summary>A fact about an appearance, or nothing where it has not been worked out. Nothing is the

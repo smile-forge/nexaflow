@@ -444,8 +444,14 @@ public sealed class ConverterTable
             "reflected CRC-16 with a caller-supplied polynomial — required");
         t.Add("crc32", ValueKinds.Bytes, ValueKinds.Int, null,
             (v, _) => ProtoValue.Of(Crc32(v.AsBytes())), "CRC-32 (IEEE)");
-        t.Add("onesComplementSum", ValueKinds.Bytes, ValueKinds.Int, null,
-            (v, _) => ProtoValue.Of(OnesComplementSum(v.AsBytes())),
+        // Several runs, or one. The sum of a pseudo-header, a header and a payload is the sum of their
+        // concatenation, and making the caller concatenate first would put a step in every description
+        // that uses it for no reason other than this signature.
+        t.Add("onesComplementSum", ValueKinds.Bytes | ValueKinds.List, ValueKinds.Int, null,
+            (v, _) => ProtoValue.Of(OnesComplementSum(
+                v is ProtoValue.List runs
+                    ? runs.Items.SelectMany(i => i.AsBytes()).ToArray()
+                    : v.AsBytes())),
             "16-bit one's-complement sum of one's-complement — the checksum shape used across the IP family");
 
         // ── text ops ─────────────────────────────────────────────────────────
