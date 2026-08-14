@@ -49,16 +49,18 @@ public class TcpDefinitionTests
     }
 
     [TestMethod]
-    public void It_declares_one_message_format_and_two_arrangements_of_it()
+    public void It_declares_one_message_format_with_one_arrangement()
     {
         var tcp = Tcp();
 
-        // RFC 9293 §3.1 is titled "Header Format", singular. SYN and ACK segments are the same format
-        // under different flags, which is what a packing is for and not what a message is for.
+        // RFC 9293 §3.1 is titled "Header Format", singular. A SYN segment and an established one are the
+        // same format under different flags — and the same ARRANGEMENT too: what differs is which option
+        // turns up, which the fork on option-kind says. An arrangement keyed on a flag thirteen fields into
+        // the message it arranges cannot be answered in either direction.
         CollectionAssert.AreEqual(new[] { "segment" }, tcp.Messages.Keys.ToArray());
 
         var packings = tcp.Graph.Nodes.OfType<Packing>().Select(p => p.Name).Order().ToArray();
-        CollectionAssert.AreEqual(new[] { "packing.established", "packing.synchronising" }, packings);
+        CollectionAssert.AreEqual(new[] { "packing.segment" }, packings);
     }
 
     [TestMethod]
@@ -98,9 +100,15 @@ public class TcpDefinitionTests
             tcp.Graph.Members(control).Select(m => m.Name).ToArray(),
             "the RFC's wire order");
 
+        // Nested two deep now: the header holds the half before the checksum, which holds the control bits.
+        // The split is what lets the checksum be summed over the header with a zero where its own field goes.
         CollectionAssert.Contains(
-            tcp.Graph.Members(tcp.Named["header"]).ToList(), control,
-            "and the header holds it");
+            tcp.Graph.Members(tcp.Named["header.beforeChecksum"]).ToList(), control,
+            "the half of the header before the checksum holds it");
+
+        CollectionAssert.AreEqual(
+            new[] { "header.beforeChecksum", "checksum", "header.afterChecksum" },
+            tcp.Graph.Members(tcp.Named["header"]).Select(m => m.Name).ToArray());
     }
 
     [TestMethod]
@@ -111,9 +119,13 @@ public class TcpDefinitionTests
         // left of them — so it is worth counting off the graph rather than assuming.
         var tcp = Tcp();
 
-        int bits = tcp.Graph.Members(tcp.Named["header"])
-                      .TakeWhile(m => !ReferenceEquals(m, tcp.Named["options"]))
-                      .SelectMany(m => m is FieldSet set ? tcp.Graph.Members(set) : [m])
+        IEnumerable<Node> Under(Node place)
+            => place is FieldSet set && !ReferenceEquals(place, tcp.Named["options"])
+                ? tcp.Graph.Members(set).SelectMany(Under)
+                : [place];
+
+        int bits = Under(tcp.Named["header"])
+                      .Where(m => !ReferenceEquals(m, tcp.Named["options"]))
                       .OfType<Field>()
                       .Sum(f => f.Form.FixedBits ?? 0);
 

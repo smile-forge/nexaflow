@@ -141,4 +141,101 @@ public class TcpHandshakeTests
         Assert.AreNotEqual("0000", Convert.ToHexString(syn[16..18]),
             "and it is not simply the zero that was joined in where the field goes");
     }
+
+    /// <summary>
+    /// Two hosts, five segments, and one word of payload getting across.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every segment here is built the same way: a host sets values on input and state nodes and asks for a
+    /// message. It never says how long anything is, never places a field, never computes a checksum, and
+    /// never touches an octet. What it <i>does</i> do is read the segment that arrived and decide what to
+    /// send back — which is the part that belongs to a host and not to a protocol description.
+    /// </para>
+    /// <para>
+    /// So the exchange is a test of the description. If the graph got a length, an offset, a flag or a sum
+    /// wrong, the other end reads something other than what was meant and the conversation stops making
+    /// sense — which is exactly what happens on a real network, and exactly what would otherwise be found
+    /// by a packet capture six months later.
+    /// </para>
+    /// </remarks>
+    [TestMethod]
+    public void Two_hosts_shake_hands_and_get_a_word_across()
+    {
+        const string Message = "nexaflow";
+
+        var client = End("client").Set("Source Port", 49152).Set("Destination Port", 80);
+        var server = End("server").Set("Source Port", 80).Set("Destination Port", 49152)
+                                  .Set("Source Address", ProtoValue.Of(new byte[] { 192, 168, 1, 20 }))
+                                  .Set("Destination Address", ProtoValue.Of(new byte[] { 192, 168, 1, 10 }));
+
+        List<string> exchange = [];
+
+        // ── 1. the client opens ──────────────────────────────────────────────
+        var syn = client.Set("Sequence Number", 1000).Set("Acknowledgment Number", 0)
+                        .Set("Maximum Segment Size", 1460).Flags("SYN")
+                        .Generate();
+
+        var atServer = server.Receive(syn);
+        exchange.Add($"client → server  {Said.Flags(atServer)} seq={Said.Number(atServer, "sequenceNumber")}");
+
+        Assert.AreEqual("SYN", Said.Flags(atServer));
+        Assert.AreEqual(1000, Said.Number(atServer, "sequenceNumber"));
+        Assert.AreEqual(1460, Said.Number(atServer, "maximumSegmentSize"), "the option came through");
+
+        // ── 2. the server accepts, acknowledging the SYN's sequence plus one ──
+        var synAck = server.Set("Sequence Number", 5000)
+                           .Set("Acknowledgment Number", Said.Number(atServer, "sequenceNumber") + 1)
+                           .Set("Maximum Segment Size", 1460).Flags("SYN", "ACK")
+                           .Generate();
+
+        var atClient = client.Receive(synAck);
+        exchange.Add($"server → client  {Said.Flags(atClient)} seq={Said.Number(atClient, "sequenceNumber")} "
+                   + $"ack={Said.Number(atClient, "acknowledgmentNumber")}");
+
+        Assert.AreEqual("ACK+SYN", Said.Flags(atClient), "the RFC's wire order, not the name's");
+        Assert.AreEqual(1001, Said.Number(atClient, "acknowledgmentNumber"), "our SYN was acknowledged");
+
+        // ── 3. the client acknowledges, and the connection is open ───────────
+        var ack = client.Set("Sequence Number", Said.Number(atClient, "acknowledgmentNumber"))
+                        .Set("Acknowledgment Number", Said.Number(atClient, "sequenceNumber") + 1)
+                        .Flags("ACK")
+                        .Generate();
+
+        Assert.AreEqual(20, ack.Length, "no options once the handshake is done, so a five-word header");
+
+        var opened = server.Receive(ack);
+        exchange.Add($"client → server  {Said.Flags(opened)} seq={Said.Number(opened, "sequenceNumber")} "
+                   + $"ack={Said.Number(opened, "acknowledgmentNumber")}");
+
+        Assert.AreEqual(5, Said.Number(opened, "dataOffset"), "and the offset says so");
+
+        // ── 4. the client sends the word ─────────────────────────────────────
+        var payload = System.Text.Encoding.ASCII.GetBytes(Message);
+
+        var sent = client.Set("Data", ProtoValue.Of(payload)).Flags("PSH", "ACK").Generate();
+
+        Assert.AreEqual(20 + payload.Length, sent.Length);
+
+        var arrived = server.Receive(sent);
+        var got = System.Text.Encoding.ASCII.GetString(Said.Of(arrived, "data").AsBytes());
+        exchange.Add($"client → server  {Said.Flags(arrived)} \"{got}\"");
+
+        Assert.AreEqual(Message, got, "the word got across");
+
+        // ── 5. the server acknowledges what it received ──────────────────────
+        var acked = server.Set("Sequence Number", Said.Number(opened, "acknowledgmentNumber"))
+                          .Set("Acknowledgment Number",
+                               Said.Number(arrived, "sequenceNumber") + payload.Length)
+                          .Flags("ACK")
+                          .Generate();
+
+        var settled = client.Receive(acked);
+        exchange.Add($"server → client  {Said.Flags(settled)} ack={Said.Number(settled, "acknowledgmentNumber")}");
+
+        Assert.AreEqual(1001 + payload.Length, Said.Number(settled, "acknowledgmentNumber"),
+            "every octet of the word is accounted for");
+
+        System.Console.WriteLine(string.Join(Environment.NewLine, exchange));
+    }
 }

@@ -160,7 +160,10 @@ public sealed class GraphCodec(ProtocolGraph graph,
                 // computation asks for, and the order they settle in is not the order they are laid down.
                 // Coming in, there is nothing to schedule — see Intake. So reading declares every facet
                 // settled on sight and does the work as the place is reached.
-                NotApplicable = spans
+                NotApplicable = spans && Reading
+                    ? new HashSet<Facet>
+                        { Facet.Present, Facet.Value, Facet.Position, Facet.Extent, Facet.Emitted }
+                    : spans
                     ? new HashSet<Facet> { Facet.Present, Facet.Value, Facet.Position }
                     : carries && !Reading
                         ? new HashSet<Facet> { Facet.Present, Facet.Position, Facet.Emitted }
@@ -175,8 +178,14 @@ public sealed class GraphCodec(ProtocolGraph graph,
                         ? codec.Waits(run, appearance, field)
                         : [],
 
-                    Facet.Extent when spans => codec.Spanned(run, place, Reading, Facet.Extent),
-                    Facet.Emitted when spans => codec.Spanned(run, place, Reading, Facet.Value),
+                    // A set that turned out not to be there waits for nothing. Its members were stepped
+                    // over — that is what skipping a set means — so they are never reached and never
+                    // settle, and waiting on them is waiting on somewhere the walk did not go.
+                    Facet.Extent when spans => Missing(appearance)
+                        ? [] : codec.Spanned(run, place, Reading, Facet.Extent),
+
+                    Facet.Emitted when spans => Missing(appearance)
+                        ? [] : codec.Spanned(run, place, Reading, Facet.Value),
 
                     // Fixed BITS, not fixed octets. A four-bit field has no fixed octet width — it does not
                     // occupy an octet — so asking in octets says its width depends on its value, and TCP's
@@ -213,6 +222,18 @@ public sealed class GraphCodec(ProtocolGraph graph,
                                 appearance.Settle(Facet.Extent, 0);
                                 appearance.Settle(Facet.Emitted, ProtoValue.Of(Array.Empty<byte>()));
                             }
+
+                            if (spans && !here)
+                            {
+                                appearance.Settle(Facet.Extent, 0);
+                                appearance.Settle(Facet.Emitted, ProtoValue.Of(Array.Empty<byte>()));
+                            }
+
+                            // Coming in, a set is settled the moment everything under it has been read —
+                            // pushed from the last member rather than waited for by the set. Waiting is
+                            // what does not work: whether a set is there is decided as the walk arrives,
+                            // and by then its dependencies have long been declared.
+                            if (Reading) codec.Closing(run);
 
                             return Next(place, here) is { } next
                                 ? FacetResult.Expanding(null, Reaching(next, place))
@@ -440,6 +461,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </remarks>
     private List<FacetRef> Spanned(RunGraph run, Node set, bool reading, Facet wanted)
     {
+        if (Skipped(run, set)) return [];
+
         // Coming in, one thing: the last place under the set having been read. Everything about the set is
         // known then and nothing about it is known before, so there is no finer answer to give.
         if (reading)
@@ -455,6 +478,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // junction has no extent and no value by construction, so waiting on one is waiting for something
         // that will never be settled by anybody.
         foreach (var member in graph.Members(set))
+        {
+            // Absent at any depth means stepped over at any depth. A set inside a set that is not there is
+            // not there either, and its members are places the walk never went.
+            if (Skipped(run, member)) continue;
+
             switch (member)
             {
                 case FieldSet nested when wanted == Facet.Value:
@@ -465,9 +493,50 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     waits.Add(new FacetRef(run.For(member), wanted));
                     break;
             }
+        }
 
         return waits;
     }
+
+    /// <summary>
+    /// Settles every set whose contents are all now accounted for, innermost first.
+    /// </summary>
+    /// <remarks>
+    /// Repeated until nothing more can be settled, which is what carries it through nesting: the options
+    /// close, so the half of the header past the checksum closes, so the header closes. A member counts as
+    /// accounted for when it has an extent or when the walk stepped over it — an absent part contributes a
+    /// real zero rather than leaving the set unanswerable.
+    /// </remarks>
+    private void Closing(RunGraph run)
+    {
+        bool moved = true;
+
+        while (moved)
+        {
+            moved = false;
+
+            foreach (var set in graph.Nodes.OfType<FieldSet>())
+            {
+                var appearance = run.For(set);
+
+                if (appearance.Has(Facet.Extent)) continue;
+
+                if (!graph.Members(set).All(m => m is Junction || Skipped(run, m) || run.For(m).Has(Facet.Extent)))
+                    continue;
+
+                long across = Spread(run, appearance, set);
+
+                appearance.Settle(Facet.Extent, (int)(across / 8));
+                appearance.Settle(Facet.Emitted, ProtoValue.Of(Laid(run, appearance, set)));
+                moved = true;
+            }
+        }
+    }
+
+    /// <summary>Whether the walk decided this place is not there.</summary>
+    private static bool Skipped(RunGraph run, Node place)
+        => run.For(place) is { } appearance
+        && appearance.Has(Facet.Present) && appearance.Settled(Facet.Present) is false;
 
     /// <summary>The last place under a set that is not itself a set.</summary>
     private Node? Last(Node set)
@@ -1039,6 +1108,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         if (graph.ProducerOf(field, "extent") is { } measured && measured is Evaluated evaluated)
             return (int)_evaluator.Eval(evaluated.Runs, Given(run, appearance, measured)).AsInt();
+
+        // A span with no width, nothing measuring it and nothing after it takes what is left of whatever
+        // contains it. That is what "the rest of the segment" is, and it is only ever answerable coming in
+        // — going out the value is the octets and its own length is the extent.
+        if (ahead is not null && field.Form is WireForm.Opaque { Octets: null }) return ahead.Length;
 
         throw new ProtoTypeException($"field '{field.Id}' has no width and nothing computes its extent");
     }
