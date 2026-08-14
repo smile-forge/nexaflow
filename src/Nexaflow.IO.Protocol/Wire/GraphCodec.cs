@@ -95,6 +95,11 @@ public sealed class GraphCodec(MessageDef message,
         foreach (var place in laying.Order)
         {
             var appearance = run.For(place);
+
+            // A part that is not there writes nothing, which is the whole of what absence does on the way
+            // out. The walk still reached it — being reached and being present are different facts.
+            if (appearance.Has(Facet.Present) && appearance.Settled(Facet.Present) is false) continue;
+
             int began = wire.Written;
 
             // A carrier's value is already the octets the inner message came to, so laying it down is
@@ -128,7 +133,6 @@ public sealed class GraphCodec(MessageDef message,
     /// </remarks>
     private sealed class Laying(GraphCodec codec, RunGraph run, BitCursor? source)
     {
-        private readonly Stack<Queue<Node>> _within = new();
 
         /// <summary>Whether this is reading. The octets being read <i>are</i> the direction — there is no
         /// second flag that could disagree with whether there is anything to read from.</summary>
@@ -157,6 +161,12 @@ public sealed class GraphCodec(MessageDef message,
             List<FacetRef> before = previous is null ? [] : [new FacetRef(run.For(previous), Facet.Realised)];
             before.AddRange(Deciding(place));
 
+            // Whether a part is there is decided when the walk reaches it, for the same reason a fork is:
+            // it changes where the path goes. An absent set is skipped whole, so the next place cannot be
+            // known until presence is — which makes this a prerequisite of arriving, not a fact settled
+            // afterwards. It is also what makes the two directions agree without arranging for them to.
+            if (Optional(place)) before.AddRange(codec.Awaits(run, appearance, place, "presence"));
+
             return new ResolutionNode
             {
                 Id = appearance,
@@ -173,6 +183,7 @@ public sealed class GraphCodec(MessageDef message,
                 DependenciesFor = facet => facet switch
                 {
                     Facet.Realised => before,
+
                     Facet.Value => carries && !Reading && field is not null
                         ? codec.Waits(run, appearance, field)
                         : [],
@@ -189,23 +200,42 @@ public sealed class GraphCodec(MessageDef message,
                     switch (facet)
                     {
                         case Facet.Realised:
-                            if (carries)
+                            bool here = !Optional(place) || codec.Asked(run, appearance, place);
+
+                            if (Optional(place)) appearance.Settle(Facet.Present, here);
+
+                            if (carries && here)
                             {
                                 Order.Add(place);
 
                                 if (source is not null) codec.Intake(run, appearance, place, source);
                             }
+                            else if (carries)
+                            {
+                                // It contributed nothing, and says so rather than having no answer. A
+                                // length over a region holding it adds a real zero; asking an absent part
+                                // for its extent and getting an error would make every such length a
+                                // special case about optionality.
+                                appearance.Settle(Facet.Extent, 0);
+                                appearance.Settle(Facet.Emitted, ProtoValue.Of(Array.Empty<byte>()));
+                            }
 
-                            return Next(place) is { } next
+                            return Next(place, here) is { } next
                                 ? FacetResult.Expanding(null, Reaching(next, place))
                                 : FacetResult.Of(null);
 
                         case Facet.Value:
+                            // An absent part computes nothing. Not an optimisation: its expression may
+                            // well read the very input whose absence is the reason it is not here.
+                            if (Missing(appearance)) return FacetResult.Of(null);
+
                             return FacetResult.Of(field is not null
                                 ? codec.Settle(run, appearance, field)
                                 : codec.Sealed(run, appearance, (Subprotocol)place));
 
                         case Facet.Extent:
+                            if (Missing(appearance)) return FacetResult.Of(0);
+
                             var width = codec.Sized(appearance, field);
                             appearance.Settle(Facet.Extent, width);
                             return FacetResult.Of(width);
@@ -215,6 +245,17 @@ public sealed class GraphCodec(MessageDef message,
                 },
             };
         }
+
+        /// <summary>Whether the path may arrive here and find nothing — by either packing edge.</summary>
+        private bool Optional(Node place) => codec.Message.MayBeAbsent(place);
+
+        /// <summary>Being here, where that is in question at all.</summary>
+        private IEnumerable<FacetRef> Present(RunNode appearance, Node place)
+            => Optional(place) ? [new FacetRef(appearance, Facet.Present)] : [];
+
+        /// <summary>Whether this place turned out not to be here.</summary>
+        private static bool Missing(RunNode appearance)
+            => appearance.Has(Facet.Present) && appearance.Settled(Facet.Present) is false;
 
         /// <summary>What the decision at this place needs before it can be made.</summary>
         private List<FacetRef> Deciding(Node place)
@@ -238,24 +279,59 @@ public sealed class GraphCodec(MessageDef message,
             };
         }
 
-        /// <summary>Where the path goes from here: into what this holds, or on to what follows.</summary>
-        private Node? Next(Node place)
+        /// <summary>
+        /// Where the path goes from here.
+        /// </summary>
+        /// <remarks>
+        /// One question, because a set is on the path rather than beside it. This used to keep a stack of
+        /// queues — where to resume once the members of a set ran out — which existed only because the
+        /// membership edge was being walked as though it were the path. A set's members are reached by the
+        /// ordinary way on, so there is nothing to come back to and nothing to remember being inside.
+        /// </remarks>
+        private Node? Next(Node place, bool here)
         {
-            var members = codec.Message.Graph.From<Holds>(place).OrderBy(h => h.Order)
-                               .Select(h => h.To).ToList();
-
-            if (members.Count > 0) _within.Push(new Queue<Node>(members));
-
-            while (_within.Count > 0)
-            {
-                if (_within.Peek().Count > 0) return _within.Peek().Dequeue();
-
-                _within.Pop();
-            }
+            // A set that is not there takes its members with it. They are on the path, so skipping the set
+            // means stepping over all of them — from where the last one would have led. That is the whole
+            // difference between an absent part and an absent section, and it is why presence has to be
+            // known before the next place is: an optional header is one step, however many fields deep.
+            if (!here && place is FieldSet set && codec.Message.Members(set).LastOrDefault() is { } last)
+                return codec.Onward(run, last, Reading);
 
             return codec.Onward(run, place, Reading);
         }
     }
+
+    /// <summary>What a named facet's computation waits on, taken from the edges that ask for it.</summary>
+    private List<FacetRef> Awaits(RunGraph run, RunNode appearance, Node place, string facet)
+    {
+        if (message.DecidedBy(place, facet) is not { } producing) return [];
+
+        List<FacetRef> waits = [];
+
+        foreach (var wanted in message.InputsOf(producing))
+            if (wanted.To is Field part)
+                waits.Add(new FacetRef(run.Reach(appearance, Stands(part)), Named(wanted.Facet)));
+
+        return [.. waits.Distinct()];
+    }
+
+    /// <summary>
+    /// Whether an optional place is here, by asking what the document said decides it.
+    /// </summary>
+    /// <remarks>
+    /// A place with nothing deciding it is here — but a document cannot get into that state, because an
+    /// optional step with no condition is refused at authoring time. So this answering true by default is
+    /// about the ordinary case of a part that is simply always present, not a guess about an optional one.
+    /// </remarks>
+    private bool Asked(RunGraph run, RunNode appearance, Node place)
+        => message.DecidedBy(place, "presence") switch
+        {
+            null => true,
+            Constant stated => stated.Holds.AsBool(),
+            Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)).AsBool(),
+            var other => throw new ProtoTypeException(
+                             $"'{place.Name}': '{other.Name}' cannot decide whether something is there"),
+        };
 
     /// <summary>Every fact this appearance's value waits on, taken from the edges that ask for them.</summary>
     private List<FacetRef> Waits(RunGraph run, RunNode appearance, Field field)
@@ -583,6 +659,10 @@ public sealed class GraphCodec(MessageDef message,
     private void Intake(RunGraph run, RunNode appearance, Node place, BitCursor source)
     {
         int began = source.At;
+
+        // Nothing here asks whether the place is present: the walk settled that before it arrived, and a
+        // second answer to a settled question is how two readings of one fact drift apart. An absent place
+        // is never handed to this at all.
 
         // A carrier is told how far it runs, the same as a span is, and for the same reason: what is
         // inside it may be transformed, so there is nothing to look at until the whole of it is in hand.

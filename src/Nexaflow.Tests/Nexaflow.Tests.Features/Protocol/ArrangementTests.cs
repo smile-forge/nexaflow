@@ -53,8 +53,9 @@ public class ArrangementTests
                     foreach (var member in Declared(message, group.Fields)) yield return member;
                     break;
 
+                // An alternation is a junction rather than a set: it packs nothing, it only offers ways on.
                 case Pattern.Choice:
-                    yield return Set(message, field);
+                    yield return Fork(message, field);
                     break;
 
                 // A run of elements is one place holding a list. What may turn up in it is said by
@@ -69,8 +70,8 @@ public class ArrangementTests
             }
     }
 
-    private static FieldSet Set(MessageDef message, Field declared)
-        => message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == declared);
+    private static Junction Fork(MessageDef message, Field declared)
+        => message.Graph.Nodes.OfType<Junction>().Single(j => j.Derived == declared);
 
     [TestMethod]
     public void Every_document_in_the_corpus_lays_out_the_way_its_field_list_says()
@@ -153,35 +154,56 @@ public class ArrangementTests
     /// container, or a fork. A chain's element is not laid out yet, so its interior joins when that
     /// converts.
     /// </summary>
-    private static IEnumerable<Field> Contained(IEnumerable<Field> fields)
+    /// <summary>Containers, by the kind of node each becomes: one that packs its members together, and one
+    /// that packs nothing and only offers ways on.</summary>
+    private static IEnumerable<Field> Contained(IEnumerable<Field> fields, bool packing)
     {
         foreach (var field in fields)
             switch (field.Pattern)
             {
                 case Pattern.Group group:
-                    yield return field;
-                    foreach (var deeper in Contained(group.Fields)) yield return deeper;
+                    if (packing) yield return field;
+                    foreach (var deeper in Contained(group.Fields, packing)) yield return deeper;
                     break;
 
                 case Pattern.Choice choice:
-                    yield return field;
-                    foreach (var deeper in Contained(choice.Arms.SelectMany(a => a.Fields)))
+                    if (!packing) yield return field;
+                    foreach (var deeper in Contained(choice.Arms.SelectMany(a => a.Fields), packing))
                         yield return deeper;
                     break;
 
             }
     }
 
+    /// <summary>
+    /// A set holds something; a place that holds nothing is a different notion.
+    /// </summary>
+    /// <remarks>
+    /// Both were one kind for a while, told apart by counting members — so an alternation was "a set of
+    /// nothing" and every reader of the graph did the same count to discover which of two unrelated things
+    /// it had. A set of nothing is not a degenerate set. It is a junction, and now it says so.
+    /// </remarks>
     [TestMethod]
-    public void Everything_that_stands_for_part_of_a_message_and_emits_nothing_is_a_set()
+    public void A_set_packs_its_members_and_a_place_that_packs_nothing_is_not_one()
     {
         foreach (var message in Corpus)
         {
-            var containers = Contained(message.Fields).ToList();
             var sets = message.Graph.Nodes.OfType<FieldSet>().ToList();
 
-            CollectionAssert.AreEquivalent(containers, sets.Where(s => s.Derived is not null).Select(s => s.Derived!).ToList(),
+            CollectionAssert.AreEquivalent(
+                Contained(message.Fields, packing: true).ToList(),
+                sets.Where(s => s.Derived is not null).Select(s => s.Derived!).ToList(),
                 $"{message.Id}: one set per container, and nothing else pretending to be one");
+
+            foreach (var set in sets)
+                Assert.AreNotEqual(0, message.Members(set).Count(),
+                                   $"{message.Id}: '{set.Name}' is a set that holds nothing");
+
+            CollectionAssert.AreEquivalent(
+                Contained(message.Fields, packing: false).ToList(),
+                message.Graph.Nodes.OfType<Junction>().Where(j => j.Derived is not null)
+                       .Select(j => j.Derived!).ToList(),
+                $"{message.Id}: one junction per alternation");
         }
     }
 

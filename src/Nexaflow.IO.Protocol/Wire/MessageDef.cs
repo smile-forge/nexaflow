@@ -118,6 +118,25 @@ public sealed class Field : Node
     public Default? Assumed { get; init; }
 
     /// <summary>
+    /// When this is here at all. Its absence means always.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Optionality used to be a shape: a part was optional by being wrapped in an alternation with an
+    /// empty arm, so "this header may not be there" and "this is one of four packings" were the same
+    /// declaration and neither read as what it was.
+    /// </para>
+    /// <para>
+    /// <b>A condition is required, not encouraged.</b> An optional step with nothing deciding it is a
+    /// definition error rather than a permitted default, because there is no honest thing for the engine
+    /// to do with one: guessing from whether a value was supplied makes presence depend on how the caller
+    /// happened to fill a dictionary, and guessing from leftover octets makes it depend on what came
+    /// after. Both are the engine inventing a rule the document did not state.
+    /// </para>
+    /// </remarks>
+    public Expr? When { get; init; }
+
+    /// <summary>
     /// What kind of thing this part holds, where that changes what comparing two of them means.
     ///
     /// <para>
@@ -462,10 +481,15 @@ public sealed record MessageDef
         {
             var (entry, exits) = Place(graph, field);
 
+            // Optionality rides the way on rather than the thing at the end of it. A part is not "an
+            // optional kind of field" — it is a step the path may or may not take, which is why one field
+            // can be required in one arrangement and optional in another without being two declarations.
+            bool may = field.When is not null;
+
             if (arrangement is not null && loose.Count == 0)
-                graph.Add(new Then { From = arrangement, To = entry });
+                graph.Add(new Then { From = arrangement, To = entry, Optional = may });
             else
-                foreach (var end in loose) graph.Add(new Then { From = end, To = entry });
+                foreach (var end in loose) graph.Add(new Then { From = end, To = entry, Optional = may });
 
             loose = exits;
         }
@@ -494,23 +518,36 @@ public sealed record MessageDef
 
         switch (field.Pattern)
         {
+            // A set is a place the path runs through, not a detour it steps into. Its members are chained
+            // by the same way-on edge as everything else and the set says only which of them belong to it
+            // and that they come out together — so nothing has to remember it is inside one, and where the
+            // path leaves the set is simply where its last member leaves.
             case Pattern.Group group:
             {
                 var set = new FieldSet(field.Id, field);
                 graph.Add(set);
 
-                for (int at = 0; at < group.Fields.Count; at++)
-                    graph.Add(new Holds
-                    {
-                        From = set, To = Place(graph, group.Fields[at]).Entry, Order = at,
-                    });
+                IReadOnlyList<Node> loose = [set];
 
-                return (set, [set]);
+                for (int at = 0; at < group.Fields.Count; at++)
+                {
+                    var member = group.Fields[at];
+                    var (entry, exits) = Place(graph, member);
+
+                    graph.Add(new Holds { From = set, To = entry, Order = at });
+
+                    foreach (var end in loose)
+                        graph.Add(new Then { From = end, To = entry, Optional = member.When is not null });
+
+                    loose = exits;
+                }
+
+                return (set, loose);
             }
 
             case Pattern.Choice choice:
             {
-                var fork = new FieldSet(field.Id, field);
+                var fork = new Junction(field.Id, field);
                 graph.Add(fork);
 
                 // What decides, as a node. A value that keys the ways on rather than a condition per way:
@@ -573,7 +610,7 @@ public sealed record MessageDef
     {
         if (arm.Fields.Count == 0)
         {
-            var empty = new FieldSet($"{owner.Id} {arm.Name}");
+            var empty = new Junction($"{owner.Id} {arm.Name}");
             graph.Add(empty);
             return (empty, [empty]);
         }
@@ -615,7 +652,11 @@ public sealed record MessageDef
 
         while (at is not null)
         {
-            foreach (var node in Expand(at)) yield return node;
+            // A set is skipped because its members are on the path themselves — this used to walk into
+            // them, and doing both would lay every one out twice. A junction is not skipped: it stands for
+            // the field it was made from, and a fork is where the unbranched path ends. Asking which kind
+            // a node is used to mean counting its members, because one kind was doing both jobs.
+            if (at is not Packing and not FieldSet) yield return at;
 
             var ways = Graph.From<Then>(at).ToList();
 
@@ -623,15 +664,29 @@ public sealed record MessageDef
         }
     }
 
-    private IEnumerable<Node> Expand(Node node)
+    /// <summary>What a set is packed from, in order.</summary>
+    public IEnumerable<Node> Members(Node set)
+        => Graph.From<Holds>(set).OrderBy(h => h.Order).Select(h => h.To);
+
+    /// <summary>
+    /// The field a place stands for, where it stands for one.
+    /// </summary>
+    /// <remarks>
+    /// A set and a junction are both written as a field, for want of anywhere else to declare them, and
+    /// the computations a document hangs off that declaration — what decides the alternation, whether the
+    /// section is there — are attached to the field. So anything asking a <i>place</i> what produces one
+    /// of its facts has to come through here, or the answer is on the node nobody asked.
+    /// </remarks>
+    public Node Behind(Node place) => place switch
     {
-        var members = Graph.From<Holds>(node).OrderBy(h => h.Order).Select(h => h.To).ToList();
+        FieldSet { Derived: { } set } => set,
+        Junction { Derived: { } fork } => fork,
+        _ => place,
+    };
 
-        if (members.Count == 0) { yield return node; yield break; }
-
-        foreach (var member in members)
-            foreach (var deeper in Expand(member)) yield return deeper;
-    }
+    /// <summary>What produces a fact about a place, asking the field it stands for where there is one.</summary>
+    public Computation? DecidedBy(Node place, string facet)
+        => ProducerOf(place, facet) ?? ProducerOf(Behind(place), facet);
 
     /// Resolves every expression's references once, in the scope the expression was written in.
     ///
@@ -656,6 +711,12 @@ public sealed record MessageDef
                 => Compute(graph, field, expression, $"{field.Id}.{what}", lookup, "extent");
 
             if (field.Value is not null) Link(field.Value, "value", Visible);
+
+            // What decides whether this is here. A facet of the field like any other, so the thing that
+            // answers it takes its inputs from Requires edges and reaches an input or a remembered value
+            // the same way anything else does.
+            if (field.When is { } when)
+                Compute(graph, field, when, $"{field.Id}.presence", Visible, "presence");
 
             // What the protocol beneath is given, as computations on ordinary Requires edges — the same
             // shape as a converter's arguments. So the graph records which of this document's values a
@@ -1066,6 +1127,7 @@ public sealed record MessageDef
 
         Check(Declared, new HashSet<string>(StringComparer.Ordinal), issues);
         CheckApart(issues);
+        CheckOptional(issues);
 
         foreach (var layer in Layers)
             if (layer.Carries is Carriage.Described described)
@@ -1277,6 +1339,54 @@ public sealed record MessageDef
     /// line and the diagnostic can say which.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// A step the path may not take has to say what decides that.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Checked on the graph rather than the declaration, so it holds however a document came to be shaped
+    /// — including anything desugared into an optional step by the builder rather than written as one.
+    /// </para>
+    /// <para>
+    /// The rule is deliberately strict in both directions. An optional step with nothing deciding it
+    /// leaves the engine to invent a rule: presence from whether a caller filled a dictionary entry, or
+    /// from how many octets happened to be left. Both are answers to a question the document never asked.
+    /// And a condition on a step that is always taken is the same defect read the other way — something
+    /// that looks load-bearing and decides nothing, which is worse than absent because a reader trusts it.
+    /// </para>
+    /// </remarks>
+    private void CheckOptional(List<string> issues)
+    {
+        foreach (var (place, may) in Arrivals())
+        {
+            bool decided = DecidedBy(place, "presence") is not null;
+
+            if (may && !decided)
+                issues.Add($"message '{Id}': '{place.Name}' may or may not be there and nothing says "
+                         + "which. An optional part needs a condition — over an input, or something an "
+                         + "earlier message left behind — because the engine has no honest way to guess.");
+
+            if (!may && decided)
+                issues.Add($"message '{Id}': '{place.Name}' says when it is present but is always there, "
+                         + "so the condition decides nothing. Either the step is optional or the condition "
+                         + "should go.");
+        }
+    }
+
+    /// <summary>
+    /// Every place a path arrives at, and whether that step may not be taken.
+    /// </summary>
+    /// <remarks>
+    /// Only ways on, because only a way on is a step. Membership of a set says which parts are packed
+    /// together, not how the path gets to them — a member is reached by the ordinary way on like anything
+    /// else, and whether it is there is a fact about that step.
+    /// </remarks>
+    public IEnumerable<(Node Place, bool Optional)> Arrivals()
+        => Graph.Of<Then>().Select(w => (w.To, w.Optional));
+
+    /// <summary>Whether the path may arrive at this place and find nothing.</summary>
+    public bool MayBeAbsent(Node place) => Graph.To<Then>(place).Any(w => w.Optional);
+
     private void CheckApart(List<string> issues)
     {
         HashSet<string> settled = new(Descendants(Fields).Select(f => f.Id), StringComparer.Ordinal);

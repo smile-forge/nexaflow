@@ -172,19 +172,22 @@ public class VariableWidthCaptureTests
     /// A section that exists only because one bit says so.
     ///
     /// <para>
-    /// Presence needs no construct of its own: it is a choice between two packings, one of which is empty.
-    /// And because the discriminator reads a named bit run whose width is in the declaration, the arms are
-    /// still checked for exhaustiveness — a one-bit flag has exactly two answers and both must be given.
+    /// It was written as a choice between two packings, one of which was empty — presence dressed as
+    /// alternation. That reads as "which of these two shapes", and it is not: there is one shape and a
+    /// question of whether it is here. The tell was the empty arm, a set of nothing standing in for the
+    /// absence of a thing.
+    /// </para>
+    ///
+    /// <para>
+    /// So it is a set with a condition, and the condition is over the bit that decides it. Three fields
+    /// deep or one, an optional section is one step the path may not take.
     /// </para>
     /// </summary>
     private static Field GatedBy(string id, string flag, params Field[] fields) => new()
     {
         Id = id,
-        Pattern = new Pattern.Choice(Expr.Parse($"fields.connectFlags.value.{flag}"),
-        [
-            new Arm("absent", 0, []),
-            new Arm("present", 1, fields),
-        ]),
+        Pattern = new Pattern.Group(fields),
+        When = Expr.Parse($"fields.connectFlags.value.{flag} == 1"),
     };
 
     /// <summary>

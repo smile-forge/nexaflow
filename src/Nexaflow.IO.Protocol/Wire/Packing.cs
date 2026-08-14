@@ -32,6 +32,14 @@ public sealed class Packing(string name) : Node
 /// leaves a document with fields that produce nothing yet answer when asked. The documents in the corpus
 /// inherited that from the engine rather than choosing it.
 /// </para>
+///
+/// <para>
+/// <b>It always holds something.</b> A set with no members is not a degenerate set, it is a different
+/// notion wearing the name — and this kind was doing double duty as one for a while: an alternation and an
+/// empty arm were both "a set of nothing", told apart from a real container by counting its members. That
+/// made every reader of the graph do the same count to find out which of two unrelated things it had.
+/// A place that holds nothing is a <see cref="Junction"/>.
+/// </para>
 /// </summary>
 public sealed class FieldSet(string name, Field? derived = null) : Node
 {
@@ -45,6 +53,32 @@ public sealed class FieldSet(string name, Field? derived = null) : Node
     /// arrangement names it here rather than the two structures silently disagreeing about which node a
     /// header is. It goes when a document can declare a set outright and <c>Pattern.Group</c> is deleted.
     /// </remarks>
+    public Field? Derived { get; } = derived;
+}
+
+/// <summary>
+/// A place on the path that makes no octets and holds nothing: where it branches, and where an option is
+/// to do nothing at all.
+///
+/// <para>
+/// Both are genuinely places. An alternation has to be somewhere for the keyed ways on to leave from and
+/// for the deciding edge to hang off; and an arm that writes nothing is a real answer — a section that is
+/// simply absent, a padding option — which needs somewhere to be, or "which kind is this" and "does
+/// another follow" end up as two decisions on one node with nothing to tell them apart.
+/// </para>
+///
+/// <para>
+/// It is not a <see cref="FieldSet"/>, which is what it used to be. A set of nothing is not a kind of set;
+/// it is this, and calling it a set meant every reader of the graph had to count members to find out which
+/// of two unrelated notions it was looking at.
+/// </para>
+/// </summary>
+public sealed class Junction(string name, Field? derived = null) : Node
+{
+    public override string Name { get; } = name;
+
+    /// <summary>The field this stands for, where it stands for one — an alternation is written as a field
+    /// for want of anywhere else to declare it, and things still name it by that id.</summary>
     public Field? Derived { get; } = derived;
 }
 
@@ -92,8 +126,22 @@ public sealed record Then : Edge
     /// which is what an unbranched step does.</summary>
     public bool Otherwise { get; init; }
 
+    /// <summary>
+    /// Whether the step may simply not be taken.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from a fork, and deliberately not modelled as one. A fork with a way past the thing would
+    /// say it, but it makes the author name the rejoin twice and turns "this header may be absent" into
+    /// two branches that have to be kept meeting up. Here the path is the same path and one step on it is
+    /// conditional — which is also why the condition belongs to the node at the end of the step rather
+    /// than to the edge: what decides whether a part is there is a fact about that part.
+    /// </remarks>
+    public bool Optional { get; init; }
+
     public override string Verb
-        => Otherwise ? "failing everything else, then" : Key is null ? "then" : $"on {Key}, then";
+        => Otherwise ? "failing everything else, then"
+         : Optional ? (Key is null ? "if it is there, then" : $"on {Key}, if it is there, then")
+         : Key is null ? "then" : $"on {Key}, then";
 }
 
 
@@ -137,7 +185,22 @@ public sealed record Allowed : Edge
     public override string Verb => "may contain";
 }
 
-/// <summary>A group's members, in order.</summary>
+/// <summary>
+/// A set's members: what belongs to it, and that they are packed together.
+///
+/// <para>
+/// <b>Not a way the path goes.</b> The path through a set's members is <see cref="Then"/>, the same edge
+/// it is everywhere else — this says which set those members belong to and that they come out contiguous
+/// and in this order, which is what makes a set something a length can measure.
+/// </para>
+///
+/// <para>
+/// The distinction is worth keeping sharp because collapsing it costs both ways. Walking <i>this</i> as
+/// the path made a set a detour the walk had to remember it was inside, needing a stack of where to come
+/// back to; and it put optionality here, where it does not belong — whether a part is there is a fact
+/// about the step that reaches it, not about which set it is filed under.
+/// </para>
+/// </summary>
 public sealed record Holds : Edge
 {
     /// <summary>Where this one comes among them. Genuinely ordinal, unlike a way on.</summary>
