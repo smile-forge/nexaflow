@@ -1,0 +1,872 @@
+{
+  "protocol": "ntp",
+  "title": "Network Time Protocol, version 4",
+  "source": "RFC 5905",
+  "about": [
+    "Authored against RFC 5905 §7.3 and checked against real captures. Every field is fixed width and",
+    "the packet is exactly 48 octets, so nothing here measures anything — which makes it the smallest",
+    "honest test of the graph after TCP: no lengths, no options, no repetition, and one octet that is",
+    "three separately-named runs of bits."
+  ],
+  "nodes": [
+    {
+      "id": "ntp",
+      "kind": "protocol",
+      "as": "Network Time Protocol",
+      "about": [
+        "RFC 5905 §7.3, 'Packet Header Format'. One format: a client request and a server response are the",
+        "same 48 octets differing in Mode, not two shapes. So one message node, and Mode is an ordinary field."
+      ]
+    },
+    {
+      "id": "packet",
+      "kind": "message",
+      "as": "NTP packet"
+    },
+    {
+      "id": "packing.packet",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "header",
+      "kind": "set",
+      "as": "NTP Header",
+      "about": [
+        "The whole of it. NTP has no length field and no options in the base packet — every field is fixed",
+        "and the header is exactly 48 octets, which is why nothing here measures anything."
+      ]
+    },
+    {
+      "id": "liVnMode",
+      "kind": "set",
+      "as": "LI | VN | Mode",
+      "about": [
+        "RFC 5905 §7.3 draws these as one octet split 2|3|3, and the corpus breakdown reads it that way too.",
+        "A set of three fields rather than one field holding three numbers: each is separately named, separately",
+        "meaningful, and separately something an edge can point at."
+      ]
+    },
+    {
+      "id": "leapIndicator",
+      "kind": "field",
+      "as": "LI",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": "Leap Indicator: warns of a leap second at the end of the day."
+    },
+    {
+      "id": "versionNumber",
+      "kind": "field",
+      "as": "VN",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "Version number — 4 for NTPv4."
+    },
+    {
+      "id": "mode",
+      "kind": "field",
+      "as": "Mode",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "What this packet is: 3 is a client request, 4 a server response."
+    },
+    {
+      "id": "stratum",
+      "kind": "field",
+      "as": "Stratum",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Distance from a reference clock. 0 is unspecified, 1 is primary."
+    },
+    {
+      "id": "poll",
+      "kind": "field",
+      "as": "Poll",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": true
+      },
+      "about": "Log2 of the maximum interval between messages, in seconds. Signed."
+    },
+    {
+      "id": "precision",
+      "kind": "field",
+      "as": "Precision",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": true
+      },
+      "about": "Log2 of the local clock precision, in seconds. Signed, and negative in practice."
+    },
+    {
+      "id": "referenceId",
+      "kind": "field",
+      "as": "Reference ID",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": [
+        "Four octets whose meaning depends on the stratum — an IPv4 address at stratum 2 and above, four",
+        "characters of a source name at stratum 1, a kiss code on a KoD packet. Opaque because it is not one",
+        "kind of value: reading it as a number would be picking one of those readings and calling it true."
+      ]
+    },
+    {
+      "id": "rootDelay",
+      "kind": "set",
+      "as": "Root Delay",
+      "about": "NTP short format: 16 bits of seconds, 16 of fraction."
+    },
+    {
+      "id": "rootDelay.seconds",
+      "kind": "field",
+      "as": "Root Delay (seconds)",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "rootDelay.fraction",
+      "kind": "field",
+      "as": "Root Delay (fraction)",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "rootDispersion",
+      "kind": "set",
+      "as": "Root Dispersion",
+      "about": "The same short format."
+    },
+    {
+      "id": "rootDispersion.seconds",
+      "kind": "field",
+      "as": "Root Dispersion (seconds)",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "rootDispersion.fraction",
+      "kind": "field",
+      "as": "Root Dispersion (fraction)",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "referenceTimestamp",
+      "kind": "set",
+      "as": "Reference Timestamp",
+      "about": "NTP timestamp: 32 bits of seconds since 1900, 32 of fraction."
+    },
+    {
+      "id": "referenceTimestamp.seconds",
+      "kind": "field",
+      "as": "Reference Timestamp (seconds)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "referenceTimestamp.fraction",
+      "kind": "field",
+      "as": "Reference Timestamp (fraction)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "originTimestamp",
+      "kind": "set",
+      "as": "Origin Timestamp",
+      "about": "The client transmit time, echoed back verbatim by the server."
+    },
+    {
+      "id": "originTimestamp.seconds",
+      "kind": "field",
+      "as": "Origin Timestamp (seconds)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "originTimestamp.fraction",
+      "kind": "field",
+      "as": "Origin Timestamp (fraction)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "receiveTimestamp",
+      "kind": "set",
+      "as": "Receive Timestamp",
+      "about": "When the packet arrived."
+    },
+    {
+      "id": "receiveTimestamp.seconds",
+      "kind": "field",
+      "as": "Receive Timestamp (seconds)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "receiveTimestamp.fraction",
+      "kind": "field",
+      "as": "Receive Timestamp (fraction)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "transmitTimestamp",
+      "kind": "set",
+      "as": "Transmit Timestamp",
+      "about": "When the packet left."
+    },
+    {
+      "id": "transmitTimestamp.seconds",
+      "kind": "field",
+      "as": "Transmit Timestamp (seconds)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "transmitTimestamp.fraction",
+      "kind": "field",
+      "as": "Transmit Timestamp (fraction)",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "input.leapIndicator",
+      "kind": "input",
+      "as": "LI",
+      "purpose": "The value of LI."
+    },
+    {
+      "id": "input.versionNumber",
+      "kind": "input",
+      "as": "VN",
+      "purpose": "The value of VN."
+    },
+    {
+      "id": "input.mode",
+      "kind": "input",
+      "as": "Mode",
+      "purpose": "The value of Mode."
+    },
+    {
+      "id": "input.stratum",
+      "kind": "input",
+      "as": "Stratum",
+      "purpose": "The value of Stratum."
+    },
+    {
+      "id": "input.poll",
+      "kind": "input",
+      "as": "Poll",
+      "purpose": "The value of Poll."
+    },
+    {
+      "id": "input.precision",
+      "kind": "input",
+      "as": "Precision",
+      "purpose": "The value of Precision."
+    },
+    {
+      "id": "input.referenceId",
+      "kind": "input",
+      "as": "Reference ID",
+      "purpose": "The value of Reference ID."
+    },
+    {
+      "id": "input.rootDelay.seconds",
+      "kind": "input",
+      "as": "Root Delay (seconds)",
+      "purpose": "The value of Root Delay (seconds)."
+    },
+    {
+      "id": "input.rootDelay.fraction",
+      "kind": "input",
+      "as": "Root Delay (fraction)",
+      "purpose": "The value of Root Delay (fraction)."
+    },
+    {
+      "id": "input.rootDispersion.seconds",
+      "kind": "input",
+      "as": "Root Dispersion (seconds)",
+      "purpose": "The value of Root Dispersion (seconds)."
+    },
+    {
+      "id": "input.rootDispersion.fraction",
+      "kind": "input",
+      "as": "Root Dispersion (fraction)",
+      "purpose": "The value of Root Dispersion (fraction)."
+    },
+    {
+      "id": "input.referenceTimestamp.seconds",
+      "kind": "input",
+      "as": "Reference Timestamp (seconds)",
+      "purpose": "The value of Reference Timestamp (seconds)."
+    },
+    {
+      "id": "input.referenceTimestamp.fraction",
+      "kind": "input",
+      "as": "Reference Timestamp (fraction)",
+      "purpose": "The value of Reference Timestamp (fraction)."
+    },
+    {
+      "id": "input.originTimestamp.seconds",
+      "kind": "input",
+      "as": "Origin Timestamp (seconds)",
+      "purpose": "The value of Origin Timestamp (seconds)."
+    },
+    {
+      "id": "input.originTimestamp.fraction",
+      "kind": "input",
+      "as": "Origin Timestamp (fraction)",
+      "purpose": "The value of Origin Timestamp (fraction)."
+    },
+    {
+      "id": "input.receiveTimestamp.seconds",
+      "kind": "input",
+      "as": "Receive Timestamp (seconds)",
+      "purpose": "The value of Receive Timestamp (seconds)."
+    },
+    {
+      "id": "input.receiveTimestamp.fraction",
+      "kind": "input",
+      "as": "Receive Timestamp (fraction)",
+      "purpose": "The value of Receive Timestamp (fraction)."
+    },
+    {
+      "id": "input.transmitTimestamp.seconds",
+      "kind": "input",
+      "as": "Transmit Timestamp (seconds)",
+      "purpose": "The value of Transmit Timestamp (seconds)."
+    },
+    {
+      "id": "input.transmitTimestamp.fraction",
+      "kind": "input",
+      "as": "Transmit Timestamp (fraction)",
+      "purpose": "The value of Transmit Timestamp (fraction)."
+    },
+    {
+      "id": "validator.version",
+      "kind": "validator",
+      "because": "RFC 5905 is version 4; 3 is still seen and anything else is not this protocol.",
+      "ranges": [
+        {
+          "from": {
+            "int": 3
+          },
+          "to": {
+            "int": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.mode",
+      "kind": "validator",
+      "because": "RFC 5905 §7.3 defines modes 0..7.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 7
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "ntp",
+      "to": "packet"
+    },
+    {
+      "kind": "then",
+      "from": "packet",
+      "to": "packing.packet"
+    },
+    {
+      "kind": "then",
+      "from": "packing.packet",
+      "to": "header"
+    },
+    {
+      "kind": "holds",
+      "from": "liVnMode",
+      "to": "leapIndicator",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "liVnMode",
+      "to": "versionNumber",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "liVnMode",
+      "to": "mode",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "rootDelay",
+      "to": "rootDelay.seconds",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "rootDelay",
+      "to": "rootDelay.fraction",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "rootDispersion",
+      "to": "rootDispersion.seconds",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "rootDispersion",
+      "to": "rootDispersion.fraction",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "referenceTimestamp",
+      "to": "referenceTimestamp.seconds",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "referenceTimestamp",
+      "to": "referenceTimestamp.fraction",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "originTimestamp",
+      "to": "originTimestamp.seconds",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "originTimestamp",
+      "to": "originTimestamp.fraction",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "receiveTimestamp",
+      "to": "receiveTimestamp.seconds",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "receiveTimestamp",
+      "to": "receiveTimestamp.fraction",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "transmitTimestamp",
+      "to": "transmitTimestamp.seconds",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "transmitTimestamp",
+      "to": "transmitTimestamp.fraction",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "liVnMode",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "stratum",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "poll",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "precision",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "rootDelay",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "rootDispersion",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "referenceId",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "referenceTimestamp",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "originTimestamp",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "receiveTimestamp",
+      "order": 9
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "transmitTimestamp",
+      "order": 10
+    },
+    {
+      "kind": "then",
+      "from": "header",
+      "to": "liVnMode"
+    },
+    {
+      "kind": "then",
+      "from": "liVnMode",
+      "to": "leapIndicator"
+    },
+    {
+      "kind": "then",
+      "from": "leapIndicator",
+      "to": "versionNumber"
+    },
+    {
+      "kind": "then",
+      "from": "versionNumber",
+      "to": "mode"
+    },
+    {
+      "kind": "then",
+      "from": "mode",
+      "to": "stratum"
+    },
+    {
+      "kind": "then",
+      "from": "stratum",
+      "to": "poll"
+    },
+    {
+      "kind": "then",
+      "from": "poll",
+      "to": "precision"
+    },
+    {
+      "kind": "then",
+      "from": "precision",
+      "to": "rootDelay"
+    },
+    {
+      "kind": "then",
+      "from": "rootDelay",
+      "to": "rootDelay.seconds"
+    },
+    {
+      "kind": "then",
+      "from": "rootDelay.seconds",
+      "to": "rootDelay.fraction"
+    },
+    {
+      "kind": "then",
+      "from": "rootDelay.fraction",
+      "to": "rootDispersion"
+    },
+    {
+      "kind": "then",
+      "from": "rootDispersion",
+      "to": "rootDispersion.seconds"
+    },
+    {
+      "kind": "then",
+      "from": "rootDispersion.seconds",
+      "to": "rootDispersion.fraction"
+    },
+    {
+      "kind": "then",
+      "from": "rootDispersion.fraction",
+      "to": "referenceId"
+    },
+    {
+      "kind": "then",
+      "from": "referenceId",
+      "to": "referenceTimestamp"
+    },
+    {
+      "kind": "then",
+      "from": "referenceTimestamp",
+      "to": "referenceTimestamp.seconds"
+    },
+    {
+      "kind": "then",
+      "from": "referenceTimestamp.seconds",
+      "to": "referenceTimestamp.fraction"
+    },
+    {
+      "kind": "then",
+      "from": "referenceTimestamp.fraction",
+      "to": "originTimestamp"
+    },
+    {
+      "kind": "then",
+      "from": "originTimestamp",
+      "to": "originTimestamp.seconds"
+    },
+    {
+      "kind": "then",
+      "from": "originTimestamp.seconds",
+      "to": "originTimestamp.fraction"
+    },
+    {
+      "kind": "then",
+      "from": "originTimestamp.fraction",
+      "to": "receiveTimestamp"
+    },
+    {
+      "kind": "then",
+      "from": "receiveTimestamp",
+      "to": "receiveTimestamp.seconds"
+    },
+    {
+      "kind": "then",
+      "from": "receiveTimestamp.seconds",
+      "to": "receiveTimestamp.fraction"
+    },
+    {
+      "kind": "then",
+      "from": "receiveTimestamp.fraction",
+      "to": "transmitTimestamp"
+    },
+    {
+      "kind": "then",
+      "from": "transmitTimestamp",
+      "to": "transmitTimestamp.seconds"
+    },
+    {
+      "kind": "then",
+      "from": "transmitTimestamp.seconds",
+      "to": "transmitTimestamp.fraction"
+    },
+    {
+      "kind": "computes",
+      "from": "leapIndicator",
+      "to": "input.leapIndicator",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "versionNumber",
+      "to": "input.versionNumber",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "mode",
+      "to": "input.mode",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "stratum",
+      "to": "input.stratum",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "poll",
+      "to": "input.poll",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "precision",
+      "to": "input.precision",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "referenceId",
+      "to": "input.referenceId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "rootDelay.seconds",
+      "to": "input.rootDelay.seconds",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "rootDelay.fraction",
+      "to": "input.rootDelay.fraction",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "rootDispersion.seconds",
+      "to": "input.rootDispersion.seconds",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "rootDispersion.fraction",
+      "to": "input.rootDispersion.fraction",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "referenceTimestamp.seconds",
+      "to": "input.referenceTimestamp.seconds",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "referenceTimestamp.fraction",
+      "to": "input.referenceTimestamp.fraction",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "originTimestamp.seconds",
+      "to": "input.originTimestamp.seconds",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "originTimestamp.fraction",
+      "to": "input.originTimestamp.fraction",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "receiveTimestamp.seconds",
+      "to": "input.receiveTimestamp.seconds",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "receiveTimestamp.fraction",
+      "to": "input.receiveTimestamp.fraction",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "transmitTimestamp.seconds",
+      "to": "input.transmitTimestamp.seconds",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "transmitTimestamp.fraction",
+      "to": "input.transmitTimestamp.fraction",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "versionNumber",
+      "to": "validator.version",
+      "order": 0
+    },
+    {
+      "kind": "checks",
+      "from": "mode",
+      "to": "validator.mode",
+      "order": 0
+    }
+  ]
+}
