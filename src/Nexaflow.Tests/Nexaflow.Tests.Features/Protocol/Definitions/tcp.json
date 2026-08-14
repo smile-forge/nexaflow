@@ -365,6 +365,24 @@
       "about": "What keys the option fork. Read on the way in, written from the selected arm on the way out."
     },
     {
+      "id": "evaluated.pseudoSource",
+      "kind": "evaluated",
+      "label": "the datagram's source address",
+      "runs": "inputs.sourceAddress",
+      "about": [
+        "An outside value is not a computation — it is something a computation may require. So a field fed",
+        "from outside is fed by an evaluation that reads it, and the edge to the outside node says where it",
+        "came from. One node more than it looks like it needs, and the thing that produces the value is",
+        "always the same kind of thing."
+      ]
+    },
+    {
+      "id": "evaluated.pseudoDestination",
+      "kind": "evaluated",
+      "label": "the datagram's destination address",
+      "runs": "inputs.destinationAddress"
+    },
+    {
       "id": "evaluated.hasOptions",
       "kind": "evaluated",
       "label": "are there options?",
@@ -545,8 +563,11 @@
     { "kind": "requires", "from": "converted.checksum", "to": "header", "facet": "emitted", "sequence": 1 },
     { "kind": "requires", "from": "converted.checksum", "to": "data", "facet": "emitted", "sequence": 2 },
 
-    { "kind": "computes", "from": "outside.sourceAddress", "to": "pseudo.sourceAddress", "facet": "value" },
-    { "kind": "computes", "from": "outside.destinationAddress", "to": "pseudo.destinationAddress", "facet": "value" },
+    { "kind": "computes", "from": "evaluated.pseudoSource", "to": "pseudo.sourceAddress", "facet": "value" },
+    { "kind": "requires", "from": "evaluated.pseudoSource", "to": "outside.sourceAddress", "facet": "value", "sequence": 0 },
+
+    { "kind": "computes", "from": "evaluated.pseudoDestination", "to": "pseudo.destinationAddress", "facet": "value" },
+    { "kind": "requires", "from": "evaluated.pseudoDestination", "to": "outside.destinationAddress", "facet": "value", "sequence": 0 },
 
     { "kind": "checks", "from": "reserved", "to": "validator.reservedZero", "order": 0,
       "because": "RFC 9293 §3.1: Rsrvd must be zero in generated segments." },

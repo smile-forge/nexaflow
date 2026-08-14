@@ -676,6 +676,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         Dictionary<string, ProtoValue> parts = new(StringComparer.Ordinal);
         Dictionary<string, ProtoValue> outside = new(StringComparer.Ordinal);
+        Dictionary<string, ProtoValue> spans = new(StringComparer.Ordinal);
 
         foreach (var wanted in graph.InputsOf(computation))
             switch (wanted.To)
@@ -691,6 +692,21 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     break;
                 }
 
+                // A set is not a field and is asked different questions, so it answers under its own name.
+                // It has no value — it produced nothing — and that is the whole distinction: a length that
+                // measures a header is reading a fact about what the header holds, not a number the header
+                // computed. Putting both under `fields` would give every container a value it has no
+                // business having, which is the confusion the set node exists to end.
+                case FieldSet set:
+                {
+                    var appearance = run.For(set);
+
+                    spans[set.Name] = EvalScope.Record(
+                        ("extent", Held(appearance, Facet.Extent)),
+                        ("octets", Held(appearance, Facet.Emitted)));
+                    break;
+                }
+
                 case Context source:
                     outside[source.Key] = run.For(source).Value;
                     break;
@@ -698,6 +714,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         return new EvalScope()
             .Set("fields", new ProtoValue.Rec(parts))
+            .Set("sets", new ProtoValue.Rec(spans))
             .Set("inputs", new ProtoValue.Rec(outside));
     }
 
