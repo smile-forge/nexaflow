@@ -71,7 +71,7 @@ public class ArrangementTests
     }
 
     private static Junction Fork(MessageDef message, Field declared)
-        => message.Graph.Nodes.OfType<Junction>().Single(j => j.Derived == declared);
+        => message.Graph.Nodes.OfType<Junction>().Single(j => j.Name == declared.Id);
 
     [TestMethod]
     public void Every_document_in_the_corpus_lays_out_the_way_its_field_list_says()
@@ -137,7 +137,7 @@ public class ArrangementTests
         var declared = message.Fields.First(f => f.Pattern is Pattern.Group { Fields.Count: > 1 });
         var members = ((Pattern.Group)declared.Pattern).Fields;
 
-        var set = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Derived == declared);
+        var set = message.Graph.Nodes.OfType<FieldSet>().Single(s => s.Name == declared.Id);
         var held = message.Graph.From<Holds>(set).OrderBy(h => h.Order).Select(h => h.To).ToList();
 
         CollectionAssert.AreEqual(members.ToArray(), held.ToArray(),
@@ -191,19 +191,22 @@ public class ArrangementTests
             var sets = message.Graph.Nodes.OfType<FieldSet>().ToList();
 
             CollectionAssert.AreEquivalent(
-                Contained(message.Fields, packing: true).ToList(),
-                sets.Where(s => s.Derived is not null).Select(s => s.Derived!).ToList(),
+                Contained(message.Fields, packing: true).Select(f => f.Id).ToList(),
+                sets.Select(s => s.Name).ToList(),
                 $"{message.Id}: one set per container, and nothing else pretending to be one");
 
             foreach (var set in sets)
                 Assert.AreNotEqual(0, message.Members(set).Count(),
                                    $"{message.Id}: '{set.Name}' is a set that holds nothing");
 
-            CollectionAssert.AreEquivalent(
-                Contained(message.Fields, packing: false).ToList(),
-                message.Graph.Nodes.OfType<Junction>().Where(j => j.Derived is not null)
-                       .Select(j => j.Derived!).ToList(),
-                $"{message.Id}: one junction per alternation");
+            // Every alternation is a junction. Not the converse: an arm that packs nothing is a junction
+            // too — a section that is simply absent is a real answer and needs somewhere to be — so the
+            // junctions are a superset and saying otherwise would be asserting the empty arms away.
+            var junctions = message.Graph.Nodes.OfType<Junction>().Select(j => j.Name).ToHashSet();
+
+            foreach (var fork in Contained(message.Fields, packing: false))
+                Assert.IsTrue(junctions.Contains(fork.Id),
+                              $"{message.Id}: '{fork.Id}' is an alternation with no junction");
         }
     }
 

@@ -41,19 +41,12 @@ public sealed class Packing(string name) : Node
 /// A place that holds nothing is a <see cref="Junction"/>.
 /// </para>
 /// </summary>
-public sealed class FieldSet(string name, Field? derived = null) : Node
+public sealed class FieldSet(string name) : Node
 {
     public override string Name { get; } = name;
 
-    /// <summary>
-    /// The <c>Pattern.Group</c> field this was made from, while there still is one.
-    /// </summary>
-    /// <remarks>
-    /// Transitional and only that. The codec still walks containment and still wants the field, so the
-    /// arrangement names it here rather than the two structures silently disagreeing about which node a
-    /// header is. It goes when a document can declare a set outright and <c>Pattern.Group</c> is deleted.
-    /// </remarks>
-    public Field? Derived { get; } = derived;
+    // There is deliberately no back-reference to whatever a document declared this from. One thing has
+    // one node; a pointer to the other one is what let a fact land where nobody was looking.
 }
 
 /// <summary>
@@ -73,13 +66,12 @@ public sealed class FieldSet(string name, Field? derived = null) : Node
 /// of two unrelated notions it was looking at.
 /// </para>
 /// </summary>
-public sealed class Junction(string name, Field? derived = null) : Node
+public sealed class Junction(string name) : Node
 {
     public override string Name { get; } = name;
 
-    /// <summary>The field this stands for, where it stands for one — an alternation is written as a field
-    /// for want of anywhere else to declare it, and things still name it by that id.</summary>
-    public Field? Derived { get; } = derived;
+    // There is deliberately no back-reference to whatever a document declared this from. One thing has
+    // one node; a pointer to the other one is what let a fact land where nobody was looking.
 }
 
 // There is no edge for "a message offers this arrangement", and none for "an arrangement begins here".

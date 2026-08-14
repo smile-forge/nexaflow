@@ -601,7 +601,7 @@ public sealed record MessageDef
             // path leaves the set is simply where its last member leaves.
             case Pattern.Group group:
             {
-                var set = new FieldSet(field.Id, field);
+                var set = new FieldSet(field.Id);
                 graph.Add(set);
 
                 // What the document hung off the field it declared belongs on the node that stands in the
@@ -629,7 +629,7 @@ public sealed record MessageDef
 
             case Pattern.Choice choice:
             {
-                var fork = new Junction(field.Id, field);
+                var fork = new Junction(field.Id);
                 graph.Add(fork);
 
                 // What decides, as a node. A value that keys the ways on rather than a condition per way:
