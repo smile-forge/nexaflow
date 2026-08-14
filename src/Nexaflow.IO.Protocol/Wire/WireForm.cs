@@ -55,6 +55,40 @@ public abstract record WireForm
 
     // ── The forms ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// A run of bits, most significant first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The form that lets a bit run stop being part of a shape. A group of runs was a
+    /// <c>Pattern.Bits</c> holding its own list of them, which made every run two things at once: a node
+    /// in the graph with its own requirements path, and an entry in a shape carrying the same name and
+    /// width. Reading survived that — reading needs only the width — and writing did not, because it has
+    /// to find what computes each run and the copies inside the shape compute nothing.
+    /// </para>
+    /// <para>
+    /// As a form there is no second copy. Runs are ordinary fields packed together, and eight bits going
+    /// by is an octet, which the writer already believed. Nothing about a group of them is a special case:
+    /// three fields of five, three and eight bits produce two octets because that is what laying down
+    /// sixteen bits does.
+    /// </para>
+    /// </remarks>
+    public sealed record Run(int Bits) : WireForm
+    {
+        public override bool SelfDelimiting => true;
+        public override int? FixedBits => Bits;
+
+        public override void Lay(BitWriter wire, ProtoValue value, Wiring how)
+            => wire.Put(value.AsInt(), Bits);
+
+        public override Taken Take(BitCursor ahead, int? bits, Wiring how)
+        {
+            if (!ahead.Holds(Bits)) throw how.Wrong($"wants {Bits} bit(s) and {ahead.Remaining} remain");
+
+            return new Taken(ProtoValue.Of(ahead.Read(Bits)), Bits);
+        }
+    }
+
     /// <summary>An integer of a width the declaration fixes.</summary>
     public sealed record Scalar(int Octets, bool BigEndian, bool Signed) : WireForm
     {
