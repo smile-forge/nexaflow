@@ -429,7 +429,7 @@ public class ThreadedChainCaptureTests
         // rides on the edge because one rule can constrain several nodes and need not come in the same
         // place at each of them.
         var codec = new MessageCodec(Definition());
-        var ordered = Definition().Graph.Of<Constrains>().OrderBy(e => e.Order).ToList();
+        var ordered = Definition().Graph.Of<Checks>().OrderBy(e => e.Order).ToList();
 
         Assert.AreEqual(4, ordered.Count, "four rules, four edges");
         CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, ordered.Select(e => e.Order).ToArray(),

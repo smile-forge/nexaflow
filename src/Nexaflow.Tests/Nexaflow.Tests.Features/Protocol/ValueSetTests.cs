@@ -249,11 +249,17 @@ public class ValueSetTests
 
         Assert.AreEqual(0, message.Validate().Count, string.Join("\n", message.Validate()));
 
-        var drawing = message.Graph.To<Admits>(shared).ToList();
+        // Through the checker, because a check points at what does the checking and the set is data that
+        // checker was handed. Two fields confined to one registry are two checks over one set, not two
+        // copies of it — which is the whole reason a set is a node.
+        var drawing = message.Graph.Of<Checks>()
+                             .Where(e => message.DrawnFrom(e.From)?.Set is { } set
+                                      && ReferenceEquals(set, shared))
+                             .ToList();
 
         CollectionAssert.AreEquivalent(new[] { "wanted", "granted" },
             drawing.Select(e => e.From.Name).ToArray());
 
-        Assert.IsTrue(drawing.All(e => ReferenceEquals(e.To, shared)), "one set, pointed at twice");
+        Assert.AreEqual(2, message.Graph.To<Requires>(shared).Count(), "one set, reached twice");
     }
 }

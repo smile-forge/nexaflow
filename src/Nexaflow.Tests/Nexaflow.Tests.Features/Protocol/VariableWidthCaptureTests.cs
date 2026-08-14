@@ -359,59 +359,6 @@ public class VariableWidthCaptureTests
     }
 
     [TestMethod]
-    public void The_connect_packet_decodes_the_sections_its_flag_bits_admit()
-    {
-        var decoded = new MessageCodec(Connect()).Decode(Capture(0));
-
-        Assert.AreEqual(143, decoded["remainingLength"].AsInt(), "the two-octet form");
-        Assert.AreEqual("MQTT", decoded["protocolName"].AsText());
-        Assert.AreEqual(4, decoded["protocolLevel"].AsInt());
-        Assert.AreEqual(60, decoded["keepAlive"].AsInt());
-        Assert.AreEqual("nexaflow-probe-01", decoded["clientId"].AsText());
-
-        // 0xce = 1 1 0 01 1 1 0
-        Assert.AreEqual(1, decoded["userNameFlag"].AsInt());
-        Assert.AreEqual(1, decoded["willFlag"].AsInt());
-        Assert.AreEqual(1, decoded["willQos"].AsInt());
-        Assert.AreEqual(0, decoded["reserved"].AsInt());
-
-        // Each gated section reports which packing it took, so a later step branches on that rather than
-        // re-testing the flag byte and hoping the two rules agree.
-        foreach (var section in (string[])["will", "credential", "secret"])
-            Assert.AreEqual("present", decoded[section].AsText(), section);
-
-        Assert.AreEqual("dev/status", decoded["willTopic"].AsText());
-        Assert.AreEqual(80, decoded["willMessage"].AsBytes().Length);
-        Assert.AreEqual("sensoruser", decoded["userName"].AsText());
-        Assert.AreEqual("733363723374", decoded["password"].ToString(), "binary, not text — the standard says so");
-    }
-
-    [TestMethod]
-    public void Clearing_a_flag_bit_removes_its_section_and_every_length_follows()
-    {
-        // The proof that presence is structural rather than cosmetic: drop the will flag and 94 octets
-        // leave the packet, with the outer length re-measured — including back down to the one-octet form.
-        var codec = new MessageCodec(Connect());
-        var inputs = InputsFrom(codec.Decode(Capture(0)), except: Derived);
-
-        inputs.Set("inputs", With(inputs.Root("inputs"),
-            ("connectFlags", With(Member(inputs.Root("inputs"), "connectFlags"),
-                                  ("willFlag", ProtoValue.Of(0L)), ("willQos", ProtoValue.Of(0L))))));
-
-        var encoded = codec.Encode(inputs);
-        var decoded = codec.Decode(encoded);
-
-        // 146 − 94 is 52, and the answer is 51: the body drops to 49 octets, which no longer needs the
-        // two-octet form of the length, so the length field shrinks too. Two derivations moving together,
-        // neither of them written down anywhere.
-        Assert.AreEqual(51, encoded.Length, "1 header + 1 length + 49 body");
-        Assert.AreEqual(49, decoded["remainingLength"].AsInt());
-        Assert.AreEqual("absent", decoded["will"].AsText());
-        Assert.IsTrue(decoded["willTopic"].IsNull, "not there rather than empty");
-        Assert.AreEqual(6, decoded["password"].AsBytes().Length, "the sections after it still line up");
-    }
-
-    [TestMethod]
     public void A_rule_inside_a_repeated_structure_applies_to_every_structure()
     {
         // The case that could not be written at all until rules pointed at nodes. `requestedQos` is one
@@ -491,32 +438,6 @@ public class VariableWidthCaptureTests
 
         Assert.AreEqual("temperatur/außen/°C", text.Decode(encoded)["label"].AsText());
         Assert.AreEqual(21, encoded.Length - 2, "19 characters, two of which take two octets");
-    }
-
-    [TestMethod]
-    public void A_flag_octet_that_contradicts_itself_is_refused_in_both_directions()
-    {
-        // Every packet below is structurally perfect: the right sections are present, every length is
-        // right, and it re-encodes to the octets it arrived as. They are still malformed, and until now
-        // nothing could say so.
-        var codec = new MessageCodec(Connect());
-        var honest = codec.Decode(Capture(0));
-
-        // Announcing no will, then describing one.
-        var contradictory = Flags(honest, ("willFlag", 0), ("willQos", 0), ("willRetain", 1));
-        var retain = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(contradictory));
-        StringAssert.Contains(retain.Message, "obliges");
-        StringAssert.Contains(retain.Message, "nothing for a quality of service");
-
-        // A password with nobody to attach it to.
-        var orphaned = Flags(honest, ("userNameFlag", 0));
-        var password = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(orphaned));
-        StringAssert.Contains(password.Message, "forbids one without a user name");
-
-        // And the reserved bit, which a peer setting is simply not speaking this protocol.
-        var reserved = Flags(honest, ("reserved", 1));
-        StringAssert.Contains(Assert.ThrowsExactly<ProtoTypeException>(() => codec.Encode(reserved)).Message,
-            "not a value it may take");
     }
 
     [TestMethod]

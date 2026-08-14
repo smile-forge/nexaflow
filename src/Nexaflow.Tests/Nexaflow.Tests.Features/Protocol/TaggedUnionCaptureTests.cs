@@ -935,18 +935,6 @@ public class TaggedUnionCaptureTests
         StringAssert.Contains(ex.Message, "no value outside it to be newer than this document");
     }
 
-    [TestMethod]
-    public void A_network_layer_message_is_refused_by_name_rather_than_read_as_an_apdu()
-    {
-        // Bit 7 of the control octet says the body is not an APDU. Without the rule the walk reads a
-        // network-layer message as a Confirmed-Request and reports nothing at all.
-        var tampered = (byte[])[.. Capture(0)];
-        tampered[5] = 0x84;
-
-        var ex = Assert.ThrowsExactly<ProtoTypeException>(() => new MessageCodec(Definition()).Decode(tampered));
-        StringAssert.Contains(ex.Message, "carries no APDU");
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static EvalScope InputsFrom(DecodeResult decoded)

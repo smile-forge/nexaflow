@@ -153,21 +153,43 @@ public sealed record Speaks : Edge
 }
 
 /// <summary>
-/// A field takes its values from a set.
+/// Something that has to hold about this node, and what settles it.
 ///
 /// <para>
-/// An edge rather than a list on the field, because the set is a thing in its own right: several fields
-/// draw from one registry, a rule needs to ask whether that registry settles meaning, and a choice needs
-/// to ask whether it is closed. A copy of the values inlined at each site answers none of those and drifts
-/// between them.
+/// One edge for what used to be two unrelated shapes. A field drew from a set by pointing at it
+/// (<c>field → set</c>, no computation anywhere), and a rule applied to a field by pointing the other way
+/// (<c>rule → field</c>) — so "what constrains this node" was a To-query while every other fact about a
+/// node is a From-query, and the two could not be asked together at all.
+/// </para>
+///
+/// <para>
+/// <b>It points at whatever decides, and that is the point.</b> A set of legal values was a frozen list on
+/// a node, which cannot say "the legal values are the ones the handshake advertised" — and negotiated
+/// protocols are largely that. Pointing at a producer instead makes the static case a
+/// <see cref="Constant"/> and the negotiated case a computation, reached the same way, with the inputs on
+/// ordinary <see cref="Requires"/> edges.
 /// </para>
 /// </summary>
-public sealed record Admits : Edge
+public sealed record Checks : Edge
 {
-    /// <summary>A named run inside the field, when the set governs one rather than the whole group.</summary>
+    /// <summary>Why, in the author's words. Carried into the refusal, because the sentence the author
+    /// would have written beats "value 3 is not allowed".</summary>
+    public string Because { get; init; } = "";
+
+    /// <summary>A named run inside the node, when the check is about one rather than the whole of it.</summary>
     public string? Run { get; init; }
 
-    public override string Verb => Run is null ? "admits" : $"admits, in {Run},";
+    /// <summary>
+    /// Where this sits among the checks on the same node.
+    /// </summary>
+    /// <remarks>
+    /// On the edge rather than on what it points at, and awkward on purpose. Order is a property of
+    /// <i>applying</i> a check here, not of the check — one set or one condition can govern several nodes
+    /// and be first at one of them.
+    /// </remarks>
+    public int Order { get; init; }
+
+    public override string Verb => Run is null ? "must satisfy" : $"must satisfy, in {Run},";
 }
 
 /// <summary>
@@ -227,31 +249,6 @@ public sealed record Enables : Edge
 public sealed record Remembers : Edge
 {
     public override string Verb => "keeps something in";
-}
-
-/// <summary>A constraint applies to a node. Wherever that node is realised — once, or once per structure
-/// of a chain — the constraint applies there too.</summary>
-public sealed record Constrains : Edge
-{
-    /// <summary>
-    /// Where this constraint sits among the others on the same node.
-    ///
-    /// <para>
-    /// On the edge rather than on the rule, and awkward on purpose. Order is a property of <i>applying</i>
-    /// this rule <i>here</i>: one rule can constrain several nodes and need not come in the same place at
-    /// each, and once rules are scoped by state the same rule will apply in several scopes with different
-    /// neighbours. A number on the rule would be one answer to a question that has several.
-    /// </para>
-    ///
-    /// <para>
-    /// It matters because the first failure is the one anyone reads. A rule that says "this is not a
-    /// version we know" should be reached before one that says the packet is internally inconsistent —
-    /// the second is true and the first is why.
-    /// </para>
-    /// </summary>
-    public required int Order { get; init; }
-
-    public override string Verb => $"constrains[{Order}]";
 }
 
 /// <summary>

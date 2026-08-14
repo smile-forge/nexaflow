@@ -76,6 +76,16 @@ public abstract class Rule : Node
     /// sixteen. Note this is the opposite of a choice — a choice guarantees <i>some</i> arm matches, which
     /// makes an unexpected value harmless rather than refused.
     /// </para>
+    ///
+    /// <para>
+    /// <b>It builds a <see cref="ValueSet"/>, because that is what it always was.</b> This carried a bare
+    /// list of ranges while a value set carried the same ranges plus whether the list is the whole story
+    /// and whether a value settles which member is meant — so the two said one thing and one of them said
+    /// strictly less. The missing halves are not decoration: <see cref="Bounding"/> decides whether an
+    /// unlisted value is refused or merely unrecognised, and <see cref="Exclusivity"/> decides whether
+    /// asking two structures to differ is even a coherent request. A rule that omitted both was making
+    /// those choices by default and not saying so.
+    /// </para>
     /// </summary>
     public sealed class Domain : Rule
     {
@@ -88,11 +98,29 @@ public abstract class Rule : Node
 
         public required IReadOnlyList<ValueRange> Allowed { get; init; }
 
+        /// <summary>Whether the listed values are all there will ever be. Confining a field to a written
+        /// list is a closed statement unless the author says otherwise — an open one refuses nothing and
+        /// would not be worth writing here.</summary>
+        public Bounding Bounding { get; init; } = Bounding.Closed;
+
+        /// <summary>Whether a value settles which member is meant.</summary>
+        public Exclusivity Exclusivity { get; init; } = Exclusivity.Definitive;
+
         internal override IEnumerable<Node> Applies => [Field];
 
         public string What => Run ?? Field.Name;
 
         public bool Admits(ProtoValue value) => Allowed.Any(r => r.Admits(value));
+
+        /// <summary>This rule as the set it describes, so one notion has one node behind it.</summary>
+        public ValueSet AsSet() => new()
+        {
+            Id = $"{What} allowed",
+            Members = [.. Allowed.Select(r => new SetMember(r))],
+            Bounding = Bounding,
+            Exclusivity = Exclusivity,
+            Because = Because,
+        };
 
         public override string ToString() => $"{What} ∈ {{{string.Join(", ", Allowed)}}}";
     }

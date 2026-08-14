@@ -390,15 +390,52 @@ public sealed record MessageDef
         Lay(graph, arrangement, Fields);
 
         for (int i = 0; i < Rules.Count; i++)
+        {
+            int order = Rules[i].Order == int.MaxValue ? i : Rules[i].Order;
+
+            // A confinement is a value set, so it becomes one. It was the same notion written twice —
+            // ranges here, ranges plus what they mean over there — and the version that said less was
+            // choosing bounding and exclusivity by default without admitting to it.
+            if (Rules[i] is Rule.Domain domain)
+            {
+                Confine(graph, domain.Field, domain.Run, domain.AsSet(), domain.Because, order);
+                continue;
+            }
+
             foreach (var target in Rules[i].Applies)
-                graph.Add(new Constrains
+                graph.Add(new Checks
                 {
-                    From = Rules[i],
-                    To = target,
-                    Order = Rules[i].Order == int.MaxValue ? i : Rules[i].Order,
+                    From = target, To = Rules[i], Because = Rules[i].Because, Order = order,
                 });
+        }
 
         return graph;
+    }
+
+    /// <summary>
+    /// Confines a node's value to a set: a check pointing at what does the checking, and the set arriving
+    /// on the checker's own requirement edge.
+    /// </summary>
+    /// <remarks>
+    /// Three nodes where there used to be a list on a field, and each earns its place. The
+    /// <see cref="Checks"/> edge says this has to hold <i>here</i>, and carries the ordering and the
+    /// author's reason, both of which are about applying the check rather than about the check. The
+    /// <see cref="Validator"/> says what kind of comparison it is and what an answer outside it means. The
+    /// set is data, reached by a requirement edge — which is what lets it be a constant today and something
+    /// the handshake settled tomorrow, with nothing in between needing to change.
+    /// </remarks>
+    private static void Confine(ProtocolGraph graph, Node node, string? run, ValueSet set,
+                                string because, int order)
+    {
+        // Whether the list is the whole story is a fact about the set, and stays there. The validator held
+        // a copy for a while, which is one fact in two places and therefore two facts eventually — and the
+        // set's is the one a choice already consults to decide whether it needs a fallback.
+        var checker = new Validator { Id = $"{run ?? node.Name} in {set.Id}", Because = because };
+
+        graph.Add(set);
+        graph.Add(checker);
+        graph.Add(new Requires { From = checker, To = set, Sequence = 0, Facet = "value" });
+        graph.Add(new Checks { From = node, To = checker, Run = run, Because = because, Order = order });
     }
 
     private static void Wire(ProtocolGraph graph, Node parent, IReadOnlyList<Field> fields)
@@ -409,7 +446,7 @@ public sealed record MessageDef
             graph.Add(new Contains { From = parent, To = field, Ordinal = i });
 
             if (field.Draws is { } drawn)
-                graph.Add(new Admits { From = field, To = drawn.Set, Run = drawn.Run });
+                Confine(graph, field, drawn.Run, drawn.Set, drawn.Set.Because, 0);
 
             if (field.Assumed is { } assumed)
                 graph.Add(new Assumes { From = field, To = assumed });
@@ -958,7 +995,7 @@ public sealed record MessageDef
     /// <summary>The rules that apply to one node. A reference lookup, so a rule on a segment inside a
     /// repeated structure is found every time that structure is realised.</summary>
     public IEnumerable<Rule> RulesOn(Node node)
-        => Graph.To<Constrains>(node).OrderBy(e => e.Order).Select(e => (Rule)e.From);
+        => Checking(node).Select(e => e.To).OfType<Rule>();
 
     /// <summary>What a choice offers, and on what. Read from the edges, because that is where the key
     /// lives — the arm knows what shape it is, the edge knows what picks it.</summary>
@@ -1033,8 +1070,26 @@ public sealed record MessageDef
         return found;
     }
 
-    /// <summary>The set a field draws from, if it declares one.</summary>
-    public Admits? DrawnFrom(Node field) => Graph.From<Admits>(field).FirstOrDefault();
+    /// <summary>
+    /// The set a node's value is confined to, where a check reaches one.
+    /// </summary>
+    /// <remarks>
+    /// Through the validator rather than straight at the set, because a check points at what does the
+    /// checking and the set is data that checker was given. Whether repeating a value means anything is
+    /// still a property of the set, so anything asking that question has to come the whole way.
+    /// </remarks>
+    public (ValueSet Set, string? Run)? DrawnFrom(Node field)
+    {
+        foreach (var check in Checking(field))
+            if (check.To is Validator checker)
+                foreach (var input in InputsOf(checker))
+                    if (input.To is ValueSet set) return (set, check.Run);
+
+        return null;
+    }
+
+    /// <summary>Everything that has to hold about a node, in the order the document put them in.</summary>
+    public IEnumerable<Checks> Checking(Node node) => Graph.From<Checks>(node).OrderBy(e => e.Order);
 
     /// <summary>
     /// The packing a discriminator selects, or a refusal naming what arrived and what was declared.
@@ -1795,7 +1850,7 @@ public sealed record MessageDef
                 continue;
             }
 
-            if (DrawnFrom(rule.Of) is not { } edge)
+            if (DrawnFrom(rule.Of) is not { } drawn)
             {
                 issues.Add($"message '{Id}': {rule} — but '{rule.Of.Name}' does not say what set its values "
                          + "come from, and whether repeating a value means anything is a property of the "
@@ -1803,8 +1858,8 @@ public sealed record MessageDef
                 continue;
             }
 
-            if (((ValueSet)edge.To).Exclusivity == Exclusivity.Indicative)
-                issues.Add($"message '{Id}': {rule} — but '{edge.To.Name}' is indicative, so a value points "
+            if (drawn.Set.Exclusivity == Exclusivity.Indicative)
+                issues.Add($"message '{Id}': {rule} — but '{drawn.Set.Id}' is indicative, so a value points "
                          + "at a member without settling it and the same value twice need not be about the "
                          + "same thing. Requiring distinctness over it would refuse messages that are well "
                          + "formed. Either the set is definitive and should say so, or this rule is not "

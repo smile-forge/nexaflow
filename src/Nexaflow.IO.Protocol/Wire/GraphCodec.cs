@@ -416,6 +416,7 @@ public sealed class GraphCodec(MessageDef message,
                 };
 
             var packed = new ProtoValue.Rec(runs);
+            Vet(appearance, field, packed);
             appearance.Settle(Facet.Value, packed);
             return packed;
         }
@@ -434,6 +435,7 @@ public sealed class GraphCodec(MessageDef message,
 
         if (field.Via is not null) value = Applied(field, value, forward: true);
 
+        Vet(appearance, field, value);
         appearance.Settle(Facet.Value, value);
         return value;
     }
@@ -684,12 +686,14 @@ public sealed class GraphCodec(MessageDef message,
         {
             var taken = form.Take(source, null, How(field));
 
+            var got = field.Via is null ? taken.Value : Applied(field, taken.Value, forward: false);
+
             appearance.Settle(Facet.Position, began / 8);
             appearance.Settle(Facet.Extent, taken.Bits / 8);
             appearance.Settle(Facet.Emitted, ProtoValue.Of(source.Since(began)));
-            appearance.Settle(Facet.Value, field.Via is null
-                ? taken.Value
-                : Applied(field, taken.Value, forward: false));
+
+            Vet(appearance, field, got);
+            appearance.Settle(Facet.Value, got);
             return;
         }
 
@@ -701,10 +705,14 @@ public sealed class GraphCodec(MessageDef message,
 
         var octets = source.Octets(width, How(field));
 
+        var read = Read(field, octets);
+
         appearance.Settle(Facet.Position, began / 8);
         appearance.Settle(Facet.Extent, width);
         appearance.Settle(Facet.Emitted, ProtoValue.Of(octets));
-        appearance.Settle(Facet.Value, Read(field, octets));
+
+        Vet(appearance, field, read);
+        appearance.Settle(Facet.Value, read);
     }
 
 
@@ -853,6 +861,66 @@ public sealed class GraphCodec(MessageDef message,
 
     /// <summary>What a form may reach for, and whose field it is when something goes wrong.</summary>
     private Wiring How(Field field) => new(_converters, field.Id);
+
+    // ── What has to hold ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Everything the document says has to hold about a value, checked where the value settles.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Both directions, deliberately.</b> An engine that will not read something it would happily write
+    /// has two opinions about the protocol. So a confinement refuses on the way out as well — a caller
+    /// handing in a value the document calls illegal finds out here, rather than on a wire.
+    /// </para>
+    /// <para>
+    /// What the check points at is whatever settles it, which is the reason it is an edge. A written list
+    /// of legal values is a set node; a negotiated one will be a computation producing a set, reached the
+    /// same way with its inputs on ordinary edges. Nothing here has to know which it got until it looks.
+    /// </para>
+    /// </remarks>
+    private void Vet(RunNode appearance, Node place, ProtoValue value)
+    {
+        foreach (var check in message.Checking(place))
+        {
+            if (check.To is not Validator checker) continue;
+
+            var held = check.Run is { } run && value is ProtoValue.Rec runs
+                ? runs.Members.GetValueOrDefault(run, ProtoValue.Nothing)
+                : value;
+
+            var verdict = checker.Judge(held, [.. Supplying(checker)]);
+
+            // Passing while unrecognised is the answer a boolean cannot give: a value an open set has not
+            // heard of is legal, and refusing it would call tomorrow's assignments malformed.
+            if (verdict.Passed) continue;
+
+            throw new ProtoTypeException(
+                $"'{check.Run ?? place.Name}': {verdict.Why}"
+              + (check.Because.Length > 0 ? $" — {check.Because}" : ""));
+        }
+    }
+
+    /// <summary>
+    /// What a validator checks against, from its own requirement edges, in order.
+    /// </summary>
+    /// <remarks>
+    /// A set node is handed over as itself; anything else is run and its value handed over. So a written
+    /// list and a negotiated limit reach the check by the same path, and the check cannot tell which it
+    /// got until it looks at what it was given.
+    /// </remarks>
+    private IEnumerable<object?> Supplying(Validator checker)
+    {
+        foreach (var wanted in message.InputsOf(checker))
+            yield return wanted.To switch
+            {
+                ValueSet set => set,
+                Constant stated => stated.Holds,
+                Evaluated evaluated => _evaluator.Eval(evaluated.Runs, new EvalScope()),
+                var other => throw new ProtoTypeException(
+                                 $"'{checker.Id}' cannot check against '{other.Name}'"),
+            };
+    }
 
     /// <summary>The fixed value that follows this node, where one does.</summary>
     private ProtoValue? Ends(Field field)

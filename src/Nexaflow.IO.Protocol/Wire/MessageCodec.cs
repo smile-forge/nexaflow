@@ -783,18 +783,18 @@ public sealed class MessageCodec(MessageDef message, ConverterTable? converters 
 
     private void Belongs(Field field, ProtoValue value)
     {
-        if (_message.DrawnFrom(field) is not { } edge) return;
+        if (_message.DrawnFrom(field) is not { } drawn) return;
 
-        var set = (ValueSet)edge.To;
+        var set = drawn.Set;
 
-        var subject = edge.Run is { } run && value is ProtoValue.Rec rec
+        var subject = drawn.Run is { } run && value is ProtoValue.Rec rec
             ? rec.Members.GetValueOrDefault(run, ProtoValue.Nothing)
             : value;
 
         if (set.Bounding == Bounding.Open || set.Admits(subject)) return;
 
         throw new ProtoTypeException(
-            $"'{edge.Run ?? field.Name}' is {subject}, which is not in '{set.Id}' — a closed set, so there "
+            $"'{drawn.Run ?? field.Name}' is {subject}, which is not in '{set.Id}' — a closed set, so there "
           + $"is no value outside it to be newer than this document. Members: "
           + $"{string.Join(", ", set.Members)}. {set.Because}");
     }

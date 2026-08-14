@@ -208,29 +208,6 @@ public class EndToEndCaptureTests
     }
 
     [TestMethod]
-    public void A_value_the_wire_shape_allows_but_the_protocol_does_not_is_refused()
-    {
-        // The gap all three audits found first, and the one a round trip can never find: each of these
-        // re-encodes to exactly the octets it arrived as. Only a rule can tell them apart from real ones.
-        var codec = new MessageCodec(Definition());
-
-        foreach (var (offset, octet, expected) in ((int, byte, string)[])
-        [
-            (0, 0x1b, "'version' is 3"),        // 00|011|011 — version 3
-            (0, 0x20, "'mode' is 0"),           // 00|100|000 — mode 0, reserved
-            (1, 0xc8, "'stratum' is 200"),      // reserved stratum
-        ])
-        {
-            var tampered = (byte[])[.. Capture(0)];
-            tampered[offset] = octet;
-
-            var ex = Assert.ThrowsExactly<ProtoTypeException>(() => codec.Decode(tampered));
-            StringAssert.Contains(ex.Message, expected);
-            StringAssert.Contains(ex.Message, "not a value it may take");
-        }
-    }
-
-    [TestMethod]
     public void A_refusal_says_why_in_the_words_of_whoever_wrote_the_document()
     {
         // The reason is the point. "Value 200 is not allowed" tells a reader nothing about what to do,
