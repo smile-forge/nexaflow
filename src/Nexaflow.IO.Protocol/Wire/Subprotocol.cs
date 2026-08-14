@@ -55,7 +55,18 @@ public sealed class Subprotocol : Node
 {
     public required string Id { get; init; }
 
-    public override string Name => Id;
+    /// <summary>
+    /// The place this occupies, as the document names it.
+    /// </summary>
+    /// <remarks>
+    /// A carrier replaces the span a document declared, and that span had a name things refer to. Two
+    /// names for one place is how a reference to it resolves to a node nobody meant — so the carrier takes
+    /// the name of what it stands in for, and <see cref="Id"/> stays what it is: the seam, which is what a
+    /// refusal about a missing implementation should say.
+    /// </remarks>
+    public string? Occupies { get; internal set; }
+
+    public override string Name => Occupies ?? Id;
 
     public required Carriage Carries { get; init; }
 

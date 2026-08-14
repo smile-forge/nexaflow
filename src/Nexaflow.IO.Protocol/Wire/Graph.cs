@@ -313,6 +313,28 @@ public sealed class ProtocolGraph
         }
     }
 
+    /// <summary>
+    /// Points everything that asked for a node at the one standing in its place.
+    /// </summary>
+    /// <remarks>
+    /// The other half of a replacement. Moving what a node <i>produces</i> is not enough when something
+    /// else replaces it on the path: an expression naming the declaration built an edge to it, and the
+    /// facts land on whatever the walk actually reached. Left alone, every reader has to redirect the
+    /// reference itself at the moment it follows it — which is a redirection repeated at six call sites
+    /// instead of one edge pointing where it means.
+    /// </remarks>
+    public void Redirect(Node from, Node onto)
+    {
+        foreach (var edge in To<Requires>(from).ToList())
+        {
+            _edges.Remove(edge);
+            _from[edge.From].Remove(edge);
+            _to[from].Remove(edge);
+
+            Add(edge with { To = onto });
+        }
+    }
+
     /// <summary>Edges leaving a node.</summary>
     public IEnumerable<Edge> From(Node node) => _from.TryGetValue(node, out var e) ? e : [];
 

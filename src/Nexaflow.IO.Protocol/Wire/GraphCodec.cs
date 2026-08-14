@@ -36,16 +36,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// <summary>The description, reachable from the nested walk.</summary>
     private ProtocolGraph Graph => graph;
 
-    /// <summary>
-    /// Which node a field stands as on the path.
-    /// </summary>
-    /// <remarks>
-    /// A field that carries another protocol is <i>replaced</i> on the path by its carrier, so a length
-    /// measuring that field has to reach the carrier's appearance — the carrier is what has an extent.
-    /// Without this the two would be one thing described by two nodes, with the facts landing on the one
-    /// nobody asked.
-    /// </remarks>
-    private static Node Stands(Field field) => field.Carries as Node ?? field;
 
     /// <summary>
     /// What this codec can walk, which is a consequence rather than a claim.
@@ -271,11 +261,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
             return deciding?.To switch
             {
                 Evaluated evaluated =>
-                    [.. codec.Graph.InputsOf(evaluated).Where(e => e.To is Field)
-                            .Select(e => new FacetRef(run.Reach(run.For(place), Stands((Field)e.To)),
+                    [.. codec.Graph.InputsOf(evaluated).Where(e => e.To is Field or Subprotocol)
+                            .Select(e => new FacetRef(run.Reach(run.For(place), e.To),
                                                       Named(e.Facet)))],
 
-                Field announced => [new FacetRef(run.Reach(run.For(place), Stands(announced)), Facet.Value)],
+                Field announced => [new FacetRef(run.Reach(run.For(place), announced), Facet.Value)],
 
                 _ => [],
             };
@@ -311,8 +301,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
         List<FacetRef> waits = [];
 
         foreach (var wanted in graph.InputsOf(producing))
-            if (wanted.To is Field part)
-                waits.Add(new FacetRef(run.Reach(appearance, Stands(part)), Named(wanted.Facet)));
+            if (wanted.To is Field or Subprotocol)
+                waits.Add(new FacetRef(run.Reach(appearance, wanted.To), Named(wanted.Facet)));
 
         return [.. waits.Distinct()];
     }
@@ -347,8 +337,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         foreach (var computation in asking)
             foreach (var wanted in graph.InputsOf(computation))
-                if (wanted.To is Field part)
-                    waits.Add(new FacetRef(run.Reach(appearance, Stands(part)), Named(wanted.Facet)));
+                if (wanted.To is Field or Subprotocol)
+                    waits.Add(new FacetRef(run.Reach(appearance, wanted.To), Named(wanted.Facet)));
 
         return [.. waits.Distinct()];
     }
@@ -378,8 +368,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// document writes it. One thing, one extent — reached from whichever of the two nodes is asking.
     /// </remarks>
     private int Reaches(RunGraph run, RunNode appearance, Subprotocol layer, BitCursor source)
-        => (graph.ProducerOf(layer, "extent")
-            ?? (Carrier(layer) is { } span ? graph.ProducerOf(span, "extent") : null)) is Evaluated measured
+        => graph.ProducerOf(layer, "extent") is Evaluated measured
             ? (int)_evaluator.Eval(measured.Runs, Given(run, appearance, measured)).AsInt()
             : source.Remaining / 8;
 
@@ -583,11 +572,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
         foreach (var wanted in graph.InputsOf(computation))
             switch (wanted.To)
             {
-                case Field part:
+                case Field or Subprotocol:
                 {
-                    var appearance = run.Reach(here, Stands(part));
+                    var appearance = run.Reach(here, wanted.To);
 
-                    parts[part.Id] = EvalScope.Record(
+                    parts[wanted.To.Name] = EvalScope.Record(
                         ("value", Held(appearance, Facet.Value)),
                         ("extent", Held(appearance, Facet.Extent)),
                         ("octets", Held(appearance, Facet.Emitted)));
@@ -759,7 +748,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
             // A run of unlike components is decided by what its token said, which is a node's value and
             // needs no expression at all.
-            Field announced => run.Reach(run.For(place), Stands(announced)).Value,
+            Field announced => run.Reach(run.For(place), announced).Value,
 
             var other => throw new ProtoTypeException($"'{other.Name}' cannot decide a way on"),
         };

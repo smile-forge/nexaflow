@@ -580,7 +580,18 @@ public sealed record MessageDef
         // not — so the walk reached an opaque run of octets and had to be told separately to look in it. A
         // carrier stands where the inner protocol is included, exactly as a set stands where its members
         // are, and produces what the inner message produces.
-        if (field.Carries is { } carried) return (carried, [carried]);
+        if (field.Carries is { } carried)
+        {
+            // And the replacement is made real rather than remembered: what sized the span now sizes the
+            // carrier, and everything that named the span names the carrier. Left half-done, the extent
+            // is computed on one node and settled on another, and every reader has to redirect the
+            // reference itself — six places doing at read time what one edge can say once.
+            carried.Occupies = field.Id;
+            graph.MoveProduction(field, carried, "extent");
+            graph.Redirect(field, carried);
+
+            return (carried, [carried]);
+        }
 
         switch (field.Pattern)
         {
