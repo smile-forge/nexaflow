@@ -164,6 +164,26 @@ public sealed class Arm(string label, long? key, IReadOnlyList<Field> fields) : 
 /// </summary>
 public abstract record Pattern
 {
+    /// <summary>
+    /// A run of bits, as wide as it says and no wider.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is what a bit field is, and there is deliberately nothing around it. A four-bit offset and a
+    /// one-bit flag are fields — they have a name, a width, something that computes them and something that
+    /// checks them, exactly as a sixteen-bit port does. What they are not is a <i>slice of a byte some other
+    /// node owns</i>, which is what <see cref="Bits"/> makes them: a group holding copies of their names and
+    /// widths, so that the thing which lays them down and the thing which computes them are two different
+    /// objects that have to be kept agreeing.
+    /// </para>
+    /// <para>
+    /// Its width is in bits and it has no octet width at all — <see cref="StaticWidth"/> is null for one,
+    /// which is honest rather than a gap: a four-bit field does not occupy an octet, it occupies four bits
+    /// of one. What occupies whole octets is the set that holds it.
+    /// </para>
+    /// </remarks>
+    public sealed record Run(int Width) : Pattern;
+
     /// <summary>A fixed-width integer.</summary>
     /// <param name="Octets">Width in octets, 1..8.</param>
     /// <param name="BigEndian">Byte order. Never defaulted at the document level — which order is correct
@@ -556,6 +576,7 @@ public abstract record Pattern
     /// </summary>
     public WireForm? Form => this switch
     {
+        Run r           => new WireForm.Run(r.Width),
         Scalar s        => new WireForm.Scalar(s.Octets, s.BigEndian, s.Signed),
         Opaque o        => new WireForm.Opaque(o.Width),
         Varint v        => new WireForm.Varint(v.Order, v.MaxOctets, v.Minimal),

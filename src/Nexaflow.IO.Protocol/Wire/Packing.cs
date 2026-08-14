@@ -3,6 +3,49 @@ using Nexaflow.IO.Protocol.Values;
 namespace Nexaflow.IO.Protocol.Wire;
 
 /// <summary>
+/// The protocol itself: where every walk begins, and what its message formats hang off.
+/// </summary>
+/// <remarks>
+/// <para>
+/// It exists so that "which message is this?" is asked in the same place and the same way as every other
+/// choice. Without it a protocol's messages are a list beside the graph rather than in it, and the root of
+/// a walk has to <i>be</i> one of them — which works exactly as long as there is one, and stops meaning
+/// anything the moment a protocol declares a request and a response.
+/// </para>
+/// <para>
+/// So the chain runs protocol → message → packing → the fields and sets that follow one another, and
+/// <see cref="Then"/> is the edge at every step of it. Four scales, one mechanism: the ways on from here
+/// are keyed and decided exactly as an alternation's arms are, which is why nothing new was needed to say
+/// "this protocol has six message formats".
+/// </para>
+/// </remarks>
+public sealed class Protocol(string name) : Node
+{
+    public override string Name { get; } = name;
+}
+
+/// <summary>
+/// One message format a protocol declares, and where a walk of it begins.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A protocol has as many of these as the specification has formats — one for TCP, whose §3.1 is titled
+/// "Header Format" singular; several for a protocol whose request and response are genuinely different
+/// shapes. What is <i>not</i> a separate format is the same layout under a different flag: those are one
+/// message with one or more <see cref="Packing"/>s.
+/// </para>
+/// <para>
+/// It makes no octets and holds nothing itself — its ways on are its arrangements, keyed and decided
+/// exactly as an alternation's arms are. A message with one arrangement has one unkeyed way on, which is
+/// why the common case needs nothing said about it.
+/// </para>
+/// </remarks>
+public sealed class Message(string name) : Node
+{
+    public override string Name { get; } = name;
+}
+
+/// <summary>
 /// One arrangement of a message — what follows what.
 ///
 /// <para>

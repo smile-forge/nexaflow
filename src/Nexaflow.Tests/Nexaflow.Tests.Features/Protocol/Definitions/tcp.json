@@ -1,0 +1,558 @@
+{
+  "protocol": "tcp",
+  "title": "Transmission Control Protocol",
+  "source": "RFC 9293 (obsoletes RFC 793)",
+  "about": [
+    "Authored against RFC 9293 §3.1 directly. Nothing here was converted from a document, so nothing here",
+    "is shaped by what a document could say.",
+    "",
+    "Two things are worth reading before the nodes. First, TCP has exactly ONE header format — the RFC",
+    "calls §3.1 'Header Format', singular — so there is one message node. What varies between a SYN segment",
+    "and an established one is not the format but which options may appear in it, and that is what the two",
+    "packings are for. Second, every field is a node, including the four-bit and one-bit ones: a control bit",
+    "is a field that happens to be one bit wide, not a slice of a byte that some other node owns.",
+    "",
+    "Sets follow the RFC's own headings. §3.1 describes a header, and inside it a group it names 'Control",
+    "bits'; both are sets here, and the second nests in the first. Sets hold; they do not produce. That is",
+    "why a length can measure a header while the header writes nothing of its own."
+  ],
+
+  "nodes": [
+    {
+      "id": "tcp",
+      "kind": "protocol",
+      "as": "Transmission Control Protocol",
+      "about": [
+        "Where a walk begins. Its ways on are the message formats TCP declares — one, here — and they hang",
+        "off it by the same edge a packing hangs off a message and a field hangs off the one before it.",
+        "",
+        "It is a node rather than a list beside the graph so that 'which message is this?' is asked in the",
+        "same place, and the same way, as every other choice in the description."
+      ]
+    },
+
+    {
+      "id": "segment",
+      "kind": "message",
+      "as": "TCP segment",
+      "about": "RFC 9293 §3.1. The only message format TCP has."
+    },
+
+    {
+      "id": "packing.synchronising",
+      "kind": "packing",
+      "as": "Segment with SYN set",
+      "about": [
+        "RFC 9293 §3.1, Maximum Segment Size option: 'This field may be sent in the initial connection",
+        "request (i.e., in segments with the SYN control bit set) and MUST NOT be sent in other segments.'",
+        "That is a decisive change in what the options span may contain, decided by state, which is what a",
+        "second packing is for. The header itself is identical in both."
+      ]
+    },
+    {
+      "id": "packing.established",
+      "kind": "packing",
+      "as": "Segment with SYN clear",
+      "about": "The same header, with the Maximum Segment Size option not an option at all."
+    },
+
+    {
+      "id": "header",
+      "kind": "set",
+      "as": "TCP Header",
+      "about": "RFC 9293 §3.1. What Data Offset measures, and what the checksum covers after the pseudo-header."
+    },
+
+    {
+      "id": "sourcePort",
+      "kind": "field",
+      "as": "Source Port",
+      "form": { "of": "scalar", "octets": 2, "big": true, "signed": false },
+      "about": "RFC 9293 §3.1: 'The source port number.' 16 bits."
+    },
+    {
+      "id": "destinationPort",
+      "kind": "field",
+      "as": "Destination Port",
+      "form": { "of": "scalar", "octets": 2, "big": true, "signed": false },
+      "about": "RFC 9293 §3.1: 'The destination port number.' 16 bits."
+    },
+    {
+      "id": "sequenceNumber",
+      "kind": "field",
+      "as": "Sequence Number",
+      "form": { "of": "scalar", "octets": 4, "big": true, "signed": false },
+      "about": [
+        "RFC 9293 §3.1: the sequence number of the first data octet in this segment, except that when SYN",
+        "is set it is the initial sequence number and the first data octet is ISN+1."
+      ]
+    },
+    {
+      "id": "acknowledgmentNumber",
+      "kind": "field",
+      "as": "Acknowledgment Number",
+      "form": { "of": "scalar", "octets": 4, "big": true, "signed": false },
+      "about": [
+        "RFC 9293 §3.1: the next sequence number the sender expects. Significant only when ACK is set.",
+        "",
+        "A DIFFERENT NODE from the ACK control bit, though a reader skimming would call both 'ack'. One is",
+        "a 32-bit number and the other is one bit saying whether that number means anything. Same syllable,",
+        "unrelated concepts, so they are not the same field."
+      ]
+    },
+
+    {
+      "id": "dataOffset",
+      "kind": "field",
+      "as": "Data Offset",
+      "form": { "of": "run", "bits": 4 },
+      "about": [
+        "RFC 9293 §3.1: 'The number of 32-bit words in the TCP header.' 4 bits.",
+        "Its own node, with its own width — not a slice of an octet belonging to something else."
+      ]
+    },
+    {
+      "id": "reserved",
+      "kind": "field",
+      "as": "Rsrvd",
+      "form": { "of": "run", "bits": 4 },
+      "about": "RFC 9293 §3.1: 'MUST be zero in generated segments and MUST be ignored in received segments.'"
+    },
+
+    {
+      "id": "controlBits",
+      "kind": "set",
+      "as": "Control bits",
+      "about": [
+        "RFC 9293 §3.1 names this group. It is a set because the RFC describes it as one — nested inside",
+        "the header set, which is what the guidance about a header containing a set of bits asks for."
+      ]
+    },
+    { "id": "cwr", "kind": "field", "as": "CWR", "form": { "of": "run", "bits": 1 },
+      "about": "Congestion Window Reduced (RFC 3168)." },
+    { "id": "ece", "kind": "field", "as": "ECE", "form": { "of": "run", "bits": 1 },
+      "about": "ECN-Echo (RFC 3168)." },
+    { "id": "urg", "kind": "field", "as": "URG", "form": { "of": "run", "bits": 1 },
+      "about": "Urgent pointer field is significant." },
+    { "id": "ack", "kind": "field", "as": "ACK", "form": { "of": "run", "bits": 1 },
+      "about": "Acknowledgment field is significant. Not acknowledgmentNumber — see that node." },
+    { "id": "psh", "kind": "field", "as": "PSH", "form": { "of": "run", "bits": 1 },
+      "about": "Push function." },
+    { "id": "rst", "kind": "field", "as": "RST", "form": { "of": "run", "bits": 1 },
+      "about": "Reset the connection." },
+    { "id": "syn", "kind": "field", "as": "SYN", "form": { "of": "run", "bits": 1 },
+      "about": "Synchronize sequence numbers. Also what picks this segment's packing." },
+    { "id": "fin", "kind": "field", "as": "FIN", "form": { "of": "run", "bits": 1 },
+      "about": "No more data from sender." },
+
+    {
+      "id": "window",
+      "kind": "field",
+      "as": "Window",
+      "form": { "of": "scalar", "octets": 2, "big": true, "signed": false },
+      "about": "RFC 9293 §3.1: the number of data octets the sender of this segment is willing to accept."
+    },
+    {
+      "id": "checksum",
+      "kind": "field",
+      "as": "Checksum",
+      "form": { "of": "scalar", "octets": 2, "big": true, "signed": false },
+      "about": [
+        "RFC 9293 §3.1: 'the 16-bit ones' complement of the ones' complement sum of all 16-bit words in the",
+        "header and text', computed over a pseudo-header prefixed to the segment.",
+        "",
+        "The pseudo-header is a set here (see pseudoHeader) rather than something the checksum converter",
+        "knows about privately. It is laid out and then read as input, which keeps the fact that TCP's",
+        "checksum reaches outside its own header a visible part of the description."
+      ]
+    },
+    {
+      "id": "urgentPointer",
+      "kind": "field",
+      "as": "Urgent Pointer",
+      "form": { "of": "scalar", "octets": 2, "big": true, "signed": false },
+      "about": "RFC 9293 §3.1: 'only to be interpreted in segments with the URG control bit set.'"
+    },
+
+    {
+      "id": "options",
+      "kind": "set",
+      "as": "Options",
+      "about": [
+        "RFC 9293 §3.1: 'Options may occupy space at the end of the TCP header and are a multiple of 8 bits",
+        "in length.' The span runs from the end of the fixed 20 octets to wherever Data Offset says the",
+        "header ends, so it is empty whenever Data Offset is 5."
+      ]
+    },
+    {
+      "id": "optionKind",
+      "kind": "field",
+      "as": "option-kind",
+      "form": { "of": "scalar", "octets": 1, "big": true, "signed": false },
+      "about": [
+        "RFC 9293 §3.1. ONE node, shared by every option, and this is the sharing rule doing real work: the",
+        "leading octet of an End-of-Option-List, a No-Operation and a Maximum Segment Size is the same",
+        "concept — which option this is — so it is one field, not three that happen to look alike.",
+        "",
+        "What differs between options is the value it takes on a given appearance, and a value belongs to",
+        "the run, not to the description."
+      ]
+    },
+    {
+      "id": "option",
+      "kind": "junction",
+      "as": "one option",
+      "about": [
+        "Where the option list forks on what optionKind said. A junction rather than a set: it makes no",
+        "octets and holds nothing — the kind octet is already written and each arm carries its own rest."
+      ]
+    },
+    {
+      "id": "option.endOfList",
+      "kind": "junction",
+      "as": "End of Option List",
+      "about": [
+        "RFC 9293 §3.1, Kind 0. A single octet, already written as optionKind, so this arm adds nothing —",
+        "which is exactly a junction rather than an empty set."
+      ]
+    },
+    {
+      "id": "option.noOperation",
+      "kind": "junction",
+      "as": "No-Operation",
+      "about": "RFC 9293 §3.1, Kind 1. One octet, used to align a following option on a word boundary."
+    },
+    {
+      "id": "option.done",
+      "kind": "junction",
+      "as": "end of this option",
+      "about": [
+        "Where the arms meet. A junction because it makes no octets and holds nothing — it exists so the",
+        "arms have one place to converge on, and so skipping the whole options set has somewhere to skip",
+        "TO: the walk leaves an absent set from where its last member would have led."
+      ]
+    },
+    {
+      "id": "option.maximumSegmentSize",
+      "kind": "set",
+      "as": "Maximum Segment Size",
+      "about": "RFC 9293 §3.1, Kind 2, Length 4. Reachable only from the synchronising packing."
+    },
+    {
+      "id": "optionLength",
+      "kind": "field",
+      "as": "option-length",
+      "form": { "of": "scalar", "octets": 1, "big": true, "signed": false },
+      "about": [
+        "RFC 9293 §3.1: 'The option-length counts the two octets of option-kind and option-length as well as",
+        "the option-data octets.' Shared for the same reason optionKind is."
+      ]
+    },
+    {
+      "id": "maximumSegmentSize",
+      "kind": "field",
+      "as": "Maximum Segment Size",
+      "form": { "of": "scalar", "octets": 2, "big": true, "signed": false },
+      "about": "The option's data: the largest segment the sender of this SYN is willing to receive."
+    },
+    {
+      "id": "data",
+      "kind": "field",
+      "as": "Data",
+      "form": { "of": "opaque" },
+      "about": "Everything after the header. Its extent is what the carrier says, less the header."
+    },
+
+    {
+      "id": "pseudoHeader",
+      "kind": "set",
+      "as": "IPv4 pseudo-header",
+      "about": [
+        "RFC 9293 §3.1: 96 bits prefixed to the segment for the checksum, and never transmitted. A set with",
+        "no step on the message path reaching it — it is laid out because the checksum requires it, which",
+        "is the only reason anything here is ever laid out."
+      ]
+    },
+    { "id": "pseudo.sourceAddress", "kind": "field", "as": "Source Address",
+      "form": { "of": "scalar", "octets": 4, "big": true, "signed": false },
+      "about": "From the carrying IPv4 datagram, not from this segment." },
+    { "id": "pseudo.destinationAddress", "kind": "field", "as": "Destination Address",
+      "form": { "of": "scalar", "octets": 4, "big": true, "signed": false },
+      "about": "From the carrying IPv4 datagram." },
+    { "id": "pseudo.zero", "kind": "field", "as": "zero",
+      "form": { "of": "scalar", "octets": 1, "big": true, "signed": false },
+      "about": "One octet of zero." },
+    { "id": "pseudo.protocol", "kind": "field", "as": "PTCL",
+      "form": { "of": "scalar", "octets": 1, "big": true, "signed": false },
+      "about": "The IPv4 protocol number for TCP." },
+    { "id": "pseudo.tcpLength", "kind": "field", "as": "TCP Length",
+      "form": { "of": "scalar", "octets": 2, "big": true, "signed": false },
+      "about": [
+        "RFC 9293 §3.1: 'the TCP header length plus the data length in octets ... It does not count the 12",
+        "octets of the pseudo-header.'"
+      ] },
+
+    {
+      "id": "outside.sourceAddress",
+      "kind": "outside",
+      "of": "given",
+      "key": "sourceAddress",
+      "purpose": "The IPv4 source address of the datagram carrying this segment."
+    },
+    {
+      "id": "outside.destinationAddress",
+      "kind": "outside",
+      "of": "given",
+      "key": "destinationAddress",
+      "purpose": "The IPv4 destination address of the datagram carrying this segment."
+    },
+
+    {
+      "id": "constant.zero",
+      "kind": "constant",
+      "label": "zero",
+      "holds": { "int": 0 },
+      "about": "What Rsrvd and the pseudo-header's zero octet are."
+    },
+    {
+      "id": "constant.protocolTcp",
+      "kind": "constant",
+      "label": "PTCL = 6",
+      "holds": { "int": 6 },
+      "about": "The IANA protocol number for TCP, as it appears in the pseudo-header."
+    },
+    {
+      "id": "constant.lengthMaximumSegmentSize",
+      "kind": "constant",
+      "label": "Length 4",
+      "holds": { "int": 4 },
+      "about": "RFC 9293 §3.1: the MSS option is four octets — kind, length, and two of data."
+    },
+
+    {
+      "id": "evaluated.dataOffset",
+      "kind": "evaluated",
+      "label": "header words",
+      "runs": "sets.header.extent / 4",
+      "about": [
+        "RFC 9293 §3.1: Data Offset is the number of 32-bit words in the header. Measured off the header",
+        "set rather than declared, which is why the header is a set: it is the thing with an extent."
+      ]
+    },
+    {
+      "id": "evaluated.tcpLength",
+      "kind": "evaluated",
+      "label": "TCP length",
+      "runs": "sets.header.extent + fields.data.extent",
+      "about": "RFC 9293 §3.1: header plus data, not counting the pseudo-header."
+    },
+    {
+      "id": "evaluated.whichPacking",
+      "kind": "evaluated",
+      "label": "is SYN set?",
+      "runs": "fields.syn.value",
+      "about": [
+        "What picks the packing. A value that keys the ways on, rather than a condition on each — sibling",
+        "conditions cannot be proved to cover, and a segment matching neither would bind nothing and say",
+        "nothing about it."
+      ]
+    },
+    {
+      "id": "evaluated.whichOption",
+      "kind": "evaluated",
+      "label": "which option is this?",
+      "runs": "fields.optionKind.value",
+      "about": "What keys the option fork. Read on the way in, written from the selected arm on the way out."
+    },
+    {
+      "id": "evaluated.hasOptions",
+      "kind": "evaluated",
+      "label": "are there options?",
+      "runs": "fields.dataOffset.value > 5",
+      "about": [
+        "What decides the optional step into the options span. An optional step with nothing deciding it",
+        "is a definition error rather than a permitted default — there is no honest thing to do with one,",
+        "since guessing from leftover octets makes presence depend on what came after."
+      ]
+    },
+    {
+      "id": "evaluated.hasData",
+      "kind": "evaluated",
+      "label": "is there data?",
+      "runs": "fields.data.extent > 0",
+      "about": [
+        "A segment with no data is ordinary — a bare ACK is exactly that — so this is a real question and",
+        "not a degenerate case. On the way in the carrier's extent answers it; on the way out, whether a",
+        "payload was supplied."
+      ]
+    },
+    {
+      "id": "converted.checksum",
+      "kind": "converted",
+      "label": "ones' complement sum",
+      "applies": "onesComplementSum",
+      "args": [],
+      "about": [
+        "RFC 9293 §3.1. A converter — arithmetic over octets — not a TCP-specific step: what makes it TCP's",
+        "checksum is the three things required into it, which are named on the edges and not in here."
+      ]
+    },
+
+    {
+      "id": "validator.reservedZero",
+      "kind": "validator",
+      "because": "RFC 9293 §3.1: Rsrvd must be zero in a generated segment.",
+      "ranges": [ { "from": { "int": 0 }, "to": { "int": 0 } } ]
+    },
+    {
+      "id": "validator.dataOffset",
+      "kind": "validator",
+      "because": "A header is at least five 32-bit words and Data Offset is four bits, so 5..15.",
+      "ranges": [ { "from": { "int": 5 }, "to": { "int": 15 } } ]
+    },
+    {
+      "id": "validator.port",
+      "kind": "validator",
+      "because": "A port is 16 bits unsigned.",
+      "ranges": [ { "from": { "int": 0 }, "to": { "int": 65535 } } ]
+    }
+  ],
+
+  "edges": [
+    { "kind": "then", "from": "tcp", "to": "segment",
+      "about": [
+        "TCP has one message format, so this is the unbranched case: one way on, no key, nothing to decide.",
+        "A protocol with a request and a response would have two of these, keyed and decided exactly as the",
+        "two packings below are — same edge, same mechanism, one scale up."
+      ] },
+
+    { "kind": "decides", "from": "segment", "to": "evaluated.whichPacking", "reading": false,
+      "about": "Which arrangement this segment takes is decided by the SYN bit." },
+    { "kind": "then", "from": "segment", "to": "packing.synchronising", "key": { "int": 1 } },
+    { "kind": "then", "from": "segment", "to": "packing.established", "key": { "int": 0 } },
+
+    { "kind": "then", "from": "packing.synchronising", "to": "header" },
+    { "kind": "then", "from": "packing.established", "to": "header" },
+
+    { "kind": "then", "from": "header", "to": "sourcePort",
+      "about": [
+        "A set is a place on the path, not a bracket around one. The walk arrives at the header and goes on",
+        "to its first member; leaving the last member leaves the header. That is what lets an absent set be",
+        "one step over all of its members at once."
+      ] },
+    { "kind": "then", "from": "sourcePort", "to": "destinationPort" },
+    { "kind": "then", "from": "destinationPort", "to": "sequenceNumber" },
+    { "kind": "then", "from": "sequenceNumber", "to": "acknowledgmentNumber" },
+    { "kind": "then", "from": "acknowledgmentNumber", "to": "dataOffset" },
+    { "kind": "then", "from": "dataOffset", "to": "reserved" },
+    { "kind": "then", "from": "reserved", "to": "controlBits" },
+    { "kind": "then", "from": "controlBits", "to": "cwr" },
+    { "kind": "then", "from": "cwr", "to": "ece" },
+    { "kind": "then", "from": "ece", "to": "urg" },
+    { "kind": "then", "from": "urg", "to": "ack" },
+    { "kind": "then", "from": "ack", "to": "psh" },
+    { "kind": "then", "from": "psh", "to": "rst" },
+    { "kind": "then", "from": "rst", "to": "syn" },
+    { "kind": "then", "from": "syn", "to": "fin" },
+    { "kind": "then", "from": "fin", "to": "window" },
+    { "kind": "then", "from": "window", "to": "checksum" },
+    { "kind": "then", "from": "checksum", "to": "urgentPointer" },
+    { "kind": "then", "from": "urgentPointer", "to": "options", "optional": true,
+      "about": [
+        "The options span is empty when Data Offset is 5, so the step into it may not be taken. The step is",
+        "into the SET, which is what makes 'no options' one skipped step rather than a separate arrangement."
+      ] },
+    { "kind": "then", "from": "options", "to": "optionKind" },
+    { "kind": "then", "from": "optionKind", "to": "option" },
+
+    { "kind": "decides", "from": "option", "to": "evaluated.whichOption", "reading": false },
+    { "kind": "then", "from": "option", "to": "option.endOfList", "key": { "int": 0 } },
+    { "kind": "then", "from": "option", "to": "option.noOperation", "key": { "int": 1 } },
+    { "kind": "then", "from": "option", "to": "option.maximumSegmentSize", "key": { "int": 2 } },
+
+    { "kind": "then", "from": "option.maximumSegmentSize", "to": "optionLength" },
+    { "kind": "then", "from": "optionLength", "to": "maximumSegmentSize" },
+
+    { "kind": "then", "from": "option.endOfList", "to": "option.done" },
+    { "kind": "then", "from": "option.noOperation", "to": "option.done" },
+    { "kind": "then", "from": "maximumSegmentSize", "to": "option.done" },
+    { "kind": "then", "from": "option.done", "to": "data", "optional": true },
+
+    { "kind": "allowed", "from": "options", "to": "option",
+      "about": [
+        "What may turn up in the options span, and how many turn up is a fact about a segment rather than",
+        "about TCP — so there is no count anywhere in this description and no way on that reaches back."
+      ] },
+
+    { "kind": "holds", "from": "header", "to": "sourcePort", "order": 0 },
+    { "kind": "holds", "from": "header", "to": "destinationPort", "order": 1 },
+    { "kind": "holds", "from": "header", "to": "sequenceNumber", "order": 2 },
+    { "kind": "holds", "from": "header", "to": "acknowledgmentNumber", "order": 3 },
+    { "kind": "holds", "from": "header", "to": "dataOffset", "order": 4 },
+    { "kind": "holds", "from": "header", "to": "reserved", "order": 5 },
+    { "kind": "holds", "from": "header", "to": "controlBits", "order": 6 },
+    { "kind": "holds", "from": "header", "to": "window", "order": 7 },
+    { "kind": "holds", "from": "header", "to": "checksum", "order": 8 },
+    { "kind": "holds", "from": "header", "to": "urgentPointer", "order": 9 },
+    { "kind": "holds", "from": "header", "to": "options", "order": 10 },
+
+    { "kind": "holds", "from": "controlBits", "to": "cwr", "order": 0 },
+    { "kind": "holds", "from": "controlBits", "to": "ece", "order": 1 },
+    { "kind": "holds", "from": "controlBits", "to": "urg", "order": 2 },
+    { "kind": "holds", "from": "controlBits", "to": "ack", "order": 3 },
+    { "kind": "holds", "from": "controlBits", "to": "psh", "order": 4 },
+    { "kind": "holds", "from": "controlBits", "to": "rst", "order": 5 },
+    { "kind": "holds", "from": "controlBits", "to": "syn", "order": 6 },
+    { "kind": "holds", "from": "controlBits", "to": "fin", "order": 7 },
+
+    { "kind": "holds", "from": "options", "to": "optionKind", "order": 0 },
+    { "kind": "holds", "from": "options", "to": "option", "order": 1 },
+    { "kind": "holds", "from": "options", "to": "option.done", "order": 2 },
+
+    { "kind": "holds", "from": "option.maximumSegmentSize", "to": "optionLength", "order": 0 },
+    { "kind": "holds", "from": "option.maximumSegmentSize", "to": "maximumSegmentSize", "order": 1 },
+
+    { "kind": "holds", "from": "pseudoHeader", "to": "pseudo.sourceAddress", "order": 0 },
+    { "kind": "holds", "from": "pseudoHeader", "to": "pseudo.destinationAddress", "order": 1 },
+    { "kind": "holds", "from": "pseudoHeader", "to": "pseudo.zero", "order": 2 },
+    { "kind": "holds", "from": "pseudoHeader", "to": "pseudo.protocol", "order": 3 },
+    { "kind": "holds", "from": "pseudoHeader", "to": "pseudo.tcpLength", "order": 4 },
+
+    { "kind": "computes", "from": "constant.zero", "to": "reserved", "facet": "value" },
+    { "kind": "computes", "from": "constant.zero", "to": "pseudo.zero", "facet": "value" },
+    { "kind": "computes", "from": "constant.protocolTcp", "to": "pseudo.protocol", "facet": "value" },
+
+    { "kind": "computes", "from": "evaluated.dataOffset", "to": "dataOffset", "facet": "value" },
+    { "kind": "requires", "from": "evaluated.dataOffset", "to": "header", "facet": "extent", "sequence": 0 },
+
+    { "kind": "computes", "from": "evaluated.tcpLength", "to": "pseudo.tcpLength", "facet": "value" },
+    { "kind": "requires", "from": "evaluated.tcpLength", "to": "header", "facet": "extent", "sequence": 0 },
+    { "kind": "requires", "from": "evaluated.tcpLength", "to": "data", "facet": "extent", "sequence": 1 },
+
+    { "kind": "requires", "from": "evaluated.whichPacking", "to": "syn", "facet": "value", "sequence": 0 },
+    { "kind": "requires", "from": "evaluated.whichOption", "to": "optionKind", "facet": "value", "sequence": 0 },
+
+    { "kind": "computes", "from": "evaluated.hasOptions", "to": "options", "facet": "presence" },
+    { "kind": "requires", "from": "evaluated.hasOptions", "to": "dataOffset", "facet": "value", "sequence": 0 },
+
+    { "kind": "computes", "from": "evaluated.hasData", "to": "data", "facet": "presence" },
+    { "kind": "requires", "from": "evaluated.hasData", "to": "data", "facet": "extent", "sequence": 0 },
+
+    { "kind": "computes", "from": "constant.lengthMaximumSegmentSize", "to": "optionLength", "facet": "value" },
+
+    { "kind": "computes", "from": "converted.checksum", "to": "checksum", "facet": "value" },
+    { "kind": "requires", "from": "converted.checksum", "to": "pseudoHeader", "facet": "emitted", "sequence": 0 },
+    { "kind": "requires", "from": "converted.checksum", "to": "header", "facet": "emitted", "sequence": 1 },
+    { "kind": "requires", "from": "converted.checksum", "to": "data", "facet": "emitted", "sequence": 2 },
+
+    { "kind": "computes", "from": "outside.sourceAddress", "to": "pseudo.sourceAddress", "facet": "value" },
+    { "kind": "computes", "from": "outside.destinationAddress", "to": "pseudo.destinationAddress", "facet": "value" },
+
+    { "kind": "checks", "from": "reserved", "to": "validator.reservedZero", "order": 0,
+      "because": "RFC 9293 §3.1: Rsrvd must be zero in generated segments." },
+    { "kind": "checks", "from": "dataOffset", "to": "validator.dataOffset", "order": 0,
+      "because": "A header shorter than five words has no room for its own fixed fields." },
+    { "kind": "checks", "from": "sourcePort", "to": "validator.port", "order": 0 },
+    { "kind": "checks", "from": "destinationPort", "to": "validator.port", "order": 0 }
+  ]
+}

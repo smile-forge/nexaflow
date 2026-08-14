@@ -25,6 +25,13 @@
     <Content Include="Protocol\Corpus\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+
+    <!-- Protocols, as protocol graphs. These are the definition itself rather than a rendering of one:
+         authored against the RFC directly, so nothing in them is shaped by what some earlier document
+         format could spell. -->
+    <Content Include="Protocol\Definitions\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
