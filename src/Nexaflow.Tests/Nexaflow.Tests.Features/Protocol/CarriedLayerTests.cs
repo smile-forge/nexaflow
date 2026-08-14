@@ -72,7 +72,7 @@ public class CarriedLayerTests
         ],
     };
 
-    private static byte[] Written() => new GraphCodec(Outer()).Encode(new Dictionary<string, ProtoValue>());
+    private static byte[] Written() => new GraphCodec(Outer().Graph).Encode(new Dictionary<string, ProtoValue>());
 
     // ── Where it stands ───────────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ public class CarriedLayerTests
     [TestMethod]
     public void Reading_hands_the_octets_it_was_told_about_to_the_protocol_beneath()
     {
-        var run = new GraphCodec(Outer()).Decode(Written());
+        var run = new GraphCodec(Outer().Graph).Decode(Written());
         var carried = run.Nodes.Single(n => n.Of is Subprotocol);
 
         Assert.AreEqual(2, carried.Settled(Facet.Position), "after the marker and the length");
@@ -123,7 +123,7 @@ public class CarriedLayerTests
     {
         // The layer consumed exactly what it was told to, so what follows is not off by however much the
         // inner protocol happened to want.
-        var run = new GraphCodec(Outer()).Decode(Written());
+        var run = new GraphCodec(Outer().Graph).Decode(Written());
         var trailer = run.Nodes.Single(n => n.Of is Field { Id: "trailer" });
 
         Assert.AreEqual(4, trailer.Settled(Facet.Position));
@@ -169,7 +169,7 @@ public class CarriedLayerTests
         };
 
         var refused = Assert.ThrowsExactly<ProtoTypeException>(
-            () => new GraphCodec(hungry).Encode(new Dictionary<string, ProtoValue>()));
+            () => new GraphCodec(hungry.Graph).Encode(new Dictionary<string, ProtoValue>()));
 
         StringAssert.Contains(refused.Message, "who");
         StringAssert.Contains(refused.Message, "does not say what feeds that");
@@ -193,7 +193,7 @@ public class CarriedLayerTests
         };
 
         var refused = Assert.ThrowsExactly<ProtoTypeException>(
-            () => new GraphCodec(unprovided).Encode(new Dictionary<string, ProtoValue>()));
+            () => new GraphCodec(unprovided.Graph).Encode(new Dictionary<string, ProtoValue>()));
 
         StringAssert.Contains(refused.Message, "tls1.3");
         StringAssert.Contains(refused.Message, "does not provide");

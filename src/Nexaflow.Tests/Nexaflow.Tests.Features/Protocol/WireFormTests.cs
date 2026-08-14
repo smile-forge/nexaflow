@@ -40,11 +40,11 @@ public class WireFormTests
     };
 
     private static byte[] Encode(MessageDef message, long held)
-        => new GraphCodec(message).Encode(new Dictionary<string, ProtoValue>
+        => new GraphCodec(message.Graph).Encode(new Dictionary<string, ProtoValue>
             { ["edge"] = ProtoValue.Of(0xAAL), ["held"] = ProtoValue.Of(held) });
 
     private static ProtoValue Decoded(MessageDef message, byte[] octets)
-        => new GraphCodec(message).Decode(octets)
+        => new GraphCodec(message.Graph).Decode(octets)
                .Nodes.Single(n => n.Of is Field { Id: "middle" }).Value;
 
     // ── The disagreement that motivated this ──────────────────────────────────
@@ -138,7 +138,7 @@ public class WireFormTests
     public void A_width_that_comes_from_a_value_is_settled_by_the_ordinary_worklist()
     {
         var message = Around(new Pattern.Varint(GroupOrder.LeastSignificantFirst, 5));
-        var run = new GraphCodec(message).Decode(Encode(message, 300));
+        var run = new GraphCodec(message.Graph).Decode(Encode(message, 300));
         var middle = run.Nodes.Single(n => n.Of is Field { Id: "middle" });
 
         Assert.AreEqual(2, middle.Settled(Facet.Extent), "two octets, because 300 needed two");
@@ -188,11 +188,11 @@ public class WireFormTests
         };
 
         var writing = Assert.ThrowsExactly<ProtoTypeException>(
-            () => new GraphCodec(beyond).Encode(new Dictionary<string, ProtoValue>
+            () => new GraphCodec(beyond.Graph).Encode(new Dictionary<string, ProtoValue>
                 { ["edge"] = ProtoValue.Of(1L), ["held"] = ProtoValue.Of(1L) }));
 
         var reading = Assert.ThrowsExactly<ProtoTypeException>(
-            () => new GraphCodec(beyond).Decode(new byte[] { 0xAA, 0x01 }));
+            () => new GraphCodec(beyond.Graph).Decode(new byte[] { 0xAA, 0x01 }));
 
         Assert.AreEqual(writing.Message, reading.Message, "one walk, so one answer");
         StringAssert.Contains(writing.Message, "middle");
@@ -205,7 +205,7 @@ public class WireFormTests
         // not laid down yet, so the facts are scheduled. Coming in nothing later can inform anything
         // earlier, so they all fall out of one read.
         var message = Around(new Pattern.Varint(GroupOrder.LeastSignificantFirst, 5));
-        var run = new GraphCodec(message).Decode(Encode(message, 300));
+        var run = new GraphCodec(message.Graph).Decode(Encode(message, 300));
         var middle = run.Nodes.Single(n => n.Of is Field { Id: "middle" });
 
         foreach (var facet in new[] { Facet.Position, Facet.Extent, Facet.Value, Facet.Emitted })

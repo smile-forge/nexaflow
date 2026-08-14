@@ -327,7 +327,9 @@ public sealed record MessageDef
 
     private ProtocolGraph Build()
     {
-        var graph = new ProtocolGraph();
+        // What it describes and where a walk begins are facts about the message, so they belong to the
+        // graph. They lived on the declaration only because a declaration was the sole way to obtain one.
+        var graph = new ProtocolGraph { Id = Id, Root = Root };
         graph.Add(Root);
 
         Wire(graph, Root, Fields);
@@ -730,7 +732,7 @@ public sealed record MessageDef
 
     /// <summary>What a set is packed from, in order.</summary>
     public IEnumerable<Node> Members(Node set)
-        => Graph.From<Holds>(set).OrderBy(h => h.Order).Select(h => h.To);
+        => Graph.Members(set);
 
     /// <summary>
     /// The field a place stands for, where it stands for one.
@@ -741,16 +743,11 @@ public sealed record MessageDef
     /// section is there — are attached to the field. So anything asking a <i>place</i> what produces one
     /// of its facts has to come through here, or the answer is on the node nobody asked.
     /// </remarks>
-    public Node Behind(Node place) => place switch
-    {
-        FieldSet { Derived: { } set } => set,
-        Junction { Derived: { } fork } => fork,
-        _ => place,
-    };
+    public Node Behind(Node place) => Graph.Behind(place);
 
     /// <summary>What produces a fact about a place, asking the field it stands for where there is one.</summary>
     public Computation? DecidedBy(Node place, string facet)
-        => ProducerOf(place, facet) ?? ProducerOf(Behind(place), facet);
+        => Graph.DecidedBy(place, facet);
 
     /// Resolves every expression's references once, in the scope the expression was written in.
     ///
@@ -984,8 +981,7 @@ public sealed record MessageDef
     /// <summary>The computation a node's named requirements path is rooted at, found by the expression it
     /// was built from — by object identity, which is why a <c>Reads</c> edge needs no role.</summary>
     public Computation? ComputationOf(Node owner, Expr expression)
-        => Graph.From<Computes>(owner).Select(e => e.To).OfType<Computation>()
-                .FirstOrDefault(c => ReferenceEquals(c.Source, expression));
+        => Graph.ComputationOf(owner, expression);
 
     /// <summary>The computations rooted at a node.</summary>
     public IEnumerable<Computation> Computations(Node owner)
@@ -993,18 +989,15 @@ public sealed record MessageDef
 
     /// <summary>What produces one fact about a node, where something does.</summary>
     public Computation? ProducerOf(Node owner, string facet)
-        => Graph.From<Computes>(owner).Where(e => e.Facet == facet)
-                .Select(e => e.To).OfType<Computation>().FirstOrDefault();
+        => Graph.ProducerOf(owner, facet);
 
     /// <summary>The conversion applied to a field, as a node, if it has one.</summary>
     public Converted? ConversionOf(Field field)
-        => Graph.From<Computes>(field).Select(e => e.To).OfType<Converted>().FirstOrDefault();
+        => Graph.ConversionOf(field);
 
     /// <summary>A conversion's arguments, taken from the graph rather than from the declaration.</summary>
     public IReadOnlyList<Values.ProtoValue> ArgumentsOf(Field field)
-        => ConversionOf(field) is not { } applied
-            ? []
-            : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Holds)];
+        => Graph.ArgumentsOf(field);
 
     /// <summary>
     /// Where something's inputs come from, in argument order.
@@ -1015,7 +1008,7 @@ public sealed record MessageDef
     /// that takes inputs takes them this way, which is why this asks a node rather than a kind.
     /// </remarks>
     public IEnumerable<Requires> InputsOf(Node taker)
-        => Graph.From<Requires>(taker).OrderBy(e => e.Sequence);
+        => Graph.InputsOf(taker);
 
     /// <summary>Where one of a node's computations takes its inputs from.</summary>
     public IEnumerable<Requires> InputsOf(Node owner, Expr? expression)
@@ -1130,7 +1123,7 @@ public sealed record MessageDef
     }
 
     /// <summary>Everything that has to hold about a node, in the order the document put them in.</summary>
-    public IEnumerable<Checks> Checking(Node node) => Graph.From<Checks>(node).OrderBy(e => e.Order);
+    public IEnumerable<Checks> Checking(Node node) => Graph.Checking(node);
 
     /// <summary>
     /// The packing a discriminator selects, or a refusal naming what arrived and what was declared.
@@ -1478,10 +1471,10 @@ public sealed record MessageDef
     /// else, and whether it is there is a fact about that step.
     /// </remarks>
     public IEnumerable<(Node Place, bool Optional)> Arrivals()
-        => Graph.Of<Then>().Select(w => (w.To, w.Optional));
+        => Graph.Arrivals();
 
     /// <summary>Whether the path may arrive at this place and find nothing.</summary>
-    public bool MayBeAbsent(Node place) => Graph.To<Then>(place).Any(w => w.Optional);
+    public bool MayBeAbsent(Node place) => Graph.MayBeAbsent(place);
 
     private void CheckApart(List<string> issues)
     {

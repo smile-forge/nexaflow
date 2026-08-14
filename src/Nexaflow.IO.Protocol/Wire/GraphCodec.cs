@@ -25,7 +25,7 @@ namespace Nexaflow.IO.Protocol.Wire;
 /// against containment is what keeps them honest until then.
 /// </para>
 /// </summary>
-public sealed class GraphCodec(MessageDef message,
+public sealed class GraphCodec(ProtocolGraph graph,
                                ConverterTable? converters = null,
                                Implementations? provided = null)
 {
@@ -33,8 +33,8 @@ public sealed class GraphCodec(MessageDef message,
     private readonly Evaluator _evaluator = new(converters ?? ConverterTable.Default);
     private readonly Implementations _provided = provided ?? Implementations.None;
 
-    /// <summary>The declaration, reachable from the nested walk.</summary>
-    private MessageDef Message => message;
+    /// <summary>The description, reachable from the nested walk.</summary>
+    private ProtocolGraph Graph => graph;
 
     /// <summary>
     /// Which node a field stands as on the path.
@@ -80,14 +80,14 @@ public sealed class GraphCodec(MessageDef message,
     /// </remarks>
     public byte[] Encode(IReadOnlyDictionary<string, ProtoValue> supplied)
     {
-        var run = RunGraph.Begin(message.Graph, supplied);
+        var run = RunGraph.Begin(graph, supplied);
         var resolver = new Resolver();
         var laying = new Laying(this, run, source: null);
 
         // One worklist for both. Where the message goes and what is in it are settled by the same
         // machinery, so a fork decided on a field waits for that field exactly as a length waits for the
         // span it measures — and a value fixed before anything ran is simply already settled.
-        resolver.Add(laying.Reaching(message.Root, previous: null));
+        resolver.Add(laying.Reaching(graph.Root, previous: null));
         resolver.Resolve();
 
         var wire = new BitWriter();
@@ -113,7 +113,7 @@ public sealed class GraphCodec(MessageDef message,
 
         Vouch(run);
 
-        return wire.Done(message.Id);
+        return wire.Done(graph.Id);
     }
 
     /// <summary>
@@ -249,7 +249,7 @@ public sealed class GraphCodec(MessageDef message,
         }
 
         /// <summary>Whether the path may arrive here and find nothing — by either packing edge.</summary>
-        private bool Optional(Node place) => codec.Message.MayBeAbsent(place);
+        private bool Optional(Node place) => codec.Graph.MayBeAbsent(place);
 
         /// <summary>Being here, where that is in question at all.</summary>
         private IEnumerable<FacetRef> Present(RunNode appearance, Node place)
@@ -262,16 +262,16 @@ public sealed class GraphCodec(MessageDef message,
         /// <summary>What the decision at this place needs before it can be made.</summary>
         private List<FacetRef> Deciding(Node place)
         {
-            if (codec.Message.Graph.From<Then>(place).Count() < 2) return [];
+            if (codec.Graph.From<Then>(place).Count() < 2) return [];
 
-            var deciding = codec.Message.Graph.From<Decides>(place)
+            var deciding = codec.Graph.From<Decides>(place)
                                 .FirstOrDefault(d => d.Reading == Reading)
-                        ?? codec.Message.Graph.From<Decides>(place).FirstOrDefault();
+                        ?? codec.Graph.From<Decides>(place).FirstOrDefault();
 
             return deciding?.To switch
             {
                 Evaluated evaluated =>
-                    [.. codec.Message.InputsOf(evaluated).Where(e => e.To is Field)
+                    [.. codec.Graph.InputsOf(evaluated).Where(e => e.To is Field)
                             .Select(e => new FacetRef(run.Reach(run.For(place), Stands((Field)e.To)),
                                                       Named(e.Facet)))],
 
@@ -296,7 +296,7 @@ public sealed class GraphCodec(MessageDef message,
             // means stepping over all of them — from where the last one would have led. That is the whole
             // difference between an absent part and an absent section, and it is why presence has to be
             // known before the next place is: an optional header is one step, however many fields deep.
-            if (!here && place is FieldSet set && codec.Message.Members(set).LastOrDefault() is { } last)
+            if (!here && place is FieldSet set && codec.Graph.Members(set).LastOrDefault() is { } last)
                 return codec.Onward(run, last, Reading);
 
             return codec.Onward(run, place, Reading);
@@ -306,11 +306,11 @@ public sealed class GraphCodec(MessageDef message,
     /// <summary>What a named facet's computation waits on, taken from the edges that ask for it.</summary>
     private List<FacetRef> Awaits(RunGraph run, RunNode appearance, Node place, string facet)
     {
-        if (message.DecidedBy(place, facet) is not { } producing) return [];
+        if (graph.DecidedBy(place, facet) is not { } producing) return [];
 
         List<FacetRef> waits = [];
 
-        foreach (var wanted in message.InputsOf(producing))
+        foreach (var wanted in graph.InputsOf(producing))
             if (wanted.To is Field part)
                 waits.Add(new FacetRef(run.Reach(appearance, Stands(part)), Named(wanted.Facet)));
 
@@ -326,7 +326,7 @@ public sealed class GraphCodec(MessageDef message,
     /// about the ordinary case of a part that is simply always present, not a guess about an optional one.
     /// </remarks>
     private bool Asked(RunGraph run, RunNode appearance, Node place)
-        => message.DecidedBy(place, "presence") switch
+        => graph.DecidedBy(place, "presence") switch
         {
             null => true,
             Constant stated => stated.Holds.AsBool(),
@@ -342,11 +342,11 @@ public sealed class GraphCodec(MessageDef message,
 
         var asking = field.Pattern is Pattern.Bits { Assembled: true } assembled
             ? assembled.Slices.Where(s => s.Value is not null)
-                       .Select(s => message.ComputationOf(s, s.Value!)).OfType<Computation>()
-            : field.Value is not null && message.ComputationOf(field, field.Value) is { } one ? [one] : [];
+                       .Select(s => graph.ComputationOf(s, s.Value!)).OfType<Computation>()
+            : field.Value is not null && graph.ComputationOf(field, field.Value) is { } one ? [one] : [];
 
         foreach (var computation in asking)
-            foreach (var wanted in message.InputsOf(computation))
+            foreach (var wanted in graph.InputsOf(computation))
                 if (wanted.To is Field part)
                     waits.Add(new FacetRef(run.Reach(appearance, Stands(part)), Named(wanted.Facet)));
 
@@ -378,8 +378,8 @@ public sealed class GraphCodec(MessageDef message,
     /// document writes it. One thing, one extent — reached from whichever of the two nodes is asking.
     /// </remarks>
     private int Reaches(RunGraph run, RunNode appearance, Subprotocol layer, BitCursor source)
-        => (message.ProducerOf(layer, "extent")
-            ?? (Carrier(layer) is { } span ? message.ProducerOf(span, "extent") : null)) is Evaluated measured
+        => (graph.ProducerOf(layer, "extent")
+            ?? (Carrier(layer) is { } span ? graph.ProducerOf(span, "extent") : null)) is Evaluated measured
             ? (int)_evaluator.Eval(measured.Runs, Given(run, appearance, measured)).AsInt()
             : source.Remaining / 8;
 
@@ -467,8 +467,8 @@ public sealed class GraphCodec(MessageDef message,
         var octets = layer.Carries switch
         {
             Carriage.Described inner => ProtoValue.Of(
-                new GraphCodec(inner.Message, _converters, _provided)
-                    .Encode(Fed(run, appearance, layer, inner.Message))),
+                new GraphCodec(inner.Message.Graph, _converters, _provided)
+                    .Encode(Fed(run, appearance, layer, inner.Message.Graph))),
 
             Carriage.Provided host => ProtoValue.Of(
                 _provided.Get(host.Implementation, layer.Id)
@@ -498,7 +498,7 @@ public sealed class GraphCodec(MessageDef message,
         return layer.Carries switch
         {
             Carriage.Described inner => Gathered(
-                new GraphCodec(inner.Message, _converters, _provided).Decode(value.AsBytes())),
+                new GraphCodec(inner.Message.Graph, _converters, _provided).Decode(value.AsBytes())),
 
             Carriage.Provided host => _provided.Get(host.Implementation, layer.Id).Decode(value.AsBytes()),
 
@@ -526,11 +526,11 @@ public sealed class GraphCodec(MessageDef message,
     /// protocol depends on is a thing the graph records rather than a scope handed down at the seam.
     /// </remarks>
     private IReadOnlyDictionary<string, ProtoValue> Fed(RunGraph run, RunNode here,
-                                                        Subprotocol layer, MessageDef? inner)
+                                                        Subprotocol layer, ProtocolGraph? inner)
     {
         Dictionary<string, ProtoValue> given = new(StringComparer.Ordinal);
 
-        foreach (var wanted in message.InputsOf(layer))
+        foreach (var wanted in graph.InputsOf(layer))
             if (wanted.To is Computation feeding)
                 given[feeding.Label] = feeding switch
                 {
@@ -542,7 +542,7 @@ public sealed class GraphCodec(MessageDef message,
 
         // An inner document asking for something the carrier never named is a hole, and it is the carrier's
         // to fill: the inner protocol is a separate document and cannot know what the outer one calls things.
-        var missing = inner?.Graph.Nodes.OfType<Context>().Select(c => c.Key)
+        var missing = inner?.Nodes.OfType<Context>().Select(c => c.Key)
                            .Where(k => !given.ContainsKey(k)).Order().ToList() ?? [];
 
         return missing.Count == 0
@@ -555,7 +555,7 @@ public sealed class GraphCodec(MessageDef message,
 
     /// <summary>The field a carrier replaced on the path, which is where its extent is computed.</summary>
     private Field? Carrier(Subprotocol layer)
-        => message.Graph.To<Embeds>(layer).FirstOrDefault()?.From as Field;
+        => graph.To<Embeds>(layer).FirstOrDefault()?.From as Field;
 
     private ProtoValue Through(Conversion via, ProtoValue value, string owner)
         => _converters.TryGet(via.Name, out var converter) && converter is not null
@@ -568,7 +568,7 @@ public sealed class GraphCodec(MessageDef message,
             : throw new ProtoTypeException($"'{owner}': converter '{via.Name}' declares no inverse");
 
     private Computation Computation(Node owner, Expr source)
-        => message.ComputationOf(owner, source)
+        => graph.ComputationOf(owner, source)
         ?? throw new ProtoTypeException(
                $"'{owner.Name}': nothing in the graph computes `{source.Render()}`");
 
@@ -580,7 +580,7 @@ public sealed class GraphCodec(MessageDef message,
         Dictionary<string, ProtoValue> parts = new(StringComparer.Ordinal);
         Dictionary<string, ProtoValue> outside = new(StringComparer.Ordinal);
 
-        foreach (var wanted in message.InputsOf(computation))
+        foreach (var wanted in graph.InputsOf(computation))
             switch (wanted.To)
             {
                 case Field part:
@@ -641,11 +641,11 @@ public sealed class GraphCodec(MessageDef message,
     public RunGraph Decode(ReadOnlySpan<byte> octets,
                            IReadOnlyDictionary<string, ProtoValue>? supplied = null)
     {
-        var run = RunGraph.Begin(message.Graph, supplied);
+        var run = RunGraph.Begin(graph, supplied);
         var resolver = new Resolver();
 
         resolver.Add(new Laying(this, run, new BitCursor(octets.ToArray()))
-                         .Reaching(message.Root, previous: null));
+                         .Reaching(graph.Root, previous: null));
         resolver.Resolve();
 
         Vouch(run);
@@ -727,7 +727,7 @@ public sealed class GraphCodec(MessageDef message,
     /// </summary>
     private Node? Onward(RunGraph run, Node place, bool reading)
     {
-        var ways = message.Graph.From<Then>(place).ToList();
+        var ways = graph.From<Then>(place).ToList();
 
         if (ways.Count == 0) return null;
         if (ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise) return ways[0].To;
@@ -745,7 +745,7 @@ public sealed class GraphCodec(MessageDef message,
     /// <summary>What the fork was decided on — a computation's answer, or a node's own value.</summary>
     private ProtoValue Decided(RunGraph run, Node place, bool reading)
     {
-        var decisions = message.Graph.From<Decides>(place).ToList();
+        var decisions = graph.From<Decides>(place).ToList();
 
         var deciding = decisions.FirstOrDefault(d => d.Reading == reading)
                     ?? decisions.FirstOrDefault()
@@ -790,15 +790,15 @@ public sealed class GraphCodec(MessageDef message,
         // A span that ends at something: not a shape of its own, but a span with no width followed by a
         // node holding a fixed value. It runs up to where that value starts, and the value is a node it
         // can be told about rather than a byte run copied into its declaration.
-        if (message.ProducerOf(field, "extent") is null && Ends(field) is { } ending && ahead is not null)
+        if (graph.ProducerOf(field, "extent") is null && Ends(field) is { } ending && ahead is not null)
             return Until(ending, field, ahead);
 
         // A span with nothing sizing it and nothing after it takes what is left, which is what "as many
         // as fit" comes to once the count has stopped being something anyone declares.
-        if (message.ProducerOf(field, "extent") is null && field.Pattern is Pattern.Chain && ahead is not null)
+        if (graph.ProducerOf(field, "extent") is null && field.Pattern is Pattern.Chain && ahead is not null)
             return ahead.Length;
 
-        if (message.ProducerOf(field, "extent") is { } measured && measured is Evaluated evaluated)
+        if (graph.ProducerOf(field, "extent") is { } measured && measured is Evaluated evaluated)
             return (int)_evaluator.Eval(evaluated.Runs, Given(run, appearance, measured)).AsInt();
 
         throw new ProtoTypeException($"field '{field.Id}' has no width and nothing computes its extent");
@@ -885,7 +885,7 @@ public sealed class GraphCodec(MessageDef message,
     /// </remarks>
     private void Vet(RunNode appearance, Node place, ProtoValue value)
     {
-        foreach (var check in message.Checking(place))
+        foreach (var check in graph.Checking(place))
         {
             if (check.To is not Validator checker) continue;
 
@@ -923,8 +923,8 @@ public sealed class GraphCodec(MessageDef message,
     /// </remarks>
     private void Vouch(RunGraph run)
     {
-        foreach (var check in message.Checking(message.Root).Concat(
-                     message.AllFields.SelectMany(f => message.Checking(f))))
+        foreach (var check in graph.Checking(graph.Root).Concat(
+                     graph.Nodes.OfType<Field>().SelectMany(f => graph.Checking(f))))
         {
             if (check.To is not Evaluated asserted) continue;
 
@@ -933,7 +933,7 @@ public sealed class GraphCodec(MessageDef message,
             if (_evaluator.Eval(asserted.Runs, Given(run, here, asserted)).AsBool()) continue;
 
             throw new ProtoTypeException(
-                $"message '{message.Id}' does not satisfy: {asserted.Source.Render()}"
+                $"message '{graph.Id}' does not satisfy: {asserted.Source.Render()}"
               + (check.Because.Length > 0 ? $" — {check.Because}" : ""));
         }
     }
@@ -948,7 +948,7 @@ public sealed class GraphCodec(MessageDef message,
     /// </remarks>
     private IEnumerable<object?> Supplying(Validator checker)
     {
-        foreach (var wanted in message.InputsOf(checker))
+        foreach (var wanted in graph.InputsOf(checker))
             yield return wanted.To switch
             {
                 ValueSet set => set,
@@ -961,9 +961,9 @@ public sealed class GraphCodec(MessageDef message,
 
     /// <summary>The fixed value that follows this node, where one does.</summary>
     private ProtoValue? Ends(Field field)
-        => message.Graph.From<Then>(field).Count() == 1
-        && message.Graph.From<Then>(field).Single().To is Field after
-        && message.ProducerOf(after, "value") is Constant stated
+        => graph.From<Then>(field).Count() == 1
+        && graph.From<Then>(field).Single().To is Field after
+        && graph.ProducerOf(after, "value") is Constant stated
             ? stated.Holds
             : null;
 
@@ -994,7 +994,7 @@ public sealed class GraphCodec(MessageDef message,
     /// <summary>The one shape a span admits, where it admits exactly one.</summary>
     private Field Admitted(Field field)
     {
-        var admits = message.Graph.From<Allowed>(field).Select(e => e.To).OfType<Field>().ToList();
+        var admits = graph.From<Allowed>(field).Select(e => e.To).OfType<Field>().ToList();
 
         return admits.Count == 1
             ? admits[0]
@@ -1037,7 +1037,7 @@ public sealed class GraphCodec(MessageDef message,
         if (!_converters.TryGet(via.Name, out var converter) || converter is null)
             throw new ProtoTypeException($"field '{field.Id}': unknown converter '{via.Name}'");
 
-        var arguments = message.ArgumentsOf(field);
+        var arguments = graph.ArgumentsOf(field);
 
         if (forward) return converter.Apply(value, arguments);
 

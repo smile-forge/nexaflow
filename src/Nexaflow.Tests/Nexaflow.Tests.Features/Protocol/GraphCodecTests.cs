@@ -50,7 +50,7 @@ public class GraphCodecTests
     [TestMethod]
     public void It_reads_the_capture_into_appearances_that_hold_what_they_came_to()
     {
-        var run = new GraphCodec(Ntp()).Decode(Capture());
+        var run = new GraphCodec(Ntp().Graph).Decode(Capture());
 
         // Every field on the path has an appearance, and every appearance knows four things about itself.
         foreach (var appearance in run.Nodes.Where(n => n.Of is Field))
@@ -71,7 +71,7 @@ public class GraphCodecTests
         // The point of doing this beside the old one rather than instead of it: the same octets, read two
         // ways, have to say the same thing before anything moves over.
         var expected = new MessageCodec(Ntp()).Decode(Capture());
-        var run = new GraphCodec(Ntp()).Decode(Capture());
+        var run = new GraphCodec(Ntp().Graph).Decode(Capture());
 
         List<string> differs = [];
 
@@ -94,7 +94,7 @@ public class GraphCodecTests
     [TestMethod]
     public void What_it_reads_it_writes_back_octet_for_octet()
     {
-        var run = new GraphCodec(Ntp()).Decode(Capture());
+        var run = new GraphCodec(Ntp().Graph).Decode(Capture());
 
         // Handed back as inputs, which is the only way in: there is no other door.
         Dictionary<string, ProtoValue> supplied = [];
@@ -104,7 +104,7 @@ public class GraphCodecTests
                 && from.Has(Facet.Value))
                 supplied[source.Key] = from.Value;
 
-        CollectionAssert.AreEqual(Capture(), new GraphCodec(Ntp()).Encode(supplied));
+        CollectionAssert.AreEqual(Capture(), new GraphCodec(Ntp().Graph).Encode(supplied));
     }
 
     // ── Bits, and what they make possible ─────────────────────────────────────
@@ -140,7 +140,7 @@ public class GraphCodecTests
         };
 
         // 5 + 11 is sixteen bits and neither run sits inside one octet.
-        var written = new GraphCodec(straddling).Encode(new Dictionary<string, ProtoValue>
+        var written = new GraphCodec(straddling.Graph).Encode(new Dictionary<string, ProtoValue>
         {
             ["first"] = ProtoValue.Of(0b10101L),
             ["second"] = ProtoValue.Of(0b101_1001_1001L),
@@ -148,7 +148,7 @@ public class GraphCodecTests
 
         CollectionAssert.AreEqual(new byte[] { 0b10101101, 0b10011001 }, written);
 
-        var read = new GraphCodec(straddling).Decode(written);
+        var read = new GraphCodec(straddling.Graph).Decode(written);
         var runs = (ProtoValue.Rec)read.Nodes.Single(n => n.Of is Field).Value;
 
         Assert.AreEqual(0b10101L, runs.Members["first"].AsInt());
@@ -173,7 +173,7 @@ public class GraphCodecTests
         };
 
         var refused = Assert.ThrowsExactly<ProtoTypeException>(
-            () => new GraphCodec(short_).Encode(
+            () => new GraphCodec(short_.Graph).Encode(
                 new Dictionary<string, ProtoValue> { ["only"] = ProtoValue.Of(1L) }));
 
         StringAssert.Contains(refused.Message, "not a whole number of octets");
@@ -211,7 +211,7 @@ public class GraphCodecTests
             ],
         };
 
-        var read = new GraphCodec(counted).Decode(new byte[] { 3, 0xaa, 0xbb, 0xcc });
+        var read = new GraphCodec(counted.Graph).Decode(new byte[] { 3, 0xaa, 0xbb, 0xcc });
         var body = read.Nodes.Single(n => n.Of is Field { Id: "body" });
 
         CollectionAssert.AreEqual(new byte[] { 0xaa, 0xbb, 0xcc }, body.Value.AsBytes());
@@ -244,7 +244,7 @@ public class GraphCodecTests
                                     .ElementAt(which).Bytes;
 
         var expected = new MessageCodec(response).Decode(capture);
-        var run = new GraphCodec(response).Decode(capture);
+        var run = new GraphCodec(response.Graph).Decode(capture);
 
         // Every field the walk reached is one the old codec also bound, holding the same value.
         List<string> differs = [];
@@ -309,7 +309,7 @@ public class GraphCodecTests
             ],
         };
 
-        var written = new GraphCodec(framed).Encode(new Dictionary<string, ProtoValue>
+        var written = new GraphCodec(framed.Graph).Encode(new Dictionary<string, ProtoValue>
         {
             ["tag"] = ProtoValue.Of(0x2aL),
             ["body"] = ProtoValue.Of(new byte[] { 0xde, 0xad, 0xbe, 0xef, 0x01 }),
@@ -319,7 +319,7 @@ public class GraphCodecTests
 
         // And back, where the same declaration is read the other way round: the length is on the wire and
         // the span takes its extent from it.
-        var read = new GraphCodec(framed).Decode(written);
+        var read = new GraphCodec(framed.Graph).Decode(written);
 
         Assert.AreEqual(5L, read.Nodes.Single(n => n.Of is Field { Id: "length" }).Value.AsInt());
         CollectionAssert.AreEqual(new byte[] { 0xde, 0xad, 0xbe, 0xef, 0x01 },
@@ -349,7 +349,7 @@ public class GraphCodecTests
         };
 
         var refused = Assert.ThrowsExactly<ResolutionException>(
-            () => new GraphCodec(circular).Encode(
+            () => new GraphCodec(circular.Graph).Encode(
                 new Dictionary<string, ProtoValue> { ["seed"] = ProtoValue.Of(1L) }));
 
         StringAssert.Contains(refused.Message, "depend on each other");
@@ -409,7 +409,7 @@ public class GraphCodecTests
             ],
         };
 
-        var written = new GraphCodec(forked).Encode(new Dictionary<string, ProtoValue>
+        var written = new GraphCodec(forked.Graph).Encode(new Dictionary<string, ProtoValue>
         {
             ["kind"] = ProtoValue.Of(kind),
             ["wide"] = ProtoValue.Of(0xaabbL),
@@ -452,7 +452,7 @@ public class GraphCodecTests
             ],
         };
 
-        var read = new GraphCodec(line).Decode(System.Text.Encoding.ASCII.GetBytes("hello" + Crlf));
+        var read = new GraphCodec(line.Graph).Decode(System.Text.Encoding.ASCII.GetBytes("hello" + Crlf));
 
         CollectionAssert.AreEqual(System.Text.Encoding.ASCII.GetBytes("hello"),
             read.Nodes.Single(n => n.Of is Field { Id: "text" }).Value.AsBytes());
@@ -504,7 +504,7 @@ public class GraphCodecTests
     public void A_computation_is_handed_only_what_its_edges_point_at()
     {
         var message = Ntp();
-        var run = new GraphCodec(message).Decode(Capture());
+        var run = new GraphCodec(message.Graph).Decode(Capture());
 
         foreach (var field in message.AllFields.Where(f => f.Value is not null))
         {

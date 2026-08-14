@@ -316,5 +316,94 @@ public sealed class ProtocolGraph
             foreach (var deeper in Under(child)) yield return deeper;
     }
 
+    // ── What the graph knows about itself ─────────────────────────────────────
+
+    /// <summary>
+    /// What this describes, and where a walk of it begins.
+    /// </summary>
+    /// <remarks>
+    /// On the graph because they are facts about the message, and the graph is the message. They lived on
+    /// the declaration for as long as a declaration was the only way to get one — which is also the reason
+    /// everything below lived there, and none of it ever needed to.
+    /// </remarks>
+    public string Id { get; set; } = "";
+
+    public Node Root { get; set; } = Nowhere;
+
+    private static readonly Node Nowhere = new Unplaced();
+
+    private sealed class Unplaced : Node
+    {
+        public override string Name => "message";
+    }
+
+    // ── Questions about a node, answered from its edges ───────────────────────
+    //
+    // Every one of these was a method on the declaration, and every one of them was already a query over
+    // this and nothing else — they sat there because a declaration was where you happened to be holding
+    // when you needed to ask. Moving them is what lets a codec take a graph and never learn whether a
+    // document produced it.
+
+    /// <summary>What computes a named fact about a node — its value, its extent, whether it is there.</summary>
+    public Computation? ProducerOf(Node owner, string facet)
+        => From<Computes>(owner).Where(e => e.Facet == facet)
+               .Select(e => e.To).OfType<Computation>().FirstOrDefault();
+
+    /// <summary>The computation a particular expression became, found by that expression's identity.</summary>
+    public Computation? ComputationOf(Node owner, Expressions.Expr expression)
+        => From<Computes>(owner).Select(e => e.To).OfType<Computation>()
+               .FirstOrDefault(c => ReferenceEquals(c.Source, expression));
+
+    /// <summary>The conversion applied to a node, as a node, if it has one.</summary>
+    public Converted? ConversionOf(Node owner)
+        => From<Computes>(owner).Select(e => e.To).OfType<Converted>().FirstOrDefault();
+
+    /// <summary>A conversion's fixed arguments, in order.</summary>
+    public IReadOnlyList<Values.ProtoValue> ArgumentsOf(Node owner)
+        => ConversionOf(owner) is not { } applied
+            ? []
+            : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Holds)];
+
+    /// <summary>Where something's inputs come from, in argument order. A computation is the usual asker;
+    /// a carrier declares what the protocol beneath is given the same way.</summary>
+    public IEnumerable<Requires> InputsOf(Node taker) => From<Requires>(taker).OrderBy(e => e.Sequence);
+
+    /// <summary>Everything that has to hold about a node, in the order the document put them in.</summary>
+    public IEnumerable<Checks> Checking(Node node) => From<Checks>(node).OrderBy(e => e.Order);
+
+    /// <summary>What a set is packed from, in order.</summary>
+    public IEnumerable<Node> Members(Node set) => From<Holds>(set).OrderBy(h => h.Order).Select(h => h.To);
+
+    /// <summary>Whether the path may arrive at this place and find nothing.</summary>
+    public bool MayBeAbsent(Node place) => To<Then>(place).Any(w => w.Optional);
+
+    /// <summary>Every place a path arrives at, and whether that step may not be taken.</summary>
+    public IEnumerable<(Node Place, bool Optional)> Arrivals()
+        => Of<Then>().Select(w => (w.To, w.Optional));
+
+    /// <summary>
+    /// The node a place stands for, where it stands for another.
+    /// </summary>
+    /// <remarks>
+    /// A set and a junction are made from something a document called a field, and the computations hang
+    /// off that while the walk reaches the node that replaced it. So anything asking a place what produces
+    /// one of its facts comes through here, or the answer sits on the node nobody asked.
+    /// <para>
+    /// <b>This is scaffolding.</b> It exists because one thing has two nodes, which is true only while a
+    /// graph is built by translating a document. Written out and read back there is one node, and this
+    /// goes with the translation.
+    /// </para>
+    /// </remarks>
+    public Node Behind(Node place) => place switch
+    {
+        FieldSet { Derived: { } set } => set,
+        Junction { Derived: { } fork } => fork,
+        _ => place,
+    };
+
+    /// <summary>What produces a fact about a place, asking the node it stands for where there is one.</summary>
+    public Computation? DecidedBy(Node place, string facet)
+        => ProducerOf(place, facet) ?? ProducerOf(Behind(place), facet);
+
     public override string ToString() => $"{_nodes.Count} nodes, {_edges.Count} edges";
 }

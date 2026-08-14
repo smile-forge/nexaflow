@@ -49,7 +49,7 @@ public class OptionalStepTests
     };
 
     private static byte[] Written(bool wanted)
-        => new GraphCodec(Sometimes()).Encode(new Dictionary<string, ProtoValue>
+        => new GraphCodec(Sometimes().Graph).Encode(new Dictionary<string, ProtoValue>
             { ["wanted"] = ProtoValue.Of(wanted) });
 
     // ── Where it lives ────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ public class OptionalStepTests
         var run = RunGraph.Begin(message.Graph, new Dictionary<string, ProtoValue>
             { ["wanted"] = ProtoValue.Of(false) });
 
-        _ = new GraphCodec(message).Encode(new Dictionary<string, ProtoValue>
+        _ = new GraphCodec(message.Graph).Encode(new Dictionary<string, ProtoValue>
             { ["wanted"] = ProtoValue.Of(false) });
 
         Assert.IsFalse(run.Nodes.Any(n => n.Of.Name == "extra" && n.Has(Facet.Emitted)),
@@ -118,7 +118,7 @@ public class OptionalStepTests
     {
         // It has to come first on the way in: everything after decides how many octets to consume, and
         // consuming the next field's is not a mistake anything downstream can catch.
-        var run = new GraphCodec(Sometimes()).Decode(new byte[] { 0xaa, 0xcc },
+        var run = new GraphCodec(Sometimes().Graph).Decode(new byte[] { 0xaa, 0xcc },
             new Dictionary<string, ProtoValue> { ["wanted"] = ProtoValue.Of(false) });
 
         var extra = run.Nodes.Single(n => n.Of.Name == "extra");
@@ -137,7 +137,7 @@ public class OptionalStepTests
     {
         // Not a curiosity — it is why the condition has to be declared rather than guessed. These three
         // octets are a complete message under both readings, and only the document can say which.
-        var withIt = new GraphCodec(Sometimes()).Decode(new byte[] { 0xaa, 0xbb, 0xcc },
+        var withIt = new GraphCodec(Sometimes().Graph).Decode(new byte[] { 0xaa, 0xbb, 0xcc },
             new Dictionary<string, ProtoValue> { ["wanted"] = ProtoValue.Of(true) });
 
         Assert.AreEqual(0xbbL, withIt.Nodes.Single(n => n.Of.Name == "extra").Value.AsInt());
@@ -150,7 +150,7 @@ public class OptionalStepTests
         foreach (var wanted in new[] { true, false })
         {
             var octets = Written(wanted);
-            var run = new GraphCodec(Sometimes()).Decode(octets,
+            var run = new GraphCodec(Sometimes().Graph).Decode(octets,
                 new Dictionary<string, ProtoValue> { ["wanted"] = ProtoValue.Of(wanted) });
 
             Assert.AreEqual(wanted, (bool)run.Nodes.Single(n => n.Of.Name == "extra").Settled(Facet.Present)!);
@@ -225,7 +225,7 @@ public class OptionalStepTests
         Assert.IsTrue(grouped.Arrivals().Any(a => a.Optional && a.Place.Name == "maybe"),
                       "a member arrives by Holds, and that edge carries optionality too");
 
-        var codec = new GraphCodec(grouped);
+        var codec = new GraphCodec(grouped.Graph);
 
         CollectionAssert.AreEqual(new byte[] { 0x11, 0x22 },
             codec.Encode(new Dictionary<string, ProtoValue> { ["wanted"] = ProtoValue.Of(true) }));
