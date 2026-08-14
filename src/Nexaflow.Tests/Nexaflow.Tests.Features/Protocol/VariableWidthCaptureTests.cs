@@ -270,16 +270,16 @@ public class VariableWidthCaptureTests
         new Rule.Requires
         {
             Within = message,
-            When = Expr.Parse("fields.willFlag.value == 0"),
-            Then = Expr.Parse("fields.willQos.value == 0 && fields.willRetain.value == 0"),
+            When = Expr.Parse("fields.connectFlags.value.willFlag == 0"),
+            Then = Expr.Parse("fields.connectFlags.value.willQos == 0 && fields.connectFlags.value.willRetain == 0"),
             Because = "with no will there is nothing for a quality of service or a retain flag to be about, "
                     + "so a non-zero one is a claim about a message that is not there.",
         },
         new Rule.Requires
         {
             Within = message,
-            When = Expr.Parse("fields.passwordFlag.value == 1"),
-            Then = Expr.Parse("fields.userNameFlag.value == 1"),
+            When = Expr.Parse("fields.connectFlags.value.passwordFlag == 1"),
+            Then = Expr.Parse("fields.connectFlags.value.userNameFlag == 1"),
             Because = "a password identifies nobody on its own; the standard forbids one without a user name.",
         },
     ];
