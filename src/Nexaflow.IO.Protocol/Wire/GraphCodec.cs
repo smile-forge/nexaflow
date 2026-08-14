@@ -330,8 +330,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         List<FacetRef> waits = [];
 
-        var asking = field.Pattern is Pattern.Bits { Assembled: true } assembled
-            ? assembled.Slices.Select(s => graph.ProducerOf(s, "value")).OfType<Computation>()
+        var asking = Assembled(field)
+            ? Runs(field).Select(s => graph.ProducerOf(s, "value")).OfType<Computation>()
             : graph.ProducerOf(field, "value") is { } one ? [one] : [];
 
         foreach (var computation in asking)
@@ -391,13 +391,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         // A bit group written from its runs has no expression of its own — each run has one, and the
         // group is what they come to together.
-        if (field.Pattern is Pattern.Bits { Assembled: true } assembled)
+        if (Assembled(field))
         {
             Dictionary<string, ProtoValue> runs = new(StringComparer.Ordinal);
 
             // Asked of the run, not of the group: the run owns its requirements path, which is the whole
             // reason it is a node.
-            foreach (var slice in assembled.Slices)
+            foreach (var slice in Runs(field))
                 runs[slice.Name] = Produces(slice) switch
                 {
                     Constant stated => stated.Holds,
@@ -562,6 +562,24 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// the same as, and every lookup would miss. Asking "what produces this node's value" is the question
     /// anyway — the expression was one way to arrive at an answer, never the answer itself.
     /// </remarks>
+    /// <summary>
+    /// A bit group's runs, as the graph holds them.
+    /// </summary>
+    /// <remarks>
+    /// Not the ones inside the pattern. A run is a node — it owns its own requirements path, which is the
+    /// whole reason it is one — and the pattern carries a second set of objects with the same names and
+    /// widths. Asking the pattern gets things that look right and are not the nodes anything computed
+    /// against, so every lookup on them returns nothing.
+    /// </remarks>
+    /// <summary>Whether this group is written from its runs, each computing itself, rather than from one
+    /// value that is already a record. A fact about what the graph says produces things, not about the
+    /// shape — the shape carries a second copy of the runs and they compute nothing.</summary>
+    private bool Assembled(Field field)
+        => Runs(field).Any(s => graph.ProducerOf(s, "value") is not null);
+
+    private IEnumerable<BitSlice> Runs(Field field)
+        => graph.InputsOf(field).Select(e => e.To).OfType<BitSlice>();
+
     private Computation Produces(Node owner)
         => graph.ProducerOf(owner, "value")
         ?? throw new ProtoTypeException(
