@@ -287,6 +287,32 @@ public sealed class ProtocolGraph
         _to[edge.To].Add(edge);
     }
 
+    /// <summary>
+    /// Moves what produces one named fact from one node onto another.
+    /// </summary>
+    /// <remarks>
+    /// For where a node is <i>replaced</i>: a group becomes a set, an alternation becomes a junction, and
+    /// a fact about the thing a document declared has to end up on the thing that stands in the message,
+    /// because that is what the walk reaches and settles facts on. Left behind, the answer sits where
+    /// nobody asks and every reader needs to know to look one hop sideways — which is how a condition on a
+    /// group member came to decide nothing at all while appearing to decide something.
+    /// <para>
+    /// One fact at a time, deliberately. Taking everything moves the discriminator too, and that is found
+    /// by asking the declared node what it computes.
+    /// </para>
+    /// </remarks>
+    public void MoveProduction(Node from, Node onto, string facet)
+    {
+        foreach (var edge in From<Computes>(from).Where(e => e.Facet == facet).ToList())
+        {
+            _edges.Remove(edge);
+            _from[from].Remove(edge);
+            _to[edge.To].Remove(edge);
+
+            Add(edge with { From = onto });
+        }
+    }
+
     /// <summary>Edges leaving a node.</summary>
     public IEnumerable<Edge> From(Node node) => _from.TryGetValue(node, out var e) ? e : [];
 
@@ -381,29 +407,12 @@ public sealed class ProtocolGraph
     public IEnumerable<(Node Place, bool Optional)> Arrivals()
         => Of<Then>().Select(w => (w.To, w.Optional));
 
-    /// <summary>
-    /// The node a place stands for, where it stands for another.
-    /// </summary>
-    /// <remarks>
-    /// A set and a junction are made from something a document called a field, and the computations hang
-    /// off that while the walk reaches the node that replaced it. So anything asking a place what produces
-    /// one of its facts comes through here, or the answer sits on the node nobody asked.
-    /// <para>
-    /// <b>This is scaffolding.</b> It exists because one thing has two nodes, which is true only while a
-    /// graph is built by translating a document. Written out and read back there is one node, and this
-    /// goes with the translation.
-    /// </para>
-    /// </remarks>
-    public Node Behind(Node place) => place switch
-    {
-        FieldSet { Derived: { } set } => set,
-        Junction { Derived: { } fork } => fork,
-        _ => place,
-    };
-
-    /// <summary>What produces a fact about a place, asking the node it stands for where there is one.</summary>
-    public Computation? DecidedBy(Node place, string facet)
-        => ProducerOf(place, facet) ?? ProducerOf(Behind(place), facet);
+    // There is deliberately nothing here for "the node this one stands for". A set and a junction replace
+    // the thing a document declared, and what was hung off that declaration is moved onto them when they
+    // are made — so a fact about a place is on that place, and asking is asking. The version with a
+    // sideways hop existed because the edge had been left on a node the walk never reaches, and every
+    // reader then had to know to look for it; one of them did not, and a condition on a group member
+    // decided nothing at all while appearing to decide something.
 
     public override string ToString() => $"{_nodes.Count} nodes, {_edges.Count} edges";
 }

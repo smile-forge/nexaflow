@@ -593,6 +593,11 @@ public sealed record MessageDef
                 var set = new FieldSet(field.Id, field);
                 graph.Add(set);
 
+                // What the document hung off the field it declared belongs on the node that stands in the
+                // message, because that is the one the walk reaches and settles facts on. Leaving it
+                // behind is what made every reader look one hop sideways to find it.
+                graph.MoveProduction(field, set, "presence");
+
                 IReadOnlyList<Node> loose = [set];
 
                 for (int at = 0; at < group.Fields.Count; at++)
@@ -641,6 +646,10 @@ public sealed record MessageDef
 
                     exits.AddRange(ends);
                 }
+
+                // Only presence. The discriminator stays where it is: it is found by asking the declared
+                // node what it computes, and the Decides edge already points at it by then.
+                graph.MoveProduction(field, fork, "presence");
 
                 return (fork, exits);
             }
@@ -734,20 +743,6 @@ public sealed record MessageDef
     public IEnumerable<Node> Members(Node set)
         => Graph.Members(set);
 
-    /// <summary>
-    /// The field a place stands for, where it stands for one.
-    /// </summary>
-    /// <remarks>
-    /// A set and a junction are both written as a field, for want of anywhere else to declare them, and
-    /// the computations a document hangs off that declaration — what decides the alternation, whether the
-    /// section is there — are attached to the field. So anything asking a <i>place</i> what produces one
-    /// of its facts has to come through here, or the answer is on the node nobody asked.
-    /// </remarks>
-    public Node Behind(Node place) => Graph.Behind(place);
-
-    /// <summary>What produces a fact about a place, asking the field it stands for where there is one.</summary>
-    public Computation? DecidedBy(Node place, string facet)
-        => Graph.DecidedBy(place, facet);
 
     /// Resolves every expression's references once, in the scope the expression was written in.
     ///
@@ -1448,7 +1443,7 @@ public sealed record MessageDef
     {
         foreach (var (place, may) in Arrivals())
         {
-            bool decided = DecidedBy(place, "presence") is not null;
+            bool decided = Graph.ProducerOf(place, "presence") is not null;
 
             if (may && !decided)
                 issues.Add($"message '{Id}': '{place.Name}' may or may not be there and nothing says "

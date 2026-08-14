@@ -306,7 +306,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// <summary>What a named facet's computation waits on, taken from the edges that ask for it.</summary>
     private List<FacetRef> Awaits(RunGraph run, RunNode appearance, Node place, string facet)
     {
-        if (graph.DecidedBy(place, facet) is not { } producing) return [];
+        if (graph.ProducerOf(place, facet) is not { } producing) return [];
 
         List<FacetRef> waits = [];
 
@@ -326,7 +326,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// about the ordinary case of a part that is simply always present, not a guess about an optional one.
     /// </remarks>
     private bool Asked(RunGraph run, RunNode appearance, Node place)
-        => graph.DecidedBy(place, "presence") switch
+        => graph.ProducerOf(place, "presence") switch
         {
             null => true,
             Constant stated => stated.Holds.AsBool(),
