@@ -253,4 +253,43 @@ public abstract class Rule : Node
         Arrangement a => [a.Must],
         _ => [],
     };
+
+    /// <summary>
+    /// The one condition that has to hold, where this kind is a condition at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three surface forms, one thing in the graph. The forms stay because they are not interchangeable to
+    /// <i>read</i> — an exclusion written as an implication with a negated consequent reads backwards, and
+    /// a reviewer asking "can these ever combine?" should not have to invert anything to answer. But that
+    /// is a fact about writing documents, not about checking them, and the engine gains nothing from three
+    /// ways to hold a boolean.
+    /// </para>
+    /// <para>
+    /// Null for the kinds that are not a condition over one scope: a distinctness rule is about every
+    /// structure of a run at once, and an arrangement rule is about a structure and the one before it.
+    /// Those need a scope the run graph supplies and are not this.
+    /// </para>
+    /// </remarks>
+    internal Expr? Condition => this switch
+    {
+        Invariant i => i.Must,
+
+        // "when this, then that" is false only where the condition holds and the obligation does not,
+        // which is what makes satisfying half of it an error rather than an absence.
+        Requires r => new Expr.Binary("||", new Expr.Unary("!", r.When), r.Then),
+
+        Excludes e => new Expr.Unary("!", new Expr.Binary("&&", e.One, e.Other)),
+
+        _ => null,
+    };
+
+    /// <summary>Which node's scope the condition is read in, where this kind has one.</summary>
+    internal Node? Scope => this switch
+    {
+        Invariant i => i.Within,
+        Requires r => r.Within,
+        Excludes e => e.Within,
+        _ => null,
+    };
 }

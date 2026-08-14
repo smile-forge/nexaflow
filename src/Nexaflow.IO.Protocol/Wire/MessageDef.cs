@@ -402,6 +402,16 @@ public sealed record MessageDef
                 continue;
             }
 
+            // A condition over one scope wants to be a computation here, reached the way a confinement's
+            // set is — Rule.Condition already folds the three surface forms into the one boolean the graph
+            // would hold. What stops it is that rule expressions address a bit run *flat*, as
+            // `fields.willFlag.value`, while every other expression in the model addresses it through the
+            // field it lives in, as `fields.connectFlags.value.willFlag`. Building the requirements path
+            // needs a node per name, and the flat form names something that is not a field.
+            //
+            // That is a second addressing scheme rather than a missing lookup, so the fix is to delete it
+            // from the documents that use it, not to teach the builder both. Until then a rule stays a
+            // node the checker reads directly.
             foreach (var target in Rules[i].Applies)
                 graph.Add(new Checks
                 {

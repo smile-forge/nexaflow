@@ -111,6 +111,8 @@ public sealed class GraphCodec(MessageDef message,
             appearance.Settle(Facet.Emitted, ProtoValue.Of(wire.Since(began)));
         }
 
+        Vouch(run);
+
         return wire.Done(message.Id);
     }
 
@@ -646,6 +648,8 @@ public sealed class GraphCodec(MessageDef message,
                          .Reaching(message.Root, previous: null));
         resolver.Resolve();
 
+        Vouch(run);
+
         return run;
     }
 
@@ -897,6 +901,39 @@ public sealed class GraphCodec(MessageDef message,
 
             throw new ProtoTypeException(
                 $"'{check.Run ?? place.Name}': {verdict.Why}"
+              + (check.Because.Length > 0 ? $" — {check.Because}" : ""));
+        }
+    }
+
+    /// <summary>
+    /// Every condition the document says has to hold about the message, once it is all there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// After, and not during. These are the rules a wire shape cannot express — one field obliging
+    /// another, two that must never combine, something that must always be true — and every one of them is
+    /// about fields that need not have settled in any particular order. Checking them as each value lands
+    /// would mean checking some of them against a message that is not finished yet.
+    /// </para>
+    /// <para>
+    /// Both directions, for the reason confinement is: an engine that will not read what it would happily
+    /// write has two opinions about the protocol. A caller building a message that contradicts itself finds
+    /// out here, not from the peer.
+    /// </para>
+    /// </remarks>
+    private void Vouch(RunGraph run)
+    {
+        foreach (var check in message.Checking(message.Root).Concat(
+                     message.AllFields.SelectMany(f => message.Checking(f))))
+        {
+            if (check.To is not Evaluated asserted) continue;
+
+            var here = run.Existing(check.From) ?? run.For(check.From);
+
+            if (_evaluator.Eval(asserted.Runs, Given(run, here, asserted)).AsBool()) continue;
+
+            throw new ProtoTypeException(
+                $"message '{message.Id}' does not satisfy: {asserted.Source.Render()}"
               + (check.Because.Length > 0 ? $" — {check.Because}" : ""));
         }
     }
