@@ -331,9 +331,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
         List<FacetRef> waits = [];
 
         var asking = field.Pattern is Pattern.Bits { Assembled: true } assembled
-            ? assembled.Slices.Where(s => s.Value is not null)
-                       .Select(s => graph.ComputationOf(s, s.Value!)).OfType<Computation>()
-            : field.Value is not null && graph.ComputationOf(field, field.Value) is { } one ? [one] : [];
+            ? assembled.Slices.Select(s => graph.ProducerOf(s, "value")).OfType<Computation>()
+            : graph.ProducerOf(field, "value") is { } one ? [one] : [];
 
         foreach (var computation in asking)
             foreach (var wanted in graph.InputsOf(computation))
@@ -399,7 +398,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // Asked of the run, not of the group: the run owns its requirements path, which is the whole
             // reason it is a node.
             foreach (var slice in assembled.Slices)
-                runs[slice.Name] = Computation(slice, slice.Value!) switch
+                runs[slice.Name] = Produces(slice) switch
                 {
                     Constant stated => stated.Holds,
                     Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)),
@@ -414,10 +413,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         // A constant answers without being run. That is what a constant is, and it is why a fixed
         // delimiter needs no expression and can be pointed at by the span that ends before it.
-        var value = Computation(field, field.Value
-                ?? throw new ProtoTypeException(
-                       $"field '{field.Id}' has nothing to compute its value, so it cannot be written"))
-            switch
+        var value = Produces(field) switch
             {
                 Constant stated => stated.Holds,
                 Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)),
@@ -556,10 +552,20 @@ public sealed class GraphCodec(ProtocolGraph graph,
             ? via with { Name = inverse }
             : throw new ProtoTypeException($"'{owner}': converter '{via.Name}' declares no inverse");
 
-    private Computation Computation(Node owner, Expr source)
-        => graph.ComputationOf(owner, source)
+    /// <summary>
+    /// What works out a node's value.
+    /// </summary>
+    /// <remarks>
+    /// Found by the edge that says what it produces, not by matching the identity of the expression it was
+    /// written from. The expression-identity version could only ever work while the graph was built in the
+    /// same process that parsed the document: written out and read back there is no original object to be
+    /// the same as, and every lookup would miss. Asking "what produces this node's value" is the question
+    /// anyway — the expression was one way to arrive at an answer, never the answer itself.
+    /// </remarks>
+    private Computation Produces(Node owner)
+        => graph.ProducerOf(owner, "value")
         ?? throw new ProtoTypeException(
-               $"'{owner.Name}': nothing in the graph computes `{source.Render()}`");
+               $"'{owner.Name}' has nothing to compute its value, so it cannot be written");
 
     /// <summary>
     /// Everything one computation is allowed to see, assembled from the edges that say so.
