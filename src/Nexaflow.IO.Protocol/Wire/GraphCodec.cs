@@ -150,6 +150,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // Everything past here treats the two alike, which is the point of the carrier being a place.
             bool carries = field is not null || place is Subprotocol;
 
+            // A set makes no octets and spans the ones its members made. That is not a technicality about
+            // where a number comes from: it is what lets a length measure a header while the header writes
+            // nothing at all, and it is why the extent is a fact about the members rather than something
+            // the set was told. Both directions, because both have members with extents by the time the
+            // last one is done — which is exactly when this settles, and not before.
+            bool spans = place is FieldSet;
+
             List<FacetRef> before = previous is null ? [] : [new FacetRef(run.For(previous), Facet.Realised)];
             before.AddRange(Deciding(place));
 
@@ -167,10 +174,12 @@ public sealed class GraphCodec(ProtocolGraph graph,
                 // computation asks for, and the order they settle in is not the order they are laid down.
                 // Coming in, there is nothing to schedule — see Intake. So reading declares every facet
                 // settled on sight and does the work as the place is reached.
-                NotApplicable = carries && !Reading
-                    ? new HashSet<Facet> { Facet.Present, Facet.Position, Facet.Emitted }
-                    : new HashSet<Facet>
-                        { Facet.Present, Facet.Extent, Facet.Value, Facet.Position, Facet.Emitted },
+                NotApplicable = spans
+                    ? new HashSet<Facet> { Facet.Present, Facet.Value, Facet.Position, Facet.Emitted }
+                    : carries && !Reading
+                        ? new HashSet<Facet> { Facet.Present, Facet.Position, Facet.Emitted }
+                        : new HashSet<Facet>
+                            { Facet.Present, Facet.Extent, Facet.Value, Facet.Position, Facet.Emitted },
 
                 DependenciesFor = facet => facet switch
                 {
@@ -179,6 +188,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     Facet.Value => carries && !Reading && field is not null
                         ? codec.Waits(run, appearance, field)
                         : [],
+
+                    Facet.Extent when spans => codec.Spanned(run, place, Reading),
 
                     Facet.Extent => carries && !Reading && field?.Pattern.StaticWidth is null
                         ? [new FacetRef(appearance, Facet.Value)]
@@ -224,6 +235,20 @@ public sealed class GraphCodec(ProtocolGraph graph,
                             return FacetResult.Of(field is not null
                                 ? codec.Settle(run, appearance, field)
                                 : codec.Sealed(run, appearance, (Subprotocol)place));
+
+                        case Facet.Extent when spans:
+                            if (Missing(appearance)) return FacetResult.Of(0);
+
+                            var across = codec.Spread(run, appearance, place);
+
+                            if (across % 8 != 0)
+                                throw new ProtoTypeException(
+                                    $"'{place.Name}' spans {across} bits, which is not a whole number of "
+                                  + "octets. A set that ends mid-octet puts everything after it half an "
+                                  + "octet out, which reads as plausible values from the wrong place.");
+
+                            appearance.Settle(Facet.Extent, (int)(across / 8));
+                            return FacetResult.Of((int)(across / 8));
 
                         case Facet.Extent:
                             if (Missing(appearance)) return FacetResult.Of(0);
@@ -291,6 +316,65 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
             return codec.Onward(run, place, Reading);
         }
+    }
+
+    /// <summary>
+    /// What a set's span waits on, which is a different question in each direction.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Going out, every member's extent — a set is as wide as what it holds, and what it holds is worked
+    /// out before it. Coming in, the members are read <b>after</b> the set is reached, so waiting on their
+    /// extents is waiting on facts the walk has not gone and got yet: it waits instead on the last thing
+    /// under the set having been read, which is the moment all of them have.
+    /// </para>
+    /// <para>
+    /// The last thing under it, not the last member: a set whose final member is itself a set is realised
+    /// the moment the walk arrives at that inner set, which is before any of its contents exist.
+    /// </para>
+    /// </remarks>
+    private List<FacetRef> Spanned(RunGraph run, Node set, bool reading)
+        => reading
+            ? Last(set) is { } last ? [new FacetRef(run.For(last), Facet.Realised)] : []
+            : [.. graph.Members(set).Select(m => new FacetRef(run.For(m), Facet.Extent))];
+
+    /// <summary>The last place under a set that is not itself a set.</summary>
+    private Node? Last(Node set)
+        => graph.Members(set).LastOrDefault() switch
+        {
+            FieldSet inner => Last(inner),
+            { } member => member,
+            _ => null,
+        };
+
+    /// <summary>
+    /// How many <b>bits</b> a place takes up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Octets are too coarse to add up a set with, and not by a little: a four-bit offset and eight control
+    /// bits have an extent of zero octets each, so summing extents makes TCP's header eighteen octets long
+    /// rather than twenty. It is not that the extents are wrong — a one-bit field genuinely does not occupy
+    /// an octet — it is that the question "how far does this set run" is a question about bits, and only
+    /// the answer is about octets.
+    /// </para>
+    /// <para>
+    /// A form that knows its own width is asked; anything else is measured by the extent it settled, which
+    /// is what an opaque span or a value-width integer has and a fixed one does not need. A part that
+    /// turned out not to be there contributes nothing, rather than contributing the width it would have had.
+    /// </para>
+    /// </remarks>
+    private long Spread(RunGraph run, RunNode appearance, Node place)
+    {
+        if (appearance.Has(Facet.Present) && appearance.Settled(Facet.Present) is false) return 0;
+
+        if (place is FieldSet set)
+            return graph.Members(set).Sum(m => Spread(run, run.For(m), m));
+
+        if (place is Field { Pattern: var pattern } && pattern.Form?.FixedBits is { } fixedBits)
+            return fixedBits;
+
+        return appearance.Has(Facet.Extent) ? Convert.ToInt64(appearance.Settled(Facet.Extent)) * 8 : 0;
     }
 
     /// <summary>What a named facet's computation waits on, taken from the edges that ask for it.</summary>
