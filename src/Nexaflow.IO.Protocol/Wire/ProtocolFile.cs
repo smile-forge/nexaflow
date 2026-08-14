@@ -121,7 +121,7 @@ public static class ProtocolFile
         "field" => new Field
         {
             Id = id,
-            Pattern = Form(at["form"]?.AsObject()
+            Form = Form(at["form"]?.AsObject()
                 ?? throw new ProtoTypeException($"field '{id}' says nothing about how it becomes octets")),
             As = Text(at["as"]),
         },
@@ -195,26 +195,25 @@ public static class ProtocolFile
 
     // ── How a value becomes octets ────────────────────────────────────────────
 
-    private static Pattern Form(JsonObject at) => Text(at["of"]) switch
+    private static WireForm Form(JsonObject at) => Text(at["of"]) switch
     {
-        "run" => new Pattern.Run(Int(at["bits"], "bits")),
+        "run" => new WireForm.Run(Int(at["bits"], "bits")),
 
-        "scalar" => new Pattern.Scalar(
+        "scalar" => new WireForm.Scalar(
             Int(at["octets"], "octets"), Bool(at["big"], true), Bool(at["signed"], false)),
 
-        "opaque" => new Pattern.Opaque(
-            at["octets"] is { } octets ? (int)octets : null,
-            Text(at["measured"]) is { } measured ? Expr.Parse(measured) : null,
-            Text(at["until"]) is { } until ? [.. until.Select(c => (byte)c)] : null),
+        // No width given is the ordinary case rather than an omission: something else says how far it
+        // runs, by an edge to what computes its extent.
+        "opaque" => new WireForm.Opaque(at["octets"] is { } octets ? (int)octets : null),
 
-        "varint" => new Pattern.Varint(
+        "varint" => new WireForm.Varint(
             Enum.Parse<GroupOrder>(Text(at["order"]) ?? nameof(GroupOrder.MostSignificantFirst)),
             Int(at["max"], "max"), Bool(at["minimal"], true)),
 
-        "escaped" => new Pattern.EscapedInline(
+        "escaped" => new WireForm.EscapedInline(
             Int(at["limit"], "limit"), Int(at["max"], "max"), Bool(at["minimal"], true)),
 
-        "prefixed" => new Pattern.Prefixed(
+        "prefixed" => new WireForm.Prefixed(
             Int(at["marker"], "marker"),
             [.. (at["widths"]?.AsArray() ?? []).Where(w => w is not null).Select(w => (int)w!)],
             Bool(at["minimal"], true)),

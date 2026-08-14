@@ -22,6 +22,21 @@ namespace Nexaflow.IO.Protocol.Wire;
 /// that had to agree by hand.
 /// </para>
 /// </summary>
+/// <summary>
+/// Which end of a multi-group encoding carries the most significant part.
+///
+/// <para>
+/// Named as a notion rather than after either family that exhibits it. Most-significant-first reads
+/// <c>8f 65</c> as 2021; least-significant-first reads <c>8f 01</c> as 143. There is no defensible
+/// default — omitting the parameter is how a general name comes to sit over one family's codec.
+/// </para>
+/// </summary>
+public enum GroupOrder
+{
+    MostSignificantFirst,
+    LeastSignificantFirst,
+}
+
 public abstract record WireForm
 {
     /// <summary>

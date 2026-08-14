@@ -37,19 +37,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
     private ProtocolGraph Graph => graph;
 
 
-    /// <summary>
-    /// What this codec can walk, which is a consequence rather than a claim.
-    /// </summary>
-    /// <remarks>
-    /// It used to be a hand-kept list of the arms <see cref="Write"/> happened to have, and it was wrong in
-    /// both directions at once: it named a shape the writer would have thrown on, and it omitted one the
-    /// writer could not have written — so a document with that field <b>encoded silently without it</b>.
-    /// Now a field is one this walks if something can lay its value down, which is the same question the
-    /// writer asks, so the two cannot disagree.
-    /// </remarks>
-    public static bool Handles(Field field)
-        => field.Pattern.Form is not null || field.Pattern is Pattern.Bits or Pattern.Group or Pattern.Chain;
-
     // ── Writing ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -138,14 +125,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
             var appearance = run.For(place);
             var field = place as Field;
 
-            // One refusal, on the one path both directions take. It used to live in the reading walk only,
-            // so writing a field nothing could lay down produced a message quietly missing it. A place that
-            // is a field is either one this walks or an error — never something to step over.
-            if (field is not null && !Handles(field))
-                throw new ProtoTypeException(
-                    $"field '{field.Id}' is a {field.Pattern.GetType().Name.ToLowerInvariant()}, which "
-                  + "this walk does not handle yet");
-
             // A carrier makes octets the way a field does — the inner message's, rather than one value's.
             // Everything past here treats the two alike, which is the point of the carrier being a place.
             bool carries = field is not null || place is Subprotocol;
@@ -191,7 +170,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
                     Facet.Extent when spans => codec.Spanned(run, place, Reading),
 
-                    Facet.Extent => carries && !Reading && field?.Pattern.StaticWidth is null
+                    Facet.Extent => carries && !Reading && field?.Form.FixedOctets is null
                         ? [new FacetRef(appearance, Facet.Value)]
                         : [],
 
@@ -371,7 +350,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         if (place is FieldSet set)
             return graph.Members(set).Sum(m => Spread(run, run.For(m), m));
 
-        if (place is Field { Pattern: var pattern } && pattern.Form?.FixedBits is { } fixedBits)
+        if (place is Field carried && carried.Form.FixedBits is { } fixedBits)
             return fixedBits;
 
         return appearance.Has(Facet.Extent) ? Convert.ToInt64(appearance.Settled(Facet.Extent)) * 8 : 0;
@@ -414,9 +393,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         List<FacetRef> waits = [];
 
-        var asking = Assembled(field)
-            ? Runs(field).Select(s => graph.ProducerOf(s, "value")).OfType<Computation>()
-            : graph.ProducerOf(field, "value") is { } one ? [one] : [];
+        IEnumerable<Computation> asking =
+            graph.ProducerOf(field, "value") is { } one ? [one] : [];
 
         foreach (var computation in asking)
             foreach (var wanted in graph.InputsOf(computation))
@@ -435,7 +413,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // is already those octets by the time anything asks.
         if (field is null) return appearance.Value.AsBytes().Length;
 
-        if (field.Pattern.StaticWidth is { } declared) return declared;
+        if (field.Form.FixedOctets is { } declared) return declared;
 
         var measured = new BitWriter();
         Write(measured, field, appearance.Value);
@@ -473,28 +451,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </remarks>
     private ProtoValue Settle(RunGraph run, RunNode appearance, Field field)
     {
-        // A bit group written from its runs has no expression of its own — each run has one, and the
-        // group is what they come to together.
-        if (Assembled(field))
-        {
-            Dictionary<string, ProtoValue> runs = new(StringComparer.Ordinal);
-
-            // Asked of the run, not of the group: the run owns its requirements path, which is the whole
-            // reason it is a node.
-            foreach (var slice in Runs(field))
-                runs[slice.Name] = Produces(slice) switch
-                {
-                    Constant stated => stated.Holds,
-                    Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)),
-                    var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a run"),
-                };
-
-            var packed = new ProtoValue.Rec(runs);
-            Vet(appearance, field, packed);
-            appearance.Settle(Facet.Value, packed);
-            return packed;
-        }
-
         // A constant answers without being run. That is what a constant is, and it is why a fixed
         // delimiter needs no expression and can be pointed at by the span that ends before it.
         var value = Produces(field) switch
@@ -536,8 +492,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
         var octets = layer.Carries switch
         {
             Carriage.Described inner => ProtoValue.Of(
-                new GraphCodec(inner.Message.Graph, _converters, _provided)
-                    .Encode(Fed(run, appearance, layer, inner.Message.Graph))),
+                new GraphCodec(inner.Protocol, _converters, _provided)
+                    .Encode(Fed(run, appearance, layer, inner.Protocol))),
 
             Carriage.Provided host => ProtoValue.Of(
                 _provided.Get(host.Implementation, layer.Id)
@@ -567,7 +523,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         return layer.Carries switch
         {
             Carriage.Described inner => Gathered(
-                new GraphCodec(inner.Message.Graph, _converters, _provided).Decode(value.AsBytes())),
+                new GraphCodec(inner.Protocol, _converters, _provided).Decode(value.AsBytes())),
 
             Carriage.Provided host => _provided.Get(host.Implementation, layer.Id).Decode(value.AsBytes()),
 
@@ -655,15 +611,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// widths. Asking the pattern gets things that look right and are not the nodes anything computed
     /// against, so every lookup on them returns nothing.
     /// </remarks>
-    /// <summary>Whether this group is written from its runs, each computing itself, rather than from one
-    /// value that is already a record. A fact about what the graph says produces things, not about the
-    /// shape — the shape carries a second copy of the runs and they compute nothing.</summary>
-    private bool Assembled(Field field)
-        => Runs(field).Any(s => graph.ProducerOf(s, "value") is not null);
-
-    private IEnumerable<BitSlice> Runs(Field field)
-        => graph.InputsOf(field).Select(e => e.To).OfType<BitSlice>();
-
     private Computation Produces(Node owner)
         => graph.ProducerOf(owner, "value")
         ?? throw new ProtoTypeException(
@@ -800,7 +747,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         var field = (Field)place;
 
-        if (field.Pattern.Form is { SelfDelimiting: true } form && form.FixedOctets is null)
+        if (field.Form is { SelfDelimiting: true } form && form.FixedOctets is null)
         {
             var taken = form.Take(source, null, How(field));
 
@@ -891,13 +838,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </remarks>
     private int Width(RunGraph run, RunNode appearance, Field field, byte[]? ahead = null)
     {
-        if (field.Pattern.StaticWidth is { } declared) return declared;
+        if (field.Form.FixedOctets is { } declared) return declared;
 
         // A form that delimits itself is asked where it ends, which is the whole of what a continuation
         // chain, an escaping marker and a marked integer have in common. Going out their extent falls out
         // of the value; coming in it falls out of the octets — the same fact, reached from the side that
         // has it, and neither direction derives it twice.
-        if (field.Pattern.Form is { SelfDelimiting: true } form && form.FixedOctets is null
+        if (field.Form is { SelfDelimiting: true } form && form.FixedOctets is null
             && ahead is not null)
             return form.Take(new BitCursor(ahead), null, How(field)).Bits / 8;
 
@@ -907,11 +854,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
         if (graph.ProducerOf(field, "extent") is null && Ends(field) is { } ending && ahead is not null)
             return Until(ending, field, ahead);
 
-        // A span with nothing sizing it and nothing after it takes what is left, which is what "as many
-        // as fit" comes to once the count has stopped being something anyone declares.
-        if (graph.ProducerOf(field, "extent") is null && field.Pattern is Pattern.Chain && ahead is not null)
-            return ahead.Length;
-
         if (graph.ProducerOf(field, "extent") is { } measured && measured is Evaluated evaluated)
             return (int)_evaluator.Eval(evaluated.Runs, Given(run, appearance, measured)).AsInt();
 
@@ -919,60 +861,20 @@ public sealed class GraphCodec(ProtocolGraph graph,
     }
 
     /// <summary>
-    /// Lays a field down: its own form, or the shape it is made of.
+    /// Lays a field down.
     /// </summary>
     /// <remarks>
-    /// Two arms, and only one of them is the walk's business. A form is asked to lay one value down and
-    /// nothing here knows which form it got — that is what stops a new encoding being an edit to the
-    /// engine. The shapes are the cases where a field is written out of <i>several</i> values, which no
-    /// form can be handed.
+    /// One arm, and nothing here knows which form it got — that is what stops a new encoding being an edit
+    /// to the engine. It used to have a second arm for the cases where a field was written out of SEVERAL
+    /// values, which is what a shape was; those are sets of fields now, and a set is walked rather than
+    /// laid down.
     /// </remarks>
     private void Write(BitWriter wire, Field field, ProtoValue value)
-    {
-        if (field.Pattern.Form is { } form) { form.Lay(wire, value, How(field)); return; }
-
-        switch (field.Pattern)
-        {
-            // A run of elements: the field's value is the list, and what it may hold is the shape each item
-            // takes. There is no per-item expression and no item to bind — an element definition says how
-            // one is written, and the list says how many.
-            case Pattern.Chain:
-            {
-                var shape = Admitted(field);
-
-                foreach (var item in value.AsList()) Write(wire, shape, item);
-
-                break;
-            }
-
-            // Run by run, in order, and the octet boundary is wherever it happens to land.
-            case Pattern.Bits bits:
-            {
-                var runs = value as ProtoValue.Rec
-                    ?? throw new ProtoTypeException(
-                           $"field '{field.Id}' is written from a record of its runs");
-
-                foreach (var run in bits.Slices)
-                    wire.Put(runs.Members.TryGetValue(run.Name, out var held) ? held.AsInt() : 0, run.Width);
-
-                break;
-            }
-
-            default:
-                throw new ProtoTypeException($"field '{field.Id}' cannot be written by this walk yet");
-        }
-    }
+        => field.Form.Lay(wire, value, How(field));
 
     private ProtoValue Read(Field field, byte[] taken)
     {
-        ProtoValue value = field.Pattern.Form is { } form
-            ? form.Take(new BitCursor(taken), taken.Length * 8, How(field)).Value
-            : field.Pattern switch
-            {
-                Pattern.Bits bits => Unpacked(bits, taken),
-                Pattern.Chain => Elements(field, taken),
-                _ => throw new ProtoTypeException($"field '{field.Id}' cannot be read by this walk yet"),
-            };
+        var value = field.Form.Take(new BitCursor(taken), taken.Length * 8, How(field)).Value;
 
         return field.Via is null ? value : Applied(field, value, forward: false);
     }
@@ -1105,45 +1007,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
             $"field '{field.Id}' runs up to {ending}, which is not in the {ahead.Length} octet(s) left");
     }
 
-    /// <summary>The one shape a span admits, where it admits exactly one.</summary>
-    private Field Admitted(Field field)
-    {
-        var admits = graph.From<Allowed>(field).Select(e => e.To).OfType<Field>().ToList();
-
-        return admits.Count == 1
-            ? admits[0]
-            : throw new ProtoTypeException(
-                  $"field '{field.Id}' admits {admits.Count} shapes, and telling one element from another "
-                + "by what it announces is not something this walk does yet");
-    }
-
-    /// <summary>
-    /// The elements of a span, read until its octets run out.
-    /// </summary>
-    /// <remarks>
-    /// How many there are is never asked and never declared: the span is as long as something else said,
-    /// and the elements are however many fit. That is the whole of what used to be a repetition.
-    /// </remarks>
-    private ProtoValue Elements(Field field, byte[] taken)
-    {
-        var shape = Admitted(field);
-        int width = shape.Pattern.StaticWidth
-            ?? throw new ProtoTypeException(
-                   $"field '{field.Id}' holds '{shape.Id}', whose width this walk cannot work out");
-
-        if (taken.Length % width != 0)
-            throw new ProtoTypeException(
-                $"field '{field.Id}' is {taken.Length} octets and holds {width}-octet elements, so the "
-              + "last one is incomplete");
-
-        List<ProtoValue> items = [];
-
-        for (int at = 0; at < taken.Length; at += width)
-            items.Add(Read(shape, taken[at..(at + width)]));
-
-        return new ProtoValue.List(items);
-    }
-
     private ProtoValue Applied(Field field, ProtoValue value, bool forward)
     {
         var via = field.Via!;
@@ -1161,20 +1024,4 @@ public sealed class GraphCodec(ProtocolGraph graph,
         return back.Apply(value, arguments);
     }
 
-    private static ProtoValue Unpacked(Pattern.Bits bits, byte[] octets)
-    {
-        long accumulated = 0;
-        foreach (var octet in octets) accumulated = (accumulated << 8) | octet;
-
-        Dictionary<string, ProtoValue> runs = new(StringComparer.Ordinal);
-        int left = bits.TotalBits;
-
-        foreach (var run in bits.Slices)
-        {
-            left -= run.Width;
-            runs[run.Name] = ProtoValue.Of((accumulated >> left) & ((1L << run.Width) - 1));
-        }
-
-        return new ProtoValue.Rec(runs);
-    }
 }

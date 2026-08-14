@@ -25,8 +25,8 @@ public interface ISubprotocol
 /// <summary>What is inside a carried span.</summary>
 public abstract record Carriage
 {
-    /// <summary>A document, described here.</summary>
-    public sealed record Described(MessageDef Message) : Carriage;
+    /// <summary>Another protocol, described by a graph of its own.</summary>
+    public sealed record Described(ProtocolGraph Protocol) : Carriage;
 
     /// <summary>An implementation the host supplies by name. The seam.</summary>
     public sealed record Provided(string Implementation) : Carriage;
@@ -110,7 +110,7 @@ public sealed class Subprotocol : Node
 
     public override string ToString() => Carries switch
     {
-        Carriage.Described d => $"{Id} → {d.Message.Id}",
+        Carriage.Described d => $"{Id} → {d.Protocol.Id}",
         Carriage.Provided p => $"{Id} → {p.Implementation} (provided)",
         _ => Id,
     };

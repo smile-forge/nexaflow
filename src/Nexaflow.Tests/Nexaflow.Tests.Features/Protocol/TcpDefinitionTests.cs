@@ -79,8 +79,8 @@ public class TcpDefinitionTests
             var field = tcp.Named[name] as Field;
 
             Assert.IsNotNull(field, $"'{name}' is a field");
-            Assert.IsInstanceOfType<Pattern.Run>(field.Pattern, $"'{name}' is a run of bits");
-            Assert.AreEqual(bits, ((Pattern.Run)field.Pattern).Width, $"'{name}' is {bits} bit(s)");
+            Assert.IsInstanceOfType<WireForm.Run>(field.Form, $"'{name}' is a run of bits");
+            Assert.AreEqual(bits, ((WireForm.Run)field.Form).Bits, $"'{name}' is {bits} bit(s)");
         }
     }
 
@@ -115,7 +115,7 @@ public class TcpDefinitionTests
                       .TakeWhile(m => !ReferenceEquals(m, tcp.Named["options"]))
                       .SelectMany(m => m is FieldSet set ? tcp.Graph.Members(set) : [m])
                       .OfType<Field>()
-                      .Sum(f => f.Pattern.Form?.FixedBits ?? 0);
+                      .Sum(f => f.Form.FixedBits ?? 0);
 
         Assert.AreEqual(160, bits, "20 octets, counted off the graph rather than declared anywhere");
     }
@@ -175,8 +175,8 @@ public class TcpDefinitionTests
         var flag = (Field)tcp.Named["ack"];
 
         Assert.AreNotSame(number, flag);
-        Assert.AreEqual(32, number.Pattern.Form!.FixedBits);
-        Assert.AreEqual(1, flag.Pattern.Form!.FixedBits);
+        Assert.AreEqual(32, number.Form.FixedBits);
+        Assert.AreEqual(1, flag.Form.FixedBits);
     }
 
     [TestMethod]
