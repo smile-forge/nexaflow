@@ -263,4 +263,139 @@ public class RepetitionTests
 
         CollectionAssert.AreEqual(written, Both(names));
     }
+
+    // ── Reaching out of a run, and the question a reading must not ask ────────
+
+    /// <summary>
+    /// A run of records, each a count and that many values, with the inner list <b>computed</b> from the
+    /// outer item rather than lifted off it.
+    /// </summary>
+    /// <remarks>
+    /// Two things the <see cref="Names"/> fixture cannot say, and both are ordinary rather than exotic.
+    /// The inner list is <c>split(item.digits, ',')</c> — an expression, not a member — and the reading's
+    /// loop is bound by the <b>count field of the record it is inside</b>, which is a place one frame out
+    /// and a specific time round of that frame.
+    /// </remarks>
+    private const string Records = """
+        {
+          "protocol": "records",
+          "nodes": [
+            { "id": "p", "kind": "protocol" },
+            { "id": "m", "kind": "message" },
+            { "id": "arrangement", "kind": "packing" },
+            { "id": "records", "kind": "set", "as": "the records" },
+            { "id": "items", "kind": "set", "as": "the values of one record" },
+            { "id": "count", "kind": "field", "as": "N",
+              "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
+            { "id": "n", "kind": "field", "as": "V",
+              "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
+            { "id": "input.records", "kind": "input", "as": "Records", "gives": "List",
+              "of": { "digits": "Text" } },
+            { "id": "itsItems", "kind": "evaluated", "label": "the values of this record",
+              "runs": "split(item.digits, ',')", "gives": "List", "of": "Text" },
+            { "id": "itsCount", "kind": "evaluated", "label": "how many this record has",
+              "runs": "count(split(item.digits, ','))", "gives": "Int" },
+            { "id": "itsValue", "kind": "evaluated", "label": "this value",
+              "runs": "undecimal(item)", "gives": "Int" },
+            { "id": "whatNext", "kind": "junction", "as": "another value, another record, or the end?" },
+            { "id": "onwards", "kind": "evaluated", "label": "where the reading goes next",
+              "runs": "ordinal + 1 < howMany ? 0 : (remaining > 0 ? 1 : 2)", "gives": "Int",
+              "takes": { "howMany": "Int" } },
+            { "id": "done", "kind": "end-parse", "as": "the end" }
+          ],
+          "edges": [
+            { "kind": "then", "from": "p", "to": "m" },
+            { "kind": "then", "from": "m", "to": "arrangement" },
+            { "kind": "then", "from": "arrangement", "to": "records" },
+            { "kind": "then", "from": "records", "to": "count" },
+            { "kind": "then", "from": "count", "to": "items" },
+            { "kind": "then", "from": "items", "to": "n" },
+            { "kind": "then", "from": "n", "to": "done" },
+            { "kind": "holds", "from": "records", "to": "count", "order": 0 },
+            { "kind": "holds", "from": "records", "to": "items", "order": 1 },
+            { "kind": "holds", "from": "items", "to": "n", "order": 0 },
+            { "kind": "requires", "from": "records", "to": "input.records", "facet": "each",
+              "sequence": 0 },
+            { "kind": "requires", "from": "items", "to": "itsItems", "facet": "each", "sequence": 0 },
+            { "kind": "computes", "from": "count", "to": "itsCount", "facet": "value" },
+            { "kind": "computes", "from": "n", "to": "itsValue", "facet": "value" },
+
+            { "kind": "requires", "from": "onwards", "to": "count", "facet": "value",
+              "sequence": 0, "parameter": "howMany" },
+
+            { "kind": "decode", "from": "n", "to": "whatNext" },
+            { "kind": "decides", "from": "whatNext", "to": "onwards", "reading": true },
+            { "kind": "decode", "from": "whatNext", "to": "n", "key": { "int": 0 } },
+            { "kind": "decode", "from": "whatNext", "to": "count", "key": { "int": 1 } },
+            { "kind": "decode", "from": "whatNext", "to": "done", "otherwise": true }
+          ]
+        }
+        """;
+
+    private static byte[] Written(params string[] records)
+        => new GraphCodec(ProtocolFile.Read(Records).Graph).Encode(
+               new Dictionary<string, ProtoValue>
+               {
+                   ["Records"] = new ProtoValue.List(
+                       [.. records.Select(r => EvalScope.Record(("digits", ProtoValue.Of(r))))]),
+               });
+
+    [TestMethod]
+    public void An_inner_list_may_be_worked_out_rather_than_handed_over()
+    {
+        Assert.AreEqual("03" + "010203" + "02" + "0405",
+                        Convert.ToHexString(Written("1,2,3", "4,5")),
+            "each record says how many values it has, and both facts come off the same string");
+    }
+
+    [TestMethod]
+    public void And_a_reading_never_asks_it()
+    {
+        // How many times a run goes round is a question for whoever is writing. Coming in there is no
+        // outer item to work the inner list out FROM, and running the expression anyway hands every
+        // converter in it a value nobody supplied — `item.labels` survives that only because a member of
+        // nothing is nothing, and `split(item.digits, ',')` does not.
+        var run = new GraphCodec(ProtocolFile.Read(Records).Graph)
+            .Decode(Convert.FromHexString("03010203020405"));
+
+        CollectionAssert.AreEqual(new long[] { 1, 2, 3, 4, 5 },
+            run.Nodes.Where(x => x.Of.Name == "n" && x.Has(Facet.Value))
+                     .OrderBy(x => x.Within!.Index).ThenBy(x => x.Index)
+                     .Select(x => x.Value.AsInt()).ToArray());
+    }
+
+    [TestMethod]
+    public void And_a_place_inside_a_run_reads_the_round_of_the_run_outside_it()
+    {
+        // The loop is bound by the count field of the record it is in. Reaching outward has to keep the
+        // time round as well as the frame: an appearance one level out, at round zero, is the FIRST
+        // record's count — which is right for the first record and wrong for every one after it, so this
+        // reads as three values then three more instead of three then two.
+        var run = new GraphCodec(ProtocolFile.Read(Records).Graph)
+            .Decode(Convert.FromHexString("03010203020405"));
+
+        CollectionAssert.AreEqual(new[] { 3, 2 },
+            run.Nodes.Where(x => x.Of.Name == "n" && x.Has(Facet.Value))
+                     .GroupBy(x => x.Within!)
+                     .OrderBy(g => g.Key.Index)
+                     .Select(g => g.Count()).ToArray(),
+            "three values in the first record and two in the second");
+    }
+
+    [TestMethod]
+    public void And_what_it_read_writes_those_back_the_same()
+    {
+        var written = Written("7", "1,2,3", "4,5");
+
+        var run = new GraphCodec(ProtocolFile.Read(Records).Graph).Decode(written);
+
+        var records = run.Nodes.Where(x => x.Of.Name == "n" && x.Has(Facet.Value))
+                               .GroupBy(x => x.Within!)
+                               .OrderBy(g => g.Key.Index)
+                               .Select(g => string.Join(',', g.OrderBy(x => x.Index)
+                                                              .Select(x => x.Value.AsInt())))
+                               .ToArray();
+
+        CollectionAssert.AreEqual(written, Written(records));
+    }
 }

@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J) |
-| **Authored but not yet built** | SNMP, SSDP, TLS — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
+| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J), SNMPv2c (RFC 3416 over X.690 BER) |
+| **Authored but not yet built** | SSDP, TLS — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -143,9 +143,12 @@ the thing that is written down.
 | `run` | `bits` | A run of bits. **This is what a bit field is** — its own node, not a slice of an octet some other node owns. |
 | `scalar` | `octets`, `big`, `signed` | Fixed-width integer. |
 | `opaque` | `octets` (optional) | Octets carried uninterpreted. With no width, something else says how far it runs — or it takes what is left. |
-| `varint` | `order`, `max`, `minimal` | Continuation-encoded integer. |
-| `escaped` | `limit`, `max`, `minimal` | A small value inline, escaping to a counted run. |
+| `varint` | `order`, `max`, `minimal` | Continuation-encoded integer. An OID arc is one; so is a protobuf tag, and they run in opposite group orders, which is why `order` has no default. |
+| `escaped` | `limit`, `max`, `minimal` | A small value inline, escaping to a counted run. `limit: 128` is X.690 §8.1.3's definite length exactly; `limit: 13` is CoAP's option nibble. |
 | `prefixed` | `marker`, `widths`, `minimal` | Leading bits select the width; the rest is the value. |
+
+Three of these have a width that is a **function of their value**, which is the case the resolver's facet
+ordering exists for: extent waits on value, and a set's extent waits on its members' extents.
 
 ## Edge kinds
 
@@ -218,6 +221,18 @@ walks to is laid out because something requires it.
 
 A set's octets are worked out **only when something requires them** — computing them regardless makes every
 container of an absent part unanswerable, for an answer nobody wanted.
+
+**A length may be as wide as the number it holds, and that is not a cycle.** SNMP's five nested BER lengths
+are one octet each in a 73-octet request and 3, 3, 3, 3 and 2 in a 337-octet response, and the extra octets
+one of them spends are counted by every length outside it. Nothing back-patches: a span is as wide as its
+members whatever offset it lands at, so it settles from the inside out — the innermost value is known, so
+its length's width is known, so the span holding both is. One more octet of payload therefore sometimes
+costs two octets of message, and four different lengths cross their boundary at four different payload
+sizes ([`SnmpCaptureTests`](../src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/SnmpCaptureTests.cs)
+pins all four).
+
+What a length points at is the whole of the difference between the families: Modbus and SNMP measure a set
+that begins *after* them, BACnet's BVLC measures the set it sits *inside*.
 
 ## The checksum shape
 
@@ -304,7 +319,22 @@ walk had left is what says so.
 
 And the inner list is the outer item's: `"runs": "item.labels"` on the computation a nested set repeats
 over is asked of the name being written, so a description says what an inner run is *of* rather than
-receiving one flattened list and an index scheme to take it apart.
+receiving one flattened list and an index scheme to take it apart. It may be **worked out** rather than
+lifted off — SNMP's arcs are `split(index(suffixes(item.oid, '.'), 2), '.')`, because X.690 merges the
+first two arcs of an OID and the rest are what remains.
+
+Two consequences of nesting that are easy to get wrong in opposite directions:
+
+**Coming in, that question is never asked.** How many times a run goes round is for whoever is writing;
+a reading finds out by walking, and there is no outer item to work an inner list out *from*. So the `each`
+expression is not run at all on the way in — running it hands every converter in it a value nobody
+supplied. (`item.labels` survives that only because a member of nothing is nothing. Nothing else does.)
+
+**Reaching outward keeps the round.** A place inside an inner run that reads something in the outer one —
+a name measured against *its* binding's length — asks for a sibling: the same frame *and* the same time
+round, before asking for anything the enclosing level holds. Landing on round zero of what encloses it
+reads correctly for the first item of a run and answers with the first item's facts for every one after,
+which is the worst shape a lookup can have, because one item is all a first test has.
 
 ## When the reading is not the writing backwards
 
@@ -473,8 +503,9 @@ the node. `ConsistencyTests` pins them.
 | `CoapCaptureTests` | options that only mean something in sequence, and both nibble escapes |
 | `MdnsCaptureTests` | a name — labels ending at a label of length zero — inside a run of questions ended by a count, and a description that says in its octets what it does not cover |
 | `BacnetCaptureTests` | three layers, a discriminator six octets in, and a value whose length is three bits of the octet before it |
+| `SnmpCaptureTests` | five nested lengths whose own widths depend on what they hold, and an OID as a run of base-128 arcs |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
-| `RepetitionTests` | written once per item, including a run inside a run |
+| `RepetitionTests` | written once per item, including a run inside a run — an inner list computed rather than handed over, and a place inside one reading the round of the run outside it |
 | `AbsenceTests` | the four questions |
 | `ConsistencyTests` | what a description has to be true of itself, refused when it loads |
 | `StateUpdateTests` | what a message leaves behind, and what state is not for |

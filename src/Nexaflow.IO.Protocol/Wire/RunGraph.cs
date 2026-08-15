@@ -144,17 +144,28 @@ public sealed class RunGraph
     /// Which appearance of a node is meant, standing here.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Innermost outward, so a structure's own length prefix is its own and the message metadata around it
     /// is still reachable. This is the one piece of naming logic the run graph has, and it is about
     /// appearances rather than names: two instances of a chain are two nodes, and which one an edge means
     /// depends on where the edge is being followed from.
+    /// </para>
+    /// <para>
+    /// <b>Outward keeps the round.</b> Stepping out of a repetition asks for a sibling — the same frame
+    /// AND the same time round — before asking for anything the level holds. Asking only the second
+    /// question lands on round zero of whatever encloses it, which reads correctly for the first item of
+    /// a run and silently answers with the first item's facts for every one after: a name inside the
+    /// third binding measured against the FIRST binding's length. Right once and wrong thereafter is the
+    /// worst shape a lookup can have, because one item is all a first test has.
+    /// </para>
     /// </remarks>
     public RunNode Reach(RunNode from, Node target)
     {
-        // Each enclosing appearance in turn, asking only for the parts that belong to it. Falling off the
-        // end lands on the message's own, which is the one there is exactly one of.
+        // Each enclosing appearance in turn. Falling off the end lands on the message's own, which is the
+        // one there is exactly one of.
         for (var level = from; level is not null; level = level.Within)
-            if (Existing(target, level) is { } own) return own;
+            if (Existing(target, level.Within, level.Index) is { } beside) return beside;
+            else if (Existing(target, level) is { } own) return own;
 
         // Failing that, whichever appearance there IS, rather than a fresh one that answers nothing. A
         // reading goes round on its own edge and its rounds carry on past the repetition, so the payload

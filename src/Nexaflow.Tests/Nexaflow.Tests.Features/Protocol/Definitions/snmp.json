@@ -1,0 +1,1961 @@
+{
+  "protocol": "snmp",
+  "title": "SNMPv2c",
+  "source": "RFC 3416 (operations), RFC 3417 (transport), X.690 (BER)",
+  "nodes": [
+    {
+      "id": "snmp",
+      "kind": "protocol",
+      "about": [
+        "SNMPv2c — RFC 3416 (the operations), RFC 3417 (over UDP 161), X.690 (how it is written).",
+        "",
+        "Everything here is BER: a tag octet, a length, and that many octets, nested. Which makes this",
+        "the first description whose lengths are not a width the author chose. A BER length is ONE octet",
+        "when what follows is under 128 and 0x80+n followed by n octets when it is not, so how wide a",
+        "length field is depends on the number it holds, which depends on how wide the lengths inside it",
+        "are. The request's five nested lengths are one octet each; the response's are 3, 3, 3, 3 and 2,",
+        "and the difference is one string being 247 octets long.",
+        "",
+        "That is not a cycle, and the reason it is not is worth stating: a length measures a span, and a",
+        "span is as wide as its members whatever offset it lands at. So it settles bottom-up — the",
+        "innermost value is known, so its length's width is known, so the span holding both is known. The",
+        "engine does this by asking rather than by passing: a set's extent waits on its members' extents,",
+        "and a variable-width field's extent waits on its value.",
+        "",
+        "Every length below is written the same way — `escaped`, limit 128, bound four octets, which is",
+        "X.690 §8.1.3 exactly. Under 128 the octet IS the length; at 128 and above it is 0x80 plus a",
+        "count of the octets that follow, and those hold the number minimally. Four is a bound rather",
+        "than a rule: §8.1.3.5 allows 126 length octets, and a datagram claiming its next span runs to",
+        "2^1000 octets is not one worth reading on to find out.",
+        "",
+        "What SNMP does NOT have, and this is the finding rather than an omission: a discriminated union.",
+        "GetRequest and GetResponse differ in one octet and in nothing else. A varbind's value is a tag, a",
+        "length and that many octets whatever the type is — NULL is length nought, and TimeTicks is four",
+        "octets that only a MIB knows to read as hundredths. So the tag is carried and checked, and what",
+        "the octets MEAN is the caller's, exactly as a BACnet Unsigned is. A description that forked on the",
+        "value tag would refuse every type it had not enumerated, and SNMP's whole point is that new ones",
+        "arrive without the message format changing.",
+        "",
+        "Scope, stated in the octets rather than here: version is 1 and is checked, so v1 and v3 are",
+        "refused; the PDU tag admits GetRequest and GetResponse and refuses GetNext, GetBulk, Set, Trap",
+        "and Inform, each of which is a different operation with its own rules about what the two",
+        "error fields mean."
+      ]
+    },
+    {
+      "id": "message",
+      "kind": "message",
+      "as": "an SNMPv2c message",
+      "about": "RFC 3416 §3. A version, a community, and a PDU — the whole of it inside one SEQUENCE."
+    },
+    {
+      "id": "packing.message",
+      "kind": "packing"
+    },
+    {
+      "id": "constant.sequence",
+      "kind": "constant",
+      "holds": {
+        "int": 48
+      },
+      "label": "SEQUENCE",
+      "about": "X.690 §8.9: universal 16, constructed — so 0x20 is set and the tag is 0x30."
+    },
+    {
+      "id": "constant.integer",
+      "kind": "constant",
+      "holds": {
+        "int": 2
+      },
+      "label": "INTEGER"
+    },
+    {
+      "id": "constant.octetString",
+      "kind": "constant",
+      "holds": {
+        "int": 4
+      },
+      "label": "OCTET STRING"
+    },
+    {
+      "id": "constant.oid",
+      "kind": "constant",
+      "holds": {
+        "int": 6
+      },
+      "label": "OBJECT IDENTIFIER"
+    },
+    {
+      "id": "constant.version",
+      "kind": "constant",
+      "holds": {
+        "int": 1
+      },
+      "label": "SNMPv2c",
+      "about": "RFC 3416 §3: the version field of SNMPv2c holds 1, not 2. The 2 is in the name of the protocol and the 1 is what goes on the wire, and there is nothing to be done about that except write it down."
+    },
+    {
+      "id": "valid.sequence",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 48
+          },
+          "to": {
+            "int": 48
+          }
+        }
+      ],
+      "about": "X.690 §8.9's constructed SEQUENCE, and nothing else."
+    },
+    {
+      "id": "valid.integer",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 2
+          },
+          "to": {
+            "int": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "valid.octetString",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 4
+          },
+          "to": {
+            "int": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "valid.oidTag",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 6
+          },
+          "to": {
+            "int": 6
+          }
+        }
+      ]
+    },
+    {
+      "id": "valid.version",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "msgTag",
+      "kind": "field",
+      "as": "the message tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "0x30. Every SNMP message is a SEQUENCE and there is no other thing it could be."
+    },
+    {
+      "id": "msgLen",
+      "kind": "field",
+      "as": "the message length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      },
+      "about": "How much follows. Three octets in the response (0x82 01 4d) and one in the request (0x47), from one description — which is what the form is for."
+    },
+    {
+      "id": "evaluated.msgLen",
+      "kind": "evaluated",
+      "label": "everything after this, in octets",
+      "runs": "body",
+      "gives": "Int",
+      "takes": {
+        "body": "Int"
+      }
+    },
+    {
+      "id": "body",
+      "kind": "set",
+      "as": "the message",
+      "about": [
+        "What the outer length measures, which is everything after it and not including it.",
+        "",
+        "A set rather than a marker, because the length has to have something to ask. SNMP's outer length",
+        "excludes itself and its tag; BACnet's BVLC length includes both, and the difference between the",
+        "two descriptions is which set the edge points at."
+      ]
+    },
+    {
+      "id": "versionTag",
+      "kind": "field",
+      "as": "the version tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "versionLen",
+      "kind": "field",
+      "as": "the version length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.versionLen",
+      "kind": "evaluated",
+      "label": "octets of version",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "version",
+      "kind": "field",
+      "as": "Version",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "minint",
+      "about": "One octet holding 1. Written through the minimal two's-complement rule every BER INTEGER obeys, rather than as a one-octet scalar — because the rule is what says it is one octet, and a description that wrote the width would be silently wrong for the request-id."
+    },
+    {
+      "id": "communityTag",
+      "kind": "field",
+      "as": "the community tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "communityLen",
+      "kind": "field",
+      "as": "the community length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.communityLen",
+      "kind": "evaluated",
+      "label": "octets of community",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "input.community",
+      "kind": "input",
+      "as": "Community",
+      "gives": "Text",
+      "purpose": "The community string, which is the whole of SNMPv2c's authentication: a bearer token sent in full, in the clear, on every single message."
+    },
+    {
+      "id": "community",
+      "kind": "field",
+      "as": "Community",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unutf8",
+      "about": "Sent whole on every message rather than exchanged once, which is why this protocol has no session and nothing in it is illegal in any state."
+    },
+    {
+      "id": "evaluated.community",
+      "kind": "evaluated",
+      "label": "the community string",
+      "runs": "community",
+      "gives": "Text",
+      "takes": {
+        "community": "Text"
+      }
+    },
+    {
+      "id": "input.pduTag",
+      "kind": "input",
+      "as": "PDU Tag",
+      "gives": "Int",
+      "purpose": "Which operation this is, as the octet that says so: 0xa0 is a GetRequest and 0xa2 is a GetResponse."
+    },
+    {
+      "id": "pduTag",
+      "kind": "field",
+      "as": "the PDU tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": [
+        "RFC 3416 §3: context-specific, constructed — so 0xa0 through 0xa8 by operation.",
+        "",
+        "Carried as a value and not read as a fork, because nothing about the layout turns on it. A",
+        "GetRequest and a GetResponse are the same seven fields in the same order; what differs is who",
+        "sent it and whether the two error fields mean anything."
+      ]
+    },
+    {
+      "id": "evaluated.pduTag",
+      "kind": "evaluated",
+      "label": "which operation",
+      "runs": "tag",
+      "gives": "Int",
+      "takes": {
+        "tag": "Int"
+      }
+    },
+    {
+      "id": "valid.pduTag",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 160
+          },
+          "to": {
+            "int": 160
+          }
+        },
+        {
+          "from": {
+            "int": 162
+          },
+          "to": {
+            "int": 162
+          }
+        }
+      ],
+      "about": "GetRequest-PDU and GetResponse-PDU."
+    },
+    {
+      "id": "pduLen",
+      "kind": "field",
+      "as": "the PDU length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.pduLen",
+      "kind": "evaluated",
+      "label": "octets of PDU",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "pdu",
+      "kind": "set",
+      "as": "the operation",
+      "about": "RFC 3416 §3's PDU: a request-id, two error fields, and the list of things being asked about."
+    },
+    {
+      "id": "requestIdTag",
+      "kind": "field",
+      "as": "the request-id tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "requestIdLen",
+      "kind": "field",
+      "as": "the request-id length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.requestIdLen",
+      "kind": "evaluated",
+      "label": "octets of request-id",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "input.requestId",
+      "kind": "input",
+      "as": "Request ID",
+      "gives": "Int",
+      "purpose": "What ties a reply to what it replies to. A manager keeps many of these in flight on one socket and has nothing else to tell the answers apart by."
+    },
+    {
+      "id": "requestId",
+      "kind": "field",
+      "as": "Request ID",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "minint",
+      "about": [
+        "RFC 3416 §4.1's Integer32, and the reason every value here goes through `minint`.",
+        "",
+        "821915 is three octets — 0c 8a 9b — because X.690 §8.3.2 forbids a leading octet that could be",
+        "dropped, and 0x0c has its top bit clear so nothing needs to precede it. The same rule pads: an",
+        "unsigned 9740722 is 00 94 a1 b2, four octets for a three-octet number, because 0x94 would read",
+        "as negative. So the width is a function of the value in both directions and no declared width",
+        "is right for both."
+      ]
+    },
+    {
+      "id": "evaluated.requestId",
+      "kind": "evaluated",
+      "label": "this request's id",
+      "runs": "id",
+      "gives": "Int",
+      "takes": {
+        "id": "Int"
+      }
+    },
+    {
+      "id": "errorStatusTag",
+      "kind": "field",
+      "as": "the error-status tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "errorStatusLen",
+      "kind": "field",
+      "as": "the error-status length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.errorStatusLen",
+      "kind": "evaluated",
+      "label": "octets of error-status",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "input.errorStatus",
+      "kind": "input",
+      "as": "Error Status",
+      "gives": "Int",
+      "purpose": "Nought in a request and in a successful reply; RFC 3416 §3's codes otherwise."
+    },
+    {
+      "id": "errorStatus",
+      "kind": "field",
+      "as": "Error Status",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "minint",
+      "about": "Zero is one octet, 00, and not none. X.690 §8.3.1 says an INTEGER is at least one octet, which is why `minint` and the option-length rule that writes nothing for nought are two notions and not one with a flag."
+    },
+    {
+      "id": "evaluated.errorStatus",
+      "kind": "evaluated",
+      "label": "what went wrong, if anything",
+      "runs": "status",
+      "gives": "Int",
+      "takes": {
+        "status": "Int"
+      }
+    },
+    {
+      "id": "valid.errorStatus",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 18
+          }
+        }
+      ],
+      "about": "RFC 3416 §3: noError(0) through inconsistentName(18)."
+    },
+    {
+      "id": "errorIndexTag",
+      "kind": "field",
+      "as": "the error-index tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "errorIndexLen",
+      "kind": "field",
+      "as": "the error-index length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.errorIndexLen",
+      "kind": "evaluated",
+      "label": "octets of error-index",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "input.errorIndex",
+      "kind": "input",
+      "as": "Error Index",
+      "gives": "Int",
+      "purpose": "Which varbind the error is about, counting from one. Nought when there is no error."
+    },
+    {
+      "id": "errorIndex",
+      "kind": "field",
+      "as": "Error Index",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "minint",
+      "about": "One-based, and the one place SNMP addresses a varbind by position — which is why the order of the list is part of the message and not an implementation detail."
+    },
+    {
+      "id": "evaluated.errorIndex",
+      "kind": "evaluated",
+      "label": "which one went wrong",
+      "runs": "index",
+      "gives": "Int",
+      "takes": {
+        "index": "Int"
+      }
+    },
+    {
+      "id": "varbindsTag",
+      "kind": "field",
+      "as": "the varbind-list tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "varbindsLen",
+      "kind": "field",
+      "as": "the varbind-list length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      },
+      "about": "This measures the repetition itself — every pass of it — rather than a set wrapped round one. A length over a container holding a run would come out the width of a single item."
+    },
+    {
+      "id": "evaluated.varbindsLen",
+      "kind": "evaluated",
+      "label": "octets of all the varbinds",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "input.varbinds",
+      "kind": "input",
+      "as": "Varbinds",
+      "gives": "List",
+      "of": {
+        "oid": "Text",
+        "tag": "Int",
+        "value": "Bytes"
+      },
+      "purpose": "What is being asked about, one record per binding. The name is dotted — '1.3.6.1.2.1.1.1.0' — because an OID arc cannot contain a dot, unlike a DNS label, so the string loses nothing.",
+      "about": "The value is octets and a tag, not a typed thing. A GetRequest sends NULL (tag 5, no octets) for every one of them, and what comes back is whatever the MIB says that object is."
+    },
+    {
+      "id": "varbind",
+      "kind": "set",
+      "as": "one binding",
+      "about": [
+        "RFC 3416 §4.1's VarBind: a name and a value, in a SEQUENCE of their own.",
+        "",
+        "How many there are is on the wire nowhere. The list has a length in octets and no count, and one",
+        "varbind is followed by another that looks exactly like it — so the reading counts octets against",
+        "that length and stops when it has spent them."
+      ]
+    },
+    {
+      "id": "varbindTag",
+      "kind": "field",
+      "as": "the binding tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "varbindLen",
+      "kind": "field",
+      "as": "the binding length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.varbindLen",
+      "kind": "evaluated",
+      "label": "octets of this binding",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "binding",
+      "kind": "set",
+      "as": "a name and a value",
+      "about": "What this binding's length measures: the name and the value, and not the tag or the length in front of them."
+    },
+    {
+      "id": "oidTag",
+      "kind": "field",
+      "as": "the name tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      }
+    },
+    {
+      "id": "oidLen",
+      "kind": "field",
+      "as": "the name length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      }
+    },
+    {
+      "id": "evaluated.oidLen",
+      "kind": "evaluated",
+      "label": "octets of name",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "oid",
+      "kind": "set",
+      "as": "the object name",
+      "about": [
+        "X.690 §8.19. A run of arcs, each a base-128 group chain — the same shape MIDI, protobuf and",
+        "DWARF use, and the reason the form carrying it is named after the notion rather than after BER.",
+        "",
+        "Two nodes rather than one repetition, because §8.19.4 merges the first two arcs into a single",
+        "subidentifier: 1.3 is 40*1+3 = 43 = 0x2b. So the first one is not one of the run — it is a",
+        "different number computed from two of the caller's — exactly as a DNS name's root is not one of",
+        "its labels."
+      ]
+    },
+    {
+      "id": "oidFirst",
+      "kind": "field",
+      "as": "the first subidentifier",
+      "form": {
+        "of": "varint",
+        "order": "MostSignificantFirst",
+        "max": 5
+      },
+      "about": "X.690 §8.19.4: 40 times the first arc plus the second. Which is why the octets have one fewer element than the name does, and why 0x2b is the beginning of very nearly every OID anyone has ever seen — 1.3 is iso.org."
+    },
+    {
+      "id": "evaluated.oidFirst",
+      "kind": "evaluated",
+      "label": "the first two arcs, merged",
+      "runs": "40 * undecimal(index(split(item.oid, '.'), 0)) + undecimal(index(split(item.oid, '.'), 1))",
+      "gives": "Int"
+    },
+    {
+      "id": "arcs",
+      "kind": "set",
+      "as": "the rest of the name",
+      "about": "One field per arc after the merged pair. A run inside a run — the arcs of THIS binding — so what it is written once per item of is taken off the binding being written rather than handed in beside the list."
+    },
+    {
+      "id": "evaluated.itsArcs",
+      "kind": "evaluated",
+      "label": "the arcs after the first two",
+      "runs": "split(index(suffixes(item.oid, '.'), 2), '.')",
+      "gives": "List",
+      "of": "Text",
+      "about": "`suffixes` gives every tail of a dotted name, so index 2 is the name with its first two arcs gone. Built for DNS suffix sharing and it is the same question here."
+    },
+    {
+      "id": "arc",
+      "kind": "field",
+      "as": "an arc",
+      "form": {
+        "of": "varint",
+        "order": "MostSignificantFirst",
+        "max": 5
+      },
+      "about": "Seven bits per octet, top bit set on all but the last. 2021 is 8f 65 and 10 is 0a, and the reading tells them apart from the octets alone — which is why nothing has to say how wide an arc is."
+    },
+    {
+      "id": "evaluated.arc",
+      "kind": "evaluated",
+      "label": "this arc",
+      "runs": "undecimal(item)",
+      "gives": "Int"
+    },
+    {
+      "id": "valueTag",
+      "kind": "field",
+      "as": "the value tag",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "What kind of thing came back, and the one field here whose meaning is outside the message format: 0x05 is NULL, 0x04 an OCTET STRING, 0x43 TimeTicks. Which of them is right for a given name is in a MIB, not on the wire."
+    },
+    {
+      "id": "evaluated.valueTag",
+      "kind": "evaluated",
+      "label": "what kind of value this is",
+      "runs": "item.tag",
+      "gives": "Int"
+    },
+    {
+      "id": "valid.valueTag",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 2
+          },
+          "to": {
+            "int": 6
+          }
+        },
+        {
+          "from": {
+            "int": 64
+          },
+          "to": {
+            "int": 70
+          }
+        },
+        {
+          "from": {
+            "int": 128
+          },
+          "to": {
+            "int": 130
+          }
+        }
+      ],
+      "about": "RFC 3416 §3's ObjectSyntax: the universal types SNMP admits, the APPLICATION types it defines, and the three context-specific exception markers."
+    },
+    {
+      "id": "valueLen",
+      "kind": "field",
+      "as": "the value length",
+      "form": {
+        "of": "escaped",
+        "limit": 128,
+        "max": 4
+      },
+      "about": "Nought for a NULL, which is what makes 05 00 two octets and not one — a length is written even when there is nothing to measure."
+    },
+    {
+      "id": "evaluated.valueLen",
+      "kind": "evaluated",
+      "label": "octets of value",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "value",
+      "kind": "field",
+      "as": "the value",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "The octets, as they came. Not decoded, and that is the decision rather than the shortcut.",
+        "",
+        "A varbind's layout does not depend on its type: tag, length, that many octets, for every one of",
+        "the thirteen SNMP admits and every one added since. What the octets mean does depend on it, and",
+        "that lives in a MIB — the same place that says sysDescr.0 is a string and sysUpTime.0 is",
+        "hundredths of a second since the agent started. Forking here would put a closed list of types",
+        "in a description of a format that was designed for the list to grow."
+      ]
+    },
+    {
+      "id": "evaluated.value",
+      "kind": "evaluated",
+      "label": "the octets of this value",
+      "runs": "item.value",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.valueExtent",
+      "kind": "evaluated",
+      "label": "octets of value, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "evaluated.versionExtent",
+      "kind": "evaluated",
+      "label": "octets of version, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "evaluated.communityExtent",
+      "kind": "evaluated",
+      "label": "octets of community, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "evaluated.requestIdExtent",
+      "kind": "evaluated",
+      "label": "octets of requestId, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "evaluated.errorStatusExtent",
+      "kind": "evaluated",
+      "label": "octets of errorStatus, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "evaluated.errorIndexExtent",
+      "kind": "evaluated",
+      "label": "octets of errorIndex, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "moreArcs",
+      "kind": "junction",
+      "as": "another arc?",
+      "about": [
+        "A name carries no arc count and no terminator, and an arc that ends is followed by another that",
+        "begins the same way. What says where it stops is the OID's own length — so the reading asks",
+        "where it is against where that length runs out.",
+        "",
+        "Which is a bounded region in the middle of a message rather than at the end of it: what follows",
+        "the last arc is this binding's value, and the reading has to stop at exactly the right octet or",
+        "read a tag as an arc. The bound is worked out from three facts about ONE field — where the",
+        "length octet sat, how wide it turned out to be, and what it said — because those are the three",
+        "things that fix where its span ends."
+      ]
+    },
+    {
+      "id": "evaluated.moreArcs",
+      "kind": "evaluated",
+      "label": "is there another arc?",
+      "runs": "position < at + wide + held",
+      "gives": "Bool",
+      "takes": {
+        "at": "Int",
+        "wide": "Int",
+        "held": "Int"
+      }
+    },
+    {
+      "id": "moreVarbinds",
+      "kind": "junction",
+      "as": "another binding?",
+      "about": [
+        "The same question one level out, against the varbind list's length — and the same answer,",
+        "which is the point of asking it this way rather than 'is there anything left'.",
+        "",
+        "There would be a cheaper test here: the varbind list is the last thing in the PDU which is the",
+        "last thing in the message, so nothing at all follows it and 'are there octets left' would do.",
+        "It is not written that way because it would be true of this protocol by accident — the moment",
+        "anything is appended after the list, a reading that stopped at the end of the datagram would",
+        "swallow it, and nothing in the description would say why."
+      ]
+    },
+    {
+      "id": "evaluated.moreVarbinds",
+      "kind": "evaluated",
+      "label": "is there another binding?",
+      "runs": "position < at + wide + held",
+      "gives": "Bool",
+      "takes": {
+        "at": "Int",
+        "wide": "Int",
+        "held": "Int"
+      }
+    },
+    {
+      "id": "done",
+      "kind": "end-parse",
+      "as": "the end of a message",
+      "about": "Where a reading may stop. Anywhere else it ran out of octets mid-value, which is a truncated datagram and not a short one."
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "snmp",
+      "to": "message"
+    },
+    {
+      "kind": "then",
+      "from": "message",
+      "to": "packing.message"
+    },
+    {
+      "kind": "computes",
+      "from": "msgTag",
+      "to": "constant.sequence",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "msgTag",
+      "to": "valid.sequence",
+      "because": "RFC 3416 §3 wraps the whole message in a SEQUENCE."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.msgLen",
+      "to": "body",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "body"
+    },
+    {
+      "kind": "computes",
+      "from": "msgLen",
+      "to": "evaluated.msgLen",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "versionTag",
+      "to": "constant.integer",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "versionTag",
+      "to": "valid.integer",
+      "because": "X.690 §8.3: an INTEGER is universal 2."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.versionLen",
+      "to": "version",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "versionLen",
+      "to": "evaluated.versionLen",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "version",
+      "to": "constant.version",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "version",
+      "to": "valid.version",
+      "because": "RFC 3416 §3. Version 0 is SNMPv1 and 3 is SNMPv3, and neither is this: v1's error statuses stop at 5 and v3 replaces the community string with a whole security model."
+    },
+    {
+      "kind": "computes",
+      "from": "communityTag",
+      "to": "constant.octetString",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "communityTag",
+      "to": "valid.octetString",
+      "because": "X.690 §8.7: an OCTET STRING is universal 4."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.communityLen",
+      "to": "community",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "communityLen",
+      "to": "evaluated.communityLen",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.community",
+      "to": "input.community",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "community"
+    },
+    {
+      "kind": "computes",
+      "from": "community",
+      "to": "evaluated.community",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.pduTag",
+      "to": "input.pduTag",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "tag"
+    },
+    {
+      "kind": "computes",
+      "from": "pduTag",
+      "to": "evaluated.pduTag",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "pduTag",
+      "to": "valid.pduTag",
+      "because": "GetNext (0xa1) and GetBulk (0xa5) return the NEXT object rather than the one asked for, which makes a walk rather than a read; Set (0xa3) is a write whose partial application is not visible in the reply; Trap (0xa7) and Inform (0xa6) are unsolicited and correlate to no request. Each is a different operation, and this describes the one that asks for named objects and gets them back."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.pduLen",
+      "to": "pdu",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "pduLen",
+      "to": "evaluated.pduLen",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "requestIdTag",
+      "to": "constant.integer",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "requestIdTag",
+      "to": "valid.integer",
+      "because": "X.690 §8.3."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.requestIdLen",
+      "to": "requestId",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "requestIdLen",
+      "to": "evaluated.requestIdLen",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.requestId",
+      "to": "input.requestId",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "id"
+    },
+    {
+      "kind": "computes",
+      "from": "requestId",
+      "to": "evaluated.requestId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "errorStatusTag",
+      "to": "constant.integer",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "errorStatusTag",
+      "to": "valid.integer",
+      "because": "X.690 §8.3."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.errorStatusLen",
+      "to": "errorStatus",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "errorStatusLen",
+      "to": "evaluated.errorStatusLen",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.errorStatus",
+      "to": "input.errorStatus",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "status"
+    },
+    {
+      "kind": "computes",
+      "from": "errorStatus",
+      "to": "evaluated.errorStatus",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "errorStatus",
+      "to": "valid.errorStatus",
+      "because": "RFC 3416 §3 closes the list at 18. A code past it is an agent inventing one, and the manager has no way to know whether the operation happened."
+    },
+    {
+      "kind": "computes",
+      "from": "errorIndexTag",
+      "to": "constant.integer",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "errorIndexTag",
+      "to": "valid.integer",
+      "because": "X.690 §8.3."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.errorIndexLen",
+      "to": "errorIndex",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "errorIndexLen",
+      "to": "evaluated.errorIndexLen",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.errorIndex",
+      "to": "input.errorIndex",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "index"
+    },
+    {
+      "kind": "computes",
+      "from": "errorIndex",
+      "to": "evaluated.errorIndex",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "varbindsTag",
+      "to": "constant.sequence",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "varbindsTag",
+      "to": "valid.sequence",
+      "because": "RFC 3416 §3's VarBindList is a SEQUENCE OF."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.varbindsLen",
+      "to": "varbind",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "varbindsLen",
+      "to": "evaluated.varbindsLen",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "varbind",
+      "to": "input.varbinds",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "varbindTag",
+      "to": "constant.sequence",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "varbindTag",
+      "to": "valid.sequence",
+      "because": "RFC 3416 §4.1 wraps each binding in a SEQUENCE."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.varbindLen",
+      "to": "binding",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "varbindLen",
+      "to": "evaluated.varbindLen",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "oidTag",
+      "to": "constant.oid",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "oidTag",
+      "to": "valid.oidTag",
+      "because": "X.690 §8.19: an OBJECT IDENTIFIER is universal 6."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.oidLen",
+      "to": "oid",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "oidLen",
+      "to": "evaluated.oidLen",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "oidFirst",
+      "to": "evaluated.oidFirst",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "arcs",
+      "to": "evaluated.itsArcs",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "arc",
+      "to": "evaluated.arc",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "oid",
+      "to": "oidFirst",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "oid",
+      "to": "arcs",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "arcs",
+      "to": "arc",
+      "order": 0
+    },
+    {
+      "kind": "computes",
+      "from": "valueTag",
+      "to": "evaluated.valueTag",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "valueTag",
+      "to": "valid.valueTag",
+      "because": "RFC 3416 §3 admits INTEGER, OCTET STRING, NULL and OBJECT IDENTIFIER from X.690; IpAddress through Counter64 as APPLICATION 0..6; and noSuchObject, noSuchInstance and endOfMibView as context-specific 0..2. Anything else is an agent writing a type SNMP does not have, and the octets after it cannot be trusted to be the length of what it claimed."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.valueLen",
+      "to": "value",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "valueLen",
+      "to": "evaluated.valueLen",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "value",
+      "to": "evaluated.value",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.valueExtent",
+      "to": "valueLen",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "value",
+      "to": "evaluated.valueExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "holds",
+      "from": "binding",
+      "to": "oidTag",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "binding",
+      "to": "oidLen",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "binding",
+      "to": "oid",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "binding",
+      "to": "valueTag",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "binding",
+      "to": "valueLen",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "binding",
+      "to": "value",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "varbind",
+      "to": "varbindTag",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "varbind",
+      "to": "varbindLen",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "varbind",
+      "to": "binding",
+      "order": 2
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.versionExtent",
+      "to": "versionLen",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "version",
+      "to": "evaluated.versionExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.communityExtent",
+      "to": "communityLen",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "community",
+      "to": "evaluated.communityExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.requestIdExtent",
+      "to": "requestIdLen",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "requestId",
+      "to": "evaluated.requestIdExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.errorStatusExtent",
+      "to": "errorStatusLen",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "errorStatus",
+      "to": "evaluated.errorStatusExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.errorIndexExtent",
+      "to": "errorIndexLen",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "errorIndex",
+      "to": "evaluated.errorIndexExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "requestIdTag",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "requestIdLen",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "requestId",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "errorStatusTag",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "errorStatusLen",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "errorStatus",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "errorIndexTag",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "errorIndexLen",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "errorIndex",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "varbindsTag",
+      "order": 9
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "varbindsLen",
+      "order": 10
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "varbind",
+      "order": 11
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "versionTag",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "versionLen",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "version",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "communityTag",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "communityLen",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "community",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "pduTag",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "pduLen",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "body",
+      "to": "pdu",
+      "order": 8
+    },
+    {
+      "kind": "then",
+      "from": "packing.message",
+      "to": "msgTag"
+    },
+    {
+      "kind": "then",
+      "from": "msgTag",
+      "to": "msgLen"
+    },
+    {
+      "kind": "then",
+      "from": "msgLen",
+      "to": "body"
+    },
+    {
+      "kind": "then",
+      "from": "body",
+      "to": "versionTag"
+    },
+    {
+      "kind": "then",
+      "from": "versionTag",
+      "to": "versionLen"
+    },
+    {
+      "kind": "then",
+      "from": "versionLen",
+      "to": "version"
+    },
+    {
+      "kind": "then",
+      "from": "version",
+      "to": "communityTag"
+    },
+    {
+      "kind": "then",
+      "from": "communityTag",
+      "to": "communityLen"
+    },
+    {
+      "kind": "then",
+      "from": "communityLen",
+      "to": "community"
+    },
+    {
+      "kind": "then",
+      "from": "community",
+      "to": "pduTag"
+    },
+    {
+      "kind": "then",
+      "from": "pduTag",
+      "to": "pduLen"
+    },
+    {
+      "kind": "then",
+      "from": "pduLen",
+      "to": "pdu"
+    },
+    {
+      "kind": "then",
+      "from": "pdu",
+      "to": "requestIdTag"
+    },
+    {
+      "kind": "then",
+      "from": "requestIdTag",
+      "to": "requestIdLen"
+    },
+    {
+      "kind": "then",
+      "from": "requestIdLen",
+      "to": "requestId"
+    },
+    {
+      "kind": "then",
+      "from": "requestId",
+      "to": "errorStatusTag"
+    },
+    {
+      "kind": "then",
+      "from": "errorStatusTag",
+      "to": "errorStatusLen"
+    },
+    {
+      "kind": "then",
+      "from": "errorStatusLen",
+      "to": "errorStatus"
+    },
+    {
+      "kind": "then",
+      "from": "errorStatus",
+      "to": "errorIndexTag"
+    },
+    {
+      "kind": "then",
+      "from": "errorIndexTag",
+      "to": "errorIndexLen"
+    },
+    {
+      "kind": "then",
+      "from": "errorIndexLen",
+      "to": "errorIndex"
+    },
+    {
+      "kind": "then",
+      "from": "errorIndex",
+      "to": "varbindsTag"
+    },
+    {
+      "kind": "then",
+      "from": "varbindsTag",
+      "to": "varbindsLen"
+    },
+    {
+      "kind": "then",
+      "from": "varbindsLen",
+      "to": "varbind"
+    },
+    {
+      "kind": "then",
+      "from": "varbind",
+      "to": "varbindTag"
+    },
+    {
+      "kind": "then",
+      "from": "varbindTag",
+      "to": "varbindLen"
+    },
+    {
+      "kind": "then",
+      "from": "varbindLen",
+      "to": "binding"
+    },
+    {
+      "kind": "then",
+      "from": "binding",
+      "to": "oidTag"
+    },
+    {
+      "kind": "then",
+      "from": "oidTag",
+      "to": "oidLen"
+    },
+    {
+      "kind": "then",
+      "from": "oidLen",
+      "to": "oid"
+    },
+    {
+      "kind": "then",
+      "from": "oid",
+      "to": "oidFirst"
+    },
+    {
+      "kind": "then",
+      "from": "oidFirst",
+      "to": "arcs"
+    },
+    {
+      "kind": "then",
+      "from": "arcs",
+      "to": "arc"
+    },
+    {
+      "kind": "then",
+      "from": "arc",
+      "to": "valueTag"
+    },
+    {
+      "kind": "then",
+      "from": "valueTag",
+      "to": "valueLen"
+    },
+    {
+      "kind": "then",
+      "from": "valueLen",
+      "to": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreArcs",
+      "to": "oidLen",
+      "facet": "position",
+      "sequence": 0,
+      "parameter": "at"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreArcs",
+      "to": "oidLen",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "wide"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreArcs",
+      "to": "oidLen",
+      "facet": "value",
+      "sequence": 2,
+      "parameter": "held"
+    },
+    {
+      "kind": "decode",
+      "from": "arc",
+      "to": "moreArcs"
+    },
+    {
+      "kind": "decides",
+      "from": "moreArcs",
+      "to": "evaluated.moreArcs",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "moreArcs",
+      "to": "arc",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreArcs",
+      "to": "valueTag",
+      "otherwise": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreVarbinds",
+      "to": "varbindsLen",
+      "facet": "position",
+      "sequence": 0,
+      "parameter": "at"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreVarbinds",
+      "to": "varbindsLen",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "wide"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreVarbinds",
+      "to": "varbindsLen",
+      "facet": "value",
+      "sequence": 2,
+      "parameter": "held"
+    },
+    {
+      "kind": "decode",
+      "from": "value",
+      "to": "moreVarbinds"
+    },
+    {
+      "kind": "decides",
+      "from": "moreVarbinds",
+      "to": "evaluated.moreVarbinds",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "moreVarbinds",
+      "to": "varbindTag",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreVarbinds",
+      "to": "done",
+      "otherwise": true
+    },
+    {
+      "kind": "then",
+      "from": "value",
+      "to": "done"
+    }
+  ]
+}

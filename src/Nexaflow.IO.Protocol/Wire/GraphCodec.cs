@@ -1101,10 +1101,19 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // was never asked.
         if (over is Context outside && !run.For(outside).Has(Facet.Value)) return [];
 
-        // The same answer one step further away. An inner list is computed FROM the outer item — the
-        // labels of this name — so coming in it is an expression over a value nobody supplied, and it
-        // comes to nothing rather than being absent. Only nothing: anything else that is not a list is a
-        // description saying to repeat over something that is not one, and still says so.
+        // The same answer one step further away, and asked of the item rather than of the expression.
+        //
+        // An inner list is computed FROM the outer item — the labels of this name, the arcs of this name —
+        // so coming in there is no item to compute it from: a reading finds out what is there by walking,
+        // which is what Passes falls back to. Running the expression anyway hands every converter in it a
+        // value nobody supplied. `item.labels` survives that because a member of nothing is nothing;
+        // `split(index(suffixes(item.oid, '.'), 2), '.')` does not, and the difference between the two is
+        // not a difference in the description. So the question is whether the enclosing round has an item,
+        // and it is asked before anything is evaluated rather than inferred from what evaluating threw.
+        if (frame.Within is not null && Item(run, frame) is ProtoValue.Null) return [];
+
+        // Only nothing: anything else that is not a list is a description saying to repeat over something
+        // that is not one, and still says so.
         return Produced(run, frame, over) is var told && told is ProtoValue.Null ? [] : told.AsList();
     }
 

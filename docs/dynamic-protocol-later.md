@@ -61,7 +61,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 | **mDNS / DNS-SD** | *(query built)* name compression — pointers are absolute offsets into the whole message. The query has none and round-trips; the response has four, and needs the two things in §5a besides |
 | **MQTT** | *(built)* a varint length header; connect-flag bits that decide whether later fields exist at all — and, unforeseen when the corpus was written, the first protocol with several message formats, told apart by a nibble inside the message |
 | **DHCP** | *(built)* options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
-| **SNMPv2c** | nested BER lengths |
+| **SNMPv2c** | *(built)* nested BER lengths, whose OWN width depends on what they hold, so the extra octet one spends is counted by every length outside it. Also an OID: a run of base-128 arcs whose first two are merged into one number |
 | **SSDP** | delimiter-terminated text; no widths and no length prefixes anywhere |
 | **TLS 1.2** | three stacked length-prefixed layers, and a hello with no extension block at all |
 | **BACnet/IP** | *(built)* three stacked sub-protocols; a discriminator six octets and a nibble in; a value's octet count packed into three bits of the tag before it. Its segmented answers stay opaque — a segment is cut mid-value, so the thing to parse is the concatenation, which is the client's across datagrams |
@@ -200,6 +200,51 @@ multi-question query, a known-answer-suppression query (§7.1) and a response ar
 are written*, naming the reason, instead of being read as though the extra parts were not sent. A
 description that cannot cover something should say so in a way a capture can trip over, not in prose.
 
+## 5b. What SNMP found, 2026-08-15
+
+The corpus called SNMP five blocking gaps and a major one. **Every one of them was against the deleted
+grammar and none survived the graph.** `escaped(limit 128, max 4)` is X.690 §8.1.3's definite length
+exactly; `varint(msbFirst)` is an OID arc; `minint`/`minuint` are BER's two integer rules; an `Opaque` sized
+by a field is "N bytes where N is a runtime value". The nested self-sizing lengths — the thing the corpus
+said "a single back-patch pass over fixed-width placeholders cannot converge on" — needed nothing at all,
+because nothing back-patches: a set's extent waits on its members', a variable-width field's waits on its
+value, and the whole tree settles inside out. Four different lengths cross their width boundary at four
+different payload sizes and every one of them is counted correctly by the ones outside it.
+
+**The finding that is an absence: SNMP has no discriminated union.** The corpus listed "no tag dispatch"
+as blocking. GetRequest and GetResponse differ in one octet and in nothing else, and a varbind's value is
+a tag, a length and that many octets for every type SNMP has and every type added since. What the octets
+*mean* lives in a MIB. Forking on the value tag would have put a closed list of types inside a description
+of a format designed for the list to grow — the same mistake as reading a client's retry policy as part of
+a message format, which is what §5a records about mDNS.
+
+Two engine changes, both about **nesting**, both fallout from §5a rather than anything SNMP asked for:
+
+- **A reading must not ask the writing's question.** `Items` evaluates the `each` computation to find out
+  how many times a run goes round. Coming in that is the wrong question — a reading finds out by walking,
+  and `Passes` already falls back to counting appearances — and there is no outer item to compute an inner
+  list *from*, so every converter in the expression is handed a value nobody supplied. `item.labels`
+  survived only because a member of nothing is nothing; the moment SNMP's arcs needed
+  `split(index(suffixes(item.oid, '.'), 2), '.')` it threw. So the question is now asked of the *item*,
+  before anything is evaluated, rather than inferred from what evaluating threw.
+- **Reaching outward has to keep the round.** `RunGraph.Reach` walked enclosing appearances asking each
+  for a member at **round zero**. From inside a nested run that lands on the first item of the enclosing
+  one — so a name inside the third binding was measured against the *first* binding's length. Right for
+  the first item and wrong for every one after, which is the worst shape a lookup can have: one item is
+  all a first test has, and the mDNS fixture has no field outside the inner run for anything to reach.
+  It now asks for a sibling — same frame *and* same round — before asking what a level holds.
+
+Both are pinned by fixtures in `RepetitionTests` that fail without them.
+
+**Where the boundary sits, restated.** An SNMP *walk* — response N's last OID becomes request N+1's — is
+the client's, not the format's, exactly as multi-round DNS name resolution was. The corpus is right that
+the state model has nothing to say about it and wrong that this makes SNMP trivial: what is missing is a
+place to put per-request correlation and epoch, not a message format.
+
+**Not covered, stated here because the description cannot state it in octets:** an OID of exactly two arcs
+(the run of arcs after the merged pair is entered unconditionally, like mDNS's first label), and a varbind
+list with no varbinds in it. Both are legal and neither occurs.
+
 ## 5. Known gaps, as of 2026-08-15
 
 - **A fixed-width field holding a NUL-terminated name is one field, not two.** DHCP's `sname` and `file`
@@ -207,9 +252,14 @@ description that cannot cover something should say so in a way a capture can tri
   said by the first NUL, and a span that ends at a value it has to find first is the capability `Pattern`
   took with it. `fit` covers the writing (and is a no-op when handed the full width, which is what makes
   the round trip work); nothing splits it coming back.
-- **Six protocols to author.** Hold SSDP back — it is delimiter-terminated text, and `WireForm.Opaque`
+- **Two protocols to author.** Hold SSDP back — it is delimiter-terminated text, and `WireForm.Opaque`
   lost the `Until` delimiter when `Pattern` was deleted. That capability needs rebuilding before SSDP or
-  HTTP.
+  HTTP. TLS is next and needs nothing known.
+- **A repetition is entered unconditionally coming in.** The edge that goes round again is checked *after*
+  the first item, so a run of zero is not readable: mDNS cannot read a name that is only the root, and
+  SNMP cannot read an OID of two arcs or a varbind list of none. All three are legal and none occurs in
+  any capture. The fix is a fork *before* the first item rather than only after each one, which is
+  ordinary vocabulary — it is untried, not unsupported.
 - **A discriminator is read but not recorded.** `identifies` answers which message this is and then throws
   the answer away; the message re-reads it, which is right, but nothing keeps a note that the *protocol*
   looked. Harmless today because every message here carries the discriminator itself. A protocol whose
