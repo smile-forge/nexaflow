@@ -128,6 +128,53 @@ public class DecodePathTests
         Assert.AreEqual(255, Said(run, "lead"), "and nothing was read past it");
     }
 
+    // ── Going round ───────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void A_reading_may_go_round_until_it_is_told_to_stop()
+    {
+        // A run of octets ended by a zero, which is how a great many protocols say "as many as there are":
+        // no count anywhere, because how many there are is a fact about a message and not about a protocol.
+        // The written path cannot say it — it is a sequence — and the reading can, by going back.
+        var run = new GraphCodec(ProtocolFile.Read(Looping).Graph).Decode([0x05, 0x07, 0x00]);
+
+        var items = run.Nodes.Where(n => n.Of is Field { Id: "item" })
+                             .OrderBy(n => n.Index)
+                             .Select(n => n.Value.AsInt())
+                             .ToList();
+
+        CollectionAssert.AreEqual(new long[] { 5, 7, 0 }, items,
+            "three passes, three values, and the second one did not overwrite the first");
+    }
+
+    /// <summary>Octets until a zero. The reading goes back to itself; the writing has no way to.</summary>
+    private const string Looping = """
+        {
+          "protocol": "run",
+          "nodes": [
+            { "id": "p", "kind": "protocol" },
+            { "id": "m", "kind": "message" },
+            { "id": "arrangement", "kind": "packing" },
+            { "id": "item", "kind": "field", "as": "Item",
+              "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
+            { "id": "input.item", "kind": "input", "as": "Item" },
+            { "id": "reads", "kind": "evaluated", "label": "what did it say?", "runs": "fields.item.value" },
+            { "id": "done", "kind": "end-parse" }
+          ],
+          "edges": [
+            { "kind": "then", "from": "p", "to": "m" },
+            { "kind": "then", "from": "m", "to": "arrangement" },
+            { "kind": "then", "from": "arrangement", "to": "item" },
+            { "kind": "computes", "from": "item", "to": "input.item", "facet": "value" },
+            { "kind": "decode", "from": "m", "to": "item" },
+            { "kind": "decode", "from": "item", "to": "done", "key": { "int": 0 } },
+            { "kind": "decode", "from": "item", "to": "item", "otherwise": true },
+            { "kind": "decides", "from": "item", "to": "reads", "reading": true },
+            { "kind": "requires", "from": "reads", "to": "item", "facet": "value", "sequence": 0 }
+          ]
+        }
+        """;
+
     /// <summary>The same two octets, with a reading that may stop after the first.</summary>
     private const string Branching = """
         {

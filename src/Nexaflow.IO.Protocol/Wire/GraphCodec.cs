@@ -130,9 +130,28 @@ public sealed class GraphCodec(ProtocolGraph graph,
         /// <summary>The last place the walk got to, which is where it stopped.</summary>
         public Node? Stopped { get; private set; }
 
+        /// <summary>
+        /// How many times the walk has arrived at each place, which is what tells one pass of a loop from
+        /// the next.
+        /// </summary>
+        /// <remarks>
+        /// A reading may go round, and the second time round is not the first: the same field holds a
+        /// different value and both have to survive. The run graph already keys an appearance by an index
+        /// for exactly this; nothing was ever counting. Without it a loop overwrites its own previous pass
+        /// and a list of four options decodes to whichever one happened to be last.
+        /// </remarks>
+        private readonly Dictionary<Node, int> _times = [];
+
         public ResolutionNode Reaching(Node place, Node? previous)
         {
-            var appearance = run.For(place);
+            // The previous place's pass is read BEFORE this arrival is counted, because on a loop back to
+            // the same place they are the same node: counting first makes the second pass wait on itself.
+            int came = previous is null ? 0 : Math.Max(0, _times.GetValueOrDefault(previous, 1) - 1);
+
+            int pass = _times.GetValueOrDefault(place, 0);
+            _times[place] = pass + 1;
+
+            var appearance = run.For(place, within: null, index: pass);
             var field = place as Field;
 
             // A carrier makes octets the way a field does — the inner message's, rather than one value's.
@@ -146,7 +165,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // last one is done — which is exactly when this settles, and not before.
             bool spans = place is FieldSet;
 
-            List<FacetRef> before = previous is null ? [] : [new FacetRef(run.For(previous), Facet.Realised)];
+            // The pass of the previous place that actually led here, which on a second time round is its
+            // second appearance and not its first.
+            List<FacetRef> before = previous is null
+                ? []
+                : [new FacetRef(run.For(previous, null, came), Facet.Realised)];
             before.AddRange(Deciding(place));
 
             // Whether a part is there is decided when the walk reaches it, for the same reason a fork is:
@@ -352,15 +375,27 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // difference between an absent part and an absent section, and it is why presence has to be
             // known before the next place is: an optional header is one step, however many fields deep.
             if (!here && place is FieldSet set && codec.Graph.Members(set).LastOrDefault() is { } last)
-                return codec.Onward(run, last, Reading);
+                return codec.Onward(run, last, Reading, _times.GetValueOrDefault(last, 1) - 1);
 
-            return codec.Onward(run, place, Reading);
+            return codec.Onward(run, place, Reading, Math.Max(0, _times.GetValueOrDefault(place, 1) - 1));
         }
     }
 
     /// <summary>A node's name without the kind that prefixes it, where it carries one.</summary>
     private static string Plainly(string name, string kind)
         => name.StartsWith(kind, StringComparison.Ordinal) ? name[kind.Length..] : name;
+
+    /// <summary>
+    /// The appearance of something a computation wants, from where the computation is standing.
+    /// </summary>
+    /// <remarks>
+    /// Itself first, then whatever shares this pass, then the ordinary outward search. Without the first
+    /// two a fork inside a loop reads the value from the first time round on every time round, so a run
+    /// ended by a sentinel never sees its sentinel and reads until the octets run out.
+    /// </remarks>
+    private static RunNode Toward(RunGraph run, RunNode here, Node target)
+        => ReferenceEquals(here.Of, target) ? here
+         : run.Existing(target, here.Within, here.Index) ?? run.Reach(here, target);
 
     /// <summary>What a computation answers, whichever kind it is.</summary>
     private ProtoValue Produced(RunGraph run, RunNode appearance, Computation computation) => computation switch
@@ -402,7 +437,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                 // one, and it is nobody's field — inventing a field to hold it would put a value on the
                 // wire that the protocol does not have.
                 Computation inner => Produced(run, appearance, inner),
-                var other => Held(run.Reach(appearance, other), Named(wanted.Facet)),
+                var other => Held(Toward(run, appearance, other), Named(wanted.Facet)),
             });
 
         return given.Count switch
@@ -675,7 +710,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             switch (wanted.To)
             {
                 case Field or Subprotocol or FieldSet:
-                    waits.Add(new FacetRef(run.Reach(appearance, wanted.To), Named(wanted.Facet)));
+                    waits.Add(new FacetRef(Toward(run, appearance, wanted.To), Named(wanted.Facet)));
                     break;
 
                 case Computation inner:
@@ -922,7 +957,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             {
                 case Field or Subprotocol:
                 {
-                    var appearance = run.Reach(here, wanted.To);
+                    var appearance = Toward(run, here, wanted.To);
 
                     parts[wanted.To.Name] = EvalScope.Record(
                         ("value", Held(appearance, Facet.Value)),
@@ -938,7 +973,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                 // business having, which is the confusion the set node exists to end.
                 case FieldSet set:
                 {
-                    var appearance = run.For(set);
+                    var appearance = Toward(run, here, set);
 
                     spans[set.Name] = EvalScope.Record(
                         ("extent", Held(appearance, Facet.Extent)),
@@ -1138,7 +1173,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// <summary>
     /// The way on from here: the only one, or the one the deciding node picks.
     /// </summary>
-    private Node? Onward(RunGraph run, Node place, bool reading)
+    private Node? Onward(RunGraph run, Node place, bool reading, int pass = 0)
     {
         // Where a reading says how it goes, it goes that way; where it says nothing, it goes the way the
         // writing does. Most of a protocol is the second case, and there the two directions share one
@@ -1151,7 +1186,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         if (ways.Count == 0) return null;
         if (ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise) return ways[0].To;
 
-        var chosen = Decided(run, place, reading);
+        var chosen = Decided(run, place, reading, pass);
 
         foreach (var way in ways)
             if (!way.Otherwise && ProtoValue.Alike(way.Key, chosen)) return way.To;
@@ -1165,7 +1200,12 @@ public sealed class GraphCodec(ProtocolGraph graph,
     }
 
     /// <summary>What the fork was decided on — a computation's answer, or a node's own value.</summary>
-    private ProtoValue Decided(RunGraph run, Node place, bool reading)
+    /// <param name="pass">
+    /// Which time round this is. A fork inside a loop is decided by what THIS pass read — reading the
+    /// first pass's value every time is how a loop never reaches its own terminator and runs off the end
+    /// of the octets.
+    /// </param>
+    private ProtoValue Decided(RunGraph run, Node place, bool reading, int pass)
     {
         var decisions = graph.From<Decides>(place).ToList();
 
@@ -1177,11 +1217,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
         return deciding.To switch
         {
             Evaluated evaluated => _evaluator.Eval(
-                evaluated.Runs, Given(run, run.For(place), evaluated)),
+                evaluated.Runs, Given(run, run.For(place, null, pass), evaluated)),
 
             // A run of unlike components is decided by what its token said, which is a node's value and
             // needs no expression at all.
-            Field announced => run.Reach(run.For(place), announced).Value,
+            Field announced => Toward(run, run.For(place, null, pass), announced).Value,
 
             var other => throw new ProtoTypeException($"'{other.Name}' cannot decide a way on"),
         };
