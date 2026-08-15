@@ -31,8 +31,11 @@ internal static class Consistency
     public static void Check(ProtocolGraph graph, IReadOnlyDictionary<string, Node> named,
                              ConverterTable converters)
     {
-        Connected(graph);
+        // First, because an update that arrives nowhere strands the slot it meant to reach and a check
+        // about a node with no edges would then report the symptom.
+        foreach (var edge in graph.Of<Updates>()) Arrives(graph, edge);
 
+        Connected(graph);
 
         foreach (var node in graph.Nodes)
         {
@@ -50,6 +53,44 @@ internal static class Consistency
         }
 
         Kinds(graph, converters);
+    }
+
+    // ── What updates state arrives somewhere ──────────────────────────────────
+
+    /// <summary>
+    /// An update ends at a state slot, and every computation on the way is told where the value lands.
+    /// </summary>
+    /// <remarks>
+    /// A chain that stops at a computation puts a value nowhere: the calculation runs and its answer is
+    /// discarded, which reads as an update and is not one.
+    /// </remarks>
+    private static void Arrives(ProtocolGraph graph, Updates edge)
+    {
+        if (edge.To is Context.State)
+        {
+            if (edge.Parameter is not null)
+                throw new ProtoTypeException(
+                    $"'{edge.From.Name}' updates the state '{edge.To.Name}' at a parameter called "
+                  + $"'{edge.Parameter}'. A slot holds one value and has no parameters.");
+
+            return;
+        }
+
+        if (edge.To is not Computation onward)
+            throw new ProtoTypeException(
+                $"'{edge.From.Name}' updates '{edge.To.Name}', which is neither a state slot nor a "
+              + "calculation on the way to one.");
+
+        if (edge.Parameter is null || !onward.Takes.ContainsKey(edge.Parameter))
+            throw new ProtoTypeException(
+                $"'{edge.From.Name}' updates through '{onward.Name}' and nothing says which of its "
+              + "parameters the value lands on. It takes: "
+              + (onward.Takes.Count == 0 ? "nothing" : string.Join(", ", onward.Takes.Keys.Order())));
+
+        if (!graph.From<Updates>(onward).Any())
+            throw new ProtoTypeException(
+                $"'{onward.Name}' is on the way to a state slot and updates nothing itself, so what it "
+              + "works out goes nowhere.");
     }
 
     // ── Nothing is stranded ───────────────────────────────────────────────────
@@ -98,7 +139,11 @@ internal static class Consistency
     private static void Parameters(ProtocolGraph graph, Computation computation, Expr? runs,
                                    ConverterTable converters)
     {
-        HashSet<string> filled = new(StringComparer.Ordinal);
+        // A computation on the way to a state slot is handed one of its parameters by the thing updating
+        // through it, rather than by a requirement of its own.
+        HashSet<string> filled = new(
+            graph.To<Updates>(computation).Select(e => e.Parameter).OfType<string>(),
+            StringComparer.Ordinal);
 
         foreach (var edge in graph.InputsOf(computation))
         {
@@ -116,6 +161,7 @@ internal static class Consistency
             if (!filled.Add(parameter))
                 throw new ProtoTypeException(
                     $"'{computation.Name}' is given two edges for '{parameter}'");
+
 
             var gives = Supplies(edge, converters);
 

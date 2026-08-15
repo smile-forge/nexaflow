@@ -266,3 +266,36 @@ public sealed record Requires : Edge
 
     public override string Verb => $"requires[{Sequence}] the {Facet} of";
 }
+
+/// <summary>
+/// What a place puts into the state a conversation keeps.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The other direction of <see cref="Context.State"/>, which until now could only be read. A field, a set
+/// or a computation says which slot it fills, optionally through computations that transform the value on
+/// the way — and each of those takes it at the parameter this names, exactly as a
+/// <see cref="Requires"/> edge does.
+/// </para>
+/// <para>
+/// <b>Once per message.</b> A protocol that changed its own state partway through a message would be a
+/// strange protocol, and nothing enforces that separately: a slot settles like anything else and settling
+/// twice is already an error. So this is not how a running total across a repetition is kept — that is a
+/// fold over what repeats, and reaching for state to get one is using a fact about a conversation to hold
+/// a fact about a message.
+/// </para>
+/// <para>
+/// <see cref="Facet"/> because a set has no value: a slot fed from one wants its extent, and which fact
+/// travels is the same choice a requirement already makes.
+/// </para>
+/// </remarks>
+public sealed record Updates : Edge
+{
+    /// <summary>Which fact about the place travels. Its value, unless it says otherwise.</summary>
+    public string Facet { get; init; } = "value";
+
+    /// <summary>Which parameter of the next computation it fills, where the next thing is one.</summary>
+    public string? Parameter { get; init; }
+
+    public override string Verb => Facet == "value" ? "updates" : $"updates, with its {Facet},";
+}

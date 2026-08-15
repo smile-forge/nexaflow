@@ -505,26 +505,108 @@ public sealed class GraphCodec(ProtocolGraph graph,
         }
     }
 
-    /// <summary>What a computation answers, whichever kind it is.</summary>
-    private ProtoValue Produced(RunGraph run, RunNode appearance, Computation computation) => computation switch
+    /// <summary>
+    /// What a computation answers, whichever kind it is — worked out once per appearance.
+    /// </summary>
+    /// <param name="speculative">
+    /// Whether this is a question asked ahead of its answer being available, which the walk does when it
+    /// wants to know whether a part is there at all. Such an answer is not recorded: what it reads may not
+    /// have settled, and an expression handed nothing does not fail, it comes to nothing — so caching one
+    /// would fix a wrong answer in place.
+    /// </param>
+    private ProtoValue Produced(RunGraph run, RunNode appearance, Computation computation,
+                                bool speculative = false)
     {
+        // A constant answers without being run. That is what a constant is, and it is why a fixed
+        // delimiter needs no expression and can be pointed at by the span that ends before it. A value from
+        // outside is already an answer too, and both are already somewhere they can be asked again.
+        switch (computation)
+        {
+            case Constant stated: return stated.Holds;
+            case Context outside: return run.For(outside).Value;
+        }
+
+        // Everything else is worked out, and worked out ONCE. It used to run per asker — CoAP's option
+        // delta is wanted by four fields and ran four times for every option — which was not wrong, since
+        // what it reads cannot change between asks, but a fact about a message belongs on an appearance.
+        //
+        // Keyed by the round, because a set written once per item of a list is walked once per item and
+        // the same computation answers differently each time. Sharing one answer across the passes is how
+        // a run of six options comes out as six copies of the first.
+        var held = run.For(computation, null, appearance.Index);
+
+        if (held.Has(Facet.Value)) return held.Value;
+
+        var answer = computation switch
+        {
         // A constant answers without being run. That is what a constant is, and it is why a fixed
         // delimiter needs no expression and can be pointed at by the span that ends before it.
         Constant stated => stated.Holds,
         Context outside => run.For(outside).Value,
-        Evaluated evaluated => Ran(evaluated, Given(run, appearance, evaluated)),
+            Evaluated evaluated => Ran(evaluated, Given(run, appearance, evaluated)),
 
-        Converted applied => Feeding(run, appearance, applied) is var (value, arguments)
-            ? Through(applied.Applies, value, applied.Name, arguments)
-            : ProtoValue.Nothing,
+            Converted applied => Feeding(run, appearance, applied) is var (value, arguments)
+                ? Through(applied.Applies, value, applied.Name, arguments)
+                : ProtoValue.Nothing,
 
-        // Code behind an interface, reached by the name the description gave and by nothing else. What it
-        // is handed comes from its edges like everything else, so it cannot go and read the message —
-        // which is the whole reason a protocol description is allowed to name code at all.
-        Coded custom => Behind(custom, Feeding(run, appearance, custom).Value),
+            // Code behind an interface, reached by the name the description gave and by nothing else. What
+            // it is handed comes from its edges like everything else, so it cannot go and read the message
+            // — which is the whole reason a protocol description is allowed to name code at all.
+            Coded custom => Behind(custom, Feeding(run, appearance, custom).Value),
 
-        var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a value here"),
-    };
+            var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a value here"),
+        };
+
+        if (speculative) return answer;
+
+        held.Settle(Facet.Value, answer);
+        Pushed(run, held, computation);
+
+        return answer;
+    }
+
+    /// <summary>
+    /// Carries what a place came to into the state it updates, where it updates one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Once per message.</b> A protocol that changed its own state partway through a message would be a
+    /// strange protocol, and nothing here has to enforce that: a slot settles like anything else, and
+    /// settling twice is already an error saying two things computed it and nothing says which is right.
+    /// So this is not an accumulator across the passes of a repetition — that is a fold, and it belongs to
+    /// whatever repeats rather than to what a conversation remembers.
+    /// </para>
+    /// <para>
+    /// What travels is whichever fact the edge names. A set has no value, so a slot fed from one wants its
+    /// extent, and saying so on the edge is the same choice a requirement already makes.
+    /// </para>
+    /// </remarks>
+    private void Pushed(RunGraph run, RunNode appearance, Node place)
+    {
+        foreach (var edge in graph.From<Updates>(place))
+            Carried(run, appearance, edge.To, edge.Parameter, Held(appearance, Named(edge.Facet)));
+    }
+
+    private void Carried(RunGraph run, RunNode from, Node onto, string? parameter, ProtoValue value)
+    {
+        if (onto is Context.State slot) { run.For(slot).Settle(Facet.Value, value); return; }
+
+        // A computation on the way, taking the value at the parameter the edge names and whatever else its
+        // own edges give it. What it comes to carries on down the chain.
+        var carried = onto switch
+        {
+            Evaluated evaluated => Ran(evaluated, Given(run, from, evaluated).Set(parameter!, value)),
+            Converted applied => Through(applied.Applies, value, applied.Name,
+                                         Feeding(run, from, applied).Arguments),
+            Coded custom => Behind(custom, value),
+
+            _ => throw new ProtoTypeException(
+                     $"'{onto.Name}' cannot stand on the way from a value to a state slot"),
+        };
+
+        foreach (var edge in graph.From<Updates>(onto))
+            Carried(run, from, edge.To, edge.Parameter, carried);
+    }
 
     /// <summary>
     /// Runs the code a <see cref="Coded"/> computation names.
@@ -801,6 +883,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
                 appearance.Settle(Facet.Extent, (int)(across / 8));
                 appearance.Settle(Facet.Emitted, ProtoValue.Of(Laid(run, appearance, set)));
+                Pushed(run, appearance, set);
                 moved = true;
             }
         }
@@ -844,7 +927,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         try
         {
-            return Produced(run, appearance, asks).AsBool() is false;
+            return Produced(run, appearance, asks, speculative: true).AsBool() is false;
         }
         catch (ProtoTypeException)
         {
@@ -1012,7 +1095,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // encoding, where a protocol says so. What it would have held has to be worked out to answer
             // that, which is the one place presence asks about a value rather than the other way round.
             _ when !reading && graph.Assumed(place) is { Omitted: true } omits && place is Field field
-                => !ProtoValue.Alike(Produced(run, appearance, Produces(field)), omits.Value),
+                => !ProtoValue.Alike(
+                       Produced(run, appearance, Produces(field), speculative: true), omits.Value),
 
             null => true,
             Constant stated => stated.Holds.AsBool(),
@@ -1115,6 +1199,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         Vet(appearance, field, value);
         appearance.Settle(Facet.Value, value);
+        Pushed(run, appearance, field);
         return value;
     }
 
@@ -1431,6 +1516,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             Vet(appearance, field, got);
             Canonical(field, got);
             appearance.Settle(Facet.Value, got);
+            Pushed(run, appearance, field);
             return;
         }
 
@@ -1451,6 +1537,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         Vet(appearance, field, read);
         Canonical(field, read);
         appearance.Settle(Facet.Value, read);
+        Pushed(run, appearance, field);
     }
 
     /// <summary>

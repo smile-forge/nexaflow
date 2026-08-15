@@ -160,6 +160,7 @@ the thing that is written down.
 | `identifies` | forking node → field → … → field | A path read **ahead** of choosing, ending at the discriminator. Reading only. |
 | `checks` | node → validator | What has to hold. |
 | `assumes` | field → default | What it means when absent. |
+| `updates` | place → state | What a message leaves behind. `facet`, and `parameter` where a calculation is on the way. |
 | `allowed` | span → definition | What may turn up in a span. |
 
 The two arrow directions are worth reading twice: **`computes` points from the thing being computed to the
@@ -368,6 +369,25 @@ computation instead, and saying otherwise is refused when the protocol loads.
 because a kind nobody stated agrees with everything, and a check that runs only where somebody remembered
 reads as safety and is not.
 
+## What a message leaves behind
+
+A `state` slot could only be read until now. `updates` is the other direction — a field, a set or a
+calculation says which slot it fills, optionally through calculations that work on the value on the way:
+
+```json
+{ "kind": "updates", "from": "sequenceNumber", "to": "advance", "parameter": "sent" },
+{ "kind": "updates", "from": "advance", "to": "state.nextSequence" }
+```
+
+`facet` because a set has no value — a slot fed from one wants its extent. `parameter` names where the
+value lands when the next thing is a calculation, exactly as a requirement does; pointing straight at a
+slot needs nothing, because a slot holds one value.
+
+**Once per message, and nothing enforces that separately.** A slot settles like anything else and settling
+twice is already an error naming two producers. So a running total across a repetition is not this: that
+is a fold over whatever repeats, and reaching for state to hold it is using a fact about a conversation to
+carry a fact about a message. CoAP's option numbering is the case that looks like state and is not.
+
 ## Refused when it loads
 
 Each of these was a real failure that surfaced somewhere else entirely, so each is now a sentence naming
@@ -423,6 +443,7 @@ the node. `ConsistencyTests` pins them.
 | `RepetitionTests` | written once per item |
 | `AbsenceTests` | the four questions |
 | `ConsistencyTests` | what a description has to be true of itself, refused when it loads |
+| `StateUpdateTests` | what a message leaves behind, and what state is not for |
 
 A host may set values and ask for a message, and that is the whole of its vocabulary. It cannot reach into
 the run, place a field, or fix up octets — so anything that comes out right came out of the description.

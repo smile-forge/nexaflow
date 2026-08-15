@@ -96,10 +96,11 @@ Kept nearly verbatim, because each cost real time.
   is reported as "these prerequisites name nodes that were never realised", which sounds like a repetition
   that failed to expand and is actually a description asking about a place the walk cannot reach until the
   question is answered. Values may look forward; presence may not.
-- **A computation is evaluated once per asker, not once.** CoAP's option delta is asked for by four
-  producers and runs four times per option. Nothing is wrong with the answers — the inputs cannot change
-  between asks — but it is the reason a computation has no settled moment and so cannot be the source of
-  an `updates` edge.
+- **A computation used to be evaluated once per asker.** CoAP's option delta is wanted by four fields and
+  ran four times for every option. Nothing was wrong with the answers, since what it reads cannot change
+  between asks — but a fact about a message belongs on an appearance, and until it was one a computation
+  had no settled moment to hang anything off. *Fixed 2026-08-15; keyed by the round, because a set written
+  once per item answers differently each time round.*
 
 ## 4. Why the document layer died
 
@@ -127,12 +128,7 @@ standing in for something else.
 
 ## 4a. State, and what it is not for
 
-`updates` — a field, set or computation pushing a value into a state slot, once per message, optionally
-through computations that transform it on the way — is designed and not built. The facet travels on the
-edge (a set has no value, so a slot fed from one wants its extent) and a parameter names where the value
-lands when the next node is a computation, exactly as `requires` does.
-
-**What it is not for is an accumulator inside one message.** CoAP's running option number is the case that
+`updates` is built. **What it is not for is an accumulator inside one message.** CoAP's running option number is the case that
 looked like state and is not: a protocol that changed its own state mid-message would be a strange
 protocol, and the tell was that it wanted writing six times in one message. Reaching for a state node
 there would be abusing the concept to get a fold. The caller sums the deltas instead.
