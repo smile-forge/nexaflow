@@ -284,4 +284,49 @@ public class NetworkGuardTests
         Assert.IsFalse(d.Allowed);
         Assert.AreEqual(GuardRefusal.TargetNotLocal, d.Refusal);
     }
+
+    // ── Which multicast is local ──────────────────────────────────────────────
+
+    [TestMethod]
+    public void Allows_multicast_that_cannot_leave_the_local_network_by_its_own_definition()
+    {
+        // Two blocks, and the second was missing until the first real caller wanted it. 224.0.0.0/24 is
+        // the link-local control block a router must not forward (RFC 5771 §4) — mDNS and LLMNR live
+        // there. 239.0.0.0/8 is administratively scoped (RFC 2365 §4) and does not leave the domain it was
+        // sent in; SSDP is at 239.255.255.250, and the rule that claimed to admit SSDP excluded it.
+        var g = Guard();
+
+        foreach (var group in new[] { "224.0.0.251", "224.0.0.252", "239.255.255.250" })
+        {
+            var d = g.Evaluate(To(group, broadcast: true), new RunBudget());
+            Assert.IsTrue(d.Allowed, $"{group}: {d.Reason}");
+        }
+    }
+
+    [TestMethod]
+    public void And_refuses_multicast_a_router_would_carry_off_the_premises()
+    {
+        // The middle of the range — 224.0.1.0 up to 238.255.255.255 — is globally scoped. Admitting it
+        // because it is "multicast" would be the whole allow-list undone by an address class.
+        var g = Guard();
+
+        foreach (var group in new[] { "224.0.1.1", "232.1.2.3", "238.255.255.255" })
+        {
+            var d = g.Evaluate(To(group, broadcast: true), new RunBudget());
+            Assert.IsFalse(d.Allowed, $"{group} is routable off-site and was allowed");
+            Assert.AreEqual(GuardRefusal.Forbidden, d.Refusal);
+        }
+    }
+
+    [TestMethod]
+    public void And_an_unreviewed_draft_may_not_multicast_at_all()
+    {
+        // The scope widening above must not reach a document nobody has read: a draft that can multicast
+        // reaches every device on the segment with one packet.
+        var d = Guard().Evaluate(
+            To("239.255.255.250", broadcast: true, who: SendInitiator.AiDraft), new RunBudget());
+
+        Assert.IsFalse(d.Allowed);
+        Assert.AreEqual(GuardRefusal.DraftRestriction, d.Refusal);
+    }
 }

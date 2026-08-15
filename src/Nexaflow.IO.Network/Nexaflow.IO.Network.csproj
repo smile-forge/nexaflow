@@ -24,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
   </ItemGroup>

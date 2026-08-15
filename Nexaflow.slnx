@@ -69,7 +69,13 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Svg/Nexaflow.Features.Svg.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network/Nexaflow.Features.Network.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Arp/Nexaflow.Features.Network.Arp.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Ssdp/Nexaflow.Features.Network.Ssdp.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj">

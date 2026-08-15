@@ -162,11 +162,12 @@ public sealed class NetworkGuard(GuardLimits? limits = null)
         return false;
     }
 
-    /// <summary>True for a directed broadcast of one of our prefixes, or a link-local multicast group.
-    /// <c>255.255.255.255</c> is deliberately excluded: it is not attributable to a segment.</summary>
+    /// <summary>True for a directed broadcast of one of our prefixes, or a multicast group that cannot
+    /// leave the local network by its own definition. <c>255.255.255.255</c> is deliberately excluded: it
+    /// is not attributable to a segment.</summary>
     private bool IsLocalBroadcastOrMulticast(IPAddress target)
     {
-        if (IsLinkLocalMulticast(target)) return true;
+        if (IsLocalScopeMulticast(target)) return true;
 
         lock (_lock)
             foreach (var adapter in _adapters)
@@ -178,12 +179,30 @@ public sealed class NetworkGuard(GuardLimits? limits = null)
         return false;
     }
 
-    private static bool IsLinkLocalMulticast(IPAddress target)
+    /// <summary>
+    /// Multicast that is confined to the local network by the address itself rather than by a router's
+    /// configuration.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two IPv4 blocks, and the second was missing until the first real caller wanted it. <b>224.0.0.0/24</b>
+    /// is the link-local control block — RFC 5771 §4: a router must not forward it, whatever the TTL — and
+    /// holds mDNS (224.0.0.251) and LLMNR (224.0.0.252). <b>239.0.0.0/8</b> is the administratively scoped
+    /// block, RFC 2365 §4: it does not leave the administrative domain it was sent in. SSDP lives there, at
+    /// 239.255.255.250, and the comment on the old rule claimed SSDP while the rule excluded it.
+    /// </para>
+    /// <para>
+    /// The widening does not extend reach. Both blocks are unroutable off-site by their own specifications,
+    /// which is the same property 224.0.0.0/24 was admitted for; what is still refused is globally scoped
+    /// multicast (224.0.1.0 through 238.255.255.255), which a router will happily carry off the premises.
+    /// </para>
+    /// </remarks>
+    private static bool IsLocalScopeMulticast(IPAddress target)
     {
         if (target.AddressFamily == AddressFamily.InterNetwork)
         {
             var b = target.GetAddressBytes();
-            return b[0] == 224 && b[1] == 0 && b[2] == 0;      // 224.0.0.0/24 — mDNS, SSDP, LLMNR
+            return (b[0] == 224 && b[1] == 0 && b[2] == 0) || b[0] == 239;
         }
         if (target.AddressFamily == AddressFamily.InterNetworkV6)
         {
