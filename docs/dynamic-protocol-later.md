@@ -63,7 +63,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 | **DHCP** | *(built)* options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
 | **SNMPv2c** | *(built)* nested BER lengths, whose OWN width depends on what they hold, so the extra octet one spends is counted by every length outside it. Also an OID: a run of base-128 arcs whose first two are merged into one number |
 | **SSDP** | delimiter-terminated text; no widths and no length prefixes anywhere |
-| **TLS 1.2** | three stacked length-prefixed layers, and a hello with no extension block at all |
+| **TLS 1.2** | *(built)* three stacked length-prefixed layers, the middle one three octets wide; vectors — a length in octets and then items with no tag on them, all one width or not; and two hellos whose difference is a SHAPE, not a value. A hello with no extension block at all is not covered |
 | **BACnet/IP** | *(built)* three stacked sub-protocols; a discriminator six octets and a nibble in; a value's octet count packed into three bits of the tag before it. Its segmented answers stay opaque — a segment is cut mid-value, so the thing to parse is the concatenation, which is the client's across datagrams |
 
 Three findings reshaped the design and still hold:
@@ -245,6 +245,43 @@ place to put per-request correlation and epoch, not a message format.
 (the run of arcs after the merged pair is entered unconditionally, like mDNS's first label), and a varbind
 list with no varbinds in it. Both are legal and neither occurs.
 
+## 5c. What TLS found, 2026-08-15
+
+**Nothing, and that is the result.** Seventeen gaps in the corpus, four of them blocking; the hellos went
+in against the engine unchanged and both captures round-tripped on the first run. The four blocking ones —
+byte-budgeted iteration, a record kind in `ProtoValue`, raw byte capture on the way in, dispatch on a
+just-decoded tag — are the same four SNMP asked for and the graph already had. Worth recording because it
+is the first protocol here that cost nothing: the corpus was assembled against a grammar that no longer
+exists, and its verdicts about *that* are now mostly archaeology. What it is still good for is the octets.
+
+Two things TLS did add to the vocabulary in use, neither of them new machinery:
+
+- **A vector is a run whose bound is a length, and item width is irrelevant to it.** Sixteen octets of
+  two-octet cipher suites and ninety-eight octets of extensions between four and eighteen use the same
+  `position < at + wide + held`. The corpus wanted `vector<T>` as a primitive; it is a set that repeats,
+  measured by a length, which is what everything else here already was.
+- **`decides` may point straight at a field.** Where the deciding fact has already been read there is no
+  reason to look again, and no reason for an expression: the fork asks the message-type node what it came
+  to. `identifies` is for the case where nothing has been read yet, and using it here would have made two
+  messages out of one and copied the record header into both.
+
+**Not covered, and it is one of the two things the corpus said TLS defeats:** a hello with no extension
+block at all — legal, and distinct from a block that is present and empty. It needs the block's *presence*
+to come from a length already read (legal, backwards) on the way in and from the caller on the way out, so
+it is a Bool input away rather than an engine change. Neither capture has one, and building untested
+machinery for it would be worse than saying this.
+
+Also not covered, deliberately, and the reasoning is the same as SNMP's varbind values: **an extension's
+data is octets.** RFC 5246 §7.4.1.4 obliges a reader to ignore extensions it does not recognise and IANA's
+registry grows, so a description that forked on the extension type would refuse everything invented after
+it was written. The shape for going further already exists — an extension body is exactly what a carried
+`Subprotocol` is — and it wants a per-type dispatch that nothing yet needs.
+
+The corpus's sharpest observation stands and is not about the format at all: **the ServerHello declines
+OCSP stapling by not mentioning it.** Three of the client's nine extensions come back absent, and absence
+is not something a message format can state — it is a comparison between two messages, like the session id
+that would have meant resumption had it matched. That belongs to the state model, which is §1.
+
 ## 5. Known gaps, as of 2026-08-15
 
 - **A fixed-width field holding a NUL-terminated name is one field, not two.** DHCP's `sname` and `file`
@@ -252,14 +289,21 @@ list with no varbinds in it. Both are legal and neither occurs.
   said by the first NUL, and a span that ends at a value it has to find first is the capability `Pattern`
   took with it. `fit` covers the writing (and is a no-op when handed the full width, which is what makes
   the round trip work); nothing splits it coming back.
-- **Two protocols to author.** Hold SSDP back — it is delimiter-terminated text, and `WireForm.Opaque`
-  lost the `Until` delimiter when `Pattern` was deleted. That capability needs rebuilding before SSDP or
-  HTTP. TLS is next and needs nothing known.
+- **One protocol left to author, and it is blocked.** SSDP is delimiter-terminated text, and
+  `WireForm.Opaque` lost the `Until` delimiter when `Pattern` was deleted. That capability needs rebuilding
+  before SSDP or HTTP.
 - **A repetition is entered unconditionally coming in.** The edge that goes round again is checked *after*
-  the first item, so a run of zero is not readable: mDNS cannot read a name that is only the root, and
-  SNMP cannot read an OID of two arcs or a varbind list of none. All three are legal and none occurs in
-  any capture. The fix is a fork *before* the first item rather than only after each one, which is
-  ordinary vocabulary — it is untried, not unsupported.
+  the first item, so a run of zero is not readable: mDNS cannot read a name that is only the root, SNMP
+  cannot read an OID of two arcs or a varbind list of none, and TLS cannot read an empty extensions block
+  (its cipher-suite and compression vectors are non-empty by specification). All of these are legal and
+  none occurs in any capture. The fix is a fork *before* the first item rather than only after each one,
+  which is ordinary vocabulary — it is untried, not unsupported.
+- **Nothing cross-checks nested lengths against what was actually read.** BACnet does it for BVLC because
+  routers get it wrong, and TLS's three lengths must agree to within four octets each — but on the way in
+  a set's extent is settled opportunistically as its members close, and for a set containing a repetition
+  that can happen after the first round. So a `checks` comparing declared against actual is safe over a
+  fixed span and not over one holding a run. Worth fixing at the `Closing` end rather than by avoiding the
+  check.
 - **A discriminator is read but not recorded.** `identifies` answers which message this is and then throws
   the answer away; the message re-reads it, which is right, but nothing keeps a note that the *protocol*
   looked. Harmless today because every message here carries the discriminator itself. A protocol whose

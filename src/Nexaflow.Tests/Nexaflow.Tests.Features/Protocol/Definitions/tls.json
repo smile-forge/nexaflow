@@ -1,0 +1,1506 @@
+{
+  "protocol": "tls",
+  "title": "TLS 1.2 handshake record",
+  "source": "RFC 5246 §6.2 (record), §7.4.1 (hellos); RFC 8446 §4.1.2 (why 1.3 looks the same here)",
+  "nodes": [
+    {
+      "id": "tls",
+      "kind": "protocol",
+      "about": [
+        "TLS 1.2 — RFC 5246 §6.2 (the record) and §7.4.1 (the hellos).",
+        "",
+        "Three lengths, one inside the next: a record says how many octets its fragment is, a handshake",
+        "message says how many its body is, and the extensions block says how many all the extensions",
+        "come to. Two of them are two octets and the middle one is THREE, which is the whole reason a",
+        "width is a parameter of a form rather than a set of named integer kinds.",
+        "",
+        "And the thing TLS is made of, which no other protocol here has: a VECTOR. A length in octets",
+        "followed by items of one kind with no tag on them — eight cipher suites in sixteen octets, four",
+        "groups in eight. Nothing counts them; the reading spends the length. Which is the same machinery",
+        "as a run of extensions, where the items are NOT all the same width, and that is the point: the",
+        "description says where the run ends, not how many things are in it.",
+        "",
+        "One message rather than two, forking in the middle. A ClientHello and a ServerHello share a",
+        "record header, a message header, a version, a random and a session id, then differ, then share an",
+        "extensions block — and what they differ in is not a field's value but its SHAPE: the client",
+        "offers a vector of suites and a vector of compression methods, the server picks one of each and",
+        "writes it as a plain number. Same name in the specification, different thing on the wire, so two",
+        "nodes. The fork reads the message type that was read four octets earlier — no look-ahead, because",
+        "nothing has to be looked at twice.",
+        "",
+        "An extension's data is octets. That is not a shortcut: RFC 5246 §7.4.1.4 says an implementation",
+        "MUST ignore an extension it does not recognise, and IANA's registry grows. A description that",
+        "forked on the extension type would refuse every extension invented after it was written, which",
+        "is the one thing this format is built to survive. What the octets of server_name or ALPN mean is",
+        "a layer above, and the shape for it already exists — an extension body is exactly what a carried",
+        "sub-protocol is.",
+        "",
+        "Scope, stated in the octets rather than here. The content type is checked to be handshake: an",
+        "application_data record's body is AEAD ciphertext, and there is nothing to describe until a key",
+        "exists, which is not something a message format has. The record version is checked to be TLS 1.0",
+        "or 1.2, so SSL 3.0 is refused. The message type is checked to be a hello, so a Certificate or a",
+        "Finished in the same record is refused rather than read as a hello with implausible fields.",
+        "",
+        "What it does NOT refuse, and this is worth stating because it looks like an omission: a TLS 1.3",
+        "hello. RFC 8446 §4.1.2 keeps legacy_version at 0x0303 and moves the real one into an extension,",
+        "so a 1.3 hello has this exact shape and reads correctly here. Which version was agreed is inside",
+        "an extension's octets, and this does not look inside those."
+      ]
+    },
+    {
+      "id": "record",
+      "kind": "message",
+      "as": "a handshake record",
+      "about": "RFC 5246 §6.2.1. One record, carrying one handshake message."
+    },
+    {
+      "id": "packing.record",
+      "kind": "packing"
+    },
+    {
+      "id": "constant.handshake",
+      "kind": "constant",
+      "holds": {
+        "int": 22
+      },
+      "label": "handshake",
+      "about": "RFC 5246 §6.2.1's ContentType. 20 is change_cipher_spec, 21 alert, 23 application_data."
+    },
+    {
+      "id": "contentType",
+      "kind": "field",
+      "as": "Content Type",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "What this record carries. One of four, and this describes one of them."
+    },
+    {
+      "id": "valid.handshake",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 22
+          },
+          "to": {
+            "int": 22
+          }
+        }
+      ]
+    },
+    {
+      "id": "input.recordVersion",
+      "kind": "input",
+      "as": "Record Version",
+      "gives": "Int",
+      "purpose": "What goes in the record header, which is not necessarily what is being negotiated: RFC 5246 appendix E.1 has a client write 0x0301 on its first record whatever it means to offer."
+    },
+    {
+      "id": "recordVersion",
+      "kind": "field",
+      "as": "Record Version",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "0x0301 on the client's first record and 0x0303 on the server's answer, in the corpus and in the wild. A version that a middlebox will not choke on, rather than a claim."
+    },
+    {
+      "id": "evaluated.recordVersion",
+      "kind": "evaluated",
+      "label": "the version on the record",
+      "runs": "given",
+      "gives": "Int",
+      "takes": {
+        "given": "Int"
+      }
+    },
+    {
+      "id": "valid.recordVersion",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 769
+          },
+          "to": {
+            "int": 769
+          }
+        },
+        {
+          "from": {
+            "int": 771
+          },
+          "to": {
+            "int": 771
+          }
+        }
+      ],
+      "about": "TLS 1.0's value and TLS 1.2's."
+    },
+    {
+      "id": "recordLength",
+      "kind": "field",
+      "as": "Record Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 5246 §6.2.1 bounds this at 2^14. What it measures begins after it — unlike BACnet's BVLC length, which counts itself, and the difference between the two descriptions is which set the edge points at."
+    },
+    {
+      "id": "evaluated.recordLength",
+      "kind": "evaluated",
+      "label": "octets of fragment",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "fragment",
+      "kind": "set",
+      "as": "what the record carries",
+      "about": "One handshake message, here. A real server coalesces several into one record and splits one across two, because the two framings are not aligned — nothing in a record says where a message ends, and nothing in a message says which record it came in."
+    },
+    {
+      "id": "input.messageType",
+      "kind": "input",
+      "as": "Message Type",
+      "gives": "Int",
+      "purpose": "1 for a ClientHello, 2 for a ServerHello. What the two shapes are told apart by."
+    },
+    {
+      "id": "messageType",
+      "kind": "field",
+      "as": "Handshake Type",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "RFC 5246 §7.4. Read once, and read again by nothing: the fork later on asks this node what it came to rather than looking at the octet a second time."
+    },
+    {
+      "id": "evaluated.messageType",
+      "kind": "evaluated",
+      "label": "which hello this is",
+      "runs": "which",
+      "gives": "Int",
+      "takes": {
+        "which": "Int"
+      }
+    },
+    {
+      "id": "valid.messageType",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 1
+          }
+        },
+        {
+          "from": {
+            "int": 2
+          },
+          "to": {
+            "int": 2
+          }
+        }
+      ],
+      "about": "client_hello and server_hello."
+    },
+    {
+      "id": "handshakeLength",
+      "kind": "field",
+      "as": "Handshake Length",
+      "form": {
+        "of": "scalar",
+        "octets": 3,
+        "big": true,
+        "signed": false
+      },
+      "about": "THREE octets, big-endian — RFC 5246 §7.4's uint24. The one place a length is not a power-of-two width, and the reason a form takes an octet count rather than a scalar being one of u8/u16/u32."
+    },
+    {
+      "id": "evaluated.handshakeLength",
+      "kind": "evaluated",
+      "label": "octets of hello",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "hello",
+      "kind": "set",
+      "as": "the hello",
+      "about": "What the handshake length measures: everything after it, and neither the type nor the length in front of it."
+    },
+    {
+      "id": "input.version",
+      "kind": "input",
+      "as": "Version",
+      "gives": "Int",
+      "purpose": "What is offered, or what was agreed. 0x0303 is TLS 1.2 — and also what a TLS 1.3 hello writes here, because RFC 8446 moved the real answer into an extension."
+    },
+    {
+      "id": "version",
+      "kind": "field",
+      "as": "Version",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 5246 §7.4.1.2's client_version, §7.4.1.3's server_version. The same two octets in the same place meaning 'the best I can do' one way and 'what we are doing' the other — which is a difference in who is speaking, not in the message format."
+    },
+    {
+      "id": "evaluated.version",
+      "kind": "evaluated",
+      "label": "the version in the hello",
+      "runs": "given",
+      "gives": "Int",
+      "takes": {
+        "given": "Int"
+      }
+    },
+    {
+      "id": "input.random",
+      "kind": "input",
+      "as": "Random",
+      "gives": "Bytes",
+      "purpose": "Thirty-two octets. RFC 5246 §7.4.1.2 put a four-octet clock at the front of it and RFC 8446 §4.1.2 says fill the lot with randomness, so what is in it is the sender's business."
+    },
+    {
+      "id": "random",
+      "kind": "field",
+      "as": "Random",
+      "form": {
+        "of": "opaque",
+        "octets": 32
+      },
+      "about": "A fixed width, which makes it the only span here that no length field measures."
+    },
+    {
+      "id": "evaluated.random",
+      "kind": "evaluated",
+      "label": "this hello's random",
+      "runs": "given",
+      "gives": "Bytes",
+      "takes": {
+        "given": "Bytes"
+      }
+    },
+    {
+      "id": "sessionIdLength",
+      "kind": "field",
+      "as": "Session ID Length",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "One octet, because RFC 5246 §7.4.1.2 writes the field as opaque SessionID<0..32> and a vector's length prefix is as wide as its maximum needs."
+    },
+    {
+      "id": "evaluated.sessionIdLength",
+      "kind": "evaluated",
+      "label": "octets of sessionId",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "valid.sessionId",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 32
+          }
+        }
+      ],
+      "about": "RFC 5246 §7.4.1.2: SessionID is 0 to 32 octets."
+    },
+    {
+      "id": "input.sessionId",
+      "kind": "input",
+      "as": "Session ID",
+      "gives": "Bytes",
+      "purpose": "Empty when nothing is being resumed. A server that echoes the client's is resuming; a server that sends a different one is not — which is a comparison ACROSS two messages, so it is not in either of them."
+    },
+    {
+      "id": "sessionId",
+      "kind": "field",
+      "as": "Session ID",
+      "form": {
+        "of": "opaque"
+      }
+    },
+    {
+      "id": "evaluated.sessionId",
+      "kind": "evaluated",
+      "label": "this hello's session id",
+      "runs": "given",
+      "gives": "Bytes",
+      "takes": {
+        "given": "Bytes"
+      }
+    },
+    {
+      "id": "evaluated.sessionIdExtent",
+      "kind": "evaluated",
+      "label": "octets of session id, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "variant",
+      "kind": "set",
+      "as": "offered, or chosen",
+      "about": [
+        "The fork, and what it decides on is a field read four octets ago rather than octets looked at",
+        "again.",
+        "",
+        "Both arms are inside what the handshake length measures, so the one not taken has to say it is",
+        "NOT THERE — a span waiting on a member the walk stepped past waits for ever. That is what makes",
+        "an arm optional rather than merely unreached."
+      ]
+    },
+    {
+      "id": "offered",
+      "kind": "set",
+      "as": "what the client offers",
+      "about": "RFC 5246 §7.4.1.2. Two vectors: every suite it will accept, in preference order, and every compression method — which is always the one that does nothing, and is still a vector."
+    },
+    {
+      "id": "chosen",
+      "kind": "set",
+      "as": "what the server picked",
+      "about": [
+        "RFC 5246 §7.4.1.3, and the shape is the finding rather than the content.",
+        "",
+        "The specification calls the client's field cipher_suites and the server's cipher_suite, and the",
+        "difference is not a plural: one is a length and a list and the other is two octets. Reading the",
+        "server's answer with the client's description would take the first suite as a length. So they",
+        "are different nodes, which is the same rule that made MQTT's CONNECT and CONNACK packet types",
+        "two nodes rather than one with two legal values."
+      ]
+    },
+    {
+      "id": "cipherSuitesLength",
+      "kind": "field",
+      "as": "Cipher Suites Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "In OCTETS, not in suites — sixteen for eight of them. Which is why nothing has to divide: the reading spends octets and stops when they are gone."
+    },
+    {
+      "id": "evaluated.cipherSuitesLength",
+      "kind": "evaluated",
+      "label": "octets of cipherSuites",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "cipherSuites",
+      "kind": "set",
+      "as": "the suites offered",
+      "about": "A vector: items of one kind with nothing marking where one ends, because they are all two octets wide. The order is the client's preference and is therefore part of the message."
+    },
+    {
+      "id": "input.cipherSuites",
+      "kind": "input",
+      "as": "Cipher Suites",
+      "gives": "List",
+      "of": "Int",
+      "purpose": "Every suite the client will accept, best first."
+    },
+    {
+      "id": "suite",
+      "kind": "field",
+      "as": "Cipher Suite",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Two octets from a registry that has hundreds of entries and grows. Carried, not classified — which of them is acceptable is policy, and policy is not a message format."
+    },
+    {
+      "id": "evaluated.suite",
+      "kind": "evaluated",
+      "label": "this suite",
+      "runs": "item",
+      "gives": "Int"
+    },
+    {
+      "id": "compressionMethodsLength",
+      "kind": "field",
+      "as": "Compression Methods Length",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "evaluated.compressionMethodsLength",
+      "kind": "evaluated",
+      "label": "octets of compressionMethods",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "compressionMethods",
+      "kind": "set",
+      "as": "the compression methods offered",
+      "about": "One octet each, and in practice one of them holding zero. RFC 7457 §2.6 explains why anything else here is a vulnerability rather than a feature, and the vector survives because the format cannot be changed."
+    },
+    {
+      "id": "input.compressionMethods",
+      "kind": "input",
+      "as": "Compression Methods",
+      "gives": "List",
+      "of": "Int",
+      "purpose": "Always [0] in anything made this decade."
+    },
+    {
+      "id": "compression",
+      "kind": "field",
+      "as": "Compression Method",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "evaluated.compression",
+      "kind": "evaluated",
+      "label": "this compression method",
+      "runs": "item",
+      "gives": "Int"
+    },
+    {
+      "id": "input.chosenSuite",
+      "kind": "input",
+      "as": "Cipher Suite",
+      "gives": "Int",
+      "purpose": "The one suite the server picked."
+    },
+    {
+      "id": "chosenSuite",
+      "kind": "field",
+      "as": "Cipher Suite",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Two octets and no length, because there is one of it."
+    },
+    {
+      "id": "evaluated.chosenSuite",
+      "kind": "evaluated",
+      "label": "the suite agreed",
+      "runs": "given",
+      "gives": "Int",
+      "takes": {
+        "given": "Int"
+      }
+    },
+    {
+      "id": "input.chosenCompression",
+      "kind": "input",
+      "as": "Compression Method",
+      "gives": "Int",
+      "purpose": "The one method the server picked."
+    },
+    {
+      "id": "chosenCompression",
+      "kind": "field",
+      "as": "Compression Method",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "evaluated.chosenCompression",
+      "kind": "evaluated",
+      "label": "the compression agreed",
+      "runs": "given",
+      "gives": "Int",
+      "takes": {
+        "given": "Int"
+      }
+    },
+    {
+      "id": "extensionsLength",
+      "kind": "field",
+      "as": "Extensions Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "The third length in a row that measures a span the reading has to spend rather than count through — and the first whose items are NOT all the same width."
+    },
+    {
+      "id": "evaluated.extensionsLength",
+      "kind": "evaluated",
+      "label": "octets of extensions",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "extensions",
+      "kind": "set",
+      "as": "the extensions",
+      "about": [
+        "A run of them, ending where the length says. Each one is a type, a length, and that many octets.",
+        "",
+        "Their ORDER is on the wire and carries nothing — RFC 5246 §7.4.1.4 requires only that a type",
+        "appear once. It is kept because a message that came in one order and went out in another is a",
+        "different message, and a description whose round trip depends on nothing having a preference is",
+        "one that cannot check itself."
+      ]
+    },
+    {
+      "id": "input.extensions",
+      "kind": "input",
+      "as": "Extensions",
+      "gives": "List",
+      "of": {
+        "type": "Int",
+        "data": "Bytes"
+      },
+      "purpose": "One record per extension, in wire order. The data is octets: what is inside server_name or ALPN is a layer above this one."
+    },
+    {
+      "id": "extensionType",
+      "kind": "field",
+      "as": "Extension Type",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "IANA's registry, which is open — 0 is server_name, 16 is ALPN, 0xff01 is renegotiation_info, and the next one is not in this file."
+    },
+    {
+      "id": "evaluated.extensionType",
+      "kind": "evaluated",
+      "label": "which extension this is",
+      "runs": "item.type",
+      "gives": "Int"
+    },
+    {
+      "id": "extensionLength",
+      "kind": "field",
+      "as": "Extension Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Nought is a real answer and a common one. session_ticket, extended_master_secret and a server's acknowledgement of SNI are all present and empty, which means something quite different from being absent — and the only difference on the wire is four octets that say a name and nothing after them."
+    },
+    {
+      "id": "evaluated.extensionLength",
+      "kind": "evaluated",
+      "label": "octets of extensionData",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "extensionData",
+      "kind": "field",
+      "as": "Extension Data",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "Uninterpreted, on purpose. §7.4.1.4 obliges a reader to ignore what it does not know, so a description that could only carry the extensions it had heard of would be a worse reader than the specification asks for."
+    },
+    {
+      "id": "evaluated.extensionData",
+      "kind": "evaluated",
+      "label": "this extension's octets",
+      "runs": "item.data",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.extensionDataExtent",
+      "kind": "evaluated",
+      "label": "octets of extension, from the length",
+      "runs": "len",
+      "gives": "Int",
+      "takes": {
+        "len": "Int"
+      }
+    },
+    {
+      "id": "moreSuites",
+      "kind": "junction",
+      "as": "another suite?",
+      "about": "Sixteen octets of two-octet items, and nothing says eight. The reading asks where it is against where the length runs out, which is the same question a run of extensions asks and the same one a name's arcs ask in SNMP — the items being all one width here changes nothing about how the run ends."
+    },
+    {
+      "id": "evaluated.moreSuites",
+      "kind": "evaluated",
+      "label": "another suite?",
+      "runs": "position < at + wide + held",
+      "gives": "Bool",
+      "takes": {
+        "at": "Int",
+        "wide": "Int",
+        "held": "Int"
+      }
+    },
+    {
+      "id": "moreCompressions",
+      "kind": "junction",
+      "as": "another compression method?"
+    },
+    {
+      "id": "evaluated.moreCompressions",
+      "kind": "evaluated",
+      "label": "another compression method?",
+      "runs": "position < at + wide + held",
+      "gives": "Bool",
+      "takes": {
+        "at": "Int",
+        "wide": "Int",
+        "held": "Int"
+      }
+    },
+    {
+      "id": "moreExtensions",
+      "kind": "junction",
+      "as": "another extension?",
+      "about": "The same question over items that are NOT all one width — an empty extension is four octets and ALPN's is eighteen. Which is why the bound is octets rather than a count: the description says where the run ends and the items say how far each of them got."
+    },
+    {
+      "id": "evaluated.moreExtensions",
+      "kind": "evaluated",
+      "label": "another extension?",
+      "runs": "position < at + wide + held",
+      "gives": "Bool",
+      "takes": {
+        "at": "Int",
+        "wide": "Int",
+        "held": "Int"
+      }
+    },
+    {
+      "id": "done",
+      "kind": "end-parse",
+      "as": "the end of a record",
+      "about": "Where a reading may stop, which is when the extensions have spent their length and the record has spent its own. Stopping anywhere else is a record cut short."
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "tls",
+      "to": "record"
+    },
+    {
+      "kind": "then",
+      "from": "record",
+      "to": "packing.record"
+    },
+    {
+      "kind": "computes",
+      "from": "contentType",
+      "to": "constant.handshake",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "contentType",
+      "to": "valid.handshake",
+      "because": "An application_data record (23) holds AEAD ciphertext, and what is inside it is not decided by a message format — it is decided by a key that a handshake has to finish first. An alert (21) and a change_cipher_spec (20) are different messages with different bodies. So a record that is not a handshake is refused where it is written rather than read as a hello."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.recordVersion",
+      "to": "input.recordVersion",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "recordVersion",
+      "to": "evaluated.recordVersion",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "recordVersion",
+      "to": "valid.recordVersion",
+      "because": "0x0300 is SSL 3.0, which RFC 7568 prohibits, and 0x0302 is TLS 1.1. Neither is described here, and a record header claiming one is refused rather than read as though the version octets did not matter."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.recordLength",
+      "to": "fragment",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "recordLength",
+      "to": "evaluated.recordLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.messageType",
+      "to": "input.messageType",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "which"
+    },
+    {
+      "kind": "computes",
+      "from": "messageType",
+      "to": "evaluated.messageType",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "messageType",
+      "to": "valid.messageType",
+      "because": "A Certificate (11), a ServerKeyExchange (12), a ServerHelloDone (14) or a Finished (20) is a different message with a different body, and several of them travel in the same record as a ServerHello. This describes the hello, so anything else is refused where it is written."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.handshakeLength",
+      "to": "hello",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "handshakeLength",
+      "to": "evaluated.handshakeLength",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "fragment",
+      "to": "messageType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "fragment",
+      "to": "handshakeLength",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "fragment",
+      "to": "hello",
+      "order": 2
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.version",
+      "to": "input.version",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "version",
+      "to": "evaluated.version",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.random",
+      "to": "input.random",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "random",
+      "to": "evaluated.random",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.sessionIdLength",
+      "to": "sessionId",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "sessionIdLength",
+      "to": "evaluated.sessionIdLength",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "sessionIdLength",
+      "to": "valid.sessionId",
+      "because": "A session id past 32 octets is not one RFC 5246 can have produced, and believing the length would read the cipher suites out of the middle of it."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.sessionId",
+      "to": "input.sessionId",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "sessionId",
+      "to": "evaluated.sessionId",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.sessionIdExtent",
+      "to": "sessionIdLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "sessionId",
+      "to": "evaluated.sessionIdExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "decides",
+      "from": "variant",
+      "to": "messageType"
+    },
+    {
+      "kind": "holds",
+      "from": "variant",
+      "to": "offered",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "variant",
+      "to": "chosen",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "variant",
+      "to": "offered",
+      "key": {
+        "int": 1
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "variant",
+      "to": "chosen",
+      "key": {
+        "int": 2
+      },
+      "optional": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.cipherSuitesLength",
+      "to": "cipherSuites",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "cipherSuitesLength",
+      "to": "evaluated.cipherSuitesLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "cipherSuites",
+      "to": "input.cipherSuites",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "suite",
+      "to": "evaluated.suite",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "cipherSuites",
+      "to": "suite",
+      "order": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.compressionMethodsLength",
+      "to": "compressionMethods",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "compressionMethodsLength",
+      "to": "evaluated.compressionMethodsLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "compressionMethods",
+      "to": "input.compressionMethods",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "compression",
+      "to": "evaluated.compression",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "compressionMethods",
+      "to": "compression",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "offered",
+      "to": "cipherSuitesLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "offered",
+      "to": "cipherSuites",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "offered",
+      "to": "compressionMethodsLength",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "offered",
+      "to": "compressionMethods",
+      "order": 3
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.chosenSuite",
+      "to": "input.chosenSuite",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "chosenSuite",
+      "to": "evaluated.chosenSuite",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.chosenCompression",
+      "to": "input.chosenCompression",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "chosenCompression",
+      "to": "evaluated.chosenCompression",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "chosen",
+      "to": "chosenSuite",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "chosen",
+      "to": "chosenCompression",
+      "order": 1
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.extensionsLength",
+      "to": "extensions",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "extensionsLength",
+      "to": "evaluated.extensionsLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "extensions",
+      "to": "input.extensions",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "extensionType",
+      "to": "evaluated.extensionType",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.extensionLength",
+      "to": "extensionData",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "extensionLength",
+      "to": "evaluated.extensionLength",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "extensionData",
+      "to": "evaluated.extensionData",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.extensionDataExtent",
+      "to": "extensionLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "len"
+    },
+    {
+      "kind": "computes",
+      "from": "extensionData",
+      "to": "evaluated.extensionDataExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "holds",
+      "from": "extensions",
+      "to": "extensionType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "extensions",
+      "to": "extensionLength",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "extensions",
+      "to": "extensionData",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "hello",
+      "to": "version",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "hello",
+      "to": "random",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "hello",
+      "to": "sessionIdLength",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "hello",
+      "to": "sessionId",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "hello",
+      "to": "variant",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "hello",
+      "to": "extensionsLength",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "hello",
+      "to": "extensions",
+      "order": 6
+    },
+    {
+      "kind": "then",
+      "from": "packing.record",
+      "to": "contentType"
+    },
+    {
+      "kind": "then",
+      "from": "contentType",
+      "to": "recordVersion"
+    },
+    {
+      "kind": "then",
+      "from": "recordVersion",
+      "to": "recordLength"
+    },
+    {
+      "kind": "then",
+      "from": "recordLength",
+      "to": "fragment"
+    },
+    {
+      "kind": "then",
+      "from": "fragment",
+      "to": "messageType"
+    },
+    {
+      "kind": "then",
+      "from": "messageType",
+      "to": "handshakeLength"
+    },
+    {
+      "kind": "then",
+      "from": "handshakeLength",
+      "to": "hello"
+    },
+    {
+      "kind": "then",
+      "from": "hello",
+      "to": "version"
+    },
+    {
+      "kind": "then",
+      "from": "version",
+      "to": "random"
+    },
+    {
+      "kind": "then",
+      "from": "random",
+      "to": "sessionIdLength"
+    },
+    {
+      "kind": "then",
+      "from": "sessionIdLength",
+      "to": "sessionId"
+    },
+    {
+      "kind": "then",
+      "from": "sessionId",
+      "to": "variant"
+    },
+    {
+      "kind": "then",
+      "from": "offered",
+      "to": "cipherSuitesLength"
+    },
+    {
+      "kind": "then",
+      "from": "cipherSuitesLength",
+      "to": "cipherSuites"
+    },
+    {
+      "kind": "then",
+      "from": "cipherSuites",
+      "to": "suite"
+    },
+    {
+      "kind": "then",
+      "from": "suite",
+      "to": "compressionMethodsLength"
+    },
+    {
+      "kind": "then",
+      "from": "compressionMethodsLength",
+      "to": "compressionMethods"
+    },
+    {
+      "kind": "then",
+      "from": "compressionMethods",
+      "to": "compression"
+    },
+    {
+      "kind": "then",
+      "from": "compression",
+      "to": "extensionsLength"
+    },
+    {
+      "kind": "then",
+      "from": "chosen",
+      "to": "chosenSuite"
+    },
+    {
+      "kind": "then",
+      "from": "chosenSuite",
+      "to": "chosenCompression"
+    },
+    {
+      "kind": "then",
+      "from": "chosenCompression",
+      "to": "extensionsLength"
+    },
+    {
+      "kind": "then",
+      "from": "extensionsLength",
+      "to": "extensions"
+    },
+    {
+      "kind": "then",
+      "from": "extensions",
+      "to": "extensionType"
+    },
+    {
+      "kind": "then",
+      "from": "extensionType",
+      "to": "extensionLength"
+    },
+    {
+      "kind": "then",
+      "from": "extensionLength",
+      "to": "extensionData"
+    },
+    {
+      "kind": "then",
+      "from": "extensionData",
+      "to": "done"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreSuites",
+      "to": "cipherSuitesLength",
+      "facet": "position",
+      "sequence": 0,
+      "parameter": "at"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreSuites",
+      "to": "cipherSuitesLength",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "wide"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreSuites",
+      "to": "cipherSuitesLength",
+      "facet": "value",
+      "sequence": 2,
+      "parameter": "held"
+    },
+    {
+      "kind": "decides",
+      "from": "moreSuites",
+      "to": "evaluated.moreSuites",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "suite",
+      "to": "moreSuites"
+    },
+    {
+      "kind": "decode",
+      "from": "moreSuites",
+      "to": "suite",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreSuites",
+      "to": "compressionMethodsLength",
+      "otherwise": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreCompressions",
+      "to": "compressionMethodsLength",
+      "facet": "position",
+      "sequence": 0,
+      "parameter": "at"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreCompressions",
+      "to": "compressionMethodsLength",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "wide"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreCompressions",
+      "to": "compressionMethodsLength",
+      "facet": "value",
+      "sequence": 2,
+      "parameter": "held"
+    },
+    {
+      "kind": "decides",
+      "from": "moreCompressions",
+      "to": "evaluated.moreCompressions",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "compression",
+      "to": "moreCompressions"
+    },
+    {
+      "kind": "decode",
+      "from": "moreCompressions",
+      "to": "compression",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreCompressions",
+      "to": "extensionsLength",
+      "otherwise": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreExtensions",
+      "to": "extensionsLength",
+      "facet": "position",
+      "sequence": 0,
+      "parameter": "at"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreExtensions",
+      "to": "extensionsLength",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "wide"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreExtensions",
+      "to": "extensionsLength",
+      "facet": "value",
+      "sequence": 2,
+      "parameter": "held"
+    },
+    {
+      "kind": "decides",
+      "from": "moreExtensions",
+      "to": "evaluated.moreExtensions",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "extensionData",
+      "to": "moreExtensions"
+    },
+    {
+      "kind": "decode",
+      "from": "moreExtensions",
+      "to": "extensionType",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreExtensions",
+      "to": "done",
+      "otherwise": true
+    }
+  ]
+}

@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J), SNMPv2c (RFC 3416 over X.690 BER) |
-| **Authored but not yet built** | SSDP, TLS — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
+| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J), SNMPv2c (RFC 3416 over X.690 BER), TLS 1.2 hellos (RFC 5246) |
+| **Authored but not yet built** | SSDP — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -206,6 +206,27 @@ The same edge answers a fork *inside* a message where the octets are what decide
 `0xFF` that would otherwise read as an option header, so the reading looks at the next octet before
 committing to another option.
 
+**Where the deciding fact has already been read, use `decides` and read nothing.** A set with several
+`then` edges is a fork, each edge carrying its `key`; `decides` may point straight at a **field**, and its
+value is the answer with no expression at all. TLS's two hellos share a record header, a version, a random
+and a session id, then differ, then share an extensions block — and the fork asks the message-type field
+that was read four octets earlier. Both directions, one edge: going out, that field holds what the caller
+asked for.
+
+Both arms are inside what a length measures, so **each way on is `optional`** — the arm not taken has to
+say it is not there, or the span waits for ever on a member the walk stepped past.
+
+```json
+{ "kind": "decides", "from": "variant", "to": "messageType" },
+{ "kind": "then", "from": "variant", "to": "offered", "key": { "int": 1 }, "optional": true },
+{ "kind": "then", "from": "variant", "to": "chosen",  "key": { "int": 2 }, "optional": true }
+```
+
+What forks is a **shape**, not a value. TLS calls the client's field `cipher_suites` and the server's
+`cipher_suite`; one is a length and a list, the other is two octets. Reading the second with the first's
+description takes `0xc02f` as a length of 49199. Same rule that made MQTT's CONNECT and CONNACK packet
+types two nodes: **the test is the legal values**, and here the shapes differ as well.
+
 ## Sets, and what a length measures
 
 A set holds; it does not produce. Its extent is a fact about its members rather than something it computed
@@ -286,7 +307,23 @@ Each pass binds `item` and `ordinal`, so fields read their own by name: `item.ki
 dug out again in every field.
 
 Coming in, the reading goes round on a `decode` edge and finds out how many there were — by looking for a
-sentinel, by running out of octets, or by **counting**, where the wire says how many and nothing else does:
+sentinel, by running out of octets, by **spending a length**, or by **counting**, where the wire says how
+many and nothing else does.
+
+**Spending a length** is the common one, and it is three facts about the *same* field — where it sat, how
+wide it turned out to be, and what it said — because those are what fix where its span ends:
+
+```json
+{ "runs": "position < at + wide + held", "gives": "Bool",
+  "takes": { "at": "Int", "wide": "Int", "held": "Int" } }
+```
+
+That is a bounded region **in the middle** of a message, not at the end of one, so `remaining` will not do:
+what follows the last item is the next field, and the reading has to stop on exactly the right octet. It
+does not care whether the items are all one width — TLS spends sixteen octets on eight two-octet cipher
+suites and ninety-eight on nine extensions between four and eighteen, with the same expression.
+
+Counting is for where a length would not do:
 
 ```json
 { "id": "evaluated.moreQuestions", "kind": "evaluated", "runs": "ordinal + 1 < qdcount",
@@ -504,6 +541,7 @@ the node. `ConsistencyTests` pins them.
 | `MdnsCaptureTests` | a name — labels ending at a label of length zero — inside a run of questions ended by a count, and a description that says in its octets what it does not cover |
 | `BacnetCaptureTests` | three layers, a discriminator six octets in, and a value whose length is three bits of the octet before it |
 | `SnmpCaptureTests` | five nested lengths whose own widths depend on what they hold, and an OID as a run of base-128 arcs |
+| `TlsCaptureTests` | three nested lengths, one of them three octets wide; vectors spent rather than counted; two hellos forking on a field already read |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item, including a run inside a run — an inner list computed rather than handed over, and a place inside one reading the round of the run outside it |
 | `AbsenceTests` | the four questions |
