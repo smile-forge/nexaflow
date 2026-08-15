@@ -154,7 +154,10 @@ public static class ProtocolFile
         "default" => new Default
         {
             Id = id,
-            Value = Value(at["is"] ?? throw new ProtoTypeException($"default '{id}' assumes nothing")),
+            Value = at["is"] is { } assumed ? Value(assumed) : ProtoValue.Nothing,
+            Written = Bool(at["written"], false),
+            Omitted = Bool(at["omitted"], false),
+            Missing = Enum.Parse<WhenAbsent>(Text(at["missing"]) ?? nameof(WhenAbsent.Assumed), true),
             Because = Text(at["because"]) ?? "",
         },
 

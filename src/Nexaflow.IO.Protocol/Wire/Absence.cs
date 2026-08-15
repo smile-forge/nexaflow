@@ -79,6 +79,25 @@ public enum Casing
 /// way out.
 /// </para>
 /// </summary>
+/// <summary>What it means for a part to be missing.</summary>
+public enum WhenAbsent
+{
+    /// <summary>Ordinary. The part was allowed to be missing and is taken to have said its default.</summary>
+    Assumed,
+
+    /// <summary>
+    /// Malformed. The specification requires the part, so a message without it is not a short message —
+    /// it is not this message.
+    /// </summary>
+    /// <remarks>
+    /// Worth stating rather than leaving to the walk to notice. A required part that is simply not reached
+    /// makes a decode stop early and report what it managed to bind, which is the failure that reads as
+    /// success. Saying so here turns it into a refusal that names the part and cites where the rule comes
+    /// from.
+    /// </remarks>
+    Malformed,
+}
+
 public sealed class Default : Node
 {
     public required string Id { get; init; }
@@ -87,6 +106,39 @@ public sealed class Default : Node
 
     /// <summary>What the part is taken to have said.</summary>
     public required ProtoValue Value { get; init; }
+
+    /// <summary>
+    /// Whether the part is still written out when nothing else put it there.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, which is the self-consistent pair: an absent part is assumed coming in and written
+    /// going out by not writing it. On is for the protocols that require the field to be present carrying
+    /// its default — a reserved octet that must be zero rather than omitted — where leaving it out would
+    /// produce a shorter message than the specification allows.
+    /// </remarks>
+    public bool Written { get; init; }
+
+    /// <summary>
+    /// Whether the part is left out when what it would hold is already the default.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Real, and common: a protocol that says "omit the field when it is zero" is describing the shortest
+    /// legal encoding, not an optimisation a writer may take or leave.
+    /// </para>
+    /// <para>
+    /// <b>It is half a rule, and the other half is on the way in.</b> If a writer omits the default and a
+    /// reader also accepts it written out, then two different octet strings mean the same value and
+    /// value → octets is no longer injective — the round trip is broken for every message that takes the
+    /// long form. So this also makes the long form <i>malformed</i> coming in, which is the same law as a
+    /// varint that may not be padded. Saying only the first half is how a decoder ends up quietly
+    /// accepting what its own encoder would never produce.
+    /// </para>
+    /// </remarks>
+    public bool Omitted { get; init; }
+
+    /// <summary>Whether being missing is allowed at all.</summary>
+    public WhenAbsent Missing { get; init; } = WhenAbsent.Assumed;
 
     /// <summary>Where the specification says so. Not decoration: an assumption a reader cannot trace is
     /// indistinguishable from a guess the engine made.</summary>

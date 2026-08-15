@@ -221,8 +221,15 @@ public sealed class GraphCodec(ProtocolGraph graph,
                                 // ASSUMED coming in and written going out by not writing it. Anything else
                                 // makes absent and explicitly-default the same octets, and value → octets
                                 // stops being injective.
-                                if (Reading && codec.Graph.Assumed(place) is { } assumed)
-                                    appearance.Settle(Facet.Value, assumed.Value);
+                                if (codec.Graph.Assumed(place) is { } assumed)
+                                {
+                                    if (Reading && assumed.Missing == WhenAbsent.Malformed)
+                                        throw new ProtoTypeException(
+                                            $"'{place.Name}' is not there and has to be"
+                                          + (assumed.Because.Length == 0 ? "" : $" — {assumed.Because}"));
+
+                                    if (Reading) appearance.Settle(Facet.Value, assumed.Value);
+                                }
 
                                 // It contributed nothing, and says so rather than having no answer. A
                                 // length over a region holding it adds a real zero; asking an absent part
@@ -628,6 +635,17 @@ public sealed class GraphCodec(ProtocolGraph graph,
     private bool Asked(RunGraph run, RunNode appearance, Node place, bool reading, BitCursor? ahead)
         => graph.ProducerOf(place, "presence", reading) switch
         {
+            // A default that insists on being written makes the part present, however the question was
+            // going to be answered. It is the reserved-octet case: leaving it out is a shorter message
+            // than the specification allows, so "absent" is not one of the answers available.
+            _ when !reading && graph.Assumed(place) is { Written: true } => true,
+
+            // Going out, a part whose value is already the default is left out — the shortest legal
+            // encoding, where a protocol says so. What it would have held has to be worked out to answer
+            // that, which is the one place presence asks about a value rather than the other way round.
+            _ when !reading && graph.Assumed(place) is { Omitted: true } omits && place is Field field
+                => !ProtoValue.Alike(Produced(run, appearance, Produces(field)), omits.Value),
+
             null => true,
             Constant stated => stated.Holds.AsBool(),
             Evaluated evaluated =>
@@ -1052,6 +1070,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             appearance.Settle(Facet.Emitted, ProtoValue.Of(source.Since(began)));
 
             Vet(appearance, field, got);
+            Canonical(field, got);
             appearance.Settle(Facet.Value, got);
             return;
         }
@@ -1071,7 +1090,27 @@ public sealed class GraphCodec(ProtocolGraph graph,
         appearance.Settle(Facet.Emitted, ProtoValue.Of(octets));
 
         Vet(appearance, field, read);
+        Canonical(field, read);
         appearance.Settle(Facet.Value, read);
+    }
+
+    /// <summary>
+    /// Refuses the long form of something the protocol says to omit.
+    /// </summary>
+    /// <remarks>
+    /// The other half of <see cref="Default.Omitted"/>, and it is not optional politeness: without it a
+    /// value has two encodings, and every message taking the longer one comes back different from how it
+    /// arrived. Same law as a padded varint, refused for the same reason.
+    /// </remarks>
+    private void Canonical(Field field, ProtoValue value)
+    {
+        if (graph.Assumed(field) is not { Omitted: true } omits) return;
+        if (!ProtoValue.Alike(value, omits.Value)) return;
+
+        throw new ProtoTypeException(
+            $"'{field.Id}' is written out holding {value}, which is what it means when it is absent — so "
+          + "it should not be here at all. Accepting both would give one value two encodings"
+          + (omits.Because.Length == 0 ? "." : $": {omits.Because}"));
     }
 
 
