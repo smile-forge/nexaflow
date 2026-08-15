@@ -39,7 +39,8 @@ public class AbsenceTests
             { "id": "input.lead", "kind": "input", "as": "Lead", "gives": "Int" },
             { "id": "input.tail", "kind": "input", "as": "Tail", "gives": "Int" },
             { "id": "there",  "kind": "evaluated", "label": "is there more?", "runs": "remaining > 0", "gives": "Bool" },
-            { "id": "asked",  "kind": "evaluated", "label": "was one given?", "runs": "state.sending == 1", "gives": "Bool" },
+            { "id": "asked",  "kind": "evaluated", "label": "was one given?", "runs": "sending == 1", "gives": "Bool",
+              "takes": { "sending": "Int" } },
             { "id": "state.sending", "kind": "state", "as": "Sending", "gives": "Int" },
             {{absence}}
           ],
@@ -52,7 +53,8 @@ public class AbsenceTests
             { "kind": "computes", "from": "tail", "to": "input.tail", "facet": "value" },
             { "kind": "computes", "from": "tail", "to": "there", "facet": "presence", "reading": true },
             { "kind": "computes", "from": "tail", "to": "asked", "facet": "presence", "reading": false },
-            { "kind": "requires", "from": "asked", "to": "state.sending", "facet": "value", "sequence": 0 },
+            { "kind": "requires", "from": "asked", "to": "state.sending", "facet": "value", "sequence": 0,
+              "parameter": "sending" },
             { "kind": "assumes", "from": "tail", "to": "fallback" }
           ]
         }

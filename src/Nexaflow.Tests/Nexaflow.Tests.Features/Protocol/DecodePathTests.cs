@@ -133,7 +133,7 @@ public class DecodePathTests
                 { "id": "input.lead", "kind": "input", "as": "Lead", "gives": "Int" },
                 { "id": "input.tail", "kind": "input", "as": "Tail", "gives": "Int" },
                 { "id": "reads", "kind": "evaluated", "label": "what did the lead say?",
-                  "runs": "fields.lead.value", "gives": "Int" },
+                  "runs": "said", "gives": "Int", "takes": { "said": "Int" } },
                 { "id": "done", "kind": "end-parse" }
               ],
               "edges": [
@@ -147,7 +147,8 @@ public class DecodePathTests
                 { "kind": "decode", "from": "lead", "to": "done", "key": { "int": 255 } },
                 { "kind": "decode", "from": "lead", "to": "tail", "otherwise": true },
                 { "kind": "decides", "from": "lead", "to": "reads", "reading": true },
-                { "kind": "requires", "from": "reads", "to": "lead", "facet": "value", "sequence": 0 }
+                { "kind": "requires", "from": "reads", "to": "lead", "facet": "value", "sequence": 0,
+              "parameter": "said" }
               ]
             }
             """).Graph).Decode([0x01, 0x02]));
@@ -197,7 +198,8 @@ public class DecodePathTests
             { "id": "item", "kind": "field", "as": "Item",
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
             { "id": "input.item", "kind": "input", "as": "Item", "gives": "Int" },
-            { "id": "reads", "kind": "evaluated", "label": "what did it say?", "runs": "fields.item.value", "gives": "Int" },
+            { "id": "reads", "kind": "evaluated", "label": "what did it say?", "runs": "said", "gives": "Int",
+              "takes": { "said": "Int" } },
             { "id": "done", "kind": "end-parse" }
           ],
           "edges": [
@@ -209,7 +211,8 @@ public class DecodePathTests
             { "kind": "decode", "from": "item", "to": "done", "key": { "int": 0 } },
             { "kind": "decode", "from": "item", "to": "item", "otherwise": true },
             { "kind": "decides", "from": "item", "to": "reads", "reading": true },
-            { "kind": "requires", "from": "reads", "to": "item", "facet": "value", "sequence": 0 }
+            { "kind": "requires", "from": "reads", "to": "item", "facet": "value", "sequence": 0,
+              "parameter": "said" }
           ]
         }
         """;
@@ -229,7 +232,7 @@ public class DecodePathTests
             { "id": "input.lead", "kind": "input", "as": "Lead", "gives": "Int" },
             { "id": "input.tail", "kind": "input", "as": "Tail", "gives": "Int" },
             { "id": "reads", "kind": "evaluated", "label": "what did the lead say?",
-              "runs": "fields.lead.value", "gives": "Int" },
+              "runs": "said", "gives": "Int", "takes": { "said": "Int" } },
             { "id": "done", "kind": "end-parse" }
           ],
           "edges": [
@@ -244,7 +247,8 @@ public class DecodePathTests
             { "kind": "decode", "from": "lead", "to": "tail", "otherwise": true },
             { "kind": "decode", "from": "tail", "to": "done" },
             { "kind": "decides", "from": "lead", "to": "reads", "reading": true },
-            { "kind": "requires", "from": "reads", "to": "lead", "facet": "value", "sequence": 0 }
+            { "kind": "requires", "from": "reads", "to": "lead", "facet": "value", "sequence": 0,
+              "parameter": "said" }
           ]
         }
         """;

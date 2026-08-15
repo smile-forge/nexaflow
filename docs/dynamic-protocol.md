@@ -319,17 +319,40 @@ a value — `input`, `state`, `constant` — and three ways to change one:
 | `evaluated` | an expression, for arithmetic the converters do not have |
 | `coded` | code behind a name the host registered, for a library nothing else reaches |
 
-All three take their inputs from `requires` edges and can reach nothing else. A converter's **arguments are
-edges too** — `repeat` takes a `count`, `fit` a `width` and a `fill` — so an argument may be a constant, a
-field read a moment ago, or another calculation:
+All three take their inputs from `requires` edges and can reach nothing else, and **every input is a named
+parameter with a declared kind**:
 
 ```json
-{ "kind": "requires", "from": "made", "to": "zero", "sequence": 0 },
-{ "kind": "requires", "from": "made", "to": "n", "facet": "value", "sequence": 1, "parameter": "count" }
+{ "id": "evaluated.padding", "kind": "evaluated", "runs": "(4 - options % 4) % 4",
+  "takes": { "options": "Int" }, "gives": "Int" },
+{ "kind": "requires", "from": "evaluated.padding", "to": "options",
+  "facet": "extent", "parameter": "options", "sequence": 0 }
 ```
 
-Unnamed edges gather into the value in `sequence` order; a named one holds an argument. So one call can
-collect several values while a parameter stays fixed.
+**An expression never names a node id.** It reads its parameters; the edge says which node fills each and
+which fact about that node is wanted. Where a value comes from is stated once — the older form said it in
+the expression's path *and* on the edge, in two spellings that could drift and needed a check to keep
+agreeing. Which is also why a dotted id is no longer a hazard: there is nothing inside an expression that
+could spell one.
+
+A converter takes its **value** on unnamed edges (several gather into a list, in `sequence` order) and its
+**arguments** on named ones — `repeat` takes a `count`, `fit` a `width` and a `fill`. So an argument may be
+a constant, a field read a moment ago, or another calculation, and one call can collect several values
+while a parameter stays fixed.
+
+Four names an expression may read that no edge supplies, because they are facts about where the walk is
+rather than about any node: `item`, `ordinal`, `remaining`, `position`.
+
+**A list says what its items are**, so `item` is answerable too:
+
+```json
+{ "id": "input.subscriptions", "kind": "input", "gives": "List",
+  "of": { "filter": "Text", "qos": "Int" } }
+{ "id": "input.returnCodes", "kind": "input", "gives": "List", "of": "Int" }
+```
+
+A record shape types `item.filter`; a bare kind means `item` *is* the value, and asking it for a member is
+then the mistake.
 
 **A field may convert on its own**, with `"via"`, applied on the way out and inverted on the way in:
 DHCP's `yiaddr` is four octets on the wire and `192.168.0.10` to whoever sets it. `via` takes no arguments
@@ -348,13 +371,14 @@ the node. `ConsistencyTests` pins them.
 
 - **A node with no edges.** Two value sets shipped in MQTT this way, documenting return codes nothing
   checked.
-- **An expression naming what it has no edge to** — including asking for the wrong facet. This is where a
-  dotted set id goes: `sets.a.b.extent` is member access three deep, so a set called `a.b` cannot be
-  spelled, and used to evaluate to nothing rather than say so.
-- **An edge no expression reads**, which is a declaration that came adrift from what it was written for.
+- **An expression reading a name it does not take**, a parameter nothing fills, an edge that does not say
+  which parameter it fills, and a parameter the expression never reads.
+- **`item.<member>` where the list says items have no such member**, or `item` read whole where an item is
+  a record — the last name that was answerable to nothing.
 - **A kind that cannot go where it is put** — `Text` into a field that lays down an integer.
 - **A converter given a parameter it does not take**, or a `via` that needs one, or a `via` with no
   inverse.
+- **A kind that disagrees across a `requires` edge**, for expressions, code and converters alike.
 
 ## Rules of thumb when authoring
 
@@ -367,11 +391,6 @@ the node. `ConsistencyTests` pins them.
   instances of is a third, the one `identifies` reads.
 - **What two messages genuinely share is often a value, not a place.** A SUBSCRIBE's Packet Identifier and
   the SUBACK's that echoes it are two positions in two messages holding one token: two fields, one input.
-- **A field or set named in an expression must have a dot-free id.** `sets.connack.variableHeader.extent`
-  parses as nested member access, so a set whose id contains a dot cannot be reached by the only syntax
-  there is to reach it with. Refused when the protocol loads now, rather than quietly yielding nothing.
-  Ids of nodes nothing names in an expression — messages, packings, junctions, constants — may carry dots
-  freely.
 - **Describe the shape, not the catalogue.** RFC 9293 gives two option shapes — single octet, or
   kind-length-data — so a TCP option this file has never heard of round-trips. Enumerating known kinds
   refuses it.

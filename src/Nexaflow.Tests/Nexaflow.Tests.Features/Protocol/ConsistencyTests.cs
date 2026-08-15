@@ -69,58 +69,90 @@ public class ConsistencyTests
     // ── An expression sees its edges and nothing else ─────────────────────────
 
     [TestMethod]
-    public void An_expression_naming_what_it_has_no_edge_to_is_refused()
+    public void An_expression_reading_what_it_does_not_take_is_refused()
     {
-        // The one that cost the most. `sets.a.b.extent` is member access three deep, so a set whose id
-        // contains a dot cannot be spelled — and used to evaluate to nothing rather than say so.
+        // What used to be "a name with no edge", now impossible to write by accident: an expression names
+        // parameters, so there is no node id inside it to misspell. A name it never declared is all that
+        // is left, and it says so rather than evaluating to nothing.
         var refused = Refused(
             """
             { "id": "e", "kind": "evaluated", "label": "how wide?",
-                   "runs": "fields.ghost.extent", "gives": "Int" }
+              "runs": "ghost * 8", "gives": "Int" }
             """,
             """
             { "kind": "computes", "from": "n", "to": "e", "facet": "extent" }
             """);
 
-        StringAssert.Contains(refused.Message, "reads `fields.ghost.extent`");
-        StringAssert.Contains(refused.Message, "has no edge that gives it");
+        StringAssert.Contains(refused.Message, "reads `ghost`, which it does not take");
     }
 
     [TestMethod]
-    public void And_so_is_an_expression_asking_for_the_wrong_fact()
+    public void A_parameter_nothing_fills_is_refused()
     {
-        // An edge that says `extent` under an expression that reads `value` is the same defect wearing a
-        // spelling that looks right — and it silently measured a width instead of a number.
         var refused = Refused(
             """
-            { "id": "e", "kind": "evaluated", "label": "what does it hold?",
-                   "runs": "fields.n.value", "gives": "Int" },
-                 { "id": "other", "kind": "field", "as": "Other", "form": { "of": "opaque" } }
+            { "id": "e", "kind": "evaluated", "label": "how wide?", "runs": "count * 8",
+              "gives": "Int", "takes": { "count": "Int" } }
             """,
             """
-            { "kind": "then", "from": "n", "to": "other" },
-                 { "kind": "computes", "from": "other", "to": "e", "facet": "extent" },
-                 { "kind": "requires", "from": "e", "to": "n", "facet": "extent", "sequence": 0 }
+            { "kind": "computes", "from": "n", "to": "e", "facet": "extent" }
             """);
 
-        StringAssert.Contains(refused.Message, "fields.n.value");
+        StringAssert.Contains(refused.Message, "takes a 'count' and no edge fills it");
     }
 
     [TestMethod]
-    public void An_edge_the_expression_never_reads_is_refused()
+    public void A_parameter_the_expression_never_reads_is_refused()
     {
-        // The other direction: a declaration that came adrift from the expression it was written for, so
-        // the computation waits on a fact it no longer uses.
+        // The other direction: a declaration that came adrift from what it was written for, so the
+        // computation waits on a fact nobody reads.
         var refused = Refused(
             """
-            { "id": "e", "kind": "evaluated", "label": "always four", "runs": "4", "gives": "Int" }
+            { "id": "e", "kind": "evaluated", "label": "always four", "runs": "4",
+              "gives": "Int", "takes": { "count": "Int" } }
+            """,
+            """
+            { "kind": "computes", "from": "n", "to": "e", "facet": "extent" },
+                 { "kind": "requires", "from": "e", "to": "n", "facet": "value", "sequence": 0,
+                   "parameter": "count" }
+            """);
+
+        StringAssert.Contains(refused.Message, "takes a 'count' and never reads it");
+    }
+
+    [TestMethod]
+    public void An_edge_that_says_nothing_about_which_parameter_it_fills_is_refused()
+    {
+        var refused = Refused(
+            """
+            { "id": "e", "kind": "evaluated", "label": "how wide?", "runs": "count * 8",
+              "gives": "Int", "takes": { "count": "Int" } }
             """,
             """
             { "kind": "computes", "from": "n", "to": "e", "facet": "extent" },
                  { "kind": "requires", "from": "e", "to": "n", "facet": "value", "sequence": 0 }
             """);
 
-        StringAssert.Contains(refused.Message, "requires `fields.n.value` and never reads it");
+        StringAssert.Contains(refused.Message, "nothing says which of its parameters that fills");
+    }
+
+    [TestMethod]
+    public void A_parameter_handed_the_wrong_kind_is_refused()
+    {
+        // The check that only half ran until expressions declared what they take: an edge into an
+        // expression had no declared kind on the far end, so nothing compared them.
+        var refused = Refused(
+            """
+            { "id": "e", "kind": "evaluated", "label": "how wide?", "runs": "count * 8",
+              "gives": "Int", "takes": { "count": "Text" } }
+            """,
+            """
+            { "kind": "computes", "from": "n", "to": "e", "facet": "extent" },
+                 { "kind": "requires", "from": "e", "to": "n", "facet": "value", "sequence": 0,
+                   "parameter": "count" }
+            """);
+
+        StringAssert.Contains(refused.Message, "takes Text as its 'count', and is handed Int");
     }
 
     // ── A computation says what it gives ──────────────────────────────────────
@@ -202,6 +234,95 @@ public class ConsistencyTests
 
         CollectionAssert.AreEqual(new byte[] { 0x03, 0x00, 0x00, 0x00 }, octets,
             "three zeros, because the field before it said three");
+    }
+
+    [TestMethod]
+    public void A_converter_handed_the_wrong_kind_for_a_parameter_is_refused()
+    {
+        // Naming the parameter was only half of it. `repeat` takes a `count`, and until the table said
+        // what kind a count is, wiring a run of octets into it passed the check and failed inside the
+        // converter — which is the check reading as safety while the failure still happens.
+        var refused = Refused(
+            """
+            { "id": "fill", "kind": "field", "as": "Fill", "form": { "of": "opaque" } },
+                 { "id": "zero", "kind": "constant", "label": "a zero octet", "holds": { "hex": "00" } },
+                 { "id": "made", "kind": "converted", "applies": "repeat", "label": "n zeros" }
+            """,
+            """
+            { "kind": "then", "from": "n", "to": "fill" },
+                 { "kind": "computes", "from": "fill", "to": "made", "facet": "value" },
+                 { "kind": "requires", "from": "made", "to": "zero", "sequence": 0 },
+                 { "kind": "requires", "from": "made", "to": "n", "facet": "octets", "sequence": 1,
+                   "parameter": "count" }
+            """);
+
+        StringAssert.Contains(refused.Message, "takes Int as its 'count', and is handed Bytes");
+    }
+
+    // ── What one item is ──────────────────────────────────────────────────────
+
+    /// <summary>A run of one-octet entries, written once per item of whatever the list holds.</summary>
+    private static string Repeating(string list, string reads) => $$"""
+        {
+          "protocol": "entries",
+          "nodes": [
+            { "id": "p", "kind": "protocol" },
+            { "id": "m", "kind": "message" },
+            { "id": "a", "kind": "packing" },
+            { "id": "run", "kind": "set", "as": "the entries" },
+            { "id": "tag", "kind": "field", "as": "Tag",
+              "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
+            { "id": "input.entries", "kind": "input", "as": "Entries", "gives": "List"{{list}} },
+            { "id": "each", "kind": "evaluated", "label": "this entry", "runs": "{{reads}}",
+              "gives": "Int" }
+          ],
+          "edges": [
+            { "kind": "then", "from": "p", "to": "m" },
+            { "kind": "then", "from": "m", "to": "a" },
+            { "kind": "then", "from": "a", "to": "run" },
+            { "kind": "then", "from": "run", "to": "tag" },
+            { "kind": "holds", "from": "run", "to": "tag", "order": 0 },
+            { "kind": "requires", "from": "run", "to": "input.entries", "facet": "each", "sequence": 0 },
+            { "kind": "computes", "from": "tag", "to": "each", "facet": "value" }
+          ]
+        }
+        """;
+
+    [TestMethod]
+    public void A_list_that_does_not_say_what_an_item_is_is_refused()
+    {
+        // The last name answerable to nothing. `item` is bound by the repetition rather than by an edge,
+        // so until a list declared its items there was no way to be wrong about one — and `item.tag`
+        // against a list of bare numbers read as nothing, exactly the way a missing edge used to.
+        var refused = Assert.ThrowsExactly<ProtoTypeException>(
+            () => ProtocolFile.Read(Repeating("", "item.tag")));
+
+        StringAssert.Contains(refused.Message, "nothing says what an item is");
+    }
+
+    [TestMethod]
+    public void And_reading_a_member_the_items_do_not_have_is_refused()
+    {
+        var refused = Assert.ThrowsExactly<ProtoTypeException>(
+            () => ProtocolFile.Read(Repeating(", \"of\": { \"tag\": \"Int\" }", "item.size")));
+
+        StringAssert.Contains(refused.Message, "reads `item.size`");
+        StringAssert.Contains(refused.Message, "tag: Int");
+    }
+
+    [TestMethod]
+    public void A_list_of_bare_values_reads_the_item_whole()
+    {
+        // Not every list holds records. SUBACK's return codes are one octet each, so `item` IS the value
+        // and asking it for a member would be the mistake.
+        var written = ProtocolFile.Read(Repeating(", \"of\": \"Int\"", "item"));
+
+        var octets = new GraphCodec(written.Graph).Encode(new Dictionary<string, ProtoValue>
+        {
+            ["Entries"] = new ProtoValue.List([ProtoValue.Of(7), ProtoValue.Of(8), ProtoValue.Of(9)]),
+        });
+
+        CollectionAssert.AreEqual(new byte[] { 0x07, 0x08, 0x09 }, octets);
     }
 
     // ── A field's own conversion ──────────────────────────────────────────────

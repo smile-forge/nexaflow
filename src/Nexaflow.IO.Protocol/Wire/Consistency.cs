@@ -28,20 +28,22 @@ internal static class Consistency
     private static readonly HashSet<string> Bound =
         new(["item", "ordinal", "remaining", "position"], StringComparer.Ordinal);
 
-    /// <summary>Roots that name something an edge has to reach.</summary>
-    private static readonly HashSet<string> Reached =
-        new(["fields", "sets", "inputs", "state"], StringComparer.Ordinal);
-
     public static void Check(ProtocolGraph graph, IReadOnlyDictionary<string, Node> named,
                              ConverterTable converters)
     {
         Connected(graph);
 
+
         foreach (var node in graph.Nodes)
         {
             switch (node)
             {
-                case Evaluated evaluated: Reaches(graph, named, evaluated); break;
+                case Evaluated evaluated:
+                    Parameters(graph, evaluated, evaluated.Runs, converters);
+                    Items(graph, evaluated, evaluated.Runs);
+                    break;
+
+                case Coded custom: Parameters(graph, custom, null, converters); break;
                 case Converted applied: Arguments(graph, converters, applied); break;
                 case Field { Via: not null } field: Conversion(converters, field); break;
             }
@@ -74,130 +76,133 @@ internal static class Consistency
               + "reads the same either way.");
     }
 
-    // ── An expression sees its edges and nothing else ─────────────────────────
+    // ── An expression sees its parameters and nothing else ────────────────────
 
     /// <summary>
-    /// What an expression names, and what its edges give it, are the same set.
+    /// What an expression names and what it declares it takes are the same set, and every parameter is
+    /// filled by exactly one edge.
     /// </summary>
     /// <remarks>
-    /// Both directions. A name with no edge is the failure that evaluates to nothing; an edge no name uses
-    /// is a declaration that has come adrift from the expression it was written for, which is how a
-    /// computation ends up waiting on a facet it no longer reads.
+    /// <para>
+    /// This used to compare the paths inside the expression against the edges beside it, because where a
+    /// value came from was said in both places. Now it is said once — the expression reads a parameter,
+    /// the edge fills it — so what is left to check is that the two agree about the parameter's NAME, and
+    /// that a kind which cannot go there does not.
+    /// </para>
+    /// <para>
+    /// Both directions still. A name with no parameter is what used to evaluate to nothing; a parameter no
+    /// name uses is a declaration that has come adrift from what it was written for, and something waits
+    /// on a fact nobody reads.
+    /// </para>
     /// </remarks>
-    private static void Reaches(ProtocolGraph graph, IReadOnlyDictionary<string, Node> named,
-                                Evaluated evaluated)
+    private static void Parameters(ProtocolGraph graph, Computation computation, Expr? runs,
+                                   ConverterTable converters)
     {
-        var wanted = Named(evaluated.Runs);
+        HashSet<string> filled = new(StringComparer.Ordinal);
 
-        HashSet<string> supplied = new(StringComparer.Ordinal);
-
-        foreach (var edge in graph.InputsOf(evaluated))
+        foreach (var edge in graph.InputsOf(computation))
         {
-            string root = edge.To switch
-            {
-                Context.Input => "inputs",
-                Context.State => "state",
-                FieldSet => "sets",
-                _ => "fields",
-            };
+            if (edge.Parameter is not { } parameter)
+                throw new ProtoTypeException(
+                    $"'{computation.Name}' is given '{edge.To.Name}' and nothing says which of its "
+                  + "parameters that fills. Everything an expression reads is a parameter it declares.");
 
-            // An outside value is reached whole; a part of the message is asked for one fact about it, and
-            // which fact is what the edge says.
-            supplied.Add(root is "inputs" or "state"
-                ? $"{root}.{Plainly(edge.To.Name)}"
-                : $"{root}.{edge.To.Name}.{Settles(edge.Facet)}");
+            if (!computation.Takes.TryGetValue(parameter, out var takes))
+                throw new ProtoTypeException(
+                    $"'{computation.Name}' is given a '{parameter}', which it does not take. It takes: "
+                  + (computation.Takes.Count == 0
+                        ? "nothing" : string.Join(", ", computation.Takes.Keys.Order())));
+
+            if (!filled.Add(parameter))
+                throw new ProtoTypeException(
+                    $"'{computation.Name}' is given two edges for '{parameter}'");
+
+            var gives = Supplies(edge, converters);
+
+            if (gives != ValueKinds.Any && (takes & gives) == 0)
+                throw new ProtoTypeException(
+                    $"'{computation.Name}' takes {takes} as its '{parameter}', and is handed {gives} by "
+                  + $"'{edge.To.Name}'. Both ends of an edge have to agree about the kind of value on it.");
         }
 
-        foreach (var name in wanted)
-            if (!supplied.Contains(name))
+        foreach (var parameter in computation.Takes.Keys)
+            if (!filled.Contains(parameter))
                 throw new ProtoTypeException(
-                    $"'{evaluated.Name}' reads `{name}` and has no edge that gives it. An expression sees "
-                  + "exactly what its own edges supply, so this one evaluates to nothing — and a length "
-                  + $"measuring nothing fails somewhere else entirely. It runs: {evaluated.Runs.Render()}");
+                    $"'{computation.Name}' takes a '{parameter}' and no edge fills it");
 
-        foreach (var name in supplied)
-            if (!wanted.Contains(name))
-                throw new ProtoTypeException(
-                    $"'{evaluated.Name}' requires `{name}` and never reads it. It runs: "
-                  + $"{evaluated.Runs.Render()}");
+        if (runs is null) return;
 
-        // And what it names has to be there — a check the edge already made, kept here because the message
-        // is about the expression rather than about an edge somebody would then go looking for.
-        foreach (var name in wanted.Where(n => n.StartsWith("fields.", StringComparison.Ordinal)))
-            if (!named.ContainsKey(name.Split('.')[1]))
-                throw new ProtoTypeException($"'{evaluated.Name}' reads `{name}`, and no node is called that");
-    }
-
-    /// <summary>
-    /// Every path an expression reads that an edge would have to supply, as <c>root.name.facet</c>.
-    /// </summary>
-    /// <remarks>
-    /// <b>An id with a dot in it cannot be spelled here.</b> <c>sets.a.b.extent</c> is member access three
-    /// deep, so a set called <c>a.b</c> is unreachable by the only syntax there is to reach it with — which
-    /// is why this yields <c>sets.a.b</c> and the edge check then refuses it by name, instead of the
-    /// expression quietly finding nothing.
-    /// </remarks>
-    private static HashSet<string> Named(Expr runs)
-    {
-        HashSet<string> found = new(StringComparer.Ordinal);
         var free = runs.FreeRootNames();
 
-        // The whole chain, not every prefix of it. `sets.header.extent` contains `sets.header` as a
-        // sub-expression, and counting that too asks for a fact nobody named.
-        HashSet<Expr> inner = [.. runs.Descendants().OfType<Expr.Member>().Select(m => m.Target)];
+        foreach (var name in free)
+            if (!computation.Takes.ContainsKey(name) && !Bound.Contains(name))
+                throw new ProtoTypeException(
+                    $"'{computation.Name}' reads `{name}`, which it does not take. An expression sees its "
+                  + "own parameters and the four the walk binds — item, ordinal, remaining, position — and "
+                  + $"nothing else. It runs: {runs.Render()}");
 
-        foreach (var member in runs.Descendants().OfType<Expr.Member>())
-        {
-            if (inner.Contains(member)) continue;
-            if (Bottom(member) is not { } root || !Reached.Contains(root.Name)) continue;
-            if (!free.Contains(root.Name)) continue;
-
-            var path = Path(member);
-
-            // `inputs.x` and `state.x` are whole; `fields.x` and `sets.x` are asked for a particular fact,
-            // and which fact is what the edge says.
-            found.Add(root.Name is "inputs" or "state"
-                ? string.Join('.', path.Take(2))
-                : string.Join('.', path.Take(3)));
-        }
-
-        return found;
+        foreach (var parameter in computation.Takes.Keys)
+            if (!free.Contains(parameter))
+                throw new ProtoTypeException(
+                    $"'{computation.Name}' takes a '{parameter}' and never reads it. It runs: "
+                  + runs.Render());
     }
 
-    private static Expr.Root? Bottom(Expr at) => at switch
+    /// <summary>
+    /// What an expression reads of the item it is written once per, against what an item turned out to be.
+    /// </summary>
+    /// <remarks>
+    /// The last name that was not answerable to anything. A set written once per item binds <c>item</c>,
+    /// and until a list said what its items look like, <c>item.filter</c> was a member of a record nobody
+    /// had described — so a typo in it read as nothing, exactly the way a missing edge used to.
+    /// </remarks>
+    private static void Items(ProtocolGraph graph, Computation computation, Expr runs)
     {
-        Expr.Root root => root,
-        Expr.Member member => Bottom(member.Target),
-        _ => null,
-    };
+        var reads = runs.Descendants().OfType<Expr.Member>()
+                        .Where(m => m.Target is Expr.Root { Name: "item" })
+                        .Select(m => m.Name)
+                        .ToList();
 
-    private static List<string> Path(Expr at)
-    {
-        List<string> parts = [];
+        bool bare = runs.FreeRootNames().Contains("item")
+                 && runs.Descendants().OfType<Expr.Root>().Any(r => r.Name == "item")
+                 && reads.Count == 0;
 
-        for (var here = at; here is not null;)
-            switch (here)
-            {
-                case Expr.Member member: parts.Insert(0, member.Name); here = member.Target; break;
-                case Expr.Root root: parts.Insert(0, root.Name); here = null; break;
-                default: here = null; break;
-            }
+        if (reads.Count == 0 && !bare) return;
 
-        return parts;
+        if (Element(graph, computation) is not { } of)
+            throw new ProtoTypeException(
+                $"'{computation.Name}' reads `item`, and nothing says what an item is. The list a set is "
+              + "written once per item of has to declare its items with `of`.");
+
+        if (bare && of.Members is not null)
+            throw new ProtoTypeException(
+                $"'{computation.Name}' reads `item` whole, and an item here is {of}");
+
+        foreach (var member in reads)
+            if (of.Members is null || !of.Members.ContainsKey(member))
+                throw new ProtoTypeException(
+                    $"'{computation.Name}' reads `item.{member}`, and an item here is {of}");
     }
 
-    /// <summary>The name an expression reaches a node by, less the kind that prefixes its id.</summary>
-    private static string Plainly(string name)
-        => name.StartsWith("input.", StringComparison.Ordinal) ? name["input.".Length..]
-         : name.StartsWith("state.", StringComparison.Ordinal) ? name["state.".Length..]
-         : name;
-
-    /// <summary>What an expression calls the fact an edge asks for.</summary>
-    private static string Settles(string facet) => facet switch
+    /// <summary>What one item is, for the repetition this computation is written inside.</summary>
+    /// <remarks>
+    /// Found by asking what the computation produces a fact for, then which repeating set holds that —
+    /// the same question the run asks when it binds <c>item</c>, so the two cannot answer differently.
+    /// </remarks>
+    private static Shape? Element(ProtocolGraph graph, Computation computation)
     {
-        "emitted" => "octets",
-        var other => other,
-    };
+        if (graph.To<Computes>(computation).FirstOrDefault()?.From is not { } owner) return null;
+
+        foreach (var set in graph.Nodes.OfType<FieldSet>())
+            if (graph.Repeating(set) is { } over && Under(graph, set, owner))
+                return (over.To as Computation)?.Of;
+
+        return null;
+    }
+
+    private static bool Under(ProtocolGraph graph, Node set, Node place)
+        => graph.Members(set).Any(m => ReferenceEquals(m, place)
+                                    || (m is FieldSet inner && Under(graph, inner, place)));
 
     // ── Converters get what they take ─────────────────────────────────────────
 
@@ -211,7 +216,7 @@ internal static class Consistency
 
         foreach (var edge in graph.InputsOf(applied).Where(e => e.Parameter is not null))
         {
-            if (!converter.Parameters.Contains(edge.Parameter!, StringComparer.Ordinal))
+            if (!converter.Parameters.Any(x => x.Name == edge.Parameter))
                 throw new ProtoTypeException(
                     $"'{applied.Name}' is given a '{edge.Parameter}', which '{converter.Name}' does not "
                   + "take. It takes: "
@@ -222,6 +227,14 @@ internal static class Consistency
             if (!given.Add(edge.Parameter!))
                 throw new ProtoTypeException(
                     $"'{applied.Name}' is given two edges for '{edge.Parameter}'");
+
+            var takes = converter.Parameters.First(x => x.Name == edge.Parameter).Kind;
+            var gives = Supplies(edge, converters);
+
+            if (gives != ValueKinds.Any && (takes & gives) == 0)
+                throw new ProtoTypeException(
+                    $"'{converter.Name}' takes {takes} as its '{edge.Parameter}', and is handed {gives} by "
+                  + $"'{edge.To.Name}'. Both ends of an edge have to agree about the kind of value on it.");
         }
     }
 

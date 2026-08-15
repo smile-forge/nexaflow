@@ -151,7 +151,7 @@ public static class ProtocolFile
         "evaluated" => Evaluating(
             Expr.Parse(Text(at["runs"]) ?? throw new ProtoTypeException($"'{id}' evaluates nothing")),
             Text(at["label"]) ?? id,
-            Gives(at, id)),
+            Gives(at, id), Takes(at, id), Of(at, id)),
 
         "converted" => new Converted
         {
@@ -172,6 +172,8 @@ public static class ProtocolFile
             Wants = [],
             Source = Expr.Parse("0"),
             Gives = Gives(at, id),
+            Takes = Takes(at, id),
+            Of = Of(at, id),
         },
 
         "default" => new Default
@@ -220,14 +222,65 @@ public static class ProtocolFile
         string? called = Text(at["as"]);
         var gives = Gives(at, id);
 
+        var of = Of(at, id);
+
         return kind == "state"
-            ? new Context.State { Label = id, As = called, Purpose = purpose, Wants = [], Gives = gives }
-            : new Context.Input { Label = id, As = called, Purpose = purpose, Wants = [], Gives = gives };
+            ? new Context.State { Label = id, As = called, Purpose = purpose, Wants = [],
+                                  Gives = gives, Of = of }
+            : new Context.Input { Label = id, As = called, Purpose = purpose, Wants = [],
+                                  Gives = gives, Of = of };
     }
 
     /// <summary>An <see cref="Evaluated"/> whose wants are recovered from the expression it runs.</summary>
-    private static Evaluated Evaluating(Expr runs, string label, ValueKinds gives)
-        => new() { Runs = runs, Label = label, Wants = [], Source = runs, Gives = gives };
+    private static Evaluated Evaluating(Expr runs, string label, ValueKinds gives,
+                                        IReadOnlyDictionary<string, ValueKinds> takes, Shape? of)
+        => new() { Runs = runs, Label = label, Wants = [], Source = runs,
+                   Gives = gives, Takes = takes, Of = of };
+
+    /// <summary>
+    /// What a computation takes, by name, and what kind may go there.
+    /// </summary>
+    /// <remarks>
+    /// An expression reads these as bare names, and an edge says which node fills each — so the expression
+    /// never names a node id, and where a value comes from is stated once rather than in two spellings
+    /// that have to be kept agreeing.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, ValueKinds> Takes(JsonObject at, string id)
+    {
+        Dictionary<string, ValueKinds> takes = new(StringComparer.Ordinal);
+
+        foreach (var (name, kind) in at["takes"]?.AsObject() ?? [])
+            takes[name] = Kinds(Text(kind), $"'{id}' takes '{name}'");
+
+        return takes;
+    }
+
+    /// <summary>What one item of a list is, where what this gives is a list.</summary>
+    private static Shape? Of(JsonObject at, string id)
+    {
+        if (at["of"] is not { } said) return null;
+
+        if (said is JsonObject members)
+        {
+            Dictionary<string, ValueKinds> each = new(StringComparer.Ordinal);
+
+            foreach (var (name, kind) in members)
+                each[name] = Kinds(Text(kind), $"'{id}' has items whose '{name}'");
+
+            return new Shape(ValueKinds.Record, each);
+        }
+
+        return new Shape(Kinds(Text(said), $"'{id}' has items that"));
+    }
+
+    private static ValueKinds Kinds(string? said, string whose)
+        => said is not null
+        && Enum.TryParse<ValueKinds>(said, ignoreCase: true, out var kind) && kind != ValueKinds.None
+            ? kind
+            : throw new ProtoTypeException(
+                  $"{whose} is '{said}', which is not a kind of value. They are: "
+                + string.Join(", ", Enum.GetNames<ValueKinds>()
+                                        .Where(n => n is not ("None" or "Any" or "Numeric"))));
 
     /// <summary>
     /// The kind of value a computation answers with, which it has to say.
@@ -240,12 +293,7 @@ public static class ProtocolFile
     /// </remarks>
     private static ValueKinds Gives(JsonObject at, string id)
         => Text(at["gives"]) is { } said
-            ? Enum.TryParse<ValueKinds>(said, ignoreCase: true, out var kind) && kind != ValueKinds.None
-                ? kind
-                : throw new ProtoTypeException(
-                      $"'{id}' says it gives '{said}', which is not a kind of value. They are: "
-                    + string.Join(", ", Enum.GetNames<ValueKinds>()
-                                            .Where(n => n is not ("None" or "Any" or "Numeric"))))
+            ? Kinds(said, $"'{id}' says it gives")
             : throw new ProtoTypeException(
                   $"'{id}' does not say what kind of value it gives. Both ends of an edge have to agree "
                 + "about that, and a kind nobody stated agrees with everything — which is a check that "

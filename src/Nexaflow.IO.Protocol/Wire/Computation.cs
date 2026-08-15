@@ -39,6 +39,18 @@ public readonly record struct Need(string Name, string Facet, Origin From)
 }
 
 /// <summary>
+/// What one item of a list is: a kind, or a record and the kind of each of its members.
+/// </summary>
+/// <param name="Kind">What an item is — <see cref="Converters.ValueKinds.Record"/> where it has members.</param>
+/// <param name="Members">Each member and its kind, for a record.</param>
+public sealed record Shape(Converters.ValueKinds Kind,
+                           IReadOnlyDictionary<string, Converters.ValueKinds>? Members = null)
+{
+    public override string ToString()
+        => Members is null ? Kind.ToString() : "{ " + string.Join(", ", Members.Select(m => $"{m.Key}: {m.Value}")) + " }";
+}
+
+/// <summary>
 /// Something that takes inputs and produces one value.
 ///
 /// <para>
@@ -77,6 +89,34 @@ public abstract class Computation : Node
     /// </para>
     /// </remarks>
     public Converters.ValueKinds Gives { get; init; } = Converters.ValueKinds.Any;
+
+    /// <summary>
+    /// What it takes, by the name it knows each one by, and the kind that may go there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An expression reads its parameters as bare names — <c>count * 8</c>, not
+    /// <c>fields.count.value * 8</c> — and an edge says which node fills each. That removes a duplication
+    /// rather than adding a declaration: the older form said where a value came from <b>twice</b>, once in
+    /// the expression's path and once on the edge, in two spellings that could drift and needed a check to
+    /// keep honest. It also means an expression never names a node id, so which nodes exist and what they
+    /// are called stops being something an expression can be wrong about.
+    /// </para>
+    /// <para>
+    /// Empty for a constant and for a value from outside, which take nothing and answer with what they
+    /// were given.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyDictionary<string, Converters.ValueKinds> Takes { get; init; } =
+        new Dictionary<string, Converters.ValueKinds>(StringComparer.Ordinal);
+
+    /// <summary>What the items of the list look like, where what this gives is a list.</summary>
+    /// <remarks>
+    /// The last untyped hole. A set written once per item binds <c>item</c> each time round, and until this
+    /// existed nothing said what an item was — so <c>item.filter</c> was a member of a record nobody had
+    /// described, and neither its presence nor its kind could be checked.
+    /// </remarks>
+    public Shape? Of { get; init; }
 
     /// <summary>Where it sits, for diagnostics — the owning node and what this computes for it.</summary>
     public required string Label { get; init; }

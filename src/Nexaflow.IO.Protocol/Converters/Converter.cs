@@ -92,6 +92,20 @@ public sealed record Converter(
                summary);
 
     /// <summary>
+    /// One argument a converter takes besides the value it works on: what it is called, and what kind of
+    /// value may go there.
+    /// </summary>
+    /// <remarks>
+    /// Both halves are needed and for a while only the first was. A name alone checks that <c>repeat</c>
+    /// takes a <c>count</c> and never that the count is a number — which is the check reading as safety
+    /// while the failure it was meant to catch still happens, one layer further in.
+    /// </remarks>
+    public readonly record struct Parameter(string Name, ValueKinds Kind)
+    {
+        public override string ToString() => $"{Name}: {Kind}";
+    }
+
+    /// <summary>
     /// What this takes besides the value it converts, in order, by name.
     /// </summary>
     /// <remarks>
@@ -108,7 +122,7 @@ public sealed record Converter(
     /// is refused rather than ignored.
     /// </para>
     /// </remarks>
-    public IReadOnlyList<string> Parameters { get; init; } = [];
+    public IReadOnlyList<Parameter> Parameters { get; init; } = [];
 
     public bool IsImplemented => !ReferenceEquals(Apply, null) && Summary.Length > 0;
 

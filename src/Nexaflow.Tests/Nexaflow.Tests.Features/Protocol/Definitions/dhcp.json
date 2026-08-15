@@ -316,29 +316,41 @@
       "id": "evaluated.hlen",
       "kind": "evaluated",
       "label": "octets of hardware address",
-      "runs": "fields.hardwareAddress.extent",
-      "gives": "Int"
+      "runs": "hardwareAddressExtent",
+      "gives": "Int",
+      "takes": {
+        "hardwareAddressExtent": "Int"
+      }
     },
     {
       "id": "evaluated.chaddrExtent",
       "kind": "evaluated",
       "label": "octets of hardware address, from hlen",
-      "runs": "fields.hlen.value",
-      "gives": "Int"
+      "runs": "hlen",
+      "gives": "Int",
+      "takes": {
+        "hlen": "Int"
+      }
     },
     {
       "id": "evaluated.chaddrPad",
       "kind": "evaluated",
       "label": "the zeros after the hardware address",
-      "runs": "repeat(unhex('00'), 16 - fields.hardwareAddress.extent)",
-      "gives": "Bytes"
+      "runs": "repeat(unhex('00'), 16 - hardwareAddressExtent)",
+      "gives": "Bytes",
+      "takes": {
+        "hardwareAddressExtent": "Int"
+      }
     },
     {
       "id": "evaluated.chaddrPadExtent",
       "kind": "evaluated",
       "label": "octets of fill, from hlen",
-      "runs": "16 - fields.hlen.value",
-      "gives": "Int"
+      "runs": "16 - hlen",
+      "gives": "Int",
+      "takes": {
+        "hlen": "Int"
+      }
     },
     {
       "id": "sname",
@@ -386,15 +398,21 @@
       "id": "evaluated.sname",
       "kind": "evaluated",
       "label": "the server host name, in its sixty-four octets",
-      "runs": "fit(inputs.sname, 64)",
-      "gives": "Bytes"
+      "runs": "fit(sname, 64)",
+      "gives": "Bytes",
+      "takes": {
+        "sname": "Bytes"
+      }
     },
     {
       "id": "evaluated.file",
       "kind": "evaluated",
       "label": "the boot file name, in its hundred and twenty-eight",
-      "runs": "fit(inputs.file, 128)",
-      "gives": "Bytes"
+      "runs": "fit(file, 128)",
+      "gives": "Bytes",
+      "takes": {
+        "file": "Bytes"
+      }
     },
     {
       "id": "magicCookie",
@@ -527,22 +545,32 @@
       "id": "evaluated.optionShape",
       "kind": "evaluated",
       "label": "which shape of option is this?",
-      "runs": "fields.optionCode.value == 0 ? 0 : (fields.optionCode.value == 255 ? 2 : 1)",
-      "gives": "Int"
+      "runs": "optionCode == 0 ? 0 : (optionCode == 255 ? 2 : 1)",
+      "gives": "Int",
+      "takes": {
+        "optionCode": "Int"
+      }
     },
     {
       "id": "evaluated.isCounted",
       "kind": "evaluated",
       "label": "does this option carry a length?",
-      "runs": "fields.optionCode.value != 0 && fields.optionCode.value != 255",
-      "gives": "Bool"
+      "runs": "optionCode != 0 && optionCode != 255",
+      "gives": "Bool",
+      "takes": {
+        "optionCode": "Int"
+      }
     },
     {
       "id": "input.options",
       "kind": "input",
       "as": "Options",
       "purpose": "The options to write, in order, ending with the END option. Each item says its `code` and, where its shape has one, its `value`.",
-      "gives": "List"
+      "gives": "List",
+      "of": {
+        "code": "Int",
+        "value": "Bytes"
+      }
     },
     {
       "id": "evaluated.eachCode",
@@ -562,15 +590,21 @@
       "id": "evaluated.optionLength",
       "kind": "evaluated",
       "label": "octets of value",
-      "runs": "fields.optionValue.extent",
-      "gives": "Int"
+      "runs": "optionValueExtent",
+      "gives": "Int",
+      "takes": {
+        "optionValueExtent": "Int"
+      }
     },
     {
       "id": "evaluated.optionValueExtent",
       "kind": "evaluated",
       "label": "octets of value, from the length",
-      "runs": "fields.optionLength.value",
-      "gives": "Int"
+      "runs": "optionLength",
+      "gives": "Int",
+      "takes": {
+        "optionLength": "Int"
+      }
     },
     {
       "id": "trailer",
@@ -598,15 +632,25 @@
       "id": "evaluated.trailer",
       "kind": "evaluated",
       "label": "zeros to the three-hundred-octet minimum",
-      "runs": "repeat(unhex('00'), 300 - sets.bootp.extent - fields.magicCookie.extent - sets.options.extent)",
-      "gives": "Bytes"
+      "runs": "repeat(unhex('00'), 300 - bootpExtent - magicCookieExtent - optionsExtent)",
+      "gives": "Bytes",
+      "takes": {
+        "magicCookieExtent": "Int",
+        "optionsExtent": "Int",
+        "bootpExtent": "Int"
+      }
     },
     {
       "id": "evaluated.hasTrailer",
       "kind": "evaluated",
       "label": "is any fill needed?",
-      "runs": "300 - sets.bootp.extent - fields.magicCookie.extent - sets.options.extent > 0",
-      "gives": "Bool"
+      "runs": "300 - bootpExtent - magicCookieExtent - optionsExtent > 0",
+      "gives": "Bool",
+      "takes": {
+        "magicCookieExtent": "Int",
+        "optionsExtent": "Int",
+        "bootpExtent": "Int"
+      }
     },
     {
       "id": "evaluated.trailerRead",
@@ -715,7 +759,8 @@
       "from": "evaluated.hlen",
       "to": "hardwareAddress",
       "facet": "extent",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "hardwareAddressExtent"
     },
     {
       "kind": "computes",
@@ -728,7 +773,8 @@
       "from": "evaluated.chaddrExtent",
       "to": "hlen",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "hlen"
     },
     {
       "kind": "computes",
@@ -742,7 +788,8 @@
       "from": "evaluated.chaddrPad",
       "to": "hardwareAddress",
       "facet": "extent",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "hardwareAddressExtent"
     },
     {
       "kind": "computes",
@@ -755,7 +802,8 @@
       "from": "evaluated.chaddrPadExtent",
       "to": "hlen",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "hlen"
     },
     {
       "kind": "computes",
@@ -769,7 +817,8 @@
       "from": "evaluated.sname",
       "to": "input.sname",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "sname"
     },
     {
       "kind": "computes",
@@ -782,7 +831,8 @@
       "from": "evaluated.file",
       "to": "input.file",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "file"
     },
     {
       "kind": "computes",
@@ -1137,7 +1187,8 @@
       "from": "evaluated.optionShape",
       "to": "optionCode",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "optionCode"
     },
     {
       "kind": "decides",
@@ -1149,7 +1200,8 @@
       "from": "evaluated.isCounted",
       "to": "optionCode",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "optionCode"
     },
     {
       "kind": "computes",
@@ -1181,7 +1233,8 @@
       "from": "evaluated.optionLength",
       "to": "optionValue",
       "facet": "extent",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "optionValueExtent"
     },
     {
       "kind": "computes",
@@ -1194,7 +1247,8 @@
       "from": "evaluated.optionValueExtent",
       "to": "optionLength",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "optionLength"
     },
     {
       "kind": "computes",
@@ -1223,21 +1277,24 @@
       "from": "evaluated.trailer",
       "to": "bootp",
       "facet": "extent",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "bootpExtent"
     },
     {
       "kind": "requires",
       "from": "evaluated.trailer",
       "to": "magicCookie",
       "facet": "extent",
-      "sequence": 1
+      "sequence": 1,
+      "parameter": "magicCookieExtent"
     },
     {
       "kind": "requires",
       "from": "evaluated.trailer",
       "to": "options",
       "facet": "extent",
-      "sequence": 2
+      "sequence": 2,
+      "parameter": "optionsExtent"
     },
     {
       "kind": "computes",
@@ -1250,21 +1307,24 @@
       "from": "evaluated.hasTrailer",
       "to": "bootp",
       "facet": "extent",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "bootpExtent"
     },
     {
       "kind": "requires",
       "from": "evaluated.hasTrailer",
       "to": "magicCookie",
       "facet": "extent",
-      "sequence": 1
+      "sequence": 1,
+      "parameter": "magicCookieExtent"
     },
     {
       "kind": "requires",
       "from": "evaluated.hasTrailer",
       "to": "options",
       "facet": "extent",
-      "sequence": 2
+      "sequence": 2,
+      "parameter": "optionsExtent"
     },
     {
       "kind": "computes",

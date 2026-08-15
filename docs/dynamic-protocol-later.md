@@ -145,11 +145,9 @@ standing in for something else.
 - **A per-connection layering seam.** `Subprotocol` hangs off a field, so "everything after this on this
   connection is another protocol" can only be said by making the switched stream a trailing field. Works;
   wants WebSocket-after-upgrade to show the right shape.
-- **Kind checking is real only where both ends declare.** A field's form implies one, constants know
-  theirs, converters state both sides, and computations now say. What is *not* checked is an edge into an
-  `evaluated`: an expression has no declared kind per input, so nothing compares them. Making that real
-  means expressions taking named parameters rather than reading roots, which is a bigger change than it
-  looks — all 67 of them are written the other way.
+- **Nothing type-checks an expression's INTERIOR.** Every edge into one is checked now, and what it gives
+  is declared — but `count + 'x'` inside the body is still a run-time failure. That is a type checker for
+  the expression language, which is a different thing from the edge rule and was not what was missing.
 - **`Contains` and `allowed` edges are read by almost nothing.** `allowed` in particular means "what may
   turn up in this span" and the walk never consults it — repetition went the `requires … "each"` route
   instead. Either wire it up or delete it.

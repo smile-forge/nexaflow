@@ -621,10 +621,10 @@ public sealed class GraphCodec(ProtocolGraph graph,
         }, arguments[..filled]);
     }
 
-    private static int IndexIn(IReadOnlyList<string> names, string name)
+    private static int IndexIn(IReadOnlyList<Converter.Parameter> declared, string name)
     {
-        for (int at = 0; at < names.Count; at++)
-            if (string.Equals(names[at], name, StringComparison.Ordinal)) return at;
+        for (int at = 0; at < declared.Count; at++)
+            if (string.Equals(declared[at].Name, name, StringComparison.Ordinal)) return at;
 
         return -1;
     }
@@ -1273,65 +1273,31 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </summary>
     private EvalScope Given(RunGraph run, RunNode here, Computation computation, BitCursor? ahead = null)
     {
-        Dictionary<string, ProtoValue> parts = new(StringComparer.Ordinal);
-        Dictionary<string, ProtoValue> outside = new(StringComparer.Ordinal);
-        Dictionary<string, ProtoValue> spans = new(StringComparer.Ordinal);
-        Dictionary<string, ProtoValue> kept = new(StringComparer.Ordinal);
+        var scope = new EvalScope();
 
+        // Its parameters, by the names it knows them by. An expression reads `count`, and this edge says
+        // which node fills it and which fact about that node is wanted — one statement of where the value
+        // comes from, rather than a path inside the expression and an edge beside it that have to agree.
         foreach (var wanted in graph.InputsOf(computation))
-            switch (wanted.To)
+        {
+            if (wanted.Parameter is null) continue;
+
+            scope.Set(wanted.Parameter, wanted.To switch
             {
-                case Field or Subprotocol:
-                {
-                    var appearance = Toward(run, here, wanted.To);
+                // A computation may require another. The join of a header's two halves around a zero is
+                // one, and it is nobody's field — inventing a field to hold it would put a value on the
+                // wire that the protocol does not have.
+                Computation inner => Produced(run, here, inner),
+                var other => Held(Toward(run, here, other), Named(wanted.Facet)),
+            });
+        }
 
-                    parts[wanted.To.Name] = EvalScope.Record(
-                        ("value", Held(appearance, Facet.Value)),
-                        ("extent", Held(appearance, Facet.Extent)),
-                        ("octets", Held(appearance, Facet.Emitted)));
-                    break;
-                }
+        return scope
 
-                // A set is not a field and is asked different questions, so it answers under its own name.
-                // It has no value — it produced nothing — and that is the whole distinction: a length that
-                // measures a header is reading a fact about what the header holds, not a number the header
-                // computed. Putting both under `fields` would give every container a value it has no
-                // business having, which is the confusion the set node exists to end.
-                case FieldSet set:
-                {
-                    var appearance = Toward(run, here, set);
-
-                    spans[set.Name] = EvalScope.Record(
-                        ("extent", Held(appearance, Facet.Extent)),
-                        ("octets", Held(appearance, Facet.Emitted)));
-                    break;
-                }
-
-                // The two kinds of outside value answer under different names, because they fail
-                // differently. A missing input is a caller that did not say something it had to; a missing
-                // state is a conversation starting, which is ordinary.
-                // Under its own name, less the kind that prefixes it: the root an expression reaches it
-                // through already says which kind it is, so `inputs.input.syn` would be saying it twice.
-                case Context.Input given:
-                    outside[Plainly(given.Name, "input.")] = run.For(given).Value;
-                    break;
-
-                case Context.State carried:
-                    kept[Plainly(carried.Name, "state.")] = run.For(carried).Value;
-                    break;
-            }
-
-        return new EvalScope()
-            .Set("fields", new ProtoValue.Rec(parts))
-            .Set("sets", new ProtoValue.Rec(spans))
-            .Set("inputs", new ProtoValue.Rec(outside))
-            .Set("state", new ProtoValue.Rec(kept))
-
-            // How many octets are left to read, and only while reading. It is bound rather than reachable
-            // by an edge because it is not a fact about any node — it is where the reading has got to. A
-            // trailer that is there when there is room for it is the one honest way to say "is there
-            // more", and it has no counterpart going out: nothing is left over when you are the one
-            // writing.
+            // How many octets are left to read, and only while reading. Bound rather than reachable by an
+            // edge because it is not a fact about any node — it is where the reading has got to. A trailer
+            // that is there when there is room for it is the one honest way to say "is there more", and it
+            // has no counterpart going out: nothing is left over when you are the one writing.
             .Set("remaining", ahead is null ? ProtoValue.Nothing : ProtoValue.Of(ahead.Remaining / 8))
 
             // Where the reading has got to, counted from the start of the message. The companion of

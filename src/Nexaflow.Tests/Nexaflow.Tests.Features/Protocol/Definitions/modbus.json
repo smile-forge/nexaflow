@@ -99,8 +99,11 @@
       "id": "evaluated.length",
       "kind": "evaluated",
       "label": "octets after the length field",
-      "runs": "sets.counted.extent",
-      "gives": "Int"
+      "runs": "countedExtent",
+      "gives": "Int",
+      "takes": {
+        "countedExtent": "Int"
+      }
     },
     {
       "id": "pdu",
@@ -188,8 +191,11 @@
       "id": "evaluated.registers",
       "kind": "evaluated",
       "label": "octets of register data",
-      "runs": "fields.byteCount.value",
-      "gives": "Int"
+      "runs": "byteCount",
+      "gives": "Int",
+      "takes": {
+        "byteCount": "Int"
+      }
     },
     {
       "id": "pdu.fault",
@@ -219,33 +225,49 @@
       "id": "evaluated.which",
       "kind": "evaluated",
       "label": "request, response, or fault?",
-      "runs": "state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)",
+      "runs": "direction == 0 ? 0 : (functionCode >= 128 ? 2 : 1)",
       "about": [
         "Two facts decide it and only one is in the message. Direction is not on the wire at all — a request",
         "and its response carry the same function code — and the exception flag is the top bit of that code."
       ],
-      "gives": "Int"
+      "gives": "Int",
+      "takes": {
+        "direction": "Int",
+        "functionCode": "Int"
+      }
     },
     {
       "id": "evaluated.isrequest",
       "kind": "evaluated",
       "label": "is this the request body?",
-      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 0",
-      "gives": "Bool"
+      "runs": "(direction == 0 ? 0 : (functionCode >= 128 ? 2 : 1)) == 0",
+      "gives": "Bool",
+      "takes": {
+        "direction": "Int",
+        "functionCode": "Int"
+      }
     },
     {
       "id": "evaluated.isreply",
       "kind": "evaluated",
       "label": "is this the reply body?",
-      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 1",
-      "gives": "Bool"
+      "runs": "(direction == 0 ? 0 : (functionCode >= 128 ? 2 : 1)) == 1",
+      "gives": "Bool",
+      "takes": {
+        "direction": "Int",
+        "functionCode": "Int"
+      }
     },
     {
       "id": "evaluated.isfault",
       "kind": "evaluated",
       "label": "is this the fault body?",
-      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 2",
-      "gives": "Bool"
+      "runs": "(direction == 0 ? 0 : (functionCode >= 128 ? 2 : 1)) == 2",
+      "gives": "Bool",
+      "takes": {
+        "direction": "Int",
+        "functionCode": "Int"
+      }
     },
     {
       "id": "input.transactionId",
@@ -384,7 +406,8 @@
       "from": "evaluated.length",
       "to": "counted",
       "facet": "extent",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "countedExtent"
     },
     {
       "kind": "holds",
@@ -421,7 +444,8 @@
       "from": "evaluated.registers",
       "to": "byteCount",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "byteCount"
     },
     {
       "kind": "holds",
@@ -464,14 +488,16 @@
       "from": "evaluated.which",
       "to": "state.direction",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "direction"
     },
     {
       "kind": "requires",
       "from": "evaluated.which",
       "to": "functionCode",
       "facet": "value",
-      "sequence": 1
+      "sequence": 1,
+      "parameter": "functionCode"
     },
     {
       "kind": "decides",
@@ -498,14 +524,16 @@
       "from": "evaluated.isrequest",
       "to": "state.direction",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "direction"
     },
     {
       "kind": "requires",
       "from": "evaluated.isrequest",
       "to": "functionCode",
       "facet": "value",
-      "sequence": 1
+      "sequence": 1,
+      "parameter": "functionCode"
     },
     {
       "kind": "then",
@@ -527,14 +555,16 @@
       "from": "evaluated.isreply",
       "to": "state.direction",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "direction"
     },
     {
       "kind": "requires",
       "from": "evaluated.isreply",
       "to": "functionCode",
       "facet": "value",
-      "sequence": 1
+      "sequence": 1,
+      "parameter": "functionCode"
     },
     {
       "kind": "then",
@@ -556,14 +586,16 @@
       "from": "evaluated.isfault",
       "to": "state.direction",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "direction"
     },
     {
       "kind": "requires",
       "from": "evaluated.isfault",
       "to": "functionCode",
       "facet": "value",
-      "sequence": 1
+      "sequence": 1,
+      "parameter": "functionCode"
     },
     {
       "kind": "then",

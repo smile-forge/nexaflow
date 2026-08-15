@@ -509,14 +509,17 @@
       "id": "evaluated.macAsked",
       "kind": "evaluated",
       "label": "did the caller authenticate?",
-      "runs": "state.authenticated == 1",
+      "runs": "authenticated == 1",
       "about": [
         "What gates the MAC on the way out. It points at a state rather than an input because",
         "that is what decides it: an association is authenticated or it is not, and every",
         "packet on it carries a MAC or none of them do. An input would let two packets on one",
         "association disagree about something that is not theirs to disagree about."
       ],
-      "gives": "Bool"
+      "gives": "Bool",
+      "takes": {
+        "authenticated": "Bool"
+      }
     },
     {
       "id": "input.mac.keyIdentifier",
@@ -1014,7 +1017,8 @@
       "from": "evaluated.macAsked",
       "to": "state.authenticated",
       "facet": "value",
-      "sequence": 0
+      "sequence": 0,
+      "parameter": "authenticated"
     },
     {
       "kind": "computes",
