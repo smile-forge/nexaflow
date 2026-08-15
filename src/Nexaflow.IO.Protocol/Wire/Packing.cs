@@ -243,3 +243,58 @@ public sealed record Holds : Edge
 
     public override string Verb => $"holds[{Order}]";
 }
+
+/// <summary>
+/// Where a reading is allowed to stop: an explicit node the parse ends at.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A walk that runs out of edges has finished; whether it was <i>entitled</i> to finish there is a
+/// different question, and until something says so the two are the same answer. That is the gap a
+/// truncated message falls through: the description stops having anything more to say, so the reader stops,
+/// reports what it bound, and nothing anywhere distinguishes "the message ended" from "the message was cut".
+/// </para>
+/// <para>
+/// So a protocol that cares says where ending is legal. A reading is well-formed when it stops at one of
+/// these <b>and</b> the octets are exhausted — both, because either alone is satisfied by a message that is
+/// wrong in the other direction.
+/// </para>
+/// </remarks>
+public sealed class EndParse(string name) : Node
+{
+    public override string Name { get; } = name;
+}
+
+/// <summary>
+/// Where the reading goes next, for a protocol whose reading is not simply its writing backwards.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Opt-in, and absent by default.</b> Most of a protocol is read by walking what it writes, and where
+/// that is true this does not exist and <see cref="Then"/> serves both directions — one description, no way
+/// for the two to drift. This is for the parts where it is not true.
+/// </para>
+/// <para>
+/// And they are not rare, because protocols are built for the wire rather than for description. What can be
+/// inferred gets omitted; what repeats has no count; what is malformed has rules of its own that only a
+/// reader can apply. A reading of those is a machine with states rather than a sequence of fields, and it
+/// may loop, revisit, and stop only where it is allowed to.
+/// </para>
+/// <para>
+/// The cost is honest and worth naming: two descriptions of one thing can disagree, which is the pattern
+/// this design otherwise removes everywhere it finds it. What keeps it in check is that the write path
+/// stays the only way anything is written, so a disagreement shows up as a message that will not read back
+/// — loudly, in a round trip — rather than as an encoder and decoder that are each self-consistent.
+/// </para>
+/// </remarks>
+public sealed record Decode : Edge
+{
+    /// <summary>The value that takes this way on, or null where nothing is being decided.</summary>
+    public ProtoValue? Key { get; init; }
+
+    /// <summary>Whether this is the way taken when no key matched.</summary>
+    public bool Otherwise { get; init; }
+
+    public override string Verb
+        => Otherwise ? "on anything else, reads" : Key is null ? "reads" : $"on {Key}, reads";
+}

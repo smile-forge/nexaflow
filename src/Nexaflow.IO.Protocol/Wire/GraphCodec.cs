@@ -127,6 +127,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
         /// <summary>The places that make octets, in the order the path reached them.</summary>
         public List<Node> Order { get; } = [];
 
+        /// <summary>The last place the walk got to, which is where it stopped.</summary>
+        public Node? Stopped { get; private set; }
+
         public ResolutionNode Reaching(Node place, Node? previous)
         {
             var appearance = run.For(place);
@@ -251,9 +254,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
                             // and by then its dependencies have long been declared.
                             if (Reading) codec.Closing(run);
 
-                            return Next(place, here) is { } next
-                                ? FacetResult.Expanding(null, Reaching(next, place))
-                                : FacetResult.Of(null);
+                            if (Next(place, here) is { } next)
+                                return FacetResult.Expanding(null, Reaching(next, place));
+
+                            Stopped = place;
+                            return FacetResult.Of(null);
 
                         case Facet.Value:
                             // An absent part computes nothing. Not an optimisation: its expression may
@@ -1010,8 +1015,22 @@ public sealed class GraphCodec(ProtocolGraph graph,
         var resolver = new Resolver();
         var source = new BitCursor(octets.ToArray());
 
-        resolver.Add(new Laying(this, run, source).Reaching(graph.Root, previous: null));
+        var reading = new Laying(this, run, source);
+
+        resolver.Add(reading.Reaching(graph.Root, previous: null));
         resolver.Resolve();
+
+        // Where a protocol says where ending is legal, ending anywhere else is not a short message — it is
+        // a message that was cut, or one this description does not cover. A walk that merely runs out of
+        // edges cannot tell those apart from finishing, which is the whole reason for saying so.
+        // Only where a reading was declared. A protocol read by walking what it writes ends wherever the
+        // written path ends, and that is not somewhere it was ever going to name.
+        if (graph.Of<Decode>().Any() && graph.Nodes.OfType<EndParse>().Any()
+            && reading.Stopped is not EndParse)
+            throw new ProtoTypeException(
+                $"'{graph.Id}': the reading stopped at '{reading.Stopped?.Name ?? "nowhere"}', which is not "
+              + "somewhere it is allowed to stop. Every way on from there was refused, so this is either "
+              + "cut short or not this message.");
 
         // Everything it was given has to be accounted for. A walk that stops with octets still in hand has
         // not read this message — it has read a prefix of it and found that prefix well-formed, which is
@@ -1109,7 +1128,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         throw new ProtoTypeException(
             $"'{field.Id}' is written out holding {value}, which is what it means when it is absent — so "
-          + "it should not be here at all. Accepting both would give one value two encodings"
+          + "it should not be here at all. EndParse both would give one value two encodings"
           + (omits.Because.Length == 0 ? "." : $": {omits.Because}"));
     }
 
@@ -1121,19 +1140,28 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </summary>
     private Node? Onward(RunGraph run, Node place, bool reading)
     {
-        var ways = graph.From<Then>(place).ToList();
+        // Where a reading says how it goes, it goes that way; where it says nothing, it goes the way the
+        // writing does. Most of a protocol is the second case, and there the two directions share one
+        // description and cannot drift apart.
+        List<(Node To, ProtoValue? Key, bool Otherwise)> ways =
+            reading && graph.From<Decode>(place).Any()
+                ? [.. graph.From<Decode>(place).Select(e => (e.To, e.Key, e.Otherwise))]
+                : [.. graph.From<Then>(place).Select(e => (e.To, e.Key, e.Otherwise))];
 
         if (ways.Count == 0) return null;
         if (ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise) return ways[0].To;
 
         var chosen = Decided(run, place, reading);
 
-        return (ways.FirstOrDefault(w => !w.Otherwise && ProtoValue.Alike(w.Key, chosen))
-             ?? ways.FirstOrDefault(w => w.Otherwise)
-             ?? throw new ProtoTypeException(
-                    $"'{place.Name}': {chosen} picks none of the ways on, and none is the one taken when "
-                  + $"nothing matches. Offered: {string.Join(", ", ways.Select(w => w.Key?.ToString() ?? "*"))}"))
-            .To;
+        foreach (var way in ways)
+            if (!way.Otherwise && ProtoValue.Alike(way.Key, chosen)) return way.To;
+
+        foreach (var way in ways)
+            if (way.Otherwise) return way.To;
+
+        throw new ProtoTypeException(
+            $"'{place.Name}': {chosen} picks none of the ways on, and none is the one taken when nothing "
+          + $"matches. Offered: {string.Join(", ", ways.Select(w => w.Key?.ToString() ?? "*"))}");
     }
 
     /// <summary>What the fork was decided on — a computation's answer, or a node's own value.</summary>

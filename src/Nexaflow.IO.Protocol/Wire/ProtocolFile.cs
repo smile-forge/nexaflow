@@ -117,6 +117,7 @@ public static class ProtocolFile
         "packing" => new Packing(id),
         "set" => new FieldSet(id),
         "junction" => new Junction(id),
+        "end-parse" => new EndParse(id),
 
         "field" => new Field
         {
@@ -243,6 +244,13 @@ public static class ProtocolFile
             Key = at["key"] is { } key ? Value(key) : null,
             Otherwise = Bool(at["otherwise"], false),
             Optional = Bool(at["optional"], false),
+        },
+
+        "decode" => new Decode
+        {
+            From = from, To = to,
+            Key = at["key"] is { } reading ? Value(reading) : null,
+            Otherwise = Bool(at["otherwise"], false),
         },
 
         "holds" => new Holds { From = from, To = to, Order = Int(at["order"], "order") },
