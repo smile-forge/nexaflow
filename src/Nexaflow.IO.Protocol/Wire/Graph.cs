@@ -425,6 +425,10 @@ public sealed class ProtocolGraph
             ? []
             : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Holds)];
 
+    /// <summary>What a part is taken to have said when it is not there.</summary>
+    public Default? Assumed(Node place)
+        => From<Assumes>(place).Select(e => e.To).OfType<Default>().FirstOrDefault();
+
     /// <summary>Where something's inputs come from, in argument order. A computation is the usual asker;
     /// a carrier declares what the protocol beneath is given the same way.</summary>
     public IEnumerable<Requires> InputsOf(Node taker) => From<Requires>(taker).OrderBy(e => e.Sequence);

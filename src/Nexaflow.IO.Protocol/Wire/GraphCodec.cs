@@ -217,6 +217,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
                             }
                             else if (carries)
                             {
+                                // Read-side only, and that asymmetry is the whole of it: an absent part is
+                                // ASSUMED coming in and written going out by not writing it. Anything else
+                                // makes absent and explicitly-default the same octets, and value → octets
+                                // stops being injective.
+                                if (Reading && codec.Graph.Assumed(place) is { } assumed)
+                                    appearance.Settle(Facet.Value, assumed.Value);
+
                                 // It contributed nothing, and says so rather than having no answer. A
                                 // length over a region holding it adds a real zero; asking an absent part
                                 // for its extent and getting an error would make every such length a
@@ -983,10 +990,18 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         var run = RunGraph.Begin(graph, supplied);
         var resolver = new Resolver();
+        var source = new BitCursor(octets.ToArray());
 
-        resolver.Add(new Laying(this, run, new BitCursor(octets.ToArray()))
-                         .Reaching(graph.Root, previous: null));
+        resolver.Add(new Laying(this, run, source).Reaching(graph.Root, previous: null));
         resolver.Resolve();
+
+        // Everything it was given has to be accounted for. A walk that stops with octets still in hand has
+        // not read this message — it has read a prefix of it and found that prefix well-formed, which is
+        // the failure that looks like success: every field it did bind holds a plausible value.
+        if (source.Remaining > 0)
+            throw new ProtoTypeException(
+                $"'{graph.Id}': {source.Remaining / 8} octet(s) were left over. Reading stopped before the "
+              + "end of what arrived, so this is a prefix that happens to parse rather than the message.");
 
         Vouch(run);
 

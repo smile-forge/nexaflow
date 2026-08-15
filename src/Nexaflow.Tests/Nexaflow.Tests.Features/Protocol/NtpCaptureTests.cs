@@ -128,6 +128,21 @@ public class NtpCaptureTests
     }
 
     [TestMethod]
+    public void A_packet_with_octets_left_over_is_refused()
+    {
+        // Four octets past the end of an authenticated packet. Everything the walk reads is well-formed —
+        // that is the point. A decoder that stops when its description runs out reports success here and
+        // hands back a message it has only read part of.
+        var trailing = Capture(2).Concat(new byte[] { 0xde, 0xad, 0xbe, 0xef }).ToArray();
+
+        var refused = Assert.ThrowsExactly<ProtoTypeException>(
+            () => new GraphCodec(Ntp().Graph).Decode(trailing));
+
+        StringAssert.Contains(refused.Message, "left over");
+        StringAssert.Contains(refused.Message, "prefix that happens to parse");
+    }
+
+    [TestMethod]
     public void A_version_the_protocol_does_not_define_is_refused()
     {
         // Version 7 in the second field of the first octet: 00|111|011. Nothing else about the packet is

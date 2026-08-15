@@ -151,6 +151,13 @@ public static class ProtocolFile
             Source = Expr.Parse("0"),
         },
 
+        "default" => new Default
+        {
+            Id = id,
+            Value = Value(at["is"] ?? throw new ProtoTypeException($"default '{id}' assumes nothing")),
+            Because = Text(at["because"]) ?? "",
+        },
+
         "validator" => new Validator
         {
             Id = id,
@@ -238,6 +245,7 @@ public static class ProtocolFile
         "holds" => new Holds { From = from, To = to, Order = Int(at["order"], "order") },
         "decides" => new Decides { From = from, To = to, Reading = Bool(at["reading"], false) },
         "allowed" => new Allowed { From = from, To = to },
+        "assumes" => new Assumes { From = from, To = to },
         "contains" => new Contains { From = from, To = to, Ordinal = Int(at["ordinal"], "ordinal") },
 
         "requires" => new Requires
