@@ -51,6 +51,11 @@ public class NtpCaptureTests
                 setting[field.As ?? field.Id] = found.Value;
         }
 
+        // Whether the association is authenticated is a decision a host makes, not a field it read — so
+        // this is the host saying it, having noticed a MAC arrived. On the way in the packet's own length
+        // said so; there is no length on the way out to say it again.
+        setting["Authenticated"] = ProtoValue.Of(setting.ContainsKey("Key Identifier") ? 1 : 0);
+
         return new GraphCodec(ntp.Graph).Encode(setting);
     }
 
@@ -112,6 +117,7 @@ public class NtpCaptureTests
     [DataTestMethod]
     [DataRow(0, "a client request")]
     [DataRow(1, "a server response")]
+    [DataRow(2, "a request carrying a symmetric-key MAC")]
     public void A_capture_written_back_is_the_same_octets(int which, string what)
     {
         var ntp = Ntp();

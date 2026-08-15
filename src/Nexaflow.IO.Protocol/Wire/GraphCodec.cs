@@ -164,7 +164,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     ? new HashSet<Facet>
                         { Facet.Present, Facet.Value, Facet.Position, Facet.Extent, Facet.Emitted }
                     : spans
-                    ? new HashSet<Facet> { Facet.Present, Facet.Value, Facet.Position }
+                    ? codec.Asks(place)
+                        ? new HashSet<Facet> { Facet.Present, Facet.Value, Facet.Position }
+                        : new HashSet<Facet> { Facet.Present, Facet.Value, Facet.Position, Facet.Emitted }
                     : carries && !Reading
                         ? new HashSet<Facet> { Facet.Present, Facet.Position, Facet.Emitted }
                         : new HashSet<Facet>
@@ -203,7 +205,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     switch (facet)
                     {
                         case Facet.Realised:
-                            bool here = !Optional(place) || codec.Asked(run, appearance, place, Reading);
+                            bool here = !Optional(place) || codec.Asked(run, appearance, place, Reading, source);
 
                             if (Optional(place)) appearance.Settle(Facet.Present, here);
 
@@ -533,6 +535,18 @@ public sealed class GraphCodec(ProtocolGraph graph,
         }
     }
 
+    /// <summary>
+    /// Whether anything actually wants this set's octets.
+    /// </summary>
+    /// <remarks>
+    /// Working them out regardless looks harmless and is not: a set's octets are its members' values laid
+    /// down, so a set holding an optional part that is not there has nothing to lay down for it and the
+    /// question has no answer. Asking it anyway makes every container of an absent part unanswerable — for
+    /// a reason nobody wanted the answer for.
+    /// </remarks>
+    private bool Asks(Node set)
+        => graph.To<Requires>(set).Any(e => e.Facet is "octets" or "emitted");
+
     /// <summary>Whether the walk decided this place is not there.</summary>
     private static bool Skipped(RunGraph run, Node place)
         => run.For(place) is { } appearance
@@ -599,12 +613,18 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// optional step with no condition is refused at authoring time. So this answering true by default is
     /// about the ordinary case of a part that is simply always present, not a guess about an optional one.
     /// </remarks>
-    private bool Asked(RunGraph run, RunNode appearance, Node place, bool reading)
+    /// <param name="ahead">
+    /// Where the reading has got to, so that a part which is there only when there is room for it can say
+    /// so. Null going out, and that is not a gap — on the way out nothing is left over, and whether a
+    /// trailer is written is something the caller said rather than something the octets imply.
+    /// </param>
+    private bool Asked(RunGraph run, RunNode appearance, Node place, bool reading, BitCursor? ahead)
         => graph.ProducerOf(place, "presence", reading) switch
         {
             null => true,
             Constant stated => stated.Holds.AsBool(),
-            Evaluated evaluated => _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated)).AsBool(),
+            Evaluated evaluated =>
+                _evaluator.Eval(evaluated.Runs, Given(run, appearance, evaluated, ahead)).AsBool(),
             var other => throw new ProtoTypeException(
                              $"'{place.Name}': '{other.Name}' cannot decide whether something is there"),
         };
@@ -860,7 +880,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// <summary>
     /// Everything one computation is allowed to see, assembled from the edges that say so.
     /// </summary>
-    private EvalScope Given(RunGraph run, RunNode here, Computation computation)
+    private EvalScope Given(RunGraph run, RunNode here, Computation computation, BitCursor? ahead = null)
     {
         Dictionary<string, ProtoValue> parts = new(StringComparer.Ordinal);
         Dictionary<string, ProtoValue> outside = new(StringComparer.Ordinal);
@@ -914,7 +934,14 @@ public sealed class GraphCodec(ProtocolGraph graph,
             .Set("fields", new ProtoValue.Rec(parts))
             .Set("sets", new ProtoValue.Rec(spans))
             .Set("inputs", new ProtoValue.Rec(outside))
-            .Set("state", new ProtoValue.Rec(kept));
+            .Set("state", new ProtoValue.Rec(kept))
+
+            // How many octets are left to read, and only while reading. It is bound rather than reachable
+            // by an edge because it is not a fact about any node — it is where the reading has got to. A
+            // trailer that is there when there is room for it is the one honest way to say "is there
+            // more", and it has no counterpart going out: nothing is left over when you are the one
+            // writing.
+            .Set("remaining", ahead is null ? ProtoValue.Nothing : ProtoValue.Of(ahead.Remaining / 8));
     }
 
     /// <summary>A fact about an appearance, or nothing where it has not been worked out. Nothing is the

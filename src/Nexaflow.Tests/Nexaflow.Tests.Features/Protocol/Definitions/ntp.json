@@ -438,6 +438,69 @@
           }
         }
       ]
+    },
+    {
+      "id": "mac",
+      "kind": "set",
+      "as": "Message Authentication Code",
+      "about": [
+        "RFC 5905 Appendix A. Twenty octets that are there when the association is authenticated and absent when",
+        "it is not — and nothing inside the packet says which. That is the whole difficulty: the base packet is",
+        "fixed at 48 octets and carries no length, so on the way in the only thing that says a MAC followed is",
+        "that there were octets left after the last timestamp."
+      ]
+    },
+    {
+      "id": "mac.keyIdentifier",
+      "kind": "field",
+      "as": "Key Identifier",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      },
+      "about": "Which symmetric key was used."
+    },
+    {
+      "id": "mac.messageDigest",
+      "kind": "field",
+      "as": "Message Digest",
+      "form": {
+        "of": "opaque",
+        "octets": 16
+      },
+      "about": "MD5 of the key followed by the 48 octets before this. Opaque: it is a digest, not a number."
+    },
+    {
+      "id": "evaluated.macFollowed",
+      "kind": "evaluated",
+      "label": "were there octets left?",
+      "runs": "remaining > 0"
+    },
+    {
+      "id": "input.authenticated",
+      "kind": "input",
+      "as": "Authenticated",
+      "purpose": "Whether this association carries a symmetric-key MAC."
+    },
+    {
+      "id": "evaluated.macAsked",
+      "kind": "evaluated",
+      "label": "did the caller authenticate?",
+      "runs": "inputs.authenticated == 1"
+    },
+    {
+      "id": "input.mac.keyIdentifier",
+      "kind": "input",
+      "as": "Key Identifier",
+      "purpose": "The value of Key Identifier."
+    },
+    {
+      "id": "input.mac.messageDigest",
+      "kind": "input",
+      "as": "Message Digest",
+      "purpose": "The value of Message Digest."
     }
   ],
   "edges": [
@@ -867,6 +930,73 @@
       "from": "mode",
       "to": "validator.mode",
       "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "mac",
+      "to": "mac.keyIdentifier",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "mac",
+      "to": "mac.messageDigest",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "mac",
+      "order": 11
+    },
+    {
+      "kind": "then",
+      "from": "transmitTimestamp.fraction",
+      "to": "mac",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "mac",
+      "to": "mac.keyIdentifier"
+    },
+    {
+      "kind": "then",
+      "from": "mac.keyIdentifier",
+      "to": "mac.messageDigest"
+    },
+    {
+      "kind": "computes",
+      "from": "mac",
+      "to": "evaluated.macFollowed",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "mac",
+      "to": "evaluated.macAsked",
+      "facet": "presence",
+      "reading": false
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.macAsked",
+      "to": "input.authenticated",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "mac.keyIdentifier",
+      "to": "input.mac.keyIdentifier",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "mac.messageDigest",
+      "to": "input.mac.messageDigest",
+      "facet": "value"
     }
   ]
 }
