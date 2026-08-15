@@ -375,9 +375,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // difference between an absent part and an absent section, and it is why presence has to be
             // known before the next place is: an optional header is one step, however many fields deep.
             if (!here && place is FieldSet set && codec.Graph.Members(set).LastOrDefault() is { } last)
-                return codec.Onward(run, last, Reading, _times.GetValueOrDefault(last, 1) - 1);
+                return codec.Onward(run, last, Reading, _times.GetValueOrDefault(last, 1) - 1, source);
 
-            return codec.Onward(run, place, Reading, Math.Max(0, _times.GetValueOrDefault(place, 1) - 1));
+            return codec.Onward(run, place, Reading, Math.Max(0, _times.GetValueOrDefault(place, 1) - 1), source);
         }
     }
 
@@ -1006,7 +1006,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // trailer that is there when there is room for it is the one honest way to say "is there
             // more", and it has no counterpart going out: nothing is left over when you are the one
             // writing.
-            .Set("remaining", ahead is null ? ProtoValue.Nothing : ProtoValue.Of(ahead.Remaining / 8));
+            .Set("remaining", ahead is null ? ProtoValue.Nothing : ProtoValue.Of(ahead.Remaining / 8))
+
+            // Where the reading has got to, counted from the start of the message. The companion of
+            // `remaining`, and needed for the same kind of question asked from the other end: a run of
+            // options ends where the header ends, and the header's end is an offset rather than an amount
+            // left over — what follows the options is the payload, which has no length of its own.
+            .Set("position", ahead is null ? ProtoValue.Nothing : ProtoValue.Of(ahead.At / 8));
     }
 
     /// <summary>A fact about an appearance, or nothing where it has not been worked out. Nothing is the
@@ -1173,7 +1179,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// <summary>
     /// The way on from here: the only one, or the one the deciding node picks.
     /// </summary>
-    private Node? Onward(RunGraph run, Node place, bool reading, int pass = 0)
+    private Node? Onward(RunGraph run, Node place, bool reading, int pass = 0, BitCursor? ahead = null)
     {
         // Where a reading says how it goes, it goes that way; where it says nothing, it goes the way the
         // writing does. Most of a protocol is the second case, and there the two directions share one
@@ -1186,7 +1192,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         if (ways.Count == 0) return null;
         if (ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise) return ways[0].To;
 
-        var chosen = Decided(run, place, reading, pass);
+        var chosen = Decided(run, place, reading, pass, ahead);
 
         foreach (var way in ways)
             if (!way.Otherwise && ProtoValue.Alike(way.Key, chosen)) return way.To;
@@ -1205,7 +1211,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// first pass's value every time is how a loop never reaches its own terminator and runs off the end
     /// of the octets.
     /// </param>
-    private ProtoValue Decided(RunGraph run, Node place, bool reading, int pass)
+    private ProtoValue Decided(RunGraph run, Node place, bool reading, int pass, BitCursor? ahead)
     {
         var decisions = graph.From<Decides>(place).ToList();
 
@@ -1217,7 +1223,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         return deciding.To switch
         {
             Evaluated evaluated => _evaluator.Eval(
-                evaluated.Runs, Given(run, run.For(place, null, pass), evaluated)),
+                evaluated.Runs, Given(run, run.For(place, null, pass), evaluated, ahead)),
 
             // A run of unlike components is decided by what its token said, which is a node's value and
             // needs no expression at all.

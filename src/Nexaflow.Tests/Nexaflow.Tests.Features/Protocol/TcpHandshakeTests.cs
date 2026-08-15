@@ -143,6 +143,37 @@ public class TcpHandshakeTests
             "and it is not simply the zero that was joined in where the field goes");
     }
 
+    [TestMethod]
+    public void A_syn_carrying_several_options_is_read_to_the_end_of_them()
+    {
+        // A real SYN: Maximum Segment Size, then padding to a word boundary with No-Operations. Data
+        // Offset 7 means twenty-eight octets of header, so eight of options — and nothing in the segment
+        // says how many options that is. The reading finds out by going round until the header ends.
+        byte[] syn =
+        [
+            0xc0, 0x00, 0x00, 0x50,                          // ports
+            0x00, 0x00, 0x03, 0xe8,                          // sequence
+            0x00, 0x00, 0x00, 0x00,                          // no acknowledgment
+            0x70, 0x02,                                      // offset 7, SYN
+            0xff, 0xff, 0x91, 0x7c, 0x00, 0x00,              // window, checksum, urgent
+            0x02, 0x04, 0x05, 0xb4,                          // MSS 1460
+            0x01, 0x01, 0x01, 0x01,                          // four No-Operations
+        ];
+
+        var run = End("server").Receive(syn);
+
+        var kinds = run.Nodes.Where(n => n.Of is Field { Id: "optionKind" })
+                             .OrderBy(n => n.Index)
+                             .Select(n => n.Value.AsInt())
+                             .ToList();
+
+        CollectionAssert.AreEqual(new long[] { 2, 1, 1, 1, 1 }, kinds,
+            "five options: one MSS and four No-Operations, and no count anywhere said so");
+
+        Assert.AreEqual(1460, run.Nodes.Single(n => n.Of is Field { Id: "maximumSegmentSize" })
+                                       .Value.AsInt());
+    }
+
     /// <summary>
     /// Two hosts, five segments, and one word of payload getting across.
     /// </summary>

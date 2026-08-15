@@ -736,6 +736,39 @@
       "kind": "state",
       "as": "Synchronising",
       "purpose": "Whether this connection is still being established. RFC 9293 §3.1 allows the Maximum Segment Size option only on segments with SYN set, which is a fact about where the connection has got to rather than about this segment."
+    },
+    {
+      "id": "parsed",
+      "kind": "end-parse",
+      "as": "end of the segment",
+      "about": [
+        "Where reading a segment is allowed to stop. Everything before the options is fixed, so the only way a",
+        "reading ends anywhere else is that the option run went wrong — which is precisely the case that would",
+        "otherwise report success having read a prefix."
+      ]
+    },
+    {
+      "id": "evaluated.moreOptions",
+      "kind": "evaluated",
+      "label": "is there another option?",
+      "runs": "position < fields.dataOffset.value * 4",
+      "about": [
+        "Where the option run ends. Data Offset says where the header ends and the options are whatever is",
+        "between the fixed twenty octets and there, so the question is about an OFFSET rather than about how",
+        "much is left over — what follows the options is the payload, which has no length of its own.",
+        "",
+        "A count would be the wrong shape even if TCP had one: how many options a segment carries is a fact",
+        "about that segment, not about TCP."
+      ]
+    },
+    {
+      "id": "option.next",
+      "kind": "junction",
+      "as": "another option, or the payload",
+      "about": [
+        "Where each option comes back to. The reading goes round from here; the writing has no edge out of it at",
+        "all, because a written segment lays its options down in order and never asks whether to go again."
+      ]
     }
   ],
   "edges": [
@@ -1444,6 +1477,104 @@
       "to": "state.synchronising",
       "facet": "value",
       "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreOptions",
+      "to": "dataOffset",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "decides",
+      "from": "option.next",
+      "to": "evaluated.moreOptions",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "option.endOfList",
+      "to": "option.next"
+    },
+    {
+      "kind": "decode",
+      "from": "option.noOperation",
+      "to": "option.next"
+    },
+    {
+      "kind": "decode",
+      "from": "maximumSegmentSize",
+      "to": "option.next"
+    },
+    {
+      "kind": "decode",
+      "from": "option.next",
+      "to": "optionKind",
+      "key": {
+        "bool": true
+      },
+      "about": "Round again: the header has not ended yet."
+    },
+    {
+      "kind": "decode",
+      "from": "option.next",
+      "to": "data",
+      "otherwise": true,
+      "about": "The header has ended, so what follows is the payload."
+    },
+    {
+      "kind": "decode",
+      "from": "data",
+      "to": "parsed"
+    },
+    {
+      "kind": "decode",
+      "from": "optionKind",
+      "to": "option"
+    },
+    {
+      "kind": "decode",
+      "from": "option",
+      "to": "option.endOfList",
+      "key": {
+        "int": 0
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "option",
+      "to": "option.noOperation",
+      "key": {
+        "int": 1
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "option",
+      "to": "option.maximumSegmentSize",
+      "key": {
+        "int": 2
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "option.maximumSegmentSize",
+      "to": "optionLength"
+    },
+    {
+      "kind": "decode",
+      "from": "optionLength",
+      "to": "maximumSegmentSize"
+    },
+    {
+      "kind": "decode",
+      "from": "urgentPointer",
+      "to": "options"
+    },
+    {
+      "kind": "decode",
+      "from": "options",
+      "to": "optionKind"
     }
   ]
 }
