@@ -92,6 +92,7 @@ public class TcpHandshakeTests
             .Set("Sequence Number", 1000)
             .Set("Acknowledgment Number", 0)
             .Set("Maximum Segment Size", 1460)
+            .Set("Synchronising", 1)
             .Flags("SYN");
 
         var syn = client.Generate();
@@ -125,7 +126,7 @@ public class TcpHandshakeTests
         var syn = End("client")
             .Set("Source Port", 49152).Set("Destination Port", 80)
             .Set("Sequence Number", 1000).Set("Acknowledgment Number", 0)
-            .Set("Maximum Segment Size", 1460).Flags("SYN")
+            .Set("Maximum Segment Size", 1460).Set("Synchronising", 1).Flags("SYN")
             .Generate();
 
         byte[] pseudo = [192, 168, 1, 10, 192, 168, 1, 20, 0, 6, 0, (byte)syn.Length];
@@ -173,7 +174,7 @@ public class TcpHandshakeTests
 
         // ── 1. the client opens ──────────────────────────────────────────────
         var syn = client.Set("Sequence Number", 1000).Set("Acknowledgment Number", 0)
-                        .Set("Maximum Segment Size", 1460).Flags("SYN")
+                        .Set("Maximum Segment Size", 1460).Set("Synchronising", 1).Flags("SYN")
                         .Generate();
 
         var atServer = server.Receive(syn);
@@ -186,7 +187,7 @@ public class TcpHandshakeTests
         // ── 2. the server accepts, acknowledging the SYN's sequence plus one ──
         var synAck = server.Set("Sequence Number", 5000)
                            .Set("Acknowledgment Number", Said.Number(atServer, "sequenceNumber") + 1)
-                           .Set("Maximum Segment Size", 1460).Flags("SYN", "ACK")
+                           .Set("Maximum Segment Size", 1460).Set("Synchronising", 1).Flags("SYN", "ACK")
                            .Generate();
 
         var atClient = client.Receive(synAck);
@@ -199,7 +200,7 @@ public class TcpHandshakeTests
         // ── 3. the client acknowledges, and the connection is open ───────────
         var ack = client.Set("Sequence Number", Said.Number(atClient, "acknowledgmentNumber"))
                         .Set("Acknowledgment Number", Said.Number(atClient, "sequenceNumber") + 1)
-                        .Flags("ACK")
+                        .Set("Synchronising", 0).Flags("ACK")
                         .Generate();
 
         Assert.AreEqual(20, ack.Length, "no options once the handshake is done, so a five-word header");

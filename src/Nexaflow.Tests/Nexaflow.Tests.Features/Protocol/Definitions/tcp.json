@@ -710,12 +710,12 @@
       "id": "evaluated.optionsAsked",
       "kind": "evaluated",
       "label": "did the caller ask for options?",
-      "runs": "inputs.syn == 1",
+      "runs": "state.synchronising == 1",
       "about": [
-        "RFC 9293 §3.1: the Maximum Segment Size option 'may be sent in the initial connection request",
-        "... and MUST NOT be sent in other segments', and it is the only option this describes. So on the",
-        "way out the options are there exactly when a SYN is being sent, which is something the caller",
-        "said rather than something the message has to be measured to find out."
+        "What gates the options on the way out. It points at a state, not at the SYN flag:",
+        "whether options may be carried is a fact about where the connection has got to, and",
+        "reading the flag instead would make the arrangement depend on a field of the very",
+        "message it is arranging."
       ]
     },
     {
@@ -730,6 +730,12 @@
         "anything, so on the way out the kind octet is that. On the way in it is read, and the fork below",
         "turns on what was read — the same expression serving both, because by then it holds the same 2."
       ]
+    },
+    {
+      "id": "state.synchronising",
+      "kind": "state",
+      "as": "Synchronising",
+      "purpose": "Whether this connection is still being established. RFC 9293 §3.1 allows the Maximum Segment Size option only on segments with SYN set, which is a fact about where the connection has got to rather than about this segment."
     }
   ],
   "edges": [
@@ -1403,13 +1409,6 @@
       "reading": false
     },
     {
-      "kind": "requires",
-      "from": "evaluated.optionsAsked",
-      "to": "input.syn",
-      "facet": "value",
-      "sequence": 0
-    },
-    {
       "kind": "computes",
       "from": "optionKind",
       "to": "constant.kindMaximumSegmentSize",
@@ -1438,6 +1437,13 @@
       "from": "options",
       "to": "option.done",
       "order": 3
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionsAsked",
+      "to": "state.synchronising",
+      "facet": "value",
+      "sequence": 0
     }
   ]
 }
