@@ -14,17 +14,18 @@
         "DNS header, one question, and the thing every DNS message is made of: a NAME, which is a run of",
         "length-prefixed labels ending at a label of length zero.",
         "",
-        "What is deliberately NOT here is the response, and the reason is worth stating rather than",
-        "leaving as an absence. A response is a run of resource records, and every record begins with a",
-        "name \u2014 so the record run and the label run are a repetition inside a repetition, and both",
-        "directions key an appearance by one round shared across the whole walk. There is no second index",
-        "to say which label of which record. The other half is name compression (\u00a718.14, RFC 1035 \u00a74.1.4):",
-        "a name may end in a two-octet pointer holding an ABSOLUTE offset into the message, and going out",
-        "a position is only known after every value has settled, so a value cannot be derived from one.",
+        "As many questions as QDCOUNT says, each with a name of its own \u2014 which is a run inside a run, and",
+        "the reason this is worth having as a worked example: nothing else here needs one.",
         "",
-        "So the scope is stated in the octets rather than in this paragraph: the counts are checked, and a",
-        "query carrying answers (\u00a77.1 known-answer suppression) is refused where it is written rather than",
-        "read as though it were not there."
+        "What is deliberately NOT here is the response, and the reason is worth stating rather than leaving",
+        "as an absence. A response's names may be COMPRESSED (\u00a718.14, RFC 1035 \u00a74.1.4): a name may end in a",
+        "two-octet pointer holding an absolute offset into the message, and going out a position is only",
+        "settled after every value is \u2014 so nothing can be derived from one. That is an ordering the engine",
+        "could have and does not, rather than anything mDNS asks for that a description could not say.",
+        "",
+        "So the scope is stated in the octets rather than in this paragraph: QR and the three record counts",
+        "are checked, and a response, or a query carrying answers (\u00a77.1 known-answer suppression), is",
+        "refused where it is written rather than read as though the extra parts were not sent."
       ]
     },
     {
@@ -238,30 +239,23 @@
         "big": true,
         "signed": false
       },
-      "about": "RFC 1035 \u00a74.1.1. One, because this describes a query carrying one question \u2014 see the check."
+      "about": [
+        "RFC 1035 \u00a74.1.1. How many questions follow \u2014 and the only thing that says so, because a question",
+        "carries no terminator and the section that follows it looks exactly like another one.",
+        "",
+        "Counted from the list going out and used to end the run coming in, so the header and the body",
+        "cannot disagree: there is one fact here and each direction reads it from whichever side knows."
+      ]
     },
     {
-      "id": "constant.one",
-      "kind": "constant",
-      "holds": {
-        "int": 1
-      },
-      "label": "one"
-    },
-    {
-      "id": "valid.one",
-      "kind": "validator",
-      "ranges": [
-        {
-          "from": {
-            "int": 1
-          },
-          "to": {
-            "int": 1
-          }
-        }
-      ],
-      "about": "One, and nothing else."
+      "id": "evaluated.qdcount",
+      "kind": "evaluated",
+      "label": "how many questions there are",
+      "runs": "count(questions)",
+      "gives": "Int",
+      "takes": {
+        "questions": "List"
+      }
     },
     {
       "id": "ancount",
@@ -302,8 +296,13 @@
     {
       "id": "question",
       "kind": "set",
-      "as": "the question",
-      "about": "RFC 1035 \u00a74.1.2: a name, a type, and a class."
+      "as": "one question",
+      "about": [
+        "RFC 1035 \u00a74.1.2: a name, a type, and a class \u2014 written once per question the caller asks.",
+        "",
+        "How many there are is on the wire in QDCOUNT and nowhere else: a question carries no terminator,",
+        "and the section after the last one begins with a name exactly as another question would."
+      ]
     },
     {
       "id": "name",
@@ -326,7 +325,10 @@
         "That terminator is not a sentinel beside the run the way DHCP's end option is \u2014 it is the SAME",
         "field reading zero. Which is why the reading looks at the next octet before committing to another",
         "label: a length of zero is the root, and a length of anything else is another label. Nothing is",
-        "consumed by looking, so the root is then read by the node that owns it."
+        "consumed by looking, so the root is then read by the node that owns it.",
+        "",
+        "A run inside a run \u2014 the labels of THIS question \u2014 so what it is written once per item of is not",
+        "a list the caller hands in beside the questions, but one taken off the question being written."
       ]
     },
     {
@@ -391,12 +393,26 @@
       }
     },
     {
-      "id": "input.labels",
+      "id": "input.questions",
       "kind": "input",
-      "as": "Name",
+      "as": "Questions",
+      "gives": "List",
+      "of": {
+        "name": "List",
+        "qtype": "Int",
+        "unicast": "Int",
+        "qclass": "Int"
+      },
+      "purpose": "What is being asked, one record per question. A name is its labels \u2014 [\"_http\", \"_tcp\", \"local\"] \u2014 rather than a dotted string, because a label may contain a dot and RFC 6763 \u00a74.1 says instance names do."
+    },
+    {
+      "id": "evaluated.itsLabels",
+      "kind": "evaluated",
+      "label": "the labels of this question's name",
+      "runs": "item.name",
       "gives": "List",
       "of": "Text",
-      "purpose": "The name being asked about, label by label \u2014 [\"_http\", \"_tcp\", \"local\"]."
+      "about": "Read of the question being written, which is what makes the inner run this question's own rather than one flat list of labels with a scheme for telling which name each belongs to."
     },
     {
       "id": "root",
@@ -423,11 +439,11 @@
       "about": "RFC 1035 \u00a74.1.2. PTR is 12, which is what a DNS-SD browse asks for (RFC 6763 \u00a74.1)."
     },
     {
-      "id": "input.qtype",
-      "kind": "input",
-      "as": "QTYPE",
-      "gives": "Int",
-      "purpose": "What kind of record is wanted \u2014 12 for PTR, 255 for ANY."
+      "id": "evaluated.qtype",
+      "kind": "evaluated",
+      "label": "what kind of record this question wants",
+      "runs": "item.qtype",
+      "gives": "Int"
     },
     {
       "id": "qclass",
@@ -451,11 +467,11 @@
       "about": "RFC 6762 \u00a75.4: set to ask for a UNICAST reply. Recommended on the first query after startup, when the multicast cache of every other host on the link is of no use to a machine that has just arrived."
     },
     {
-      "id": "input.unicastResponse",
-      "kind": "input",
-      "as": "Unicast Response",
-      "gives": "Int",
-      "purpose": "RFC 6762 \u00a75.4: ask the responder to answer directly rather than to the group."
+      "id": "evaluated.qu",
+      "kind": "evaluated",
+      "label": "does this question want a direct answer?",
+      "runs": "item.unicast",
+      "gives": "Int"
     },
     {
       "id": "qclassValue",
@@ -468,11 +484,11 @@
       "about": "RFC 1035 \u00a73.2.4: 1 is IN. mDNS uses no other, but the field is fifteen bits wide and says so."
     },
     {
-      "id": "input.qclass",
-      "kind": "input",
-      "as": "CLASS",
-      "gives": "Int",
-      "purpose": "1, for the Internet class."
+      "id": "evaluated.qclass",
+      "kind": "evaluated",
+      "label": "this question's class",
+      "runs": "item.qclass",
+      "gives": "Int"
     },
     {
       "id": "moreLabels",
@@ -500,10 +516,33 @@
       "about": "Read ahead of deciding, from a copy of the position. Nothing is consumed."
     },
     {
+      "id": "moreQuestions",
+      "kind": "junction",
+      "as": "another question?",
+      "about": [
+        "Unlike the fork at the end of a name, this one counts \u2014 because QDCOUNT is the only thing that",
+        "says where the questions stop, and what follows a question looks exactly like another question.",
+        "",
+        "`ordinal` is which time round THIS repetition is on, not how many times the walk has gone round",
+        "something. A name goes round inside a question, and a single counter shared by the walk would be",
+        "advanced by the labels and read here as though it counted questions."
+      ]
+    },
+    {
+      "id": "evaluated.moreQuestions",
+      "kind": "evaluated",
+      "label": "is there another question?",
+      "runs": "ordinal + 1 < qdcount",
+      "gives": "Bool",
+      "takes": {
+        "qdcount": "Int"
+      }
+    },
+    {
       "id": "done",
       "kind": "end-parse",
       "as": "the end of a query",
-      "about": "Where a reading may stop. The name goes round, and a loop that has run out looks exactly like one that was cut short unless something says which endings were legal."
+      "about": "Where a reading may stop. The questions go round, and a loop that has run out looks exactly like one that was cut short unless something says which endings were legal."
     }
   ],
   "edges": [
@@ -668,16 +707,18 @@
       "order": 9
     },
     {
-      "kind": "computes",
-      "from": "qdcount",
-      "to": "constant.one",
-      "facet": "value"
+      "kind": "requires",
+      "from": "evaluated.qdcount",
+      "to": "input.questions",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "questions"
     },
     {
-      "kind": "checks",
+      "kind": "computes",
       "from": "qdcount",
-      "to": "valid.one",
-      "because": "This describes a query carrying exactly one question. Several is legal \u2014 RFC 6762 \u00a75.1 permits them and \u00a77.3 makes a responder answer each \u2014 and reading them needs a repetition driven by this very count, which the walk cannot do: it keys every appearance by ONE round shared across the whole message, so a name that goes round inside a question that goes round has no second index. Refused here rather than read as though the extra questions were not sent."
+      "to": "evaluated.qdcount",
+      "facet": "value"
     },
     {
       "kind": "computes",
@@ -798,8 +839,15 @@
     },
     {
       "kind": "requires",
+      "from": "question",
+      "to": "input.questions",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
       "from": "labels",
-      "to": "input.labels",
+      "to": "evaluated.itsLabels",
       "facet": "each",
       "sequence": 0
     },
@@ -830,13 +878,13 @@
     {
       "kind": "computes",
       "from": "qtype",
-      "to": "input.qtype",
+      "to": "evaluated.qtype",
       "facet": "value"
     },
     {
       "kind": "computes",
       "from": "qu",
-      "to": "input.unicastResponse",
+      "to": "evaluated.qu",
       "facet": "value"
     },
     {
@@ -848,7 +896,7 @@
     {
       "kind": "computes",
       "from": "qclassValue",
-      "to": "input.qclass",
+      "to": "evaluated.qclass",
       "facet": "value"
     },
     {
@@ -1038,6 +1086,39 @@
       "kind": "decode",
       "from": "moreLabels",
       "to": "labelLength",
+      "otherwise": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreQuestions",
+      "to": "qdcount",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "qdcount"
+    },
+    {
+      "kind": "decode",
+      "from": "qclassValue",
+      "to": "moreQuestions"
+    },
+    {
+      "kind": "decides",
+      "from": "moreQuestions",
+      "to": "evaluated.moreQuestions",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "moreQuestions",
+      "to": "name",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreQuestions",
+      "to": "done",
       "otherwise": true
     },
     {

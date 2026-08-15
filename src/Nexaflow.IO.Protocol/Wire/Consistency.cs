@@ -238,26 +238,38 @@ internal static class Consistency
     private static Shape? Element(ProtocolGraph graph, Computation computation,
                                   HashSet<Computation>? seen = null)
     {
-        if (graph.To<Computes>(computation).FirstOrDefault()?.From is { } owner)
-            foreach (var set in graph.Nodes.OfType<FieldSet>())
-                if (graph.Repeating(set) is { } over && Under(graph, set, owner))
-                    return (over.To as Computation)?.Of;
+        // A computation that PRODUCES the list a repetition is written once per is standing one level out:
+        // the labels of a name are worked out while the name is being written, so its `item` is the name.
+        // Asking which repetition holds it gives the one it is about to drive, which is the wrong answer
+        // by exactly one step.
+        foreach (var each in graph.To<Requires>(computation).Where(e => e.Facet == "each"))
+            if (Element(graph, each.From) is { } outer) return outer;
+
+        if (graph.To<Computes>(computation).FirstOrDefault()?.From is { } owner
+            && Element(graph, owner) is { } of) return of;
 
         // A computation that produces nothing directly feeds another one, and belongs wherever that one
         // does. CoAP's delta is the case: three fields are worked out from it and it is nobody's value.
         seen ??= [computation];
 
         foreach (var above in graph.To<Requires>(computation))
-            if (above.From is Computation outer && seen.Add(outer)
-                && Element(graph, outer, seen) is { } found)
+            if (above.From is Computation next && seen.Add(next)
+                && Element(graph, next, seen) is { } found)
                 return found;
 
         return null;
     }
 
-    private static bool Under(ProtocolGraph graph, Node set, Node place)
-        => graph.Members(set).Any(m => ReferenceEquals(m, place)
-                                    || (m is FieldSet inner && Under(graph, inner, place)));
+    /// <summary>What one item of the innermost repetition around a place is.</summary>
+    /// <remarks>
+    /// Innermost, because a label inside a name inside a run of names is held by two repetitions and only
+    /// the nearer one is what <c>item</c> means there. Taking whichever came first in the file made a
+    /// label's item the record, which is a shape mismatch that reads as a description error somewhere else.
+    /// </remarks>
+    private static Shape? Element(ProtocolGraph graph, Node place)
+        => graph.Enclosing(place) is [.., var innermost]
+            ? (graph.Repeating(innermost)?.To as Computation)?.Of
+            : null;
 
     // ── Converters get what they take ─────────────────────────────────────────
 

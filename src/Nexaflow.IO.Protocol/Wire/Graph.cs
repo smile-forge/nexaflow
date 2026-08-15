@@ -457,6 +457,35 @@ public sealed class ProtocolGraph
     /// <summary>What a set is packed from, in order.</summary>
     public IEnumerable<Node> Members(Node set) => From<Holds>(set).OrderBy(h => h.Order).Select(h => h.To);
 
+    /// <summary>
+    /// The repeating sets this place is inside, outermost first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What tells the third label of the second record from the second label of the third. An appearance is
+    /// keyed by which repetition encloses it as well as by which time round, and this is where that chain
+    /// comes from — so a run of names inside a run of records is two indices rather than one shared counter
+    /// that neither of them owns.
+    /// </para>
+    /// <para>
+    /// <b>Membership, not the path.</b> A repetition is left and re-entered by edges from junctions that
+    /// belong to no set at all, so asking the walk where it has been says a loop's own fork is outside the
+    /// loop. Asking what holds this place is a fact about the protocol and gives the same answer whichever
+    /// way the walk got here.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<Node> Enclosing(Node place)
+    {
+        List<Node> within = [];
+        HashSet<Node> been = [place];
+
+        for (var at = place; To<Holds>(at).FirstOrDefault() is { } held && been.Add(held.From); at = held.From)
+            if (Repeating(held.From) is not null) within.Add(held.From);
+
+        within.Reverse();
+        return within;
+    }
+
     /// <summary>Whether the path may arrive at this place and find nothing.</summary>
     public bool MayBeAbsent(Node place) => To<Then>(place).Any(w => w.Optional);
 

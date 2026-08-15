@@ -153,31 +153,46 @@ directions, and no new law.
 
 ## 5a. What mDNS found, 2026-08-15
 
-Two, both measured rather than reasoned about, and the first is the one that matters.
+Two, both measured rather than reasoned about. The first is fixed; the second is not, and its first
+diagnosis was wrong in a way worth keeping.
 
-**A repetition inside a repetition writes the wrong message and says nothing.** Not a refusal, not a throw
-— wrong octets. `_round` is one counter for the whole walk, and `Item` resolves `item` against the first
-repeating set that holds the node, so an inner set binds the *outer* set's item and goes round the outer
-number of times. Two groups of two labels emitted two octets, each holding an outer item coerced to text.
+**A repetition inside a repetition used to write the wrong message and say nothing.** Not a refusal, not a
+throw — wrong octets. `_round` was one counter for the whole walk, and `Item` resolved `item` against the
+first repeating set that held the node, so an inner set bound the *outer* set's item and went round the
+outer number of times. Two groups of two labels emitted two octets, each holding an outer item coerced to
+text.
 
-That is the failure class this whole design keeps removing, and it is worth fixing at the cheap end first:
-a load-time refusal naming the two sets costs about ten lines in `Consistency` and turns a wrong message
-into a sentence. Making it actually *work* is larger and is a real design question — an appearance would
-need an index per enclosing repetition rather than one round, which is what `RunNode.Within` was shaped for
-and nothing currently sets.
+Fixed by giving the rounds to the repetitions instead of to the walk — see *Repetition* in
+[dynamic-protocol.md](dynamic-protocol.md). The shape was anticipated: `RunNode` was already keyed by
+`(node, within, index)` and nothing had ever filled `within`. Two things were subtler than they look and
+are the parts to be careful of if this is touched again:
 
-It is not an mDNS problem. Every record in a DNS message begins with a name, and a name is a run of labels;
-the same shape is SNMP's varbind list, TLS's extension list, and BACnet's property list.
+- **Which repetition a place is in comes from what holds it, not from the path.** A loop is left and
+  re-entered by edges from junctions that belong to no set, so asking the walk says a loop's own fork is
+  outside the loop. A junction keeps whatever frame led to it.
+- **The outer round has to advance when the walk steps back *into* an inner repetition.** Going out it
+  advances on returning to the outer set's first member; coming in, the edge that goes round again points
+  straight at the innermost field, and there is nowhere else to notice. Without it every name after the
+  first reads on into the first one's labels — with no error, because the appearances are all distinct.
+
+Also: `Produced` memoised by `(computation, index)`, which is one answer for the second label of every
+name. It is keyed by the frame as well now.
 
 **A value cannot be derived from where something sits, going out.** `position` is settled in a final pass
 after `resolver.Resolve()` — every value is already fixed by then — so an expression requiring the
 `position` facet gets `Null` and the message fails with "expected Int, got Null". Coming in it is fine:
 reading settles a position as it arrives.
 
-That is not an oversight, it is the shape of the thing: a compressed name's *width* depends on its own
-offset, which depends on the widths of everything before it. Admitting compression means splitting the way
-out into a layout step that assigns offsets left to right and a value step that reads them — which is a
-second pass, and the engine's standing claim is that it has none. Worth doing deliberately or not at all.
+The first diagnosis of this called it a cycle — a compressed name's width depending on its own offset — and
+**that was wrong, and the confusion is worth naming because it is easy to repeat.** Whether and where to
+compress is the *sender's* choice, an implementation policy; it is not something the message format says.
+Once a description states that a name is these labels then a pointer to that node, the width is fixed and
+only the pointer's *value* wants a position. Widths never depend on positions, so positions depend on
+widths and pointer values depend on positions — acyclic. Position could be an ordinary scheduled facet
+(a place's own = the previous one's plus its extent) rather than a stamp applied afterwards, and the
+worklist would settle it like anything else; a description that did write a cycle would be reported as one.
+What remains genuinely hard is pointing at a *suffix* — RFC 1035 §4.1.4 permits an offset into the middle
+of another name, and no edge can say "the third label of that one".
 
 **What went in instead, and it is the better half of the finding:** the description states its own scope in
 the octets. QDCOUNT is checked to be one, ANCOUNT/NSCOUNT/ARCOUNT to be zero, QR to be zero — so a

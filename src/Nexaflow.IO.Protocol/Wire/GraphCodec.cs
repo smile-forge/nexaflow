@@ -137,8 +137,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
         public Node? Stopped { get; private set; }
 
         /// <summary>
-        /// How many times the walk has arrived at each place, which is what tells one pass of a loop from
-        /// the next.
+        /// How many times the walk has arrived at each place <b>of each repetition</b>, which is what tells
+        /// one pass of a loop from the next.
         /// </summary>
         /// <remarks>
         /// A reading may go round, and the second time round is not the first: the same field holds a
@@ -146,27 +146,67 @@ public sealed class GraphCodec(ProtocolGraph graph,
         /// for exactly this; nothing was ever counting. Without it a loop overwrites its own previous pass
         /// and a list of four options decodes to whichever one happened to be last.
         /// </remarks>
-        private readonly Dictionary<Node, int> _at = [];
+        private readonly Dictionary<(RunNode? Frame, Node Place), int> _at = [];
 
-        /// <summary>Which time round the walk is on.</summary>
-        private int _round;
+        /// <summary>
+        /// Which time round each repetition is on.
+        /// </summary>
+        /// <remarks>
+        /// Per repetition and not one counter for the walk. A single counter is right for exactly as long
+        /// as nothing repeats inside anything else: the moment a run of names sits inside a run of records,
+        /// one number is being asked to say both which record and which label, and it answers with neither
+        /// — the inner run advances the same count the outer one is measured by, so the outer one stops
+        /// after as many rounds as there were labels. That failed silently, which is worse than failing.
+        /// </remarks>
+        private readonly Dictionary<RunNode, int> _rounds = [];
+
+        /// <summary>The same, for the top level, which is in no frame and cannot be a dictionary key.</summary>
+        private int _top;
+
+        private int Round(RunNode? frame) => frame is null ? _top : _rounds.GetValueOrDefault(frame, 0);
+
+        private void Rounded(RunNode? frame, int round)
+        {
+            if (frame is null) _top = round;
+            else _rounds[frame] = round;
+        }
+
+        /// <summary>The repetitions the walk is inside, outermost first.</summary>
+        private readonly List<RunNode> _frames = [];
+
+        /// <summary>Which round each repetition was last stepped into on, kept apart from arrivals because
+        /// entering one and walking to the set that names it are two different events.</summary>
+        private readonly Dictionary<(RunNode? Frame, Node Set), int> _entered = [];
+
+        /// <summary>The innermost repetition the walk is inside, or null at the top.</summary>
+        private RunNode? Frame => _frames.Count > 0 ? _frames[^1] : null;
+
+        /// <summary>The appearance the walk last made of each place, which is the one anything after it
+        /// waits on.</summary>
+        private readonly Dictionary<Node, RunNode> _made = [];
 
         public ResolutionNode Reaching(Node place, Node? previous)
         {
+            var frame = Stepping(place);
+
             // Read before this arrival is recorded, because on a loop back to the same place they are the
             // same node: recording first makes the second pass wait on itself.
-            int came = previous is null ? 0 : _at.GetValueOrDefault(previous, 0);
+            var came = previous is null ? null : _made.GetValueOrDefault(previous);
 
             // The round, not a count of visits to this place. An arm of a fork is only reached on the
             // rounds it is chosen, so counting its own visits drifts from the round everything around it
             // is on — and the second time round it would be handed an appearance the first round had
             // already decided was absent.
-            if (_at.TryGetValue(place, out var last) && last == _round) _round++;
+            int round = Round(frame);
 
-            int pass = _round;
-            _at[place] = pass;
+            if (_at.TryGetValue((frame, place), out var last) && last == round) Rounded(frame, ++round);
 
-            var appearance = run.For(place, within: null, index: pass);
+            int pass = round;
+            _at[(frame, place)] = pass;
+
+            var appearance = run.For(place, frame, pass);
+            _made[place] = appearance;
+
             var field = place as Field;
 
             // A carrier makes octets the way a field does — the inner message's, rather than one value's.
@@ -180,12 +220,10 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // last one is done — which is exactly when this settles, and not before.
             bool spans = place is FieldSet;
 
-            // The pass of the previous place that actually led here, which on a second time round is its
-            // second appearance and not its first.
-            List<FacetRef> before = previous is null
-                ? []
-                : [new FacetRef(run.For(previous, null, came), Facet.Realised)];
-            before.AddRange(Deciding(place));
+            // The appearance of the previous place that actually led here, which on a second time round is
+            // its second appearance and not its first.
+            List<FacetRef> before = came is null ? [] : [new FacetRef(came, Facet.Realised)];
+            before.AddRange(Deciding(place, appearance));
 
             // Whether a part is there is decided when the walk reaches it, for the same reason a fork is:
             // it changes where the path goes. An absent set is skipped whole, so the next place cannot be
@@ -225,10 +263,10 @@ public sealed class GraphCodec(ProtocolGraph graph,
                     // over — that is what skipping a set means — so they are never reached and never
                     // settle, and waiting on them is waiting on somewhere the walk did not go.
                     Facet.Extent when spans => Missing(appearance)
-                        ? [] : codec.Spanned(run, place, Reading, Facet.Extent, appearance.Index),
+                        ? [] : codec.Spanned(run, appearance, place, Reading, Facet.Extent),
 
                     Facet.Emitted when spans => Missing(appearance)
-                        ? [] : codec.Spanned(run, place, Reading, Facet.Value, appearance.Index),
+                        ? [] : codec.Spanned(run, appearance, place, Reading, Facet.Value),
 
                     // Fixed BITS, not fixed octets. A four-bit field has no fixed octet width — it does not
                     // occupy an octet — so asking in octets says its width depends on its value, and TCP's
@@ -292,7 +330,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                             // and by then its dependencies have long been declared.
                             if (Reading) codec.Closing(run);
 
-                            return Next(place, here) is { } next
+                            return Next(place, appearance, here) is { } next
                                 ? FacetResult.Expanding(null, Reaching(next, place))
                                 : Ending(place);
 
@@ -347,32 +385,52 @@ public sealed class GraphCodec(ProtocolGraph graph,
         }
 
         /// <summary>
-        /// The next place, with the round ended if the walk has left what was going round.
+        /// Which repetitions the walk is inside, having arrived here — entering and leaving as it goes.
         /// </summary>
         /// <remarks>
-        /// Rounds belong to the repetition, not to the walk. Letting one run on past the end means every
-        /// place after a set that went round three times is asked for on its fourth appearance — while
-        /// everything that waits on it declared the first, so the two never meet and the message quietly
-        /// lacks everything after the repetition.
+        /// <para>
+        /// Taken from what <i>holds</i> this place rather than from where the walk has been, because a
+        /// repetition is left and re-entered by edges from junctions that belong to no set. A junction makes
+        /// no octets and holds nothing, so it keeps whatever frame led to it: the fork deciding whether to
+        /// read another label is not outside the run of labels merely because it is nobody's member.
+        /// </para>
+        /// <para>
+        /// A frame is the enclosing repetition's own appearance <b>at the round that encloses this one</b>,
+        /// so entering the same inner set on the outer set's second time round is a different frame from
+        /// the first — which is the whole of what keys an inner round to the outer one it belongs to.
+        /// </para>
         /// </remarks>
-        private Node? Leaving(Node? next)
+        private RunNode? Stepping(Node place)
         {
-            // Writing only. A reading goes round on its own edge and its rounds end when the edge stops
-            // pointing back — there is no set driving them, so there is nothing here to be finished with.
-            //
-            // Which means a reading's rounds carry on past the repetition, and everything after one is
-            // settled on its Nth appearance rather than its first. Harmless, because reaching for a node
-            // from a later round falls back to its only appearance — but resetting here instead is not the
-            // fix: a loop's control junctions are not members of the set they drive, so the walk is at one
-            // of them precisely when it is deciding whether to go round again.
-            if (Reading || _round == 0 || next is null) return next;
+            var within = codec.Graph.Enclosing(place);
 
-            foreach (var set in codec.Graph.Nodes.OfType<FieldSet>())
-                if (codec.Graph.Repeating(set) is not null && codec.Under(set, next))
-                    return next;
+            if (within.Count == 0 && place is Junction or EndParse) return Frame;
 
-            _round = 0;
-            return next;
+            int shared = 0;
+
+            while (shared < within.Count && shared < _frames.Count
+                && ReferenceEquals(_frames[shared].Of, within[shared])) shared++;
+
+            _frames.RemoveRange(shared, _frames.Count - shared);
+
+            for (int deeper = shared; deeper < within.Count; deeper++)
+            {
+                var outer = Frame;
+                int round = Round(outer);
+
+                // Stepping back INTO a repetition the walk had left is the next time round of whatever
+                // holds it. Going out, the walk returns to the outer set's first member and that arrival
+                // says so; coming in, the edge that goes round again may point straight at the innermost
+                // field — so this is the only place the outer round can be advanced, and without it every
+                // name after the first goes on reading into the first one's run of labels.
+                if (_entered.TryGetValue((outer, within[deeper]), out var last) && last == round)
+                    Rounded(outer, ++round);
+
+                _entered[(outer, within[deeper])] = round;
+                _frames.Add(run.For(within[deeper], outer, round));
+            }
+
+            return Frame;
         }
 
         /// <summary>
@@ -381,21 +439,23 @@ public sealed class GraphCodec(ProtocolGraph graph,
         /// <remarks>
         /// Asked of the place the walk is leaving rather than of the set, because that is where the
         /// question arises: a set is entered once per item and the only moment anyone can tell whether
-        /// another is due is on the way out of the last thing in it.
+        /// another is due is on the way out of the last thing in it. Innermost first, because a name that
+        /// has run out of labels is not a record that has run out of records.
         /// </remarks>
         private Node? Again(Node place)
         {
-            foreach (var set in codec.Graph.Nodes.OfType<FieldSet>())
+            for (int depth = _frames.Count - 1; depth >= 0; depth--)
             {
-                if (codec.Graph.Repeating(set) is null) continue;
-                if (!ReferenceEquals(codec.Last(set), place)) continue;
+                var frame = _frames[depth];
 
-                if (codec.Graph.Members(set).FirstOrDefault() is not { } first) continue;
+                if (!ReferenceEquals(codec.Last(frame.Of), place)) continue;
+                if (codec.Graph.Members(frame.Of).FirstOrDefault() is not { } first) continue;
 
                 // Back to the first MEMBER, not to the set. A repeated span is one place on the path
                 // however many turn up in it — so the set keeps a single appearance to be measured and
                 // pointed at, and what repeats is what it holds.
-                if (_round + 1 < codec.Items(run, run.For(set), set).Count) return first;
+                if (Round(frame) + 1 < codec.Items(run, frame, frame.Of).Count)
+                    return first;
             }
 
             return null;
@@ -413,7 +473,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             => appearance.Has(Facet.Present) && appearance.Settled(Facet.Present) is false;
 
         /// <summary>What the decision at this place needs before it can be made.</summary>
-        private List<FacetRef> Deciding(Node place)
+        private List<FacetRef> Deciding(Node place, RunNode appearance)
         {
             if (codec.Graph.From<Then>(place).Count() < 2) return [];
 
@@ -430,10 +490,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
             {
                 Evaluated evaluated =>
                     [.. codec.Graph.InputsOf(evaluated).Where(e => e.To is Field or Subprotocol)
-                            .Select(e => new FacetRef(run.Reach(run.For(place), e.To),
-                                                      Named(e.Facet)))],
+                            .Select(e => new FacetRef(run.Reach(appearance, e.To), Named(e.Facet)))],
 
-                Field announced => [new FacetRef(run.Reach(run.For(place), announced), Facet.Value)],
+                Field announced => [new FacetRef(run.Reach(appearance, announced), Facet.Value)],
 
                 _ => [],
             };
@@ -448,7 +507,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         /// membership edge was being walked as though it were the path. A set's members are reached by the
         /// ordinary way on, so there is nothing to come back to and nothing to remember being inside.
         /// </remarks>
-        private Node? Next(Node place, bool here)
+        private Node? Next(Node place, RunNode appearance, bool here)
         {
             // A set that is not there takes its members with it. They are on the path, so skipping the set
             // means stepping over all of them — from where the last one would have led. That is the whole
@@ -458,7 +517,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // stepping into it, so leaving from there walks into the very thing being skipped — and reads
             // the first field of a part the walk had just decided was not there.
             if (!here && place is FieldSet set && codec.Last(set) is { } last)
-                return codec.Onward(run, last, Reading, _at.GetValueOrDefault(last, 0), source);
+                return codec.Onward(run, last, Reading,
+                                    _made.GetValueOrDefault(last)
+                                    ?? run.For(last, appearance.Within, appearance.Index), source);
 
             // Leaving the last thing under a set that repeats, with items still to go, goes back to the
             // set. The reading has no need of this — it goes round on its own edge and finds out how many
@@ -466,7 +527,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // the list rather than from anything on the wire.
             if (!Reading && here && Again(place) is { } again) return again;
 
-            return Leaving(codec.Onward(run, place, Reading, _at.GetValueOrDefault(place, 0), source));
+            return codec.Onward(run, place, Reading, appearance, source);
         }
     }
 
@@ -542,7 +603,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // Keyed by the round, because a set written once per item of a list is walked once per item and
         // the same computation answers differently each time. Sharing one answer across the passes is how
         // a run of six options comes out as six copies of the first.
-        var held = run.For(computation, null, appearance.Index);
+        //
+        // And by the repetition as well as the round, for the same reason one step out: the second label
+        // of the first name and the second label of the second name are both round one, and they are not
+        // the same answer.
+        var held = run.For(computation, appearance.Within, appearance.Index);
 
         if (held.Has(Facet.Value)) return held.Value;
 
@@ -753,9 +818,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         if (graph.Repeating(set) is not null)
         {
-            for (int pass = 0; pass < Passes(run, set); pass++)
+            for (int pass = 0; pass < Passes(run, appearance, set); pass++)
                 foreach (var member in graph.Members(set))
-                    LayOne(run, run.For(member, null, pass), member, wire);
+                    LayOne(run, run.For(member, appearance, pass), member, wire);
 
             return;
         }
@@ -764,7 +829,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         {
             // The same appearance the dependency was declared against. Reaching for it by scope instead
             // finds a different one, whose facets nothing ever settles.
-            LayOne(run, run.For(member, null, appearance.Index), member, wire);
+            LayOne(run, run.For(member, appearance.Within, appearance.Index), member, wire);
         }
     }
 
@@ -772,7 +837,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         // The same rule that decided not to wait on it. Anything else lays down a part that was ignored
         // when the octets were counted, so the length says one thing and the message is another.
-        if (Skipped(run, member, held.Index)) return;
+        if (Skipped(run, held)) return;
 
         if (member is FieldSet nested) Lay(run, held, nested, wire);
         else if (member is Field field) Write(wire, field, held.Value);
@@ -806,14 +871,16 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// the moment the walk arrives at that inner set, which is before any of its contents exist.
     /// </para>
     /// </remarks>
-    private List<FacetRef> Spanned(RunGraph run, Node set, bool reading, Facet wanted, int pass = 0)
+    private List<FacetRef> Spanned(RunGraph run, RunNode appearance, Node set, bool reading, Facet wanted)
     {
-        if (Skipped(run, set)) return [];
+        if (Skipped(run, appearance)) return [];
 
         // Coming in, one thing: the last place under the set having been read. Everything about the set is
         // known then and nothing about it is known before, so there is no finer answer to give.
         if (reading)
-            return Last(set) is { } last ? [new FacetRef(run.For(last), Facet.Realised)] : [];
+            return Last(set) is { } last
+                ? [new FacetRef(run.For(last, appearance.Within, appearance.Index), Facet.Realised)]
+                : [];
 
         // Going out, it depends on which question. How WIDE a set is falls out of its members' extents, and
         // a fixed-width field has one before it has a value. What its OCTETS are needs the values — asking
@@ -826,9 +893,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // dependency, rather than discovered as the walk goes and declared too late to be waited on.
         if (graph.Repeating(set) is not null)
         {
-            for (int round = 0; round < Passes(run, set); round++)
+            for (int round = 0; round < Passes(run, appearance, set); round++)
                 foreach (var member in graph.Members(set))
-                    Wanted(run, member, round, wanted, waits);
+                    Wanted(run, run.For(member, appearance, round), member, wanted, waits);
 
             return waits;
         }
@@ -837,7 +904,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // junction has no extent and no value by construction, so waiting on one is waiting for something
         // that will never be settled by anybody.
         foreach (var member in graph.Members(set))
-            Wanted(run, member, pass, wanted, waits);
+            Wanted(run, run.For(member, appearance.Within, appearance.Index), member, wanted, waits);
 
         return waits;
     }
@@ -848,22 +915,22 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// settle. Its members are what the octets came from, at whatever depth — which is why this descends
     /// for a value and does not for an extent, where a set does have an answer.
     /// </remarks>
-    private void Wanted(RunGraph run, Node member, int pass, Facet wanted, List<FacetRef> waits)
+    private void Wanted(RunGraph run, RunNode held, Node member, Facet wanted, List<FacetRef> waits)
     {
         // Absent at any depth means stepped over at any depth. A set inside a set that is not there is not
         // there either, and its members are places the walk never went.
-        if (Skipped(run, member, pass)) return;
+        if (Skipped(run, held)) return;
 
         switch (member)
         {
             case FieldSet nested when wanted == Facet.Value:
-                waits.AddRange(Spanned(run, nested, false, wanted, pass));
+                waits.AddRange(Spanned(run, held, nested, false, wanted));
                 break;
 
             // Only what makes octets. A junction has no extent and no value by construction, so waiting on
             // one waits for something nothing will ever settle.
             case Field or Subprotocol or FieldSet:
-                waits.Add(new FacetRef(run.For(member, null, pass), wanted));
+                waits.Add(new FacetRef(held, wanted));
                 break;
         }
     }
@@ -872,10 +939,16 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// Settles every set whose contents are all now accounted for, innermost first.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Repeated until nothing more can be settled, which is what carries it through nesting: the options
     /// close, so the half of the header past the checksum closes, so the header closes. A member counts as
     /// accounted for when it has an extent or when the walk stepped over it — an absent part contributes a
     /// real zero rather than leaving the set unanswerable.
+    /// </para>
+    /// <para>
+    /// Over the <b>appearances</b> a set has, not over the sets: one inside a repetition has one per time
+    /// round, and each closes when its own contents are in.
+    /// </para>
     /// </remarks>
     private void Closing(RunGraph run)
     {
@@ -885,13 +958,20 @@ public sealed class GraphCodec(ProtocolGraph graph,
         {
             moved = false;
 
-            foreach (var set in graph.Nodes.OfType<FieldSet>())
+            foreach (var appearance in graph.Nodes.OfType<FieldSet>().SelectMany(s => Made(run, s)).ToList())
             {
-                var appearance = run.For(set);
-
                 if (appearance.Has(Facet.Extent)) continue;
 
-                if (!graph.Members(set).All(m => m is Junction || Skipped(run, m) || run.For(m).Has(Facet.Extent)))
+                var set = appearance.Of;
+
+                // Its own members, at its own frame and round. A set that repeats holds its passes under
+                // itself, so round zero's members are the ones that say whether it has closed.
+                var frame = graph.Repeating(set) is not null ? appearance : appearance.Within;
+                int round = graph.Repeating(set) is not null ? 0 : appearance.Index;
+
+                if (!graph.Members(set).All(m => m is Junction
+                                              || Skipped(run, run.For(m, frame, round))
+                                              || run.For(m, frame, round).Has(Facet.Extent)))
                     continue;
 
                 long across = Spread(run, appearance, set);
@@ -902,6 +982,26 @@ public sealed class GraphCodec(ProtocolGraph graph,
             }
         }
     }
+
+    /// <summary>
+    /// Every appearance a place turned out to have, or the one it would have if nothing reached it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A pseudo-header is the second case and is not an edge case: it is a set nothing walks to, built
+    /// because a checksum requires it, so asking which appearances the walk made of it answers none.
+    /// </para>
+    /// <para>
+    /// <b>Only</b> where the path does not reach it, and that condition is the whole of the care needed
+    /// here. Minting one for a set the walk simply has not got to yet makes an appearance outside every
+    /// repetition, which is a second, emptier copy of the one the walk is about to make inside one — and
+    /// everything then finds whichever it happens to look for first.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyList<RunNode> Made(RunGraph run, Node place)
+        => run.Nodes.Where(n => ReferenceEquals(n.Of, place)).ToList() is { Count: > 0 } found ? found
+         : graph.To<Then>(place).Any() || graph.To<Decode>(place).Any() ? []
+         : [run.For(place)];
 
     /// <summary>
     /// Whether anything actually wants this set's octets.
@@ -931,9 +1031,9 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// to be there.
     /// </para>
     /// </remarks>
-    private bool Skipped(RunGraph run, Node place, int pass = 0)
+    private bool Skipped(RunGraph run, RunNode appearance)
     {
-        var appearance = run.For(place, null, pass);
+        var place = appearance.Of;
 
         if (appearance.Has(Facet.Present)) return appearance.Settled(Facet.Present) is false;
         if (!graph.MayBeAbsent(place)) return false;
@@ -953,22 +1053,24 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// What this time round is about: the item of the enclosing repeating set that belongs to this pass.
     /// </summary>
     /// <remarks>
-    /// Found by asking which repeating set holds the node being computed, then taking the element at this
-    /// appearance's index. Nothing when there is no such set, which is the ordinary case and why every
-    /// description that does not repeat never mentions it.
+    /// <para>
+    /// The appearance already says which: it was made inside a frame, and the frame is the repetition it
+    /// belongs to. So this is a lookup rather than a search — and the search is what was wrong, because it
+    /// took the first repeating set holding the node and a name inside a record is held by both.
+    /// </para>
+    /// <para>
+    /// Nothing where the appearance is in no frame, which is the ordinary case and why every description
+    /// that does not repeat never mentions it.
+    /// </para>
     /// </remarks>
     private ProtoValue Item(RunGraph run, RunNode here)
     {
-        foreach (var set in graph.Nodes.OfType<FieldSet>())
-        {
-            if (graph.Repeating(set) is null || !Under(set, here.Of)) continue;
+        if (here.Within is not { Of: FieldSet set } frame || graph.Repeating(set) is null)
+            return ProtoValue.Nothing;
 
-            var items = Items(run, run.For(set, null, here.Index), set);
+        var items = Items(run, frame, set);
 
-            return here.Index < items.Count ? items[here.Index] : ProtoValue.Nothing;
-        }
-
-        return ProtoValue.Nothing;
+        return here.Index < items.Count ? items[here.Index] : ProtoValue.Nothing;
     }
 
     /// <summary>Whether a place is somewhere under a set, however deeply.</summary>
@@ -979,11 +1081,18 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// The items a repeating set is written once for.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Resolved here and now rather than looked up, because the thing producing the list may be an input,
     /// a computation over one, or something derived from a field that was read a moment ago — and which of
     /// those it is makes no difference to anybody except the node that produces it.
+    /// </para>
+    /// <para>
+    /// Asked <b>of the frame</b>, which is what makes an inner list able to depend on the outer item: the
+    /// frame's own <c>Within</c> is the repetition around it and its index is which time round that one is
+    /// on, so an expression reading <c>item.labels</c> is handed the record this run of labels belongs to.
+    /// </para>
     /// </remarks>
-    internal IReadOnlyList<ProtoValue> Items(RunGraph run, RunNode appearance, Node set)
+    internal IReadOnlyList<ProtoValue> Items(RunGraph run, RunNode frame, Node set)
     {
         if (graph.Repeating(set)?.To is not Computation over) return [];
 
@@ -992,25 +1101,30 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // was never asked.
         if (over is Context outside && !run.For(outside).Has(Facet.Value)) return [];
 
-        return Produced(run, appearance, over).AsList();
+        // The same answer one step further away. An inner list is computed FROM the outer item — the
+        // labels of this name — so coming in it is an expression over a value nobody supplied, and it
+        // comes to nothing rather than being absent. Only nothing: anything else that is not a list is a
+        // description saying to repeat over something that is not one, and still says so.
+        return Produced(run, frame, over) is var told && told is ProtoValue.Null ? [] : told.AsList();
     }
 
     /// <summary>
-    /// How many times a repeating set turned out to go round.
+    /// How many times a repeating set turned out to go round, in one enclosing frame.
     /// </summary>
     /// <remarks>
     /// The list says so going out; coming in nobody supplied one, so the answer is however many
-    /// appearances the walk made. Both are the same question asked of whichever side knows.
+    /// appearances the walk made under this frame. Both are the same question asked of whichever side
+    /// knows.
     /// </remarks>
-    internal int Passes(RunGraph run, Node set)
+    internal int Passes(RunGraph run, RunNode frame, Node set)
     {
-        int told = Items(run, run.For(set), set).Count;
+        int told = Items(run, frame, set).Count;
 
         if (told > 0) return told;
         if (graph.Members(set).FirstOrDefault() is not { } first) return 0;
 
         int made = 0;
-        while (run.Existing(first, null, made) is not null) made++;
+        while (run.Existing(first, frame, made) is not null) made++;
 
         return made;
     }
@@ -1043,24 +1157,26 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </remarks>
     private long Spread(RunGraph run, RunNode appearance, Node place)
     {
-        if (Skipped(run, place, appearance.Index)) return 0;
+        if (Skipped(run, appearance)) return 0;
 
         if (place is FieldSet set)
         {
             // A set that repeats is as wide as ALL of its passes. Measuring one of them is how a header
-            // carrying five options comes out the width of one.
+            // carrying five options comes out the width of one. Its own appearance IS the frame those
+            // passes live in, so the passes of a run of names inside one record are that record's.
             if (graph.Repeating(set) is not null)
             {
                 long across = 0;
 
-                for (int pass = 0; pass < Passes(run, set); pass++)
+                for (int pass = 0; pass < Passes(run, appearance, set); pass++)
                     foreach (var member in graph.Members(set))
-                        across += Spread(run, run.For(member, null, pass), member);
+                        across += Spread(run, run.For(member, appearance, pass), member);
 
                 return across;
             }
 
-            return graph.Members(set).Sum(m => Spread(run, run.For(m, null, appearance.Index), m));
+            return graph.Members(set)
+                        .Sum(m => Spread(run, run.For(m, appearance.Within, appearance.Index), m));
         }
 
         if (place is Field carried && carried.Form.FixedBits is { } fixedBits)
@@ -1577,7 +1693,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// <summary>
     /// The way on from here: the only one, or the one the deciding node picks.
     /// </summary>
-    private Node? Onward(RunGraph run, Node place, bool reading, int pass = 0, BitCursor? ahead = null)
+    private Node? Onward(RunGraph run, Node place, bool reading, RunNode at, BitCursor? ahead = null)
     {
         // Where a reading says how it goes, it goes that way; where it says nothing, it goes the way the
         // writing does. Most of a protocol is the second case, and there the two directions share one
@@ -1590,13 +1706,13 @@ public sealed class GraphCodec(ProtocolGraph graph,
         if (ways.Count == 0) return null;
         if (ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise) return ways[0].To;
 
-        var chosen = Decided(run, place, reading, pass, ahead);
+        var chosen = Decided(run, place, reading, at, ahead);
 
         foreach (var way in ways)
-            if (!way.Otherwise && ProtoValue.Alike(way.Key, chosen)) return Taking(run, ways, way.To, pass);
+            if (!way.Otherwise && ProtoValue.Alike(way.Key, chosen)) return Taking(run, ways, way.To, at);
 
         foreach (var way in ways)
-            if (way.Otherwise) return Taking(run, ways, way.To, pass);
+            if (way.Otherwise) return Taking(run, ways, way.To, at);
 
         throw new ProtoTypeException(
             $"'{place.Name}': {chosen} picks none of the ways on, and none is the one taken when nothing "
@@ -1620,15 +1736,15 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </para>
     /// </remarks>
     private Node Taking(RunGraph run, List<(Node To, ProtoValue? Key, bool Otherwise, bool Optional)> ways,
-                               Node taken, int pass)
+                               Node taken, RunNode at)
     {
         foreach (var way in ways)
         {
             if (ReferenceEquals(way.To, taken) || !way.Optional) continue;
 
-            // At this round. The arms of a fork inside a repetition are per-round like everything else, and
-            // marking round zero's arm absent again on round one is two answers to one question.
-            Absent(run, way.To, pass);
+            // At this round of this repetition. The arms of a fork inside one are per-round like everything
+            // else, and marking round zero's arm absent again on round one is two answers to one question.
+            Absent(run, way.To, at);
         }
 
         return taken;
@@ -1643,9 +1759,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// it — none of which the walk will ever go and settle, because it went the other way. So an absent
     /// part answers, and what it answers is nothing: no octets, no width, no value.
     /// </remarks>
-    private void Absent(RunGraph run, Node place, int pass)
+    private void Absent(RunGraph run, Node place, RunNode at)
     {
-        var missed = run.For(place, null, pass);
+        // The arm shares the frame and the round of the fork that stepped past it: it is the same time
+        // round of the same repetition, and the arm not taken is a fact about THAT one.
+        var missed = run.For(place, at.Within, at.Index);
 
         if (missed.Has(Facet.Present)) return;
 
@@ -1653,12 +1771,12 @@ public sealed class GraphCodec(ProtocolGraph graph,
     }
 
     /// <summary>What the fork was decided on — a computation's answer, or a node's own value.</summary>
-    /// <param name="pass">
-    /// Which time round this is. A fork inside a loop is decided by what THIS pass read — reading the
-    /// first pass's value every time is how a loop never reaches its own terminator and runs off the end
-    /// of the octets.
+    /// <param name="at">
+    /// The appearance being left: which repetition, and which time round of it. A fork inside a loop is
+    /// decided by what THIS pass read — reading the first pass's value every time is how a loop never
+    /// reaches its own terminator and runs off the end of the octets.
     /// </param>
-    private ProtoValue Decided(RunGraph run, Node place, bool reading, int pass, BitCursor? ahead)
+    private ProtoValue Decided(RunGraph run, Node place, bool reading, RunNode at, BitCursor? ahead)
     {
         // Coming in, a place may find out which way to go by looking. That is the only answer available at
         // the top of a protocol, where which message this is, is a thing the message says: there is no
@@ -1675,11 +1793,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         return deciding.To switch
         {
-            Evaluated evaluated => Ran(evaluated, Given(run, run.For(place, null, pass), evaluated, ahead)),
+            Evaluated evaluated => Ran(evaluated, Given(run, at, evaluated, ahead)),
 
             // A run of unlike components is decided by what its token said, which is a node's value and
             // needs no expression at all.
-            Field announced => Toward(run, run.For(place, null, pass), announced).Value,
+            Field announced => Toward(run, at, announced).Value,
 
             var other => throw new ProtoTypeException($"'{other.Name}' cannot decide a way on"),
         };

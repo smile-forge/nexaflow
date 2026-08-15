@@ -16,7 +16,7 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 | | |
 |---|---|
 | **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762) |
-| **Authored but not yet built** | BACnet, SNMP, SSDP, TLS — and the mDNS *response*, which needs a repetition inside a repetition |
+| **Authored but not yet built** | BACnet, SNMP, SSDP, TLS — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -270,8 +270,18 @@ read off a field a moment earlier. A count in the description could be none of t
 Each pass binds `item` and `ordinal`, so fields read their own by name: `item.kind`, not index 0 of a list
 dug out again in every field.
 
-Coming in, the reading goes round on a `decode` edge and finds out how many there were. Neither direction
-has a count and neither needs one.
+Coming in, the reading goes round on a `decode` edge and finds out how many there were — by looking for a
+sentinel, by running out of octets, or by **counting**, where the wire says how many and nothing else does:
+
+```json
+{ "id": "evaluated.moreQuestions", "kind": "evaluated", "runs": "ordinal + 1 < qdcount",
+  "gives": "Bool", "takes": { "qdcount": "Int" } }
+```
+
+`ordinal` is which time round *this* repetition is on. Going out the count is `count(<the list>)`, so the
+header and the body cannot disagree: one fact, read from whichever side knows it. DNS needs this and a
+sentinel will not do — a question carries no terminator and what follows the last one begins exactly as
+another question would.
 
 **A reading's rounds carry on past the repetition**, because nothing drives them but the edge that points
 back — so the part after a run of options is settled on the walk's fifth appearance rather than its first.
@@ -280,12 +290,21 @@ that part by index will not find it. Resetting the round on the way out is *not*
 junctions are not members of the set they drive, so the walk is standing on one exactly when it is deciding
 whether to go round again.
 
-**One repetition at a time, and a nested one is silently wrong rather than refused.** The round is a single
-counter shared by the whole walk, and `item` resolves against whichever repeating set holds the node —
-taking the first one declared. So a set that repeats inside a set that repeats binds the *outer* item in the
-inner one's fields and goes round the outer number of times. Two groups of two labels write two octets, no
-error. This is what keeps the mDNS response out: a record run whose every record begins with a name is
-exactly that shape.
+**A repetition may hold another one.** A run of names, each of which is a run of labels — which is what
+every DNS message is made of, and what SNMP's varbinds, TLS's extensions and BACnet's properties are too.
+The rounds belong to the repetition rather than to the walk: an appearance is keyed by which repetition
+encloses it as well as by which time round, so the third label of the second name is a different node from
+the second label of the third.
+
+Which repetition a place is in comes from what **holds** it, not from where the walk has been — a loop is
+left and re-entered by edges from junctions that belong to no set, and a junction keeps whatever frame led
+to it. Going out, returning to the outer set's first member says a new round started; coming in, the edge
+that goes round again may point straight at the innermost field, so stepping back *into* a repetition the
+walk had left is what says so.
+
+And the inner list is the outer item's: `"runs": "item.labels"` on the computation a nested set repeats
+over is asked of the name being written, so a description says what an inner run is *of* rather than
+receiving one flattened list and an index scheme to take it apart.
 
 ## When the reading is not the writing backwards
 
@@ -450,9 +469,9 @@ the node. `ConsistencyTests` pins them.
 | `MqttCaptureTests` | six message formats, chosen by looking ahead; a varint at two widths |
 | `DhcpCaptureTests` | a repetition ended by a sentinel, with bare codes and fill after it |
 | `CoapCaptureTests` | options that only mean something in sequence, and both nibble escapes |
-| `MdnsCaptureTests` | a name — labels ending at a label of length zero — and a description that says in its octets what it does not cover |
+| `MdnsCaptureTests` | a name — labels ending at a label of length zero — inside a run of questions ended by a count, and a description that says in its octets what it does not cover |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
-| `RepetitionTests` | written once per item |
+| `RepetitionTests` | written once per item, including a run inside a run |
 | `AbsenceTests` | the four questions |
 | `ConsistencyTests` | what a description has to be true of itself, refused when it loads |
 | `StateUpdateTests` | what a message leaves behind, and what state is not for |
