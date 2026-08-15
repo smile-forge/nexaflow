@@ -33,7 +33,19 @@ become edges — which is the reason to build it *now* rather than then.
 to a sequence number after a SYN and the payload length after data — TCP's own arithmetic, living in a
 harness. RFC 9293 §3.3.1 is in the description now and `updates` carries the answer out, so a host
 acknowledges what it was told rather than what it worked out. What is still in the host is which segments
-are *legal* when, which is the rest of this section.
+are *legal* when.
+
+**Two of the three pieces legality needs are now in place, and the third is where it stalled.** A `checks`
+edge works on any node, so a message can carry an invariant about the whole segment rather than about one
+field; and a state nobody set reads as nothing rather than failing, because a conversation starting is
+ordinary. What is missing is not machinery — an attempt at RFC 9293 §3.10 (legal-in-state plus the
+transition, both hanging off the message) loaded and refused a plain SYN generated from CLOSED, which
+means the check's view of `syn` and `ack` at the message's appearance is not what it looks like. Diagnose
+that before assuming the shape is wrong; the shape looked right.
+
+And note what adding it does to everything else: every TCP test that builds a segment out of nowhere now
+has to say which state it is in. That is correct — a segment is legal *in a state* — but it means the
+legality slice and the tests that drive it land together or not at all.
 
 ## 2. What the ten-protocol corpus is for
 

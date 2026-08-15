@@ -524,6 +524,14 @@ public sealed class GraphCodec(ProtocolGraph graph,
         switch (computation)
         {
             case Constant stated: return stated.Holds;
+
+            // A state nobody has set is a conversation starting, which is ordinary — so it answers
+            // nothing rather than failing. An INPUT nobody set is a caller who did not say something they
+            // had to, and that still fails where the reading is, naming the input.
+            case Context.State kept:
+                var slot = run.For(kept);
+                return slot.Has(Facet.Value) ? slot.Value : ProtoValue.Nothing;
+
             case Context outside: return run.For(outside).Value;
         }
 
@@ -1861,21 +1869,30 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// out here, not from the peer.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Everything the description said has to hold, once the message is whole.
+    /// </summary>
+    /// <remarks>
+    /// <b>Of any node</b>, not only the root and the fields. A message is the node an invariant about the
+    /// WHOLE message belongs on — which segments are legal in which state, whether two flags may be set
+    /// together — and there was nowhere to put one, so it sat in whatever host was driving the exchange.
+    /// A rule the specification states belongs where the specification is written down.
+    /// </remarks>
     private void Vouch(RunGraph run)
     {
-        foreach (var check in graph.Checking(graph.Root).Concat(
-                     graph.Nodes.OfType<Field>().SelectMany(f => graph.Checking(f))))
-        {
-            if (check.To is not Evaluated asserted) continue;
+        foreach (var node in graph.Nodes)
+            foreach (var check in graph.Checking(node))
+            {
+                if (check.To is not Evaluated asserted) continue;
 
-            var here = run.Existing(check.From) ?? run.For(check.From);
+                var here = run.Existing(check.From) ?? run.For(check.From);
 
-            if (_evaluator.Eval(asserted.Runs, Given(run, here, asserted)).AsBool()) continue;
+                if (_evaluator.Eval(asserted.Runs, Given(run, here, asserted)).AsBool()) continue;
 
-            throw new ProtoTypeException(
-                $"message '{graph.Id}' does not satisfy: {asserted.Source.Render()}"
-              + (check.Because.Length > 0 ? $" — {check.Because}" : ""));
-        }
+                throw new ProtoTypeException(
+                    $"'{check.From.Name}' does not satisfy: {asserted.Source.Render()}"
+                  + (check.Because.Length > 0 ? $" — {check.Because}" : ""));
+            }
     }
 
     /// <summary>
