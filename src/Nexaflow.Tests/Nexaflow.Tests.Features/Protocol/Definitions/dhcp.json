@@ -212,14 +212,15 @@
         "of": "opaque",
         "octets": 4
       },
-      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+      "via": "ipv4",
+      "about": "Four octets on the wire and an address to anyone setting it, which is what `via` is for: the conversion goes one way going out and is inverted coming in, so there is one statement of it rather than a caller and a reader that have to agree by hand."
     },
     {
       "id": "input.ciaddr",
       "kind": "input",
       "as": "ciaddr",
       "purpose": "RFC 2131 §2: the client's current address, and zero until it has one.",
-      "gives": "Bytes"
+      "gives": "Text"
     },
     {
       "id": "yiaddr",
@@ -229,14 +230,15 @@
         "of": "opaque",
         "octets": 4
       },
-      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+      "via": "ipv4",
+      "about": "Four octets on the wire and an address to anyone setting it, which is what `via` is for: the conversion goes one way going out and is inverted coming in, so there is one statement of it rather than a caller and a reader that have to agree by hand."
     },
     {
       "id": "input.yiaddr",
       "kind": "input",
       "as": "yiaddr",
       "purpose": "RFC 2131 §2: the address the server is offering or assigning.",
-      "gives": "Bytes"
+      "gives": "Text"
     },
     {
       "id": "siaddr",
@@ -246,14 +248,15 @@
         "of": "opaque",
         "octets": 4
       },
-      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+      "via": "ipv4",
+      "about": "Four octets on the wire and an address to anyone setting it, which is what `via` is for: the conversion goes one way going out and is inverted coming in, so there is one statement of it rather than a caller and a reader that have to agree by hand."
     },
     {
       "id": "input.siaddr",
       "kind": "input",
       "as": "siaddr",
       "purpose": "RFC 2131 §2: the next server to use in bootstrap.",
-      "gives": "Bytes"
+      "gives": "Text"
     },
     {
       "id": "giaddr",
@@ -263,14 +266,15 @@
         "of": "opaque",
         "octets": 4
       },
-      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+      "via": "ipv4",
+      "about": "Four octets on the wire and an address to anyone setting it, which is what `via` is for: the conversion goes one way going out and is inverted coming in, so there is one statement of it rather than a caller and a reader that have to agree by hand."
     },
     {
       "id": "input.giaddr",
       "kind": "input",
       "as": "giaddr",
       "purpose": "RFC 2131 §2: the relay agent that forwarded this, and zero when none did.",
-      "gives": "Bytes"
+      "gives": "Text"
     },
     {
       "id": "chaddr",
@@ -289,6 +293,7 @@
       "form": {
         "of": "opaque"
       },
+      "via": "mac",
       "about": "RFC 2131 §2: the client hardware address, hlen octets of it."
     },
     {
@@ -304,8 +309,8 @@
       "id": "input.chaddr",
       "kind": "input",
       "as": "chaddr",
-      "purpose": "The client hardware address, as octets. Its length is what hlen says.",
-      "gives": "Bytes"
+      "gives": "Text",
+      "purpose": "The client hardware address, written the way a hardware address is written. Its length is what hlen says."
     },
     {
       "id": "evaluated.hlen",

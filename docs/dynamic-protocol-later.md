@@ -83,8 +83,14 @@ Kept nearly verbatim, because each cost real time.
 - **A name that goes missing evaluates to nothing rather than failing.** A set whose id contained a dot
   could not be reached by the expression naming it — `sets.a.b.extent` is nested member access, not one
   key — so the length that measured it computed *nothing*, and the failure surfaced three layers down as
-  "expected Int, got Null" inside a base-128 converter. Worth fixing at the root: an expression reaching
-  under `fields.` or `sets.` for something the computation has no edge to should say so, by name.
+  "expected Int, got Null" inside a base-128 converter. *Fixed 2026-08-15: refused when the protocol
+  loads, along with the rest of `Consistency`.*
+- **A capability the engine has and the file format cannot reach is worse than one it lacks.** `Field.Via`
+  had seven call sites in the codec and no key in the parser; `Coded` was a class with no node kind. Both
+  went unnoticed for as long as they did because the descriptions written around them *explained
+  themselves* — dhcp.json argued that an address is kept as octets because a number can be added to
+  another one, which reads as a principle and was a workaround for a missing two lines. When the file
+  cannot say something, the prose justifying the gap is where it hides.
 - **Blind line-number edits cut across method boundaries.** Twice. Read, then edit.
 
 ## 4. Why the document layer died
@@ -139,6 +145,11 @@ standing in for something else.
 - **A per-connection layering seam.** `Subprotocol` hangs off a field, so "everything after this on this
   connection is another protocol" can only be said by making the switched stream a trailing field. Works;
   wants WebSocket-after-upgrade to show the right shape.
+- **Kind checking is real only where both ends declare.** A field's form implies one, constants know
+  theirs, converters state both sides, and computations now say. What is *not* checked is an edge into an
+  `evaluated`: an expression has no declared kind per input, so nothing compares them. Making that real
+  means expressions taking named parameters rather than reading roots, which is a bigger change than it
+  looks — all 67 of them are written the other way.
 - **`Contains` and `allowed` edges are read by almost nothing.** `allowed` in particular means "what may
   turn up in this span" and the walk never consults it — repetition went the `requires … "each"` route
   instead. Either wire it up or delete it.

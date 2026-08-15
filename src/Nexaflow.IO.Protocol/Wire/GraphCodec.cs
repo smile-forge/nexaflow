@@ -1113,8 +1113,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // delimiter needs no expression and can be pointed at by the span that ends before it.
         var value = Produced(run, appearance, Produces(field));
 
-        if (field.Via is not null) value = Applied(field, value, forward: true);
-
         Vet(appearance, field, value);
         appearance.Settle(Facet.Value, value);
         return value;
@@ -1722,8 +1720,16 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// values, which is what a shape was; those are sets of fields now, and a set is walked rather than
     /// laid down.
     /// </remarks>
+    /// <remarks>
+    /// The conversion happens <b>here</b> rather than where the value was worked out, because this is
+    /// every path that lays a field down and that was not: a set asked for its own octets lays its members
+    /// again from what they hold, and coming in what they hold is already on the near side of the
+    /// conversion. Applying it once at the far end left that path handing an address, as text, to a form
+    /// that lays octets.
+    /// </remarks>
     private void Write(BitWriter wire, Field field, ProtoValue value)
-        => field.Form.Lay(wire, value, How(field));
+        => field.Form.Lay(wire, field.Via is null ? value : Applied(field, value, forward: true),
+                          How(field));
 
     private ProtoValue Read(Field field, byte[] taken)
     {

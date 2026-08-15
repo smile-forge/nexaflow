@@ -119,7 +119,8 @@ and argued with.
 | `state` | A value the protocol keeps between messages. Read as `state.<id>`. |
 | `constant` | A value fixed by the description. |
 | `evaluated` | An expression. |
-| `converted` | A member of the closed converter set, with its inputs on edges. |
+| `converted` | A member of the closed converter set, with its value **and its arguments** on edges. |
+| `coded` | Code behind a name the host registered. Its inputs are edges like anything else. |
 | `default` | What a part means when absent, and the policy around that. |
 | `validator` | Ranges a value must fall in. |
 | `set-of-values` | A named value set, open or closed. |
@@ -154,7 +155,7 @@ the thing that is written down.
 | `decode` | from → to | The same, for a reading that is not the writing backwards. May loop. |
 | `holds` | set → member | Membership and contiguity, with `order`. **Not a path.** |
 | `computes` | **owner → computation** | What produces one of the owner's facets. `facet`, and `reading` where the two directions differ. |
-| `requires` | **computation → input** | What it needs, with `sequence` and `facet`. |
+| `requires` | **computation → input** | What it needs, with `sequence` and `facet`. `parameter` names which argument it feeds. |
 | `decides` | forking node → computation | What picks the way on. `reading`. |
 | `identifies` | forking node → field → … → field | A path read **ahead** of choosing, ending at the discriminator. Reading only. |
 | `checks` | node → validator | What has to hold. |
@@ -306,6 +307,55 @@ Higher-order forms are in the expression language rather than the table: `map`, 
 `takeWhile`, `any`, `all`, `fold`, `scan`. So an accumulating read needs no converter — HPACK's eviction
 was written with `fold` before anybody thought to add one.
 
+## Values, kinds, and what the file may say
+
+**The file says everything the engine does.** Where it did not, the gap showed up as prose: a description
+justifying octets where the real reason was that no key existed to write `"via": "ipv4"`. Three sources of
+a value — `input`, `state`, `constant` — and three ways to change one:
+
+| | |
+|---|---|
+| `converted` | a member of the closed set. **Most of the time this is what you want.** |
+| `evaluated` | an expression, for arithmetic the converters do not have |
+| `coded` | code behind a name the host registered, for a library nothing else reaches |
+
+All three take their inputs from `requires` edges and can reach nothing else. A converter's **arguments are
+edges too** — `repeat` takes a `count`, `fit` a `width` and a `fill` — so an argument may be a constant, a
+field read a moment ago, or another calculation:
+
+```json
+{ "kind": "requires", "from": "made", "to": "zero", "sequence": 0 },
+{ "kind": "requires", "from": "made", "to": "n", "facet": "value", "sequence": 1, "parameter": "count" }
+```
+
+Unnamed edges gather into the value in `sequence` order; a named one holds an argument. So one call can
+collect several values while a parameter stays fixed.
+
+**A field may convert on its own**, with `"via"`, applied on the way out and inverted on the way in:
+DHCP's `yiaddr` is four octets on the wire and `192.168.0.10` to whoever sets it. `via` takes no arguments
+— a field has nowhere for one to come from — so a conversion that needs a width is a `converted`
+computation instead, and saying otherwise is refused when the protocol loads.
+
+**Every computation says what kind of value it gives**: `"gives": "Bytes"`, `Int`, `Number`, `Bool`,
+`Text`, `Instant`, `Duration`, `List`, `Record`. A constant knows its own. Required rather than defaulted,
+because a kind nobody stated agrees with everything, and a check that runs only where somebody remembered
+reads as safety and is not.
+
+## Refused when it loads
+
+Each of these was a real failure that surfaced somewhere else entirely, so each is now a sentence naming
+the node. `ConsistencyTests` pins them.
+
+- **A node with no edges.** Two value sets shipped in MQTT this way, documenting return codes nothing
+  checked.
+- **An expression naming what it has no edge to** — including asking for the wrong facet. This is where a
+  dotted set id goes: `sets.a.b.extent` is member access three deep, so a set called `a.b` cannot be
+  spelled, and used to evaluate to nothing rather than say so.
+- **An edge no expression reads**, which is a declaration that came adrift from what it was written for.
+- **A kind that cannot go where it is put** — `Text` into a field that lays down an integer.
+- **A converter given a parameter it does not take**, or a `via` that needs one, or a `via` with no
+  inverse.
+
 ## Rules of thumb when authoring
 
 - **Every field is a node**, including the four-bit and one-bit ones.
@@ -318,9 +368,10 @@ was written with `fold` before anybody thought to add one.
 - **What two messages genuinely share is often a value, not a place.** A SUBSCRIBE's Packet Identifier and
   the SUBACK's that echoes it are two positions in two messages holding one token: two fields, one input.
 - **A field or set named in an expression must have a dot-free id.** `sets.connack.variableHeader.extent`
-  parses as nested member access, so a set whose id contains a dot is silently not found and the
-  expression quietly yields nothing. Ids of nodes nothing names in an expression — messages, packings,
-  junctions, constants — may carry dots freely.
+  parses as nested member access, so a set whose id contains a dot cannot be reached by the only syntax
+  there is to reach it with. Refused when the protocol loads now, rather than quietly yielding nothing.
+  Ids of nodes nothing names in an expression — messages, packings, junctions, constants — may carry dots
+  freely.
 - **Describe the shape, not the catalogue.** RFC 9293 gives two option shapes — single octet, or
   kind-length-data — so a TCP option this file has never heard of round-trips. Enumerating known kinds
   refuses it.
@@ -342,6 +393,7 @@ was written with `fold` before anybody thought to add one.
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item |
 | `AbsenceTests` | the four questions |
+| `ConsistencyTests` | what a description has to be true of itself, refused when it loads |
 
 A host may set values and ask for a message, and that is the whole of its vocabulary. It cannot reach into
 the run, place a field, or fix up octets — so anything that comes out right came out of the description.

@@ -41,7 +41,11 @@ public class MqttCaptureTests
 
     private static long Number(RunGraph run, string field) => One(run, field).Value.AsInt();
 
-    private static string Text(RunGraph run, string field)
+    /// <summary>A field the description says is text, read as text.</summary>
+    private static string Said(RunGraph run, string field) => One(run, field).Value.AsText();
+
+    /// <summary>A field the specification calls binary data, which stays octets.</summary>
+    private static string Octets(RunGraph run, string field)
         => Encoding.UTF8.GetString(One(run, field).Value.AsBytes());
 
     /// <summary>Every appearance of a field that turned up more than once, in the order they were read.</summary>
@@ -134,10 +138,11 @@ public class MqttCaptureTests
 
         Assert.AreEqual(1, Number(run, "connectType"));
         Assert.AreEqual(143, Number(run, "connectRemaining"), "two octets of varint, 15 + 1×128");
-        Assert.AreEqual("MQTT", Text(run, "protocolNameBytes"));
+        Assert.AreEqual("MQTT", Octets(run, "protocolNameBytes"),
+            "a constant this description states, so it stays the octets it states");
         Assert.AreEqual(4, Number(run, "protocolLevel"), "MQTT 3.1.1");
         Assert.AreEqual(60, Number(run, "keepAlive"));
-        Assert.AreEqual("nexaflow-probe-01", Text(run, "clientIdBytes"));
+        Assert.AreEqual("nexaflow-probe-01", Said(run, "clientIdBytes"));
 
         // 0xce, bit by bit — and each bit is a node, so each is answerable.
         Assert.AreEqual(1, Number(run, "userNameFlag"));
@@ -157,13 +162,14 @@ public class MqttCaptureTests
         // are one fact and cannot disagree.
         var run = Read(Connect);
 
-        Assert.AreEqual("dev/status", Text(run, "willTopicBytes"));
+        Assert.AreEqual("dev/status", Said(run, "willTopicBytes"));
         Assert.AreEqual(80, Number(run, "willMessageLength"));
-        Assert.AreEqual("sensoruser", Text(run, "userNameBytes"));
-        Assert.AreEqual("s3cr3t", Text(run, "passwordBytes"));
+        Assert.AreEqual("sensoruser", Said(run, "userNameBytes"));
+        Assert.AreEqual("s3cr3t", Octets(run, "passwordBytes"));
 
-        StringAssert.Contains(Text(run, "willMessageBytes"), "ungraceful-disconnect",
-            "MQTT gives the will message no structure, so these are the octets an application chose");
+        StringAssert.Contains(Octets(run, "willMessageBytes"), "ungraceful-disconnect",
+            "MQTT gives the will message no structure, so these stay octets where the topic beside them "
+            + "converts — §3.1.3.3 calls one binary data and §3.1.3.2 calls the other a UTF-8 string");
     }
 
     [TestMethod]
@@ -198,7 +204,7 @@ public class MqttCaptureTests
 
         CollectionAssert.AreEqual(
             new[] { "dev/status", "dev/+/telemetry", "$SYS/broker/uptime" },
-            Each(run, "topicFilterBytes").Select(n => Encoding.UTF8.GetString(n.Value.AsBytes())).ToArray());
+            Each(run, "topicFilterBytes").Select(n => n.Value.AsText()).ToArray());
 
         CollectionAssert.AreEqual(
             new long[] { 1, 2, 0 },

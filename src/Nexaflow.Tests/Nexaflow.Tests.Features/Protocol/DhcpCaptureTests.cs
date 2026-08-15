@@ -53,6 +53,9 @@ public class DhcpCaptureTests
     private static string Hex(RunGraph run, string field)
         => Convert.ToHexString(One(run, field).Value.AsBytes());
 
+    /// <summary>A field that converts, read the way anyone setting it would write it.</summary>
+    private static string Said(RunGraph run, string field) => One(run, field).Value.AsText();
+
     private static IReadOnlyList<RunNode> Each(RunGraph run, string field)
         => [.. run.Nodes.Where(n => n.Of is Field f && f.Id == field && n.Has(Facet.Value))
                         .OrderBy(n => n.Index)];
@@ -123,9 +126,11 @@ public class DhcpCaptureTests
         Assert.AreEqual(0, Number(run, "broadcastFlag"), "a unicast reply was asked for");
         Assert.AreEqual(0x63825363, Number(run, "magicCookie"));
 
-        Assert.AreEqual("000B8201FC42", Hex(run, "hardwareAddress"));
+        Assert.AreEqual("00:0b:82:01:fc:42", Said(run, "hardwareAddress"),
+            "a hardware address, because the field says it converts — not six octets to be decoded by "
+            + "whoever asked");
         Assert.AreEqual(10, One(run, "chaddrPad").Value.AsBytes().Length, "sixteen less the six used");
-        Assert.AreEqual("00000000", Hex(run, "ciaddr"), "it has no address yet — that is what it is asking for");
+        Assert.AreEqual("0.0.0.0", Said(run, "ciaddr"), "it has no address yet — that is what it is asking for");
     }
 
     [TestMethod]
@@ -167,8 +172,8 @@ public class DhcpCaptureTests
 
         Assert.AreEqual(2, Number(run, "op"), "BOOTREPLY");
         Assert.AreEqual(0x3903f326, Number(run, "xid"), "echoed, which is what pairs it with the discover");
-        Assert.AreEqual("C0A8000A", Hex(run, "yiaddr"), "192.168.0.10, the address being offered");
-        Assert.AreEqual("C0A80001", Hex(run, "siaddr"));
+        Assert.AreEqual("192.168.0.10", Said(run, "yiaddr"), "the address being offered");
+        Assert.AreEqual("192.168.0.1", Said(run, "siaddr"));
 
         StringAssert.StartsWith(Encoding.ASCII.GetString(One(run, "sname").Value.AsBytes()), "dhcp.nexa.lan");
         Assert.AreEqual(64, One(run, "sname").Value.AsBytes().Length, "the field is sixty-four whatever it holds");
