@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252) |
-| **Authored but not yet built** | BACnet, mDNS, SNMP, SSDP, TLS |
+| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762) |
+| **Authored but not yet built** | BACnet, SNMP, SSDP, TLS — and the mDNS *response*, which needs a repetition inside a repetition |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -280,6 +280,13 @@ that part by index will not find it. Resetting the round on the way out is *not*
 junctions are not members of the set they drive, so the walk is standing on one exactly when it is deciding
 whether to go round again.
 
+**One repetition at a time, and a nested one is silently wrong rather than refused.** The round is a single
+counter shared by the whole walk, and `item` resolves against whichever repeating set holds the node —
+taking the first one declared. So a set that repeats inside a set that repeats binds the *outer* item in the
+inner one's fields and goes round the outer number of times. Two groups of two labels write two octets, no
+error. This is what keeps the mDNS response out: a record run whose every record begins with a name is
+exactly that shape.
+
 ## When the reading is not the writing backwards
 
 Most of a protocol is read by walking what it writes, and there one description serves both directions and
@@ -443,6 +450,7 @@ the node. `ConsistencyTests` pins them.
 | `MqttCaptureTests` | six message formats, chosen by looking ahead; a varint at two widths |
 | `DhcpCaptureTests` | a repetition ended by a sentinel, with bare codes and fill after it |
 | `CoapCaptureTests` | options that only mean something in sequence, and both nibble escapes |
+| `MdnsCaptureTests` | a name — labels ending at a label of length zero — and a description that says in its octets what it does not cover |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item |
 | `AbsenceTests` | the four questions |

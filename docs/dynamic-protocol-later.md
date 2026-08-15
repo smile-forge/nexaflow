@@ -58,7 +58,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 | **NTP** | nothing much — the smallest honest test. Fixed 48 octets, one octet split 2\|3\|3, a trailer present only when the association is authenticated |
 | **Modbus TCP** | a fork whose arms are different lengths, inside what a length field measures; and a request and response that carry the same function code, so direction is not on the wire |
 | **CoAP** | *(built)* option deltas that accumulate across options, so decoding option *N* depends on 0..*N*−1 |
-| **mDNS / DNS-SD** | name compression — pointers are absolute offsets into the whole message |
+| **mDNS / DNS-SD** | *(query built)* name compression — pointers are absolute offsets into the whole message. The query has none and round-trips; the response has four, and needs the two things in §5a besides |
 | **MQTT** | *(built)* a varint length header; connect-flag bits that decide whether later fields exist at all — and, unforeseen when the corpus was written, the first protocol with several message formats, told apart by a nibble inside the message |
 | **DHCP** | *(built)* options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
 | **SNMPv2c** | nested BER lengths |
@@ -151,6 +151,40 @@ That the update happens exactly once is what makes the design small: `Settle` al
 answer, so "once per message" enforces itself and needs no overwrite, no ordering rule between the two
 directions, and no new law.
 
+## 5a. What mDNS found, 2026-08-15
+
+Two, both measured rather than reasoned about, and the first is the one that matters.
+
+**A repetition inside a repetition writes the wrong message and says nothing.** Not a refusal, not a throw
+— wrong octets. `_round` is one counter for the whole walk, and `Item` resolves `item` against the first
+repeating set that holds the node, so an inner set binds the *outer* set's item and goes round the outer
+number of times. Two groups of two labels emitted two octets, each holding an outer item coerced to text.
+
+That is the failure class this whole design keeps removing, and it is worth fixing at the cheap end first:
+a load-time refusal naming the two sets costs about ten lines in `Consistency` and turns a wrong message
+into a sentence. Making it actually *work* is larger and is a real design question — an appearance would
+need an index per enclosing repetition rather than one round, which is what `RunNode.Within` was shaped for
+and nothing currently sets.
+
+It is not an mDNS problem. Every record in a DNS message begins with a name, and a name is a run of labels;
+the same shape is SNMP's varbind list, TLS's extension list, and BACnet's property list.
+
+**A value cannot be derived from where something sits, going out.** `position` is settled in a final pass
+after `resolver.Resolve()` — every value is already fixed by then — so an expression requiring the
+`position` facet gets `Null` and the message fails with "expected Int, got Null". Coming in it is fine:
+reading settles a position as it arrives.
+
+That is not an oversight, it is the shape of the thing: a compressed name's *width* depends on its own
+offset, which depends on the widths of everything before it. Admitting compression means splitting the way
+out into a layout step that assigns offsets left to right and a value step that reads them — which is a
+second pass, and the engine's standing claim is that it has none. Worth doing deliberately or not at all.
+
+**What went in instead, and it is the better half of the finding:** the description states its own scope in
+the octets. QDCOUNT is checked to be one, ANCOUNT/NSCOUNT/ARCOUNT to be zero, QR to be zero — so a
+multi-question query, a known-answer-suppression query (§7.1) and a response are each *refused where they
+are written*, naming the reason, instead of being read as though the extra parts were not sent. A
+description that cannot cover something should say so in a way a capture can trip over, not in prose.
+
 ## 5. Known gaps, as of 2026-08-15
 
 - **A fixed-width field holding a NUL-terminated name is one field, not two.** DHCP's `sname` and `file`
@@ -167,6 +201,10 @@ directions, and no new law.
   discriminator is not part of any message would have nowhere to put it.
 - **Nothing checks that a discriminator's keys are exhaustive or disjoint.** Two messages keyed on the same
   value load happily and the first one wins.
+- **A `validator` node's own `because` is parsed and never read.** A `set-of-values` gets its prose into
+  the refusal; a `validator` does not — only the `checks` edge's does. So a file can explain a range and
+  have the explanation vanish, which is the one thing the format is not supposed to permit. Either surface
+  both (the node says what the rule is, the edge says why this field is under it) or stop parsing it.
 - **Modbus register values are one opaque span**, not a node each. They are a repetition and the write side
   can now do repetitions, so this is ready to be refined and would be a good first exercise of
   `requires … "each"` against a real capture.

@@ -1,0 +1,1049 @@
+{
+  "protocol": "mdns",
+  "title": "Multicast DNS",
+  "source": "RFC 6762 (mDNS), RFC 6763 (DNS-SD), RFC 1035 \u00a74.1 (the message format)",
+  "nodes": [
+    {
+      "id": "mdns",
+      "kind": "protocol",
+      "about": [
+        "mDNS, RFC 6762 \u2014 DNS message format (RFC 1035 \u00a74.1) carried on UDP 5353 to 224.0.0.251.",
+        "",
+        "This describes the QUERY, which is one of the two formats RFC 6762 uses and the one whose",
+        "structure is settled by the description rather than by a count on the wire. What is here is the",
+        "DNS header, one question, and the thing every DNS message is made of: a NAME, which is a run of",
+        "length-prefixed labels ending at a label of length zero.",
+        "",
+        "What is deliberately NOT here is the response, and the reason is worth stating rather than",
+        "leaving as an absence. A response is a run of resource records, and every record begins with a",
+        "name \u2014 so the record run and the label run are a repetition inside a repetition, and both",
+        "directions key an appearance by one round shared across the whole walk. There is no second index",
+        "to say which label of which record. The other half is name compression (\u00a718.14, RFC 1035 \u00a74.1.4):",
+        "a name may end in a two-octet pointer holding an ABSOLUTE offset into the message, and going out",
+        "a position is only known after every value has settled, so a value cannot be derived from one.",
+        "",
+        "So the scope is stated in the octets rather than in this paragraph: the counts are checked, and a",
+        "query carrying answers (\u00a77.1 known-answer suppression) is refused where it is written rather than",
+        "read as though it were not there."
+      ]
+    },
+    {
+      "id": "query",
+      "kind": "message",
+      "as": "a multicast query",
+      "about": "RFC 6762 \u00a75.1. QR=0. One question, asked of everyone on the link."
+    },
+    {
+      "id": "packing.query",
+      "kind": "packing"
+    },
+    {
+      "id": "header",
+      "kind": "set",
+      "as": "the message header",
+      "about": "RFC 1035 \u00a74.1.1, unchanged by mDNS \u2014 twelve octets, six sixteen-bit words."
+    },
+    {
+      "id": "id",
+      "kind": "field",
+      "as": "ID",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "RFC 6762 \u00a718.1: in multicast queries the Query Identifier SHOULD be zero. SHOULD, not MUST \u2014 a",
+        "legacy unicast query carries a real one and is answered with it echoed back \u2014 so this is an",
+        "input rather than a constant, and the capture's zero is a value it was given."
+      ]
+    },
+    {
+      "id": "input.id",
+      "kind": "input",
+      "as": "ID",
+      "gives": "Int"
+    },
+    {
+      "id": "flags",
+      "kind": "set",
+      "as": "the flags word",
+      "about": "RFC 1035 \u00a74.1.1's second word. Ten fields, sixteen bits, and each one is its own node."
+    },
+    {
+      "id": "qr",
+      "kind": "field",
+      "as": "QR",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "Query or response. Zero here, and that is what makes this message a query rather than something a flag decides partway through reading it."
+    },
+    {
+      "id": "constant.qr",
+      "kind": "constant",
+      "holds": {
+        "int": 0
+      },
+      "label": "QR is zero in a query"
+    },
+    {
+      "id": "valid.zero",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 0
+          }
+        }
+      ],
+      "about": "Nought, and nothing else."
+    },
+    {
+      "id": "opcode",
+      "kind": "field",
+      "as": "OPCODE",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "RFC 6762 \u00a718.3: MUST be zero on transmission in a query, and a query with any other opcode MUST be silently ignored."
+    },
+    {
+      "id": "constant.zero",
+      "kind": "constant",
+      "holds": {
+        "int": 0
+      },
+      "label": "zero"
+    },
+    {
+      "id": "aa",
+      "kind": "field",
+      "as": "AA",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 6762 \u00a718.4: zero on transmission in a query, ignored on reception."
+    },
+    {
+      "id": "tc",
+      "kind": "field",
+      "as": "TC",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": [
+        "RFC 6762 \u00a718.5 \u2014 and the one flag in this word that is NOT mandated zero in a query. In mDNS TC",
+        "means the known-answer list continues in a further message 400-500 ms behind this one, so it is",
+        "a thing the sender decides rather than a thing the format fixes."
+      ]
+    },
+    {
+      "id": "input.truncated",
+      "kind": "input",
+      "as": "Truncated",
+      "gives": "Int",
+      "purpose": "RFC 6762 \u00a77.2: more known answers follow in another message."
+    },
+    {
+      "id": "valid.bit",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 1
+          }
+        }
+      ],
+      "about": "A bit holds nought or one."
+    },
+    {
+      "id": "rd",
+      "kind": "field",
+      "as": "RD",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 6762 \u00a718.6: Recursion Desired MUST be zero on transmission and ignored on reception."
+    },
+    {
+      "id": "ra",
+      "kind": "field",
+      "as": "RA",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 6762 \u00a718.7: Recursion Available MUST be zero on transmission and ignored on reception."
+    },
+    {
+      "id": "z",
+      "kind": "field",
+      "as": "Z",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 6762 \u00a718.8: Zero MUST be zero on transmission and ignored on reception."
+    },
+    {
+      "id": "ad",
+      "kind": "field",
+      "as": "AD",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 6762 \u00a718.9: Authentic Data MUST be zero on transmission and ignored on reception."
+    },
+    {
+      "id": "cd",
+      "kind": "field",
+      "as": "CD",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 6762 \u00a718.10: Checking Disabled MUST be zero on transmission and ignored on reception."
+    },
+    {
+      "id": "rcode",
+      "kind": "field",
+      "as": "RCODE",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "RFC 6762 \u00a718.11: MUST be zero on transmission, and a message with a non-zero RCODE MUST be silently ignored \u2014 responders that do not understand a query say nothing rather than answering with an error."
+    },
+    {
+      "id": "qdcount",
+      "kind": "field",
+      "as": "QDCOUNT",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 1035 \u00a74.1.1. One, because this describes a query carrying one question \u2014 see the check."
+    },
+    {
+      "id": "constant.one",
+      "kind": "constant",
+      "holds": {
+        "int": 1
+      },
+      "label": "one"
+    },
+    {
+      "id": "valid.one",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 1
+          }
+        }
+      ],
+      "about": "One, and nothing else."
+    },
+    {
+      "id": "ancount",
+      "kind": "field",
+      "as": "ANCOUNT",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Zero. A query MAY carry answers \u2014 RFC 6762 \u00a77.1 calls it known-answer suppression, and it is how a querier says what it already holds so responders stay quiet. Carrying them needs the same count-driven repetition QDCOUNT does, so this description does not."
+    },
+    {
+      "id": "nscount",
+      "kind": "field",
+      "as": "NSCOUNT",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Zero in every mDNS query but one: RFC 6762 \u00a78.2 puts the proposed records of a probe in the Authority section, which is how simultaneous probes are tie-broken. Probing is a lifecycle, not a message format, so it is not here."
+    },
+    {
+      "id": "arcount",
+      "kind": "field",
+      "as": "ARCOUNT",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Zero. No additional records in a plain query."
+    },
+    {
+      "id": "question",
+      "kind": "set",
+      "as": "the question",
+      "about": "RFC 1035 \u00a74.1.2: a name, a type, and a class."
+    },
+    {
+      "id": "name",
+      "kind": "set",
+      "as": "the name asked about",
+      "about": [
+        "RFC 1035 \u00a74.1.2 QNAME. A run of labels and then the root.",
+        "",
+        "Two nodes rather than one, because that is what the octets are: the labels repeat and the root",
+        "does not. Making the root the last item of the repetition would write one per label."
+      ]
+    },
+    {
+      "id": "labels",
+      "kind": "set",
+      "as": "the labels",
+      "about": [
+        "One per label, and the repetition ends at a label whose length is zero.",
+        "",
+        "That terminator is not a sentinel beside the run the way DHCP's end option is \u2014 it is the SAME",
+        "field reading zero. Which is why the reading looks at the next octet before committing to another",
+        "label: a length of zero is the root, and a length of anything else is another label. Nothing is",
+        "consumed by looking, so the root is then read by the node that owns it."
+      ]
+    },
+    {
+      "id": "labelLength",
+      "kind": "field",
+      "as": "label length",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 1035 \u00a74.1.4: the top two bits are zero for a label, so a length runs 1..63. Sixty-three rather than 255, and the two spare bits are what compression uses."
+    },
+    {
+      "id": "evaluated.labelLength",
+      "kind": "evaluated",
+      "label": "how long this label is",
+      "runs": "len(unascii(item))",
+      "gives": "Int"
+    },
+    {
+      "id": "valid.label",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 63
+          }
+        }
+      ],
+      "about": "RFC 1035 \u00a72.3.4: a label is 1 to 63 octets."
+    },
+    {
+      "id": "labelText",
+      "kind": "field",
+      "as": "label",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii",
+      "about": "The label itself, as many octets as the length said. Text rather than octets, because a label is text \u2014 RFC 6763 \u00a74.1 puts a human-readable instance name in one."
+    },
+    {
+      "id": "evaluated.labelText",
+      "kind": "evaluated",
+      "label": "this label",
+      "runs": "item",
+      "gives": "Text"
+    },
+    {
+      "id": "evaluated.labelExtent",
+      "kind": "evaluated",
+      "label": "octets of label, from the length",
+      "runs": "labelLength",
+      "gives": "Int",
+      "takes": {
+        "labelLength": "Int"
+      }
+    },
+    {
+      "id": "input.labels",
+      "kind": "input",
+      "as": "Name",
+      "gives": "List",
+      "of": "Text",
+      "purpose": "The name being asked about, label by label \u2014 [\"_http\", \"_tcp\", \"local\"]."
+    },
+    {
+      "id": "root",
+      "kind": "field",
+      "as": "the root label",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 1035 \u00a73.1: the null label of the root, which is what ends every name."
+    },
+    {
+      "id": "qtype",
+      "kind": "field",
+      "as": "QTYPE",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 1035 \u00a74.1.2. PTR is 12, which is what a DNS-SD browse asks for (RFC 6763 \u00a74.1)."
+    },
+    {
+      "id": "input.qtype",
+      "kind": "input",
+      "as": "QTYPE",
+      "gives": "Int",
+      "purpose": "What kind of record is wanted \u2014 12 for PTR, 255 for ANY."
+    },
+    {
+      "id": "qclass",
+      "kind": "set",
+      "as": "QCLASS",
+      "about": [
+        "RFC 1035 \u00a74.1.2 gives a sixteen-bit class; RFC 6762 \u00a75.4 takes the top bit of it.",
+        "",
+        "So it is two fields, not one integer with a note. A description that read 0x8001 as a class would",
+        "have to say in prose that the top bit means something else, and nothing could check it."
+      ]
+    },
+    {
+      "id": "qu",
+      "kind": "field",
+      "as": "QU",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 6762 \u00a75.4: set to ask for a UNICAST reply. Recommended on the first query after startup, when the multicast cache of every other host on the link is of no use to a machine that has just arrived."
+    },
+    {
+      "id": "input.unicastResponse",
+      "kind": "input",
+      "as": "Unicast Response",
+      "gives": "Int",
+      "purpose": "RFC 6762 \u00a75.4: ask the responder to answer directly rather than to the group."
+    },
+    {
+      "id": "qclassValue",
+      "kind": "field",
+      "as": "CLASS",
+      "form": {
+        "of": "run",
+        "bits": 15
+      },
+      "about": "RFC 1035 \u00a73.2.4: 1 is IN. mDNS uses no other, but the field is fifteen bits wide and says so."
+    },
+    {
+      "id": "input.qclass",
+      "kind": "input",
+      "as": "CLASS",
+      "gives": "Int",
+      "purpose": "1, for the Internet class."
+    },
+    {
+      "id": "moreLabels",
+      "kind": "junction",
+      "as": "another label, or the root?",
+      "about": [
+        "The reading's fork, and it is a look-ahead rather than a count because a name carries no count.",
+        "",
+        "One octet, unconsumed: zero is the root and anything else is the length of another label. The",
+        "root is then read by its own node from its own octet, exactly as CoAP's payload is read after",
+        "the marker that announced it \u2014 a place never has to know that something looked before choosing",
+        "it."
+      ]
+    },
+    {
+      "id": "probe.labelLength",
+      "kind": "field",
+      "as": "the next length octet",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Read ahead of deciding, from a copy of the position. Nothing is consumed."
+    },
+    {
+      "id": "done",
+      "kind": "end-parse",
+      "as": "the end of a query",
+      "about": "Where a reading may stop. The name goes round, and a loop that has run out looks exactly like one that was cut short unless something says which endings were legal."
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "mdns",
+      "to": "query"
+    },
+    {
+      "kind": "then",
+      "from": "query",
+      "to": "packing.query"
+    },
+    {
+      "kind": "computes",
+      "from": "id",
+      "to": "input.id",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "qr",
+      "to": "constant.qr",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "qr",
+      "to": "valid.zero",
+      "because": "RFC 6762 \u00a75.1: this is the query format, so QR=1 is the response \u2014 which this description does not cover, and refuses rather than reads as a query with strange answers in it."
+    },
+    {
+      "kind": "computes",
+      "from": "opcode",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "opcode",
+      "to": "valid.zero",
+      "because": "RFC 6762 \u00a718.3: a query whose OPCODE is not zero MUST be silently ignored."
+    },
+    {
+      "kind": "computes",
+      "from": "aa",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "tc",
+      "to": "input.truncated",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "tc",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "rd",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ra",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "z",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ad",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cd",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "rcode",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "rcode",
+      "to": "valid.zero",
+      "because": "RFC 6762 \u00a718.11: a non-zero RCODE means this is not a message to act on."
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "qr",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "opcode",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "aa",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "tc",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "rd",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "ra",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "z",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "ad",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "cd",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "rcode",
+      "order": 9
+    },
+    {
+      "kind": "computes",
+      "from": "qdcount",
+      "to": "constant.one",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "qdcount",
+      "to": "valid.one",
+      "because": "This describes a query carrying exactly one question. Several is legal \u2014 RFC 6762 \u00a75.1 permits them and \u00a77.3 makes a responder answer each \u2014 and reading them needs a repetition driven by this very count, which the walk cannot do: it keys every appearance by ONE round shared across the whole message, so a name that goes round inside a question that goes round has no second index. Refused here rather than read as though the extra questions were not sent."
+    },
+    {
+      "kind": "computes",
+      "from": "ancount",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ancount",
+      "to": "valid.zero",
+      "because": "RFC 6762 \u00a77.1 known-answer suppression is outside what this describes \u2014 for the same reason QDCOUNT is one \u2014 so a query carrying answers is refused rather than read with them dropped."
+    },
+    {
+      "kind": "computes",
+      "from": "nscount",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "nscount",
+      "to": "valid.zero",
+      "because": "RFC 6762 \u00a78.2's probe carries its proposed records in the Authority section; this describes an ordinary query rather than a probe."
+    },
+    {
+      "kind": "computes",
+      "from": "arcount",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "arcount",
+      "to": "valid.zero",
+      "because": "Nothing additional in a plain query."
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "id",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "flags",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "qdcount",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "ancount",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "nscount",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "arcount",
+      "order": 5
+    },
+    {
+      "kind": "computes",
+      "from": "labelLength",
+      "to": "evaluated.labelLength",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "labelLength",
+      "to": "valid.label",
+      "because": "Zero is the root and belongs to the root's own node. Sixty-four and above has one of the two top bits set, which RFC 1035 \u00a74.1.4 reserves: 0xC0 begins a compression pointer, and a name ending in one is not something this can write \u2014 going out, where a thing sits is only settled after every value is, so no value can be derived from an offset."
+    },
+    {
+      "kind": "computes",
+      "from": "labelText",
+      "to": "evaluated.labelText",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.labelExtent",
+      "to": "labelLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "labelLength"
+    },
+    {
+      "kind": "computes",
+      "from": "labelText",
+      "to": "evaluated.labelExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "holds",
+      "from": "labels",
+      "to": "labelLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "labels",
+      "to": "labelText",
+      "order": 1
+    },
+    {
+      "kind": "requires",
+      "from": "labels",
+      "to": "input.labels",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "root",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "root",
+      "to": "valid.zero",
+      "because": "A name ends at the root, and the root is the label of length nothing."
+    },
+    {
+      "kind": "holds",
+      "from": "name",
+      "to": "labels",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "name",
+      "to": "root",
+      "order": 1
+    },
+    {
+      "kind": "computes",
+      "from": "qtype",
+      "to": "input.qtype",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "qu",
+      "to": "input.unicastResponse",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "qu",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "qclassValue",
+      "to": "input.qclass",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "qclass",
+      "to": "qu",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "qclass",
+      "to": "qclassValue",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "question",
+      "to": "name",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "question",
+      "to": "qtype",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "question",
+      "to": "qclass",
+      "order": 2
+    },
+    {
+      "kind": "then",
+      "from": "packing.query",
+      "to": "header"
+    },
+    {
+      "kind": "then",
+      "from": "header",
+      "to": "id"
+    },
+    {
+      "kind": "then",
+      "from": "id",
+      "to": "flags"
+    },
+    {
+      "kind": "then",
+      "from": "flags",
+      "to": "qr"
+    },
+    {
+      "kind": "then",
+      "from": "qr",
+      "to": "opcode"
+    },
+    {
+      "kind": "then",
+      "from": "opcode",
+      "to": "aa"
+    },
+    {
+      "kind": "then",
+      "from": "aa",
+      "to": "tc"
+    },
+    {
+      "kind": "then",
+      "from": "tc",
+      "to": "rd"
+    },
+    {
+      "kind": "then",
+      "from": "rd",
+      "to": "ra"
+    },
+    {
+      "kind": "then",
+      "from": "ra",
+      "to": "z"
+    },
+    {
+      "kind": "then",
+      "from": "z",
+      "to": "ad"
+    },
+    {
+      "kind": "then",
+      "from": "ad",
+      "to": "cd"
+    },
+    {
+      "kind": "then",
+      "from": "cd",
+      "to": "rcode"
+    },
+    {
+      "kind": "then",
+      "from": "rcode",
+      "to": "qdcount"
+    },
+    {
+      "kind": "then",
+      "from": "qdcount",
+      "to": "ancount"
+    },
+    {
+      "kind": "then",
+      "from": "ancount",
+      "to": "nscount"
+    },
+    {
+      "kind": "then",
+      "from": "nscount",
+      "to": "arcount"
+    },
+    {
+      "kind": "then",
+      "from": "arcount",
+      "to": "question"
+    },
+    {
+      "kind": "then",
+      "from": "question",
+      "to": "name"
+    },
+    {
+      "kind": "then",
+      "from": "name",
+      "to": "labels"
+    },
+    {
+      "kind": "then",
+      "from": "labels",
+      "to": "labelLength"
+    },
+    {
+      "kind": "then",
+      "from": "labelLength",
+      "to": "labelText"
+    },
+    {
+      "kind": "then",
+      "from": "labelText",
+      "to": "root"
+    },
+    {
+      "kind": "then",
+      "from": "root",
+      "to": "qtype"
+    },
+    {
+      "kind": "then",
+      "from": "qtype",
+      "to": "qclass"
+    },
+    {
+      "kind": "then",
+      "from": "qclass",
+      "to": "qu"
+    },
+    {
+      "kind": "then",
+      "from": "qu",
+      "to": "qclassValue"
+    },
+    {
+      "kind": "decode",
+      "from": "labelText",
+      "to": "moreLabels"
+    },
+    {
+      "kind": "identifies",
+      "from": "moreLabels",
+      "to": "probe.labelLength"
+    },
+    {
+      "kind": "decode",
+      "from": "moreLabels",
+      "to": "root",
+      "key": {
+        "int": 0
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreLabels",
+      "to": "labelLength",
+      "otherwise": true
+    },
+    {
+      "kind": "then",
+      "from": "qclassValue",
+      "to": "done"
+    }
+  ]
+}
