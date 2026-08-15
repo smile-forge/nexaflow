@@ -43,7 +43,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 |---|---|
 | **NTP** | nothing much — the smallest honest test. Fixed 48 octets, one octet split 2\|3\|3, a trailer present only when the association is authenticated |
 | **Modbus TCP** | a fork whose arms are different lengths, inside what a length field measures; and a request and response that carry the same function code, so direction is not on the wire |
-| **CoAP** | option deltas that accumulate across options, so decoding option *N* depends on 0..*N*−1 |
+| **CoAP** | *(built)* option deltas that accumulate across options, so decoding option *N* depends on 0..*N*−1 |
 | **mDNS / DNS-SD** | name compression — pointers are absolute offsets into the whole message |
 | **MQTT** | *(built)* a varint length header; connect-flag bits that decide whether later fields exist at all — and, unforeseen when the corpus was written, the first protocol with several message formats, told apart by a nibble inside the message |
 | **DHCP** | *(built)* options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
@@ -92,6 +92,14 @@ Kept nearly verbatim, because each cost real time.
   another one, which reads as a principle and was a workaround for a missing two lines. When the file
   cannot say something, the prose justifying the gap is where it hides.
 - **Blind line-number edits cut across method boundaries.** Twice. Read, then edit.
+- **A presence that waits on a field further along deadlocks, and the message names the wrong thing.** It
+  is reported as "these prerequisites name nodes that were never realised", which sounds like a repetition
+  that failed to expand and is actually a description asking about a place the walk cannot reach until the
+  question is answered. Values may look forward; presence may not.
+- **A computation is evaluated once per asker, not once.** CoAP's option delta is asked for by four
+  producers and runs four times per option. Nothing is wrong with the answers — the inputs cannot change
+  between asks — but it is the reason a computation has no settled moment and so cannot be the source of
+  an `updates` edge.
 
 ## 4. Why the document layer died
 
@@ -116,6 +124,22 @@ table of which roots each site could reach, three separate reference-scanners, a
 all standing in for edges. The vocabulary table was **wrong twice in one session**, each time committing the
 exact defect it existed to prevent. A structure that keeps committing the error it exists to stop is
 standing in for something else.
+
+## 4a. State, and what it is not for
+
+`updates` — a field, set or computation pushing a value into a state slot, once per message, optionally
+through computations that transform it on the way — is designed and not built. The facet travels on the
+edge (a set has no value, so a slot fed from one wants its extent) and a parameter names where the value
+lands when the next node is a computation, exactly as `requires` does.
+
+**What it is not for is an accumulator inside one message.** CoAP's running option number is the case that
+looked like state and is not: a protocol that changed its own state mid-message would be a strange
+protocol, and the tell was that it wanted writing six times in one message. Reaching for a state node
+there would be abusing the concept to get a fold. The caller sums the deltas instead.
+
+That the update happens exactly once is what makes the design small: `Settle` already refuses a second
+answer, so "once per message" enforces itself and needs no overwrite, no ordering rule between the two
+directions, and no new law.
 
 ## 5. Known gaps, as of 2026-08-15
 

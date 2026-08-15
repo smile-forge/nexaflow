@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132) |
-| **Authored but not yet built** | BACnet, CoAP, mDNS, SNMP, SSDP, TLS |
+| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252) |
+| **Authored but not yet built** | BACnet, mDNS, SNMP, SSDP, TLS |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -197,6 +197,10 @@ wants. Two directions, two sources, one fact.
 **So a protocol with several messages needs no fork inside any of them.** MQTT has six formats and every
 one is a single path from its first octet to its last: what varies between them is which path, not what
 happens partway along one.
+
+The same edge answers a fork *inside* a message where the octets are what decide. CoAP's options end at a
+`0xFF` that would otherwise read as an option header, so the reading looks at the next octet before
+committing to another option.
 
 ## Sets, and what a length measures
 
@@ -396,6 +400,11 @@ the node. `ConsistencyTests` pins them.
   refuses it.
 - **If a specification would state it, it belongs in the description**; if it is about the correctness of
   handling the graph, it belongs in code. Ask this first of any new feature.
+- **Nothing whose PRESENCE another part depends on may be worked out from a field further along.** A value
+  may — a length measures a span not yet laid down, which is the ordinary case. Presence may not, because
+  the walk cannot go on until it settles, so it would be waiting on a place nothing has arrived at.
+  CoAP's option length is taken from the item rather than from the field it becomes, for exactly this
+  reason.
 
 ---
 
@@ -409,6 +418,7 @@ the node. `ConsistencyTests` pins them.
 | `ModbusCaptureTests` | a fork whose arms are different lengths, inside what a length measures |
 | `MqttCaptureTests` | six message formats, chosen by looking ahead; a varint at two widths |
 | `DhcpCaptureTests` | a repetition ended by a sentinel, with bare codes and fill after it |
+| `CoapCaptureTests` | options that only mean something in sequence, and both nibble escapes |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item |
 | `AbsenceTests` | the four questions |

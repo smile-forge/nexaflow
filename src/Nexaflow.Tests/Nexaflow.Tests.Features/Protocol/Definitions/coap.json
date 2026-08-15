@@ -1,0 +1,1238 @@
+{
+  "protocol": "coap",
+  "title": "CoAP",
+  "source": "RFC 7252",
+  "nodes": [
+    {
+      "id": "coap",
+      "kind": "protocol",
+      "as": "CoAP",
+      "about": [
+        "RFC 7252 §3 Figure 7 gives one message format, and what a message IS — a request, a response, an",
+        "acknowledgement — is the Type and Code fields inside it rather than a different layout. So one message",
+        "here, like DHCP and unlike MQTT.",
+        "",
+        "WHAT MAKES CoAP CoAP is the option encoding, and it is unlike TCP's or DHCP's in one specific way: an",
+        "option does not carry its own number. §3.1 gives the DELTA from the previous option, so option N is",
+        "only knowable from options 0..N-1, and the same octets mean different options depending on what came",
+        "before them. Going out that means the delta is worked out from the list — each item's number less the",
+        "one before it, which is why the calculation reads the whole list and its own place in it. Coming in it",
+        "means the deltas are what there is, and turning them back into numbers is a sum the reader keeps.",
+        "",
+        "AND BOTH NIBBLES ESCAPE. Thirteen means an octet follows holding the value less thirteen; fourteen",
+        "means two octets follow holding it less 269; fifteen is not a value at all — it marks the payload. So",
+        "one nibble decides whether the next octet is part of this option or the start of the next one.",
+        "",
+        "WHERE THE OPTIONS END is therefore not something a count says, and not something the octets running",
+        "out says either: a message with a payload ends its options at a 0xFF that would otherwise read as an",
+        "option header of fifteen and fifteen. The reading looks at the next octet before deciding whether it",
+        "is about to read another option — which is `identifies` doing at a fork inside a message what it does",
+        "at the top of MQTT."
+      ]
+    },
+    {
+      "id": "coapMessage",
+      "kind": "message",
+      "as": "CoAP message"
+    },
+    {
+      "id": "packing.coapMessage",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "header",
+      "kind": "set",
+      "as": "the fixed header",
+      "about": "RFC 7252 §3: version, type, token length, code and message id — four octets before anything varies."
+    },
+    {
+      "id": "version",
+      "kind": "field",
+      "as": "Ver",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": "§3: 1, and a message with any other is ignored."
+    },
+    {
+      "id": "type",
+      "kind": "field",
+      "as": "T",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": "§3: 0 Confirmable, 1 Non-confirmable, 2 Acknowledgement, 3 Reset."
+    },
+    {
+      "id": "tokenLength",
+      "kind": "field",
+      "as": "TKL",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": [
+        "§3: how many octets of token follow, 0 to 8. Not supplied — it is the length of the token itself, so",
+        "the two cannot disagree, and a message where they do is one that reads the first option as a token."
+      ]
+    },
+    {
+      "id": "code",
+      "kind": "set",
+      "as": "Code",
+      "about": "§12.1.1: three bits of class and five of detail, which is why a response is written 2.05 rather than as the number 69."
+    },
+    {
+      "id": "codeClass",
+      "kind": "field",
+      "as": "class",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "§12.1.1: 0 is a request, 2 success, 4 client error, 5 server error."
+    },
+    {
+      "id": "codeDetail",
+      "kind": "field",
+      "as": "detail",
+      "form": {
+        "of": "run",
+        "bits": 5
+      }
+    },
+    {
+      "id": "messageId",
+      "kind": "field",
+      "as": "Message ID",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3: what pairs an acknowledgement with what it acknowledges."
+    },
+    {
+      "id": "token",
+      "kind": "field",
+      "as": "Token",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "§5.3.1: what pairs a response with its request, chosen by whoever sends the request. Zero to eight",
+        "octets, and genuinely absent at zero rather than present and empty — the third capture has none."
+      ]
+    },
+    {
+      "id": "input.type",
+      "kind": "input",
+      "as": "T",
+      "gives": "Int",
+      "purpose": "§3: 0 Confirmable, 1 Non-confirmable, 2 Acknowledgement, 3 Reset."
+    },
+    {
+      "id": "input.codeClass",
+      "kind": "input",
+      "as": "class",
+      "gives": "Int",
+      "purpose": "§12.1.1: the class of the code."
+    },
+    {
+      "id": "input.codeDetail",
+      "kind": "input",
+      "as": "detail",
+      "gives": "Int",
+      "purpose": "§12.1.1: the detail of the code."
+    },
+    {
+      "id": "input.messageId",
+      "kind": "input",
+      "as": "Message ID",
+      "gives": "Int",
+      "purpose": "§3."
+    },
+    {
+      "id": "input.token",
+      "kind": "input",
+      "as": "Token",
+      "gives": "Bytes",
+      "purpose": "§5.3.1: zero to eight octets. Empty means the message carries no token at all."
+    },
+    {
+      "id": "constant.version",
+      "kind": "constant",
+      "label": "1, which is this version of CoAP",
+      "holds": {
+        "int": 1
+      }
+    },
+    {
+      "id": "evaluated.tokenLength",
+      "kind": "evaluated",
+      "label": "octets of token",
+      "runs": "len(token)",
+      "gives": "Int",
+      "takes": {
+        "token": "Bytes"
+      }
+    },
+    {
+      "id": "evaluated.hasToken",
+      "kind": "evaluated",
+      "label": "was a token given?",
+      "runs": "len(token) > 0",
+      "gives": "Bool",
+      "takes": {
+        "token": "Bytes"
+      }
+    },
+    {
+      "id": "evaluated.tokenThere",
+      "kind": "evaluated",
+      "label": "does the token length say there is one?",
+      "runs": "tkl > 0",
+      "gives": "Bool",
+      "takes": {
+        "tkl": "Int"
+      }
+    },
+    {
+      "id": "evaluated.tokenExtent",
+      "kind": "evaluated",
+      "label": "octets of token, from the length",
+      "runs": "tkl",
+      "gives": "Int",
+      "takes": {
+        "tkl": "Int"
+      }
+    },
+    {
+      "id": "options",
+      "kind": "set",
+      "as": "Options",
+      "about": [
+        "How many there are is nowhere in the message, so going out this is written once per item of the list",
+        "it requires and coming in the reading goes round. Same shape as TCP's options and DHCP's — what is",
+        "different is that an option here does not say which option it is."
+      ]
+    },
+    {
+      "id": "option",
+      "kind": "set",
+      "as": "an option",
+      "about": [
+        "§3.1: a nibble of delta and a nibble of length, then whichever extensions those nibbles asked for,",
+        "then the value. The extensions are separate fields rather than one span of computed width because the",
+        "RFC gives them as separate cases — 'an 8-bit unsigned integer follows' and 'a 16-bit unsigned integer",
+        "in network byte order follows' — and they are read and written as those."
+      ]
+    },
+    {
+      "id": "optionDeltaNibble",
+      "kind": "field",
+      "as": "Option Delta",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "§3.1: 0..12 is the delta itself; 13 and 14 say an extension follows; 15 is reserved and is what the payload marker's upper nibble looks like."
+    },
+    {
+      "id": "optionLengthNibble",
+      "kind": "field",
+      "as": "Option Length",
+      "form": {
+        "of": "run",
+        "bits": 4
+      }
+    },
+    {
+      "id": "optionDeltaExt8",
+      "kind": "field",
+      "as": "Option Delta (extended)",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.1: the delta less 13."
+    },
+    {
+      "id": "optionDeltaExt16",
+      "kind": "field",
+      "as": "Option Delta (extended)",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.1: the delta less 269."
+    },
+    {
+      "id": "optionLengthExt8",
+      "kind": "field",
+      "as": "Option Length (extended)",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.1: the length less 13."
+    },
+    {
+      "id": "optionLengthExt16",
+      "kind": "field",
+      "as": "Option Length (extended)",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.1: the length less 269."
+    },
+    {
+      "id": "optionValue",
+      "kind": "field",
+      "as": "Option Value",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "Whatever the option carries, kept as octets. What a Uri-Path means is a fact about option 11 rather",
+        "than about the shape of an option, and this describes the shape."
+      ]
+    },
+    {
+      "id": "input.options",
+      "kind": "input",
+      "as": "Options",
+      "gives": "List",
+      "of": {
+        "number": "Int",
+        "value": "Bytes"
+      },
+      "purpose": "The options to write, in ascending order of number. Each says its `number` — the option number RFC 7252 §5.10 assigns, not the delta — and its `value` as octets."
+    },
+    {
+      "id": "evaluated.delta",
+      "kind": "evaluated",
+      "label": "how far past the previous option this one is",
+      "runs": "item.number - (ordinal == 0 ? 0 : index(options, ordinal - 1).number)",
+      "gives": "Int",
+      "takes": {
+        "options": "List"
+      },
+      "about": [
+        "§3.1: 'The Option Numbers are calculated by summing the Option Delta values'. Going out that",
+        "is a subtraction, and it needs the option before this one — which is why this reads the whole",
+        "list and its own place in it rather than just its own item.",
+        "",
+        "It is also the reason an option cannot be described on its own: the same octets are a",
+        "different option depending on what preceded them."
+      ]
+    },
+    {
+      "id": "evaluated.length",
+      "kind": "evaluated",
+      "label": "octets of value",
+      "runs": "len(item.value)",
+      "gives": "Int",
+      "about": [
+        "From the ITEM rather than from the field it becomes, and that is not a shortcut. Whether an extension",
+        "is there depends on this, and presence has to settle before the walk can go on — so taking it from a",
+        "field the walk has not reached yet asks for a fact about a place nothing has arrived at. The length is",
+        "a fact about the value the caller supplied, and saying so directly is both true and answerable."
+      ]
+    },
+    {
+      "id": "evaluated.deltaNibble",
+      "kind": "evaluated",
+      "label": "the delta, or which escape it needs",
+      "runs": "delta < 13 ? delta : (delta < 269 ? 13 : 14)",
+      "gives": "Int",
+      "takes": {
+        "delta": "Int"
+      }
+    },
+    {
+      "id": "evaluated.deltaExt8",
+      "kind": "evaluated",
+      "label": "the delta less thirteen",
+      "runs": "delta - 13",
+      "gives": "Int",
+      "takes": {
+        "delta": "Int"
+      }
+    },
+    {
+      "id": "evaluated.hasDeltaExt8",
+      "kind": "evaluated",
+      "label": "does the nibble say an octet follows?",
+      "runs": "nibble == 13",
+      "gives": "Bool",
+      "takes": {
+        "nibble": "Int"
+      }
+    },
+    {
+      "id": "evaluated.deltaExt16",
+      "kind": "evaluated",
+      "label": "the delta less 269",
+      "runs": "delta - 269",
+      "gives": "Int",
+      "takes": {
+        "delta": "Int"
+      }
+    },
+    {
+      "id": "evaluated.hasDeltaExt16",
+      "kind": "evaluated",
+      "label": "does the nibble say two octets follow?",
+      "runs": "nibble == 14",
+      "gives": "Bool",
+      "takes": {
+        "nibble": "Int"
+      }
+    },
+    {
+      "id": "evaluated.lengthNibble",
+      "kind": "evaluated",
+      "label": "the length, or which escape it needs",
+      "runs": "length < 13 ? length : (length < 269 ? 13 : 14)",
+      "gives": "Int",
+      "takes": {
+        "length": "Int"
+      }
+    },
+    {
+      "id": "evaluated.lengthExt8",
+      "kind": "evaluated",
+      "label": "the length less thirteen",
+      "runs": "length - 13",
+      "gives": "Int",
+      "takes": {
+        "length": "Int"
+      }
+    },
+    {
+      "id": "evaluated.hasLengthExt8",
+      "kind": "evaluated",
+      "label": "does the nibble say an octet follows?",
+      "runs": "nibble == 13",
+      "gives": "Bool",
+      "takes": {
+        "nibble": "Int"
+      }
+    },
+    {
+      "id": "evaluated.lengthExt16",
+      "kind": "evaluated",
+      "label": "the length less 269",
+      "runs": "length - 269",
+      "gives": "Int",
+      "takes": {
+        "length": "Int"
+      }
+    },
+    {
+      "id": "evaluated.hasLengthExt16",
+      "kind": "evaluated",
+      "label": "does the nibble say two octets follow?",
+      "runs": "nibble == 14",
+      "gives": "Bool",
+      "takes": {
+        "nibble": "Int"
+      }
+    },
+    {
+      "id": "evaluated.eachValue",
+      "kind": "evaluated",
+      "label": "this option's value",
+      "runs": "item.value",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.valueExtent",
+      "kind": "evaluated",
+      "label": "octets of value, from the nibble and whatever followed it",
+      "runs": "nibble < 13 ? nibble : (nibble == 13 ? ext8 + 13 : ext16 + 269)",
+      "gives": "Int",
+      "takes": {
+        "nibble": "Int",
+        "ext8": "Int",
+        "ext16": "Int"
+      },
+      "about": [
+        "Only the branch the nibble picks is worked out, which is what lets this name all three: an",
+        "extension that is not there has no value, and asking for one would be asking about an octet the",
+        "message does not contain."
+      ]
+    },
+    {
+      "id": "optionMore",
+      "kind": "junction",
+      "as": "is there anything left?"
+    },
+    {
+      "id": "optionWhich",
+      "kind": "junction",
+      "as": "another option, or the payload?",
+      "about": [
+        "The fork the whole reading turns on. A message whose options run to the end of the datagram simply",
+        "runs out; one with a payload ends them at a 0xFF, which as an option header would read as a delta of",
+        "fifteen — and §3.1 says fifteen is not a delta. So the reading looks at the octet before deciding",
+        "whether it is about to read an option at all."
+      ]
+    },
+    {
+      "id": "probe.optionHeader",
+      "kind": "field",
+      "as": "the next octet",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "Read from a copy of the position and consumed from nothing. Whichever way it picks then reads the",
+        "same octet properly — as two nibbles if it is an option, as the payload marker if it is 0xFF."
+      ]
+    },
+    {
+      "id": "evaluated.anythingLeft",
+      "kind": "evaluated",
+      "label": "are there octets left?",
+      "runs": "remaining > 0",
+      "gives": "Bool"
+    },
+    {
+      "id": "payloadMarker",
+      "kind": "field",
+      "as": "the payload marker",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "§3: 0xFF, present if and only if there is a payload. A marker with nothing after it is a message",
+        "format error rather than an empty payload — which is the same law as an omitted default: one thing,",
+        "one encoding."
+      ]
+    },
+    {
+      "id": "payload",
+      "kind": "field",
+      "as": "Payload",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "Everything left. §3: 'The payload ... extends to the end of the datagram', so nothing measures it and",
+        "nothing needs to — how long it is, is a fact about the datagram rather than about CoAP."
+      ]
+    },
+    {
+      "id": "input.payload",
+      "kind": "input",
+      "as": "Payload",
+      "gives": "Bytes",
+      "purpose": "The payload octets, or empty for a message that carries none."
+    },
+    {
+      "id": "constant.payloadMarker",
+      "kind": "constant",
+      "label": "0xFF",
+      "holds": {
+        "int": 255
+      }
+    },
+    {
+      "id": "constant.yes",
+      "kind": "constant",
+      "label": "yes",
+      "holds": {
+        "bool": true
+      },
+      "about": "Coming in, arriving here IS the answer: the reading only takes this way on having looked at the octet and found the marker. Going out it is the caller's payload that decides."
+    },
+    {
+      "id": "evaluated.hasPayloadMarker",
+      "kind": "evaluated",
+      "label": "is there a payload?",
+      "runs": "len(payload) > 0",
+      "gives": "Bool",
+      "takes": {
+        "payload": "Bytes"
+      }
+    },
+    {
+      "id": "evaluated.hasPayload",
+      "kind": "evaluated",
+      "label": "is there a payload?",
+      "runs": "len(payload) > 0",
+      "gives": "Bool",
+      "takes": {
+        "payload": "Bytes"
+      }
+    },
+    {
+      "id": "done",
+      "kind": "end-parse",
+      "as": "the end of a CoAP message"
+    },
+    {
+      "id": "validator.version",
+      "kind": "validator",
+      "because": "§3: the version is 1.",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.tokenLength",
+      "kind": "validator",
+      "because": "§3: \"Lengths 9-15 are reserved ... and MUST be processed as a message format error\".",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 8
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "coap",
+      "to": "coapMessage"
+    },
+    {
+      "kind": "then",
+      "from": "coapMessage",
+      "to": "packing.coapMessage"
+    },
+    {
+      "kind": "then",
+      "from": "packing.coapMessage",
+      "to": "header"
+    },
+    {
+      "kind": "computes",
+      "from": "version",
+      "to": "constant.version",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "type",
+      "to": "input.type",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "codeClass",
+      "to": "input.codeClass",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "codeDetail",
+      "to": "input.codeDetail",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "messageId",
+      "to": "input.messageId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "token",
+      "to": "input.token",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.tokenLength",
+      "to": "input.token",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "token"
+    },
+    {
+      "kind": "computes",
+      "from": "tokenLength",
+      "to": "evaluated.tokenLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasToken",
+      "to": "input.token",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "token"
+    },
+    {
+      "kind": "computes",
+      "from": "token",
+      "to": "evaluated.hasToken",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.tokenThere",
+      "to": "tokenLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "tkl"
+    },
+    {
+      "kind": "computes",
+      "from": "token",
+      "to": "evaluated.tokenThere",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.tokenExtent",
+      "to": "tokenLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "tkl"
+    },
+    {
+      "kind": "computes",
+      "from": "token",
+      "to": "evaluated.tokenExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "version",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "type",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "tokenLength",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "code",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "messageId",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "code",
+      "to": "codeClass",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "code",
+      "to": "codeDetail",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "header",
+      "to": "version"
+    },
+    {
+      "kind": "then",
+      "from": "version",
+      "to": "type"
+    },
+    {
+      "kind": "then",
+      "from": "type",
+      "to": "tokenLength"
+    },
+    {
+      "kind": "then",
+      "from": "tokenLength",
+      "to": "code"
+    },
+    {
+      "kind": "then",
+      "from": "code",
+      "to": "codeClass"
+    },
+    {
+      "kind": "then",
+      "from": "codeClass",
+      "to": "codeDetail"
+    },
+    {
+      "kind": "then",
+      "from": "codeDetail",
+      "to": "messageId"
+    },
+    {
+      "kind": "then",
+      "from": "messageId",
+      "to": "token",
+      "optional": true
+    },
+    {
+      "kind": "requires",
+      "from": "options",
+      "to": "input.options",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "holds",
+      "from": "options",
+      "to": "option",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionDeltaNibble",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionLengthNibble",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionDeltaExt8",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionDeltaExt16",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionLengthExt8",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionLengthExt16",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionValue",
+      "order": 6
+    },
+    {
+      "kind": "then",
+      "from": "token",
+      "to": "options"
+    },
+    {
+      "kind": "then",
+      "from": "options",
+      "to": "option"
+    },
+    {
+      "kind": "then",
+      "from": "option",
+      "to": "optionDeltaNibble"
+    },
+    {
+      "kind": "then",
+      "from": "optionDeltaNibble",
+      "to": "optionLengthNibble"
+    },
+    {
+      "kind": "then",
+      "from": "optionLengthNibble",
+      "to": "optionDeltaExt8",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "optionDeltaExt8",
+      "to": "optionDeltaExt16",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "optionDeltaExt16",
+      "to": "optionLengthExt8",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "optionLengthExt8",
+      "to": "optionLengthExt16",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "optionLengthExt16",
+      "to": "optionValue"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.delta",
+      "to": "input.options",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "options"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.deltaNibble",
+      "to": "evaluated.delta",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "delta"
+    },
+    {
+      "kind": "computes",
+      "from": "optionDeltaNibble",
+      "to": "evaluated.deltaNibble",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.deltaExt8",
+      "to": "evaluated.delta",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "delta"
+    },
+    {
+      "kind": "computes",
+      "from": "optionDeltaExt8",
+      "to": "evaluated.deltaExt8",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasDeltaExt8",
+      "to": "optionDeltaNibble",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "nibble"
+    },
+    {
+      "kind": "computes",
+      "from": "optionDeltaExt8",
+      "to": "evaluated.hasDeltaExt8",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.deltaExt16",
+      "to": "evaluated.delta",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "delta"
+    },
+    {
+      "kind": "computes",
+      "from": "optionDeltaExt16",
+      "to": "evaluated.deltaExt16",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasDeltaExt16",
+      "to": "optionDeltaNibble",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "nibble"
+    },
+    {
+      "kind": "computes",
+      "from": "optionDeltaExt16",
+      "to": "evaluated.hasDeltaExt16",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.lengthNibble",
+      "to": "evaluated.length",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "length"
+    },
+    {
+      "kind": "computes",
+      "from": "optionLengthNibble",
+      "to": "evaluated.lengthNibble",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.lengthExt8",
+      "to": "evaluated.length",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "length"
+    },
+    {
+      "kind": "computes",
+      "from": "optionLengthExt8",
+      "to": "evaluated.lengthExt8",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasLengthExt8",
+      "to": "optionLengthNibble",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "nibble"
+    },
+    {
+      "kind": "computes",
+      "from": "optionLengthExt8",
+      "to": "evaluated.hasLengthExt8",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.lengthExt16",
+      "to": "evaluated.length",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "length"
+    },
+    {
+      "kind": "computes",
+      "from": "optionLengthExt16",
+      "to": "evaluated.lengthExt16",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasLengthExt16",
+      "to": "optionLengthNibble",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "nibble"
+    },
+    {
+      "kind": "computes",
+      "from": "optionLengthExt16",
+      "to": "evaluated.hasLengthExt16",
+      "facet": "presence"
+    },
+    {
+      "kind": "computes",
+      "from": "optionValue",
+      "to": "evaluated.eachValue",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.valueExtent",
+      "to": "optionLengthNibble",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "nibble"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.valueExtent",
+      "to": "optionLengthExt8",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "ext8"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.valueExtent",
+      "to": "optionLengthExt16",
+      "facet": "value",
+      "sequence": 2,
+      "parameter": "ext16"
+    },
+    {
+      "kind": "computes",
+      "from": "optionValue",
+      "to": "evaluated.valueExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "optionValue",
+      "to": "optionMore"
+    },
+    {
+      "kind": "decides",
+      "from": "optionMore",
+      "to": "evaluated.anythingLeft",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "optionMore",
+      "to": "optionWhich",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "optionMore",
+      "to": "done",
+      "otherwise": true
+    },
+    {
+      "kind": "identifies",
+      "from": "optionWhich",
+      "to": "probe.optionHeader"
+    },
+    {
+      "kind": "decode",
+      "from": "optionWhich",
+      "to": "payloadMarker",
+      "key": {
+        "int": 255
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "optionWhich",
+      "to": "option",
+      "otherwise": true
+    },
+    {
+      "kind": "computes",
+      "from": "payloadMarker",
+      "to": "constant.payloadMarker",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "payload",
+      "to": "input.payload",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasPayloadMarker",
+      "to": "input.payload",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "payload"
+    },
+    {
+      "kind": "computes",
+      "from": "payloadMarker",
+      "to": "evaluated.hasPayloadMarker",
+      "facet": "presence"
+    },
+    {
+      "kind": "computes",
+      "from": "payloadMarker",
+      "to": "constant.yes",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasPayload",
+      "to": "input.payload",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "payload"
+    },
+    {
+      "kind": "computes",
+      "from": "payload",
+      "to": "evaluated.hasPayload",
+      "facet": "presence"
+    },
+    {
+      "kind": "computes",
+      "from": "payload",
+      "to": "constant.yes",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "then",
+      "from": "optionValue",
+      "to": "payloadMarker",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "payloadMarker",
+      "to": "payload",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "payload",
+      "to": "done"
+    },
+    {
+      "kind": "checks",
+      "from": "version",
+      "to": "validator.version",
+      "order": 0,
+      "because": "§3: the version is 1."
+    },
+    {
+      "kind": "checks",
+      "from": "tokenLength",
+      "to": "validator.tokenLength",
+      "order": 0,
+      "because": "§3: lengths 9-15 are reserved."
+    }
+  ]
+}

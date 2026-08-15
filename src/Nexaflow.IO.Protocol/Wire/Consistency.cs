@@ -189,13 +189,22 @@ internal static class Consistency
     /// Found by asking what the computation produces a fact for, then which repeating set holds that —
     /// the same question the run asks when it binds <c>item</c>, so the two cannot answer differently.
     /// </remarks>
-    private static Shape? Element(ProtocolGraph graph, Computation computation)
+    private static Shape? Element(ProtocolGraph graph, Computation computation,
+                                  HashSet<Computation>? seen = null)
     {
-        if (graph.To<Computes>(computation).FirstOrDefault()?.From is not { } owner) return null;
+        if (graph.To<Computes>(computation).FirstOrDefault()?.From is { } owner)
+            foreach (var set in graph.Nodes.OfType<FieldSet>())
+                if (graph.Repeating(set) is { } over && Under(graph, set, owner))
+                    return (over.To as Computation)?.Of;
 
-        foreach (var set in graph.Nodes.OfType<FieldSet>())
-            if (graph.Repeating(set) is { } over && Under(graph, set, owner))
-                return (over.To as Computation)?.Of;
+        // A computation that produces nothing directly feeds another one, and belongs wherever that one
+        // does. CoAP's delta is the case: three fields are worked out from it and it is nobody's value.
+        seen ??= [computation];
+
+        foreach (var above in graph.To<Requires>(computation))
+            if (above.From is Computation outer && seen.Add(outer)
+                && Element(graph, outer, seen) is { } found)
+                return found;
 
         return null;
     }
