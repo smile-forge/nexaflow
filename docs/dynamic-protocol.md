@@ -18,8 +18,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 | **Round-trips against real captures** | **all ten of the corpus** — TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J), SNMPv2c (RFC 3416 over X.690 BER), TLS 1.2 hellos (RFC 5246), SSDP (UPnP 1.1) |
 | **Authored but not yet built** | the mDNS *response*, which needs a name to be able to end in a compression pointer |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
-| **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
-| **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
+| **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.IO/Protocol/Definitions/*.json` |
+| **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.IO/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
 
 The corpus predates the engine and was assembled to defeat it: ten protocols chosen so each breaks a
 grammar in a different way. It is evidence, not description — which is why it survived the deletion of
@@ -257,7 +257,7 @@ one of them spends are counted by every length outside it. Nothing back-patches:
 members whatever offset it lands at, so it settles from the inside out — the innermost value is known, so
 its length's width is known, so the span holding both is. One more octet of payload therefore sometimes
 costs two octets of message, and four different lengths cross their boundary at four different payload
-sizes ([`SnmpCaptureTests`](../src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/SnmpCaptureTests.cs)
+sizes ([`SnmpCaptureTests`](../src/Nexaflow.Tests/Nexaflow.Tests.IO/Protocol/SnmpCaptureTests.cs)
 pins all four).
 
 What a length points at is the whole of the difference between the families: Modbus and SNMP measure a set

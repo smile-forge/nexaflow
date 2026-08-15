@@ -11,13 +11,20 @@ All under `src/Nexaflow.Tests/`:
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome, services, `Nexaflow.Visuals.*` | `Nexaflow.Core`, `Nexaflow.Visuals.Text`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | Every `Nexaflow.Features.*` | the feature projects + `Nexaflow.Tests.Fixtures` — **never Core** |
+| `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset.** Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
 `Nexaflow.Tests.Features` deliberately does **not** reference Core (it mirrors the architectural rule
 that features don't depend on Core). The sample-data generator therefore lives in its own
-dependency-free library, `Nexaflow.Tests.Fixtures`, so both test projects can share it without one
+dependency-free library, `Nexaflow.Tests.Fixtures`, so the test projects can share it without one
 test exe dragging in another (and without pulling Core's x64 RID into the Features tests).
+
+**Which project a test belongs in is decided by its subject, not its imports.** A test whose subject is an
+IO library goes in `Tests.IO`; one that merely reaches through an IO library on its way to a feature —
+`Text` opening a file via `EncodingDetector`, `Compressed` browsing through the VFS — stays with the
+feature. The rule is worth stating because the second kind is far more common, and moving those would drag
+the whole feature graph back into a project whose value is that it has none of it.
 
 ## Running
 
@@ -102,6 +109,20 @@ Covers `Nexaflow.Core` and the `Nexaflow.Visuals.*` libraries.
 - **UI** — app launch, notifications, setup wizard and the tab strip (Core shell); plus the
   `Visuals.Text` Markdown renderer (`BlockRenderer`, `MarkdownView`, extensions, diagram renderer,
   sample render).
+
+### IO leaves (`Nexaflow.Tests.IO`)
+
+Covers the libraries under `src/Nexaflow.IO.*`, and references nothing above them — no Core, no Features,
+no Visuals. That is the point of the split rather than a side effect: these tests need no desktop session,
+no shell and no config root (no IO library reaches one), so they are the fastest suite to run and the one
+least able to fail for a reason that is not about its subject.
+
+- **`Common/`** — `Base64Codec`, `DirectoryMover`, `FileSplitter`, `Glob`, `Hashing`, `OverlayTextFile`,
+  `TextLineIndex`, `TextTransforms`.
+- **`Protocol/`** — the DynamicProtocol engine, plus the ten-protocol corpus (`Protocol/Corpus/*.json`)
+  and the protocol graphs authored against it (`Protocol/Definitions/*.json`), both copied to the output
+  by the csproj. See [dynamic-protocol.md](dynamic-protocol.md) → *Reading the tests*.
+- **`Network/`** — the device graph's identity lattice and the send guard.
 
 ### Providers (`Nexaflow.Tests.Providers`)
 
