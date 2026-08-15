@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762) |
-| **Authored but not yet built** | BACnet, SNMP, SSDP, TLS — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
+| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J) |
+| **Authored but not yet built** | SNMP, SSDP, TLS — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -454,7 +454,9 @@ the node. `ConsistencyTests` pins them.
   may — a length measures a span not yet laid down, which is the ordinary case. Presence may not, because
   the walk cannot go on until it settles, so it would be waiting on a place nothing has arrived at.
   CoAP's option length is taken from the item rather than from the field it becomes, for exactly this
-  reason.
+  reason, and so is BACnet's: whether a tag carries an extra length octet is asked of the *value* being
+  written, not of the extent of the span it will occupy. The two look identical in the file and only one
+  of them terminates.
 
 ---
 
@@ -470,6 +472,7 @@ the node. `ConsistencyTests` pins them.
 | `DhcpCaptureTests` | a repetition ended by a sentinel, with bare codes and fill after it |
 | `CoapCaptureTests` | options that only mean something in sequence, and both nibble escapes |
 | `MdnsCaptureTests` | a name — labels ending at a label of length zero — inside a run of questions ended by a count, and a description that says in its octets what it does not cover |
+| `BacnetCaptureTests` | three layers, a discriminator six octets in, and a value whose length is three bits of the octet before it |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item, including a run inside a run |
 | `AbsenceTests` | the four questions |

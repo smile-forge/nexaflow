@@ -1,0 +1,5143 @@
+{
+  "protocol": "bacnet",
+  "title": "BACnet/IP",
+  "source": "ASHRAE 135 (BACnet) Annex J \u2014 BACnet/IP, \u00a76 network layer, \u00a720 encoding",
+  "nodes": [
+    {
+      "id": "bacnet",
+      "kind": "protocol",
+      "about": [
+        "BACnet/IP \u2014 ASHRAE 135 Annex J, on UDP 47808. Three layers in one datagram: BVLC says how long",
+        "the whole thing is, NPDU says whether it is routed and how urgent, APDU says what is being asked.",
+        "",
+        "Which of the four PDU types this is, is the top nibble of the seventh octet \u2014 so the reading looks",
+        "at six octets and a nibble before choosing, and each PDU type is then a single path from the first",
+        "octet to the last, exactly as though it were the only one here.",
+        "",
+        "WHAT THIS DESCRIBES. ReadProperty and what comes back from it: the Confirmed-Request, the",
+        "ComplexACK (whole, and the first segment of a segmented one), the SegmentACK that paces segments,",
+        "and the Error that arrives instead. Every one of those limits is CHECKED rather than assumed \u2014 a",
+        "routed NPDU, a BVLC function that is not Original-Unicast, a service that is not ReadProperty are",
+        "each refused where they are written.",
+        "",
+        "WHAT IT DOES NOT. A segment's payload is opaque, and that is not a shortfall: ASHRAE 135 \u00a75.3 cuts",
+        "the service payload at whatever octet the window ran out on \u2014 capture C3 stops halfway through an",
+        "object identifier \u2014 so no segment is parseable on its own. The thing to parse is the",
+        "concatenation of the segments, which is a buffer that never appears on any wire, and assembling it",
+        "is the client's across several datagrams rather than this description's within one."
+      ]
+    },
+    {
+      "id": "probe.bvlcType",
+      "kind": "field",
+      "as": "the first octet",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "probe.bvlcFunction",
+      "kind": "field",
+      "as": "the function",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "probe.bvlcLength",
+      "kind": "field",
+      "as": "the declared length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "probe.npduVersion",
+      "kind": "field",
+      "as": "the NPDU version",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "probe.npduControl",
+      "kind": "field",
+      "as": "the NPDU control octet",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "probe.pduType",
+      "kind": "field",
+      "as": "which PDU this is",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "Read ahead of choosing and consumed by nothing. Six octets of header have to be got past to reach it, which is the whole reason the way to a discriminator is a PATH rather than a name."
+    },
+    {
+      "id": "input.pduType",
+      "kind": "input",
+      "as": "PDU Type",
+      "gives": "Int",
+      "purpose": "Which of ASHRAE 135 \u00a720.1.2's PDU types to write \u2014 0 Confirmed-Request, 3 ComplexACK, 4 SegmentACK, 5 Error."
+    },
+    {
+      "id": "evaluated.pduType",
+      "kind": "evaluated",
+      "label": "which PDU is being written",
+      "runs": "pduType",
+      "gives": "Int",
+      "takes": {
+        "pduType": "Int"
+      }
+    },
+    {
+      "id": "input.bvlcFunction",
+      "kind": "input",
+      "as": "BVLC Function",
+      "gives": "Int",
+      "purpose": "ASHRAE 135 Annex J.2.1 \u2014 0x0a Original-Unicast-NPDU, 0x0b Original-Broadcast-NPDU."
+    },
+    {
+      "id": "input.expectingReply",
+      "kind": "input",
+      "as": "Expecting Reply",
+      "gives": "Int",
+      "purpose": "ASHRAE 135 \u00a76.2.2: this message is a request, or wants more segments."
+    },
+    {
+      "id": "input.priority",
+      "kind": "input",
+      "as": "Priority",
+      "gives": "Int",
+      "purpose": "\u00a76.2.2 network priority, 0 Normal to 3 Life Safety."
+    },
+    {
+      "id": "valid.originalNpdu",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 10
+          },
+          "to": {
+            "int": 11
+          }
+        }
+      ],
+      "about": "Annex J.2.1: the two functions whose body is an NPDU and nothing before it."
+    },
+    {
+      "id": "input.objectType",
+      "kind": "input",
+      "as": "Object Type",
+      "gives": "Int",
+      "purpose": "\u00a720.2.14 \u2014 0 Analog Input, 8 Device."
+    },
+    {
+      "id": "input.objectInstance",
+      "kind": "input",
+      "as": "Object Instance",
+      "gives": "Int",
+      "purpose": "Which one of that type."
+    },
+    {
+      "id": "input.propertyIdentifier",
+      "kind": "input",
+      "as": "Property Identifier",
+      "gives": "Int",
+      "purpose": "\u00a721 \u2014 77 object-name, 76 object-list, 85 present-value."
+    },
+    {
+      "id": "input.invokeId",
+      "kind": "input",
+      "as": "Invoke ID",
+      "gives": "Int",
+      "purpose": "\u00a75.4: what ties a reply to its request. Up to 255 may be live against one peer at once."
+    },
+    {
+      "id": "valid.readProperty",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 12
+          },
+          "to": {
+            "int": 12
+          }
+        }
+      ],
+      "about": "\u00a715.5 \u2014 ReadProperty is service 12. This describes that one service."
+    },
+    {
+      "id": "cr",
+      "kind": "message",
+      "as": "a confirmed request",
+      "about": [
+        "ASHRAE 135 \u00a720.1.2 \u2014 the client asks, and expects an answer carrying the same invoke ID.",
+        "",
+        "The first two octets are eight fields between them: four bits saying which PDU type, four flags",
+        "about segmentation, and then a proposal of how much the sender can take back."
+      ]
+    },
+    {
+      "id": "packing.cr",
+      "kind": "packing"
+    },
+    {
+      "id": "apdu.cr",
+      "kind": "set",
+      "as": "the application layer"
+    },
+    {
+      "id": "bvll.cr",
+      "kind": "set",
+      "as": "the BACnet/IP message",
+      "about": "Annex J.2.1's BVLL: everything on the wire, which is what its own length counts."
+    },
+    {
+      "id": "npdu.cr",
+      "kind": "set",
+      "as": "the network layer",
+      "about": "ASHRAE 135 \u00a76.2."
+    },
+    {
+      "id": "bvlcType.cr",
+      "kind": "field",
+      "as": "BVLC Type",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "0x81, always \u2014 the one octet that says this is BACnet over IP at all."
+    },
+    {
+      "id": "constant.129",
+      "kind": "constant",
+      "holds": {
+        "int": 129
+      },
+      "label": "129"
+    },
+    {
+      "id": "valid.129",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 129
+          },
+          "to": {
+            "int": 129
+          }
+        }
+      ],
+      "about": "129, and nothing else."
+    },
+    {
+      "id": "bvlcFunction.cr",
+      "kind": "field",
+      "as": "BVLC Function",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Annex J.2.1. This describes the two that carry an NPDU immediately; Forwarded-NPDU puts six octets of originating address first and Register-Foreign-Device carries a time to live and no NPDU at all, so both are different bodies rather than a flag."
+    },
+    {
+      "id": "bvlcLength.cr",
+      "kind": "field",
+      "as": "BVLC Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "Annex J.2.1: the length of the WHOLE BVLL message, these four octets included.",
+        "",
+        "A length that measures the span it sits in, which is not the cycle it looks like: this field",
+        "is two octets wide whatever it holds, so the span can be added up before the number is",
+        "known. Modbus/TCP's length excludes itself and this one includes itself, and the difference",
+        "is which set the edge points at rather than anything the engine has to be told."
+      ]
+    },
+    {
+      "id": "evaluated.bvlcLength.cr",
+      "kind": "evaluated",
+      "label": "the whole message, in octets",
+      "runs": "whole",
+      "gives": "Int",
+      "takes": {
+        "whole": "Int"
+      }
+    },
+    {
+      "id": "evaluated.bvlcAgrees.cr",
+      "kind": "evaluated",
+      "label": "does the declared length match what arrived?",
+      "runs": "declared == actual",
+      "gives": "Bool",
+      "takes": {
+        "declared": "Int",
+        "actual": "Int"
+      }
+    },
+    {
+      "id": "npduVersion.cr",
+      "kind": "field",
+      "as": "NPDU Version",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": null
+    },
+    {
+      "id": "constant.1",
+      "kind": "constant",
+      "holds": {
+        "int": 1
+      },
+      "label": "1"
+    },
+    {
+      "id": "valid.1",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 1
+          }
+        }
+      ],
+      "about": "1, and nothing else."
+    },
+    {
+      "id": "npduIsNetworkMessage.cr",
+      "kind": "field",
+      "as": "network-layer message",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "constant.0",
+      "kind": "constant",
+      "holds": {
+        "int": 0
+      },
+      "label": "0"
+    },
+    {
+      "id": "valid.0",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 0
+          }
+        }
+      ],
+      "about": "0, and nothing else."
+    },
+    {
+      "id": "npduReserved6.cr",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasDestination.cr",
+      "kind": "field",
+      "as": "DNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduReserved4.cr",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasSource.cr",
+      "kind": "field",
+      "as": "SNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduExpectingReply.cr",
+      "kind": "field",
+      "as": "Expecting Reply",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a76.2.2 bit 2. A request sets it; so does a SegmentACK that wants more segments."
+    },
+    {
+      "id": "valid.bit",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 1
+          }
+        }
+      ],
+      "about": "A bit holds nought or one."
+    },
+    {
+      "id": "npduPriority.cr",
+      "kind": "field",
+      "as": "Priority",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": "\u00a76.2.2 bits 1-0: 0 Normal, 1 Urgent, 2 Critical Equipment, 3 Life Safety."
+    },
+    {
+      "id": "valid.priority",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 3
+          }
+        }
+      ],
+      "about": "\u00a76.2.2's four priorities."
+    },
+    {
+      "id": "cr.pduType",
+      "kind": "field",
+      "as": "PDU Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": null
+    },
+    {
+      "id": "cr.segmented",
+      "kind": "field",
+      "as": "segmented request",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "cr.moreFollows",
+      "kind": "field",
+      "as": "more follows",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "cr.segmentedResponseAccepted",
+      "kind": "field",
+      "as": "segmented response accepted",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a720.1.2.6: whether the client can take an answer in pieces. A device that must segment and sees this clear has to abort instead."
+    },
+    {
+      "id": "input.segmentedResponseAccepted",
+      "kind": "input",
+      "as": "Segmented Response Accepted",
+      "gives": "Int",
+      "purpose": "\u00a720.1.2.6: this client can reassemble a segmented reply."
+    },
+    {
+      "id": "cr.reserved0",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "cr.maxSegsReserved",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "cr.maxSegments",
+      "kind": "field",
+      "as": "max segments accepted",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.1.2.7: a code rather than a count \u2014 0 unspecified, 1 is 2 segments, 2 is 4, up to 7 meaning more than 64."
+    },
+    {
+      "id": "input.maxSegments",
+      "kind": "input",
+      "as": "Max Segments Accepted",
+      "gives": "Int",
+      "purpose": "\u00a720.1.2.7's code."
+    },
+    {
+      "id": "cr.maxApdu",
+      "kind": "field",
+      "as": "max APDU length accepted",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a720.1.2.8: also a code \u2014 5 is 1476 octets, which is what fits an Ethernet frame."
+    },
+    {
+      "id": "input.maxApdu",
+      "kind": "input",
+      "as": "Max APDU Length Accepted",
+      "gives": "Int",
+      "purpose": "\u00a720.1.2.8's code."
+    },
+    {
+      "id": "cr.invokeId",
+      "kind": "field",
+      "as": "Invoke ID",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.2.3."
+    },
+    {
+      "id": "cr.serviceChoice",
+      "kind": "field",
+      "as": "Service Choice",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.2.9 \u2014 which confirmed service."
+    },
+    {
+      "id": "input.serviceChoice",
+      "kind": "input",
+      "as": "Service Choice",
+      "gives": "Int",
+      "purpose": "\u00a715 \u2014 12 is ReadProperty."
+    },
+    {
+      "id": "cr.objectTag.number",
+      "kind": "field",
+      "as": "objectTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a715.5.1.1.1: parameter 0 of ReadProperty is the object identifier."
+    },
+    {
+      "id": "cr.objectTag.class",
+      "kind": "field",
+      "as": "objectTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "cr.objectTag.lvt",
+      "kind": "field",
+      "as": "objectTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    },
+    {
+      "id": "constant.4",
+      "kind": "constant",
+      "holds": {
+        "int": 4
+      },
+      "label": "4"
+    },
+    {
+      "id": "valid.4",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 4
+          },
+          "to": {
+            "int": 4
+          }
+        }
+      ],
+      "about": "4, and nothing else."
+    },
+    {
+      "id": "cr.objectType",
+      "kind": "field",
+      "as": "object type",
+      "form": {
+        "of": "run",
+        "bits": 10
+      },
+      "about": "\u00a720.2.14. Analog Input is 0, Device is 8 \u2014 and it is ten bits, so it does not line up with an octet and never could."
+    },
+    {
+      "id": "cr.objectInstance",
+      "kind": "field",
+      "as": "object instance",
+      "form": {
+        "of": "run",
+        "bits": 22
+      },
+      "about": "\u00a720.2.14: which one of that type, up to 4194303."
+    },
+    {
+      "id": "cr.propertyTag.number",
+      "kind": "field",
+      "as": "propertyTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a715.5.1.1.2: parameter 1 is the property identifier."
+    },
+    {
+      "id": "cr.propertyTag.class",
+      "kind": "field",
+      "as": "propertyTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "cr.propertyTag.lvt",
+      "kind": "field",
+      "as": "propertyTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    },
+    {
+      "id": "evaluated.cr.propertyTag.lvt",
+      "kind": "evaluated",
+      "label": "how many octets propertyTag takes",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "cr.property",
+      "kind": "field",
+      "as": "property",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "\u00a720.2.4: as many octets as the value needs and no more. A non-minimal encoding is legal on some wires and not this one \u2014 ASHRAE 135 requires the shortest form."
+    },
+    {
+      "id": "converted.cr.property",
+      "kind": "converted",
+      "label": "property, in the fewest octets that hold it",
+      "applies": "minuint",
+      "gives": "Bytes"
+    },
+    {
+      "id": "constant.zero.oneByte",
+      "kind": "constant",
+      "holds": {
+        "text": "oneByte"
+      },
+      "label": "oneByte"
+    },
+    {
+      "id": "evaluated.cr.property.extent",
+      "kind": "evaluated",
+      "label": "octets of property, from the tag",
+      "runs": "lvt",
+      "gives": "Int",
+      "takes": {
+        "lvt": "Int"
+      }
+    },
+    {
+      "id": "err",
+      "kind": "message",
+      "as": "an error",
+      "about": "ASHRAE 135 \u00a720.1.7 \u2014 what a Confirmed-Request gets instead of an answer. The client could not have known: nothing in the request says whether the property exists."
+    },
+    {
+      "id": "packing.err",
+      "kind": "packing"
+    },
+    {
+      "id": "apdu.err",
+      "kind": "set",
+      "as": "the application layer"
+    },
+    {
+      "id": "bvll.err",
+      "kind": "set",
+      "as": "the BACnet/IP message",
+      "about": "Annex J.2.1's BVLL: everything on the wire, which is what its own length counts."
+    },
+    {
+      "id": "npdu.err",
+      "kind": "set",
+      "as": "the network layer",
+      "about": "ASHRAE 135 \u00a76.2."
+    },
+    {
+      "id": "bvlcType.err",
+      "kind": "field",
+      "as": "BVLC Type",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "0x81, always \u2014 the one octet that says this is BACnet over IP at all."
+    },
+    {
+      "id": "bvlcFunction.err",
+      "kind": "field",
+      "as": "BVLC Function",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Annex J.2.1. This describes the two that carry an NPDU immediately; Forwarded-NPDU puts six octets of originating address first and Register-Foreign-Device carries a time to live and no NPDU at all, so both are different bodies rather than a flag."
+    },
+    {
+      "id": "bvlcLength.err",
+      "kind": "field",
+      "as": "BVLC Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "Annex J.2.1: the length of the WHOLE BVLL message, these four octets included.",
+        "",
+        "A length that measures the span it sits in, which is not the cycle it looks like: this field",
+        "is two octets wide whatever it holds, so the span can be added up before the number is",
+        "known. Modbus/TCP's length excludes itself and this one includes itself, and the difference",
+        "is which set the edge points at rather than anything the engine has to be told."
+      ]
+    },
+    {
+      "id": "evaluated.bvlcLength.err",
+      "kind": "evaluated",
+      "label": "the whole message, in octets",
+      "runs": "whole",
+      "gives": "Int",
+      "takes": {
+        "whole": "Int"
+      }
+    },
+    {
+      "id": "evaluated.bvlcAgrees.err",
+      "kind": "evaluated",
+      "label": "does the declared length match what arrived?",
+      "runs": "declared == actual",
+      "gives": "Bool",
+      "takes": {
+        "declared": "Int",
+        "actual": "Int"
+      }
+    },
+    {
+      "id": "npduVersion.err",
+      "kind": "field",
+      "as": "NPDU Version",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": null
+    },
+    {
+      "id": "npduIsNetworkMessage.err",
+      "kind": "field",
+      "as": "network-layer message",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduReserved6.err",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasDestination.err",
+      "kind": "field",
+      "as": "DNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduReserved4.err",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasSource.err",
+      "kind": "field",
+      "as": "SNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduExpectingReply.err",
+      "kind": "field",
+      "as": "Expecting Reply",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a76.2.2 bit 2. A request sets it; so does a SegmentACK that wants more segments."
+    },
+    {
+      "id": "npduPriority.err",
+      "kind": "field",
+      "as": "Priority",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": "\u00a76.2.2 bits 1-0: 0 Normal, 1 Urgent, 2 Critical Equipment, 3 Life Safety."
+    },
+    {
+      "id": "err.pduType",
+      "kind": "field",
+      "as": "PDU Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": null
+    },
+    {
+      "id": "constant.5",
+      "kind": "constant",
+      "holds": {
+        "int": 5
+      },
+      "label": "5"
+    },
+    {
+      "id": "valid.5",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 5
+          },
+          "to": {
+            "int": 5
+          }
+        }
+      ],
+      "about": "5, and nothing else."
+    },
+    {
+      "id": "err.reserved",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": null
+    },
+    {
+      "id": "err.invokeId",
+      "kind": "field",
+      "as": "Invoke ID",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.7.2: the request this answers."
+    },
+    {
+      "id": "err.serviceChoice",
+      "kind": "field",
+      "as": "Error Choice",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.7.3: which service failed."
+    },
+    {
+      "id": "input.errorClass",
+      "kind": "input",
+      "as": "Error Class",
+      "gives": "Int",
+      "purpose": "\u00a718.1 \u2014 2 is property."
+    },
+    {
+      "id": "input.errorCode",
+      "kind": "input",
+      "as": "Error Code",
+      "gives": "Int",
+      "purpose": "\u00a718.2 \u2014 32 is unknown-property."
+    },
+    {
+      "id": "err.classTag.number",
+      "kind": "field",
+      "as": "classTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a720.2.11: an Enumerated, application tag 9."
+    },
+    {
+      "id": "constant.9",
+      "kind": "constant",
+      "holds": {
+        "int": 9
+      },
+      "label": "9"
+    },
+    {
+      "id": "valid.9",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 9
+          },
+          "to": {
+            "int": 9
+          }
+        }
+      ],
+      "about": "9, and nothing else."
+    },
+    {
+      "id": "err.classTag.class",
+      "kind": "field",
+      "as": "classTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "err.classTag.lvt",
+      "kind": "field",
+      "as": "classTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    },
+    {
+      "id": "evaluated.err.classTag.lvt",
+      "kind": "evaluated",
+      "label": "how many octets classTag takes",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "err.class",
+      "kind": "field",
+      "as": "class",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "\u00a720.2.4: as many octets as the value needs and no more. A non-minimal encoding is legal on some wires and not this one \u2014 ASHRAE 135 requires the shortest form."
+    },
+    {
+      "id": "converted.err.class",
+      "kind": "converted",
+      "label": "class, in the fewest octets that hold it",
+      "applies": "minuint",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.err.class.extent",
+      "kind": "evaluated",
+      "label": "octets of class, from the tag",
+      "runs": "lvt",
+      "gives": "Int",
+      "takes": {
+        "lvt": "Int"
+      }
+    },
+    {
+      "id": "err.codeTag.number",
+      "kind": "field",
+      "as": "codeTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a720.2.11: the second Enumerated, and the same tag number \u2014 which is why an application tag says what a value IS and where it sits says what it MEANS."
+    },
+    {
+      "id": "err.codeTag.class",
+      "kind": "field",
+      "as": "codeTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "err.codeTag.lvt",
+      "kind": "field",
+      "as": "codeTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    },
+    {
+      "id": "evaluated.err.codeTag.lvt",
+      "kind": "evaluated",
+      "label": "how many octets codeTag takes",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "err.code",
+      "kind": "field",
+      "as": "code",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "\u00a720.2.4: as many octets as the value needs and no more. A non-minimal encoding is legal on some wires and not this one \u2014 ASHRAE 135 requires the shortest form."
+    },
+    {
+      "id": "converted.err.code",
+      "kind": "converted",
+      "label": "code, in the fewest octets that hold it",
+      "applies": "minuint",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.err.code.extent",
+      "kind": "evaluated",
+      "label": "octets of code, from the tag",
+      "runs": "lvt",
+      "gives": "Int",
+      "takes": {
+        "lvt": "Int"
+      }
+    },
+    {
+      "id": "sa",
+      "kind": "message",
+      "as": "a segment acknowledgement",
+      "about": "ASHRAE 135 \u00a720.1.6 \u2014 how the receiver paces a segmented reply, and how it grants the window down from what the sender proposed."
+    },
+    {
+      "id": "packing.sa",
+      "kind": "packing"
+    },
+    {
+      "id": "apdu.sa",
+      "kind": "set",
+      "as": "the application layer"
+    },
+    {
+      "id": "bvll.sa",
+      "kind": "set",
+      "as": "the BACnet/IP message",
+      "about": "Annex J.2.1's BVLL: everything on the wire, which is what its own length counts."
+    },
+    {
+      "id": "npdu.sa",
+      "kind": "set",
+      "as": "the network layer",
+      "about": "ASHRAE 135 \u00a76.2."
+    },
+    {
+      "id": "bvlcType.sa",
+      "kind": "field",
+      "as": "BVLC Type",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "0x81, always \u2014 the one octet that says this is BACnet over IP at all."
+    },
+    {
+      "id": "bvlcFunction.sa",
+      "kind": "field",
+      "as": "BVLC Function",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Annex J.2.1. This describes the two that carry an NPDU immediately; Forwarded-NPDU puts six octets of originating address first and Register-Foreign-Device carries a time to live and no NPDU at all, so both are different bodies rather than a flag."
+    },
+    {
+      "id": "bvlcLength.sa",
+      "kind": "field",
+      "as": "BVLC Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "Annex J.2.1: the length of the WHOLE BVLL message, these four octets included.",
+        "",
+        "A length that measures the span it sits in, which is not the cycle it looks like: this field",
+        "is two octets wide whatever it holds, so the span can be added up before the number is",
+        "known. Modbus/TCP's length excludes itself and this one includes itself, and the difference",
+        "is which set the edge points at rather than anything the engine has to be told."
+      ]
+    },
+    {
+      "id": "evaluated.bvlcLength.sa",
+      "kind": "evaluated",
+      "label": "the whole message, in octets",
+      "runs": "whole",
+      "gives": "Int",
+      "takes": {
+        "whole": "Int"
+      }
+    },
+    {
+      "id": "evaluated.bvlcAgrees.sa",
+      "kind": "evaluated",
+      "label": "does the declared length match what arrived?",
+      "runs": "declared == actual",
+      "gives": "Bool",
+      "takes": {
+        "declared": "Int",
+        "actual": "Int"
+      }
+    },
+    {
+      "id": "npduVersion.sa",
+      "kind": "field",
+      "as": "NPDU Version",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": null
+    },
+    {
+      "id": "npduIsNetworkMessage.sa",
+      "kind": "field",
+      "as": "network-layer message",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduReserved6.sa",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasDestination.sa",
+      "kind": "field",
+      "as": "DNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduReserved4.sa",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasSource.sa",
+      "kind": "field",
+      "as": "SNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduExpectingReply.sa",
+      "kind": "field",
+      "as": "Expecting Reply",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a76.2.2 bit 2. A request sets it; so does a SegmentACK that wants more segments."
+    },
+    {
+      "id": "npduPriority.sa",
+      "kind": "field",
+      "as": "Priority",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": "\u00a76.2.2 bits 1-0: 0 Normal, 1 Urgent, 2 Critical Equipment, 3 Life Safety."
+    },
+    {
+      "id": "sa.pduType",
+      "kind": "field",
+      "as": "PDU Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": null
+    },
+    {
+      "id": "sa.reserved",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": null
+    },
+    {
+      "id": "sa.negative",
+      "kind": "field",
+      "as": "negative acknowledgement",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a720.1.6.2: set when a segment arrived out of window. A segment out of order must be answered with this rather than dropped, or the sender waits for a reply that will never come."
+    },
+    {
+      "id": "input.negativeAck",
+      "kind": "input",
+      "as": "Negative Acknowledgement",
+      "gives": "Int",
+      "purpose": "\u00a720.1.6.2."
+    },
+    {
+      "id": "sa.fromServer",
+      "kind": "field",
+      "as": "sent by the server",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a720.1.6.3: which end sent this \u2014 the requester or the responder. Both send SegmentACKs, and an invoke ID alone does not say which."
+    },
+    {
+      "id": "input.fromServer",
+      "kind": "input",
+      "as": "Sent By Server",
+      "gives": "Int",
+      "purpose": "\u00a720.1.6.3."
+    },
+    {
+      "id": "sa.invokeId",
+      "kind": "field",
+      "as": "Original Invoke ID",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.6.4: the transaction being paced."
+    },
+    {
+      "id": "sa.sequenceNumber",
+      "kind": "field",
+      "as": "Sequence Number",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.6.5: the last segment that arrived intact, modulo 256."
+    },
+    {
+      "id": "input.sequenceNumber",
+      "kind": "input",
+      "as": "Sequence Number",
+      "gives": "Int",
+      "purpose": "\u00a720.1.6.5, modulo 256."
+    },
+    {
+      "id": "sa.actualWindowSize",
+      "kind": "field",
+      "as": "Actual Window Size",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.6.6: how many segments may be sent before the next acknowledgement. Must be no larger than what the sender proposed \u2014 a grant-down, and the second of two in one exchange."
+    },
+    {
+      "id": "input.windowSize",
+      "kind": "input",
+      "as": "Window Size",
+      "gives": "Int",
+      "purpose": "\u00a720.1.6.6 / \u00a720.1.4.4."
+    },
+    {
+      "id": "ca",
+      "kind": "message",
+      "as": "a complex acknowledgement",
+      "about": [
+        "ASHRAE 135 \u00a720.1.4 \u2014 the answer to a Confirmed-Request, carrying whatever the service returns.",
+        "",
+        "Two shapes, told apart by one bit of the first octet. Whole, the service's parameters are here",
+        "and readable. Segmented, what follows is a PIECE of them cut at whatever octet the window ran",
+        "out on \u2014 capture C3 stops halfway through an object identifier \u2014 so it is octets and nothing",
+        "more until the pieces are put back together, which happens across datagrams and not in one."
+      ]
+    },
+    {
+      "id": "packing.ca",
+      "kind": "packing"
+    },
+    {
+      "id": "apdu.ca",
+      "kind": "set",
+      "as": "the application layer"
+    },
+    {
+      "id": "bvll.ca",
+      "kind": "set",
+      "as": "the BACnet/IP message",
+      "about": "Annex J.2.1's BVLL: everything on the wire, which is what its own length counts."
+    },
+    {
+      "id": "npdu.ca",
+      "kind": "set",
+      "as": "the network layer",
+      "about": "ASHRAE 135 \u00a76.2."
+    },
+    {
+      "id": "bvlcType.ca",
+      "kind": "field",
+      "as": "BVLC Type",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": "0x81, always \u2014 the one octet that says this is BACnet over IP at all."
+    },
+    {
+      "id": "bvlcFunction.ca",
+      "kind": "field",
+      "as": "BVLC Function",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Annex J.2.1. This describes the two that carry an NPDU immediately; Forwarded-NPDU puts six octets of originating address first and Register-Foreign-Device carries a time to live and no NPDU at all, so both are different bodies rather than a flag."
+    },
+    {
+      "id": "bvlcLength.ca",
+      "kind": "field",
+      "as": "BVLC Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "Annex J.2.1: the length of the WHOLE BVLL message, these four octets included.",
+        "",
+        "A length that measures the span it sits in, which is not the cycle it looks like: this field",
+        "is two octets wide whatever it holds, so the span can be added up before the number is",
+        "known. Modbus/TCP's length excludes itself and this one includes itself, and the difference",
+        "is which set the edge points at rather than anything the engine has to be told."
+      ]
+    },
+    {
+      "id": "evaluated.bvlcLength.ca",
+      "kind": "evaluated",
+      "label": "the whole message, in octets",
+      "runs": "whole",
+      "gives": "Int",
+      "takes": {
+        "whole": "Int"
+      }
+    },
+    {
+      "id": "evaluated.bvlcAgrees.ca",
+      "kind": "evaluated",
+      "label": "does the declared length match what arrived?",
+      "runs": "declared == actual",
+      "gives": "Bool",
+      "takes": {
+        "declared": "Int",
+        "actual": "Int"
+      }
+    },
+    {
+      "id": "npduVersion.ca",
+      "kind": "field",
+      "as": "NPDU Version",
+      "form": {
+        "of": "run",
+        "bits": 8
+      },
+      "about": null
+    },
+    {
+      "id": "npduIsNetworkMessage.ca",
+      "kind": "field",
+      "as": "network-layer message",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduReserved6.ca",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasDestination.ca",
+      "kind": "field",
+      "as": "DNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduReserved4.ca",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduHasSource.ca",
+      "kind": "field",
+      "as": "SNET present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "npduExpectingReply.ca",
+      "kind": "field",
+      "as": "Expecting Reply",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a76.2.2 bit 2. A request sets it; so does a SegmentACK that wants more segments."
+    },
+    {
+      "id": "npduPriority.ca",
+      "kind": "field",
+      "as": "Priority",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": "\u00a76.2.2 bits 1-0: 0 Normal, 1 Urgent, 2 Critical Equipment, 3 Life Safety."
+    },
+    {
+      "id": "ca.pduType",
+      "kind": "field",
+      "as": "PDU Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": null
+    },
+    {
+      "id": "constant.3",
+      "kind": "constant",
+      "holds": {
+        "int": 3
+      },
+      "label": "3"
+    },
+    {
+      "id": "valid.3",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 3
+          },
+          "to": {
+            "int": 3
+          }
+        }
+      ],
+      "about": "3, and nothing else."
+    },
+    {
+      "id": "ca.segmented",
+      "kind": "field",
+      "as": "segmented",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a720.1.4.2: set when this is one piece of a longer answer."
+    },
+    {
+      "id": "input.segmented",
+      "kind": "input",
+      "as": "Segmented",
+      "gives": "Int",
+      "purpose": "\u00a720.1.4.2: this answer is sent in pieces."
+    },
+    {
+      "id": "ca.moreFollows",
+      "kind": "field",
+      "as": "more follows",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "\u00a720.1.4.3: set on every piece but the last. Meaningless unless segmented."
+    },
+    {
+      "id": "input.moreFollows",
+      "kind": "input",
+      "as": "More Follows",
+      "gives": "Int",
+      "purpose": "\u00a720.1.4.3."
+    },
+    {
+      "id": "ca.reserved",
+      "kind": "field",
+      "as": "reserved",
+      "form": {
+        "of": "run",
+        "bits": 2
+      },
+      "about": null
+    },
+    {
+      "id": "ca.invokeId",
+      "kind": "field",
+      "as": "Invoke ID",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.4.1: the request this answers."
+    },
+    {
+      "id": "evaluated.ca.inPieces",
+      "kind": "evaluated",
+      "label": "is this answer in pieces?",
+      "runs": "segmented == 1",
+      "gives": "Bool",
+      "takes": {
+        "segmented": "Int"
+      }
+    },
+    {
+      "id": "ca.sequenceNumber",
+      "kind": "field",
+      "as": "Sequence Number",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.4.4: which piece this is, modulo 256. There only when there are pieces."
+    },
+    {
+      "id": "ca.proposedWindowSize",
+      "kind": "field",
+      "as": "Proposed Window Size",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.4.5: how many pieces the sender would like to send before being acknowledged. The receiver grants it down in the SegmentACK, which is the second of two grant-downs in one exchange."
+    },
+    {
+      "id": "ca.serviceChoice",
+      "kind": "field",
+      "as": "Service ACK Choice",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.1.4.6 \u2014 which service answered."
+    },
+    {
+      "id": "ca.piece",
+      "kind": "set",
+      "as": "one piece of an answer",
+      "about": "Octets, and deliberately nothing more. \u00a75.3 cuts the payload at an arbitrary boundary, so a piece is not a thing that can be parsed \u2014 the thing to parse is the concatenation of them."
+    },
+    {
+      "id": "ca.segmentPayload",
+      "kind": "field",
+      "as": "the piece",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "Whatever of the answer fitted. Capture C3 ends two octets into a four-octet object identifier, which is exactly why this is not read as tags."
+    },
+    {
+      "id": "input.segmentPayload",
+      "kind": "input",
+      "as": "Segment Payload",
+      "gives": "Bytes",
+      "purpose": "This piece of the answer, verbatim."
+    },
+    {
+      "id": "evaluated.ca.pieceExtent",
+      "kind": "evaluated",
+      "label": "the rest of the datagram",
+      "runs": "remaining",
+      "gives": "Int"
+    },
+    {
+      "id": "ca.whole",
+      "kind": "set",
+      "as": "the answer entire",
+      "about": "\u00a715.5.1.2: the object, the property, and the value between an opening and a closing tag."
+    },
+    {
+      "id": "ca.objectTag.number",
+      "kind": "field",
+      "as": "objectTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a715.5.1.2.1: the object that was read."
+    },
+    {
+      "id": "ca.objectTag.class",
+      "kind": "field",
+      "as": "objectTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "ca.objectTag.lvt",
+      "kind": "field",
+      "as": "objectTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    },
+    {
+      "id": "ca.objectType",
+      "kind": "field",
+      "as": "object type",
+      "form": {
+        "of": "run",
+        "bits": 10
+      },
+      "about": "\u00a720.2.14. Analog Input is 0, Device is 8 \u2014 and it is ten bits, so it does not line up with an octet and never could."
+    },
+    {
+      "id": "ca.objectInstance",
+      "kind": "field",
+      "as": "object instance",
+      "form": {
+        "of": "run",
+        "bits": 22
+      },
+      "about": "\u00a720.2.14: which one of that type, up to 4194303."
+    },
+    {
+      "id": "ca.propertyTag.number",
+      "kind": "field",
+      "as": "propertyTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a715.5.1.2.2: the property that was read."
+    },
+    {
+      "id": "ca.propertyTag.class",
+      "kind": "field",
+      "as": "propertyTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "ca.propertyTag.lvt",
+      "kind": "field",
+      "as": "propertyTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    },
+    {
+      "id": "evaluated.ca.propertyTag.lvt",
+      "kind": "evaluated",
+      "label": "how many octets propertyTag takes",
+      "runs": "held",
+      "gives": "Int",
+      "takes": {
+        "held": "Int"
+      }
+    },
+    {
+      "id": "ca.property",
+      "kind": "field",
+      "as": "property",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "\u00a720.2.4: as many octets as the value needs and no more. A non-minimal encoding is legal on some wires and not this one \u2014 ASHRAE 135 requires the shortest form."
+    },
+    {
+      "id": "converted.ca.property",
+      "kind": "converted",
+      "label": "property, in the fewest octets that hold it",
+      "applies": "minuint",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.ca.property.extent",
+      "kind": "evaluated",
+      "label": "octets of property, from the tag",
+      "runs": "lvt",
+      "gives": "Int",
+      "takes": {
+        "lvt": "Int"
+      }
+    },
+    {
+      "id": "ca.openTag.number",
+      "kind": "field",
+      "as": "openTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": [
+        "\u00a715.5.1.2.4 wraps the value in parameter 3, and \u00a720.2.1.3.2 makes that a pair of markers carrying NO length at all.",
+        "",
+        "Which is the thing about BACnet that nothing else here does: what sits between them is bounded by finding the closing tag, not by a number. One deep, that is a tag whose length nibble is seven; nested, it is a count carried from one round to the next, and there is nowhere to keep one."
+      ]
+    },
+    {
+      "id": "ca.openTag.class",
+      "kind": "field",
+      "as": "openTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "ca.openTag.lvt",
+      "kind": "field",
+      "as": "openTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    },
+    {
+      "id": "constant.6",
+      "kind": "constant",
+      "holds": {
+        "int": 6
+      },
+      "label": "6"
+    },
+    {
+      "id": "valid.6",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 6
+          },
+          "to": {
+            "int": 6
+          }
+        }
+      ],
+      "about": "6, and nothing else."
+    },
+    {
+      "id": "ca.value",
+      "kind": "set",
+      "as": "the value",
+      "about": "\u00a720.2.9: a Character String \u2014 one octet saying which character set, then the characters."
+    },
+    {
+      "id": "ca.valueTag.number",
+      "kind": "field",
+      "as": "value tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": null
+    },
+    {
+      "id": "constant.7",
+      "kind": "constant",
+      "holds": {
+        "int": 7
+      },
+      "label": "7"
+    },
+    {
+      "id": "valid.7",
+      "kind": "validator",
+      "ranges": [
+        {
+          "from": {
+            "int": 7
+          },
+          "to": {
+            "int": 7
+          }
+        }
+      ],
+      "about": "7, and nothing else."
+    },
+    {
+      "id": "ca.valueTag.class",
+      "kind": "field",
+      "as": "value tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "ca.valueTag.lvt",
+      "kind": "field",
+      "as": "value length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself; five says a length octet follows. Which of those it is, is a fact about how long the value turned out to be."
+    },
+    {
+      "id": "evaluated.ca.valueSize",
+      "kind": "evaluated",
+      "label": "how long the value is, in octets",
+      "runs": "1 + len(unutf8(text))",
+      "gives": "Int",
+      "takes": {
+        "text": "Text"
+      },
+      "about": "One for the character set and the rest for the characters, which is why twelve octets hold eleven of them."
+    },
+    {
+      "id": "evaluated.ca.valueLvt",
+      "kind": "evaluated",
+      "label": "the length nibble, or the escape",
+      "runs": "size > 4 ? 5 : size",
+      "gives": "Int",
+      "takes": {
+        "size": "Int"
+      }
+    },
+    {
+      "id": "ca.valueExtLength",
+      "kind": "field",
+      "as": "extended length",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.2.1.3.1: there only when the length did not fit in three bits. Five to two hundred and fifty-three octets say so here; 254 and 255 escape again, to two and four octets, which no capture exercises and this does not describe."
+    },
+    {
+      "id": "evaluated.ca.needsEscape",
+      "kind": "evaluated",
+      "label": "is the value too long for the nibble?",
+      "runs": "size > 4",
+      "gives": "Bool",
+      "takes": {
+        "size": "Int"
+      }
+    },
+    {
+      "id": "evaluated.ca.escaped",
+      "kind": "evaluated",
+      "label": "did the nibble say a length octet follows?",
+      "runs": "lvt == 5",
+      "gives": "Bool",
+      "takes": {
+        "lvt": "Int"
+      }
+    },
+    {
+      "id": "ca.charset",
+      "kind": "field",
+      "as": "character set",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "\u00a720.2.9: 0 is ANSI X3.4, which is UTF-8. It counts toward the value's length, which is why twelve octets of Character String hold eleven characters."
+    },
+    {
+      "id": "input.charset",
+      "kind": "input",
+      "as": "Character Set",
+      "gives": "Int",
+      "purpose": "\u00a720.2.9 \u2014 0 for UTF-8."
+    },
+    {
+      "id": "ca.text",
+      "kind": "field",
+      "as": "the characters",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unutf8",
+      "about": "The property's value. Text rather than octets, because a name is text."
+    },
+    {
+      "id": "input.text",
+      "kind": "input",
+      "as": "Value",
+      "gives": "Text",
+      "purpose": "What the property came to."
+    },
+    {
+      "id": "evaluated.ca.textExtent",
+      "kind": "evaluated",
+      "label": "octets of text, from the tag",
+      "runs": "(lvt == 5 ? (ext ?? 0) : lvt) - 1",
+      "gives": "Int",
+      "takes": {
+        "lvt": "Int",
+        "ext": "Int"
+      },
+      "about": "Less the character-set octet, which the length counts and the text is not."
+    },
+    {
+      "id": "ca.closeTag.number",
+      "kind": "field",
+      "as": "closeTag tag number",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "\u00a720.2.1.3.2: where the constructed value ends."
+    },
+    {
+      "id": "ca.closeTag.class",
+      "kind": "field",
+      "as": "closeTag tag class",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": null
+    },
+    {
+      "id": "ca.closeTag.lvt",
+      "kind": "field",
+      "as": "closeTag length",
+      "form": {
+        "of": "run",
+        "bits": 3
+      },
+      "about": "\u00a720.2.1.3.1: nought to four is the length itself, five escapes to a following octet, six and seven are the opening and closing markers that carry no length at all."
+    }
+  ],
+  "edges": [
+    {
+      "kind": "identifies",
+      "from": "bacnet",
+      "to": "probe.bvlcType"
+    },
+    {
+      "kind": "identifies",
+      "from": "probe.bvlcType",
+      "to": "probe.bvlcFunction"
+    },
+    {
+      "kind": "identifies",
+      "from": "probe.bvlcFunction",
+      "to": "probe.bvlcLength"
+    },
+    {
+      "kind": "identifies",
+      "from": "probe.bvlcLength",
+      "to": "probe.npduVersion"
+    },
+    {
+      "kind": "identifies",
+      "from": "probe.npduVersion",
+      "to": "probe.npduControl"
+    },
+    {
+      "kind": "identifies",
+      "from": "probe.npduControl",
+      "to": "probe.pduType"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.pduType",
+      "to": "input.pduType",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "pduType"
+    },
+    {
+      "kind": "decides",
+      "from": "bacnet",
+      "to": "evaluated.pduType"
+    },
+    {
+      "kind": "then",
+      "from": "bacnet",
+      "to": "cr",
+      "key": {
+        "int": 0
+      }
+    },
+    {
+      "kind": "then",
+      "from": "cr",
+      "to": "packing.cr"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcType.cr",
+      "to": "constant.129",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcType.cr",
+      "to": "valid.129",
+      "because": "Annex J.2.1: every BACnet/IP message begins 0x81. Anything else is not one."
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcFunction.cr",
+      "to": "input.bvlcFunction",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcFunction.cr",
+      "to": "valid.originalNpdu",
+      "because": "A function whose body is not an NPDU is a different message, not this one with a different number in it."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcLength.cr",
+      "to": "bvll.cr",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "whole"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcLength.cr",
+      "to": "evaluated.bvlcLength.cr",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.cr",
+      "to": "bvlcLength.cr",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "declared"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.cr",
+      "to": "bvll.cr",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "actual"
+    },
+    {
+      "kind": "checks",
+      "from": "bvll.cr",
+      "to": "evaluated.bvlcAgrees.cr",
+      "because": "Annex J.2.1: the BVLC length counts the whole message. Routers are known to emit a wrong one, and a datagram whose header disagrees with its own size is refused rather than parsed into whatever happens to line up."
+    },
+    {
+      "kind": "computes",
+      "from": "npduVersion.cr",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduVersion.cr",
+      "to": "valid.1",
+      "because": "ASHRAE 135 \u00a76.2.1: version 1 is the only one there has ever been."
+    },
+    {
+      "kind": "computes",
+      "from": "npduIsNetworkMessage.cr",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduIsNetworkMessage.cr",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 7: set means the NSDU is a network-layer message rather than an APDU, which is a different body \u2014 router table maintenance, not an application service."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved6.cr",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved6.cr",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 6 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasDestination.cr",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasDestination.cr",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 5: set means DNET, DLEN and a DADR of DLEN octets follow. This describes a message that is not routed \u2014 and a routed one could not be reached by looking ahead anyway, because DADR is as long as DLEN says and reading ahead happens before anything has been read."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved4.cr",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved4.cr",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 4 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasSource.cr",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasSource.cr",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 3: set means SNET, SLEN and SADR follow \u2014 the same variable run, for the same reason not described here."
+    },
+    {
+      "kind": "computes",
+      "from": "npduExpectingReply.cr",
+      "to": "input.expectingReply",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduExpectingReply.cr",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "npduPriority.cr",
+      "to": "input.priority",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduPriority.cr",
+      "to": "valid.priority",
+      "because": "\u00a76.2.2 gives four network priorities and no others."
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduVersion.cr",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduIsNetworkMessage.cr",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduReserved6.cr",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduHasDestination.cr",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduReserved4.cr",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduHasSource.cr",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduExpectingReply.cr",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.cr",
+      "to": "npduPriority.cr",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.cr",
+      "to": "bvlcType.cr",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.cr",
+      "to": "bvlcFunction.cr",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.cr",
+      "to": "bvlcLength.cr",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.cr",
+      "to": "npdu.cr",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.cr",
+      "to": "apdu.cr",
+      "order": 4
+    },
+    {
+      "kind": "then",
+      "from": "packing.cr",
+      "to": "bvll.cr"
+    },
+    {
+      "kind": "then",
+      "from": "bvll.cr",
+      "to": "bvlcType.cr"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcType.cr",
+      "to": "bvlcFunction.cr"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcFunction.cr",
+      "to": "bvlcLength.cr"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcLength.cr",
+      "to": "npdu.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npdu.cr",
+      "to": "npduVersion.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduVersion.cr",
+      "to": "npduIsNetworkMessage.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduIsNetworkMessage.cr",
+      "to": "npduReserved6.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved6.cr",
+      "to": "npduHasDestination.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasDestination.cr",
+      "to": "npduReserved4.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved4.cr",
+      "to": "npduHasSource.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasSource.cr",
+      "to": "npduExpectingReply.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduExpectingReply.cr",
+      "to": "npduPriority.cr"
+    },
+    {
+      "kind": "then",
+      "from": "npduPriority.cr",
+      "to": "apdu.cr"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.pduType",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.pduType",
+      "to": "valid.0",
+      "because": "\u00a720.1.2.1: a Confirmed-Request is type 0."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.segmented",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.segmented",
+      "to": "valid.0",
+      "because": "\u00a720.1.2.4: a request too long for one datagram is sent in segments, and reassembling it spans several \u2014 which is the client's work rather than this description's."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.moreFollows",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.moreFollows",
+      "to": "valid.0",
+      "because": "\u00a720.1.2.5: meaningless unless the request itself is segmented, which this is not."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.segmentedResponseAccepted",
+      "to": "input.segmentedResponseAccepted",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.segmentedResponseAccepted",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.reserved0",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.reserved0",
+      "to": "valid.0",
+      "because": "\u00a720.1.2 bit 0 of the first octet shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.maxSegsReserved",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.maxSegsReserved",
+      "to": "valid.0",
+      "because": "\u00a720.1.2.7's top bit shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.maxSegments",
+      "to": "input.maxSegments",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.maxApdu",
+      "to": "input.maxApdu",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.invokeId",
+      "to": "input.invokeId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.serviceChoice",
+      "to": "input.serviceChoice",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.serviceChoice",
+      "to": "valid.readProperty",
+      "because": "This describes ReadProperty. Another service has different parameters after this octet, so it is a different body rather than this one with a different number in it."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.objectTag.number",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.objectTag.number",
+      "to": "valid.0",
+      "because": "\u00a720.2.1.2: this parameter is tag 0 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.objectTag.class",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.objectTag.class",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.1: context-specific \u2014 what this means is fixed by where it is."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.objectTag.lvt",
+      "to": "constant.4",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.objectTag.lvt",
+      "to": "valid.4",
+      "because": "\u00a720.2.1.3.1: this value occupies 4 octet(s), always."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.objectType",
+      "to": "input.objectType",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.objectInstance",
+      "to": "input.objectInstance",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.propertyTag.number",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.propertyTag.number",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.2: this parameter is tag 1 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "cr.propertyTag.class",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "cr.propertyTag.class",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.1: context-specific \u2014 what this means is fixed by where it is."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.cr.propertyTag.lvt",
+      "to": "cr.property",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.propertyTag.lvt",
+      "to": "evaluated.cr.propertyTag.lvt",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.cr.property",
+      "to": "input.propertyIdentifier",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "converted.cr.property",
+      "to": "constant.zero.oneByte",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "zero"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.property",
+      "to": "converted.cr.property",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.cr.property.extent",
+      "to": "cr.propertyTag.lvt",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "lvt"
+    },
+    {
+      "kind": "computes",
+      "from": "cr.property",
+      "to": "evaluated.cr.property.extent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "then",
+      "from": "apdu.cr",
+      "to": "cr.pduType"
+    },
+    {
+      "kind": "then",
+      "from": "cr.pduType",
+      "to": "cr.segmented"
+    },
+    {
+      "kind": "then",
+      "from": "cr.segmented",
+      "to": "cr.moreFollows"
+    },
+    {
+      "kind": "then",
+      "from": "cr.moreFollows",
+      "to": "cr.segmentedResponseAccepted"
+    },
+    {
+      "kind": "then",
+      "from": "cr.segmentedResponseAccepted",
+      "to": "cr.reserved0"
+    },
+    {
+      "kind": "then",
+      "from": "cr.reserved0",
+      "to": "cr.maxSegsReserved"
+    },
+    {
+      "kind": "then",
+      "from": "cr.maxSegsReserved",
+      "to": "cr.maxSegments"
+    },
+    {
+      "kind": "then",
+      "from": "cr.maxSegments",
+      "to": "cr.maxApdu"
+    },
+    {
+      "kind": "then",
+      "from": "cr.maxApdu",
+      "to": "cr.invokeId"
+    },
+    {
+      "kind": "then",
+      "from": "cr.invokeId",
+      "to": "cr.serviceChoice"
+    },
+    {
+      "kind": "then",
+      "from": "cr.serviceChoice",
+      "to": "cr.objectTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "cr.objectTag.number",
+      "to": "cr.objectTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "cr.objectTag.class",
+      "to": "cr.objectTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "cr.objectTag.lvt",
+      "to": "cr.objectType"
+    },
+    {
+      "kind": "then",
+      "from": "cr.objectType",
+      "to": "cr.objectInstance"
+    },
+    {
+      "kind": "then",
+      "from": "cr.objectInstance",
+      "to": "cr.propertyTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "cr.propertyTag.number",
+      "to": "cr.propertyTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "cr.propertyTag.class",
+      "to": "cr.propertyTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "cr.propertyTag.lvt",
+      "to": "cr.property"
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.pduType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.segmented",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.moreFollows",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.segmentedResponseAccepted",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.reserved0",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.maxSegsReserved",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.maxSegments",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.maxApdu",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.invokeId",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.serviceChoice",
+      "order": 9
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.objectTag.number",
+      "order": 10
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.objectTag.class",
+      "order": 11
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.objectTag.lvt",
+      "order": 12
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.objectType",
+      "order": 13
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.objectInstance",
+      "order": 14
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.propertyTag.number",
+      "order": 15
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.propertyTag.class",
+      "order": 16
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.propertyTag.lvt",
+      "order": 17
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.cr",
+      "to": "cr.property",
+      "order": 18
+    },
+    {
+      "kind": "then",
+      "from": "bacnet",
+      "to": "err",
+      "key": {
+        "int": 5
+      }
+    },
+    {
+      "kind": "then",
+      "from": "err",
+      "to": "packing.err"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcType.err",
+      "to": "constant.129",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcType.err",
+      "to": "valid.129",
+      "because": "Annex J.2.1: every BACnet/IP message begins 0x81. Anything else is not one."
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcFunction.err",
+      "to": "input.bvlcFunction",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcFunction.err",
+      "to": "valid.originalNpdu",
+      "because": "A function whose body is not an NPDU is a different message, not this one with a different number in it."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcLength.err",
+      "to": "bvll.err",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "whole"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcLength.err",
+      "to": "evaluated.bvlcLength.err",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.err",
+      "to": "bvlcLength.err",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "declared"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.err",
+      "to": "bvll.err",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "actual"
+    },
+    {
+      "kind": "checks",
+      "from": "bvll.err",
+      "to": "evaluated.bvlcAgrees.err",
+      "because": "Annex J.2.1: the BVLC length counts the whole message. Routers are known to emit a wrong one, and a datagram whose header disagrees with its own size is refused rather than parsed into whatever happens to line up."
+    },
+    {
+      "kind": "computes",
+      "from": "npduVersion.err",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduVersion.err",
+      "to": "valid.1",
+      "because": "ASHRAE 135 \u00a76.2.1: version 1 is the only one there has ever been."
+    },
+    {
+      "kind": "computes",
+      "from": "npduIsNetworkMessage.err",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduIsNetworkMessage.err",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 7: set means the NSDU is a network-layer message rather than an APDU, which is a different body \u2014 router table maintenance, not an application service."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved6.err",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved6.err",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 6 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasDestination.err",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasDestination.err",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 5: set means DNET, DLEN and a DADR of DLEN octets follow. This describes a message that is not routed \u2014 and a routed one could not be reached by looking ahead anyway, because DADR is as long as DLEN says and reading ahead happens before anything has been read."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved4.err",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved4.err",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 4 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasSource.err",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasSource.err",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 3: set means SNET, SLEN and SADR follow \u2014 the same variable run, for the same reason not described here."
+    },
+    {
+      "kind": "computes",
+      "from": "npduExpectingReply.err",
+      "to": "input.expectingReply",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduExpectingReply.err",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "npduPriority.err",
+      "to": "input.priority",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduPriority.err",
+      "to": "valid.priority",
+      "because": "\u00a76.2.2 gives four network priorities and no others."
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduVersion.err",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduIsNetworkMessage.err",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduReserved6.err",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduHasDestination.err",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduReserved4.err",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduHasSource.err",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduExpectingReply.err",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.err",
+      "to": "npduPriority.err",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.err",
+      "to": "bvlcType.err",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.err",
+      "to": "bvlcFunction.err",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.err",
+      "to": "bvlcLength.err",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.err",
+      "to": "npdu.err",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.err",
+      "to": "apdu.err",
+      "order": 4
+    },
+    {
+      "kind": "then",
+      "from": "packing.err",
+      "to": "bvll.err"
+    },
+    {
+      "kind": "then",
+      "from": "bvll.err",
+      "to": "bvlcType.err"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcType.err",
+      "to": "bvlcFunction.err"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcFunction.err",
+      "to": "bvlcLength.err"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcLength.err",
+      "to": "npdu.err"
+    },
+    {
+      "kind": "then",
+      "from": "npdu.err",
+      "to": "npduVersion.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduVersion.err",
+      "to": "npduIsNetworkMessage.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduIsNetworkMessage.err",
+      "to": "npduReserved6.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved6.err",
+      "to": "npduHasDestination.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasDestination.err",
+      "to": "npduReserved4.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved4.err",
+      "to": "npduHasSource.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasSource.err",
+      "to": "npduExpectingReply.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduExpectingReply.err",
+      "to": "npduPriority.err"
+    },
+    {
+      "kind": "then",
+      "from": "npduPriority.err",
+      "to": "apdu.err"
+    },
+    {
+      "kind": "computes",
+      "from": "err.pduType",
+      "to": "constant.5",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "err.pduType",
+      "to": "valid.5",
+      "because": "\u00a720.1.7.1: an Error is type 5."
+    },
+    {
+      "kind": "computes",
+      "from": "err.reserved",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "err.reserved",
+      "to": "valid.0",
+      "because": "\u00a720.1.7's low nibble shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "err.invokeId",
+      "to": "input.invokeId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "err.serviceChoice",
+      "to": "input.serviceChoice",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "err.serviceChoice",
+      "to": "valid.readProperty",
+      "because": "This describes ReadProperty's error."
+    },
+    {
+      "kind": "computes",
+      "from": "err.classTag.number",
+      "to": "constant.9",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "err.classTag.number",
+      "to": "valid.9",
+      "because": "\u00a720.2.1.2: this parameter is tag 9 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "err.classTag.class",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "err.classTag.class",
+      "to": "valid.0",
+      "because": "\u00a720.2.1.1: application \u2014 what this means is fixed by the tag number alone."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.err.classTag.lvt",
+      "to": "err.class",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "err.classTag.lvt",
+      "to": "evaluated.err.classTag.lvt",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.err.class",
+      "to": "input.errorClass",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "converted.err.class",
+      "to": "constant.zero.oneByte",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "zero"
+    },
+    {
+      "kind": "computes",
+      "from": "err.class",
+      "to": "converted.err.class",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.err.class.extent",
+      "to": "err.classTag.lvt",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "lvt"
+    },
+    {
+      "kind": "computes",
+      "from": "err.class",
+      "to": "evaluated.err.class.extent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "err.codeTag.number",
+      "to": "constant.9",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "err.codeTag.number",
+      "to": "valid.9",
+      "because": "\u00a720.2.1.2: this parameter is tag 9 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "err.codeTag.class",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "err.codeTag.class",
+      "to": "valid.0",
+      "because": "\u00a720.2.1.1: application \u2014 what this means is fixed by the tag number alone."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.err.codeTag.lvt",
+      "to": "err.code",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "err.codeTag.lvt",
+      "to": "evaluated.err.codeTag.lvt",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.err.code",
+      "to": "input.errorCode",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "converted.err.code",
+      "to": "constant.zero.oneByte",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "zero"
+    },
+    {
+      "kind": "computes",
+      "from": "err.code",
+      "to": "converted.err.code",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.err.code.extent",
+      "to": "err.codeTag.lvt",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "lvt"
+    },
+    {
+      "kind": "computes",
+      "from": "err.code",
+      "to": "evaluated.err.code.extent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "then",
+      "from": "apdu.err",
+      "to": "err.pduType"
+    },
+    {
+      "kind": "then",
+      "from": "err.pduType",
+      "to": "err.reserved"
+    },
+    {
+      "kind": "then",
+      "from": "err.reserved",
+      "to": "err.invokeId"
+    },
+    {
+      "kind": "then",
+      "from": "err.invokeId",
+      "to": "err.serviceChoice"
+    },
+    {
+      "kind": "then",
+      "from": "err.serviceChoice",
+      "to": "err.classTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "err.classTag.number",
+      "to": "err.classTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "err.classTag.class",
+      "to": "err.classTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "err.classTag.lvt",
+      "to": "err.class"
+    },
+    {
+      "kind": "then",
+      "from": "err.class",
+      "to": "err.codeTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "err.codeTag.number",
+      "to": "err.codeTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "err.codeTag.class",
+      "to": "err.codeTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "err.codeTag.lvt",
+      "to": "err.code"
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.pduType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.reserved",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.invokeId",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.serviceChoice",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.classTag.number",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.classTag.class",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.classTag.lvt",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.class",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.codeTag.number",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.codeTag.class",
+      "order": 9
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.codeTag.lvt",
+      "order": 10
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.err",
+      "to": "err.code",
+      "order": 11
+    },
+    {
+      "kind": "then",
+      "from": "bacnet",
+      "to": "sa",
+      "key": {
+        "int": 4
+      }
+    },
+    {
+      "kind": "then",
+      "from": "sa",
+      "to": "packing.sa"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcType.sa",
+      "to": "constant.129",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcType.sa",
+      "to": "valid.129",
+      "because": "Annex J.2.1: every BACnet/IP message begins 0x81. Anything else is not one."
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcFunction.sa",
+      "to": "input.bvlcFunction",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcFunction.sa",
+      "to": "valid.originalNpdu",
+      "because": "A function whose body is not an NPDU is a different message, not this one with a different number in it."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcLength.sa",
+      "to": "bvll.sa",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "whole"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcLength.sa",
+      "to": "evaluated.bvlcLength.sa",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.sa",
+      "to": "bvlcLength.sa",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "declared"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.sa",
+      "to": "bvll.sa",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "actual"
+    },
+    {
+      "kind": "checks",
+      "from": "bvll.sa",
+      "to": "evaluated.bvlcAgrees.sa",
+      "because": "Annex J.2.1: the BVLC length counts the whole message. Routers are known to emit a wrong one, and a datagram whose header disagrees with its own size is refused rather than parsed into whatever happens to line up."
+    },
+    {
+      "kind": "computes",
+      "from": "npduVersion.sa",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduVersion.sa",
+      "to": "valid.1",
+      "because": "ASHRAE 135 \u00a76.2.1: version 1 is the only one there has ever been."
+    },
+    {
+      "kind": "computes",
+      "from": "npduIsNetworkMessage.sa",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduIsNetworkMessage.sa",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 7: set means the NSDU is a network-layer message rather than an APDU, which is a different body \u2014 router table maintenance, not an application service."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved6.sa",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved6.sa",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 6 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasDestination.sa",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasDestination.sa",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 5: set means DNET, DLEN and a DADR of DLEN octets follow. This describes a message that is not routed \u2014 and a routed one could not be reached by looking ahead anyway, because DADR is as long as DLEN says and reading ahead happens before anything has been read."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved4.sa",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved4.sa",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 4 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasSource.sa",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasSource.sa",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 3: set means SNET, SLEN and SADR follow \u2014 the same variable run, for the same reason not described here."
+    },
+    {
+      "kind": "computes",
+      "from": "npduExpectingReply.sa",
+      "to": "input.expectingReply",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduExpectingReply.sa",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "npduPriority.sa",
+      "to": "input.priority",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduPriority.sa",
+      "to": "valid.priority",
+      "because": "\u00a76.2.2 gives four network priorities and no others."
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduVersion.sa",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduIsNetworkMessage.sa",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduReserved6.sa",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduHasDestination.sa",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduReserved4.sa",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduHasSource.sa",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduExpectingReply.sa",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.sa",
+      "to": "npduPriority.sa",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.sa",
+      "to": "bvlcType.sa",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.sa",
+      "to": "bvlcFunction.sa",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.sa",
+      "to": "bvlcLength.sa",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.sa",
+      "to": "npdu.sa",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.sa",
+      "to": "apdu.sa",
+      "order": 4
+    },
+    {
+      "kind": "then",
+      "from": "packing.sa",
+      "to": "bvll.sa"
+    },
+    {
+      "kind": "then",
+      "from": "bvll.sa",
+      "to": "bvlcType.sa"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcType.sa",
+      "to": "bvlcFunction.sa"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcFunction.sa",
+      "to": "bvlcLength.sa"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcLength.sa",
+      "to": "npdu.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npdu.sa",
+      "to": "npduVersion.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduVersion.sa",
+      "to": "npduIsNetworkMessage.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduIsNetworkMessage.sa",
+      "to": "npduReserved6.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved6.sa",
+      "to": "npduHasDestination.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasDestination.sa",
+      "to": "npduReserved4.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved4.sa",
+      "to": "npduHasSource.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasSource.sa",
+      "to": "npduExpectingReply.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduExpectingReply.sa",
+      "to": "npduPriority.sa"
+    },
+    {
+      "kind": "then",
+      "from": "npduPriority.sa",
+      "to": "apdu.sa"
+    },
+    {
+      "kind": "computes",
+      "from": "sa.pduType",
+      "to": "constant.4",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "sa.pduType",
+      "to": "valid.4",
+      "because": "\u00a720.1.6.1: a SegmentACK is type 4."
+    },
+    {
+      "kind": "computes",
+      "from": "sa.reserved",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "sa.reserved",
+      "to": "valid.0",
+      "because": "\u00a720.1.6's two spare bits shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "sa.negative",
+      "to": "input.negativeAck",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "sa.negative",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "sa.fromServer",
+      "to": "input.fromServer",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "sa.fromServer",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "sa.invokeId",
+      "to": "input.invokeId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "sa.sequenceNumber",
+      "to": "input.sequenceNumber",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "sa.actualWindowSize",
+      "to": "input.windowSize",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "apdu.sa",
+      "to": "sa.pduType"
+    },
+    {
+      "kind": "then",
+      "from": "sa.pduType",
+      "to": "sa.reserved"
+    },
+    {
+      "kind": "then",
+      "from": "sa.reserved",
+      "to": "sa.negative"
+    },
+    {
+      "kind": "then",
+      "from": "sa.negative",
+      "to": "sa.fromServer"
+    },
+    {
+      "kind": "then",
+      "from": "sa.fromServer",
+      "to": "sa.invokeId"
+    },
+    {
+      "kind": "then",
+      "from": "sa.invokeId",
+      "to": "sa.sequenceNumber"
+    },
+    {
+      "kind": "then",
+      "from": "sa.sequenceNumber",
+      "to": "sa.actualWindowSize"
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.sa",
+      "to": "sa.pduType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.sa",
+      "to": "sa.reserved",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.sa",
+      "to": "sa.negative",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.sa",
+      "to": "sa.fromServer",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.sa",
+      "to": "sa.invokeId",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.sa",
+      "to": "sa.sequenceNumber",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.sa",
+      "to": "sa.actualWindowSize",
+      "order": 6
+    },
+    {
+      "kind": "then",
+      "from": "bacnet",
+      "to": "ca",
+      "key": {
+        "int": 3
+      }
+    },
+    {
+      "kind": "then",
+      "from": "ca",
+      "to": "packing.ca"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcType.ca",
+      "to": "constant.129",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcType.ca",
+      "to": "valid.129",
+      "because": "Annex J.2.1: every BACnet/IP message begins 0x81. Anything else is not one."
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcFunction.ca",
+      "to": "input.bvlcFunction",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "bvlcFunction.ca",
+      "to": "valid.originalNpdu",
+      "because": "A function whose body is not an NPDU is a different message, not this one with a different number in it."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcLength.ca",
+      "to": "bvll.ca",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "whole"
+    },
+    {
+      "kind": "computes",
+      "from": "bvlcLength.ca",
+      "to": "evaluated.bvlcLength.ca",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.ca",
+      "to": "bvlcLength.ca",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "declared"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.bvlcAgrees.ca",
+      "to": "bvll.ca",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "actual"
+    },
+    {
+      "kind": "checks",
+      "from": "bvll.ca",
+      "to": "evaluated.bvlcAgrees.ca",
+      "because": "Annex J.2.1: the BVLC length counts the whole message. Routers are known to emit a wrong one, and a datagram whose header disagrees with its own size is refused rather than parsed into whatever happens to line up."
+    },
+    {
+      "kind": "computes",
+      "from": "npduVersion.ca",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduVersion.ca",
+      "to": "valid.1",
+      "because": "ASHRAE 135 \u00a76.2.1: version 1 is the only one there has ever been."
+    },
+    {
+      "kind": "computes",
+      "from": "npduIsNetworkMessage.ca",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduIsNetworkMessage.ca",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 7: set means the NSDU is a network-layer message rather than an APDU, which is a different body \u2014 router table maintenance, not an application service."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved6.ca",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved6.ca",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 6 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasDestination.ca",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasDestination.ca",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 5: set means DNET, DLEN and a DADR of DLEN octets follow. This describes a message that is not routed \u2014 and a routed one could not be reached by looking ahead anyway, because DADR is as long as DLEN says and reading ahead happens before anything has been read."
+    },
+    {
+      "kind": "computes",
+      "from": "npduReserved4.ca",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduReserved4.ca",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 4 shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "npduHasSource.ca",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduHasSource.ca",
+      "to": "valid.0",
+      "because": "\u00a76.2.2 bit 3: set means SNET, SLEN and SADR follow \u2014 the same variable run, for the same reason not described here."
+    },
+    {
+      "kind": "computes",
+      "from": "npduExpectingReply.ca",
+      "to": "input.expectingReply",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduExpectingReply.ca",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "npduPriority.ca",
+      "to": "input.priority",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "npduPriority.ca",
+      "to": "valid.priority",
+      "because": "\u00a76.2.2 gives four network priorities and no others."
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduVersion.ca",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduIsNetworkMessage.ca",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduReserved6.ca",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduHasDestination.ca",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduReserved4.ca",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduHasSource.ca",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduExpectingReply.ca",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "npdu.ca",
+      "to": "npduPriority.ca",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.ca",
+      "to": "bvlcType.ca",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.ca",
+      "to": "bvlcFunction.ca",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.ca",
+      "to": "bvlcLength.ca",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.ca",
+      "to": "npdu.ca",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "bvll.ca",
+      "to": "apdu.ca",
+      "order": 4
+    },
+    {
+      "kind": "then",
+      "from": "packing.ca",
+      "to": "bvll.ca"
+    },
+    {
+      "kind": "then",
+      "from": "bvll.ca",
+      "to": "bvlcType.ca"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcType.ca",
+      "to": "bvlcFunction.ca"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcFunction.ca",
+      "to": "bvlcLength.ca"
+    },
+    {
+      "kind": "then",
+      "from": "bvlcLength.ca",
+      "to": "npdu.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npdu.ca",
+      "to": "npduVersion.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduVersion.ca",
+      "to": "npduIsNetworkMessage.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduIsNetworkMessage.ca",
+      "to": "npduReserved6.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved6.ca",
+      "to": "npduHasDestination.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasDestination.ca",
+      "to": "npduReserved4.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduReserved4.ca",
+      "to": "npduHasSource.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduHasSource.ca",
+      "to": "npduExpectingReply.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduExpectingReply.ca",
+      "to": "npduPriority.ca"
+    },
+    {
+      "kind": "then",
+      "from": "npduPriority.ca",
+      "to": "apdu.ca"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.pduType",
+      "to": "constant.3",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.pduType",
+      "to": "valid.3",
+      "because": "\u00a720.1.4.1: a ComplexACK is type 3."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.segmented",
+      "to": "input.segmented",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.segmented",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.moreFollows",
+      "to": "input.moreFollows",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.moreFollows",
+      "to": "valid.bit",
+      "because": "A bit holds nought or one."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.reserved",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.reserved",
+      "to": "valid.0",
+      "because": "\u00a720.1.4 leaves two spare bits, which shall be zero."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.invokeId",
+      "to": "input.invokeId",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.inPieces",
+      "to": "ca.segmented",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "segmented"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.sequenceNumber",
+      "to": "input.sequenceNumber",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.sequenceNumber",
+      "to": "evaluated.ca.inPieces",
+      "facet": "presence"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.proposedWindowSize",
+      "to": "input.windowSize",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.proposedWindowSize",
+      "to": "evaluated.ca.inPieces",
+      "facet": "presence"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.serviceChoice",
+      "to": "input.serviceChoice",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.serviceChoice",
+      "to": "valid.readProperty",
+      "because": "This describes ReadProperty's answer."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.segmentPayload",
+      "to": "input.segmentPayload",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.segmentPayload",
+      "to": "evaluated.ca.pieceExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "holds",
+      "from": "ca.piece",
+      "to": "ca.segmentPayload",
+      "order": 0
+    },
+    {
+      "kind": "computes",
+      "from": "ca.objectTag.number",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.objectTag.number",
+      "to": "valid.0",
+      "because": "\u00a720.2.1.2: this parameter is tag 0 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.objectTag.class",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.objectTag.class",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.1: context-specific \u2014 what this means is fixed by where it is."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.objectTag.lvt",
+      "to": "constant.4",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.objectTag.lvt",
+      "to": "valid.4",
+      "because": "\u00a720.2.1.3.1: this value occupies 4 octet(s), always."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.objectType",
+      "to": "input.objectType",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.objectInstance",
+      "to": "input.objectInstance",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.propertyTag.number",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.propertyTag.number",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.2: this parameter is tag 1 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.propertyTag.class",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.propertyTag.class",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.1: context-specific \u2014 what this means is fixed by where it is."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.propertyTag.lvt",
+      "to": "ca.property",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "held"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.propertyTag.lvt",
+      "to": "evaluated.ca.propertyTag.lvt",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.ca.property",
+      "to": "input.propertyIdentifier",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "converted.ca.property",
+      "to": "constant.zero.oneByte",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "zero"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.property",
+      "to": "converted.ca.property",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.property.extent",
+      "to": "ca.propertyTag.lvt",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "lvt"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.property",
+      "to": "evaluated.ca.property.extent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "ca.openTag.number",
+      "to": "constant.3",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.openTag.number",
+      "to": "valid.3",
+      "because": "\u00a720.2.1.2: this parameter is tag 3 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.openTag.class",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.openTag.class",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.1: context-specific \u2014 what this means is fixed by where it is."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.openTag.lvt",
+      "to": "constant.6",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.openTag.lvt",
+      "to": "valid.6",
+      "because": "\u00a720.2.1.3.1: this value occupies 6 octet(s), always."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.valueTag.number",
+      "to": "constant.7",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.valueTag.number",
+      "to": "valid.7",
+      "because": "\u00a720.2.1.4: application tag 7 is Character String. object-name is one; another property answers with a different tag and a different body."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.valueTag.class",
+      "to": "constant.0",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.valueTag.class",
+      "to": "valid.0",
+      "because": "\u00a720.2.1.1: application \u2014 inside a constructed parameter, what the value IS is said by the tag."
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.valueSize",
+      "to": "input.text",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "text"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.valueLvt",
+      "to": "evaluated.ca.valueSize",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "size"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.valueTag.lvt",
+      "to": "evaluated.ca.valueLvt",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.valueExtLength",
+      "to": "evaluated.ca.valueSize",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.needsEscape",
+      "to": "evaluated.ca.valueSize",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "size"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.valueExtLength",
+      "to": "evaluated.ca.needsEscape",
+      "facet": "presence",
+      "reading": false
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.escaped",
+      "to": "ca.valueTag.lvt",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "lvt"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.valueExtLength",
+      "to": "evaluated.ca.escaped",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "ca.charset",
+      "to": "input.charset",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.text",
+      "to": "input.text",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.textExtent",
+      "to": "ca.valueTag.lvt",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "lvt"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.ca.textExtent",
+      "to": "ca.valueExtLength",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "ext"
+    },
+    {
+      "kind": "computes",
+      "from": "ca.text",
+      "to": "evaluated.ca.textExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "holds",
+      "from": "ca.value",
+      "to": "ca.charset",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "ca.value",
+      "to": "ca.text",
+      "order": 1
+    },
+    {
+      "kind": "computes",
+      "from": "ca.closeTag.number",
+      "to": "constant.3",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.closeTag.number",
+      "to": "valid.3",
+      "because": "\u00a720.2.1.2: this parameter is tag 3 and nothing else."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.closeTag.class",
+      "to": "constant.1",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.closeTag.class",
+      "to": "valid.1",
+      "because": "\u00a720.2.1.1: context-specific \u2014 what this means is fixed by where it is."
+    },
+    {
+      "kind": "computes",
+      "from": "ca.closeTag.lvt",
+      "to": "constant.7",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "ca.closeTag.lvt",
+      "to": "valid.7",
+      "because": "\u00a720.2.1.3.1: this value occupies 7 octet(s), always."
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.objectTag.number",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.objectTag.class",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.objectTag.lvt",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.objectType",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.objectInstance",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.propertyTag.number",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.propertyTag.class",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.propertyTag.lvt",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.property",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.openTag.number",
+      "order": 9
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.openTag.class",
+      "order": 10
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.openTag.lvt",
+      "order": 11
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.valueTag.number",
+      "order": 12
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.valueTag.class",
+      "order": 13
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.valueTag.lvt",
+      "order": 14
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.valueExtLength",
+      "order": 15
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.value",
+      "order": 16
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.closeTag.number",
+      "order": 17
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.closeTag.class",
+      "order": 18
+    },
+    {
+      "kind": "holds",
+      "from": "ca.whole",
+      "to": "ca.closeTag.lvt",
+      "order": 19
+    },
+    {
+      "kind": "then",
+      "from": "apdu.ca",
+      "to": "ca.pduType"
+    },
+    {
+      "kind": "then",
+      "from": "ca.pduType",
+      "to": "ca.segmented"
+    },
+    {
+      "kind": "then",
+      "from": "ca.segmented",
+      "to": "ca.moreFollows"
+    },
+    {
+      "kind": "then",
+      "from": "ca.moreFollows",
+      "to": "ca.reserved"
+    },
+    {
+      "kind": "then",
+      "from": "ca.reserved",
+      "to": "ca.invokeId"
+    },
+    {
+      "kind": "then",
+      "from": "ca.invokeId",
+      "to": "ca.sequenceNumber",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "ca.sequenceNumber",
+      "to": "ca.proposedWindowSize",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "ca.proposedWindowSize",
+      "to": "ca.serviceChoice"
+    },
+    {
+      "kind": "then",
+      "from": "ca.serviceChoice",
+      "to": "ca.piece",
+      "key": {
+        "int": 1
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "ca.serviceChoice",
+      "to": "ca.whole",
+      "key": {
+        "int": 0
+      },
+      "optional": true
+    },
+    {
+      "kind": "decides",
+      "from": "ca.serviceChoice",
+      "to": "ca.segmented"
+    },
+    {
+      "kind": "then",
+      "from": "ca.piece",
+      "to": "ca.segmentPayload"
+    },
+    {
+      "kind": "then",
+      "from": "ca.whole",
+      "to": "ca.objectTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "ca.objectTag.number",
+      "to": "ca.objectTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "ca.objectTag.class",
+      "to": "ca.objectTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "ca.objectTag.lvt",
+      "to": "ca.objectType"
+    },
+    {
+      "kind": "then",
+      "from": "ca.objectType",
+      "to": "ca.objectInstance"
+    },
+    {
+      "kind": "then",
+      "from": "ca.objectInstance",
+      "to": "ca.propertyTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "ca.propertyTag.number",
+      "to": "ca.propertyTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "ca.propertyTag.class",
+      "to": "ca.propertyTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "ca.propertyTag.lvt",
+      "to": "ca.property"
+    },
+    {
+      "kind": "then",
+      "from": "ca.property",
+      "to": "ca.openTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "ca.openTag.number",
+      "to": "ca.openTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "ca.openTag.class",
+      "to": "ca.openTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "ca.openTag.lvt",
+      "to": "ca.valueTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "ca.valueTag.number",
+      "to": "ca.valueTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "ca.valueTag.class",
+      "to": "ca.valueTag.lvt"
+    },
+    {
+      "kind": "then",
+      "from": "ca.valueTag.lvt",
+      "to": "ca.valueExtLength",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "ca.valueExtLength",
+      "to": "ca.value"
+    },
+    {
+      "kind": "then",
+      "from": "ca.value",
+      "to": "ca.charset"
+    },
+    {
+      "kind": "then",
+      "from": "ca.charset",
+      "to": "ca.text"
+    },
+    {
+      "kind": "then",
+      "from": "ca.text",
+      "to": "ca.closeTag.number"
+    },
+    {
+      "kind": "then",
+      "from": "ca.closeTag.number",
+      "to": "ca.closeTag.class"
+    },
+    {
+      "kind": "then",
+      "from": "ca.closeTag.class",
+      "to": "ca.closeTag.lvt"
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.pduType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.segmented",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.moreFollows",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.reserved",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.invokeId",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.sequenceNumber",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.proposedWindowSize",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.serviceChoice",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.piece",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "apdu.ca",
+      "to": "ca.whole",
+      "order": 9
+    }
+  ]
+}

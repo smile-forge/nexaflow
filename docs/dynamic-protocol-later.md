@@ -64,7 +64,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 | **SNMPv2c** | nested BER lengths |
 | **SSDP** | delimiter-terminated text; no widths and no length prefixes anywhere |
 | **TLS 1.2** | three stacked length-prefixed layers, and a hello with no extension block at all |
-| **BACnet/IP** | three stacked sub-protocols |
+| **BACnet/IP** | *(built)* three stacked sub-protocols; a discriminator six octets and a nibble in; a value's octet count packed into three bits of the tag before it. Its segmented answers stay opaque — a segment is cut mid-value, so the thing to parse is the concatenation, which is the client's across datagrams |
 
 Three findings reshaped the design and still hold:
 
@@ -216,6 +216,15 @@ description that cannot cover something should say so in a way a capture can tri
   discriminator is not part of any message would have nowhere to put it.
 - **Nothing checks that a discriminator's keys are exhaustive or disjoint.** Two messages keyed on the same
   value load happily and the first one wins.
+- **A `via` cannot carry a fixed argument.** `minuint` needs to be told what a zero comes to, so a BACnet
+  Unsigned — the fewest octets that hold the value — cannot be a field's own conversion; the field holds
+  octets and the caller reads them as a number. The stated reason for the restriction is that "a field has
+  nowhere for an argument to come from", which is true of a *computed* one and not of a literal in the
+  file. Either admit `"via": {"apply": "minuint", "with": {"zero": "oneByte"}}` or say why not.
+- **Nothing checks that a description is reachable in both directions.** Two shapes of the same message
+  chosen by a fork are fine, but a presence that depends on a field further along deadlocks the walk on
+  the way out and reads perfectly well on the way in — so a description can be half-right and only the
+  encode side says so, at run time, naming nodes rather than the rule.
 - **A `validator` node's own `because` is parsed and never read.** A `set-of-values` gets its prose into
   the refusal; a `validator` does not — only the `checks` edge's does. So a file can explain a range and
   have the explanation vanish, which is the one thing the format is not supposed to permit. Either surface
