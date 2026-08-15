@@ -66,6 +66,17 @@ public static class Said
 
     public static long Number(RunGraph run, string field) => Of(run, field).AsInt();
 
+    /// <summary>
+    /// What the segment left behind in a state slot.
+    /// </summary>
+    /// <remarks>
+    /// The description works this out now, so a host acknowledges what it was told to rather than adding
+    /// one to a sequence number because it happens to know a SYN occupies a place in the sequence space.
+    /// That is TCP's rule, and it belongs where TCP is written down.
+    /// </remarks>
+    public static long Kept(RunGraph run, string slot)
+        => run.Nodes.Single(n => n.Of.Name == slot && n.Has(Facet.Value)).Value.AsInt();
+
     public static string Flags(RunGraph run)
         => string.Join("+", new[] { "cwr", "ece", "urg", "ack", "psh", "rst", "syn", "fin" }
                             .Where(f => Number(run, f) == 1)
@@ -281,9 +292,12 @@ public class TcpHandshakeTests
         Assert.AreEqual("05B4", Convert.ToHexString(Said.Of(atServer, "optionData").AsBytes()),
             "1460, as the two octets it arrived as");
 
-        // ── 2. the server accepts, acknowledging the SYN's sequence plus one ──
+        // ── 2. the server accepts, acknowledging what the SYN advanced the sequence to ──
+        // Not `sequenceNumber + 1`. How far a segment carries the sequence space is RFC 9293 §3.3.1 — a
+        // SYN and a FIN each occupy one and the payload occupies its length — and the description says so,
+        // so what arrives at a host is the number to acknowledge rather than the ingredients for it.
         var synAck = server.Set("Sequence Number", 5000)
-                           .Set("Acknowledgment Number", Said.Number(atServer, "sequenceNumber") + 1)
+                           .Set("Acknowledgment Number", Said.Kept(atServer, "state.nextSequence"))
                            .Options(Mss(1460)).Set("Synchronising", 1).Flags("SYN", "ACK")
                            .Generate();
 
@@ -296,7 +310,7 @@ public class TcpHandshakeTests
 
         // ── 3. the client acknowledges, and the connection is open ───────────
         var ack = client.Set("Sequence Number", Said.Number(atClient, "acknowledgmentNumber"))
-                        .Set("Acknowledgment Number", Said.Number(atClient, "sequenceNumber") + 1)
+                        .Set("Acknowledgment Number", Said.Kept(atClient, "state.nextSequence"))
                         .Set("Synchronising", 0).Options().Flags("ACK")
                         .Generate();
 
@@ -324,8 +338,7 @@ public class TcpHandshakeTests
         // ── 5. the server acknowledges what it received ──────────────────────
         var acked = server.Set("Synchronising", 0).Options()
                           .Set("Sequence Number", Said.Number(opened, "acknowledgmentNumber"))
-                          .Set("Acknowledgment Number",
-                               Said.Number(arrived, "sequenceNumber") + payload.Length)
+                          .Set("Acknowledgment Number", Said.Kept(arrived, "state.nextSequence"))
                           .Flags("ACK")
                           .Generate();
 

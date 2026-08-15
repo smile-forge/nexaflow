@@ -156,6 +156,13 @@ public sealed class RunGraph
         for (var level = from; level is not null; level = level.Within)
             if (Existing(target, level) is { } own) return own;
 
+        // Failing that, whichever appearance there IS, rather than a fresh one that answers nothing. A
+        // reading goes round on its own edge and its rounds carry on past the repetition, so the payload
+        // after a run of four options is its fifth appearance — and reaching for it from somewhere on the
+        // first would otherwise mint an empty node whose every fact is missing. Missing quietly is the
+        // failure this design keeps removing.
+        if (_nodes.Values.FirstOrDefault(n => ReferenceEquals(n.Of, target)) is { } made) return made;
+
         return For(target);
     }
 

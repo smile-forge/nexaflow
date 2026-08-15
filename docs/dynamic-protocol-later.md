@@ -29,9 +29,11 @@ What made it hard was never the state machine. It was that every legality rule w
 a field, and both were spelled in a second vocabulary. On the graph model they are nodes, so the rules
 become edges — which is the reason to build it *now* rather than then.
 
-**TCP is the case that will demand it.** Today's handshake test keeps sequence numbers in the *host*
-(`state.sequenceNumber` set by the test harness). That is honest for a harness and wrong for a protocol:
-which segments are legal in SYN-SENT is a fact about TCP.
+**TCP was the case that demanded the first piece of it, and got it.** The handshake test used to add one
+to a sequence number after a SYN and the payload length after data — TCP's own arithmetic, living in a
+harness. RFC 9293 §3.3.1 is in the description now and `updates` carries the answer out, so a host
+acknowledges what it was told rather than what it worked out. What is still in the host is which segments
+are *legal* when, which is the rest of this section.
 
 ## 2. What the ten-protocol corpus is for
 

@@ -383,6 +383,10 @@ calculation says which slot it fills, optionally through calculations that work 
 value lands when the next thing is a calculation, exactly as a requirement does; pointing straight at a
 slot needs nothing, because a slot holds one value.
 
+**It happens when the message is complete**, not at the moment the source settles — a calculation on the
+way may need facts the source's own settling does not wait for, and an expression handed nothing comes to
+nothing rather than waiting.
+
 **Once per message, and nothing enforces that separately.** A slot settles like anything else and settling
 twice is already an error naming two producers. So a running total across a repetition is not this: that
 is a fold over whatever repeats, and reaching for state to hold it is using a fact about a conversation to

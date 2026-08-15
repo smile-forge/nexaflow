@@ -907,6 +907,35 @@
       "takes": {
         "dataOffset": "Int"
       }
+    },
+    {
+      "id": "state.nextSequence",
+      "kind": "state",
+      "as": "Next Sequence",
+      "gives": "Int",
+      "purpose": "RFC 9293 §3.3.1: the sequence number after this segment — SND.NXT when we wrote it and RCV.NXT when we read one, which is the same arithmetic seen from the two ends."
+    },
+    {
+      "id": "evaluated.nextSequence",
+      "kind": "evaluated",
+      "label": "the sequence number after this segment",
+      "runs": "sequence + (syn == 1 ? 1 : 0) + (fin == 1 ? 1 : 0) + payload",
+      "gives": "Int",
+      "takes": {
+        "sequence": "Int",
+        "syn": "Int",
+        "fin": "Int",
+        "payload": "Int"
+      },
+      "about": [
+        "RFC 9293 §3.3.1: a SYN and a FIN each occupy one sequence number, and the payload occupies its",
+        "own length. So what the other end should acknowledge is this, and what we send next is this —",
+        "the same sum, and which of the two it means is which direction ran it.",
+        "",
+        "It lived in the test harness until now, as `+ 1` after a SYN and `+ payload.Length` after data.",
+        "That is honest for a harness and wrong for a protocol: how far a segment advances the sequence",
+        "space is a fact about TCP."
+      ]
     }
   ],
   "edges": [
@@ -1849,6 +1878,41 @@
       "to": "evaluated.paddingFollows",
       "facet": "presence",
       "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.nextSequence",
+      "to": "syn",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "syn"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.nextSequence",
+      "to": "fin",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "fin"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.nextSequence",
+      "to": "data",
+      "facet": "extent",
+      "sequence": 2,
+      "parameter": "payload"
+    },
+    {
+      "kind": "updates",
+      "from": "sequenceNumber",
+      "to": "evaluated.nextSequence",
+      "parameter": "sequence"
+    },
+    {
+      "kind": "updates",
+      "from": "evaluated.nextSequence",
+      "to": "state.nextSequence"
     }
   ]
 }

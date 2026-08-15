@@ -93,6 +93,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
             appearance.Settle(Facet.Emitted, ProtoValue.Of(wire.Since(began)));
         }
 
+        Leaves(run);
         Vouch(run);
 
         return wire.Done(graph.Id);
@@ -560,7 +561,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
         if (speculative) return answer;
 
         held.Settle(Facet.Value, answer);
-        Pushed(run, held, computation);
 
         return answer;
     }
@@ -581,10 +581,17 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// extent, and saying so on the edge is the same choice a requirement already makes.
     /// </para>
     /// </remarks>
-    private void Pushed(RunGraph run, RunNode appearance, Node place)
+    private void Leaves(RunGraph run)
     {
-        foreach (var edge in graph.From<Updates>(place))
-            Carried(run, appearance, edge.To, edge.Parameter, Held(appearance, Named(edge.Facet)));
+        foreach (var edge in graph.Of<Updates>())
+        {
+            if (edge.To is not Context.State && graph.To<Updates>(edge.From).Any()) continue;
+
+            foreach (var appearance in run.Nodes.Where(n => ReferenceEquals(n.Of, edge.From)
+                                                         && n.Has(Named(edge.Facet)))
+                                                .OrderBy(n => n.Index))
+                Carried(run, appearance, edge.To, edge.Parameter, Held(appearance, Named(edge.Facet)));
+        }
     }
 
     private void Carried(RunGraph run, RunNode from, Node onto, string? parameter, ProtoValue value)
@@ -883,7 +890,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
                 appearance.Settle(Facet.Extent, (int)(across / 8));
                 appearance.Settle(Facet.Emitted, ProtoValue.Of(Laid(run, appearance, set)));
-                Pushed(run, appearance, set);
                 moved = true;
             }
         }
@@ -1199,7 +1205,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         Vet(appearance, field, value);
         appearance.Settle(Facet.Value, value);
-        Pushed(run, appearance, field);
         return value;
     }
 
@@ -1465,6 +1470,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                 $"'{graph.Id}': {source.Remaining / 8} octet(s) were left over. Reading stopped before the "
               + "end of what arrived, so this is a prefix that happens to parse rather than the message.");
 
+        Leaves(run);
         Vouch(run);
 
         return run;
@@ -1516,7 +1522,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
             Vet(appearance, field, got);
             Canonical(field, got);
             appearance.Settle(Facet.Value, got);
-            Pushed(run, appearance, field);
             return;
         }
 
@@ -1537,7 +1542,6 @@ public sealed class GraphCodec(ProtocolGraph graph,
         Vet(appearance, field, read);
         Canonical(field, read);
         appearance.Settle(Facet.Value, read);
-        Pushed(run, appearance, field);
     }
 
     /// <summary>
