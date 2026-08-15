@@ -200,6 +200,41 @@ public sealed record Decides : Edge
 }
 
 /// <summary>
+/// How a reading finds out which way on to take, by looking before it goes.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="Decides"/> answers with a value something already has. That works everywhere the deciding
+/// fact arrives before the fork — and it is exactly wrong at the top of a protocol, where which message
+/// this is, is written <i>inside</i> the message. A reader cannot be told the packet type by the caller;
+/// it is what the octets are about to say.
+/// </para>
+/// <para>
+/// So this is a <b>path, like <see cref="Then"/></b>, laid from the forking place through as many fields
+/// as it takes to arrive at the one that discriminates. The last field on it is the discriminator, and its
+/// value is what the keys on the ways on are matched against. A discriminator that is not the first thing
+/// in a message is therefore ordinary rather than a special case — the path simply weaves through what
+/// precedes it.
+/// </para>
+/// <para>
+/// <b>Nothing is consumed.</b> The fields here are read from a copy of the reader's position, and the
+/// message that gets chosen then reads its own from the beginning of its own octets. That is what keeps a
+/// message from having to know it has siblings, or that something looked ahead before choosing it — the
+/// alternative, entering a message part-read, makes every message's description depend on how it came to
+/// be selected.
+/// </para>
+/// <para>
+/// And because nothing is consumed, these fields need not be the ones the message uses. A discriminator
+/// may read one octet as an integer where the message reads it as two runs of four bits; both descriptions
+/// are of the same octet and neither owes the other anything.
+/// </para>
+/// </remarks>
+public sealed record Identifies : Edge
+{
+    public override string Verb => "to tell which, reads";
+}
+
+/// <summary>
 /// What may turn up in this span.
 ///
 /// <para>

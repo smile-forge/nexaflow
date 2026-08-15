@@ -45,7 +45,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 | **Modbus TCP** | a fork whose arms are different lengths, inside what a length field measures; and a request and response that carry the same function code, so direction is not on the wire |
 | **CoAP** | option deltas that accumulate across options, so decoding option *N* depends on 0..*N*−1 |
 | **mDNS / DNS-SD** | name compression — pointers are absolute offsets into the whole message |
-| **MQTT** | a varint length header; connect-flag bits that decide whether later fields exist at all |
+| **MQTT** | *(built)* a varint length header; connect-flag bits that decide whether later fields exist at all — and, unforeseen when the corpus was written, the first protocol with several message formats, told apart by a nibble inside the message |
 | **DHCP** | options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
 | **SNMPv2c** | nested BER lengths |
 | **SSDP** | delimiter-terminated text; no widths and no length prefixes anywhere |
@@ -80,6 +80,11 @@ Kept nearly verbatim, because each cost real time.
   day it landed.
 - **Identity is the object, not the name.** Three bugs in one session came from minting a fresh node where
   one was meant to be shared.
+- **A name that goes missing evaluates to nothing rather than failing.** A set whose id contained a dot
+  could not be reached by the expression naming it — `sets.a.b.extent` is nested member access, not one
+  key — so the length that measured it computed *nothing*, and the failure surfaced three layers down as
+  "expected Int, got Null" inside a base-128 converter. Worth fixing at the root: an expression reaching
+  under `fields.` or `sets.` for something the computation has no edge to should say so, by name.
 - **Blind line-number edits cut across method boundaries.** Twice. Read, then edit.
 
 ## 4. Why the document layer died
@@ -108,10 +113,15 @@ standing in for something else.
 
 ## 5. Known gaps, as of 2026-08-15
 
-- **Eight protocols to author.** MQTT next is the natural pick; it is the first to need `varint`, which
-  exists and has never been exercised by a real capture. Hold SSDP back — it is delimiter-terminated text,
-  and `WireForm.Opaque` lost the `Until` delimiter when `Pattern` was deleted. That capability needs
-  rebuilding before SSDP or HTTP.
+- **Seven protocols to author.** Hold SSDP back — it is delimiter-terminated text, and `WireForm.Opaque`
+  lost the `Until` delimiter when `Pattern` was deleted. That capability needs rebuilding before SSDP or
+  HTTP.
+- **A discriminator is read but not recorded.** `identifies` answers which message this is and then throws
+  the answer away; the message re-reads it, which is right, but nothing keeps a note that the *protocol*
+  looked. Harmless today because every message here carries the discriminator itself. A protocol whose
+  discriminator is not part of any message would have nowhere to put it.
+- **Nothing checks that a discriminator's keys are exhaustive or disjoint.** Two messages keyed on the same
+  value load happily and the first one wins.
 - **Modbus register values are one opaque span**, not a node each. They are a repetition and the write side
   can now do repetitions, so this is ready to be refined and would be a good first exercise of
   `requires … "each"` against a real capture.

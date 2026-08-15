@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP |
-| **Authored but not yet built** | BACnet, CoAP, DHCP, mDNS, MQTT, SNMP, SSDP, TLS |
+| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1 |
+| **Authored but not yet built** | BACnet, CoAP, DHCP, mDNS, SNMP, SSDP, TLS |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -73,6 +73,11 @@ alternation's arms are — four scales, one mechanism.
 
 The root is the **protocol**, not its first message. Rooting at a message works for exactly as long as
 there is one and silently privileges the first the moment there are two.
+
+**Which message this is, is usually something the message says.** Going out there is a caller to ask;
+coming in there is not, and nothing has been read at the moment the choice has to be made. So the reading
+*looks* — see `identifies` below. What that buys is worth stating plainly: every message stays describable
+on its own, as though it were the only one in the protocol.
 
 ---
 
@@ -151,12 +156,46 @@ the thing that is written down.
 | `computes` | **owner → computation** | What produces one of the owner's facets. `facet`, and `reading` where the two directions differ. |
 | `requires` | **computation → input** | What it needs, with `sequence` and `facet`. |
 | `decides` | forking node → computation | What picks the way on. `reading`. |
+| `identifies` | forking node → field → … → field | A path read **ahead** of choosing, ending at the discriminator. Reading only. |
 | `checks` | node → validator | What has to hold. |
 | `assumes` | field → default | What it means when absent. |
 | `allowed` | span → definition | What may turn up in a span. |
 
 The two arrow directions are worth reading twice: **`computes` points from the thing being computed to the
 thing computing it**, and `requires` points the other way.
+
+## Choosing a message, when the wire says which
+
+`decides` answers a fork with a value something already has, and that works everywhere the deciding fact
+arrives before the fork. At the top of a protocol it is exactly wrong: which message this is, is written
+*inside* the message.
+
+`identifies` is a **path, like `then`**, laid from the forking place through however many fields it takes
+to arrive at the one that discriminates. The last field on it is the discriminator; its value is matched
+against the `key` on each way on. So a discriminator that is not the first thing in a message needs nothing
+special — the path weaves through whatever precedes it.
+
+```json
+{ "kind": "identifies", "from": "mqtt", "to": "probe.packetType" },
+{ "kind": "then", "from": "mqtt", "to": "connect", "key": { "int": 1 } },
+{ "kind": "then", "from": "mqtt", "to": "connack", "key": { "int": 2 } }
+```
+
+**Nothing is consumed.** Those fields are read from a copy of the position, and the message that gets
+chosen reads its own from its own first octet. That is what keeps a message from having to know it has
+siblings, or that something looked before choosing it — enter a message part-read and its description
+depends on how it came to be selected.
+
+And because nothing is consumed, **these need not be the fields the message uses.** A discriminator may
+read one octet as an integer where the message reads it as two runs of four bits. Both describe the same
+octet and neither owes the other anything.
+
+Going out, the same fork is decided by `decides` in the ordinary way — the caller says which message it
+wants. Two directions, two sources, one fact.
+
+**So a protocol with several messages needs no fork inside any of them.** MQTT has six formats and every
+one is a single path from its first octet to its last: what varies between them is which path, not what
+happens partway along one.
 
 ## Sets, and what a length measures
 
@@ -265,7 +304,16 @@ was written with `fold` before anybody thought to add one.
 - **Every field is a node**, including the four-bit and one-bit ones.
 - **Sets follow the specification's own headings.** If the RFC names a group, it is a set.
 - **Fields identical between messages are one node**; fields named alike that mean different things are
-  not. TCP's Acknowledgment Number and its ACK flag share a syllable and nothing else.
+  not. TCP's Acknowledgment Number and its ACK flag share a syllable and nothing else. The test that
+  settles the hard cases is **the legal values**: MQTT defines its packet type once, but a CONNECT's is
+  the constant 1 and a CONNACK's is the constant 2, so those are two nodes — and the concept they are both
+  instances of is a third, the one `identifies` reads.
+- **What two messages genuinely share is often a value, not a place.** A SUBSCRIBE's Packet Identifier and
+  the SUBACK's that echoes it are two positions in two messages holding one token: two fields, one input.
+- **A field or set named in an expression must have a dot-free id.** `sets.connack.variableHeader.extent`
+  parses as nested member access, so a set whose id contains a dot is silently not found and the
+  expression quietly yields nothing. Ids of nodes nothing names in an expression — messages, packings,
+  junctions, constants — may carry dots freely.
 - **Describe the shape, not the catalogue.** RFC 9293 gives two option shapes — single octet, or
   kind-length-data — so a TCP option this file has never heard of round-trips. Enumerating known kinds
   refuses it.
@@ -282,6 +330,7 @@ was written with `fold` before anybody thought to add one.
 | `TcpHandshakeTests` | two hosts, five segments, `nexaflow` across — each end reads what the other sent |
 | `NtpCaptureTests` | three real captures decode and re-encode identically |
 | `ModbusCaptureTests` | a fork whose arms are different lengths, inside what a length measures |
+| `MqttCaptureTests` | six message formats, chosen by looking ahead; a varint at two widths |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item |
 | `AbsenceTests` | the four questions |

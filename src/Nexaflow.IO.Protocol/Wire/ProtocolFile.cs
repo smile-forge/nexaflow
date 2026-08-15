@@ -255,6 +255,7 @@ public static class ProtocolFile
 
         "holds" => new Holds { From = from, To = to, Order = Int(at["order"], "order") },
         "decides" => new Decides { From = from, To = to, Reading = Bool(at["reading"], false) },
+        "identifies" => new Identifies { From = from, To = to },
         "allowed" => new Allowed { From = from, To = to },
         "assumes" => new Assumes { From = from, To = to },
         "contains" => new Contains { From = from, To = to, Ordinal = Int(at["ordinal"], "ordinal") },

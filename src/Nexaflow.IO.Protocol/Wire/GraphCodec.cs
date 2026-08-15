@@ -410,6 +410,11 @@ public sealed class GraphCodec(ProtocolGraph graph,
         {
             if (codec.Graph.From<Then>(place).Count() < 2) return [];
 
+            // A reading that looks ahead waits for nothing, and must not: what it is about to read has not
+            // been read, so waiting for it is waiting for the walk to arrive somewhere it cannot go until
+            // this very decision is made. The value comes off the octets at the moment of deciding.
+            if (Reading && codec.Graph.From<Identifies>(place).Any()) return [];
+
             var deciding = codec.Graph.From<Decides>(place)
                                 .FirstOrDefault(d => d.Reading == Reading)
                         ?? codec.Graph.From<Decides>(place).FirstOrDefault();
@@ -1513,6 +1518,12 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </param>
     private ProtoValue Decided(RunGraph run, Node place, bool reading, int pass, BitCursor? ahead)
     {
+        // Coming in, a place may find out which way to go by looking. That is the only answer available at
+        // the top of a protocol, where which message this is, is a thing the message says: there is no
+        // caller to ask and nothing has been read yet.
+        if (reading && ahead is not null && graph.From<Identifies>(place).Any())
+            return Probed(place, ahead);
+
         var decisions = graph.From<Decides>(place).ToList();
 
         var deciding = decisions.FirstOrDefault(d => d.Reading == reading)
@@ -1530,6 +1541,57 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
             var other => throw new ProtoTypeException($"'{other.Name}' cannot decide a way on"),
         };
+    }
+
+    /// <summary>
+    /// What the octets ahead say, read along the path that identifies which way on to take.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// From a <b>copy</b> of the position, so nothing is consumed: whichever way on this picks starts
+    /// reading from where the walk already is. A message therefore never has to know that something looked
+    /// at its first octets before choosing it — it reads its own from its own beginning, and its
+    /// description is the same one it would have if it were the only message in the protocol.
+    /// </para>
+    /// <para>
+    /// The path may be several fields long, and the last one is the discriminator. Everything before it is
+    /// there to get past — a length, a version, whatever a specification put in front of the thing that
+    /// says which message this is.
+    /// </para>
+    /// </remarks>
+    private ProtoValue Probed(Node place, BitCursor ahead)
+    {
+        var apart = new BitCursor(ahead.Ahead());
+        var answer = ProtoValue.Nothing;
+        HashSet<Node> been = [];
+
+        for (var at = place; graph.From<Identifies>(at).FirstOrDefault() is { } step; at = step.To)
+        {
+            if (!been.Add(step.To))
+                throw new ProtoTypeException(
+                    $"'{place.Name}' reads ahead in a circle, back to '{step.To.Name}'. The way to a "
+                  + "discriminator is a path and arrives somewhere.");
+
+            if (step.To is not Field field)
+                throw new ProtoTypeException(
+                    $"'{place.Name}' reads ahead through '{step.To.Name}', which is not a field. Only "
+                  + "something that takes octets off the wire can be on the way to a discriminator.");
+
+            // Sized by its own declaration or by its own octets, because there is nothing else to size it
+            // by: this runs before the walk has arrived, so no field it might have measured against has a
+            // value yet.
+            if (field.Form is { SelfDelimiting: false })
+                throw new ProtoTypeException(
+                    $"'{field.Id}' is on the way to a discriminator and nothing about it says how far it "
+                  + "runs. Reading ahead happens before anything has been read, so a width that comes from "
+                  + "another field is not available to it.");
+
+            var taken = field.Form.Take(apart, field.Form.FixedBits, How(field));
+
+            answer = field.Via is null ? taken.Value : Applied(field, taken.Value, forward: false);
+        }
+
+        return answer;
     }
 
     // ── Octets ────────────────────────────────────────────────────────────────
