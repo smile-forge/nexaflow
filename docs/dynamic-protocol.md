@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1 |
-| **Authored but not yet built** | BACnet, CoAP, DHCP, mDNS, SNMP, SSDP, TLS |
+| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132) |
+| **Authored but not yet built** | BACnet, CoAP, mDNS, SNMP, SSDP, TLS |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -267,6 +267,13 @@ dug out again in every field.
 Coming in, the reading goes round on a `decode` edge and finds out how many there were. Neither direction
 has a count and neither needs one.
 
+**A reading's rounds carry on past the repetition**, because nothing drives them but the edge that points
+back — so the part after a run of options is settled on the walk's fifth appearance rather than its first.
+Harmless (reaching for a node from a later round falls back to its only appearance), but a test looking for
+that part by index will not find it. Resetting the round on the way out is *not* the fix: a loop's control
+junctions are not members of the set they drive, so the walk is standing on one exactly when it is deciding
+whether to go round again.
+
 ## When the reading is not the writing backwards
 
 Most of a protocol is read by walking what it writes, and there one description serves both directions and
@@ -331,6 +338,7 @@ was written with `fold` before anybody thought to add one.
 | `NtpCaptureTests` | three real captures decode and re-encode identically |
 | `ModbusCaptureTests` | a fork whose arms are different lengths, inside what a length measures |
 | `MqttCaptureTests` | six message formats, chosen by looking ahead; a varint at two widths |
+| `DhcpCaptureTests` | a repetition ended by a sentinel, with bare codes and fill after it |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item |
 | `AbsenceTests` | the four questions |

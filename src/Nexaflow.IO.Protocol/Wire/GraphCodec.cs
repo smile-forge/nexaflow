@@ -358,6 +358,12 @@ public sealed class GraphCodec(ProtocolGraph graph,
         {
             // Writing only. A reading goes round on its own edge and its rounds end when the edge stops
             // pointing back — there is no set driving them, so there is nothing here to be finished with.
+            //
+            // Which means a reading's rounds carry on past the repetition, and everything after one is
+            // settled on its Nth appearance rather than its first. Harmless, because reaching for a node
+            // from a later round falls back to its only appearance — but resetting here instead is not the
+            // fix: a loop's control junctions are not members of the set they drive, so the walk is at one
+            // of them precisely when it is deciding whether to go round again.
             if (Reading || _round == 0 || next is null) return next;
 
             foreach (var set in codec.Graph.Nodes.OfType<FieldSet>())

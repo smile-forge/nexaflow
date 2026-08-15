@@ -1,0 +1,1260 @@
+{
+  "protocol": "dhcp",
+  "title": "DHCP",
+  "source": "RFC 2131 (message format) and RFC 2132 (options)",
+  "nodes": [
+    {
+      "id": "dhcp",
+      "kind": "protocol",
+      "as": "DHCP",
+      "about": [
+        "RFC 2131 §2: 'DHCP uses the BOOTP message format', and §2 Figure 1 gives ONE format. So there is one",
+        "message here. DHCPDISCOVER and DHCPOFFER are not two formats — they are two sets of values in the same",
+        "one, told apart by option 53, which is a value buried in a list at a position the sender chooses.",
+        "",
+        "That is worth saying plainly because it is the opposite of MQTT, where six formats are told apart by a",
+        "nibble at a fixed offset. `identifies` reads a path to a discriminator; DHCP's discriminator is not on",
+        "a path, it is an item of a list, so nothing here identifies anything and nothing needs to.",
+        "",
+        "WHAT IS ACTUALLY HARD is the option region. RFC 2132 §2 gives options three shapes, not one: a bare",
+        "PAD (0x00) and a bare END (0xFF) are a single octet with no length and no value, and everything else",
+        "is code, length, and that many octets. Point a fixed code-length-value walker at a DISCOVER and it",
+        "reads the END's code, takes the PAD octet after it as a LENGTH, and swallows the trailing fill as a",
+        "value — after which the remaining zeros decode as a dozen phantom options. Describing the SHAPES",
+        "rather than the codes is what makes that impossible, the same way it is for a TCP option.",
+        "",
+        "HOW MANY OPTIONS THERE ARE is nowhere in the message. Going out the region is written once per item of",
+        "the list it requires; coming in the reading goes round until it reads the END. Neither direction has a",
+        "count and neither needs one."
+      ]
+    },
+    {
+      "id": "dhcpMessage",
+      "kind": "message",
+      "as": "DHCP message",
+      "about": [
+        "RFC 2131 §2 Figure 1, plus the options region RFC 2132 defines. 236 octets of fixed BOOTP fields, the",
+        "four-octet magic cookie that tells DHCP from bare BOOTP, and then options to the END."
+      ]
+    },
+    {
+      "id": "packing.dhcpMessage",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "bootp",
+      "kind": "set",
+      "as": "the fixed-format part",
+      "about": [
+        "The 236 octets every BOOTP message begins with, whichever DHCP message type it turns out to carry."
+      ]
+    },
+    {
+      "id": "op",
+      "kind": "field",
+      "as": "op",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Which direction this is going. Not which DHCP message it is — a DISCOVER and a REQUEST are both BOOTREQUESTs, and what tells them apart is option 53."
+    },
+    {
+      "id": "input.op",
+      "kind": "input",
+      "as": "op",
+      "purpose": "RFC 2131 §2: 1 for a BOOTREQUEST, 2 for a BOOTREPLY."
+    },
+    {
+      "id": "htype",
+      "kind": "field",
+      "as": "htype",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "input.htype",
+      "kind": "input",
+      "as": "htype",
+      "purpose": "RFC 2131 §2: the hardware address type — 1 for Ethernet."
+    },
+    {
+      "id": "hlen",
+      "kind": "field",
+      "as": "hlen",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "How many of chaddr's sixteen octets are the hardware address. Not supplied: it is the length of the",
+        "address itself, so the two cannot disagree — which they can on a wire, and a message where they do is",
+        "one where the padding is read as part of the address."
+      ]
+    },
+    {
+      "id": "hops",
+      "kind": "field",
+      "as": "hops",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "input.hops",
+      "kind": "input",
+      "as": "hops",
+      "purpose": "RFC 2131 §2: relay agents increment this; a client sets 0."
+    },
+    {
+      "id": "xid",
+      "kind": "field",
+      "as": "xid",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      },
+      "about": "The correlation token for a whole acquisition. Every retransmission of one attempt must reuse it, which is a fact about a conversation rather than about this message."
+    },
+    {
+      "id": "input.xid",
+      "kind": "input",
+      "as": "xid",
+      "purpose": "RFC 2131 §2: the transaction id, chosen by the client and echoed by the server."
+    },
+    {
+      "id": "secs",
+      "kind": "field",
+      "as": "secs",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "input.secs",
+      "kind": "input",
+      "as": "secs",
+      "purpose": "RFC 2131 §2: seconds since the client began acquiring, which must grow across retransmissions of one transaction."
+    },
+    {
+      "id": "flags",
+      "kind": "set",
+      "as": "flags",
+      "about": [
+        "RFC 2131 §2 Figure 2: one broadcast bit and fifteen that must be zero, spanning two octets. A set,",
+        "because the RFC draws it as one — and two fields, because the bit that matters is answerable only if",
+        "it is a node. It also settles that a run of bits is not confined to an octet: fifteen bits is fifteen",
+        "bits, and what occupies whole octets is the set."
+      ]
+    },
+    {
+      "id": "broadcastFlag",
+      "kind": "field",
+      "as": "Broadcast Flag",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "RFC 2131 §4.1: set when the client cannot yet receive a unicast reply, because it has no address to receive it at."
+    },
+    {
+      "id": "flagsReserved",
+      "kind": "field",
+      "as": "MBZ",
+      "form": {
+        "of": "run",
+        "bits": 15
+      },
+      "about": "RFC 2131 §2: \"MUST BE ZERO\"."
+    },
+    {
+      "id": "input.broadcastFlag",
+      "kind": "input",
+      "as": "Broadcast Flag",
+      "purpose": "1 to ask the server to broadcast its reply, 0 to accept a unicast one."
+    },
+    {
+      "id": "constant.zeroBits",
+      "kind": "constant",
+      "label": "zero",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "ciaddr",
+      "kind": "field",
+      "as": "ciaddr",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+    },
+    {
+      "id": "input.ciaddr",
+      "kind": "input",
+      "as": "ciaddr",
+      "purpose": "RFC 2131 §2: the client's current address, and zero until it has one."
+    },
+    {
+      "id": "yiaddr",
+      "kind": "field",
+      "as": "yiaddr",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+    },
+    {
+      "id": "input.yiaddr",
+      "kind": "input",
+      "as": "yiaddr",
+      "purpose": "RFC 2131 §2: the address the server is offering or assigning."
+    },
+    {
+      "id": "siaddr",
+      "kind": "field",
+      "as": "siaddr",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+    },
+    {
+      "id": "input.siaddr",
+      "kind": "input",
+      "as": "siaddr",
+      "purpose": "RFC 2131 §2: the next server to use in bootstrap."
+    },
+    {
+      "id": "giaddr",
+      "kind": "field",
+      "as": "giaddr",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": "Four octets, kept as octets. Reading them as a number would give a value that can be added to another one, which an address cannot."
+    },
+    {
+      "id": "input.giaddr",
+      "kind": "input",
+      "as": "giaddr",
+      "purpose": "RFC 2131 §2: the relay agent that forwarded this, and zero when none did."
+    },
+    {
+      "id": "chaddr",
+      "kind": "set",
+      "as": "chaddr",
+      "about": [
+        "A sixteen-octet slot of which hlen are the hardware address and the rest is fill. So it is two fields:",
+        "the address, and what follows it — because the boundary between them is a fact the message states, and",
+        "a single opaque sixteen would put the fill inside the address."
+      ]
+    },
+    {
+      "id": "hardwareAddress",
+      "kind": "field",
+      "as": "chaddr",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "RFC 2131 §2: the client hardware address, hlen octets of it."
+    },
+    {
+      "id": "chaddrPad",
+      "kind": "field",
+      "as": "chaddr fill",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "The rest of the sixteen, zero."
+    },
+    {
+      "id": "input.chaddr",
+      "kind": "input",
+      "as": "chaddr",
+      "purpose": "The client hardware address, as octets. Its length is what hlen says."
+    },
+    {
+      "id": "evaluated.hlen",
+      "kind": "evaluated",
+      "label": "octets of hardware address",
+      "runs": "fields.hardwareAddress.extent"
+    },
+    {
+      "id": "evaluated.chaddrExtent",
+      "kind": "evaluated",
+      "label": "octets of hardware address, from hlen",
+      "runs": "fields.hlen.value"
+    },
+    {
+      "id": "evaluated.chaddrPad",
+      "kind": "evaluated",
+      "label": "the zeros after the hardware address",
+      "runs": "repeat(unhex('00'), 16 - fields.hardwareAddress.extent)"
+    },
+    {
+      "id": "evaluated.chaddrPadExtent",
+      "kind": "evaluated",
+      "label": "octets of fill, from hlen",
+      "runs": "16 - fields.hlen.value"
+    },
+    {
+      "id": "sname",
+      "kind": "field",
+      "as": "sname",
+      "form": {
+        "of": "opaque",
+        "octets": 64
+      },
+      "about": [
+        "RFC 2131 §2: sixty-four octets holding a NUL-terminated server host name, or all zero.",
+        "",
+        "One field rather than a name and its fill, and that is a limitation rather than a reading of the RFC:",
+        "where the name ends is said by the first NUL, and a span that ends at a value it has to find first is",
+        "a capability this engine does not have. So what a caller sets is a name, and what the field holds is",
+        "the whole sixty-four — `fit` supplies the difference, and does nothing at all when handed sixty-four",
+        "octets already, which is what makes reading one back and writing it out again give the same octets."
+      ]
+    },
+    {
+      "id": "file",
+      "kind": "field",
+      "as": "file",
+      "form": {
+        "of": "opaque",
+        "octets": 128
+      },
+      "about": "RFC 2131 §2: a hundred and twenty-eight octets of boot file name, on the same terms as sname."
+    },
+    {
+      "id": "input.sname",
+      "kind": "input",
+      "as": "sname",
+      "purpose": "The server host name — text, or the sixty-four octets of the field itself."
+    },
+    {
+      "id": "input.file",
+      "kind": "input",
+      "as": "file",
+      "purpose": "The boot file name — text, or the hundred and twenty-eight octets of the field itself."
+    },
+    {
+      "id": "evaluated.sname",
+      "kind": "evaluated",
+      "label": "the server host name, in its sixty-four octets",
+      "runs": "fit(inputs.sname, 64)"
+    },
+    {
+      "id": "evaluated.file",
+      "kind": "evaluated",
+      "label": "the boot file name, in its hundred and twenty-eight",
+      "runs": "fit(inputs.file, 128)"
+    },
+    {
+      "id": "magicCookie",
+      "kind": "field",
+      "as": "magic cookie",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "RFC 2132 §2: the four octets 99.130.83.99, and the only thing distinguishing a DHCP message from a",
+        "bare BOOTP one. Four octets with exactly one legal value, so it is written from a constant and read",
+        "against a validator — an unchecked skip past it accepts anything and calls the result DHCP."
+      ]
+    },
+    {
+      "id": "constant.magicCookie",
+      "kind": "constant",
+      "label": "99.130.83.99",
+      "holds": {
+        "int": 1669485411
+      }
+    },
+    {
+      "id": "validator.magicCookie",
+      "kind": "validator",
+      "because": "RFC 2132 §2: the magic cookie is 99.130.83.99 and nothing else is DHCP.",
+      "ranges": [
+        {
+          "from": {
+            "int": 1669485411
+          },
+          "to": {
+            "int": 1669485411
+          }
+        }
+      ]
+    },
+    {
+      "id": "options",
+      "kind": "set",
+      "as": "Options",
+      "about": [
+        "RFC 2132 §2. How many there are is nowhere in the message, and cannot be worked out in advance either:",
+        "an option's width is only known by reading it. So going out this is written once per item of the list",
+        "it requires, and coming in the reading goes round until it reads the END option."
+      ]
+    },
+    {
+      "id": "option",
+      "kind": "set",
+      "as": "an option",
+      "about": [
+        "RFC 2132 §2 gives three shapes, and which applies is the code: 0 is PAD and 255 is END, each a single",
+        "octet entire; everything else is code, length, and that many octets. Describing the shapes rather than",
+        "the codes means an option nobody here has heard of is read and written correctly — and it is why the",
+        "trailing fill of a DISCOVER cannot be mistaken for a run of zero-length options."
+      ]
+    },
+    {
+      "id": "optionCode",
+      "kind": "field",
+      "as": "option code",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "optionShape",
+      "kind": "junction",
+      "as": "which shape of option"
+    },
+    {
+      "id": "optionPad",
+      "kind": "junction",
+      "as": "a pad octet",
+      "about": "Code 0. A junction because the code octet is the whole option and there is nothing else to it."
+    },
+    {
+      "id": "optionCounted",
+      "kind": "set",
+      "as": "an option with a length"
+    },
+    {
+      "id": "optionLength",
+      "kind": "field",
+      "as": "option length",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 2132 §2: the octets of value that follow, counting neither itself nor the code."
+    },
+    {
+      "id": "optionValue",
+      "kind": "field",
+      "as": "option value",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "Whatever the option carries, kept as octets. Reading a lease time here as a number would be this file",
+        "deciding that code 51 means something — which is true, and is a different description from this one.",
+        "What THIS says is how any option is shaped."
+      ]
+    },
+    {
+      "id": "optionStop",
+      "kind": "junction",
+      "as": "the end option",
+      "about": "Code 255. RFC 2132 §2: the option region ends here, whatever octets follow."
+    },
+    {
+      "id": "optionDone",
+      "kind": "junction",
+      "as": "the end of this option",
+      "about": [
+        "Where the three shapes meet. A fork has no single last member, so without somewhere to converge there",
+        "is nowhere to ask whether another option is due."
+      ]
+    },
+    {
+      "id": "evaluated.optionShape",
+      "kind": "evaluated",
+      "label": "which shape of option is this?",
+      "runs": "fields.optionCode.value == 0 ? 0 : (fields.optionCode.value == 255 ? 2 : 1)"
+    },
+    {
+      "id": "evaluated.isCounted",
+      "kind": "evaluated",
+      "label": "does this option carry a length?",
+      "runs": "fields.optionCode.value != 0 && fields.optionCode.value != 255"
+    },
+    {
+      "id": "input.options",
+      "kind": "input",
+      "as": "Options",
+      "purpose": "The options to write, in order, ending with the END option. Each item says its `code` and, where its shape has one, its `value`."
+    },
+    {
+      "id": "evaluated.eachCode",
+      "kind": "evaluated",
+      "label": "this option's code",
+      "runs": "item.code"
+    },
+    {
+      "id": "evaluated.eachValue",
+      "kind": "evaluated",
+      "label": "this option's value",
+      "runs": "item.value"
+    },
+    {
+      "id": "evaluated.optionLength",
+      "kind": "evaluated",
+      "label": "octets of value",
+      "runs": "fields.optionValue.extent"
+    },
+    {
+      "id": "evaluated.optionValueExtent",
+      "kind": "evaluated",
+      "label": "octets of value, from the length",
+      "runs": "fields.optionLength.value"
+    },
+    {
+      "id": "trailer",
+      "kind": "field",
+      "as": "trailing fill",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "RFC 1542 §2.1: a BOOTP message is at least 300 octets, so a short one is padded out. The captures",
+        "differ on exactly this — a 267-octet DISCOVER carries 33 octets of fill and a 306-octet OFFER carries",
+        "none — which is why the option region cannot be a fixed block: it ends at a sentinel and what follows",
+        "is not options.",
+        "",
+        "The two directions ask different questions here, and that is not an inconsistency. Going out, whether",
+        "there is fill is a fact about the minimum size; coming in it is whether there are octets left. Nothing",
+        "on the wire says which of the two produced it.",
+        "",
+        "One span rather than the run of PAD options it nominally is. Recovering it exactly depends on the",
+        "writer having padded to the same target — a client padding to 342 decodes identically and writes back",
+        "differently, so this round-trips by a shared convention rather than by construction."
+      ]
+    },
+    {
+      "id": "evaluated.trailer",
+      "kind": "evaluated",
+      "label": "zeros to the three-hundred-octet minimum",
+      "runs": "repeat(unhex('00'), 300 - sets.bootp.extent - fields.magicCookie.extent - sets.options.extent)"
+    },
+    {
+      "id": "evaluated.hasTrailer",
+      "kind": "evaluated",
+      "label": "is any fill needed?",
+      "runs": "300 - sets.bootp.extent - fields.magicCookie.extent - sets.options.extent > 0"
+    },
+    {
+      "id": "evaluated.trailerRead",
+      "kind": "evaluated",
+      "label": "is there anything after the end option?",
+      "runs": "remaining > 0"
+    },
+    {
+      "id": "done",
+      "kind": "end-parse",
+      "as": "the end of a DHCP message",
+      "about": "Where a reading may stop. The option region goes round, and a loop that has run out is indistinguishable from one that was cut short unless something says which endings were legal."
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "dhcp",
+      "to": "dhcpMessage"
+    },
+    {
+      "kind": "then",
+      "from": "dhcpMessage",
+      "to": "packing.dhcpMessage"
+    },
+    {
+      "kind": "then",
+      "from": "packing.dhcpMessage",
+      "to": "bootp"
+    },
+    {
+      "kind": "computes",
+      "from": "op",
+      "to": "input.op",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "htype",
+      "to": "input.htype",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "hops",
+      "to": "input.hops",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "xid",
+      "to": "input.xid",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "secs",
+      "to": "input.secs",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "broadcastFlag",
+      "to": "input.broadcastFlag",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "flagsReserved",
+      "to": "constant.zeroBits",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ciaddr",
+      "to": "input.ciaddr",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "yiaddr",
+      "to": "input.yiaddr",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "siaddr",
+      "to": "input.siaddr",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "giaddr",
+      "to": "input.giaddr",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "hardwareAddress",
+      "to": "input.chaddr",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hlen",
+      "to": "hardwareAddress",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "hlen",
+      "to": "evaluated.hlen",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.chaddrExtent",
+      "to": "hlen",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "hardwareAddress",
+      "to": "evaluated.chaddrExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.chaddrPad",
+      "to": "hardwareAddress",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "chaddrPad",
+      "to": "evaluated.chaddrPad",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.chaddrPadExtent",
+      "to": "hlen",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "chaddrPad",
+      "to": "evaluated.chaddrPadExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.sname",
+      "to": "input.sname",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "sname",
+      "to": "evaluated.sname",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.file",
+      "to": "input.file",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "file",
+      "to": "evaluated.file",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "op",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "htype",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "hlen",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "hops",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "xid",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "secs",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "flags",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "ciaddr",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "yiaddr",
+      "order": 8
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "siaddr",
+      "order": 9
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "giaddr",
+      "order": 10
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "chaddr",
+      "order": 11
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "sname",
+      "order": 12
+    },
+    {
+      "kind": "holds",
+      "from": "bootp",
+      "to": "file",
+      "order": 13
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "broadcastFlag",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "flags",
+      "to": "flagsReserved",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "chaddr",
+      "to": "hardwareAddress",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "chaddr",
+      "to": "chaddrPad",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "bootp",
+      "to": "op"
+    },
+    {
+      "kind": "then",
+      "from": "op",
+      "to": "htype"
+    },
+    {
+      "kind": "then",
+      "from": "htype",
+      "to": "hlen"
+    },
+    {
+      "kind": "then",
+      "from": "hlen",
+      "to": "hops"
+    },
+    {
+      "kind": "then",
+      "from": "hops",
+      "to": "xid"
+    },
+    {
+      "kind": "then",
+      "from": "xid",
+      "to": "secs"
+    },
+    {
+      "kind": "then",
+      "from": "secs",
+      "to": "flags"
+    },
+    {
+      "kind": "then",
+      "from": "flags",
+      "to": "broadcastFlag"
+    },
+    {
+      "kind": "then",
+      "from": "broadcastFlag",
+      "to": "flagsReserved"
+    },
+    {
+      "kind": "then",
+      "from": "flagsReserved",
+      "to": "ciaddr"
+    },
+    {
+      "kind": "then",
+      "from": "ciaddr",
+      "to": "yiaddr"
+    },
+    {
+      "kind": "then",
+      "from": "yiaddr",
+      "to": "siaddr"
+    },
+    {
+      "kind": "then",
+      "from": "siaddr",
+      "to": "giaddr"
+    },
+    {
+      "kind": "then",
+      "from": "giaddr",
+      "to": "chaddr"
+    },
+    {
+      "kind": "then",
+      "from": "chaddr",
+      "to": "hardwareAddress"
+    },
+    {
+      "kind": "then",
+      "from": "hardwareAddress",
+      "to": "chaddrPad"
+    },
+    {
+      "kind": "then",
+      "from": "chaddrPad",
+      "to": "sname"
+    },
+    {
+      "kind": "then",
+      "from": "sname",
+      "to": "file"
+    },
+    {
+      "kind": "then",
+      "from": "file",
+      "to": "magicCookie"
+    },
+    {
+      "kind": "computes",
+      "from": "magicCookie",
+      "to": "constant.magicCookie",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "magicCookie",
+      "to": "validator.magicCookie",
+      "order": 0,
+      "because": "RFC 2132 §2: the magic cookie is 99.130.83.99 and nothing else is DHCP."
+    },
+    {
+      "kind": "holds",
+      "from": "options",
+      "to": "option",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionCode",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionShape",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionPad",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionCounted",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionStop",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionDone",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "optionCounted",
+      "to": "optionLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "optionCounted",
+      "to": "optionValue",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "magicCookie",
+      "to": "options"
+    },
+    {
+      "kind": "then",
+      "from": "options",
+      "to": "option"
+    },
+    {
+      "kind": "then",
+      "from": "option",
+      "to": "optionCode"
+    },
+    {
+      "kind": "then",
+      "from": "optionCode",
+      "to": "optionShape"
+    },
+    {
+      "kind": "then",
+      "from": "optionShape",
+      "to": "optionPad",
+      "key": {
+        "int": 0
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "optionShape",
+      "to": "optionCounted",
+      "key": {
+        "int": 1
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "optionShape",
+      "to": "optionStop",
+      "key": {
+        "int": 2
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "optionCounted",
+      "to": "optionLength"
+    },
+    {
+      "kind": "then",
+      "from": "optionLength",
+      "to": "optionValue"
+    },
+    {
+      "kind": "then",
+      "from": "optionValue",
+      "to": "optionDone"
+    },
+    {
+      "kind": "then",
+      "from": "optionPad",
+      "to": "optionDone"
+    },
+    {
+      "kind": "then",
+      "from": "optionStop",
+      "to": "optionDone"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionShape",
+      "to": "optionCode",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "decides",
+      "from": "optionShape",
+      "to": "evaluated.optionShape"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isCounted",
+      "to": "optionCode",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "optionCounted",
+      "to": "evaluated.isCounted",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "options",
+      "to": "input.options",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "optionCode",
+      "to": "evaluated.eachCode",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "optionValue",
+      "to": "evaluated.eachValue",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionLength",
+      "to": "optionValue",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "optionLength",
+      "to": "evaluated.optionLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionValueExtent",
+      "to": "optionLength",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "optionValue",
+      "to": "evaluated.optionValueExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "optionPad",
+      "to": "option"
+    },
+    {
+      "kind": "decode",
+      "from": "optionValue",
+      "to": "option"
+    },
+    {
+      "kind": "decode",
+      "from": "optionStop",
+      "to": "trailer"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.trailer",
+      "to": "bootp",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.trailer",
+      "to": "magicCookie",
+      "facet": "extent",
+      "sequence": 1
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.trailer",
+      "to": "options",
+      "facet": "extent",
+      "sequence": 2
+    },
+    {
+      "kind": "computes",
+      "from": "trailer",
+      "to": "evaluated.trailer",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasTrailer",
+      "to": "bootp",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasTrailer",
+      "to": "magicCookie",
+      "facet": "extent",
+      "sequence": 1
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasTrailer",
+      "to": "options",
+      "facet": "extent",
+      "sequence": 2
+    },
+    {
+      "kind": "computes",
+      "from": "trailer",
+      "to": "evaluated.hasTrailer",
+      "facet": "presence"
+    },
+    {
+      "kind": "computes",
+      "from": "trailer",
+      "to": "evaluated.trailerRead",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "then",
+      "from": "optionDone",
+      "to": "trailer",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "trailer",
+      "to": "done"
+    }
+  ]
+}

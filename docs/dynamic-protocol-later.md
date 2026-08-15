@@ -46,7 +46,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 | **CoAP** | option deltas that accumulate across options, so decoding option *N* depends on 0..*N*−1 |
 | **mDNS / DNS-SD** | name compression — pointers are absolute offsets into the whole message |
 | **MQTT** | *(built)* a varint length header; connect-flag bits that decide whether later fields exist at all — and, unforeseen when the corpus was written, the first protocol with several message formats, told apart by a nibble inside the message |
-| **DHCP** | options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
+| **DHCP** | *(built)* options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
 | **SNMPv2c** | nested BER lengths |
 | **SSDP** | delimiter-terminated text; no widths and no length prefixes anywhere |
 | **TLS 1.2** | three stacked length-prefixed layers, and a hello with no extension block at all |
@@ -113,7 +113,12 @@ standing in for something else.
 
 ## 5. Known gaps, as of 2026-08-15
 
-- **Seven protocols to author.** Hold SSDP back — it is delimiter-terminated text, and `WireForm.Opaque`
+- **A fixed-width field holding a NUL-terminated name is one field, not two.** DHCP's `sname` and `file`
+  are sixty-four and a hundred and twenty-eight octets holding a name and then fill; where the name ends is
+  said by the first NUL, and a span that ends at a value it has to find first is the capability `Pattern`
+  took with it. `fit` covers the writing (and is a no-op when handed the full width, which is what makes
+  the round trip work); nothing splits it coming back.
+- **Six protocols to author.** Hold SSDP back — it is delimiter-terminated text, and `WireForm.Opaque`
   lost the `Until` delimiter when `Pattern` was deleted. That capability needs rebuilding before SSDP or
   HTTP.
 - **A discriminator is read but not recorded.** `identifies` answers which message this is and then throws
