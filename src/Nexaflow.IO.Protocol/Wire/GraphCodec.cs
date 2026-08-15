@@ -1184,10 +1184,10 @@ public sealed class GraphCodec(ProtocolGraph graph,
         // Where a reading says how it goes, it goes that way; where it says nothing, it goes the way the
         // writing does. Most of a protocol is the second case, and there the two directions share one
         // description and cannot drift apart.
-        List<(Node To, ProtoValue? Key, bool Otherwise)> ways =
+        List<(Node To, ProtoValue? Key, bool Otherwise, bool Optional)> ways =
             reading && graph.From<Decode>(place).Any()
-                ? [.. graph.From<Decode>(place).Select(e => (e.To, e.Key, e.Otherwise))]
-                : [.. graph.From<Then>(place).Select(e => (e.To, e.Key, e.Otherwise))];
+                ? [.. graph.From<Decode>(place).Select(e => (e.To, e.Key, e.Otherwise, false))]
+                : [.. graph.From<Then>(place).Select(e => (e.To, e.Key, e.Otherwise, e.Optional))];
 
         if (ways.Count == 0) return null;
         if (ways.Count == 1 && ways[0].Key is null && !ways[0].Otherwise) return ways[0].To;
@@ -1195,14 +1195,45 @@ public sealed class GraphCodec(ProtocolGraph graph,
         var chosen = Decided(run, place, reading, pass, ahead);
 
         foreach (var way in ways)
-            if (!way.Otherwise && ProtoValue.Alike(way.Key, chosen)) return way.To;
+            if (!way.Otherwise && ProtoValue.Alike(way.Key, chosen)) return Taking(run, ways, way.To);
 
         foreach (var way in ways)
-            if (way.Otherwise) return way.To;
+            if (way.Otherwise) return Taking(run, ways, way.To);
 
         throw new ProtoTypeException(
             $"'{place.Name}': {chosen} picks none of the ways on, and none is the one taken when nothing "
           + $"matches. Offered: {string.Join(", ", ways.Select(w => w.Key?.ToString() ?? "*"))}");
+    }
+
+    /// <summary>
+    /// Takes one way on, and says of the others that they are not there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only of the ones declared optional, and that distinction is the whole safety of it. An alternation
+    /// of optional arms is exactly one of them: picking a Modbus exception body means the normal body is
+    /// not in this frame, which something measuring the PDU has to be told or it waits forever on a part
+    /// the walk stepped past.
+    /// </para>
+    /// <para>
+    /// A way on that is <b>not</b> optional says nothing of the kind. A loop leaves by one of two edges
+    /// every time round and takes the other one eventually — marking the road not taken as absent there
+    /// would say a segment has no payload because this pass went back for another option.
+    /// </para>
+    /// </remarks>
+    private static Node Taking(RunGraph run, List<(Node To, ProtoValue? Key, bool Otherwise, bool Optional)> ways,
+                               Node taken)
+    {
+        foreach (var way in ways)
+        {
+            if (ReferenceEquals(way.To, taken) || !way.Optional) continue;
+
+            var missed = run.For(way.To);
+
+            if (!missed.Has(Facet.Present)) missed.Settle(Facet.Present, false);
+        }
+
+        return taken;
     }
 
     /// <summary>What the fork was decided on — a computation's answer, or a node's own value.</summary>

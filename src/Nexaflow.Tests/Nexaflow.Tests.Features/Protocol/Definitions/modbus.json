@@ -1,0 +1,683 @@
+{
+  "protocol": "modbus",
+  "title": "Modbus TCP",
+  "source": "Modbus Messaging on TCP/IP Implementation Guide v1.0b",
+  "nodes": [
+    {
+      "id": "modbus",
+      "kind": "protocol",
+      "as": "Modbus TCP",
+      "about": [
+        "Modbus TCP has one frame — an MBAP header followed by a PDU — and the PDU is what varies. So there is",
+        "one message here and the variation is a fork inside it, rather than three formats that happen to share",
+        "a header.",
+        "",
+        "Which variation applies is decided by two things, and only one of them is in the message. A request and",
+        "a response to it both carry function code 3, so nothing in the octets tells them apart: you know which",
+        "you are reading because of who sent it. That is state, and it is why direction is a state node."
+      ]
+    },
+    {
+      "id": "frame",
+      "kind": "message",
+      "as": "Modbus TCP ADU"
+    },
+    {
+      "id": "packing.frame",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "mbap",
+      "kind": "set",
+      "as": "MBAP Header",
+      "about": [
+        "Transaction identifier, protocol identifier, length and unit identifier. The length is the odd one:",
+        "it counts what comes AFTER itself, which is the unit identifier plus the whole PDU — so what it",
+        "measures is not this set."
+      ]
+    },
+    {
+      "id": "transactionId",
+      "kind": "field",
+      "as": "Transaction Identifier",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Echoed by the server, which is what correlates a response with its request."
+    },
+    {
+      "id": "protocolId",
+      "kind": "field",
+      "as": "Protocol Identifier",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Zero for Modbus."
+    },
+    {
+      "id": "length",
+      "kind": "field",
+      "as": "Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "The number of octets after this field: the unit identifier and the PDU together."
+    },
+    {
+      "id": "unitId",
+      "kind": "field",
+      "as": "Unit Identifier",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Which device behind the gateway."
+    },
+    {
+      "id": "counted",
+      "kind": "set",
+      "as": "what the length counts",
+      "about": [
+        "The unit identifier and the PDU. A set exists for it because that is the thing with the extent the",
+        "length field holds — a length measures a set, and the set it measures here begins in the middle of",
+        "the header and runs to the end of the frame."
+      ]
+    },
+    {
+      "id": "evaluated.length",
+      "kind": "evaluated",
+      "label": "octets after the length field",
+      "runs": "sets.counted.extent"
+    },
+    {
+      "id": "pdu",
+      "kind": "set",
+      "as": "PDU"
+    },
+    {
+      "id": "functionCode",
+      "kind": "field",
+      "as": "Function Code",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Three for Read Holding Registers. The top bit set marks a response as an exception."
+    },
+    {
+      "id": "body",
+      "kind": "junction",
+      "as": "which body follows"
+    },
+    {
+      "id": "pdu.request",
+      "kind": "set",
+      "as": "Read Holding Registers request"
+    },
+    {
+      "id": "startingAddress",
+      "kind": "field",
+      "as": "Starting Address",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "Zero-based."
+    },
+    {
+      "id": "quantityOfRegisters",
+      "kind": "field",
+      "as": "Quantity of Registers",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "pdu.reply",
+      "kind": "set",
+      "as": "Read Holding Registers response"
+    },
+    {
+      "id": "byteCount",
+      "kind": "field",
+      "as": "Byte Count",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Twice the number of registers."
+    },
+    {
+      "id": "registers",
+      "kind": "field",
+      "as": "Register values",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "The register data as a span, sized by the byte count.",
+        "",
+        "Not one node per register, and that is a limitation rather than a reading of the specification: the",
+        "registers are a repetition, the reading could go round them, and the writing has no way to repeat.",
+        "Describing them as separate nodes would give a decode that cannot be written back."
+      ]
+    },
+    {
+      "id": "evaluated.registers",
+      "kind": "evaluated",
+      "label": "octets of register data",
+      "runs": "fields.byteCount.value"
+    },
+    {
+      "id": "pdu.fault",
+      "kind": "set",
+      "as": "Exception response"
+    },
+    {
+      "id": "exceptionCode",
+      "kind": "field",
+      "as": "Exception Code",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Two is ILLEGAL DATA ADDRESS."
+    },
+    {
+      "id": "state.direction",
+      "kind": "state",
+      "as": "Direction",
+      "purpose": "0 when reading or writing a request, 1 for a response. Nothing in the octets says which."
+    },
+    {
+      "id": "evaluated.which",
+      "kind": "evaluated",
+      "label": "request, response, or fault?",
+      "runs": "state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)",
+      "about": [
+        "Two facts decide it and only one is in the message. Direction is not on the wire at all — a request",
+        "and its response carry the same function code — and the exception flag is the top bit of that code."
+      ]
+    },
+    {
+      "id": "evaluated.isrequest",
+      "kind": "evaluated",
+      "label": "is this the request body?",
+      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 0"
+    },
+    {
+      "id": "evaluated.isreply",
+      "kind": "evaluated",
+      "label": "is this the reply body?",
+      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 1"
+    },
+    {
+      "id": "evaluated.isfault",
+      "kind": "evaluated",
+      "label": "is this the fault body?",
+      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 2"
+    },
+    {
+      "id": "input.transactionId",
+      "kind": "input",
+      "as": "Transaction Identifier",
+      "purpose": "The value of Transaction Identifier."
+    },
+    {
+      "id": "input.protocolId",
+      "kind": "input",
+      "as": "Protocol Identifier",
+      "purpose": "The value of Protocol Identifier."
+    },
+    {
+      "id": "input.unitId",
+      "kind": "input",
+      "as": "Unit Identifier",
+      "purpose": "The value of Unit Identifier."
+    },
+    {
+      "id": "input.functionCode",
+      "kind": "input",
+      "as": "Function Code",
+      "purpose": "The value of Function Code."
+    },
+    {
+      "id": "input.startingAddress",
+      "kind": "input",
+      "as": "Starting Address",
+      "purpose": "The value of Starting Address."
+    },
+    {
+      "id": "input.quantityOfRegisters",
+      "kind": "input",
+      "as": "Quantity of Registers",
+      "purpose": "The value of Quantity of Registers."
+    },
+    {
+      "id": "input.byteCount",
+      "kind": "input",
+      "as": "Byte Count",
+      "purpose": "The value of Byte Count."
+    },
+    {
+      "id": "input.registers",
+      "kind": "input",
+      "as": "Register values",
+      "purpose": "The value of Register values."
+    },
+    {
+      "id": "input.exceptionCode",
+      "kind": "input",
+      "as": "Exception Code",
+      "purpose": "The value of Exception Code."
+    },
+    {
+      "id": "validator.protocolId",
+      "kind": "validator",
+      "because": "The protocol identifier is zero for Modbus.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 0
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "modbus",
+      "to": "frame"
+    },
+    {
+      "kind": "then",
+      "from": "frame",
+      "to": "packing.frame"
+    },
+    {
+      "kind": "holds",
+      "from": "mbap",
+      "to": "transactionId",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "mbap",
+      "to": "protocolId",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "mbap",
+      "to": "length",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "mbap",
+      "to": "unitId",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "counted",
+      "to": "unitId",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "counted",
+      "to": "pdu",
+      "order": 1
+    },
+    {
+      "kind": "computes",
+      "from": "length",
+      "to": "evaluated.length",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.length",
+      "to": "counted",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pdu.request",
+      "to": "startingAddress",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pdu.request",
+      "to": "quantityOfRegisters",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "pdu.reply",
+      "to": "byteCount",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pdu.reply",
+      "to": "registers",
+      "order": 1
+    },
+    {
+      "kind": "computes",
+      "from": "registers",
+      "to": "evaluated.registers",
+      "facet": "extent"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.registers",
+      "to": "byteCount",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pdu.fault",
+      "to": "exceptionCode",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "functionCode",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "body",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "pdu.request",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "pdu.reply",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "pdu",
+      "to": "pdu.fault",
+      "order": 4
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.which",
+      "to": "state.direction",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.which",
+      "to": "functionCode",
+      "facet": "value",
+      "sequence": 1
+    },
+    {
+      "kind": "decides",
+      "from": "body",
+      "to": "evaluated.which"
+    },
+    {
+      "kind": "then",
+      "from": "body",
+      "to": "pdu.request",
+      "key": {
+        "int": 0
+      },
+      "optional": true
+    },
+    {
+      "kind": "computes",
+      "from": "pdu.request",
+      "to": "evaluated.isrequest",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isrequest",
+      "to": "state.direction",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isrequest",
+      "to": "functionCode",
+      "facet": "value",
+      "sequence": 1
+    },
+    {
+      "kind": "then",
+      "from": "body",
+      "to": "pdu.reply",
+      "key": {
+        "int": 1
+      },
+      "optional": true
+    },
+    {
+      "kind": "computes",
+      "from": "pdu.reply",
+      "to": "evaluated.isreply",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isreply",
+      "to": "state.direction",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isreply",
+      "to": "functionCode",
+      "facet": "value",
+      "sequence": 1
+    },
+    {
+      "kind": "then",
+      "from": "body",
+      "to": "pdu.fault",
+      "key": {
+        "int": 2
+      },
+      "optional": true
+    },
+    {
+      "kind": "computes",
+      "from": "pdu.fault",
+      "to": "evaluated.isfault",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isfault",
+      "to": "state.direction",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isfault",
+      "to": "functionCode",
+      "facet": "value",
+      "sequence": 1
+    },
+    {
+      "kind": "then",
+      "from": "packing.frame",
+      "to": "mbap"
+    },
+    {
+      "kind": "then",
+      "from": "mbap",
+      "to": "transactionId"
+    },
+    {
+      "kind": "then",
+      "from": "transactionId",
+      "to": "protocolId"
+    },
+    {
+      "kind": "then",
+      "from": "protocolId",
+      "to": "length"
+    },
+    {
+      "kind": "then",
+      "from": "length",
+      "to": "counted"
+    },
+    {
+      "kind": "then",
+      "from": "counted",
+      "to": "unitId"
+    },
+    {
+      "kind": "then",
+      "from": "unitId",
+      "to": "pdu"
+    },
+    {
+      "kind": "then",
+      "from": "pdu",
+      "to": "functionCode"
+    },
+    {
+      "kind": "then",
+      "from": "functionCode",
+      "to": "body"
+    },
+    {
+      "kind": "then",
+      "from": "pdu.request",
+      "to": "startingAddress"
+    },
+    {
+      "kind": "then",
+      "from": "startingAddress",
+      "to": "quantityOfRegisters"
+    },
+    {
+      "kind": "then",
+      "from": "pdu.reply",
+      "to": "byteCount"
+    },
+    {
+      "kind": "then",
+      "from": "byteCount",
+      "to": "registers"
+    },
+    {
+      "kind": "then",
+      "from": "pdu.fault",
+      "to": "exceptionCode"
+    },
+    {
+      "kind": "computes",
+      "from": "transactionId",
+      "to": "input.transactionId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "protocolId",
+      "to": "input.protocolId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "unitId",
+      "to": "input.unitId",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "functionCode",
+      "to": "input.functionCode",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "startingAddress",
+      "to": "input.startingAddress",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "quantityOfRegisters",
+      "to": "input.quantityOfRegisters",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "byteCount",
+      "to": "input.byteCount",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "registers",
+      "to": "input.registers",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "exceptionCode",
+      "to": "input.exceptionCode",
+      "facet": "value"
+    },
+    {
+      "kind": "checks",
+      "from": "protocolId",
+      "to": "validator.protocolId",
+      "order": 0
+    }
+  ]
+}
