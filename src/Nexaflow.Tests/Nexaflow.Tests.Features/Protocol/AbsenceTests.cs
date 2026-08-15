@@ -36,11 +36,11 @@ public class AbsenceTests
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
             { "id": "tail",  "kind": "field", "as": "Tail",
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
-            { "id": "input.lead", "kind": "input", "as": "Lead" },
-            { "id": "input.tail", "kind": "input", "as": "Tail" },
-            { "id": "there",  "kind": "evaluated", "label": "is there more?", "runs": "remaining > 0" },
-            { "id": "asked",  "kind": "evaluated", "label": "was one given?", "runs": "state.sending == 1" },
-            { "id": "state.sending", "kind": "state", "as": "Sending" },
+            { "id": "input.lead", "kind": "input", "as": "Lead", "gives": "Int" },
+            { "id": "input.tail", "kind": "input", "as": "Tail", "gives": "Int" },
+            { "id": "there",  "kind": "evaluated", "label": "is there more?", "runs": "remaining > 0", "gives": "Bool" },
+            { "id": "asked",  "kind": "evaluated", "label": "was one given?", "runs": "state.sending == 1", "gives": "Bool" },
+            { "id": "state.sending", "kind": "state", "as": "Sending", "gives": "Int" },
             {{absence}}
           ],
           "edges": [

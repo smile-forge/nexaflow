@@ -299,115 +299,134 @@
       "id": "input.leapIndicator",
       "kind": "input",
       "as": "LI",
-      "purpose": "The value of LI."
+      "purpose": "The value of LI.",
+      "gives": "Int"
     },
     {
       "id": "input.versionNumber",
       "kind": "input",
       "as": "VN",
-      "purpose": "The value of VN."
+      "purpose": "The value of VN.",
+      "gives": "Int"
     },
     {
       "id": "input.mode",
       "kind": "input",
       "as": "Mode",
-      "purpose": "The value of Mode."
+      "purpose": "The value of Mode.",
+      "gives": "Int"
     },
     {
       "id": "input.stratum",
       "kind": "input",
       "as": "Stratum",
-      "purpose": "The value of Stratum."
+      "purpose": "The value of Stratum.",
+      "gives": "Int"
     },
     {
       "id": "input.poll",
       "kind": "input",
       "as": "Poll",
-      "purpose": "The value of Poll."
+      "purpose": "The value of Poll.",
+      "gives": "Int"
     },
     {
       "id": "input.precision",
       "kind": "input",
       "as": "Precision",
-      "purpose": "The value of Precision."
+      "purpose": "The value of Precision.",
+      "gives": "Int"
     },
     {
       "id": "input.referenceId",
       "kind": "input",
       "as": "Reference ID",
-      "purpose": "The value of Reference ID."
+      "purpose": "The value of Reference ID.",
+      "gives": "Bytes"
     },
     {
       "id": "input.rootDelay.seconds",
       "kind": "input",
       "as": "Root Delay (seconds)",
-      "purpose": "The value of Root Delay (seconds)."
+      "purpose": "The value of Root Delay (seconds).",
+      "gives": "Int"
     },
     {
       "id": "input.rootDelay.fraction",
       "kind": "input",
       "as": "Root Delay (fraction)",
-      "purpose": "The value of Root Delay (fraction)."
+      "purpose": "The value of Root Delay (fraction).",
+      "gives": "Int"
     },
     {
       "id": "input.rootDispersion.seconds",
       "kind": "input",
       "as": "Root Dispersion (seconds)",
-      "purpose": "The value of Root Dispersion (seconds)."
+      "purpose": "The value of Root Dispersion (seconds).",
+      "gives": "Int"
     },
     {
       "id": "input.rootDispersion.fraction",
       "kind": "input",
       "as": "Root Dispersion (fraction)",
-      "purpose": "The value of Root Dispersion (fraction)."
+      "purpose": "The value of Root Dispersion (fraction).",
+      "gives": "Int"
     },
     {
       "id": "input.referenceTimestamp.seconds",
       "kind": "input",
       "as": "Reference Timestamp (seconds)",
-      "purpose": "The value of Reference Timestamp (seconds)."
+      "purpose": "The value of Reference Timestamp (seconds).",
+      "gives": "Int"
     },
     {
       "id": "input.referenceTimestamp.fraction",
       "kind": "input",
       "as": "Reference Timestamp (fraction)",
-      "purpose": "The value of Reference Timestamp (fraction)."
+      "purpose": "The value of Reference Timestamp (fraction).",
+      "gives": "Int"
     },
     {
       "id": "input.originTimestamp.seconds",
       "kind": "input",
       "as": "Origin Timestamp (seconds)",
-      "purpose": "The value of Origin Timestamp (seconds)."
+      "purpose": "The value of Origin Timestamp (seconds).",
+      "gives": "Int"
     },
     {
       "id": "input.originTimestamp.fraction",
       "kind": "input",
       "as": "Origin Timestamp (fraction)",
-      "purpose": "The value of Origin Timestamp (fraction)."
+      "purpose": "The value of Origin Timestamp (fraction).",
+      "gives": "Int"
     },
     {
       "id": "input.receiveTimestamp.seconds",
       "kind": "input",
       "as": "Receive Timestamp (seconds)",
-      "purpose": "The value of Receive Timestamp (seconds)."
+      "purpose": "The value of Receive Timestamp (seconds).",
+      "gives": "Int"
     },
     {
       "id": "input.receiveTimestamp.fraction",
       "kind": "input",
       "as": "Receive Timestamp (fraction)",
-      "purpose": "The value of Receive Timestamp (fraction)."
+      "purpose": "The value of Receive Timestamp (fraction).",
+      "gives": "Int"
     },
     {
       "id": "input.transmitTimestamp.seconds",
       "kind": "input",
       "as": "Transmit Timestamp (seconds)",
-      "purpose": "The value of Transmit Timestamp (seconds)."
+      "purpose": "The value of Transmit Timestamp (seconds).",
+      "gives": "Int"
     },
     {
       "id": "input.transmitTimestamp.fraction",
       "kind": "input",
       "as": "Transmit Timestamp (fraction)",
-      "purpose": "The value of Transmit Timestamp (fraction)."
+      "purpose": "The value of Transmit Timestamp (fraction).",
+      "gives": "Int"
     },
     {
       "id": "validator.version",
@@ -476,13 +495,15 @@
       "id": "evaluated.macFollowed",
       "kind": "evaluated",
       "label": "were there octets left?",
-      "runs": "remaining > 0"
+      "runs": "remaining > 0",
+      "gives": "Bool"
     },
     {
       "id": "state.authenticated",
       "kind": "state",
       "as": "Authenticated",
-      "purpose": "Whether this association is authenticated. A property of the association, kept between messages — not something a caller restates per packet."
+      "purpose": "Whether this association is authenticated. A property of the association, kept between messages — not something a caller restates per packet.",
+      "gives": "Bool"
     },
     {
       "id": "evaluated.macAsked",
@@ -494,19 +515,22 @@
         "that is what decides it: an association is authenticated or it is not, and every",
         "packet on it carries a MAC or none of them do. An input would let two packets on one",
         "association disagree about something that is not theirs to disagree about."
-      ]
+      ],
+      "gives": "Bool"
     },
     {
       "id": "input.mac.keyIdentifier",
       "kind": "input",
       "as": "Key Identifier",
-      "purpose": "The value of Key Identifier."
+      "purpose": "The value of Key Identifier.",
+      "gives": "Int"
     },
     {
       "id": "input.mac.messageDigest",
       "kind": "input",
       "as": "Message Digest",
-      "purpose": "The value of Message Digest."
+      "purpose": "The value of Message Digest.",
+      "gives": "Bytes"
     }
   ],
   "edges": [

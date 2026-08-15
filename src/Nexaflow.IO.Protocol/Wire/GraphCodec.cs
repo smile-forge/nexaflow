@@ -513,9 +513,30 @@ public sealed class GraphCodec(ProtocolGraph graph,
         Constant stated => stated.Holds,
         Context outside => run.For(outside).Value,
         Evaluated evaluated => Ran(evaluated, Given(run, appearance, evaluated)),
-        Converted applied => Through(applied.Applies, Gathering(run, appearance, applied), applied.Name),
+
+        Converted applied => Feeding(run, appearance, applied) is var (value, arguments)
+            ? Through(applied.Applies, value, applied.Name, arguments)
+            : ProtoValue.Nothing,
+
+        // Code behind an interface, reached by the name the description gave and by nothing else. What it
+        // is handed comes from its edges like everything else, so it cannot go and read the message —
+        // which is the whole reason a protocol description is allowed to name code at all.
+        Coded custom => Behind(custom, Feeding(run, appearance, custom).Value),
+
         var other => throw new ProtoTypeException($"'{other.Name}' cannot produce a value here"),
     };
+
+    /// <summary>
+    /// Runs the code a <see cref="Coded"/> computation names.
+    /// </summary>
+    /// <remarks>
+    /// Only what the host registered. A description names an implementation; it does not supply one, and
+    /// nothing here goes looking through the assembly for a method of that name — a protocol file is
+    /// something an AI writes and a person reviews, and "it may run any code it can name" is not a thing
+    /// review can catch.
+    /// </remarks>
+    private ProtoValue Behind(Coded custom, ProtoValue given)
+        => _provided.Code(custom.Implementation, custom.Name).Work(given);
 
     /// <summary>
     /// What a conversion is handed: the things it requires, in the order the edges number them.
@@ -535,26 +556,77 @@ public sealed class GraphCodec(ProtocolGraph graph,
     /// </para>
     /// </remarks>
     private ProtoValue Gathering(RunGraph run, RunNode appearance, Computation applied)
+        => Feeding(run, appearance, applied).Value;
+
+    /// <summary>
+    /// What a computation is handed: the value it works on, and the arguments it was given.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both from edges, and the edge says which it is. An edge naming a <see cref="Requires.Parameter"/>
+    /// feeds that parameter; the rest gather into the value, in the order the edges number them. So one
+    /// call can hold a parameter fixed while collecting several values — and an argument may be a
+    /// constant, a field read a moment ago, or another calculation, because all three are things an edge
+    /// can reach.
+    /// </para>
+    /// <para>
+    /// One input is handed over as itself; several are handed over as a list. That is not a special case —
+    /// a converter over octets either takes a run or takes several and joins them, and both are ordinary
+    /// enough that <c>concat</c> declared it long before this needed it.
+    /// </para>
+    /// </remarks>
+    private (ProtoValue Value, ProtoValue[] Arguments) Feeding(
+        RunGraph run, RunNode appearance, Computation applied)
     {
+        var declared = applied is Converted { Applies.Name: var name }
+                    && _converters.TryGet(name, out var converter) && converter is not null
+                        ? converter.Parameters
+                        : [];
+
         List<ProtoValue> given = [];
+        var arguments = new ProtoValue[declared.Count];
+        Array.Fill(arguments, ProtoValue.Nothing);
+        int filled = 0;
 
         foreach (var wanted in graph.InputsOf(applied).OrderBy(e => e.Sequence))
-            given.Add(wanted.To switch
+        {
+            // A computation may require another. The join of a header's two halves around a zero is one,
+            // and it is nobody's field — inventing a field to hold it would put a value on the wire that
+            // the protocol does not have.
+            var value = wanted.To switch
             {
-                // A computation may require another. The join of a header's two halves around a zero is
-                // one, and it is nobody's field — inventing a field to hold it would put a value on the
-                // wire that the protocol does not have.
                 Computation inner => Produced(run, appearance, inner),
                 var other => Held(Toward(run, appearance, other), Named(wanted.Facet)),
-            });
+            };
 
-        return given.Count switch
+            if (wanted.Parameter is null) { given.Add(value); continue; }
+
+            int at = IndexIn(declared, wanted.Parameter);
+
+            if (at < 0)
+                throw new ProtoTypeException(
+                    $"'{applied.Name}' is given a '{wanted.Parameter}', which it does not take. It takes: "
+                  + (declared.Count == 0 ? "nothing but a value" : string.Join(", ", declared)));
+
+            arguments[at] = value;
+            filled = Math.Max(filled, at + 1);
+        }
+
+        return (given.Count switch
         {
             0 => throw new ProtoTypeException(
                      $"'{applied.Name}' converts something and nothing says what"),
             1 => given[0],
             _ => new ProtoValue.List(given),
-        };
+        }, arguments[..filled]);
+    }
+
+    private static int IndexIn(IReadOnlyList<string> names, string name)
+    {
+        for (int at = 0; at < names.Count; at++)
+            if (string.Equals(names[at], name, StringComparison.Ordinal)) return at;
+
+        return -1;
     }
 
     /// <summary>
@@ -1163,9 +1235,10 @@ public sealed class GraphCodec(ProtocolGraph graph,
     private Field? Carrier(Subprotocol layer)
         => graph.To<Embeds>(layer).FirstOrDefault()?.From as Field;
 
-    private ProtoValue Through(Conversion via, ProtoValue value, string owner)
+    private ProtoValue Through(Conversion via, ProtoValue value, string owner,
+                               IReadOnlyList<ProtoValue>? arguments = null)
         => _converters.TryGet(via.Name, out var converter) && converter is not null
-            ? converter.Apply(value, via.Args)
+            ? converter.Apply(value, arguments ?? [])
             : throw new ProtoTypeException($"'{owner}': unknown converter '{via.Name}'");
 
     private Conversion Backwards(Conversion via, string owner)
@@ -1683,6 +1756,14 @@ public sealed class GraphCodec(ProtocolGraph graph,
     {
         foreach (var check in graph.Checking(place))
         {
+            // A named set of values judges too, and only a closed one can refuse: a value an open set has
+            // not heard of is legal, and calling tomorrow's assignments malformed is the one answer that
+            // is certainly wrong.
+            if (check.To is ValueSet { Bounding: Bounding.Closed } listed && !listed.Admits(value))
+                throw new ProtoTypeException(
+                    $"'{place.Name}' holds {value}, which is not one of {listed.Name}"
+                  + (listed.Because.Length == 0 ? "." : $" — {listed.Because}"));
+
             if (check.To is not Validator checker) continue;
 
             var held = check.Run is { } run && value is ProtoValue.Rec runs
@@ -1787,6 +1868,15 @@ public sealed class GraphCodec(ProtocolGraph graph,
             $"field '{field.Id}' runs up to {ending}, which is not in the {ahead.Length} octet(s) left");
     }
 
+    /// <summary>
+    /// A field's own conversion, forward on the way out and inverted on the way in.
+    /// </summary>
+    /// <remarks>
+    /// <b>Parameterless both ways.</b> A field says <c>"via": "utf8"</c> and there is nowhere on it for an
+    /// argument to come from — a parameter is an edge, and the edges into a field say what follows what
+    /// rather than what feeds a call. A conversion that needs one is a <see cref="Converted"/> computation,
+    /// which has edges. That is checked when the protocol loads, so this never has to wonder.
+    /// </remarks>
     private ProtoValue Applied(Field field, ProtoValue value, bool forward)
     {
         var via = field.Via!;
@@ -1794,14 +1884,12 @@ public sealed class GraphCodec(ProtocolGraph graph,
         if (!_converters.TryGet(via.Name, out var converter) || converter is null)
             throw new ProtoTypeException($"field '{field.Id}': unknown converter '{via.Name}'");
 
-        var arguments = graph.ArgumentsOf(field);
-
-        if (forward) return converter.Apply(value, arguments);
+        if (forward) return converter.Apply(value, []);
 
         if (converter.Inverse is null || !_converters.TryGet(converter.Inverse, out var back) || back is null)
             throw new ProtoTypeException($"converter '{via.Name}' declares no inverse");
 
-        return back.Apply(value, arguments);
+        return back.Apply(value, []);
     }
 
 }

@@ -376,13 +376,15 @@
       "id": "input.sourceAddress",
       "kind": "input",
       "purpose": "The IPv4 source address of the datagram carrying this segment.",
-      "as": "Source Address"
+      "as": "Source Address",
+      "gives": "Bytes"
     },
     {
       "id": "input.destinationAddress",
       "kind": "input",
       "purpose": "The IPv4 destination address of the datagram carrying this segment.",
-      "as": "Destination Address"
+      "as": "Destination Address",
+      "gives": "Bytes"
     },
     {
       "id": "constant.zero",
@@ -410,14 +412,16 @@
       "about": [
         "RFC 9293 §3.1: Data Offset is the number of 32-bit words in the header. Measured off the header",
         "set rather than declared, which is why the header is a set: it is the thing with an extent."
-      ]
+      ],
+      "gives": "Int"
     },
     {
       "id": "evaluated.tcpLength",
       "kind": "evaluated",
       "label": "TCP length",
       "runs": "sets.header.extent + fields.data.extent",
-      "about": "RFC 9293 §3.1: header plus data, not counting the pseudo-header."
+      "about": "RFC 9293 §3.1: header plus data, not counting the pseudo-header.",
+      "gives": "Int"
     },
     {
       "id": "evaluated.hasOptions",
@@ -428,7 +432,8 @@
         "What decides the optional step into the options span. An optional step with nothing deciding it",
         "is a definition error rather than a permitted default — there is no honest thing to do with one,",
         "since guessing from leftover octets makes presence depend on what came after."
-      ]
+      ],
+      "gives": "Bool"
     },
     {
       "id": "converted.checksum",
@@ -513,85 +518,99 @@
       "id": "input.sourcePort",
       "kind": "input",
       "purpose": "The port this segment is sent from.",
-      "as": "Source Port"
+      "as": "Source Port",
+      "gives": "Int"
     },
     {
       "id": "input.destinationPort",
       "kind": "input",
       "purpose": "The port this segment is sent to.",
-      "as": "Destination Port"
+      "as": "Destination Port",
+      "gives": "Int"
     },
     {
       "id": "input.window",
       "kind": "input",
       "purpose": "How many octets the sender will accept.",
-      "as": "Window"
+      "as": "Window",
+      "gives": "Int"
     },
     {
       "id": "input.data",
       "kind": "input",
       "purpose": "The payload, where there is one.",
-      "as": "Data"
+      "as": "Data",
+      "gives": "Bytes"
     },
     {
       "id": "input.cwr",
       "kind": "input",
       "purpose": "Congestion Window Reduced.",
-      "as": "CWR"
+      "as": "CWR",
+      "gives": "Int"
     },
     {
       "id": "input.ece",
       "kind": "input",
       "purpose": "ECN-Echo.",
-      "as": "ECE"
+      "as": "ECE",
+      "gives": "Int"
     },
     {
       "id": "input.urg",
       "kind": "input",
       "purpose": "Urgent pointer is significant.",
-      "as": "URG"
+      "as": "URG",
+      "gives": "Int"
     },
     {
       "id": "input.ack",
       "kind": "input",
       "purpose": "Acknowledgment field is significant.",
-      "as": "ACK"
+      "as": "ACK",
+      "gives": "Int"
     },
     {
       "id": "input.psh",
       "kind": "input",
       "purpose": "Push function.",
-      "as": "PSH"
+      "as": "PSH",
+      "gives": "Int"
     },
     {
       "id": "input.rst",
       "kind": "input",
       "purpose": "Reset the connection.",
-      "as": "RST"
+      "as": "RST",
+      "gives": "Int"
     },
     {
       "id": "input.syn",
       "kind": "input",
       "purpose": "Synchronize sequence numbers.",
-      "as": "SYN"
+      "as": "SYN",
+      "gives": "Int"
     },
     {
       "id": "input.fin",
       "kind": "input",
       "purpose": "No more data from sender.",
-      "as": "FIN"
+      "as": "FIN",
+      "gives": "Int"
     },
     {
       "id": "state.sequenceNumber",
       "kind": "state",
       "purpose": "Where this end has got to in its own stream.",
-      "as": "Sequence Number"
+      "as": "Sequence Number",
+      "gives": "Int"
     },
     {
       "id": "state.acknowledgmentNumber",
       "kind": "state",
       "purpose": "The next sequence number this end expects.",
-      "as": "Acknowledgment Number"
+      "as": "Acknowledgment Number",
+      "gives": "Int"
     },
     {
       "id": "constant.zeroPointer",
@@ -611,13 +630,15 @@
         "whether options may be carried is a fact about where the connection has got to, and",
         "reading the flag instead would make the arrangement depend on a field of the very",
         "message it is arranging."
-      ]
+      ],
+      "gives": "Bool"
     },
     {
       "id": "state.synchronising",
       "kind": "state",
       "as": "Synchronising",
-      "purpose": "Whether this connection is still being established. RFC 9293 §3.1 allows the Maximum Segment Size option only on segments with SYN set, which is a fact about where the connection has got to rather than about this segment."
+      "purpose": "Whether this connection is still being established. RFC 9293 §3.1 allows the Maximum Segment Size option only on segments with SYN set, which is a fact about where the connection has got to rather than about this segment.",
+      "gives": "Bool"
     },
     {
       "id": "parsed",
@@ -642,7 +663,8 @@
         "Without the second, the padding reads as more options — which is not even wrong, since a zero",
         "octet IS kind 0. It is just that everything after the first one is padding rather than a run of",
         "them."
-      ]
+      ],
+      "gives": "Bool"
     },
     {
       "id": "option",
@@ -715,50 +737,58 @@
       "id": "evaluated.optionShape",
       "kind": "evaluated",
       "label": "which shape is this option?",
-      "runs": "fields.optionKind.value <= 1"
+      "runs": "fields.optionKind.value <= 1",
+      "gives": "Bool"
     },
     {
       "id": "evaluated.isalone",
       "kind": "evaluated",
       "label": "is this the alone shape?",
-      "runs": "fields.optionKind.value <= 1"
+      "runs": "fields.optionKind.value <= 1",
+      "gives": "Bool"
     },
     {
       "id": "evaluated.iscounted",
       "kind": "evaluated",
       "label": "is this the counted shape?",
-      "runs": "fields.optionKind.value > 1"
+      "runs": "fields.optionKind.value > 1",
+      "gives": "Bool"
     },
     {
       "id": "input.options",
       "kind": "input",
       "as": "Options",
-      "purpose": "The options to write, in order. Each says its kind and, where it has one, its data."
+      "purpose": "The options to write, in order. Each says its kind and, where it has one, its data.",
+      "gives": "List"
     },
     {
       "id": "evaluated.eachOptionKind",
       "kind": "evaluated",
       "label": "this option's kind",
-      "runs": "item.kind"
+      "runs": "item.kind",
+      "gives": "Int"
     },
     {
       "id": "evaluated.eachOptionData",
       "kind": "evaluated",
       "label": "this option's data",
-      "runs": "item.data"
+      "runs": "item.data",
+      "gives": "Bytes"
     },
     {
       "id": "evaluated.optionLength",
       "kind": "evaluated",
       "label": "kind, length, and the data",
       "runs": "2 + fields.optionData.extent",
-      "about": "RFC 9293 §3.1: the length counts its own octet and the kind's as well as the data."
+      "about": "RFC 9293 §3.1: the length counts its own octet and the kind's as well as the data.",
+      "gives": "Int"
     },
     {
       "id": "evaluated.optionDataExtent",
       "kind": "evaluated",
       "label": "octets of option data",
-      "runs": "fields.optionLength.value - 2"
+      "runs": "fields.optionLength.value - 2",
+      "gives": "Int"
     },
     {
       "id": "headerPadding",
@@ -790,7 +820,8 @@
         "",
         "RFC 9293 §3.1: 'The content of the header beyond the End of Option List Option MUST be header",
         "padding of zeros', and Data Offset counts 32-bit words, so the options run has to reach one."
-      ]
+      ],
+      "gives": "Bytes"
     },
     {
       "id": "option.end",
@@ -806,7 +837,8 @@
       "id": "evaluated.hasPadding",
       "kind": "evaluated",
       "label": "is any padding needed?",
-      "runs": "(4 - (sets.options.extent % 4)) % 4 > 0"
+      "runs": "(4 - (sets.options.extent % 4)) % 4 > 0",
+      "gives": "Bool"
     },
     {
       "id": "option.next",
@@ -818,13 +850,15 @@
       "kind": "evaluated",
       "label": "padding octets still to come",
       "runs": "(fields.dataOffset.value * 4) - position",
-      "about": "Coming in, the padding is whatever lies between here and where Data Offset says the header ends."
+      "about": "Coming in, the padding is whatever lies between here and where Data Offset says the header ends.",
+      "gives": "Int"
     },
     {
       "id": "evaluated.paddingFollows",
       "kind": "evaluated",
       "label": "is there padding to read?",
-      "runs": "position < fields.dataOffset.value * 4"
+      "runs": "position < fields.dataOffset.value * 4",
+      "gives": "Bool"
     }
   ],
   "edges": [

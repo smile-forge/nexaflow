@@ -38,8 +38,10 @@ public sealed class ConverterTable
     }
 
     private ConverterTable Add(string name, ValueKinds accepts, ValueKinds produces, string? inverse,
-                               Func<ProtoValue, IReadOnlyList<ProtoValue>, ProtoValue> apply, string summary)
-        => Add(new Converter(name, accepts, produces, inverse, apply, summary));
+                               Func<ProtoValue, IReadOnlyList<ProtoValue>, ProtoValue> apply, string summary,
+                               params string[] parameters)
+        => Add(new Converter(name, accepts, produces, inverse, apply, summary)
+                   { Parameters = parameters });
 
     private static ConverterTable Build()
     {
@@ -94,7 +96,7 @@ public sealed class ConverterTable
                 v.AsText(), Required(a, 0, "percent", "the characters this component leaves alone").AsText())),
             "text to percent-encoded octets, over UTF-8. safe: the characters beyond the unreserved set "
           + "this component does not escape — required, because which ones those are is a property of the "
-          + "component, not of the notion");
+          + "component, not of the notion", "safe");
         t.Add("unpercent", ValueKinds.Bytes, ValueKinds.Text, "percent",
             (v, _) => ProtoValue.Of(PercentDecode(v.AsBytes())),
             "percent-encoded octets to text; a '%' not followed by two hex digits is an error rather than "
@@ -135,7 +137,7 @@ public sealed class ConverterTable
         t.Add("minuint", ValueKinds.Numeric, ValueKinds.Bytes, "unminuint",
             (v, a) => ProtoValue.Of(MinimalUnsigned(v.AsInt(), ZeroRule(a, 0))),
             "minimal-width unsigned octets. zero: 'oneByte' (a single 00) or 'empty' (no octets) — "
-          + "required, because which one is correct is a property of the protocol, not of the notion");
+          + "required, because which one is correct is a property of the protocol, not of the notion", "zero");
         // The counterpart to `minuint`, and a different notion rather than a variant of it: some fields
         // spend the fewest octets a value needs, and some spend the number something else already said.
         // A specification that says "13 means one octet follows" means one, and a minimal encoding of a
@@ -161,7 +163,7 @@ public sealed class ConverterTable
             },
             "an unsigned value in a stated number of octets, most significant first — the width is "
           + "required, because a field that pads to a width somebody else declared is not the same notion "
-          + "as one that spends as little as it can. Read back with `unminuint`, which is width-blind");
+          + "as one that spends as little as it can. Read back with `unminuint`, which is width-blind", "octets");
 
         t.Add("unminuint", ValueKinds.Bytes, ValueKinds.Int, "minuint",
             (v, _) =>
@@ -193,7 +195,7 @@ public sealed class ConverterTable
         // name sat over one family's codec — and no name scan can see that.
         t.Add("base128", ValueKinds.Int, ValueKinds.Bytes, "unbase128",
             (v, a) => ProtoValue.Of(Base128(v.AsInt(), MsbFirst(a, 0))),
-            "value to 7-bit continuation octets. order: 'msbFirst' or 'lsbFirst' — required");
+            "value to 7-bit continuation octets. order: 'msbFirst' or 'lsbFirst' — required", "order");
         t.Add("unbase128", ValueKinds.Bytes, ValueKinds.Int, "base128",
             (v, a) =>
             {
@@ -208,7 +210,7 @@ public sealed class ConverterTable
 
                 return ProtoValue.Of(n);
             },
-            "7-bit continuation octets to a value. order: 'msbFirst' or 'lsbFirst' — required");
+            "7-bit continuation octets to a value. order: 'msbFirst' or 'lsbFirst' — required", "order");
 
         // No hierarchical-identifier converter. The leading-pair merge (40x + y with a saturating inverse)
         // is one encoding family's rule, and a converter for it would be a protocol specific with a general
@@ -220,11 +222,11 @@ public sealed class ConverterTable
         t.Add("fixed", ValueKinds.Numeric, ValueKinds.Int, "unfixed",
             (v, a) => ProtoValue.Of(
                 (long)Math.Round(v.AsNumber() * Math.Pow(2, Required(a, 1, "fixed", "fraction bits").AsInt()))),
-            "real to fixed-point, e.g. fixed(16, 16) — integer and fraction widths both required");
+            "real to fixed-point, e.g. fixed(16, 16) — integer and fraction widths both required", "whole", "fraction");
         t.Add("unfixed", ValueKinds.Int, ValueKinds.Number, "fixed",
             (v, a) => ProtoValue.Of(
                 v.AsInt() / Math.Pow(2, Required(a, 1, "unfixed", "fraction bits").AsInt())),
-            "fixed-point to real — widths required");
+            "fixed-point to real — widths required", "whole", "fraction");
 
         t.Add("decimal", ValueKinds.Numeric, ValueKinds.Text, "undecimal",
             (v, a) =>
@@ -233,7 +235,7 @@ public sealed class ConverterTable
                 if (a.Count > 0) s = s.PadLeft((int)a[0].AsInt(), a.Count > 1 ? a[1].AsText()[0] : '0');
                 return ProtoValue.Of(s);
             },
-            "value to decimal ASCII — every number in an SSDP header");
+            "value to decimal ASCII — every number in an SSDP header", "width", "pad");
         t.Add("undecimal", ValueKinds.Text, ValueKinds.Int, "decimal",
             (v, _) => ProtoValue.Of(long.Parse(v.AsText().Trim(), CultureInfo.InvariantCulture)),
             "decimal ASCII to a value");
@@ -250,7 +252,7 @@ public sealed class ConverterTable
                 return ProtoValue.Of(s);
             },
             "value to lower-case hexadecimal ASCII — an HTTP chunk size. Shortest form unless a width is "
-          + "given, and the shortest form is what makes 'no leading zero' usable as a terminator test");
+          + "given, and the shortest form is what makes 'no leading zero' usable as a terminator test", "width");
         t.Add("unhexadecimal", ValueKinds.Text, ValueKinds.Int, "hexadecimal",
             (v, _) => ProtoValue.Of(long.Parse(v.AsText().Trim(), NumberStyles.HexNumber,
                                                CultureInfo.InvariantCulture)),
@@ -260,18 +262,18 @@ public sealed class ConverterTable
         // `capture.fc |> band(0x80) != 0`. Same semantics as the infix spelling, one implementation.
         t.Add("band", ValueKinds.Numeric, ValueKinds.Int, null,
             (v, a) => ProtoValue.Of(v.AsInt() & a[0].AsInt()),
-            "bitwise and — Modbus flags an exception response by setting the top bit of the function code");
+            "bitwise and — Modbus flags an exception response by setting the top bit of the function code", "mask");
         t.Add("bor", ValueKinds.Numeric, ValueKinds.Int, null,
-            (v, a) => ProtoValue.Of(v.AsInt() | a[0].AsInt()), "bitwise or");
+            (v, a) => ProtoValue.Of(v.AsInt() | a[0].AsInt()), "bitwise or", "mask");
         t.Add("bxor", ValueKinds.Numeric, ValueKinds.Int, null,
-            (v, a) => ProtoValue.Of(v.AsInt() ^ a[0].AsInt()), "bitwise xor");
+            (v, a) => ProtoValue.Of(v.AsInt() ^ a[0].AsInt()), "bitwise xor", "mask");
         // NOT inverses of each other, despite the symmetry. `shr(shl(x,k),k)` loses high bits and
         // `shl(shr(x,k),k)` loses low ones — 5 >> 1 << 1 is 4. Declaring the pair as mutual inverses was
         // simply false, and nothing noticed until the round-trip laws were actually checked.
         t.Add("shl", ValueKinds.Numeric, ValueKinds.Int, null,
-            (v, a) => ProtoValue.Of(v.AsInt() << (int)a[0].AsInt()), "shift left (lossy; no inverse)");
+            (v, a) => ProtoValue.Of(v.AsInt() << (int)a[0].AsInt()), "shift left (lossy; no inverse)", "by");
         t.Add("shr", ValueKinds.Numeric, ValueKinds.Int, null,
-            (v, a) => ProtoValue.Of(v.AsInt() >> (int)a[0].AsInt()), "shift right (lossy; no inverse)");
+            (v, a) => ProtoValue.Of(v.AsInt() >> (int)a[0].AsInt()), "shift right (lossy; no inverse)", "by");
 
         // ── bit runs ─────────────────────────────────────────────────────────
         // A run of bits is a value like any other and needs the same two things doing to it that octets
@@ -287,10 +289,10 @@ public sealed class ConverterTable
                 return ProtoValue.Of((value & (1L << (width - 1))) != 0 ? value - (1L << width) : value);
             },
             "a run of bits read as two's complement — width required. A five-bit field holding 0x1f is -1, "
-          + "and nothing about the value itself says so");
+          + "and nothing about the value itself says so", "bits");
         t.Add("unsigned", ValueKinds.Numeric, ValueKinds.Int, "signed",
             (v, a) => ProtoValue.Of(v.AsInt() & ((1L << Width(a, "unsigned")) - 1)),
-            "the same run of bits read as a magnitude — width required");
+            "the same run of bits read as a magnitude — width required", "bits");
 
         // Self-inverse, and declared so: reversing twice is the identity for any width.
         t.Add("bitsReversed", ValueKinds.Numeric, ValueKinds.Int, "bitsReversed",
@@ -304,13 +306,13 @@ public sealed class ConverterTable
                 return ProtoValue.Of(turned);
             },
             "a run of bits in the other order — width required, because where the run ends is what decides "
-          + "which bit was first");
+          + "which bit was first", "bits");
 
         t.Add("mod", ValueKinds.Int, ValueKinds.Int, null,
             (v, a) => ProtoValue.Of(((v.AsInt() % a[0].AsInt()) + a[0].AsInt()) % a[0].AsInt()),
-            "non-negative modulo — sequence counters that wrap");
+            "non-negative modulo — sequence counters that wrap", "modulus");
         t.Add("clamp", ValueKinds.Numeric, ValueKinds.Int, null,
-            (v, a) => ProtoValue.Of(Math.Clamp(v.AsInt(), a[0].AsInt(), a[1].AsInt())), "bound a value");
+            (v, a) => ProtoValue.Of(Math.Clamp(v.AsInt(), a[0].AsInt(), a[1].AsInt())), "bound a value", "low", "high");
 
         // ── bytes ────────────────────────────────────────────────────────────
         t.Add("len", ValueKinds.Bytes | ValueKinds.Text | ValueKinds.List, ValueKinds.Int, null,
@@ -344,7 +346,7 @@ public sealed class ConverterTable
                 for (int i = 0; i < n; i++) b.CopyTo(outp, i * b.Length);
                 return ProtoValue.Of(outp);
             },
-            "repeat octets — Wake-on-LAN's 16 copies of the target MAC");
+            "repeat octets — Wake-on-LAN's 16 copies of the target MAC", "count");
 
         t.Add("slice", ValueKinds.Bytes, ValueKinds.Bytes, null,
             (v, a) =>
@@ -356,16 +358,16 @@ public sealed class ConverterTable
                     throw new ProtoTypeException($"slice({off},{len}) is outside a {b.Length}-octet value");
                 return ProtoValue.Of(b[off..(off + len)]);
             },
-            "a sub-range of octets");
+            "a sub-range of octets", "from", "count");
 
         t.Add("take", ValueKinds.Bytes, ValueKinds.Bytes, null,
-            (v, a) => ProtoValue.Of(v.AsBytes().Take((int)a[0].AsInt()).ToArray()), "leading octets");
+            (v, a) => ProtoValue.Of(v.AsBytes().Take((int)a[0].AsInt()).ToArray()), "leading octets", "count");
         t.Add("drop", ValueKinds.Bytes, ValueKinds.Bytes, null,
-            (v, a) => ProtoValue.Of(v.AsBytes().Skip((int)a[0].AsInt()).ToArray()), "all but the leading octets");
+            (v, a) => ProtoValue.Of(v.AsBytes().Skip((int)a[0].AsInt()).ToArray()), "all but the leading octets", "count");
         t.Add("takeLast", ValueKinds.Bytes, ValueKinds.Bytes, null,
-            (v, a) => ProtoValue.Of(v.AsBytes().TakeLast((int)a[0].AsInt()).ToArray()), "trailing octets");
+            (v, a) => ProtoValue.Of(v.AsBytes().TakeLast((int)a[0].AsInt()).ToArray()), "trailing octets", "count");
         t.Add("dropLast", ValueKinds.Bytes, ValueKinds.Bytes, null,
-            (v, a) => ProtoValue.Of(v.AsBytes().SkipLast((int)a[0].AsInt()).ToArray()), "all but the trailing octets");
+            (v, a) => ProtoValue.Of(v.AsBytes().SkipLast((int)a[0].AsInt()).ToArray()), "all but the trailing octets", "count");
         t.Add("reverse", ValueKinds.Bytes, ValueKinds.Bytes, "reverse",
             (v, _) => ProtoValue.Of(v.AsBytes().Reverse().ToArray()), "reverse octet order");
         t.Add("xor", ValueKinds.Bytes, ValueKinds.Bytes, "xor",
@@ -377,7 +379,7 @@ public sealed class ConverterTable
                 for (int i = 0; i < b.Length; i++) b[i] ^= k[i % k.Length];
                 return ProtoValue.Of(b);
             },
-            "xor with a repeating key");
+            "xor with a repeating key", "key");
 
         t.Add("fit", ValueKinds.Bytes | ValueKinds.Text, ValueKinds.Bytes, "cstr",
             (v, a) =>
@@ -393,7 +395,7 @@ public sealed class ConverterTable
                 b.CopyTo(outp, 0);
                 return ProtoValue.Of(outp);
             },
-            "pad to a fixed width, erroring on over-length — DHCP sname (64) and file (128)");
+            "pad to a fixed width, erroring on over-length — DHCP sname (64) and file (128)", "width", "fill");
 
         // The table is REQUIRED and there is no default one, which is the whole of what keeps this a
         // notion. A prefix code is "symbols become bit runs of unequal length"; *which* runs is a
@@ -404,13 +406,13 @@ public sealed class ConverterTable
                 v.AsBytes(), Required(a, 0, "packBits", "the code table"))),
             "octets to a variable-length prefix code, most significant bit first, the last octet filled "
           + "from the end-of-stream code. table: rows of [symbol, code, bits] including symbol 256 — "
-          + "required");
+          + "required", "codes");
         t.Add("unpackBits", ValueKinds.Bytes, ValueKinds.Bytes, "packBits",
             (v, a) => ProtoValue.Of(PrefixCode.Unpack(
                 v.AsBytes(), Required(a, 0, "unpackBits", "the code table"))),
             "a variable-length prefix code back to octets. Padding wider than an octet needs, padding that "
           + "is not the end-of-stream prefix, and the end-of-stream symbol inside the value are all errors: "
-          + "each would be a second encoding of the same value");
+          + "each would be a second encoding of the same value", "codes");
 
         t.Add("chunk", ValueKinds.Bytes, ValueKinds.List, null,
             (v, a) =>
@@ -422,7 +424,7 @@ public sealed class ConverterTable
                     parts.Add(ProtoValue.Of(b[i..Math.Min(i + n, b.Length)]));
                 return new ProtoValue.List(parts);
             },
-            "split octets into runs — RFC 3396 splits a long DHCP option across repeats of its code");
+            "split octets into runs — RFC 3396 splits a long DHCP option across repeats of its code", "size");
 
         // ── digest ───────────────────────────────────────────────────────────
         t.Add("md5", ValueKinds.Bytes, ValueKinds.Bytes, null,
@@ -432,7 +434,7 @@ public sealed class ConverterTable
         t.Add("sha256", ValueKinds.Bytes, ValueKinds.Bytes, null,
             (v, _) => ProtoValue.Of(SHA256.HashData(v.AsBytes())), "SHA-256");
         t.Add("hmacSha256", ValueKinds.Bytes, ValueKinds.Bytes, null,
-            (v, a) => ProtoValue.Of(HMACSHA256.HashData(a[0].AsBytes(), v.AsBytes())), "keyed HMAC-SHA-256");
+            (v, a) => ProtoValue.Of(HMACSHA256.HashData(a[0].AsBytes(), v.AsBytes())), "keyed HMAC-SHA-256", "key");
         // The polynomial is a PARAMETER, not a name. A `crc16modbus` converter would be one protocol's
         // mechanism baked into the engine; `crc16(0xa001)` is the notion, and the document supplies which
         // polynomial it needs.
@@ -441,7 +443,7 @@ public sealed class ConverterTable
         // from a protocol-named converter was supposed to fix.
         t.Add("crc16", ValueKinds.Bytes, ValueKinds.Int, null,
             (v, a) => ProtoValue.Of(Crc16(v.AsBytes(), (ushort)Required(a, 0, "crc16", "polynomial").AsInt())),
-            "reflected CRC-16 with a caller-supplied polynomial — required");
+            "reflected CRC-16 with a caller-supplied polynomial — required", "polynomial");
         t.Add("crc32", ValueKinds.Bytes, ValueKinds.Int, null,
             (v, _) => ProtoValue.Of(Crc32(v.AsBytes())), "CRC-32 (IEEE)");
         // Several runs, or one. The sum of a pseudo-header, a header and a payload is the sum of their
@@ -463,13 +465,13 @@ public sealed class ConverterTable
             (v, _) => ProtoValue.Of(v.AsText().Trim()), "strip surrounding whitespace");
         t.Add("split", ValueKinds.Text, ValueKinds.List, "join",
             (v, a) => new ProtoValue.List(v.AsText().Split(a[0].AsText()).Select(ProtoValue.Of).ToList()),
-            "split text");
+            "split text", "separator");
         t.Add("join", ValueKinds.List, ValueKinds.Text, "split",
-            (v, a) => ProtoValue.Of(string.Join(a[0].AsText(), v.AsList().Select(x => x.AsText()))), "join text");
+            (v, a) => ProtoValue.Of(string.Join(a[0].AsText(), v.AsList().Select(x => x.AsText()))), "join text", "separator");
         t.Add("startsWith", ValueKinds.Text, ValueKinds.Bool, null,
-            (v, a) => ProtoValue.Of(v.AsText().StartsWith(a[0].AsText(), StringComparison.Ordinal)), "prefix test");
+            (v, a) => ProtoValue.Of(v.AsText().StartsWith(a[0].AsText(), StringComparison.Ordinal)), "prefix test", "prefix");
         t.Add("contains", ValueKinds.Text, ValueKinds.Bool, null,
-            (v, a) => ProtoValue.Of(v.AsText().Contains(a[0].AsText(), StringComparison.Ordinal)), "substring test");
+            (v, a) => ProtoValue.Of(v.AsText().Contains(a[0].AsText(), StringComparison.Ordinal)), "substring test", "needle");
         t.Add("suffixes", ValueKinds.Text, ValueKinds.List, null,
             (v, a) =>
             {
@@ -479,7 +481,7 @@ public sealed class ConverterTable
                 for (int i = 0; i < parts.Length; i++) outp.Add(ProtoValue.Of(string.Join(sep, parts.Skip(i))));
                 return new ProtoValue.List(outp);
             },
-            "'a.b.c' to ['a.b.c','b.c','c'] — drives DNS name-compression suffix sharing");
+            "'a.b.c' to ['a.b.c','b.c','c'] — drives DNS name-compression suffix sharing", "separator");
 
         // ── list ─────────────────────────────────────────────────────────────
         // The bridge between the list world (where bounded iteration lives) and the octet world. Without
@@ -515,14 +517,14 @@ public sealed class ConverterTable
                 if (i < 0) i += items.Count;
                 return i >= 0 && i < items.Count ? items[(int)i] : ProtoValue.Nothing;
             },
-            "item at an index, or null");
+            "item at an index, or null", "at");
         t.Add("sortBy", ValueKinds.List, ValueKinds.List, null,
             (v, a) => new ProtoValue.List(v.AsList()
                 .OrderBy(x => x is ProtoValue.Rec r && r.Members.TryGetValue(a[0].AsText(), out var m)
                               ? m.AsNumber() : 0)
                 .ToList()),
             "order a list by a member BEFORE encoding — stops an out-of-order CoAP option list wrapping "
-          + "to a negative delta");
+          + "to a negative delta", "field");
         // `equivalence` defaults to 'exact' because exact IS the identity comparison; case-folding must be
         // asked for. Hard-wiring case-insensitivity here was a violation no name scan could ever see: it
         // installed one protocol family's equivalence rule in the engine's comparison operator, and it is
@@ -537,7 +539,7 @@ public sealed class ConverterTable
             (v, a) => a[0] is ProtoValue.Rec table && table.Members.TryGetValue(v.AsText(), out var hit)
                       ? hit : ProtoValue.Nothing,
             "table lookup against a consts record — a cipher-suite or reason-code classification is data, "
-          + "not three engine predicates");
+          + "not three engine predicates", "table");
         t.Add("mergeBy", ValueKinds.List, ValueKinds.List, null,
             (v, a) =>
             {
@@ -565,7 +567,7 @@ public sealed class ConverterTable
                 return new ProtoValue.List(merged);
             },
             "concatenate repeats of the same key — RFC 3396 requires a long DHCP option split across "
-          + "repeated codes be rejoined on receipt");
+          + "repeated codes be rejoined on receipt", "key", "value");
 
         // ── time ─────────────────────────────────────────────────────────────
         // An epoch-based fixed-point instant. The epoch and the fraction width are PARAMETERS — naming a
@@ -574,13 +576,13 @@ public sealed class ConverterTable
         t.Add("epochFixed", ValueKinds.Instant, ValueKinds.Int, "unepochFixed",
             (v, a) => ProtoValue.Of(ToEpochFixed(((ProtoValue.Instant)v).Value,
                                                  Epoch(a, 0), a.Count > 1 ? (int)a[1].AsInt() : 32)),
-            "instant to a fixed-point count since an epoch, e.g. epochFixed('1900-01-01', 32)");
+            "instant to a fixed-point count since an epoch, e.g. epochFixed('1900-01-01', 32)", "epoch", "fraction");
         t.Add("unepochFixed", ValueKinds.Int, ValueKinds.Instant, "epochFixed",
             (v, a) => new ProtoValue.Instant(FromEpochFixed(v.AsInt(), Epoch(a, 0),
                                                             a.Count > 1 ? (int)a[1].AsInt() : 32,
                                                             a.Count > 2 ? (int)a[2].AsInt() : 0)),
             "fixed-point count since an epoch to an instant; the wrap count is an explicit argument, "
-          + "which is what keeps this pure rather than reading a clock");
+          + "which is what keeps this pure rather than reading a clock", "epoch", "fraction", "wraps");
         t.Add("epochSeconds", ValueKinds.Instant, ValueKinds.Int, "unepochSeconds",
             (v, _) => ProtoValue.Of(((ProtoValue.Instant)v).Value.ToUnixTimeSeconds()), "instant to Unix seconds");
         t.Add("unepochSeconds", ValueKinds.Int, ValueKinds.Instant, "epochSeconds",

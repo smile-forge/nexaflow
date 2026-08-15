@@ -99,7 +99,8 @@
       "id": "evaluated.length",
       "kind": "evaluated",
       "label": "octets after the length field",
-      "runs": "sets.counted.extent"
+      "runs": "sets.counted.extent",
+      "gives": "Int"
     },
     {
       "id": "pdu",
@@ -187,7 +188,8 @@
       "id": "evaluated.registers",
       "kind": "evaluated",
       "label": "octets of register data",
-      "runs": "fields.byteCount.value"
+      "runs": "fields.byteCount.value",
+      "gives": "Int"
     },
     {
       "id": "pdu.fault",
@@ -210,7 +212,8 @@
       "id": "state.direction",
       "kind": "state",
       "as": "Direction",
-      "purpose": "0 when reading or writing a request, 1 for a response. Nothing in the octets says which."
+      "purpose": "0 when reading or writing a request, 1 for a response. Nothing in the octets says which.",
+      "gives": "Int"
     },
     {
       "id": "evaluated.which",
@@ -220,79 +223,92 @@
       "about": [
         "Two facts decide it and only one is in the message. Direction is not on the wire at all — a request",
         "and its response carry the same function code — and the exception flag is the top bit of that code."
-      ]
+      ],
+      "gives": "Int"
     },
     {
       "id": "evaluated.isrequest",
       "kind": "evaluated",
       "label": "is this the request body?",
-      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 0"
+      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 0",
+      "gives": "Bool"
     },
     {
       "id": "evaluated.isreply",
       "kind": "evaluated",
       "label": "is this the reply body?",
-      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 1"
+      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 1",
+      "gives": "Bool"
     },
     {
       "id": "evaluated.isfault",
       "kind": "evaluated",
       "label": "is this the fault body?",
-      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 2"
+      "runs": "(state.direction == 0 ? 0 : (fields.functionCode.value >= 128 ? 2 : 1)) == 2",
+      "gives": "Bool"
     },
     {
       "id": "input.transactionId",
       "kind": "input",
       "as": "Transaction Identifier",
-      "purpose": "The value of Transaction Identifier."
+      "purpose": "The value of Transaction Identifier.",
+      "gives": "Int"
     },
     {
       "id": "input.protocolId",
       "kind": "input",
       "as": "Protocol Identifier",
-      "purpose": "The value of Protocol Identifier."
+      "purpose": "The value of Protocol Identifier.",
+      "gives": "Int"
     },
     {
       "id": "input.unitId",
       "kind": "input",
       "as": "Unit Identifier",
-      "purpose": "The value of Unit Identifier."
+      "purpose": "The value of Unit Identifier.",
+      "gives": "Int"
     },
     {
       "id": "input.functionCode",
       "kind": "input",
       "as": "Function Code",
-      "purpose": "The value of Function Code."
+      "purpose": "The value of Function Code.",
+      "gives": "Int"
     },
     {
       "id": "input.startingAddress",
       "kind": "input",
       "as": "Starting Address",
-      "purpose": "The value of Starting Address."
+      "purpose": "The value of Starting Address.",
+      "gives": "Int"
     },
     {
       "id": "input.quantityOfRegisters",
       "kind": "input",
       "as": "Quantity of Registers",
-      "purpose": "The value of Quantity of Registers."
+      "purpose": "The value of Quantity of Registers.",
+      "gives": "Int"
     },
     {
       "id": "input.byteCount",
       "kind": "input",
       "as": "Byte Count",
-      "purpose": "The value of Byte Count."
+      "purpose": "The value of Byte Count.",
+      "gives": "Int"
     },
     {
       "id": "input.registers",
       "kind": "input",
       "as": "Register values",
-      "purpose": "The value of Register values."
+      "purpose": "The value of Register values.",
+      "gives": "Bytes"
     },
     {
       "id": "input.exceptionCode",
       "kind": "input",
       "as": "Exception Code",
-      "purpose": "The value of Exception Code."
+      "purpose": "The value of Exception Code.",
+      "gives": "Int"
     },
     {
       "id": "validator.protocolId",

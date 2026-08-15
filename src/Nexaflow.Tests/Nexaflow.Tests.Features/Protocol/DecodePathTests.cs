@@ -36,8 +36,8 @@ public class DecodePathTests
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
             { "id": "tail", "kind": "field", "as": "Tail",
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
-            { "id": "input.lead", "kind": "input", "as": "Lead" },
-            { "id": "input.tail", "kind": "input", "as": "Tail" },
+            { "id": "input.lead", "kind": "input", "as": "Lead", "gives": "Int" },
+            { "id": "input.tail", "kind": "input", "as": "Tail", "gives": "Int" },
             { "id": "done", "kind": "end-parse" }
           ],
           "edges": [
@@ -55,6 +55,11 @@ public class DecodePathTests
     private static long Said(RunGraph run, string field)
         => run.Nodes.Single(n => n.Of is Field f && f.Id == field).Value.AsInt();
 
+    /// <summary>Where the written path ends, for a message that declares no reading of its own.</summary>
+    private const string Ends = """
+        { "kind": "then", "from": "tail", "to": "done" },
+        """;
+
     /// <summary>A reading that goes the same way the writing does, said explicitly.</summary>
     private const string Straight = """
         { "kind": "decode", "from": "m", "to": "lead" },
@@ -67,7 +72,9 @@ public class DecodePathTests
     {
         // The default, and the case worth protecting: no decode edges, so Then serves both directions and
         // there is exactly one description of the path.
-        var run = new GraphCodec(Definition("").Graph).Decode([0x01, 0x02]);
+        // The end is still declared and still on the path — what this case lacks is a READING of its own,
+        // which is the decode edges. Everything a protocol declares has to be joined to it by something.
+        var run = new GraphCodec(Definition(Ends).Graph).Decode([0x01, 0x02]);
 
         Assert.AreEqual(1, Said(run, "lead"));
         Assert.AreEqual(2, Said(run, "tail"), "it carried on down the written path");
@@ -108,9 +115,41 @@ public class DecodePathTests
         // Everything read is well formed and every octet is accounted for — the message is the right
         // length and its fields hold plausible values. What is wrong is only that the description never
         // said this was an ending, which is precisely what a truncated message looks like from inside.
-        var refused = Assert.ThrowsExactly<ProtoTypeException>(() => new GraphCodec(Definition("""
-            { "kind": "decode", "from": "m", "to": "lead" },
-            { "kind": "decode", "from": "lead", "to": "tail" },
+        // Its own description, because the end has to be somewhere the reading COULD have gone — a node
+        // nothing reaches at all is a different fault, and the load refuses that one before this can
+        // happen. So a lead of 0xff would have ended legally, and 0x01 walks on to a place that is simply
+        // where the description ran out.
+        var refused = Assert.ThrowsExactly<ProtoTypeException>(() => new GraphCodec(ProtocolFile.Read("""
+            {
+              "protocol": "twin",
+              "nodes": [
+                { "id": "p", "kind": "protocol" },
+                { "id": "m", "kind": "message" },
+                { "id": "arrangement", "kind": "packing" },
+                { "id": "lead", "kind": "field", "as": "Lead",
+                  "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
+                { "id": "tail", "kind": "field", "as": "Tail",
+                  "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
+                { "id": "input.lead", "kind": "input", "as": "Lead", "gives": "Int" },
+                { "id": "input.tail", "kind": "input", "as": "Tail", "gives": "Int" },
+                { "id": "reads", "kind": "evaluated", "label": "what did the lead say?",
+                  "runs": "fields.lead.value", "gives": "Int" },
+                { "id": "done", "kind": "end-parse" }
+              ],
+              "edges": [
+                { "kind": "then", "from": "p", "to": "m" },
+                { "kind": "then", "from": "m", "to": "arrangement" },
+                { "kind": "then", "from": "arrangement", "to": "lead" },
+                { "kind": "then", "from": "lead", "to": "tail" },
+                { "kind": "computes", "from": "lead", "to": "input.lead", "facet": "value" },
+                { "kind": "computes", "from": "tail", "to": "input.tail", "facet": "value" },
+                { "kind": "decode", "from": "m", "to": "lead" },
+                { "kind": "decode", "from": "lead", "to": "done", "key": { "int": 255 } },
+                { "kind": "decode", "from": "lead", "to": "tail", "otherwise": true },
+                { "kind": "decides", "from": "lead", "to": "reads", "reading": true },
+                { "kind": "requires", "from": "reads", "to": "lead", "facet": "value", "sequence": 0 }
+              ]
+            }
             """).Graph).Decode([0x01, 0x02]));
 
         StringAssert.Contains(refused.Message, "not somewhere it is allowed to stop");
@@ -157,8 +196,8 @@ public class DecodePathTests
             { "id": "arrangement", "kind": "packing" },
             { "id": "item", "kind": "field", "as": "Item",
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
-            { "id": "input.item", "kind": "input", "as": "Item" },
-            { "id": "reads", "kind": "evaluated", "label": "what did it say?", "runs": "fields.item.value" },
+            { "id": "input.item", "kind": "input", "as": "Item", "gives": "Int" },
+            { "id": "reads", "kind": "evaluated", "label": "what did it say?", "runs": "fields.item.value", "gives": "Int" },
             { "id": "done", "kind": "end-parse" }
           ],
           "edges": [
@@ -187,10 +226,10 @@ public class DecodePathTests
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
             { "id": "tail", "kind": "field", "as": "Tail",
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
-            { "id": "input.lead", "kind": "input", "as": "Lead" },
-            { "id": "input.tail", "kind": "input", "as": "Tail" },
+            { "id": "input.lead", "kind": "input", "as": "Lead", "gives": "Int" },
+            { "id": "input.tail", "kind": "input", "as": "Tail", "gives": "Int" },
             { "id": "reads", "kind": "evaluated", "label": "what did the lead say?",
-              "runs": "fields.lead.value" },
+              "runs": "fields.lead.value", "gives": "Int" },
             { "id": "done", "kind": "end-parse" }
           ],
           "edges": [

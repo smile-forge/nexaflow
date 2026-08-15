@@ -38,9 +38,9 @@ public class RepetitionTests
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
             { "id": "size", "kind": "field", "as": "Size",
               "form": { "of": "scalar", "octets": 1, "big": true, "signed": false } },
-            { "id": "input.entries", "kind": "input", "as": "Entries" },
-            { "id": "eachTag",  "kind": "evaluated", "label": "this entry's tag",  "runs": "item.tag" },
-            { "id": "eachSize", "kind": "evaluated", "label": "this entry's size", "runs": "item.size" }
+            { "id": "input.entries", "kind": "input", "as": "Entries", "gives": "List" },
+            { "id": "eachTag",  "kind": "evaluated", "label": "this entry's tag",  "runs": "item.tag", "gives": "Int" },
+            { "id": "eachSize", "kind": "evaluated", "label": "this entry's size", "runs": "item.size", "gives": "Int" }
           ],
           "edges": [
             { "kind": "then", "from": "p", "to": "m" },

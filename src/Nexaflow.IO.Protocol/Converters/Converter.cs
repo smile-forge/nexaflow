@@ -91,6 +91,25 @@ public sealed record Converter(
                    $"converter '{name}' is part of the closed set but is not implemented in this build"),
                summary);
 
+    /// <summary>
+    /// What this takes besides the value it converts, in order, by name.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The names are how a graph says which edge feeds which argument — <c>repeat</c> takes a
+    /// <c>count</c>, <c>fit</c> a <c>width</c> and a <c>fill</c>. A description names one on the edge and
+    /// the value it carries lands at that position, so an argument may be a constant, a field read a
+    /// moment ago, or the answer to another calculation. It used to be a literal written beside the
+    /// converter's name, which made a computed argument inexpressible and put a second channel beside the
+    /// edges for something the edges already do.
+    /// </para>
+    /// <para>
+    /// Empty means the converter takes the value and nothing else, and an edge naming a parameter of one
+    /// is refused rather than ignored.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> Parameters { get; init; } = [];
+
     public bool IsImplemented => !ReferenceEquals(Apply, null) && Summary.Length > 0;
 
     /// <summary>

@@ -128,6 +128,7 @@ public sealed class Subprotocol : Node
 public sealed class Implementations
 {
     private readonly Dictionary<string, ISubprotocol> _byName = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ICalculation> _code = new(StringComparer.Ordinal);
 
     public static Implementations None { get; } = new();
 
@@ -143,4 +144,44 @@ public sealed class Implementations
             : throw new ProtoTypeException(
                   $"'{wanted}' carries '{name}', which this host does not provide. Offered: "
                 + (_byName.Count == 0 ? "nothing" : string.Join(", ", _byName.Keys.Order())));
+
+    public Implementations Offer(ICalculation calculation)
+    {
+        _code[calculation.Name] = calculation;
+        return this;
+    }
+
+    public ICalculation Code(string name, string wanted)
+        => _code.TryGetValue(name, out var found)
+            ? found
+            : throw new ProtoTypeException(
+                  $"'{wanted}' names the implementation '{name}', which this host does not provide. Code a "
+                + "description names has to be supplied rather than looked up by name in whatever happens "
+                + "to be loaded. Offered: "
+                + (_code.Count == 0 ? "nothing" : string.Join(", ", _code.Keys.Order())));
+}
+
+/// <summary>
+/// Code behind a name, for the calculations neither a converter nor an expression can state.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The same bargain a subprotocol implementation makes: the host offers it, a description may name it, and
+/// what it is handed comes from the naming node's own edges. It cannot reach into the message, ask where
+/// it is, or read anything nobody gave it — so what it can do is bounded by the graph rather than by
+/// whoever wrote the code.
+/// </para>
+/// <para>
+/// A description naming one that was not offered is refused. Looking the name up in whatever is loaded
+/// would make "a protocol file may run any code it can name" true, and that is not something review
+/// catches.
+/// </para>
+/// </remarks>
+public interface ICalculation
+{
+    /// <summary>The name a description reaches it by.</summary>
+    string Name { get; }
+
+    /// <summary>What it makes of what its edges gave it.</summary>
+    Values.ProtoValue Work(Values.ProtoValue given);
 }

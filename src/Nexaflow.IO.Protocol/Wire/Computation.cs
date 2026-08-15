@@ -59,6 +59,25 @@ public abstract class Computation : Node
     /// <summary>What it needs, in the order the call wants them.</summary>
     public required IReadOnlyList<Need> Wants { get; init; }
 
+    /// <summary>
+    /// The kind of value it answers with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Declared, because a value travelling an edge is a <see cref="Values.ProtoValue"/> and the two ends
+    /// of that edge have to agree about which kind. Some calculations give an integer, some a real, some
+    /// raw octets, and nothing could tell them apart from the outside: a converter states both sides in
+    /// the table, and until this existed the other kinds stated neither, so a mismatch was a run-time
+    /// throw from inside somebody's converter body rather than something wrong with the graph.
+    /// </para>
+    /// <para>
+    /// A constant knows its own from what it holds; the rest say so.
+    /// <see cref="Converters.ValueKinds.Any"/> means nothing was said, which the load-time check treats as
+    /// a fault rather than as permission.
+    /// </para>
+    /// </remarks>
+    public Converters.ValueKinds Gives { get; init; } = Converters.ValueKinds.Any;
+
     /// <summary>Where it sits, for diagnostics — the owning node and what this computes for it.</summary>
     public required string Label { get; init; }
 
@@ -182,6 +201,23 @@ public sealed record Computes : Edge
 public sealed record Requires : Edge
 {
     public required int Sequence { get; init; }
+
+    /// <summary>
+    /// Which of the computation's parameters this feeds, or null to be one of the values it works on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The distinction a converter needs and nothing else has: <c>repeat</c> takes octets and a
+    /// <c>count</c>, and the two are not interchangeable. Naming it means an argument is an ordinary edge
+    /// — so a count may be a constant, a field, or the answer to another calculation, none of which a
+    /// literal beside the converter's name could be.
+    /// </para>
+    /// <para>
+    /// It also lets one call mix the two: the unnamed edges gather into the value, in
+    /// <see cref="Sequence"/> order, while a named one holds a parameter fixed.
+    /// </para>
+    /// </remarks>
+    public string? Parameter { get; init; }
 
     /// <summary>Which fact about the target is wanted. A computation has only its value; a field has
     /// several, and a length that means <c>extent</c> is a different edge from one that means

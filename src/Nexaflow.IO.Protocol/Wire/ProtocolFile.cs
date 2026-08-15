@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Nexaflow.IO.Protocol.Converters;
 using Nexaflow.IO.Protocol.Expressions;
 using Nexaflow.IO.Protocol.Values;
 
@@ -90,6 +91,8 @@ public static class ProtocolFile
                 $"nothing leads to the message '{stranded.Name}'. A message hangs off the protocol by the "
               + "same edge a packing hangs off a message, so one nothing reaches can never be walked.");
 
+        Consistency.Check(graph, named, ConverterTable.Default);
+
         return new Loaded(graph, graph.Id, messages, named);
     }
 
@@ -125,6 +128,10 @@ public static class ProtocolFile
             Form = Form(at["form"]?.AsObject()
                 ?? throw new ProtoTypeException($"field '{id}' says nothing about how it becomes octets")),
             As = Text(at["as"]),
+
+            // Applied on the way out and inverted on the way in. Parameterless, because a field has
+            // nowhere for an argument to come from — see the check when the protocol loads.
+            Via = Text(at["via"]),
         },
 
         "input" => Outside(at, id, "input"),
@@ -136,20 +143,35 @@ public static class ProtocolFile
             Label = Text(at["label"]) ?? id,
             Wants = [],
             Source = Expr.Parse("0"),
+
+            // A constant is the one computation that need not be told: what it holds says which kind it is.
+            Gives = Kind(Value(at["holds"]!)),
         },
 
         "evaluated" => Evaluating(
             Expr.Parse(Text(at["runs"]) ?? throw new ProtoTypeException($"'{id}' evaluates nothing")),
-            Text(at["label"]) ?? id),
+            Text(at["label"]) ?? id,
+            Gives(at, id)),
 
         "converted" => new Converted
         {
+            // A name and nothing else. Arguments are edges naming the parameter they feed, so that one may
+            // be a constant, a field read a moment ago, or the answer to another calculation.
             Applies = new Conversion(
-                Text(at["applies"]) ?? throw new ProtoTypeException($"'{id}' applies nothing"),
-                [.. (at["args"]?.AsArray() ?? []).Where(a => a is not null).Select(a => Value(a!))]),
+                Text(at["applies"]) ?? throw new ProtoTypeException($"'{id}' applies nothing")),
             Label = Text(at["label"]) ?? id,
             Wants = [],
             Source = Expr.Parse("0"),
+        },
+
+        "coded" => new Coded
+        {
+            Implementation = Text(at["runs"])
+                ?? throw new ProtoTypeException($"'{id}' names no implementation to run"),
+            Label = Text(at["label"]) ?? id,
+            Wants = [],
+            Source = Expr.Parse("0"),
+            Gives = Gives(at, id),
         },
 
         "default" => new Default
@@ -196,15 +218,51 @@ public static class ProtocolFile
     {
         string purpose = Text(at["purpose"]) ?? "";
         string? called = Text(at["as"]);
+        var gives = Gives(at, id);
 
         return kind == "state"
-            ? new Context.State { Label = id, As = called, Purpose = purpose, Wants = [] }
-            : new Context.Input { Label = id, As = called, Purpose = purpose, Wants = [] };
+            ? new Context.State { Label = id, As = called, Purpose = purpose, Wants = [], Gives = gives }
+            : new Context.Input { Label = id, As = called, Purpose = purpose, Wants = [], Gives = gives };
     }
 
     /// <summary>An <see cref="Evaluated"/> whose wants are recovered from the expression it runs.</summary>
-    private static Evaluated Evaluating(Expr runs, string label)
-        => new() { Runs = runs, Label = label, Wants = [], Source = runs };
+    private static Evaluated Evaluating(Expr runs, string label, ValueKinds gives)
+        => new() { Runs = runs, Label = label, Wants = [], Source = runs, Gives = gives };
+
+    /// <summary>
+    /// The kind of value a computation answers with, which it has to say.
+    /// </summary>
+    /// <remarks>
+    /// Required rather than defaulted, because a default is what makes a check into a suggestion: an
+    /// unstated kind matches everything, so every edge into an unstated node passes and the rule holds
+    /// only where somebody happened to bother. Names are the <see cref="ValueKinds"/> ones — Bytes, Int,
+    /// Number, Bool, Text, Instant, Duration, List, Record.
+    /// </remarks>
+    private static ValueKinds Gives(JsonObject at, string id)
+        => Text(at["gives"]) is { } said
+            ? Enum.TryParse<ValueKinds>(said, ignoreCase: true, out var kind) && kind != ValueKinds.None
+                ? kind
+                : throw new ProtoTypeException(
+                      $"'{id}' says it gives '{said}', which is not a kind of value. They are: "
+                    + string.Join(", ", Enum.GetNames<ValueKinds>()
+                                            .Where(n => n is not ("None" or "Any" or "Numeric"))))
+            : throw new ProtoTypeException(
+                  $"'{id}' does not say what kind of value it gives. Both ends of an edge have to agree "
+                + "about that, and a kind nobody stated agrees with everything — which is a check that "
+                + "runs only where somebody remembered.");
+
+    /// <summary>Which kind a stated value is, so a constant never has to be told.</summary>
+    private static ValueKinds Kind(ProtoValue value) => value switch
+    {
+        ProtoValue.Bytes => ValueKinds.Bytes,
+        ProtoValue.Int => ValueKinds.Int,
+        ProtoValue.Num => ValueKinds.Number,
+        ProtoValue.Bool => ValueKinds.Bool,
+        ProtoValue.Text or ProtoValue.Caseless => ValueKinds.Text,
+        ProtoValue.List => ValueKinds.List,
+        ProtoValue.Rec => ValueKinds.Record,
+        _ => ValueKinds.Null,
+    };
 
     // ── How a value becomes octets ────────────────────────────────────────────
 
@@ -265,6 +323,10 @@ public static class ProtocolFile
             From = from, To = to,
             Sequence = Int(at["sequence"], "sequence"),
             Facet = Text(at["facet"]) ?? "value",
+
+            // Which parameter of the computation this feeds, where it feeds one rather than being part of
+            // the value. The reason an argument can be computed at all.
+            Parameter = Text(at["parameter"]),
         },
 
         "computes" => new Computes

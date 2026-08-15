@@ -2,18 +2,23 @@ using Nexaflow.IO.Protocol.Values;
 
 namespace Nexaflow.IO.Protocol.Wire;
 
-/// <summary>A converter applied on the way out and inverted on the way in — a scale, a text codec.</summary>
-public sealed record Conversion(string Name, IReadOnlyList<ProtoValue> Args)
+/// <summary>
+/// A converter applied on the way out and inverted on the way in — a scale, a text codec.
+/// </summary>
+/// <remarks>
+/// <b>A name and nothing else.</b> Arguments used to sit here as literals, which was a second channel
+/// beside the <see cref="Requires"/> edges for something the edges already do — and a poorer one, because
+/// a literal cannot be a field read a moment ago or the answer to another calculation. An argument is an
+/// edge naming the parameter it feeds.
+/// </remarks>
+public sealed record Conversion(string Name)
 {
-    /// <summary>So the common no-argument case still reads as <c>Via = "unascii"</c>. Null in, null out:
-    /// a computed converter name that comes to nothing means <i>no conversion</i>, not a conversion with
-    /// no name.</summary>
-    public static implicit operator Conversion?(string? name) => name is null ? null : new(name, []);
+    /// <summary>So the common case still reads as <c>Via = "unascii"</c>. Null in, null out: a computed
+    /// converter name that comes to nothing means <i>no conversion</i>, not a conversion with no
+    /// name.</summary>
+    public static implicit operator Conversion?(string? name) => name is null ? null : new(name);
 
-    public static Conversion Of(string name, params long[] args)
-        => new(name, [.. args.Select(a => ProtoValue.Of(a))]);
-
-    public override string ToString() => Args.Count == 0 ? Name : $"{Name}({string.Join(", ", Args)})";
+    public override string ToString() => Name;
 }
 
 /// <summary>
