@@ -425,6 +425,24 @@ public sealed class ProtocolGraph
             ? []
             : [.. InputsOf(applied).Select(e => e.To).OfType<Constant>().Select(c => c.Holds)];
 
+    /// <summary>
+    /// What a set repeats over, where it repeats at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A requirement rather than anything structural, and deliberately: the description says this set is
+    /// written once per item of that list, and says nothing about how many items there are. That number
+    /// belongs to a message, not to a protocol — and it may itself be computed, or read off a field, or
+    /// handed in, none of which a count sitting in the graph could be.
+    /// </para>
+    /// <para>
+    /// So the unrolling happens in the run, when the requirement is resolved and the list turns out to have
+    /// a length. Which is what this design has claimed since before anything could do it.
+    /// </para>
+    /// </remarks>
+    public Requires? Repeating(Node set)
+        => From<Requires>(set).FirstOrDefault(e => e.Facet == "each");
+
     /// <summary>What a part is taken to have said when it is not there.</summary>
     public Default? Assumed(Node place)
         => From<Assumes>(place).Select(e => e.To).OfType<Default>().FirstOrDefault();

@@ -76,10 +76,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
         var wire = new BitWriter();
 
-        foreach (var place in laying.Order)
+        foreach (var appearance in laying.Order)
         {
-            var appearance = run.For(place);
-
             // A part that is not there writes nothing, which is the whole of what absence does on the way
             // out. The walk still reached it — being reached and being present are different facts.
             if (appearance.Has(Facet.Present) && appearance.Settled(Facet.Present) is false) continue;
@@ -88,8 +86,8 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
             // A carrier's value is already the octets the inner message came to, so laying it down is
             // putting them there. That is the whole of what a layer costs the outer walk.
-            if (place is Subprotocol) wire.Put(appearance.Value.AsBytes());
-            else Write(wire, (Field)place, appearance.Value);
+            if (appearance.Of is Subprotocol) wire.Put(appearance.Value.AsBytes());
+            else Write(wire, (Field)appearance.Of, appearance.Value);
 
             appearance.Settle(Facet.Position, began / 8);
             appearance.Settle(Facet.Emitted, ProtoValue.Of(wire.Since(began)));
@@ -124,8 +122,15 @@ public sealed class GraphCodec(ProtocolGraph graph,
         /// second flag that could disagree with whether there is anything to read from.</summary>
         private bool Reading => source is not null;
 
-        /// <summary>The places that make octets, in the order the path reached them.</summary>
-        public List<Node> Order { get; } = [];
+        /// <summary>
+        /// The appearances that make octets, in the order the path reached them.
+        /// </summary>
+        /// <remarks>
+        /// Appearances rather than places, because a place that repeats is several of them and each holds
+        /// its own value. Recording the node instead writes the first pass over and over — and settles the
+        /// same position twice, which at least refuses rather than emitting it.
+        /// </remarks>
+        public List<RunNode> Order { get; } = [];
 
         /// <summary>The last place the walk got to, which is where it stopped.</summary>
         public Node? Stopped { get; private set; }
@@ -237,7 +242,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
 
                             if (carries && here)
                             {
-                                Order.Add(place);
+                                Order.Add(appearance);
 
                                 if (source is not null) codec.Intake(run, appearance, place, source);
                             }
@@ -326,6 +331,30 @@ public sealed class GraphCodec(ProtocolGraph graph,
             };
         }
 
+        /// <summary>
+        /// The set to go round again, where leaving this place means one item of it has been written.
+        /// </summary>
+        /// <remarks>
+        /// Asked of the place the walk is leaving rather than of the set, because that is where the
+        /// question arises: a set is entered once per item and the only moment anyone can tell whether
+        /// another is due is on the way out of the last thing in it.
+        /// </remarks>
+        private Node? Again(Node place)
+        {
+            foreach (var set in codec.Graph.Nodes.OfType<FieldSet>())
+            {
+                if (codec.Graph.Repeating(set) is null) continue;
+                if (!ReferenceEquals(codec.Last(set), place)) continue;
+
+                int done = _times.GetValueOrDefault(set, 0);
+
+                if (done < codec.Items(run, run.For(set, null, Math.Max(0, done - 1)), set).Count)
+                    return set;
+            }
+
+            return null;
+        }
+
         /// <summary>Whether the path may arrive here and find nothing — by either packing edge.</summary>
         private bool Optional(Node place) => codec.Graph.MayBeAbsent(place);
 
@@ -376,6 +405,12 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // known before the next place is: an optional header is one step, however many fields deep.
             if (!here && place is FieldSet set && codec.Graph.Members(set).LastOrDefault() is { } last)
                 return codec.Onward(run, last, Reading, _times.GetValueOrDefault(last, 1) - 1, source);
+
+            // Leaving the last thing under a set that repeats, with items still to go, goes back to the
+            // set. The reading has no need of this — it goes round on its own edge and finds out how many
+            // there were — so this is the writing's answer to the same question, taken from the length of
+            // the list rather than from anything on the wire.
+            if (!Reading && here && Again(place) is { } again) return again;
 
             return codec.Onward(run, place, Reading, Math.Max(0, _times.GetValueOrDefault(place, 1) - 1), source);
         }
@@ -606,8 +641,47 @@ public sealed class GraphCodec(ProtocolGraph graph,
         => run.For(place) is { } appearance
         && appearance.Has(Facet.Present) && appearance.Settled(Facet.Present) is false;
 
+    /// <summary>
+    /// What this time round is about: the item of the enclosing repeating set that belongs to this pass.
+    /// </summary>
+    /// <remarks>
+    /// Found by asking which repeating set holds the node being computed, then taking the element at this
+    /// appearance's index. Nothing when there is no such set, which is the ordinary case and why every
+    /// description that does not repeat never mentions it.
+    /// </remarks>
+    private ProtoValue Item(RunGraph run, RunNode here)
+    {
+        foreach (var set in graph.Nodes.OfType<FieldSet>())
+        {
+            if (graph.Repeating(set) is null || !Under(set, here.Of)) continue;
+
+            var items = Items(run, run.For(set, null, here.Index), set);
+
+            return here.Index < items.Count ? items[here.Index] : ProtoValue.Nothing;
+        }
+
+        return ProtoValue.Nothing;
+    }
+
+    /// <summary>Whether a place is somewhere under a set, however deeply.</summary>
+    private bool Under(Node set, Node place)
+        => graph.Members(set).Any(m => ReferenceEquals(m, place) || (m is FieldSet inner && Under(inner, place)));
+
+    /// <summary>
+    /// The items a repeating set is written once for.
+    /// </summary>
+    /// <remarks>
+    /// Resolved here and now rather than looked up, because the thing producing the list may be an input,
+    /// a computation over one, or something derived from a field that was read a moment ago — and which of
+    /// those it is makes no difference to anybody except the node that produces it.
+    /// </remarks>
+    internal IReadOnlyList<ProtoValue> Items(RunGraph run, RunNode appearance, Node set)
+        => graph.Repeating(set)?.To is Computation over
+            ? Produced(run, appearance, over).AsList()
+            : [];
+
     /// <summary>The last place under a set that is not itself a set.</summary>
-    private Node? Last(Node set)
+    internal Node? Last(Node set)
         => graph.Members(set).LastOrDefault() switch
         {
             FieldSet inner => Last(inner),
@@ -1012,7 +1086,14 @@ public sealed class GraphCodec(ProtocolGraph graph,
             // `remaining`, and needed for the same kind of question asked from the other end: a run of
             // options ends where the header ends, and the header's end is an offset rather than an amount
             // left over — what follows the options is the payload, which has no length of its own.
-            .Set("position", ahead is null ? ProtoValue.Nothing : ProtoValue.Of(ahead.At / 8));
+            .Set("position", ahead is null ? ProtoValue.Nothing : ProtoValue.Of(ahead.At / 8))
+
+            // Which time round this is, and what this time round is about. A set written once per item of
+            // a list needs both: the ordinal to say where it has got to, and the item so that the fields
+            // inside can read what they hold by NAME rather than by digging the same index out of the same
+            // list in every one of them.
+            .Set("ordinal", ProtoValue.Of(here.Index))
+            .Set("item", Item(run, here));
     }
 
     /// <summary>A fact about an appearance, or nothing where it has not been worked out. Nothing is the
