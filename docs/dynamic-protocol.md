@@ -15,8 +15,8 @@ that is trusted becomes a button on a device's page. Smart plugs through to HVAC
 
 | | |
 |---|---|
-| **Round-trips against real captures** | TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J), SNMPv2c (RFC 3416 over X.690 BER), TLS 1.2 hellos (RFC 5246) |
-| **Authored but not yet built** | SSDP — and the mDNS *response*, which needs a name to be able to end in a compression pointer |
+| **Round-trips against real captures** | **all ten of the corpus** — TCP (RFC 9293), NTP (RFC 5905), Modbus TCP, MQTT 3.1.1, DHCP (RFC 2131/2132), CoAP (RFC 7252), mDNS query (RFC 6762), BACnet/IP (ASHRAE 135 Annex J), SNMPv2c (RFC 3416 over X.690 BER), TLS 1.2 hellos (RFC 5246), SSDP (UPnP 1.1) |
+| **Authored but not yet built** | the mDNS *response*, which needs a name to be able to end in a compression pointer |
 | **Engine** | `src/Nexaflow.IO.Protocol` — no protocol name appears in it |
 | **Definitions** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Definitions/*.json` |
 | **Captures** | `src/Nexaflow.Tests/Nexaflow.Tests.Features/Protocol/Corpus/*.json` — 30 packets, every octet accounted for by exactly one field |
@@ -242,6 +242,14 @@ walks to is laid out because something requires it.
 
 A set's octets are worked out **only when something requires them** — computing them regardless makes every
 container of an absent part unanswerable, for an answer nobody wanted.
+
+**A span may end at a separator instead**, and that needs no length and no field kind of its own: a field
+with no width whose single `then` leads to a node holding a **constant** runs up to where that constant
+starts. The separator stays the *next* node's value, so it is written back out by the thing that owns it
+and a description can name it, explain it and check it like anything else — nothing is copied into a
+declaration and nothing is consumed twice. SSDP is made entirely of this; it has no length field anywhere.
+Note the delimiter is found by scanning for the **first** occurrence, which is what makes a header name end
+at the first colon while its value holds three more.
 
 **A length may be as wide as the number it holds, and that is not a cycle.** SNMP's five nested BER lengths
 are one octet each in a 73-octet request and 3, 3, 3, 3 and 2 in a 337-octet response, and the extra octets
@@ -542,6 +550,7 @@ the node. `ConsistencyTests` pins them.
 | `BacnetCaptureTests` | three layers, a discriminator six octets in, and a value whose length is three bits of the octet before it |
 | `SnmpCaptureTests` | five nested lengths whose own widths depend on what they hold, and an OID as a run of base-128 arcs |
 | `TlsCaptureTests` | three nested lengths, one of them three octets wide; vectors spent rather than counted; two hellos forking on a field already read |
+| `SsdpCaptureTests` | a protocol with no lengths and no widths at all — every span ending where the next node's constant begins |
 | `DecodePathTests` | a reading that branches, loops, and stops where it may |
 | `RepetitionTests` | written once per item, including a run inside a run — an inner list computed rather than handed over, and a place inside one reading the round of the run outside it |
 | `AbsenceTests` | the four questions |

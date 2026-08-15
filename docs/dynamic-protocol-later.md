@@ -53,6 +53,14 @@ The corpus was assembled *before* the engine, from ten protocols chosen so each 
 different way. The first grammar failed all ten — 182 gaps, 52 blocking; it could not encode five and could
 not decode nine. Finding that on paper cost a day instead of a rewrite.
 
+**The graph now round-trips all ten**, against those same captures. The last four went in with two engine
+changes between them, both about nested repetition and both owed by earlier work rather than asked for by
+the protocol that exposed them (§5b). What that says about the corpus is worth keeping straight: its
+*verdicts* were about a grammar that no longer exists and are now mostly archaeology — the last three
+protocols listed twenty-eight gaps between them and the graph already answered all but two. Its **octets**
+are what it was for, and they are as good as they ever were: every one of them accounted for by exactly one
+field, by two independent methods, before anything existed to read them.
+
 | Protocol | What it defeats |
 |---|---|
 | **NTP** | nothing much — the smallest honest test. Fixed 48 octets, one octet split 2\|3\|3, a trailer present only when the association is authenticated |
@@ -62,7 +70,7 @@ not decode nine. Finding that on paper cost a day instead of a rewrite.
 | **MQTT** | *(built)* a varint length header; connect-flag bits that decide whether later fields exist at all — and, unforeseen when the corpus was written, the first protocol with several message formats, told apart by a nibble inside the message |
 | **DHCP** | *(built)* options including a bare Pad, which the first attempt could not represent — and so mis-read every option after one |
 | **SNMPv2c** | *(built)* nested BER lengths, whose OWN width depends on what they hold, so the extra octet one spends is counted by every length outside it. Also an OID: a run of base-128 arcs whose first two are merged into one number |
-| **SSDP** | delimiter-terminated text; no widths and no length prefixes anywhere |
+| **SSDP** | *(built)* delimiter-terminated text; no widths and no length prefixes anywhere, so nothing measures anything and there is almost nothing a description can refuse |
 | **TLS 1.2** | *(built)* three stacked length-prefixed layers, the middle one three octets wide; vectors — a length in octets and then items with no tag on them, all one width or not; and two hellos whose difference is a SHAPE, not a value. A hello with no extension block at all is not covered |
 | **BACnet/IP** | *(built)* three stacked sub-protocols; a discriminator six octets and a nibble in; a value's octet count packed into three bits of the tag before it. Its segmented answers stay opaque — a segment is cut mid-value, so the thing to parse is the concatenation, which is the client's across datagrams |
 
@@ -282,6 +290,39 @@ OCSP stapling by not mentioning it.** Three of the client's nine extensions come
 is not something a message format can state — it is a comparison between two messages, like the session id
 that would have meant resumption had it matched. That belongs to the state model, which is §1.
 
+## 5d. What SSDP found, 2026-08-15 — and a note this file had wrong
+
+**The note was wrong.** Every version of this file until now said SSDP was blocked because
+`WireForm.Opaque` lost its `Until` delimiter when `Pattern` was deleted. It did not. The capability was
+rebuilt four days before that deletion, in a better shape, and has been sitting in `GraphCodec` untouched
+and unexercised ever since: `Ends` + `Until`, reached from `Width`. **A note about a missing capability is
+worth as much as the last time somebody checked**, and nobody had.
+
+The shape is worth stating because it is not the one the corpus asked for. There is no delimiter parameter
+on a form. A field with no width, whose single `then` leads to a node whose value is a **constant**, runs
+up to where that constant starts. So:
+
+- the separator is the **next node's own value** — written back out by whoever owns it, nameable,
+  explainable, checkable, and never copied into a declaration as a byte run;
+- nothing is consumed twice, because the span stops *before* it;
+- the first occurrence wins, which is exactly why a header name ends at the first colon while
+  `LOCATION: http://192.168.1.42:49152/…` keeps two more.
+
+That is the whole of what SSDP needed. The corpus called five things blocking; four were the same
+already-answered ones as SNMP and TLS, and the fifth — `Int <-> decimal ASCII` — is not needed at all,
+because **MX's value is `" 3"` and stays `" 3"`.** Reading it as a number is a layer above, the same call
+as a BACnet Unsigned's octets and a TLS extension's body. The corpus's own capture is what settles it:
+`EXT:` has no space after the colon where every other header does, so any description that normalised
+whitespace could not write the datagram back. The value is the raw span, whitespace and all.
+
+**The finding is what a text protocol cannot be held to.** Every other description here states its scope in
+the octets — a reserved bit that must be zero, a length that must agree, a tag that must be one of twelve.
+SSDP has no width to disagree with, no length to contradict and no reserved anything. The only thing the
+octets can be held to is the start line, and only because M-SEARCH and HTTP/1.1 happen to be the same eight
+characters long, so the look-ahead is one span rather than a rule about how far to read. There is no
+`otherwise` on the fork, which is how NOTIFY — SSDP's unsolicited half — is refused. That is the entire
+checkable surface of the protocol.
+
 ## 5. Known gaps, as of 2026-08-15
 
 - **A fixed-width field holding a NUL-terminated name is one field, not two.** DHCP's `sname` and `file`
@@ -289,9 +330,6 @@ that would have meant resumption had it matched. That belongs to the state model
   said by the first NUL, and a span that ends at a value it has to find first is the capability `Pattern`
   took with it. `fit` covers the writing (and is a no-op when handed the full width, which is what makes
   the round trip work); nothing splits it coming back.
-- **One protocol left to author, and it is blocked.** SSDP is delimiter-terminated text, and
-  `WireForm.Opaque` lost the `Until` delimiter when `Pattern` was deleted. That capability needs rebuilding
-  before SSDP or HTTP.
 - **A repetition is entered unconditionally coming in.** The edge that goes round again is checked *after*
   the first item, so a run of zero is not readable: mDNS cannot read a name that is only the root, SNMP
   cannot read an OID of two arcs or a varbind list of none, and TLS cannot read an empty extensions block

@@ -1,0 +1,836 @@
+{
+  "protocol": "ssdp",
+  "title": "SSDP discovery",
+  "source": "UPnP Device Architecture 1.1 §1.3; RFC 7230 §3 for the syntax it borrows",
+  "nodes": [
+    {
+      "id": "ssdp",
+      "kind": "protocol",
+      "about": [
+        "SSDP — UPnP Device Architecture 1.1 §1.3, which is HTTP 1.1's syntax over UDP multicast to",
+        "239.255.255.250:1900 and no TCP anywhere.",
+        "",
+        "The opposite of every other protocol here, and that is why it is in the corpus. There is not one",
+        "length field, not one fixed width, and not one number written as a number. Every span in both",
+        "captures ends because a separator begins — a space, a colon, or a carriage return and a line",
+        "feed — and the run of headers ends at a line with nothing on it.",
+        "",
+        "Which needs no field kind of its own. A span with no width, followed by a node whose value is a",
+        "constant, runs up to where that constant starts: the separator stays the next node's own value,",
+        "so it is written back out by the thing that owns it, and a description can name it and check it",
+        "like anything else. Nothing is copied into a declaration and nothing is consumed twice.",
+        "",
+        "A header's value is carried EXACTLY as written, including the space after the colon that most of",
+        "them have and EXT: has not. RFC 7230 §3.2 calls that optional whitespace and says it is not part",
+        "of the value; this description keeps it anyway, because a datagram that arrived with one space",
+        "and went out with none is a different datagram and SSDP has no length field that would notice.",
+        "Trimming it is the caller's, exactly as reading MX's ' 3' as a number is.",
+        "",
+        "What a description can REFUSE here is almost nothing, and that is a finding rather than an",
+        "omission. Everything after a separator is text, so there is no width to disagree with, no length",
+        "to contradict and no reserved bit to be set wrongly. The one thing the octets can be held to is",
+        "the start line: eight characters that say M-SEARCH or HTTP/1.1 and nothing else, which is how a",
+        "NOTIFY — ssdp:alive and ssdp:byebye, the unsolicited half of SSDP that no request precedes — is",
+        "refused where it is written rather than read as a search with peculiar headers."
+      ]
+    },
+    {
+      "id": "datagram",
+      "kind": "message",
+      "as": "a discovery datagram",
+      "about": "One start line, some headers, and a blank line. UPnP 1.1 §1.1.2 requires the blank line and forbids a body, so the datagram ends there."
+    },
+    {
+      "id": "packing.datagram",
+      "kind": "packing"
+    },
+    {
+      "id": "constant.space",
+      "kind": "constant",
+      "holds": {
+        "text": " "
+      },
+      "label": "a space",
+      "about": "RFC 7230 §3.1.1 separates a start line's three tokens with exactly one."
+    },
+    {
+      "id": "constant.colon",
+      "kind": "constant",
+      "holds": {
+        "text": ":"
+      },
+      "label": "a colon",
+      "about": "What ends a header's name. The FIRST one — a value may hold as many more as it likes, and HOST: and LOCATION: both do."
+    },
+    {
+      "id": "constant.crlf",
+      "kind": "constant",
+      "holds": {
+        "text": "\r\n"
+      },
+      "label": "a carriage return and a line feed",
+      "about": "What ends every line. Two characters, and a description that ended a line at the line feed alone would leave the carriage return at the front of the next one."
+    },
+    {
+      "id": "startLine",
+      "kind": "set",
+      "as": "the start line",
+      "about": [
+        "RFC 7230 §3.1 gives two shapes and they are the same three tokens: a request-line is a method, a",
+        "target and a version; a status-line is a version, a code and a phrase. Three spans, two spaces.",
+        "",
+        "Told apart by looking, because nothing has been read yet — this IS the first octet. Eight",
+        "characters is enough and is exactly enough: M-SEARCH and HTTP/1.1 are both eight long, so the",
+        "look-ahead is one span rather than a rule about how far to read.",
+        "",
+        "There is no `otherwise`. A start line that is neither is refused by there being no way on, which",
+        "is what states the scope: NOTIFY * HTTP/1.1 is SSDP's other half and is a different message."
+      ]
+    },
+    {
+      "id": "probe.startLine",
+      "kind": "field",
+      "as": "the first eight characters",
+      "form": {
+        "of": "opaque",
+        "octets": 8
+      },
+      "via": "unascii",
+      "about": "Read ahead of deciding, from a copy of the position. Nothing is consumed, and the message that gets chosen reads its own first token from its own first octet."
+    },
+    {
+      "id": "input.startLine",
+      "kind": "input",
+      "as": "Start",
+      "gives": "Text",
+      "purpose": "M-SEARCH for a search, HTTP/1.1 for an answer. It is both the fork and the first token — the same fact, so the same input, rather than a discriminator beside a field that repeats it and can disagree with it."
+    },
+    {
+      "id": "evaluated.startLine",
+      "kind": "evaluated",
+      "label": "which shape this is",
+      "runs": "given",
+      "gives": "Text",
+      "takes": {
+        "given": "Text"
+      }
+    },
+    {
+      "id": "search",
+      "kind": "set",
+      "as": "a search",
+      "about": "UPnP 1.1 §1.3.2. The method is M-SEARCH, the target is a bare asterisk because there is no resource being addressed, and the version is the one HTTP this speaks."
+    },
+    {
+      "id": "answer",
+      "kind": "set",
+      "as": "an answer",
+      "about": "UPnP 1.1 §1.3.3. Sent by unicast back to wherever the search came from, after waiting a random part of MX seconds so that a hundred devices do not answer at once — which is a rule about when to send rather than about what a datagram is."
+    },
+    {
+      "id": "method",
+      "kind": "field",
+      "as": "Method",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii",
+      "about": "M-SEARCH, and it is the same characters the fork looked at. Read from this node's own first octet regardless — a place never has to know that something looked before choosing it."
+    },
+    {
+      "id": "methodSpace",
+      "kind": "field",
+      "as": "the space after the method",
+      "form": {
+        "of": "opaque",
+        "octets": 1
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "input.target",
+      "kind": "input",
+      "as": "Target",
+      "gives": "Text",
+      "purpose": "A bare asterisk in every M-SEARCH there has ever been: UPnP 1.1 §1.3.2 has no resource to name, and the request-line has to have a target because HTTP says so."
+    },
+    {
+      "id": "target",
+      "kind": "field",
+      "as": "Target",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "evaluated.target",
+      "kind": "evaluated",
+      "label": "Target",
+      "runs": "given",
+      "gives": "Text",
+      "takes": {
+        "given": "Text"
+      }
+    },
+    {
+      "id": "targetSpace",
+      "kind": "field",
+      "as": "the space after the target",
+      "form": {
+        "of": "opaque",
+        "octets": 1
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "input.version",
+      "kind": "input",
+      "as": "Version",
+      "gives": "Text",
+      "purpose": "HTTP/1.1."
+    },
+    {
+      "id": "httpVersion",
+      "kind": "field",
+      "as": "Version",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "evaluated.httpVersion",
+      "kind": "evaluated",
+      "label": "Version",
+      "runs": "given",
+      "gives": "Text",
+      "takes": {
+        "given": "Text"
+      }
+    },
+    {
+      "id": "statusVersion",
+      "kind": "field",
+      "as": "Version",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii",
+      "about": "The status line's first token, which is the version — where the request line's is the method. Same position, different thing, which is why the fork is on shapes rather than on a field's value."
+    },
+    {
+      "id": "versionSpace",
+      "kind": "field",
+      "as": "the space after the version",
+      "form": {
+        "of": "opaque",
+        "octets": 1
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "input.status",
+      "kind": "input",
+      "as": "Status",
+      "gives": "Text",
+      "purpose": "200, as characters. Every number in this protocol is decimal text, so reading it as a number is the caller's — and 200 written as 0200 would be a different datagram."
+    },
+    {
+      "id": "status",
+      "kind": "field",
+      "as": "Status Code",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "evaluated.status",
+      "kind": "evaluated",
+      "label": "Status Code",
+      "runs": "given",
+      "gives": "Text",
+      "takes": {
+        "given": "Text"
+      }
+    },
+    {
+      "id": "statusSpace",
+      "kind": "field",
+      "as": "the space after the code",
+      "form": {
+        "of": "opaque",
+        "octets": 1
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "input.reason",
+      "kind": "input",
+      "as": "Reason",
+      "gives": "Text",
+      "purpose": "OK. RFC 7230 §3.1.2 lets it hold spaces, which is why it runs to the end of the line rather than to the next separator."
+    },
+    {
+      "id": "reason",
+      "kind": "field",
+      "as": "Reason Phrase",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "evaluated.reason",
+      "kind": "evaluated",
+      "label": "Reason Phrase",
+      "runs": "given",
+      "gives": "Text",
+      "takes": {
+        "given": "Text"
+      }
+    },
+    {
+      "id": "startCrlf",
+      "kind": "field",
+      "as": "the end of the start line",
+      "form": {
+        "of": "opaque",
+        "octets": 2
+      },
+      "via": "unascii",
+      "about": "One node reached from both shapes, because both end the same way — and it is what says where the third token stops, whichever of the two that token is."
+    },
+    {
+      "id": "headers",
+      "kind": "set",
+      "as": "the headers",
+      "about": [
+        "One per line, and how many there are is written nowhere: not counted, not bounded, and not",
+        "guessable from anything in front of them. The run ends at a line with nothing on it, which the",
+        "reading finds by looking at two characters before committing to another header.",
+        "",
+        "Kept in the order they arrived. UPnP does not care about the order and this description does,",
+        "because a datagram that came in one way and went out another is a different datagram — and here",
+        "there is no length field anywhere that would notice the difference."
+      ]
+    },
+    {
+      "id": "input.headers",
+      "kind": "input",
+      "as": "Headers",
+      "gives": "List",
+      "of": {
+        "name": "Text",
+        "value": "Text"
+      },
+      "purpose": "One record per header line, in wire order. The value is what lies between the colon and the end of the line, whitespace and all."
+    },
+    {
+      "id": "headerName",
+      "kind": "field",
+      "as": "Header",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii",
+      "about": "Up to the first colon. UPnP 1.1 §1.1.2 makes these case-insensitive and every device writes them in capitals; carried as written, because folding them would make the answer a different datagram from the one that arrived."
+    },
+    {
+      "id": "evaluated.headerName",
+      "kind": "evaluated",
+      "label": "this header's name",
+      "runs": "item.name",
+      "gives": "Text"
+    },
+    {
+      "id": "colon",
+      "kind": "field",
+      "as": "the colon",
+      "form": {
+        "of": "opaque",
+        "octets": 1
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "headerValue",
+      "kind": "field",
+      "as": "Value",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unascii",
+      "about": [
+        "Everything between the colon and the end of the line, exactly as written.",
+        "",
+        "Which is why EXT: is here at all. It is a header whose value is nothing — no space, no",
+        "characters — and it means something: UPnP 1.1 §1.3.3 requires it, and it is how a device says",
+        "it understood the MAN header. Present and empty, and a description that trimmed or defaulted",
+        "would make it indistinguishable from absent."
+      ]
+    },
+    {
+      "id": "evaluated.headerValue",
+      "kind": "evaluated",
+      "label": "this header's value",
+      "runs": "item.value",
+      "gives": "Text"
+    },
+    {
+      "id": "headerCrlf",
+      "kind": "field",
+      "as": "the end of the line",
+      "form": {
+        "of": "opaque",
+        "octets": 2
+      },
+      "via": "unascii"
+    },
+    {
+      "id": "blankLine",
+      "kind": "field",
+      "as": "the blank line",
+      "form": {
+        "of": "opaque",
+        "octets": 2
+      },
+      "via": "unascii",
+      "about": "What ends the headers, and it is a line with nothing on it rather than a sentinel beside the run — the same two characters that end every header, at a point where no header began."
+    },
+    {
+      "id": "moreHeaders",
+      "kind": "junction",
+      "as": "another header, or the blank line?",
+      "about": [
+        "Two characters, unconsumed. A carriage return and a line feed here is the blank line; anything",
+        "else is the start of another header's name.",
+        "",
+        "The same shape as the end of a DNS name, where a length of zero is the root — and for the same",
+        "reason, which is that the terminator is not a sentinel put beside the run. It is the run's own",
+        "line ending occurring where a name would have been."
+      ]
+    },
+    {
+      "id": "probe.lineStart",
+      "kind": "field",
+      "as": "the next two characters",
+      "form": {
+        "of": "opaque",
+        "octets": 2
+      },
+      "via": "unascii",
+      "about": "Read from a copy of the position, so whichever way this goes reads from where the walk already is."
+    },
+    {
+      "id": "done",
+      "kind": "end-parse",
+      "as": "the end of a datagram",
+      "about": "UPnP 1.1 §1.1.2: the blank line ends the message and there is no body. A reading with octets still in hand has found something this does not describe."
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "ssdp",
+      "to": "datagram"
+    },
+    {
+      "kind": "then",
+      "from": "datagram",
+      "to": "packing.datagram"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.startLine",
+      "to": "input.startLine",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "identifies",
+      "from": "startLine",
+      "to": "probe.startLine"
+    },
+    {
+      "kind": "decides",
+      "from": "startLine",
+      "to": "evaluated.startLine"
+    },
+    {
+      "kind": "then",
+      "from": "startLine",
+      "to": "search",
+      "key": {
+        "text": "M-SEARCH"
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "startLine",
+      "to": "answer",
+      "key": {
+        "text": "HTTP/1.1"
+      },
+      "optional": true
+    },
+    {
+      "kind": "holds",
+      "from": "startLine",
+      "to": "search",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "startLine",
+      "to": "answer",
+      "order": 1
+    },
+    {
+      "kind": "computes",
+      "from": "method",
+      "to": "evaluated.startLine",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "methodSpace",
+      "to": "constant.space",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.target",
+      "to": "input.target",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "target",
+      "to": "evaluated.target",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "targetSpace",
+      "to": "constant.space",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.httpVersion",
+      "to": "input.version",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "httpVersion",
+      "to": "evaluated.httpVersion",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "statusVersion",
+      "to": "evaluated.startLine",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "versionSpace",
+      "to": "constant.space",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.status",
+      "to": "input.status",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "status",
+      "to": "evaluated.status",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "statusSpace",
+      "to": "constant.space",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.reason",
+      "to": "input.reason",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "given"
+    },
+    {
+      "kind": "computes",
+      "from": "reason",
+      "to": "evaluated.reason",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "search",
+      "to": "method",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "search",
+      "to": "methodSpace",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "search",
+      "to": "target",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "search",
+      "to": "targetSpace",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "search",
+      "to": "httpVersion",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "answer",
+      "to": "statusVersion",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "answer",
+      "to": "versionSpace",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "answer",
+      "to": "status",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "answer",
+      "to": "statusSpace",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "answer",
+      "to": "reason",
+      "order": 4
+    },
+    {
+      "kind": "computes",
+      "from": "startCrlf",
+      "to": "constant.crlf",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "headers",
+      "to": "input.headers",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "headerName",
+      "to": "evaluated.headerName",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "colon",
+      "to": "constant.colon",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "headerValue",
+      "to": "evaluated.headerValue",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "headerCrlf",
+      "to": "constant.crlf",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "headers",
+      "to": "headerName",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "headers",
+      "to": "colon",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "headers",
+      "to": "headerValue",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "headers",
+      "to": "headerCrlf",
+      "order": 3
+    },
+    {
+      "kind": "computes",
+      "from": "blankLine",
+      "to": "constant.crlf",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "packing.datagram",
+      "to": "startLine"
+    },
+    {
+      "kind": "then",
+      "from": "search",
+      "to": "method"
+    },
+    {
+      "kind": "then",
+      "from": "method",
+      "to": "methodSpace"
+    },
+    {
+      "kind": "then",
+      "from": "methodSpace",
+      "to": "target"
+    },
+    {
+      "kind": "then",
+      "from": "target",
+      "to": "targetSpace"
+    },
+    {
+      "kind": "then",
+      "from": "targetSpace",
+      "to": "httpVersion"
+    },
+    {
+      "kind": "then",
+      "from": "httpVersion",
+      "to": "startCrlf"
+    },
+    {
+      "kind": "then",
+      "from": "answer",
+      "to": "statusVersion"
+    },
+    {
+      "kind": "then",
+      "from": "statusVersion",
+      "to": "versionSpace"
+    },
+    {
+      "kind": "then",
+      "from": "versionSpace",
+      "to": "status"
+    },
+    {
+      "kind": "then",
+      "from": "status",
+      "to": "statusSpace"
+    },
+    {
+      "kind": "then",
+      "from": "statusSpace",
+      "to": "reason"
+    },
+    {
+      "kind": "then",
+      "from": "reason",
+      "to": "startCrlf"
+    },
+    {
+      "kind": "then",
+      "from": "startCrlf",
+      "to": "headers"
+    },
+    {
+      "kind": "then",
+      "from": "headers",
+      "to": "headerName"
+    },
+    {
+      "kind": "then",
+      "from": "headerName",
+      "to": "colon"
+    },
+    {
+      "kind": "then",
+      "from": "colon",
+      "to": "headerValue"
+    },
+    {
+      "kind": "then",
+      "from": "headerValue",
+      "to": "headerCrlf"
+    },
+    {
+      "kind": "then",
+      "from": "headerCrlf",
+      "to": "blankLine"
+    },
+    {
+      "kind": "then",
+      "from": "blankLine",
+      "to": "done"
+    },
+    {
+      "kind": "decode",
+      "from": "headerCrlf",
+      "to": "moreHeaders"
+    },
+    {
+      "kind": "identifies",
+      "from": "moreHeaders",
+      "to": "probe.lineStart"
+    },
+    {
+      "kind": "decode",
+      "from": "moreHeaders",
+      "to": "blankLine",
+      "key": {
+        "text": "\r\n"
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "moreHeaders",
+      "to": "headerName",
+      "otherwise": true
+    }
+  ]
+}
