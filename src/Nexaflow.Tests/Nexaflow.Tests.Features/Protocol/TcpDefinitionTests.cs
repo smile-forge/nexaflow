@@ -192,22 +192,24 @@ public class TcpDefinitionTests
     }
 
     [TestMethod]
-    public void One_node_serves_the_option_kind_of_every_option()
+    public void An_option_is_described_by_its_shape_rather_than_by_its_kind()
     {
         // The other half of the sharing rule: the leading octet of an End-of-Option-List, a No-Operation
         // and a Maximum Segment Size is one concept, so it is one node. What differs is the value it takes
         // on an appearance, and a value belongs to the run graph rather than to the description.
         var tcp = Tcp();
 
-        var kind = tcp.Named["optionKind"];
-        var arms = tcp.Graph.From<Then>(tcp.Named["option"]).ToList();
+        // RFC 9293 §3.1 gives two cases, not a list of kinds: a single octet, or kind plus length plus
+        // that many octets. Enumerating the kinds this file knows would mean a SYN carrying SACK-Permitted
+        // does not parse — describing the shapes means an option nobody here has heard of round-trips.
+        var shapes = tcp.Graph.From<Then>(tcp.Named["option.shape"]).ToList();
 
-        Assert.AreEqual(3, arms.Count, "End of Option List, No-Operation, Maximum Segment Size");
-        CollectionAssert.AreEquivalent(
-            new long?[] { 0, 1, 2 },
-            arms.Select(a => a.Key?.AsInt()).ToArray());
+        Assert.AreEqual(2, shapes.Count, "single-octet, and length-carrying");
+        CollectionAssert.AreEquivalent(new[] { true, false },
+                                       shapes.Select(a => a.Key!.AsBool()).ToArray());
 
-        Assert.AreEqual(1, tcp.Graph.Nodes.Count(n => ReferenceEquals(n, kind)));
+        Assert.AreEqual(1, tcp.Graph.Nodes.Count(n => n is Field { Id: "optionKind" }),
+            "and one kind field serves both shapes, because it is one concept");
     }
 
     [TestMethod]

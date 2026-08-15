@@ -1,3 +1,4 @@
+using Nexaflow.IO.Protocol.Expressions;
 using Nexaflow.IO.Protocol.Resolution;
 using Nexaflow.IO.Protocol.Values;
 using Nexaflow.IO.Protocol.Wire;
@@ -45,6 +46,9 @@ public sealed class Host(string who, ProtocolFile.Loaded protocol)
         return this;
     }
 
+    /// <summary>The options this segment carries, in order.</summary>
+    public Host Options(params ProtoValue[] options) => Set("Options", new ProtoValue.List(options));
+
     /// <summary>Builds a segment out of what has been set, and nothing else.</summary>
     public byte[] Generate() => new GraphCodec(protocol.Graph).Encode(_values);
 
@@ -72,6 +76,16 @@ public static class Said
 [NoCoverage("DynamicProtocol authored protocol definitions — engine structure, no single product node")]
 public class TcpHandshakeTests
 {
+    /// <summary>An option, as the description asks for one: a kind and whatever it carries.</summary>
+    private static ProtoValue Option(long kind, params byte[] data)
+        => EvalScope.Record(("kind", ProtoValue.Of(kind)), ("data", ProtoValue.Of(data)));
+
+    /// <summary>Maximum Segment Size — kind 2, two octets of it.</summary>
+    private static ProtoValue Mss(int mss) => Option(2, (byte)(mss >> 8), (byte)(mss & 0xff));
+
+    /// <summary>No-Operation — kind 1, and nothing else to it.</summary>
+    private static ProtoValue Nop() => Option(1);
+
     private static Host End(string who)
     {
         var tcp = Definitions.Load("tcp");
@@ -80,6 +94,7 @@ public class TcpHandshakeTests
             .Set("Source Address", ProtoValue.Of(new byte[] { 192, 168, 1, 10 }))
             .Set("Destination Address", ProtoValue.Of(new byte[] { 192, 168, 1, 20 }))
             .Set("Window", 65535)
+            .Options()
             .Set("Data", ProtoValue.Of(Array.Empty<byte>()));
     }
 
@@ -91,7 +106,7 @@ public class TcpHandshakeTests
             .Set("Destination Port", 80)
             .Set("Sequence Number", 1000)
             .Set("Acknowledgment Number", 0)
-            .Set("Maximum Segment Size", 1460)
+            .Options(Mss(1460))
             .Set("Synchronising", 1)
             .Flags("SYN");
 
@@ -126,7 +141,7 @@ public class TcpHandshakeTests
         var syn = End("client")
             .Set("Source Port", 49152).Set("Destination Port", 80)
             .Set("Sequence Number", 1000).Set("Acknowledgment Number", 0)
-            .Set("Maximum Segment Size", 1460).Set("Synchronising", 1).Flags("SYN")
+            .Options(Mss(1460)).Set("Synchronising", 1).Flags("SYN")
             .Generate();
 
         byte[] pseudo = [192, 168, 1, 10, 192, 168, 1, 20, 0, 6, 0, (byte)syn.Length];
@@ -170,8 +185,55 @@ public class TcpHandshakeTests
         CollectionAssert.AreEqual(new long[] { 2, 1, 1, 1, 1 }, kinds,
             "five options: one MSS and four No-Operations, and no count anywhere said so");
 
-        Assert.AreEqual(1460, run.Nodes.Single(n => n.Of is Field { Id: "maximumSegmentSize" })
-                                       .Value.AsInt());
+        // And the option that carries something has its data, still as octets — this description says how
+        // an option is SHAPED, not what kind 2 means.
+        var mss = run.Nodes.Single(n => n.Of is Field { Id: "optionData" }).Value.AsBytes();
+
+        Assert.AreEqual("05B4", Convert.ToHexString(mss), "1460, as the two octets it was written as");
+    }
+
+    [TestMethod]
+    public void A_segment_writes_as_many_options_as_it_was_given()
+    {
+        // Three options of two different shapes: one carrying data, two that are a single octet. Nothing
+        // in the description says three — the list has three items, and how many options a segment carries
+        // is a fact about that segment.
+        var syn = End("client")
+            .Set("Source Port", 49152).Set("Destination Port", 80)
+            .Set("Sequence Number", 1000).Set("Acknowledgment Number", 0)
+            .Options(Mss(1460), Nop(), Nop())
+            .Set("Synchronising", 1).Flags("SYN")
+            .Generate();
+
+        // 20 fixed + 4 (MSS) + 1 + 1 (No-Operations) = 26, padded to 28 so Data Offset counts whole words.
+        Assert.AreEqual(28, syn.Length, "padded to a word boundary");
+        Assert.AreEqual(7, syn[12] >> 4, "Data Offset 7, which is the padded length and not the raw one");
+        Assert.AreEqual("020405B4010100 00", Convert.ToHexString(syn[20..]).Insert(14, " ").Insert(6, "").Replace(" ", " "),
+            "the options, then two octets of padding");
+    }
+
+    [TestMethod]
+    public void And_reads_them_all_back()
+    {
+        var client = End("client")
+            .Set("Source Port", 49152).Set("Destination Port", 80)
+            .Set("Sequence Number", 1000).Set("Acknowledgment Number", 0)
+            .Options(Mss(1460), Nop(), Nop())
+            .Set("Synchronising", 1).Flags("SYN");
+
+        var run = End("server").Receive(client.Generate());
+
+        var kinds = run.Nodes.Where(n => n.Of is Field { Id: "optionKind" })
+                             .OrderBy(n => n.Index)
+                             .Select(n => n.Value.AsInt())
+                             .ToList();
+
+        // Four, not three — and that is the wire being read honestly rather than a fault. Padding to a
+        // word boundary is written as zeros, and a zero octet IS an End of Option List. So the reading
+        // finds the three that were asked for and the one the padding amounts to, and stops there because
+        // RFC 9293 §3.1 says everything past an End of Option List is padding.
+        CollectionAssert.AreEqual(new long[] { 2, 1, 1, 0 }, kinds,
+            "three options, then the End of Option List the padding begins with");
     }
 
     /// <summary>
@@ -205,7 +267,7 @@ public class TcpHandshakeTests
 
         // ── 1. the client opens ──────────────────────────────────────────────
         var syn = client.Set("Sequence Number", 1000).Set("Acknowledgment Number", 0)
-                        .Set("Maximum Segment Size", 1460).Set("Synchronising", 1).Flags("SYN")
+                        .Options(Mss(1460)).Set("Synchronising", 1).Flags("SYN")
                         .Generate();
 
         var atServer = server.Receive(syn);
@@ -213,12 +275,16 @@ public class TcpHandshakeTests
 
         Assert.AreEqual("SYN", Said.Flags(atServer));
         Assert.AreEqual(1000, Said.Number(atServer, "sequenceNumber"));
-        Assert.AreEqual(1460, Said.Number(atServer, "maximumSegmentSize"), "the option came through");
+        // The option came through as the shape it is — a kind and its octets — because that is what this
+        // description says an option is. What kind 2 MEANS is a different description.
+        Assert.AreEqual(2, Said.Number(atServer, "optionKind"));
+        Assert.AreEqual("05B4", Convert.ToHexString(Said.Of(atServer, "optionData").AsBytes()),
+            "1460, as the two octets it arrived as");
 
         // ── 2. the server accepts, acknowledging the SYN's sequence plus one ──
         var synAck = server.Set("Sequence Number", 5000)
                            .Set("Acknowledgment Number", Said.Number(atServer, "sequenceNumber") + 1)
-                           .Set("Maximum Segment Size", 1460).Set("Synchronising", 1).Flags("SYN", "ACK")
+                           .Options(Mss(1460)).Set("Synchronising", 1).Flags("SYN", "ACK")
                            .Generate();
 
         var atClient = client.Receive(synAck);
@@ -231,7 +297,7 @@ public class TcpHandshakeTests
         // ── 3. the client acknowledges, and the connection is open ───────────
         var ack = client.Set("Sequence Number", Said.Number(atClient, "acknowledgmentNumber"))
                         .Set("Acknowledgment Number", Said.Number(atClient, "sequenceNumber") + 1)
-                        .Set("Synchronising", 0).Flags("ACK")
+                        .Set("Synchronising", 0).Options().Flags("ACK")
                         .Generate();
 
         Assert.AreEqual(20, ack.Length, "no options once the handshake is done, so a five-word header");
@@ -256,7 +322,8 @@ public class TcpHandshakeTests
         Assert.AreEqual(Message, got, "the word got across");
 
         // ── 5. the server acknowledges what it received ──────────────────────
-        var acked = server.Set("Sequence Number", Said.Number(opened, "acknowledgmentNumber"))
+        var acked = server.Set("Synchronising", 0).Options()
+                          .Set("Sequence Number", Said.Number(opened, "acknowledgmentNumber"))
                           .Set("Acknowledgment Number",
                                Said.Number(arrived, "sequenceNumber") + payload.Length)
                           .Flags("ACK")

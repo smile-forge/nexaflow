@@ -286,96 +286,13 @@
       "kind": "set",
       "as": "Options",
       "about": [
-        "RFC 9293 §3.1: 'Options may occupy space at the end of the TCP header and are a multiple of 8 bits",
-        "in length.' The span runs from the end of the fixed 20 octets to wherever Data Offset says the",
-        "header ends, so it is empty whenever Data Offset is 5."
-      ]
-    },
-    {
-      "id": "optionKind",
-      "kind": "field",
-      "as": "option-kind",
-      "form": {
-        "of": "scalar",
-        "octets": 1,
-        "big": true,
-        "signed": false
-      },
-      "about": [
-        "RFC 9293 §3.1. ONE node, shared by every option, and this is the sharing rule doing real work: the",
-        "leading octet of an End-of-Option-List, a No-Operation and a Maximum Segment Size is the same",
-        "concept — which option this is — so it is one field, not three that happen to look alike.",
+        "RFC 9293 §3.1: 'Options may occupy space at the end of the TCP header and are a multiple of 8 bits in",
+        "length.' How many there are is nowhere in the segment — Data Offset says where the header ends and",
+        "the options are whatever fills the space, which is a fact about a segment rather than about TCP.",
         "",
-        "What differs between options is the value it takes on a given appearance, and a value belongs to",
-        "the run, not to the description."
+        "So going out this set is written once per item of the list it requires, and coming in the reading goes",
+        "round until the header ends. Neither direction has a count and neither needs one."
       ]
-    },
-    {
-      "id": "option",
-      "kind": "junction",
-      "as": "one option",
-      "about": [
-        "Where the option list forks on what optionKind said. A junction rather than a set: it makes no",
-        "octets and holds nothing — the kind octet is already written and each arm carries its own rest."
-      ]
-    },
-    {
-      "id": "option.endOfList",
-      "kind": "junction",
-      "as": "End of Option List",
-      "about": [
-        "RFC 9293 §3.1, Kind 0. A single octet, already written as optionKind, so this arm adds nothing —",
-        "which is exactly a junction rather than an empty set."
-      ]
-    },
-    {
-      "id": "option.noOperation",
-      "kind": "junction",
-      "as": "No-Operation",
-      "about": "RFC 9293 §3.1, Kind 1. One octet, used to align a following option on a word boundary."
-    },
-    {
-      "id": "option.done",
-      "kind": "junction",
-      "as": "end of this option",
-      "about": [
-        "Where the arms meet. A junction because it makes no octets and holds nothing — it exists so the",
-        "arms have one place to converge on, and so skipping the whole options set has somewhere to skip",
-        "TO: the walk leaves an absent set from where its last member would have led."
-      ]
-    },
-    {
-      "id": "option.maximumSegmentSize",
-      "kind": "set",
-      "as": "Maximum Segment Size",
-      "about": "RFC 9293 §3.1, Kind 2, Length 4. Reachable only from the synchronising packing."
-    },
-    {
-      "id": "optionLength",
-      "kind": "field",
-      "as": "option-length",
-      "form": {
-        "of": "scalar",
-        "octets": 1,
-        "big": true,
-        "signed": false
-      },
-      "about": [
-        "RFC 9293 §3.1: 'The option-length counts the two octets of option-kind and option-length as well as",
-        "the option-data octets.' Shared for the same reason optionKind is."
-      ]
-    },
-    {
-      "id": "maximumSegmentSize",
-      "kind": "field",
-      "as": "Maximum Segment Size",
-      "form": {
-        "of": "scalar",
-        "octets": 2,
-        "big": true,
-        "signed": false
-      },
-      "about": "The option's data: the largest segment the sender of this SYN is willing to receive."
     },
     {
       "id": "data",
@@ -486,15 +403,6 @@
       "about": "The IANA protocol number for TCP, as it appears in the pseudo-header."
     },
     {
-      "id": "constant.lengthMaximumSegmentSize",
-      "kind": "constant",
-      "label": "Length 4",
-      "holds": {
-        "int": 4
-      },
-      "about": "RFC 9293 §3.1: the MSS option is four octets — kind, length, and two of data."
-    },
-    {
       "id": "evaluated.dataOffset",
       "kind": "evaluated",
       "label": "header words",
@@ -510,13 +418,6 @@
       "label": "TCP length",
       "runs": "sets.header.extent + fields.data.extent",
       "about": "RFC 9293 §3.1: header plus data, not counting the pseudo-header."
-    },
-    {
-      "id": "evaluated.whichOption",
-      "kind": "evaluated",
-      "label": "which option is this?",
-      "runs": "fields.optionKind.value",
-      "about": "What keys the option fork. Read on the way in, written from the selected arm on the way out."
     },
     {
       "id": "evaluated.hasOptions",
@@ -627,12 +528,6 @@
       "as": "Window"
     },
     {
-      "id": "input.maximumSegmentSize",
-      "kind": "input",
-      "purpose": "The largest segment this end will receive.",
-      "as": "Maximum Segment Size"
-    },
-    {
       "id": "input.data",
       "kind": "input",
       "purpose": "The payload, where there is one.",
@@ -719,19 +614,6 @@
       ]
     },
     {
-      "id": "constant.kindMaximumSegmentSize",
-      "kind": "constant",
-      "label": "Kind 2",
-      "holds": {
-        "int": 2
-      },
-      "about": [
-        "Which option gets written. Maximum Segment Size is the only one this describes that carries",
-        "anything, so on the way out the kind octet is that. On the way in it is read, and the fork below",
-        "turns on what was read — the same expression serving both, because by then it holds the same 2."
-      ]
-    },
-    {
       "id": "state.synchronising",
       "kind": "state",
       "as": "Synchronising",
@@ -751,24 +633,198 @@
       "id": "evaluated.moreOptions",
       "kind": "evaluated",
       "label": "is there another option?",
-      "runs": "position < fields.dataOffset.value * 4",
+      "runs": "position < fields.dataOffset.value * 4 && fields.optionKind.value != 0",
       "about": [
-        "Where the option run ends. Data Offset says where the header ends and the options are whatever is",
-        "between the fixed twenty octets and there, so the question is about an OFFSET rather than about how",
-        "much is left over — what follows the options is the payload, which has no length of its own.",
+        "Two ways the option run ends, and RFC 9293 §3.1 gives both. It ends where the header ends,",
+        "which Data Offset says; and it ends at an End of Option List, after which 'the content of the",
+        "header ... MUST be header padding of zeros'.",
         "",
-        "A count would be the wrong shape even if TCP had one: how many options a segment carries is a fact",
-        "about that segment, not about TCP."
+        "Without the second, the padding reads as more options — which is not even wrong, since a zero",
+        "octet IS kind 0. It is just that everything after the first one is padding rather than a run of",
+        "them."
       ]
+    },
+    {
+      "id": "option",
+      "kind": "set",
+      "as": "an option",
+      "about": [
+        "RFC 9293 §3.1 gives two cases: a single octet of option-kind, or option-kind followed by",
+        "option-length and that many octets in total. Which applies is the KIND, and the split is at two —",
+        "so this describes the shapes rather than the kinds, and an option this file has never heard of is",
+        "read and written correctly by falling into the second one."
+      ]
+    },
+    {
+      "id": "optionKind",
+      "kind": "field",
+      "as": "option-kind",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Which option this is. One node, shared by both shapes, because it is one concept."
+    },
+    {
+      "id": "option.shape",
+      "kind": "junction",
+      "as": "which shape of option"
+    },
+    {
+      "id": "option.alone",
+      "kind": "junction",
+      "as": "a single-octet option",
+      "about": [
+        "Kinds 0 and 1 — End of Option List and No-Operation — are the whole option. A junction because the",
+        "kind octet is already written and there is nothing else to it."
+      ]
+    },
+    {
+      "id": "option.counted",
+      "kind": "set",
+      "as": "an option with a length"
+    },
+    {
+      "id": "optionLength",
+      "kind": "field",
+      "as": "option-length",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 9293 §3.1: it counts the kind and length octets as well as the data."
+    },
+    {
+      "id": "optionData",
+      "kind": "field",
+      "as": "option-data",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "Whatever the option carries, kept as octets. Reading a Maximum Segment Size as a number here would",
+        "be this file deciding that kind 2 means something — which is true, and is a different description",
+        "from this one. What THIS says is how any option is shaped."
+      ]
+    },
+    {
+      "id": "evaluated.optionShape",
+      "kind": "evaluated",
+      "label": "which shape is this option?",
+      "runs": "fields.optionKind.value <= 1"
+    },
+    {
+      "id": "evaluated.isalone",
+      "kind": "evaluated",
+      "label": "is this the alone shape?",
+      "runs": "fields.optionKind.value <= 1"
+    },
+    {
+      "id": "evaluated.iscounted",
+      "kind": "evaluated",
+      "label": "is this the counted shape?",
+      "runs": "fields.optionKind.value > 1"
+    },
+    {
+      "id": "input.options",
+      "kind": "input",
+      "as": "Options",
+      "purpose": "The options to write, in order. Each says its kind and, where it has one, its data."
+    },
+    {
+      "id": "evaluated.eachOptionKind",
+      "kind": "evaluated",
+      "label": "this option's kind",
+      "runs": "item.kind"
+    },
+    {
+      "id": "evaluated.eachOptionData",
+      "kind": "evaluated",
+      "label": "this option's data",
+      "runs": "item.data"
+    },
+    {
+      "id": "evaluated.optionLength",
+      "kind": "evaluated",
+      "label": "kind, length, and the data",
+      "runs": "2 + fields.optionData.extent",
+      "about": "RFC 9293 §3.1: the length counts its own octet and the kind's as well as the data."
+    },
+    {
+      "id": "evaluated.optionDataExtent",
+      "kind": "evaluated",
+      "label": "octets of option data",
+      "runs": "fields.optionLength.value - 2"
+    },
+    {
+      "id": "headerPadding",
+      "kind": "field",
+      "as": "header padding",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "RFC 9293 §3.1: 'The content of the header beyond the End of Option List Option MUST be header",
+        "padding of zeros', and Data Offset counts 32-bit words, so the options have to reach a word",
+        "boundary.",
+        "",
+        "A field that computes how wide it needs to be, rather than something the walk does quietly. Without",
+        "it a six-octet option run gives a twenty-six octet header and a Data Offset of six — off by half a",
+        "word, and wrong in a way every field after it inherits."
+      ]
+    },
+    {
+      "id": "evaluated.padding",
+      "kind": "evaluated",
+      "label": "the zeros that reach a word boundary",
+      "runs": "\"00\" |> unhex() |> repeat((4 - (sets.options.extent % 4)) % 4)",
+      "about": [
+        "The padding's VALUE, not its width. A field that computed how wide it was while its value said",
+        "something else would have two answers to what it lays down, and the engine refuses the second",
+        "— which is right: an extent is a fact about a value, and giving it one of its own means the",
+        "two can disagree.",
+        "",
+        "RFC 9293 §3.1: 'The content of the header beyond the End of Option List Option MUST be header",
+        "padding of zeros', and Data Offset counts 32-bit words, so the options run has to reach one."
+      ]
+    },
+    {
+      "id": "option.end",
+      "kind": "junction",
+      "as": "the end of this option",
+      "about": [
+        "Where both shapes of option meet. A fork has no single last member, so without somewhere to converge",
+        "there is nowhere to ask whether another option is due — and the writing would go round only when the",
+        "option it had just written happened to be the shape whose last field is last."
+      ]
+    },
+    {
+      "id": "evaluated.hasPadding",
+      "kind": "evaluated",
+      "label": "is any padding needed?",
+      "runs": "(4 - (sets.options.extent % 4)) % 4 > 0"
     },
     {
       "id": "option.next",
       "kind": "junction",
-      "as": "another option, or the payload",
-      "about": [
-        "Where each option comes back to. The reading goes round from here; the writing has no edge out of it at",
-        "all, because a written segment lays its options down in order and never asks whether to go again."
-      ]
+      "as": "another option, or the payload"
+    },
+    {
+      "id": "evaluated.paddingRead",
+      "kind": "evaluated",
+      "label": "padding octets still to come",
+      "runs": "(fields.dataOffset.value * 4) - position",
+      "about": "Coming in, the padding is whatever lies between here and where Data Offset says the header ends."
+    },
+    {
+      "id": "evaluated.paddingFollows",
+      "kind": "evaluated",
+      "label": "is there padding to read?",
+      "runs": "position < fields.dataOffset.value * 4"
     }
   ],
   "edges": [
@@ -863,95 +919,6 @@
       "to": "window"
     },
     {
-      "kind": "then",
-      "from": "urgentPointer",
-      "to": "options",
-      "optional": true,
-      "about": [
-        "The options span is empty when Data Offset is 5, so the step into it may not be taken. The step is",
-        "into the SET, which is what makes 'no options' one skipped step rather than a separate arrangement."
-      ]
-    },
-    {
-      "kind": "then",
-      "from": "options",
-      "to": "optionKind"
-    },
-    {
-      "kind": "then",
-      "from": "optionKind",
-      "to": "option"
-    },
-    {
-      "kind": "decides",
-      "from": "option",
-      "to": "evaluated.whichOption",
-      "reading": false
-    },
-    {
-      "kind": "then",
-      "from": "option",
-      "to": "option.endOfList",
-      "key": {
-        "int": 0
-      }
-    },
-    {
-      "kind": "then",
-      "from": "option",
-      "to": "option.noOperation",
-      "key": {
-        "int": 1
-      }
-    },
-    {
-      "kind": "then",
-      "from": "option",
-      "to": "option.maximumSegmentSize",
-      "key": {
-        "int": 2
-      }
-    },
-    {
-      "kind": "then",
-      "from": "option.maximumSegmentSize",
-      "to": "optionLength"
-    },
-    {
-      "kind": "then",
-      "from": "optionLength",
-      "to": "maximumSegmentSize"
-    },
-    {
-      "kind": "then",
-      "from": "option.endOfList",
-      "to": "option.done"
-    },
-    {
-      "kind": "then",
-      "from": "option.noOperation",
-      "to": "option.done"
-    },
-    {
-      "kind": "then",
-      "from": "maximumSegmentSize",
-      "to": "option.done"
-    },
-    {
-      "kind": "then",
-      "from": "option.done",
-      "to": "data"
-    },
-    {
-      "kind": "allowed",
-      "from": "options",
-      "to": "option",
-      "about": [
-        "What may turn up in the options span, and how many turn up is a fact about a segment rather than",
-        "about TCP — so there is no count anywhere in this description and no way on that reaches back."
-      ]
-    },
-    {
       "kind": "holds",
       "from": "controlBits",
       "to": "cwr",
@@ -998,18 +965,6 @@
       "from": "controlBits",
       "to": "fin",
       "order": 7
-    },
-    {
-      "kind": "holds",
-      "from": "option.maximumSegmentSize",
-      "to": "optionLength",
-      "order": 0
-    },
-    {
-      "kind": "holds",
-      "from": "option.maximumSegmentSize",
-      "to": "maximumSegmentSize",
-      "order": 1
     },
     {
       "kind": "holds",
@@ -1094,30 +1049,10 @@
     },
     {
       "kind": "requires",
-      "from": "evaluated.whichOption",
-      "to": "optionKind",
-      "facet": "value",
-      "sequence": 0
-    },
-    {
-      "kind": "computes",
-      "from": "options",
-      "to": "evaluated.hasOptions",
-      "facet": "presence",
-      "reading": true
-    },
-    {
-      "kind": "requires",
       "from": "evaluated.hasOptions",
       "to": "dataOffset",
       "facet": "value",
       "sequence": 0
-    },
-    {
-      "kind": "computes",
-      "from": "optionLength",
-      "to": "constant.lengthMaximumSegmentSize",
-      "facet": "value"
     },
     {
       "kind": "checks",
@@ -1210,18 +1145,6 @@
       "from": "header.beforeChecksum",
       "to": "window",
       "order": 7
-    },
-    {
-      "kind": "holds",
-      "from": "header.afterChecksum",
-      "to": "urgentPointer",
-      "order": 0
-    },
-    {
-      "kind": "holds",
-      "from": "header.afterChecksum",
-      "to": "options",
-      "order": 1
     },
     {
       "kind": "then",
@@ -1347,12 +1270,6 @@
     },
     {
       "kind": "computes",
-      "from": "maximumSegmentSize",
-      "to": "input.maximumSegmentSize",
-      "facet": "value"
-    },
-    {
-      "kind": "computes",
       "from": "data",
       "to": "input.data",
       "facet": "value"
@@ -1435,43 +1352,6 @@
       "to": "packing.segment"
     },
     {
-      "kind": "computes",
-      "from": "options",
-      "to": "evaluated.optionsAsked",
-      "facet": "presence",
-      "reading": false
-    },
-    {
-      "kind": "computes",
-      "from": "optionKind",
-      "to": "constant.kindMaximumSegmentSize",
-      "facet": "value"
-    },
-    {
-      "kind": "holds",
-      "from": "options",
-      "to": "optionKind",
-      "order": 0
-    },
-    {
-      "kind": "holds",
-      "from": "options",
-      "to": "option",
-      "order": 1
-    },
-    {
-      "kind": "holds",
-      "from": "options",
-      "to": "option.maximumSegmentSize",
-      "order": 2
-    },
-    {
-      "kind": "holds",
-      "from": "options",
-      "to": "option.done",
-      "order": 3
-    },
-    {
       "kind": "requires",
       "from": "evaluated.optionsAsked",
       "to": "state.synchronising",
@@ -1486,85 +1366,244 @@
       "sequence": 0
     },
     {
-      "kind": "decides",
-      "from": "option.next",
-      "to": "evaluated.moreOptions",
-      "reading": true
-    },
-    {
-      "kind": "decode",
-      "from": "option.endOfList",
-      "to": "option.next"
-    },
-    {
-      "kind": "decode",
-      "from": "option.noOperation",
-      "to": "option.next"
-    },
-    {
-      "kind": "decode",
-      "from": "maximumSegmentSize",
-      "to": "option.next"
-    },
-    {
-      "kind": "decode",
-      "from": "option.next",
-      "to": "optionKind",
-      "key": {
-        "bool": true
-      },
-      "about": "Round again: the header has not ended yet."
-    },
-    {
-      "kind": "decode",
-      "from": "option.next",
-      "to": "data",
-      "otherwise": true,
-      "about": "The header has ended, so what follows is the payload."
-    },
-    {
       "kind": "decode",
       "from": "data",
       "to": "parsed"
     },
     {
-      "kind": "decode",
+      "kind": "holds",
+      "from": "option",
+      "to": "optionKind",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.shape",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.alone",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.counted",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "option.counted",
+      "to": "optionLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option.counted",
+      "to": "optionData",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "options",
+      "to": "option",
+      "order": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionShape",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "decides",
+      "from": "option.shape",
+      "to": "evaluated.optionShape"
+    },
+    {
+      "kind": "then",
+      "from": "option.shape",
+      "to": "option.alone",
+      "key": {
+        "bool": true
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "option.shape",
+      "to": "option.counted",
+      "key": {
+        "bool": false
+      },
+      "optional": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isalone",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "option.alone",
+      "to": "evaluated.isalone",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.iscounted",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "option.counted",
+      "to": "evaluated.iscounted",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "options",
+      "to": "input.options",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
       "from": "optionKind",
+      "to": "evaluated.eachOptionKind",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "optionData",
+      "to": "evaluated.eachOptionData",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionLength",
+      "to": "optionData",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "optionLength",
+      "to": "evaluated.optionLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionDataExtent",
+      "to": "optionLength",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "optionData",
+      "to": "evaluated.optionDataExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.padding",
+      "to": "options",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.padding",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "urgentPointer",
+      "to": "options",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "options",
       "to": "option"
     },
     {
-      "kind": "decode",
+      "kind": "then",
       "from": "option",
-      "to": "option.endOfList",
-      "key": {
-        "int": 0
-      }
+      "to": "optionKind"
     },
     {
-      "kind": "decode",
-      "from": "option",
-      "to": "option.noOperation",
-      "key": {
-        "int": 1
-      }
+      "kind": "then",
+      "from": "optionKind",
+      "to": "option.shape"
     },
     {
-      "kind": "decode",
-      "from": "option",
-      "to": "option.maximumSegmentSize",
-      "key": {
-        "int": 2
-      }
-    },
-    {
-      "kind": "decode",
-      "from": "option.maximumSegmentSize",
+      "kind": "then",
+      "from": "option.counted",
       "to": "optionLength"
     },
     {
-      "kind": "decode",
+      "kind": "then",
       "from": "optionLength",
-      "to": "maximumSegmentSize"
+      "to": "optionData"
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.end",
+      "order": 4
+    },
+    {
+      "kind": "then",
+      "from": "option.alone",
+      "to": "option.end"
+    },
+    {
+      "kind": "then",
+      "from": "optionData",
+      "to": "option.end"
+    },
+    {
+      "kind": "then",
+      "from": "option.end",
+      "to": "headerPadding",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "headerPadding",
+      "to": "data",
+      "optional": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasPadding",
+      "to": "options",
+      "facet": "extent",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.hasPadding",
+      "facet": "presence"
+    },
+    {
+      "kind": "decides",
+      "from": "option.next",
+      "to": "evaluated.moreOptions",
+      "reading": true
     },
     {
       "kind": "decode",
@@ -1574,7 +1613,144 @@
     {
       "kind": "decode",
       "from": "options",
+      "to": "option"
+    },
+    {
+      "kind": "decode",
+      "from": "option",
       "to": "optionKind"
+    },
+    {
+      "kind": "decode",
+      "from": "optionKind",
+      "to": "option.shape"
+    },
+    {
+      "kind": "decode",
+      "from": "option.shape",
+      "to": "option.alone",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "option.shape",
+      "to": "option.counted",
+      "key": {
+        "bool": false
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "option.counted",
+      "to": "optionLength"
+    },
+    {
+      "kind": "decode",
+      "from": "optionLength",
+      "to": "optionData"
+    },
+    {
+      "kind": "decode",
+      "from": "option.alone",
+      "to": "option.end"
+    },
+    {
+      "kind": "decode",
+      "from": "optionData",
+      "to": "option.end"
+    },
+    {
+      "kind": "decode",
+      "from": "option.end",
+      "to": "option.next"
+    },
+    {
+      "kind": "decode",
+      "from": "option.next",
+      "to": "option",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "holds",
+      "from": "header.afterChecksum",
+      "to": "urgentPointer",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header.afterChecksum",
+      "to": "options",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header.afterChecksum",
+      "to": "headerPadding",
+      "order": 2
+    },
+    {
+      "kind": "computes",
+      "from": "options",
+      "to": "evaluated.optionsAsked",
+      "facet": "presence",
+      "reading": false
+    },
+    {
+      "kind": "computes",
+      "from": "options",
+      "to": "evaluated.hasOptions",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreOptions",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 1
+    },
+    {
+      "kind": "decode",
+      "from": "option.next",
+      "to": "headerPadding",
+      "otherwise": true
+    },
+    {
+      "kind": "decode",
+      "from": "headerPadding",
+      "to": "data"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.paddingRead",
+      "to": "dataOffset",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.paddingRead",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.paddingFollows",
+      "to": "dataOffset",
+      "facet": "value",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.paddingFollows",
+      "facet": "presence",
+      "reading": true
     }
   ]
 }
