@@ -1,7 +1,19 @@
 <UserControl x:Class="Nexaflow.Features.Network.Views.NetworkView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="{DynamicResource RegionBrush}">
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <!-- One cell that may hold several addresses, one per line. A device with three IPv6 addresses is
+             ordinary, and comma-joining them makes a column nothing can be read out of. -->
+        <DataTemplate x:Key="AddressCell">
+            <TextBlock Text="{Binding}"
+                       Foreground="{StaticResource TextBrush}"
+                       FontFamily="Consolas"
+                       TextWrapping="NoWrap"
+                       LineHeight="17" />
+        </DataTemplate>
+    </UserControl.Resources>
 
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -14,8 +26,9 @@
         <!-- What to run, and the one button -->
         <DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,10">
             <Button DockPanel.Dock="Left"
+                    Style="{StaticResource TbBtn}"
                     Content="Discover"
-                    Padding="18,6"
+                    Padding="16,6"
                     Command="{Binding DiscoverCommand}" />
 
             <ItemsControl DockPanel.Dock="Left" Margin="16,0,0,0"
@@ -26,43 +39,105 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <CheckBox Margin="0,0,14,0"
-                                  Content="{Binding Name}"
-                                  ToolTip="{Binding Description}"
-                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,18,0"
+                                    ToolTip="{Binding Description}">
+                            <ToggleButton Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                            <TextBlock Text="{Binding Name}"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextBrush}" />
+                        </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </DockPanel>
 
-        <TextBlock Grid.Row="1" Margin="0,0,0,10"
+        <TextBlock Grid.Row="1" Margin="2,0,0,10"
                    TextWrapping="Wrap"
-                   Foreground="{DynamicResource MutedTextBrush}"
+                   Foreground="{StaticResource TextMutedBrush}"
                    Text="{Binding Status}" />
 
         <!-- What was found. 'Found by' is the column this page exists to show: two independent layers
              agreeing on one device is the graph working, and a device only SSDP saw came from a protocol
              description rather than from compiled code. -->
-        <DataGrid Grid.Row="2"
+        <ListView Grid.Row="2"
                   ItemsSource="{Binding Devices}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Device"   Binding="{Binding Name}"    Width="2*" />
-                <DataGridTextColumn Header="Address"  Binding="{Binding Address}" Width="1.5*" />
-                <DataGridTextColumn Header="MAC"      Binding="{Binding Mac}"     Width="1.2*" />
-                <DataGridTextColumn Header="Found by" Binding="{Binding FoundBy}" Width="1.4*" />
-                <DataGridTextColumn Header="Detail"   Binding="{Binding Detail}"  Width="2.5*" />
-            </DataGrid.Columns>
-        </DataGrid>
+                  Background="{StaticResource SurfaceBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  BorderThickness="1"
+                  ItemContainerStyle="{StaticResource FileListRowStyle}"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+            <ListView.View>
+                <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
+                    <GridViewColumn Header="Device" Width="230">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"
+                                           Foreground="{StaticResource TextBrush}"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Header="IPv4" Width="130">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <ItemsControl ItemsSource="{Binding IPv4}"
+                                              ItemTemplate="{StaticResource AddressCell}" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Header="IPv6" Width="290">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <ItemsControl ItemsSource="{Binding IPv6}"
+                                              ItemTemplate="{StaticResource AddressCell}" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Header="MAC" Width="150">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Mac}"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontFamily="Consolas"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Header="Found by" Width="170">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding FoundBy}"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Header="Detail" Width="360">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Detail}"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
+        </ListView>
 
         <!-- A layer that found nothing has to be able to say why: a refused multicast join on a VPN
              adapter is normal and invisible otherwise. -->
-        <ItemsControl Grid.Row="3" Margin="0,10,0,0"
+        <ItemsControl Grid.Row="3" Margin="2,10,0,0"
                       ItemsSource="{Binding Log}"
-                      MaxHeight="120">
+                      MaxHeight="110">
             <ItemsControl.Template>
                 <ControlTemplate TargetType="ItemsControl">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -74,8 +149,9 @@
                 <DataTemplate>
                     <TextBlock Text="{Binding}"
                                TextWrapping="Wrap"
-                               Foreground="{DynamicResource MutedTextBrush}"
-                               FontFamily="Consolas" />
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontFamily="Consolas"
+                               FontSize="11" />
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>

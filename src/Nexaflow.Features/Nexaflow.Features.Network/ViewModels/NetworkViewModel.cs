@@ -14,7 +14,17 @@ namespace Nexaflow.Features.Network.ViewModels;
 public sealed partial class DeviceRow : ObservableObject
 {
     public required string Name { get; init; }
-    public required string Address { get; init; }
+
+    /// <summary>Its addresses, kept apart and kept as lists.</summary>
+    /// <remarks>
+    /// Two columns rather than one, because they answer different questions — an IPv4 address is what you
+    /// type at something and an IPv6 link-local is what the segment calls it — and lists rather than a
+    /// joined string, because a device with three of either is ordinary and a comma-joined cell is a column
+    /// nothing can be read out of.
+    /// </remarks>
+    public required IReadOnlyList<string> IPv4 { get; init; }
+    public required IReadOnlyList<string> IPv6 { get; init; }
+
     public required string Mac { get; init; }
     public required string Detail { get; init; }
 
@@ -128,6 +138,7 @@ public sealed partial class NetworkViewModel : ObservableObject
         var result = await run.SweepAsync(probes, CancellationToken.None).ConfigureAwait(false);
 
         var rows = run.Graph.Nodes
+            .Where(IsADevice)
             .OrderByDescending(n => n.IsNew)
             .ThenBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(Row)
@@ -142,13 +153,20 @@ public sealed partial class NetworkViewModel : ObservableObject
         return (rows, [.. result.Log], summary);
     }
 
+    /// <summary>
+    /// Whether a graph node is something that was <b>found</b>, rather than somewhere a finding pointed.
+    /// </summary>
+    /// <remarks>
+    /// <c>DeviceGraph.ResolveEdge</c> mints a stub for the far end of an edge nothing has described yet —
+    /// deliberately, so the topology is not full of holes. A stub has an identity and no facts, and it is
+    /// not a discovery: the router's IPv6 link-local turned up as one on the first real run, listing the
+    /// gateway twice because nothing ties <c>fe80::6e99:61ff:fe52:a857</c> to the MAC it was derived from.
+    /// A topology view will want these; a list of what is on the network does not.
+    /// </remarks>
+    private static bool IsADevice(DeviceNode node) => node.Facts.Count > 0;
+
     private static DeviceRow Row(DeviceNode node)
     {
-        var addresses = node.AllOf(new FactKey("net", "ipv4")).Select(f => f.Value.Text)
-            .Concat(node.AllOf(new FactKey("net", "ipv6")).Select(f => f.Value.Text))
-            .Distinct()
-            .ToList();
-
         // Which layers contributed, deduplicated and in a stable order. This is the column the whole
         // exercise is about: 'network.arp, network.ssdp' on one row is two independent findings that the
         // graph decided were one device.
@@ -157,7 +175,8 @@ public sealed partial class NetworkViewModel : ObservableObject
         return new DeviceRow
         {
             Name = node.DisplayName,
-            Address = addresses.Count > 0 ? string.Join(", ", addresses) : "—",
+            IPv4 = Addresses(node, "ipv4"),
+            IPv6 = Addresses(node, "ipv6"),
             Mac = node.Best(new FactKey("link", "mac"))?.Value.Text ?? "—",
             Detail = node.Best(new FactKey("dev", "firmware"))?.Value.Text
                   ?? node.Best(new FactKey("svc", "type"))?.Value.Text
@@ -168,4 +187,8 @@ public sealed partial class NetworkViewModel : ObservableObject
             Presence = node.Presence,
         };
     }
+
+    /// <summary>Every address of one family, in the order they were observed.</summary>
+    private static IReadOnlyList<string> Addresses(DeviceNode node, string family)
+        => [.. node.AllOf(new FactKey("net", family)).Select(f => f.Value.Text).Distinct()];
 }

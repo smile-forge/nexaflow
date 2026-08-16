@@ -50,16 +50,25 @@ public class LiveDiscoveryTests
             "",
         };
 
-        foreach (var node in run.Graph.Nodes.OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase))
+        // The same two decisions the page makes: a stub is not a discovery, and the two address families
+        // are different columns.
+        foreach (var node in run.Graph.Nodes
+                     .Where(n => n.Facts.Count > 0)
+                     .OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
             var found = string.Join(", ", node.Facts.Select(f => f.SourceProbe).Distinct().Order());
-            var ip = node.Best(new FactKey("net", "ipv4"))?.Value.Text ?? "";
+            var v4 = node.AllOf(new FactKey("net", "ipv4")).Select(f => f.Value.Text).ToList();
+            var v6 = node.AllOf(new FactKey("net", "ipv6")).Select(f => f.Value.Text).ToList();
             var mac = node.Best(new FactKey("link", "mac"))?.Value.Text ?? "";
             var what = node.Best(new FactKey("dev", "firmware"))?.Value.Text
                     ?? node.Best(new FactKey("svc", "type"))?.Value.Text ?? "";
 
-            report.Add($"  {node.DisplayName,-24} {ip,-16} {mac,-18} [{found}] {what}");
+            report.Add($"  {node.DisplayName,-22} {string.Join("/", v4),-15} "
+                     + $"{string.Join("/", v6),-30} {mac,-18} [{found}] {what}");
         }
+
+        int stubs = run.Graph.Nodes.Count(n => n.Facts.Count == 0);
+        if (stubs > 0) report.Add($"  ({stubs} topology stub(s) not shown — edge targets nothing described)");
 
         report.Add("");
         report.AddRange(result.Log.Select(l => "  log: " + l));
