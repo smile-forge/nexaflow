@@ -86,8 +86,11 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     private int ContextCount => ContextItems.Count + Attachments.Count;
 
     private IEnumerable<ContextSummaryEntry> ContextSummary()
-        => ContextItems.Select(c => new ContextSummaryEntry(c.Page.Icon ?? string.Empty, c.Page.Title))
-            .Concat(Attachments.Select(a => new ContextSummaryEntry("📎", Path.GetFileName(a))));
+        => ContextItems.Select(c => new ContextSummaryEntry(
+                    c.Page.Icon ?? string.Empty, c.Page.Title, c.Page.SecurityRisk))
+            // An attachment is a file the user chose by name — there is no scope behind it to rate.
+            .Concat(Attachments.Select(a => new ContextSummaryEntry(
+                    "📎", Path.GetFileName(a), ContextSecurityRisk.Low)));
 
     private void NotifyCollapsedSummary()
     {
@@ -744,8 +747,12 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
 
     private void TrackRisk(Page page)
     {
+        // The summary pills carry the badge too, and the risk is only known once UpdateRisk has run —
+        // after the collection change that first raised them. Re-raise here or a freshly pinned page
+        // shows in the collapsed row unbadged.
         UpdateRisk(page);
         OnPropertyChanged(nameof(IsContextReady));
+        NotifyCollapsedSummary();
         if (_riskSubscriptions.ContainsKey(page)) return;
         if ((page.Content as IPageView)?.ViewModel is not INotifyPropertyChanged source) return;
 
@@ -753,6 +760,7 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
         {
             UpdateRisk(page);
             OnPropertyChanged(nameof(IsContextReady));
+            NotifyCollapsedSummary();
         };
         _riskSubscriptions[page] = handler;
         source.PropertyChanged += handler;

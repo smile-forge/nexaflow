@@ -42,6 +42,25 @@ public class ConversationContextStripTests
         return page;
     }
 
+    private sealed class RiskyVm(ContextSecurityRisk risk) : IPageViewModel
+    {
+        public string GetContext() => "fake context";
+        public ContextSecurityRisk GetContextSecurityRisk() => risk;
+    }
+
+    private static Page RiskyPageOf(string kind, string id, ContextSecurityRisk risk)
+    {
+        var page = new Page
+        {
+            PageKind       = kind,
+            Title          = kind,
+            PageParams     = new Dictionary<string, string> { ["id"] = id },
+            ContentFactory = () => new FakePageView { ViewModel = new RiskyVm(risk) },
+        };
+        page.GetOrCreateContent();
+        return page;
+    }
+
     /// <summary>A shell whose RunOnUiAsync actually runs the action — the substitute's default swallows it,
     /// which would silently no-op every UI-marshalled path (the duplicate flash included).</summary>
     private static IShellServices Shell()
@@ -214,6 +233,23 @@ public class ConversationContextStripTests
         Assert.IsFalse(convo.HasNoContext);
     });
 
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void CollapsedContext_CarriesTheSecurityRisk_SoTheBadgeSurvivesCollapsing() => Sta(() =>
+    {
+        // Collapsing hides the detail, not the warning: a high-risk scope stays flagged in the summary
+        // pill. The risk resolves in TrackRisk, *after* the collection change — so a summary built only
+        // on collection change would show a freshly pinned page unbadged.
+        var convo = NewConversation();
+        convo.AddContextItem(RiskyPageOf("Registry", "hklm", ContextSecurityRisk.High));
+        convo.AddAttachment(@"C:\tmp\notes.txt");
+
+        CollectionAssert.AreEqual(
+            new[] { ContextSecurityRisk.High, ContextSecurityRisk.Low },
+            convo.CollapsedContext.Select(e => e.Risk).ToArray(),
+            "the page keeps its risk; an attachment has no scope behind it to rate");
+    });
     [TestMethod]
     [CoversNode("aichat-context-collapse")]
     public void CollapsedContext_UnderTheCap_CountsNothing() => Sta(() =>
