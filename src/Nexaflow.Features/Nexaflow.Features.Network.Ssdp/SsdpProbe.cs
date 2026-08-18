@@ -45,6 +45,17 @@ public sealed class SsdpProbe : INetworkProbe
     private IProbeHost? _host;
     private ProtocolFile.Loaded? _ssdp;
 
+    /// <summary>
+    /// Descriptions already fetched this run.
+    /// </summary>
+    /// <remarks>
+    /// With <c>ssdp:all</c> a device answers once per service it hosts — a television sent thirty-six
+    /// replies — and every one of them carries the same LOCATION. Fetching per reply asked one Chromecast
+    /// for the same document eight times in three seconds, which is rude to the device, slow, and says the
+    /// same thing eight times in the log.
+    /// </remarks>
+    private readonly HashSet<string> _described = new(StringComparer.OrdinalIgnoreCase);
+
     public string ProbeId => "network.ssdp";
     public string DisplayName => "SSDP / UPnP";
     public ProbeCost Cost => ProbeCost.Light;
@@ -64,6 +75,13 @@ public sealed class SsdpProbe : INetworkProbe
           + "devices, which is fewer replies and one per device instead of one per service.",
             ProbeSettingType.Enum, Default: "ssdp:all",
             OneOf: ["ssdp:all", "upnp:rootdevice"]),
+
+        new ProbeSetting(
+            "describe",
+            "After a device answers, fetch the description document it pointed at. This is what turns an "
+          + "address into a name, a make and a model — and it is one small web request per device, to a "
+          + "device that just announced itself.",
+            ProbeSettingType.Bool, Default: "true"),
     ];
 
     public void Attach(IProbeHost host) => _host = host;
@@ -79,6 +97,10 @@ public sealed class SsdpProbe : INetworkProbe
 
         var ssdp = Description();
         if (ssdp is null) yield break;
+
+        // Per adapter, so a second sweep asks again: a device can be renamed, and a description fetched
+        // an hour ago is not evidence about now.
+        _described.Clear();
 
         int mx = Whole("mx", 2, low: 1, high: 5);
         string target = Setting("searchTarget", "ssdp:all");
@@ -137,7 +159,16 @@ public sealed class SsdpProbe : INetworkProbe
             // reason; multicast makes it louder, because the loopback copy always arrives.
             if (Ours(reply, adapter)) continue;
 
-            if (Read(ssdp, reply, adapter) is { } observed) yield return observed;
+            if (Read(ssdp, reply, adapter) is not { } observed) continue;
+
+            yield return observed;
+
+            // The reply says where to look; the document says what it is. One request per device that has
+            // just announced itself, to the address it just gave us.
+            if (!Flag("describe", @default: true)) continue;
+            if (Described(observed, reply, adapter, ct) is not { } told) continue;
+
+            yield return await told.ConfigureAwait(false);
         }
 
         _host.Log.Info($"{ProbeId}: {replies} reply/replies on {adapter.Name} "
@@ -240,6 +271,121 @@ public sealed class SsdpProbe : INetworkProbe
         return obs;
     }
 
+    /// <summary>
+    /// Fetches and reads the description a reply pointed at, or null when there is nothing to fetch.
+    /// </summary>
+    /// <remarks>
+    /// Returned as a task the caller awaits rather than awaited here, because this sits inside an iterator
+    /// that must keep yielding: a device that takes two seconds to serve its description must not hold up
+    /// the reply behind it.
+    /// </remarks>
+    private Task<ProbeObservation>? Described(ProbeObservation from, ReceivedDatagram reply,
+                                              NetworkAdapterInfo adapter, CancellationToken ct)
+    {
+        var advertised = from.Facts.FirstOrDefault(f => f.Key == new FactKey("svc", "url"))?.Value.Text;
+
+        if (advertised is null or "" || !Uri.TryCreate(advertised, UriKind.Absolute, out var where))
+            return null;
+
+        // Once per address, however many services answered from it.
+        if (!_described.Add(where.ToString())) return null;
+
+        return Fetch(where, reply, adapter, ct);
+    }
+
+    private async Task<ProbeObservation> Fetch(Uri where, ReceivedDatagram reply,
+                                               NetworkAdapterInfo adapter, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var segment = adapter.SegmentId;
+        var obs = new ProbeObservation { SourceProbe = ProbeId, ObservedUtc = now };
+
+        // The same address the reply came from, so what the document says lands on the device that said it
+        // rather than on a second node named after the web server.
+        obs.Identities.Add(new IdentityClaim(IdentityKind.Ip, reply.From.Address.ToString(), segment,
+                                             Confidence.Asserted));
+
+        var intent = new SendIntent
+        {
+            Target = reply.From.Address,
+            Port = where.Port,
+            Layer = SendLayer.Tcp,
+            ByteCount = 0,
+            Initiator = SendInitiator.Probe,
+            SourceId = ProbeId,
+            Via = adapter.Addresses
+                .FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                .Address,
+        };
+
+        var got = await _host!.Transport.FetchAsync(intent, where, TimeSpan.FromSeconds(4), ct)
+                              .ConfigureAwait(false);
+
+        if (!got.Ok)
+        {
+            // Ordinary rather than exceptional: plenty of devices advertise an address they do not serve.
+            _host.Log.Info($"{ProbeId}: {reply.From.Address} did not serve {where} — {got.Detail}");
+            return obs;
+        }
+
+        if (DeviceDescription.Read(System.Text.Encoding.UTF8.GetString(got.Body), where) is not { } told)
+        {
+            _host.Log.Warn($"{ProbeId}: {where} is not a UPnP device description");
+            return obs;
+        }
+
+        // Everything the device says about itself. Stated rather than observed, so none of it is Asserted:
+        // a serial number is what the firmware was told to say, and a friendly name is whatever somebody
+        // typed into an app once.
+        Say(obs, new FactKey("name", "hostname"), told.FriendlyName, now, Confidence.Strong);
+        Say(obs, new FactKey("dev", "vendor"), told.Manufacturer, now, Confidence.Strong);
+        Say(obs, new FactKey("dev", "model"), told.ModelName, now, Confidence.Strong);
+        Say(obs, new FactKey("dev", "modelNumber"), told.ModelNumber, now, Confidence.Likely);
+        Say(obs, new FactKey("dev", "description"), told.ModelDescription, now, Confidence.Likely);
+        Say(obs, new FactKey("dev", "serial"), told.SerialNumber, now, Confidence.Likely);
+        Say(obs, new FactKey("dev", "class"), Kind(told.DeviceType), now, Confidence.Likely);
+
+        // The addresses it offers, each its own key so an action can ask for exactly one of them.
+        Say(obs, new FactKey("svc", "presentation"), told.PresentationUrl, now, Confidence.Strong);
+        Say(obs, new FactKey("svc", "modelUrl"), told.ModelUrl, now, Confidence.Likely);
+        Say(obs, new FactKey("svc", "vendorUrl"), told.ManufacturerUrl, now, Confidence.Likely);
+
+        // The best icon it offers. One rather than all of them: a list is for choosing from, and the
+        // choice — largest, then deepest — has already been made.
+        if (told.Icons.Count > 0)
+            Say(obs, new FactKey("dev", "icon"), told.Icons[0].Url.ToString(), now, Confidence.Strong);
+
+        if (told.Udn is { Length: > 0 } udn)
+            Say(obs, new FactKey("dev", "uuid"), udn.Replace("uuid:", ""), now, Confidence.Strong);
+
+        _host.Log.Info($"{ProbeId}: {reply.From.Address} is "
+                     + $"{(told.FriendlyName.Length > 0 ? told.FriendlyName : told.ModelName)}"
+                     + $"{(told.Icons.Count > 0 ? $" ({told.Icons.Count} icon(s))" : "")}.");
+
+        return obs;
+    }
+
+    /// <summary>The last meaningful word of a UPnP device type, which is what the thing is.</summary>
+    /// <remarks>
+    /// <c>urn:schemas-upnp-org:device:MediaRenderer:1</c> is a media renderer. The urn carries a namespace,
+    /// the word, and a version; only the middle one says anything to a person.
+    /// </remarks>
+    private static string Kind(string deviceType)
+    {
+        if (deviceType.Length == 0) return "";
+
+        var parts = deviceType.Split(':');
+        return parts.Length >= 2 ? parts[^2] : deviceType;
+    }
+
+    private void Say(ProbeObservation obs, FactKey key, string value, DateTimeOffset now,
+                     Confidence confidence)
+    {
+        if (value.Length == 0) return;
+
+        obs.Facts.Add(Fact(key, FactValue.OfText(value), now, confidence, "UPnP device description"));
+    }
+
     /// <summary>The headers a reading produced, by name, trimmed.</summary>
     /// <remarks>
     /// The description carries a value exactly as written — the space after the colon included — because
@@ -317,4 +463,7 @@ public sealed class SsdpProbe : INetworkProbe
 
     private int Whole(string name, int fallback, int low, int high)
         => int.TryParse(Setting(name, ""), out var v) ? Math.Clamp(v, low, high) : fallback;
+
+    private bool Flag(string name, bool @default)
+        => bool.TryParse(Setting(name, ""), out var v) ? v : @default;
 }

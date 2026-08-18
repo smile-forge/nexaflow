@@ -59,6 +59,8 @@ public class DeviceActionTests
             => Task.FromResult<IProtocolStream?>(null);
         public Task<bool> TcpConnectAsync(IPAddress t, int port, TimeSpan timeout, CancellationToken ct)
             => Task.FromResult(false);
+        public Task<FetchedDocument> FetchAsync(SendIntent i, Uri url, TimeSpan t, CancellationToken ct)
+            => Task.FromResult(FetchedDocument.Nothing("no fetching in this fixture"));
     }
 
     /// <summary>A device carrying exactly the facts a test needs it to.</summary>
@@ -92,10 +94,18 @@ public class DeviceActionTests
     {
         // The whole point of the contract. Trying port 80 on everything would find more and would be a
         // different thing — a scan aimed at devices that never invited it.
-        var action = new OpenManagementAction();
+        // One action per address a description can carry, each present only where that one was given.
+        Assert.IsTrue(new OpenManagementAction()
+            .AppliesTo(Device(("svc.url", "http://192.168.1.42:49152/description.xml"))));
+        Assert.IsTrue(new OpenWebInterfaceAction()
+            .AppliesTo(Device(("svc.presentation", "http://192.168.1.42/"))));
+        Assert.IsTrue(new OpenModelUrlAction()
+            .AppliesTo(Device(("svc.modelUrl", "http://example.com/tv"))));
 
-        Assert.IsTrue(action.AppliesTo(Device(("svc.url", "http://192.168.1.42:49152/description.xml"))));
-        Assert.IsFalse(action.AppliesTo(Device(("link.mac", "aa:bb:cc:dd:ee:ff"))),
+        // And a device that answered SSDP but published no web interface is not offered one.
+        Assert.IsFalse(new OpenWebInterfaceAction()
+            .AppliesTo(Device(("svc.url", "http://192.168.1.42:49152/description.xml"))));
+        Assert.IsFalse(new OpenManagementAction().AppliesTo(Device(("link.mac", "aa:bb:cc:dd:ee:ff"))),
             "a device the neighbour table found and nothing else described has published nothing");
     }
 

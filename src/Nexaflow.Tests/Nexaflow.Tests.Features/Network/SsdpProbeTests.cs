@@ -68,6 +68,20 @@ public class SsdpProbeTests
             => Task.FromResult((false, TimeSpan.Zero));
         public Task<bool> TcpConnectAsync(IPAddress t, int port, TimeSpan timeout, CancellationToken ct)
             => Task.FromResult(false);
+
+        /// <summary>What a description fetch returns, when a test wants one.</summary>
+        public string? Document { get; set; }
+
+        public List<Uri> Fetched { get; } = [];
+
+        public Task<FetchedDocument> FetchAsync(SendIntent i, Uri url, TimeSpan t, CancellationToken ct)
+        {
+            Fetched.Add(url);
+
+            return Task.FromResult(Document is null
+                ? FetchedDocument.Nothing("nothing served here")
+                : new FetchedDocument(true, Encoding.UTF8.GetBytes(Document), "text/xml", ""));
+        }
     }
 
     private sealed class Host(IGuardedTransport transport, Dictionary<string, string>? settings = null)
@@ -118,7 +132,7 @@ public class SsdpProbeTests
         var wire = new Recorded();
         foreach (var r in replies) wire.Replies.Add(Encoding.ASCII.GetBytes(r));
 
-        var host = new Host(wire);
+        var host = new Host(wire, new() { ["describe"] = "false" });
         var probe = new SsdpProbe();
         probe.Attach(host);
 
@@ -183,7 +197,8 @@ public class SsdpProbeTests
     {
         var wire = new Recorded();
         var probe = new SsdpProbe();
-        probe.Attach(new Host(wire, new() { ["mx"] = "4", ["searchTarget"] = "upnp:rootdevice" }));
+        probe.Attach(new Host(wire, new() { ["mx"] = "4", ["searchTarget"] = "upnp:rootdevice",
+                                            ["describe"] = "false" }));
 
         await foreach (var _ in probe.DiscoverAsync(Adapter(), CancellationToken.None)) { }
 
@@ -267,7 +282,7 @@ public class SsdpProbeTests
         wire.From.Add(IPAddress.Parse("192.168.1.42"));   // something else on the segment
 
         var probe = new SsdpProbe();
-        probe.Attach(new Host(wire));
+        probe.Attach(new Host(wire, new() { ["describe"] = "false" }));
 
         List<ProbeObservation> found = [];
         await foreach (var o in probe.DiscoverAsync(Adapter(), CancellationToken.None)) found.Add(o);

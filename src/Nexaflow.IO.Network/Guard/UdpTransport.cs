@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -135,6 +136,63 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
         => throw new NotSupportedException(
             "Stream connections are not built. Discovery is datagram-only, and a guarded stream needs the "
           + "run budget re-checked per write — see IProtocolStream.");
+
+    /// <summary>
+    /// One document, over HTTP, once the guard has agreed to the host.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>HttpClient</c> rather than a hand-built request over a raw stream, and it lives here rather than
+    /// in a caller for the reason this class exists: a probe that could new one up would have a route to
+    /// the wire the guard never saw. The intent is judged first, so a description document on a host off
+    /// this machine's segments is refused before a connection is opened.
+    /// </para>
+    /// <para>
+    /// Redirects are followed but nothing else is: no cookies, no credentials, no proxy. A device serving
+    /// its own description has no business asking for any of them, and each is a way for a fetch to become
+    /// something other than a fetch.
+    /// </para>
+    /// </remarks>
+    public async Task<FetchedDocument> FetchAsync(SendIntent intent, Uri url, TimeSpan timeout,
+                                                  CancellationToken ct)
+    {
+        var decision = guard.Evaluate(intent, budget);
+        if (!decision.Allowed) return FetchedDocument.Nothing(decision.Reason);
+
+        using var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = true,
+            MaxAutomaticRedirections = 3,
+            UseCookies = false,
+            UseProxy = false,
+            Credentials = null,
+        };
+
+        using var http = new HttpClient(handler) { Timeout = timeout };
+        using var giveUp = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        giveUp.CancelAfter(timeout);
+
+        try
+        {
+            using var answer = await http.GetAsync(url, giveUp.Token).ConfigureAwait(false);
+            budget.Record(intent);
+
+            if (!answer.IsSuccessStatusCode)
+                return FetchedDocument.Nothing($"{(int)answer.StatusCode} {answer.ReasonPhrase}");
+
+            var body = await answer.Content.ReadAsByteArrayAsync(giveUp.Token).ConfigureAwait(false);
+            var kind = answer.Content.Headers.ContentType?.MediaType?.ToLowerInvariant() ?? "";
+
+            return new FetchedDocument(true, body, kind, "");
+        }
+        catch (Exception e) when (e is HttpRequestException or OperationCanceledException or IOException)
+        {
+            // A device that advertised an address and does not serve it is ordinary — plenty publish a
+            // LOCATION on a port that hosts only that one file, and some publish one that answers nothing.
+            budget.Record(intent);
+            return FetchedDocument.Nothing(e is OperationCanceledException ? "timed out" : e.Message);
+        }
+    }
 
     /// <summary>
     /// A socket bound for this send, on the segment the intent named, with broadcast or multicast enabled

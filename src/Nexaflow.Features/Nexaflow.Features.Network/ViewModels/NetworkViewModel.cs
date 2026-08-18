@@ -15,11 +15,12 @@ namespace Nexaflow.Features.Network.ViewModels;
 /// <summary>One device, flattened into what a row shows.</summary>
 public sealed partial class DeviceRow : ObservableObject
 {
-    /// <summary>What to put in the Device column — blank where the only name is the address next to it.</summary>
+    /// <summary>What to call it. Its own name where it has published one, its address where it has not —
+    /// never blank, because a row with no name reads as a row with no device.</summary>
     public required string Name { get; init; }
 
-    /// <summary>What to call it where there is nothing beside it, so the panel is never headed by a gap.</summary>
-    public required string Title { get; init; }
+    /// <summary>Where its icon lives, for the devices that published one. Null for the rest.</summary>
+    public required string? IconUrl { get; init; }
 
     /// <summary>Its addresses, kept apart and kept as lists.</summary>
     /// <remarks>
@@ -456,10 +457,12 @@ public sealed partial class NetworkViewModel : ObservableObject
 
         return new DeviceRow
         {
-            // Blank rather than the address twice. DisplayName falls back to whatever identified the
-            // device, which for anything nothing has named is the address already in the next column.
-            Name = v4.Contains(node.DisplayName) ? "" : node.DisplayName,
-            Title = node.DisplayName,
+            // A friendly name where UPnP gave one, and the address otherwise. Leaving it blank was worse
+            // than repeating the address: a row with nothing in its first column reads as a broken row.
+            Name = node.Best(new FactKey("name", "hostname"))?.Value.Text is { Length: > 0 } named
+                ? named
+                : node.DisplayName,
+            IconUrl = node.Best(new FactKey("dev", "icon"))?.Value.Text,
             IPv4 = v4,
             IPv6 = Addresses(node, "ipv6"),
             Mac = node.Best(new FactKey("link", "mac"))?.Value.Text ?? "—",

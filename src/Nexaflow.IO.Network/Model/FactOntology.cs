@@ -86,6 +86,16 @@ public static class FactOntology
             new(new("dev", "firmware"),    "Firmware",        FactValueKind.Text,      FactOntology.LayerMgmt),
             new(new("dev", "uuid"),        "Device UUID",     FactValueKind.Text,      FactOntology.LayerName),
 
+            // UPnP describes a device in a document with a schema, so these are declared rather than
+            // landing under "Other" as raw keys. A vocabulary that a whole protocol family fills is worth
+            // naming; one probe's private notion would not be.
+            new(new("dev", "modelNumber"), "Model number",    FactValueKind.Text,      FactOntology.LayerName),
+            new(new("dev", "description"), "Description",     FactValueKind.Text,      FactOntology.LayerName),
+            new(new("dev", "icon"),        "Icon",            FactValueKind.Text,      FactOntology.LayerName),
+            new(new("svc", "presentation"),"Web interface",   FactValueKind.Text,      FactOntology.LayerService),
+            new(new("svc", "modelUrl"),    "Model page",      FactValueKind.Text,      FactOntology.LayerService),
+            new(new("svc", "vendorUrl"),   "Manufacturer page", FactValueKind.Text,    FactOntology.LayerService),
+
             // ── management plane ─────────────────────────────────────────────────
             new(new("snmp", "sysName"),    "SNMP sysName",    FactValueKind.Text,      FactOntology.LayerMgmt),
             new(new("snmp", "sysDescr"),   "SNMP sysDescr",   FactValueKind.Text,      FactOntology.LayerMgmt),

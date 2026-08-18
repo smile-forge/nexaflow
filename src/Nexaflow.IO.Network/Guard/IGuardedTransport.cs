@@ -2,6 +2,16 @@ using System.Net;
 
 namespace Nexaflow.IO.Network.Guard;
 
+/// <summary>What a fetch came back with.</summary>
+/// <param name="Ok">Whether the far end answered with something.</param>
+/// <param name="Body">The octets. Empty when it did not.</param>
+/// <param name="ContentType">What the far end called them, lower-cased, or empty.</param>
+/// <param name="Detail">Why, when it did not work — a refusal, a timeout, a status code.</param>
+public readonly record struct FetchedDocument(bool Ok, byte[] Body, string ContentType, string Detail)
+{
+    public static FetchedDocument Nothing(string detail) => new(false, [], "", detail);
+}
+
 /// <summary>One datagram received.</summary>
 /// <param name="From">Who sent it.</param>
 /// <param name="Payload">The bytes.</param>
@@ -40,6 +50,23 @@ public interface IGuardedTransport
     /// through <paramref name="decision"/>.</summary>
     Task<IProtocolStream?> ConnectAsync(SendIntent intent, TimeSpan timeout,
                                         CancellationToken ct, Action<GuardDecision>? decision = null);
+
+    /// <summary>
+    /// Fetches one document over HTTP, guard-checked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A primitive for the same reason <see cref="PingAsync"/> is one: the alternative is every caller
+    /// building request lines over a raw stream, and the guard's whole claim is that there is no route to
+    /// the wire it has not seen. The <see cref="SendIntent"/> is judged before a connection is opened, so
+    /// a document on a host off-segment is refused rather than fetched and then regretted.
+    /// </para>
+    /// <para>
+    /// Bytes rather than text, because what comes back is a description document one moment and a PNG the
+    /// next, and deciding which is the caller's business.
+    /// </para>
+    /// </remarks>
+    Task<FetchedDocument> FetchAsync(SendIntent intent, Uri url, TimeSpan timeout, CancellationToken ct);
 
     /// <summary>ICMP echo. An engine primitive rather than a raw-socket concern: Windows blocks raw
     /// TCP/UDP send from user mode, and offering ping directly removes the commonest reason a protocol

@@ -82,6 +82,7 @@
         <ListView Grid.Column="0"
                   AutomationProperties.AutomationId="Net_Devices"
                   SelectedItem="{Binding Selected, Mode=TwoWay}"
+                  PreviewMouseLeftButtonDown="Devices_PreviewMouseLeftButtonDown"
                   ItemsSource="{Binding Devices}"
                   Background="{StaticResource SurfaceBrush}"
                   BorderBrush="{StaticResource BorderBrush}"
@@ -90,12 +91,22 @@
                   ScrollViewer.HorizontalScrollBarVisibility="Auto">
             <ListView.View>
                 <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
-                    <GridViewColumn Header="Device" Width="150">
+                    <GridViewColumn Header="Device" Width="210">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Name}"
-                                           Foreground="{StaticResource TextBrush}"
-                                           VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- The device's own icon, from its description document. Devices that
+                                         published none simply have none; nothing is substituted. -->
+                                    <Image Source="{Binding IconUrl}"
+                                           Width="20" Height="20"
+                                           Margin="0,0,8,0"
+                                           VerticalAlignment="Center"
+                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <TextBlock Text="{Binding Name}"
+                                               Foreground="{StaticResource TextBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>

@@ -98,7 +98,7 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0"
-                       Text="{Binding Selected.Title}"
+                       Text="{Binding Selected.Name}"
                        Foreground="{StaticResource TextBrush}"
                        FontSize="15" FontWeight="SemiBold"
                        TextWrapping="Wrap" />
@@ -127,9 +127,40 @@
                         SelectedItem="{Binding ActiveTab, Mode=TwoWay}"
                         Background="Transparent"
                         BorderThickness="0">
+                <!-- Templated, because WPF's own TabItem paints itself in system chrome and no amount
+                     of setting Foreground reaches the parts that make it look like Windows 7. -->
                 <TabControl.ItemContainerStyle>
                     <Style TargetType="TabItem">
                         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                        <Setter Property="Padding"    Value="10,5" />
+                        <Setter Property="Margin"     Value="0,0,2,0" />
+                        <Setter Property="Cursor"     Value="Hand" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border x:Name="Tab"
+                                            Background="Transparent"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0,0,0,2"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter ContentSource="Header"
+                                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Tab" Property="BorderBrush"
+                                                    Value="{StaticResource AccentBrush}" />
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource TextBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Tab" Property="Background"
+                                                    Value="{StaticResource Surface2Brush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
                     </Style>
                 </TabControl.ItemContainerStyle>
 
