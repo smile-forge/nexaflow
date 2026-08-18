@@ -261,28 +261,29 @@
                 <!-- Items area: transparent background so drags fall through to the
                      outer Border, with content centred both axes. -->
                 <Grid Grid.Row="1" Background="Transparent">
-                    <!-- Empty-state placeholder, centred. Non-hit-testable so it
-                         doesn't interfere with drop targeting. -->
-                    <Border Visibility="{Binding HasContextItems, Converter={StaticResource InvBoolVis}}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Padding="14,10"
-                            IsHitTestVisible="False">
-                        <TextBlock Text="Drag tabs or files here"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   FontSize="12"/>
-                    </Border>
-
-                    <!-- Items, centred and laid out from the centre outwards. -->
+                    <!-- Items, centred and laid out from the centre outwards. The empty-state hint sits
+                         in the row with the chips rather than overlaying the whole area, so the add
+                         button still has a place to stand when nothing is pinned yet. -->
                     <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Disabled"
                                   Background="Transparent">
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
+                            <!-- Empty-state placeholder. Non-hit-testable so it doesn't interfere with
+                                 drop targeting. -->
+                            <Border Visibility="{Binding HasContextItems, Converter={StaticResource InvBoolVis}}"
+                                    VerticalAlignment="Center"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14,10"
+                                    IsHitTestVisible="False">
+                                <TextBlock Text="Drag tabs or files here"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="12"/>
+                            </Border>
+
                             <ItemsControl ItemsSource="{Binding ContextItems}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -510,6 +511,50 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+
+                            <!-- Add-context button: the same menu the banner's right-click opens, made
+                                 visible — right-click alone was a feature nobody found. Held at low
+                                 opacity so it reads as an affordance beside the chips, not a chip. -->
+                            <Button x:Name="AddContextButton"
+                                    Click="OnAddContextClick"
+                                    Cursor="Hand"
+                                    Opacity="0.45"
+                                    VerticalAlignment="Center"
+                                    ToolTip="Add a tab or page as context"
+                                    AutomationProperties.Name="Add context">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="AddChip"
+                                                Background="{StaticResource SurfaceBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Margin="6,0"
+                                                Width="46"
+                                                MinHeight="68">
+                                            <TextBlock Text="+" FontSize="22"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="AddChip" Property="BorderBrush"
+                                                        Value="{StaticResource AccentBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Opacity" Value="1"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

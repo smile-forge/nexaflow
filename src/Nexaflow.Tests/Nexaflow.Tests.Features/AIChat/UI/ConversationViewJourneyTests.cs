@@ -78,6 +78,32 @@ public class ConversationViewJourneyTests : UITestBase
         // The base-class teardown fails the test if any binding/resource error hit the UI thread.
     }
 
+    [TestMethod]
+    [CoversNode("aichat-context-menu")]
+    public void AddContextButton_OpensTheContextSourceMenu()
+    {
+        var openLabel = WaitForName("Open", 15);
+        Assert.IsNotNull(openLabel, "The seeded conversation row (and its Open button) did not appear.");
+        openLabel!.Click();
+        Wait.UntilInputIsProcessed();
+
+        Assert.IsNotNull(WaitForName("Context Items", 12),
+            "The conversation view did not open (its 'Context Items' banner never appeared).");
+
+        // The visible half of the affordance: right-clicking the banner opens the same menu, but nobody
+        // found it. A left click on the [+] must drop the menu — with the conversation's own tab in the
+        // shell, "Open tabs" is always there to prove it built.
+        var add = WaitForName("Add context", 8);
+        Assert.IsNotNull(add, "The [+] add-context button never appeared beside the chips.");
+        add!.Click();
+        Wait.UntilInputIsProcessed();
+
+        Assert.IsNotNull(WaitForName("Open tabs", 8),
+            "Clicking [+] did not open the context-source menu.");
+
+        Assert.IsFalse(App.HasExited, "The app crashed opening the context-source menu.");
+    }
+
     /// <summary>Waits for a descendant with the given accessible name (UITestBase has no such helper).</summary>
     private AutomationElement? WaitForName(string name, int seconds)
     {
