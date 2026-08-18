@@ -75,7 +75,8 @@ internal static class Program
               nfi remove-concern <node-id> <tag> [<root>]
               nfi add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
                                                 [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
-              nfi remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]
+              nfi remove-snaplink <node-id> [<root>] [--concern <tag>]
+                                                [--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]
               nfi set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
               nfi move       <node-id> <new-parent-id> [<root>]
               nfi rename     <old-id> <new-id> [<root>]
@@ -110,7 +111,9 @@ internal static class Program
                        changes. --from <version> diffs against a specific snapshot instead of the newest.
             remap      Rewrites snaplink doc paths from <old-path> to <new-path> (an exact file, or a
                        directory prefix) — the safe way to follow a rename/move — then re-validates.
-                       --class/--method also set those on every affected link (single-file remaps).
+                       --class/--method also set those on every affected link (single-file remaps). Also a
+                       batch instruction: a move that shifts several files lands as one transaction, and
+                       --dry-run shows what it would rewrite before anything is written.
             scan-tests Reflects the built test DLLs for [CoversNode] declarations → .product/test-coverage.json
                        (the cross-check the Integrity page reconciles against). Discovers test assemblies under
                        src/Nexaflow.Tests unless --test-dll is given. --suggest-attributes instead prints the
@@ -128,6 +131,12 @@ internal static class Program
             add-snaplink Attaches a snaplink to the node — or, with --concern <tag>, to that concern's link.
                        --type picks the shape: code (--doc/--class/--method), markdown (--doc/--title-path),
                        node (--target = another node id), url (--url). --status is optional.
+            remove-snaplink Drops snaplinks from the node — or, with --concern <tag>, from that concern's link.
+                       Name the link by what it IS: --type/--doc/--class/--method/--target, every one given
+                       having to agree (--doc alone drops every link into that file, adding --method narrows
+                       it to one; paths compare slash- and case-insensitively). --index <n> removes by
+                       position instead — fragile, since any other edit reorders the list — and the two are
+                       mutually exclusive. With neither, it clears the list, so say what you mean.
             set-node   Edits a node's scalar fields (--title/--desc/--note); an empty --desc/--note clears it.
             move       Reparents <node-id> (and its subtree) under <new-parent-id> — detaches it from its old
                        parent and re-lists it under the new one, rejecting a move that would make a cycle. The
@@ -140,9 +149,9 @@ internal static class Program
                        still has children unless --recursive, which deletes the whole subtree.
             batch      Applies a whole script of instructions to the tree in ONE load/save/validate — the batch
                        replacement for hand-editing tree.json. One instruction per line, each the same syntax as
-                       a standalone verb minus <root>: set-status / set-concern / add-snaplink / set-node /
-                       remove-concern / add-snaplink / remove-snaplink / add-node / move / remove. Blank lines and '#' comments
-                       are skipped; "quote" a value with spaces. It is
+                       a standalone verb minus <root>: set-status / set-concern / remove-concern /
+                       add-snaplink / remove-snaplink / remap / set-node / add-node / move / rename / remove.
+                       Blank lines and '#' comments are skipped; "quote" a value with spaces. It is
                        transactional — if any line is invalid, NOTHING is written (the error names the line).
                        --dry-run parses + applies in memory and reports, writing nothing.
             lint       Checks a feature subtree against the modelling rules in docs/feature-tree-and-tests.md
@@ -1150,27 +1159,26 @@ internal static class Program
     private static int Remap(string[] args)
     {
         if (!TryRead(Specs.Remap, args, out var a, out var root, out var parseCode)) return parseCode;
-        var oldPath = a[0];
-        var newPath = a[1];
         if (!TryLoad(root, out var state, out var code)) return code;
 
-        var changed = SnaplinkRemapper.Remap(state, oldPath, newPath, a.Value("--class"), a.Value("--method"));
+        // Standalone, a no-op remap is an answer rather than a failure: nothing referenced that path.
+        // Inside batch it IS a failure (ApplyRemap) - there the path comes from a move the author already
+        // made, so a miss means the script is wrong and the whole transaction should abort.
+        var changed = SnaplinkRemapper.Remap(state, a[0], a[1], a.Value("--class"), a.Value("--method"));
         if (changed == 0)
         {
-            Console.WriteLine($"No snaplink referenced '{oldPath}' - nothing remapped.");
+            Console.WriteLine($"No snaplink referenced '{a[0]}' - nothing remapped.");
             return Clean;
         }
+        return SaveAndValidate(state, root, $"Remapped {changed} snaplink(s): {a[0]} -> {a[1]}.");
+    }
 
-        new ProductStore(root).SaveTree(state.Nodes);   // canonical serializer, same as the in-app editor
-
-        // Re-validate so the effect is visible immediately (this is the point of a safe edit command).
-        var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
-        Console.WriteLine($"Remapped {changed} snaplink(s): {oldPath} -> {newPath}.");
-        Console.WriteLine(report.IsClean
-            ? $"Snaplinks OK — scanned {report.ScannedSnaplinks}."
-            : $"{report.IssueCount} broken snaplink(s) remain — run: validate .");
-        new ProductStore(root).SaveIntegrity(report);
-        return report.IsClean ? Clean : Broken;
+    private static (bool Ok, string Message) ApplyRemap(ProductState s, VerbArgs a)
+    {
+        var changed = SnaplinkRemapper.Remap(s, a[0], a[1], a.Value("--class"), a.Value("--method"));
+        return changed > 0
+            ? (true, $"Remapped {changed} snaplink(s): {a[0]} -> {a[1]}.")
+            : (false, $"no snaplink referenced '{a[0]}' - nothing to remap");
     }
 
     // ── scan-tests: harvest declared test↔node coverage into the manifest the Integrity page reconciles ──
@@ -1355,6 +1363,8 @@ internal static class Program
             "tree <node-id> [<root>] [--depth <n>] [--full] [--json]");
         public static readonly VerbSpec Diff = new("diff", 0, ["--from"], None,
             "diff [<root>] [--from <version>]");
+        // remap is a mutation too: a move usually breaks several paths at once, and batch is the only way
+        // to land them as one validated, all-or-nothing transaction. So this spec is reused via .InBatch.
         public static readonly VerbSpec Remap = new("remap", 2, ["--class", "--method"], None,
             "remap <old-path> <new-path> [<root>] [--class <name>] [--method <name>]");
         public static readonly VerbSpec ScanTests = new("scan-tests", 0, ["--test-dll"], ["--suggest-attributes"],
@@ -1376,8 +1386,10 @@ internal static class Program
             None,
             "add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>] "
             + "[--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]");
-        public static readonly VerbSpec RemoveSnaplink = new("remove-snaplink", 1, ["--concern", "--index"], None,
-            "remove-snaplink <node-id> [<root>] [--concern <tag>] [--index <n>]");
+        public static readonly VerbSpec RemoveSnaplink = new("remove-snaplink", 1,
+            ["--concern", "--index", "--type", "--doc", "--class", "--method", "--target"], None,
+            "remove-snaplink <node-id> [<root>] [--concern <tag>] "
+            + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]");
         public static readonly VerbSpec SetNode = new("set-node", 1, ["--title", "--desc", "--note"], None,
             "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]");
         public static readonly VerbSpec AddNode = new("add-node", 2, ["--id", "--desc", "--status"], None,
@@ -1542,14 +1554,33 @@ internal static class Program
             if (!int.TryParse(raw, out var i)) return (false, $"--index must be a number (got '{raw}')");
             index = i;
         }
-        var concern = a.Value("--concern");
 
-        var removed = ProductTreeOps.RemoveSnaplink(s, id, concern, index);
+        var match = new SnaplinkFilter(a.Value("--type"), a.Value("--doc"), a.Value("--class"),
+                                       a.Value("--method"), a.Value("--target"));
+        // Two ways to name the same link, and they disagree the moment anything reorders the list. Refuse
+        // rather than pick one, so a script cannot quietly delete the entry next to the one it meant.
+        if (index is not null && !match.IsEmpty)
+            return (false, "--index and the --type/--doc/--class/--method/--target matchers are alternatives - use one");
+
+        var concern = a.Value("--concern");
+        var removed = ProductTreeOps.RemoveSnaplink(s, id, concern, index, match);
         var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
+        var how = match.IsEmpty
+            ? (index is { } n ? $" at index {n}" : " (all of them)")
+            : $" matching {Describe(match)}";
         return removed > 0
-            ? (true, $"Removed {removed} snaplink(s) from {where}.")
-            : (false, $"no matching snaplink to remove on {where}");
+            ? (true, $"Removed {removed} snaplink(s) from {where}{how}.")
+            : (false, $"no matching snaplink to remove on {where}{how}");
     }
+
+    private static string Describe(SnaplinkFilter f) => string.Join(" ", new[]
+    {
+        f.Type   is null ? null : $"type={f.Type}",
+        f.Doc    is null ? null : $"doc={f.Doc}",
+        f.Class  is null ? null : $"class={f.Class}",
+        f.Method is null ? null : $"method={f.Method}",
+        f.Target is null ? null : $"target={f.Target}",
+    }.Where(x => x is not null));
 
     private static int AddSnaplink(string[] args) => RunOne(Specs.AddSnaplink, args, ApplyAddSnaplink);
 
@@ -1616,7 +1647,7 @@ internal static class Program
     /// it against the same <see cref="VerbSpec"/> the standalone verb uses — so a batch script gets identical
     /// strictness. Since batch is all-or-nothing, an unknown option on line 40 aborts before anything is written.
     /// </summary>
-    private static (bool Ok, string Message) ApplyOne(ProductState state, string[] args)
+    internal static (bool Ok, string Message) ApplyOne(ProductState state, string[] args)
     {
         // Parse against the BATCH form of the spec (no trailing <root> — the run has one), then run the
         // same core the standalone verb uses.
@@ -1634,12 +1665,13 @@ internal static class Program
             ["remove-concern",  .. var r] => Parsed(Specs.RemoveConcern,  r, ApplyRemoveConcern),
             ["add-snaplink",    .. var r] => Parsed(Specs.AddSnaplink,    r, ApplyAddSnaplink),
             ["remove-snaplink", .. var r] => Parsed(Specs.RemoveSnaplink, r, ApplyRemoveSnaplink),
+            ["remap",           .. var r] => Parsed(Specs.Remap,           r, ApplyRemap),
             ["set-node",        .. var r] => Parsed(Specs.SetNode,        r, ApplySetNode),
             ["add-node",        .. var r] => Parsed(Specs.AddNode,        r, ApplyAddNode),
             ["move",            .. var r] => Parsed(Specs.Move,           r, ApplyMove),
             ["rename",          .. var r] => Parsed(Specs.Rename,         r, ApplyRename),
             ["remove",          .. var r] => Parsed(Specs.Remove,         r, ApplyRemove),
-            [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, remove-snaplink, set-node, add-node, move, rename, remove)"),
+            [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, remove-snaplink, remap, set-node, add-node, move, rename, remove)"),
         };
     }
 

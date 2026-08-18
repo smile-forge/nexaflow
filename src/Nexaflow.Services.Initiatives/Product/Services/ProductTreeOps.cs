@@ -170,15 +170,24 @@ public static class ProductTreeOps
     }
 
     /// <summary>Removes snaplinks from the node itself, or — with <paramref name="concernTag"/> — from that
-    /// concern's link. With <paramref name="index"/> removes just that one entry (0-based); otherwise clears
-    /// them all. Returns how many were removed (0 if the node/concern/list is absent or the index is out of range).</summary>
-    public static int RemoveSnaplink(ProductState s, string id, string? concernTag = null, int? index = null)
+    /// concern's link. Three addressing modes, in priority order: <paramref name="match"/> removes every link
+    /// whose fields agree with it, <paramref name="index"/> removes just that one entry (0-based), and neither
+    /// clears them all. Returns how many were removed (0 if the node/concern/list is absent, the index is out of
+    /// range, or nothing matched).
+    /// <para>
+    /// Prefer <paramref name="match"/>: an index is a position in a list that any other edit reorders, which
+    /// makes it the wrong handle for a script, while clear-them-all is only ever right when you mean all.
+    /// </para></summary>
+    public static int RemoveSnaplink(ProductState s, string id, string? concernTag = null, int? index = null,
+                                     SnaplinkFilter? match = null)
     {
         if (!s.Nodes.TryGetValue(id, out var node)) return 0;
         var list = concernTag is null
             ? node.Snaplinks
             : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
         if (list is null || list.Count == 0) return 0;
+
+        if (match is { IsEmpty: false } filter) return list.RemoveAll(filter.Matches);
 
         if (index is { } i)
         {
