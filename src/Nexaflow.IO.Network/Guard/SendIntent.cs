@@ -42,6 +42,25 @@ public sealed record SendIntent
     /// <summary>Probe id or <c>protocol:&lt;id&gt;</c>. Recorded in the audit log.</summary>
     public required string SourceId { get; init; }
 
+    /// <summary>
+    /// The local address to send FROM, where the caller cares which segment this goes out on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null lets the routing table choose, which is right for a unicast to a known host and <b>wrong for
+    /// every multicast</b>. Measured, not reasoned about: an M-SEARCH sent from the unspecified address
+    /// reached nothing on a machine with exactly one connected adapter — only this host's own UPnP service
+    /// answered, through the loopback copy — while the same datagram sent from that adapter's own address
+    /// drew replies from a set-top box and a television within a second.
+    /// </para>
+    /// <para>
+    /// It belongs on the intent rather than on a transport method because a sweep is per-adapter by
+    /// nature: a probe is asked about one adapter at a time, and which segment a datagram went out on is
+    /// exactly the kind of thing an audit log has to be able to say.
+    /// </para>
+    /// </remarks>
+    public IPAddress? Via { get; init; }
+
     /// <summary>Content hash of the protocol document, when there is one. Trust attaches to bytes, not to
     /// a name — an edited document is a different document.</summary>
     public string? ContentHash { get; init; }

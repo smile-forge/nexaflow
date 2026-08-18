@@ -96,6 +96,19 @@ public sealed class SsdpProbe : INetworkProbe
             yield break;
         }
 
+        // The adapter's own IPv4 address, because a multicast has to be told which segment it is for.
+        // Without it the datagram is sent from the unspecified address and reaches nothing but this
+        // machine's own UPnP service, through the loopback copy — a discovery that looks like it ran.
+        var via = adapter.Addresses
+            .FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            .Address;
+
+        if (via is null)
+        {
+            _host.Log.Info($"{ProbeId}: {adapter.Name} has no IPv4 address to search from.");
+            yield break;
+        }
+
         var intent = new SendIntent
         {
             Target = Group,
@@ -105,6 +118,7 @@ public sealed class SsdpProbe : INetworkProbe
             Initiator = SendInitiator.Probe,
             Broadcast = true,
             SourceId = ProbeId,
+            Via = via,
         };
 
         // MX is how long devices may wait, so the listen window has to outlast it — a device answering at

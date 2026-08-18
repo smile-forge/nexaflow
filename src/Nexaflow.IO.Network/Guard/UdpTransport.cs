@@ -137,16 +137,29 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
           + "run budget re-checked per write — see IProtocolStream.");
 
     /// <summary>
-    /// A socket bound for this send, with broadcast or multicast enabled only when the intent says so.
+    /// A socket bound for this send, on the segment the intent named, with broadcast or multicast enabled
+    /// only when the intent says so.
     /// </summary>
     /// <remarks>
-    /// The option is set from the <b>intent the guard just approved</b>, not from the address. Deriving it
-    /// from the address would let a send become a broadcast after the decision was taken on the basis that
-    /// it was not one.
+    /// <para>
+    /// The broadcast option is set from the <b>intent the guard just approved</b>, not from the address.
+    /// Deriving it from the address would let a send become a broadcast after the decision was taken on the
+    /// basis that it was not one.
+    /// </para>
+    /// <para>
+    /// <b>Binding to the caller's address is what makes a multicast leave the machine.</b> On
+    /// <c>IPAddress.Any</c> an M-SEARCH reached nothing here — only this host's own UPnP service answered,
+    /// through the loopback copy that multicast always generates, which is exactly what a discovery that
+    /// silently went nowhere looks like. Bound to the adapter's own address the same datagram drew replies
+    /// from every UPnP device on the segment. The multicast interface is set as well as the bind, because
+    /// the two are separate decisions in the stack and only setting one of them leaves the other to a
+    /// routing table that has no idea which adapter is being swept.
+    /// </para>
     /// </remarks>
     private static Socket Bound(SendIntent intent)
     {
         var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        var via = intent.Via ?? IPAddress.Any;
 
         if (intent.Broadcast)
         {
@@ -155,9 +168,13 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
             // Low but not zero: one hop reaches the local segment, which is as far as a discovery is meant
             // to go, and zero would not leave the machine.
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+
+            if (!via.Equals(IPAddress.Any))
+                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
+                                       via.GetAddressBytes());
         }
 
-        socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+        socket.Bind(new IPEndPoint(via, 0));
         return socket;
     }
 

@@ -165,6 +165,20 @@ public class SsdpProbeTests
     }
 
     [TestMethod]
+    public async Task And_it_says_which_segment_it_is_searching()
+    {
+        // The bug this exists to stop coming back, and it was invisible: bound to the unspecified address
+        // an M-SEARCH reaches nothing but this machine's own UPnP service, through the loopback copy that
+        // multicast always generates. Six replies, a clean log, and not one device — a discovery that looks
+        // exactly like a quiet network. Naming the adapter turned the same sweep into forty-four replies
+        // from a television and a set-top box.
+        var (wire, _, _) = await Sweep();
+
+        Assert.AreEqual("192.168.1.10", wire.Intent!.Via?.ToString(),
+            "the adapter's own address, so the datagram goes out the segment being swept");
+    }
+
+    [TestMethod]
     public async Task And_a_setting_the_user_changed_reaches_the_octets()
     {
         var wire = new Recorded();
