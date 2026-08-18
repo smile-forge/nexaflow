@@ -1,0 +1,195 @@
+{
+  "protocol": "MQTT 3.1.1 (OASIS, protocol level 0x04) over TCP — CONNECT / CONNACK / SUBSCRIBE / SUBACK, plus PINGREQ / PINGRESP for keepalive liveness",
+  "slug": "mqtt",
+  "captures": [
+    {
+      "label": "CONNECT (client → broker) — will flag set, username+password set, remaining length in 2-byte varint form",
+      "hex": "10 8f 01 00 04 4d 51 54 54 04 ce 00 3c 00 11 6e 65 78 61 66 6c 6f 77 2d 70 72 6f 62 65 2d 30 31 00 0a 64 65 76 2f 73 74 61 74 75 73 00 50 7b 22 73 74 61 74 75 73 22 3a 22 6f 66 66 6c 69 6e 65 22 2c 22 72 65 61 73 6f 6e 22 3a 22 75 6e 67 72 61 63 65 66 75 6c 2d 64 69 73 63 6f 6e 6e 65 63 74 22 2c 22 6e 6f 64 65 22 3a 22 6e 65 78 61 66 6c 6f 77 2d 70 72 6f 62 65 2d 30 31 22 7d 00 0a 73 65 6e 73 6f 72 75 73 65 72 00 06 73 33 63 72 33 74",
+      "fieldBreakdown": "0:1:fixedHeader:0x10 — packetType=1 (CONNECT), flags nibble=0b0000 (reserved, MUST be 0)\n1:2:remainingLength:8f 01 — 7-bit continuation varint, value=143 = byte count of offsets 3..145. TWO bytes because 143>=128: 143%128=15 -> 15|0x80=0x8f, 143/128=1 -> 0x01\n3:2:protocolNameLen:00 04 — u16be = 4\n5:4:protocolName:4d 51 54 54 — \"MQTT\"\n9:1:protocolLevel:04 — MQTT 3.1.1\n10:1:connectFlags:0xce — b7 userNameFlag=1; b6 passwordFlag=1; b5 willRetain=0; b4..b3 willQoS=0b01 (=1); b2 willFlag=1; b1 cleanSession=1; b0 reserved=0. THIS BYTE GATES OFFSETS 32..145\n11:2:keepAliveSeconds:00 3c — u16be = 60\n13:2:clientIdLen:00 11 — u16be = 17\n15:17:clientId:6e 65 78 61 66 6c 6f 77 2d 70 72 6f 62 65 2d 30 31 — \"nexaflow-probe-01\"\n32:2:willTopicLen:00 0a — u16be = 10. PRESENT ONLY BECAUSE connectFlags.b2 == 1\n34:10:willTopic:64 65 76 2f 73 74 61 74 75 73 — \"dev/status\". PRESENT ONLY BECAUSE connectFlags.b2 == 1\n44:2:willMessageLen:00 50 — u16be = 80. PRESENT ONLY BECAUSE connectFlags.b2 == 1\n46:80:willMessage:7b 22 73 74 61 74 75 73 22 3a 22 6f 66 66 6c 69 6e 65 22 2c 22 72 65 61 73 6f 6e 22 3a 22 75 6e 67 72 61 63 65 66 75 6c 2d 64 69 73 63 6f 6e 6e 65 63 74 22 2c 22 6e 6f 64 65 22 3a 22 6e 65 78 61 66 6c 6f 77 2d 70 72 6f 62 65 2d 30 31 22 7d — 80 bytes, exactly '{\"status\":\"offline\",\"reason\":\"ungraceful-disconnect\",\"node\":\"nexaflow-probe-01\"}'. MQTT defines no internal structure for this field — it is an opaque application payload, so these 80 bytes ARE the field. PRESENT ONLY BECAUSE connectFlags.b2 == 1\n126:2:usernameLen:00 0a — u16be = 10. PRESENT ONLY BECAUSE connectFlags.b7 == 1\n128:10:username:73 65 6e 73 6f 72 75 73 65 72 — \"sensoruser\". PRESENT ONLY BECAUSE connectFlags.b7 == 1\n138:2:passwordLen:00 06 — u16be = 6. PRESENT ONLY BECAUSE connectFlags.b6 == 1\n140:6:password:73 33 63 72 33 74 — \"s3cr3t\". PRESENT ONLY BECAUSE connectFlags.b6 == 1\n[TOTAL 146 bytes, offsets 0..145. Declared remainingLength 143 == actual 146-3 = 143. VERIFIED.]",
+      "notes": "Chosen legal values (not from a real capture, all spec-legal): clientId \"nexaflow-probe-01\", keepAlive 60s, will topic \"dev/status\", credentials sensoruser/s3cr3t. The will payload was deliberately sized to 80 bytes to push remainingLength to 143 and force the TWO-byte varint form — a 1-byte-varint capture would have hidden the grammar's central failure."
+    },
+    {
+      "label": "CONNACK (broker → client) — connection accepted, no session resumed",
+      "hex": "20 02 00 00",
+      "fieldBreakdown": "0:1:fixedHeader:0x20 — packetType=2 (CONNACK), flags nibble=0b0000 (reserved, MUST be 0)\n1:1:remainingLength:02 — varint, ONE-byte form because 2<128, value=2 = byte count of offsets 2..3\n2:1:connectAcknowledgeFlags:0x00 — b7..b1 reserved=0000000; b0 sessionPresent=0. MUST be 0 here because the CONNECT set cleanSession=1\n3:1:connectReturnCode:0x00 — 0x00 = Connection Accepted (0x01 unacceptable protocol version, 0x02 identifier rejected, 0x03 server unavailable, 0x04 bad user/password, 0x05 not authorized)\n[TOTAL 4 bytes, offsets 0..3. Declared remainingLength 2 == actual 4-2 = 2. VERIFIED.]",
+      "notes": "Same protocol, ONE-byte varint. The two captures together prove the width of the length field is a function of its own value."
+    },
+    {
+      "label": "SUBSCRIBE (client → broker) — three topic filters at QoS 1, 2, 0",
+      "hex": "82 36 00 0a 00 0a 64 65 76 2f 73 74 61 74 75 73 01 00 0f 64 65 76 2f 2b 2f 74 65 6c 65 6d 65 74 72 79 02 00 12 24 53 59 53 2f 62 72 6f 6b 65 72 2f 75 70 74 69 6d 65 00",
+      "fieldBreakdown": "0:1:fixedHeader:0x82 — packetType=8 (SUBSCRIBE), flags nibble=0b0010. This nibble is NOT free: MQTT mandates exactly 0010; any other value is a protocol error the server must answer by closing the connection\n1:1:remainingLength:36 — varint, ONE-byte form, value=54 = byte count of offsets 2..55\n2:2:packetIdentifier:00 0a — u16be = 10. MUST be non-zero; correlation token echoed by SUBACK\n4:2:topicFilterLen[0]:00 0a — u16be = 10\n6:10:topicFilter[0]:64 65 76 2f 73 74 61 74 75 73 — \"dev/status\"\n16:1:requestedQoS[0]:01 — QoS 1; upper 6 bits reserved, MUST be 0\n17:2:topicFilterLen[1]:00 0f — u16be = 15\n19:15:topicFilter[1]:64 65 76 2f 2b 2f 74 65 6c 65 6d 65 74 72 79 — \"dev/+/telemetry\" (single-level wildcard)\n34:1:requestedQoS[1]:02 — QoS 2\n35:2:topicFilterLen[2]:00 12 — u16be = 18\n37:18:topicFilter[2]:24 53 59 53 2f 62 72 6f 6b 65 72 2f 75 70 74 69 6d 65 — \"$SYS/broker/uptime\"\n55:1:requestedQoS[2]:00 — QoS 0\n[TOTAL 56 bytes, offsets 0..55. Declared remainingLength 54 == actual 56-2 = 54. VERIFIED.]",
+      "notes": "The payload is a repeated (u16be length, bytes, u8 qos) record — a length prefix INSIDE a repetition, with a trailing scalar after the variable-length part. Not a TLV: the tag-equivalent (QoS) comes last."
+    },
+    {
+      "label": "SUBACK (broker → client) — one exact grant, one DOWNGRADE, one failure",
+      "hex": "90 05 00 0a 01 01 80",
+      "fieldBreakdown": "0:1:fixedHeader:0x90 — packetType=9 (SUBACK), flags nibble=0b0000\n1:1:remainingLength:05 — varint, ONE-byte form, value=5 = byte count of offsets 2..6\n2:2:packetIdentifier:00 0a — u16be = 10, echoes the SUBSCRIBE at capture 3\n4:1:returnCode[0]:01 — Success, maximum QoS 1. Requested 1 -> granted 1. EXACT\n5:1:returnCode[1]:01 — Success, maximum QoS 1. Requested 2 -> granted 1. NEGOTIATED DOWNGRADE: the broker's max-qos policy narrowed the request; the client must now treat this subscription as at-most-once-duplicated, not exactly-once\n6:1:returnCode[2]:80 — 0x80 = Failure. Requested 0 -> NOT GRANTED AT ALL. \"$SYS/broker/uptime\" is refused by ACL; no subscription exists. The client learns this only here, and any later absence of data on that topic is expected, not a fault\n[TOTAL 7 bytes, offsets 0..6. Declared remainingLength 5 == actual 7-2 = 5. VERIFIED.]",
+      "notes": "Return-code count is positionally bound to the SUBSCRIBE's filter count — there is no count field. The decoder derives it as remainingLength-2, i.e. from a value it can only obtain by correctly decoding the varint."
+    },
+    {
+      "label": "PINGREQ (client → broker) — keepalive liveness probe",
+      "hex": "c0 00",
+      "fieldBreakdown": "0:1:fixedHeader:0xc0 — packetType=12 (PINGREQ), flags nibble=0b0000\n1:1:remainingLength:00 — varint, ONE-byte form, value=0; no variable header, no payload\n[TOTAL 2 bytes, offsets 0..1. Declared remainingLength 0 == actual 2-2 = 0. VERIFIED.]",
+      "notes": "Included because the assigned hazard names keepalive liveness. This is the only message whose obligation is periodic rather than event-driven."
+    },
+    {
+      "label": "PINGRESP (broker → client) — liveness confirmation",
+      "hex": "d0 00",
+      "fieldBreakdown": "0:1:fixedHeader:0xd0 — packetType=13 (PINGRESP), flags nibble=0b0000\n1:1:remainingLength:00 — varint, ONE-byte form, value=0\n[TOTAL 2 bytes, offsets 0..1. Declared remainingLength 0 == actual 2-2 = 0. VERIFIED.]",
+      "notes": "Confirms the broker was alive at receipt. That confirmation decays immediately — it is a TTL fact, not a durable state."
+    }
+  ],
+  "v0Encodable": false,
+  "v0Decodable": false,
+  "v0RoundTrips": false,
+  "statefulness": "MQTT is not a request/response protocol with a state machine bolted on; the connection IS the state, and §5 is missing most of what it needs.\n\nLEGAL-MESSAGE-PER-STATE. The real state set is larger than \"disconnected/connected\". (1) tcpClosed — nothing legal. (2) tcpOpen — TCP is up, CONNECT has not been sent. EXACTLY ONE message is legal: CONNECT. The broker must close the socket if the first packet is anything else. (3) connectSent — CONNECT is on the wire, CONNACK has not arrived. NOTHING is legal here, not even a second CONNECT. §5 cannot name this state: it is neither disconnected nor connected, it is in-flight, and v0's transitions are edge-triggered on completion, so the pending interval has no name and therefore no validIn can exclude it. (4) connected — SUBSCRIBE / UNSUBSCRIBE / PUBLISH / PINGREQ / DISCONNECT. (5) rejected — CONNACK returnCode != 0; terminal, broker closes; the client must send nothing further. Different codes imply different remediation (0x04 bad credentials -> reprompt; 0x02 identifier rejected -> regenerate clientId; 0x03 server unavailable -> backoff) so this is really five terminal sub-states, which v0 CAN express as multiple `transitions` with `when` guards. That part works.\n\nWHAT MUST CHAIN. SUBSCRIBE requires a CONNECT that was ACCEPTED, in the SAME TCP connection. §5's `requires:[\"login\"]` has no declared scope — run, session, or store. It must be session-scoped and must be invalidated the instant the socket closes, otherwise a reconnect silently inherits a satisfied `requires` and the grammar authorises an illegal SUBSCRIBE on a fresh, un-CONNECTed socket. This is a specification hole, not a syntax hole.\n\nWHAT MUST NEVER COMBINE. Not message-vs-message (`conflicts` handles that shape) but FIELD-vs-FIELD inside one message, which §5 cannot reach at all: passwordFlag=1 with userNameFlag=0; willFlag=0 with willQoS!=0 or willRetain=1; reserved bit0 != 0; packetIdentifier == 0; SUBSCRIBE fixed-header low nibble != 0b0010. Also cross-message: cleanSession=1 in CONNECT with sessionPresent=1 in CONNACK is a broker violation the client must detect. And self-occurrence: CONNECT is legal AT MOST ONCE per connection — `conflicts` is pairwise across different messages and cannot say \"not twice\".\n\nCONFIRMED vs PRESUMED. CONNACK returnCode==0x00 CONFIRMS `connected` — this is the clean case and v0 handles it. Everything else is murkier. SUBSCRIBE presumes a subscription at the REQUESTED QoS; SUBACK then confirms it at a POSSIBLY LOWER one, or refuses it entirely with 0x80. So the confirmation does not validate the presumption, it OVERWRITES it with a narrower value — element by element, positionally. §5's `effects.presume` writes one fact from one expression and `confirmedBy.matches` is a whole-message boolean; neither can express \"the response rewrites my presumption downward, per array element\". Its own known-gaps list names this (\"negotiated capability\") and my capture confirms it: SUBACK 01 01 80 against a request of 1/2/0 cannot be recorded. PINGRESP confirms liveness only AT THE INSTANT OF RECEIPT — it is the purest TTL fact in the protocol (confidence high, ttl = keepAlive), and it decays to presumed immediately. The subscription set after a reconnect with sessionPresent=1 is state RESTORED from the broker's memory that this run never observed being created — neither confirmed nor presumed but asserted-by-the-peer, a third category §5 has no word for.\n\nKEEPALIVE IS AN OBLIGATION, NOT A TIMEOUT. §5 offers `\"connected\": {\"timeoutMs\":30000,\"onTimeout\":\"disconnected\"}` — that models THE PEER going quiet. MQTT inverts it: WE must transmit something every KeepAlive seconds or the broker disconnects us at 1.5x KeepAlive. There is no periodic-emission primitive; the closest v0 construct is `delay` plus a back edge carrying `loop:{max:n}` with n <= 64, which caps a session at 64 heartbeats — a 60-second keepalive gives you a 64-minute maximum session lifetime as a hard grammar limit. Worse, `timeoutMs` is shown as a literal, but the correct value is `inputs.keepAliveSeconds * 1500` — negotiated by our own CONNECT field.\n\nDISCOVERED ONLY FROM THE NEXT RESPONSE — OR FROM NO RESPONSE AT ALL. This is where §5's `implies` construct breaks. Its example keys on decoded content (`capture.status == 401`). MQTT's session-death signals mostly have NO content: (a) half-open TCP — you learn the session is dead when a PINGREQ produces no PINGRESP, i.e. from an ABSENCE, and there is no `capture.*` to test; (b) SESSION TAKEOVER — another client connects with your clientId and the broker disconnects you with no MQTT-level message whatsoever, just a FIN; (c) a QoS-2 downgrade to QoS 1 is NEVER reported again after the SUBACK — you do not discover a mismatch, deliveries just silently duplicate, which is a semantic divergence no response ever surfaces; (d) a 0x80 return code means the topic subscription does not exist, so the eternal absence of messages on that topic is CORRECT behaviour — indistinguishable at the transport level from a broker that has nothing to publish. So `implies` must be able to fire on `on:\"timeout\"` / `on:\"error\"` / `on:\"close\"` edges, not only on a decoded `when`.\n\nONE MORE STRUCTURAL DEMAND. MQTT is bidirectional-asynchronous over ONE socket: the broker sends PUBLISH unprompted at any moment, freely interleaved with the SUBACK you are waiting for, and freely coalesced into the same TCP segment. §4's `expect` with `token` correlation presumes a request/response run; here it must first FRAME every arriving packet (impossible — see the framing gap), CLASSIFY it, dispatch PUBLISH to a concurrent handler, and only then match the packet identifier. There is no always-on inbound channel in the step graph; `listen` is a step you arrive at, not a handler that runs alongside. Any MQTT client built on v0 would lose every PUBLISH that arrives while a step is waiting.\n\nFINALLY, THE WILL. The will message is published by the broker if and only if the connection ends WITHOUT a DISCONNECT. That is a remote side effect determined by HOW a state was exited — the one piece of protocol state whose outcome depends on the exit path rather than on any message sent. §5 has no vocabulary for it: `effects` attach to a message succeeding, and abnormal termination is precisely the case where no message was sent.",
+  "gaps": [
+    {
+      "severity": "blocking",
+      "what": "No variable-width integer field. MQTT's Remaining Length is a 1-4 byte base-128 varint with a continuation bit, whose WIDTH is a function of the VALUE it carries.",
+      "why": "CONNECT offset 1: `8f 01` = 143. CONNACK offset 1: `02` = 2. Same field, different widths, same protocol. §3's two-pass rule states pass 1 emits \"a placeholder of the DECLARED WIDTH\" and pass 2 back-patches — but the width here is only knowable after the span it measures is encoded, which is pass-2 knowledge. Reserving 4 bytes always is not an option: MQTT declares non-minimal encodings malformed. The v0 workaround (three mutually-exclusive u8 fields gated by `when` on `len(group:rest)`) makes field PRESENCE depend on a forward span, which the two-pass contract does not support at all — pass 1 fixes presence, pass 2 fixes only values.",
+      "fixKind": "fieldKind",
+      "proposedFix": "Encode: { \"varint\": {\"encoding\":\"mqtt7\",\"minBytes\":1,\"maxBytes\":4,\"minimal\":true}, \"value\":\"len(group:rest)\" }\nDecode: { \"varint\": {\"encoding\":\"mqtt7\",\"maxBytes\":4,\"minimal\":true}, \"as\":\"remainingLength\" }\nEngine consequence that must be specified with it: a variable-width placeholder means downstream byte offsets shift during pass 2, so any `len(from:A to:B)` spanning a varint needs fixed-point iteration (encode -> widen -> re-encode). Termination is provable: width is monotonically non-decreasing in the value and bounded by maxBytes, so the loop runs at most maxBytes times. Must be a fieldKind, not a converter — a converter cannot change pass 1's width-reservation contract."
+    },
+    {
+      "severity": "blocking",
+      "what": "No field that reads N bytes where N is a previously-decoded value. Every MQTT string is u16be-length + N bytes.",
+      "why": "CONNECT offsets 13-15: read `00 11` = 17, then read 17 bytes as UTF-8. The decode grammar offers fixed-width scalars, `skip:<const>` (which discards), `bits`, and `each:<count>`. The nearest cheat, { \"each\":\"capture.clientIdLen\", \"fields\":[{\"u8\":null}], \"as\":\"clientIdBytes\" }, yields List<Int> not Text, and `each` has no post-conversion slot so `| concat | utf8` cannot be applied. Recovering the string requires a §4 `compute` step outside the parse document. This defeats EVERY string in CONNECT (protocolName, clientId, willTopic, willMessage, username, password) and every topic filter in SUBSCRIBE — 6 of 8 variable fields in the capture.",
+      "fixKind": "fieldKind",
+      "proposedFix": "{ \"bytes\": \"<lenExpr>\", \"as\":\"x\", \"via\":\"utf8\" }  // decode: consume lenExpr bytes, optionally pipe through one converter\n{ \"bytes\": \"capture.clientIdLen\", \"as\":\"clientId\", \"via\":\"utf8\" }\nEncode form is the existing { \"value\":\"inputs.clientId | utf8\" }, so this is purely a decode-side symmetry fix."
+    },
+    {
+      "severity": "blocking",
+      "what": "No stream frame kind can delimit an MQTT packet on TCP.",
+      "why": "§2 offers exactly four: lengthPrefixed{prefix,at,includesPrefix} requires a FIXED-width prefix at a FIXED offset — MQTT's prefix is a 1-4 byte varint at offset 1 that excludes both itself and the header byte; delimited needs a byte sequence that cannot occur in a binary payload; fixed is wrong by construction; none leaves the stream unframed. Concretely: a broker may return `90 05 00 0a 01 01 80` (SUBACK) and a PUBLISH in ONE TCP segment, and may split my 146-byte CONNECT across two. With frame:none, `expect` has no packet boundary and cannot know where SUBACK ends.",
+      "fixKind": "layer",
+      "proposedFix": "\"frame\": { \"kind\":\"varintPrefixed\", \"at\":1, \"encoding\":\"mqtt7\", \"includesPrefix\":false, \"includesHeader\":false, \"headerBytes\":1 }\nA fifth frame kind, parameterised — it also covers Protobuf-delimited streams, LEB128 framing, and MQTT 5. Smaller than an `mqtt` layer and not protocol-specific."
+    },
+    {
+      "severity": "major",
+      "what": "`each` cannot contain a per-item length prefix, because group names have no iteration scoping.",
+      "why": "SUBSCRIBE payload at offsets 4..55 is 3 x (u16be len, topic bytes, u8 qos). The natural form is {\"each\":\"inputs.subscriptions\",\"as\":\"r\",\"fields\":[{\"u16be\":\"len(group:t)\"},{\"group\":\"t\",\"fields\":[{\"value\":\"r.topic|utf8\"}]},{\"u8\":\"r.qos\"}]}. §3 defines `len(group:X)` as a document-global span reference and says nothing about iteration scoping, so on iteration 2 `group:t` is either iteration 1's span or an ambiguous/cyclic reference — and §3 says cyclic span dependency is a VALIDATION error, so this document may not even load. I had to hand-unroll to exactly three topics, producing a document that encodes THIS SUBSCRIBE rather than SUBSCRIBE. Note the diagnostic contrast: SUBACK's `each` over bare u8 return codes works fine — the failure is localised precisely to the length-prefix-inside-repetition construct. `tlvList` does not help: MQTT's record is length-value-TAG (QoS trails the value), not tag-length-value.",
+      "fixKind": "fieldKind",
+      "proposedFix": "Add a nesting wrapper whose span is implicitly its own children, so no name is needed:\n{ \"lengthPrefixed\": {\"prefix\":\"u16be\"}, \"fields\":[ {\"value\":\"r.topic | utf8\"} ] }\nInside `each` this is iteration-safe by construction. It also removes the two-objects-plus-a-unique-group-name boilerplate from every string in CONNECT. Decode form: { \"lengthPrefixed\":{\"prefix\":\"u16be\"}, \"via\":\"utf8\", \"as\":\"topic\" }. This single fix subsumes half of gap 2."
+    },
+    {
+      "severity": "major",
+      "what": "`each` has no end-of-container termination form; the count must be a number.",
+      "why": "SUBSCRIBE offsets 4..55 contain \"as many (len,topic,qos) records as fit in remainingLength\" — the count is nowhere in the packet. §3's decode `each` takes a count expression (\"capture.byteCount / 2\"). Deriving it here is impossible: the records are variable-length, so record count is not a function of byte count. SUBACK escapes only because its records are 1 byte each, letting me write `capture.remainingLength - 2` — and even that is dead while gap 1 stands.",
+      "fixKind": "fieldKind",
+      "proposedFix": "{ \"each\": \"untilEnd\", \"as\":\"subscriptions\", \"fields\":[ ... ] }  // repeat until the enclosing frame/group is exhausted; a partial trailing record is a decode error\nAlso accept \"untilEnd(group:rest)\" to bound it to a named span rather than the frame."
+    },
+    {
+      "severity": "major",
+      "what": "No bitwise operators in the expression language.",
+      "why": "Reconstructing Remaining Length needs (rl0 & 0x7f) | ((rl1 & 0x7f) << 7) | ... — for CONNECT's `8f 01` that is (0x8f & 0x7f) + (0x01 & 0x7f)*128 = 15 + 128 = 143. §6's converter table is explicitly a CLOSED set and contains no and/or/shl/shr/bit; `xor(k)` is in the bytes group and operates on Bytes, not Int. Testing the will-flag from a captured byte (connectFlags & 0x04 at offset 10) hits the same wall. There is literally no expression in v0 that computes the value of the field the whole protocol is framed by.",
+      "fixKind": "converter",
+      "proposedFix": "Add to the numeric group: and(k) or(k) shl(n) shr(n) bit(n) — e.g. \"capture.connectFlags | bit(2)\" -> Int 0|1, and \"capture.rl0 | and(0x7f)\". Smallest possible fix, generalises to every bitfield protocol. (Partly mooted for Remaining Length once the varint fieldKind lands, but `bit(n)` is still needed for any guard over an already-captured byte.)"
+    },
+    {
+      "severity": "major",
+      "what": "Decode-mode `when` is unspecified, and specifying it commits the decoder to being a stateful left-to-right fold.",
+      "why": "CONNECT offsets 32..125 exist ONLY because bit 2 of the byte at offset 10 is set. Offsets 126..137 only because bit 7 is. Offsets 138..145 only because bit 6 is. That is 114 of 146 bytes — 78% of the packet — whose PRESENCE is decided by a byte read 22 bytes earlier. §3's decode example shows only `as`, `skip` and `each`; `when` never appears in decode mode. And §5's own known-gaps list still has \"No decoder-carried state ... decode is not a pure per-field fold\" OPEN, so the spec is on record as not having committed to this.",
+      "fixKind": "engine",
+      "proposedFix": "Specify: the decoder is a left-to-right fold over an incrementally-populated `capture` scope. `when` and `each` count expressions may reference any capture bound STRICTLY EARLIER in the same field list. Forward references are a VALIDATE-time error (statically checkable by index). No new syntax — a semantic guarantee that also settles CoAP option deltas and every other accumulating decoder in the known-gaps list."
+    },
+    {
+      "severity": "major",
+      "what": "Decode-mode `bits` with per-sub-field `as` is not specified.",
+      "why": "The connect-flags byte at offset 10 (0xce) must decode into six named captures of widths 1,1,1,2,1,1,1 for `when` guards to reference. §3 shows `bits` only in ENCODE form with `value`. Without it the only route is {\"u8\":null,\"as\":\"connectFlags\"} plus bitwise tests, which gap 6 forbids — so gaps 6 and 7 are mutually load-bearing and at least one MUST be fixed.",
+      "fixKind": "fieldKind",
+      "proposedFix": "Specify the decode dual: { \"bits\":[ {\"n\":1,\"as\":\"userNameFlag\"}, {\"n\":1,\"as\":\"passwordFlag\"}, {\"n\":1,\"as\":\"willRetain\"}, {\"n\":2,\"as\":\"willQos\"}, {\"n\":1,\"as\":\"willFlag\"}, {\"n\":1,\"as\":\"cleanSession\"}, {\"n\":1,\"as\":\"reservedBit\"} ] } — exactly mirroring the encode form, each entry producing an Int."
+    },
+    {
+      "severity": "major",
+      "what": "Non-minimal varint encodings make encode(decode(bytes)) provably lossy, and nothing can reject them.",
+      "why": "The bytes `8f 80 00` are a legal-looking continuation chain decoding to 15 + 0*128 + 0*16384 = 15. Re-encoding 15 minimally yields `0f` — one byte, not three. So encode(decode(b)) != b. MQTT declares such an encoding malformed, but v0 can neither reject it on decode (no validation hook) nor preserve it on re-encode (no width memory). This is the single point where round-trip is not merely unimplemented but IMPOSSIBLE to make total without a new construct.",
+      "fixKind": "fieldKind",
+      "proposedFix": "The varint fieldKind from gap 1 carries \"minimal\": true, meaning: on decode, a continuation chain that is not the shortest representation of its value is a DECODE ERROR, not a value. That makes the value->bytes map injective and restores encode(decode(b)) == b by construction. The alternative — capturing the observed width as a shadow capture and replaying it — should be REJECTED: it preserves malformed input rather than rejecting it."
+    },
+    {
+      "severity": "major",
+      "what": "No composite/record input type; `each ... as:\"r\"` binds a scalar.",
+      "why": "SUBSCRIBE needs list<{topic:text, qos:u8}> — offsets 4..16, 17..34, 35..55 are three (string,byte) pairs. §6's injectable `type` set is text|int|u8..u64|bytes|hex|mac|ipv4|ipv6|port|bool|enum|secret|list<T> with T scalar, and §3's example {\"each\":\"inputs.registers\",\"as\":\"r\",\"fields\":[{\"u16be\":\"r\"}]} uses r as a bare scalar. There is no r.topic / r.qos. Combined with gap 4 this is what forced hand-unrolling.",
+      "fixKind": "fieldKind",
+      "proposedFix": "Add a record shape to inputs and member access to the `each` binding:\n{ \"name\":\"subscriptions\", \"kind\":\"prompt\", \"type\":\"list<record>\",\n  \"shape\": { \"topic\":\"text\", \"qos\":\"u8\" },\n  \"description\":\"Topic filters and the QoS to request for each\" }\nthen \"r.topic\" / \"r.qos\" resolve as paths. Decode dual: `each ... as:\"subscriptions\"` with named `as` on inner fields produces a List<record>."
+    },
+    {
+      "severity": "major",
+      "what": "No negotiated-capability primitive: a response that grants LESS than requested, per element.",
+      "why": "SUBACK offsets 4,5,6 = 01 01 80 against a SUBSCRIBE requesting 1,2,0. Element 1 exact; element 2 DOWNGRADED 2->1; element 3 REFUSED (0x80 means no subscription exists at all). §5's `effects.presume` writes ONE fact path from ONE expression, and `confirmedBy.matches` is a whole-message boolean (\"capture.state == inputs.state\") which would be FALSE here and merely mark the operation failed — losing the fact that two of three subscriptions succeeded at a narrowed capability. §5 lists this as a known gap; the capture confirms it is real and blocking for any correct MQTT client.",
+      "fixKind": "stateModel",
+      "proposedFix": "\"confirmedBy\": { \"message\":\"mqttSuback\", \"correlate\":\"packetId\" },\n\"negotiates\": {\n  \"requested\": \"inputs.subscriptions\",\n  \"granted\":   \"capture.grantedCodes\",\n  \"zip\":       \"index\",\n  \"reject\":    \"granted == 0x80\",\n  \"assert\":    \"granted <= requested.qos\",\n  \"as\":        \"session.subscriptions[requested.topic].grantedQos\" }\nRejected elements are recorded as absent, not as failures. `assert` catches a broker granting MORE than asked, which is a protocol violation."
+    },
+    {
+      "severity": "major",
+      "what": "No always-on inbound channel; the step graph cannot receive unsolicited messages.",
+      "why": "MQTT is bidirectional-asynchronous over one socket. Between my SUBSCRIBE and its SUBACK the broker may emit any number of PUBLISH packets, possibly in the SAME TCP segment as the SUBACK. §4's `expect` with `token` correlation presumes request/response; `listen` is a step you arrive at, not a concurrent handler. Any client built on v0 discards every PUBLISH that arrives while a step is waiting — which for MQTT means discarding the entire point of the protocol.",
+      "fixKind": "engine",
+      "proposedFix": "Declare inbound dispatch on the connection alongside `frame`:\n\"inbound\": [ { \"match\":\"packetType >> 4 == 3\", \"parse\":\"mqttPublish\", \"to\":\"onPublish\" },\n             { \"match\":\"packetType >> 4 == 13\", \"parse\":\"mqttPingresp\", \"to\":\"onPingresp\" } ]\nand specify `expect` as DEMULTIPLEXING: it frames and classifies every arriving packet, routes non-matching ones to `inbound`, and returns only on a token match or timeout."
+    },
+    {
+      "severity": "major",
+      "what": "Keepalive is a transmission OBLIGATION, not a peer timeout, and periodic emission is inexpressible.",
+      "why": "CONNECT offset 11-12 = `00 3c` (60s). MQTT requires the CLIENT to transmit something within every 60s window or the broker disconnects at 90s. §5 offers only \"connected\":{\"timeoutMs\":30000,\"onTimeout\":\"disconnected\"} — which models the PEER going quiet, the inverse relationship. The only v0 route is `delay` plus a back edge carrying loop:{max:n} with n<=64 (§4), which imposes a HARD GRAMMAR LIMIT of 64 heartbeats — a 64-minute maximum session at this keepalive. `timeoutMs` is also a literal where the correct value is a function of a field we ourselves sent.",
+      "fixKind": "stateModel",
+      "proposedFix": "\"connected\": {\n  \"heartbeat\": { \"send\":\"mqttPingreq\", \"everyMs\":\"inputs.keepAliveSeconds * 1000\",\n                 \"resetOnAnyTx\": true, \"expect\":\"mqttPingresp\",\n                 \"missTolerance\": 1, \"onMiss\":\"tcpClosed\" },\n  \"timeoutMs\": \"inputs.keepAliveSeconds * 1500\", \"onTimeout\":\"tcpClosed\" }\nAlso: allow expressions in `timeoutMs` (currently shown only as a literal), and exempt heartbeat loops from the loop:{max<=64} packet bound — a heartbeat is bounded by session duration, not by hop count."
+    },
+    {
+      "severity": "major",
+      "what": "`implies` fires only on decoded response content; MQTT's state-death signals have no content.",
+      "why": "§5's example keys on \"capture.status == 401\". MQTT session death is observed as: (a) a PINGREQ producing no PINGRESP — an ABSENCE, no capture exists to test; (b) session takeover by another client using the same clientId — the broker sends a bare TCP FIN, zero MQTT bytes; (c) a QoS downgrade that is never re-reported, so deliveries silently duplicate forever with no error at any layer. Cases (a) and (b) are the two most common real failures and neither produces a `capture.*`.",
+      "fixKind": "stateModel",
+      "proposedFix": "Allow `implies` entries keyed on the edge rather than on content:\n\"implies\": [ { \"on\":\"timeout\", \"state\":\"tcpClosed\", \"invalidate\":[\"session.subscriptions\",\"session.connected\"] },\n             { \"on\":\"close\",   \"state\":\"tcpClosed\", \"invalidate\":[\"session.*\"] },\n             { \"when\":\"capture.connectReturnCode == 5\", \"state\":\"rejected\", \"invalidate\":[\"store.credentials\"] } ]\ni.e. `implies` accepts `on` (edge) OR `when` (content), same as §4 edges already do."
+    },
+    {
+      "severity": "minor",
+      "what": "No cross-field invariants; illegal packets encode happily.",
+      "why": "MQTT mandates several combinations that v0 cannot forbid: passwordFlag=1 requires userNameFlag=1 (connectFlags 0x4a is illegal but encodes fine); willFlag=0 requires willQoS=0 AND willRetain=0; reserved bit 0 must be 0; packetIdentifier must be non-zero (offset 2-3 of SUBSCRIBE); SUBSCRIBE's fixed-header low nibble must be exactly 0b0010 (offset 0 = 0x82, not 0x80). A grammar that emits provably-invalid packets is worse than one that refuses them.",
+      "fixKind": "expression",
+      "proposedFix": "Per-message \"invariants\": a list of boolean expressions, checked at VALIDATE time against constant inputs and at encode time against runtime ones, and asserted on decode:\n\"invariants\": [ \"inputs.hasPassword == 0 || inputs.hasUsername == 1\",\n                \"inputs.willFlag == 1 || (inputs.willQos == 0 && inputs.willRetain == 0)\",\n                \"inputs.packetId != 0\" ]"
+    },
+    {
+      "severity": "minor",
+      "what": "`seq.next` cannot express the MQTT packet-identifier space.",
+      "why": "SUBSCRIBE offset 2-3 = `00 0a`. The identifier must be u16, NON-ZERO, wrap 1..65535, be unique among IN-FLIGHT messages only, and be released when the SUBACK at offset 2-3 echoes it back. §6 gives `seq.next` as a bare persisted monotonic counter — no width, no minimum, no wrap, no release.",
+      "fixKind": "expression",
+      "proposedFix": "\"seq\": { \"id\":\"mqttPacketId\", \"width\":\"u16\", \"min\":1, \"max\":65535, \"wrap\":true,\n         \"scope\":\"session\", \"releaseOn\":\"mqttSuback.packetId\" }\nreferenced as \"seq.mqttPacketId.next\". `releaseOn` is what makes in-flight uniqueness (rather than global uniqueness) expressible."
+    },
+    {
+      "severity": "minor",
+      "what": "No way to model state RESTORED by a peer assertion rather than created by this run.",
+      "why": "CONNACK offset 2, bit 0 (sessionPresent). If it were 1, the broker has resurrected subscriptions from a previous connection — subscriptions this run never created and whose granted QoS values it never saw. That is neither confirmed (we did not observe the grant) nor presumed (we did not request it): it is asserted-by-peer over persisted state. §5 has confirmed and presumed only.",
+      "fixKind": "stateModel",
+      "proposedFix": "\"effects\": { \"restore\": { \"from\":\"store.mqtt.subscriptions\", \"to\":\"session.subscriptions\",\n                          \"when\":\"capture.sessionPresent == 1\", \"confidence\":\"peer-asserted\" },\n             \"clear\":   { \"scope\":\"session.subscriptions\", \"when\":\"capture.sessionPresent == 0\" } }\nplus \"peer-asserted\" as a third confidence tier below \"confirmed\"."
+    },
+    {
+      "severity": "minor",
+      "what": "No occurrence bound per state or per session.",
+      "why": "CONNECT is legal EXACTLY ONCE per TCP connection; a second one is a protocol violation the broker must answer by closing. §5's `conflicts` is pairwise across DIFFERENT messages and cannot express self-occurrence. Related: `requires:[\"login\"]` has no declared scope (run / session / store), so on reconnect a satisfied `requires` may silently carry over and authorise a SUBSCRIBE on a fresh un-CONNECTed socket.",
+      "fixKind": "stateModel",
+      "proposedFix": "\"maxPerSession\": 1 on the message, and make `requires` scope explicit: \"requires\": [ { \"message\":\"mqttConnect\", \"scope\":\"session\" } ] — with `session` invalidated on any transition to tcpClosed."
+    },
+    {
+      "severity": "minor",
+      "what": "No side effect attached to ABNORMAL state exit.",
+      "why": "The Will message (CONNECT offsets 32..125) is published by the broker if and only if the connection ends WITHOUT a DISCONNECT. It is the one piece of protocol state whose outcome depends on HOW a state was exited rather than on any message sent. §5's `effects` attach to a message SUCCEEDING; abnormal termination is precisely the case where no message was sent.",
+      "fixKind": "stateModel",
+      "proposedFix": "On the state: \"onAbnormalExit\": { \"presume\": { \"dev.mqtt.willPublished\": true, \"dev.mqtt.lastWillTopic\":\"inputs.willTopic\" }, \"confidence\":\"likely\" }, with abnormal defined as any exit not via a declared `graceful` transition (DISCONNECT)."
+    },
+    {
+      "severity": "minor",
+      "what": "`bits` semantics are undefined: fill order, byte-multiple requirement, multi-byte endianness.",
+      "why": "CONNECT offset 10 must be 0xce = userName(1) password(1) willRetain(0) willQoS(01) willFlag(1) cleanSession(1) reserved(0), MSB-first. §3 shows {\"bits\":[{\"n\":1},{\"n\":3},{\"n\":4}]} without stating fill direction. LSB-first would emit 0x73 — a completely different, still-syntactically-valid packet. Silent 50/50.",
+      "fixKind": "fieldKind",
+      "proposedFix": "Specify: `bits` fills MSB-first within each byte; the sum of all `n` MUST be a multiple of 8 (validate-time error otherwise); a group spanning >1 byte fills bytes in wire order. Add optional \"order\":\"msb|lsb\" defaulting to msb for protocols that differ."
+    },
+    {
+      "severity": "minor",
+      "what": "Spec self-contradiction: §2 lists `mqtt` as a sugar layer, but §7 forbids protocol-specific code paths — and §6 defines a converter-only expression language that §3's own example violates.",
+      "why": "§2 says `mqtt` is \"sugar — expands to bytes + a transport intent\" but never says what it expands TO. If it encodes the varint, the framing and the length-prefixed strings, then it IS the MQTT-specific code path §7 says means \"the grammar has failed\". Testing against it would fake a pass, so I built everything on `bytes`. Separately: §6 declares a pipeline language `a | f(b)` with a CLOSED converter set containing no arithmetic and no comparison, yet §3's decode example writes \"capture.byteCount / 2\" and §5 writes \"capture.status == 200\" and \"session.token != ''\". Infix arithmetic and comparison therefore exist de facto and are wholly unspecified — and my varint workaround depends on % / + and >=, so under a STRICT reading of §6 even the cheat is inexpressible.",
+      "fixKind": "engine",
+      "proposedFix": "Two statements. (1) Delete `mqtt` (and `coap`, `modbus`, `snmp`, `dns`) from §2's layer table, or redefine each as a NAMED, PUBLISHED macro that expands to the documented `bytes` fields and nothing else — with the expansion checked in by a test asserting macro output == hand-written bytes output. (2) Extend §6 with an explicit infix grammar and its precedence/type rules: arithmetic + - * / %, comparison == != < <= > >=, boolean && || !, all over Int, with the same validate-time kind checking the converters already have. Otherwise every existing example in the spec is illegal under its own §6."
+    }
+  ]
+}

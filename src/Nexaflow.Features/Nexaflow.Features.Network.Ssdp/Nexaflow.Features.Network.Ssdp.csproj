@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Discovery layer 1: SSDP, and the first thing in the product to run the DynamicProtocol engine.
+
+    The distinction this assembly exists to prove: ArpProbe next door is compiled because it P/Invokes IP
+    Helper, and there is no describing that. SSDP is request/response over UDP, so what goes on the wire is
+    ssdp.json — a protocol graph an AI can author and a person can read — and the code here only decides
+    when to send and what a reply means. If this needs a C# change to support another discovery protocol,
+    the engine has failed at its one job.
+
+    UseWPF off, like every Nexaflow.Features.Network.* plugin: a probe must be headless-testable, and
+    NetworkPluginRulesTests asserts it.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The description of what goes on the wire. Content, not code — which is the point of it. -->
+    <Content Include="Protocols\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Protocol\Nexaflow.IO.Protocol.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+</Project>

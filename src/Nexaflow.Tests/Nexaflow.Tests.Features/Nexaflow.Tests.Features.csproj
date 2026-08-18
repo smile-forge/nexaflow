@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Pinned to the WinRT platform version because Nexaflow.Features.WindowsApps targets it (see memory). -->
@@ -39,6 +39,10 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network\Nexaflow.Features.Network.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network.Arp\Nexaflow.Features.Network.Arp.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network.Ssdp\Nexaflow.Features.Network.Ssdp.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network.Actions\Nexaflow.Features.Network.Actions.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Notebook\Nexaflow.Features.Notebook.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.OneDrive\Nexaflow.Features.OneDrive.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Pdf\Nexaflow.Features.Pdf.csproj" />

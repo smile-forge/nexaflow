@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The subfeature framework's metadata contract. Deliberately dependency-free and WPF-free: a subfeature
+    assembly (a discovery probe, a codec backend, a transport) must stay cheap and headless, so it cannot be
+    made to reference Features.Common (net10.0-windows / UseWPF) just to declare that it exists.
+
+    Pure contract, no behaviour — the same reason Nexaflow.Elevation.Contracts is allowed to sit outside the
+    IO.*/Visuals.*/Syntax families. Core reads the attribute at scan time into the discovery index, which is
+    what lets the enable/disable list render without loading a single plugin DLL.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+</Project>

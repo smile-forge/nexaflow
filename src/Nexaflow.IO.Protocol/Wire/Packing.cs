@@ -1,0 +1,335 @@
+using Nexaflow.IO.Protocol.Values;
+
+namespace Nexaflow.IO.Protocol.Wire;
+
+/// <summary>
+/// The protocol itself: where every walk begins, and what its message formats hang off.
+/// </summary>
+/// <remarks>
+/// <para>
+/// It exists so that "which message is this?" is asked in the same place and the same way as every other
+/// choice. Without it a protocol's messages are a list beside the graph rather than in it, and the root of
+/// a walk has to <i>be</i> one of them — which works exactly as long as there is one, and stops meaning
+/// anything the moment a protocol declares a request and a response.
+/// </para>
+/// <para>
+/// So the chain runs protocol → message → packing → the fields and sets that follow one another, and
+/// <see cref="Then"/> is the edge at every step of it. Four scales, one mechanism: the ways on from here
+/// are keyed and decided exactly as an alternation's arms are, which is why nothing new was needed to say
+/// "this protocol has six message formats".
+/// </para>
+/// </remarks>
+public sealed class Protocol(string name) : Node
+{
+    public override string Name { get; } = name;
+}
+
+/// <summary>
+/// One message format a protocol declares, and where a walk of it begins.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A protocol has as many of these as the specification has formats — one for TCP, whose §3.1 is titled
+/// "Header Format" singular; several for a protocol whose request and response are genuinely different
+/// shapes. What is <i>not</i> a separate format is the same layout under a different flag: those are one
+/// message with one or more <see cref="Packing"/>s.
+/// </para>
+/// <para>
+/// It makes no octets and holds nothing itself — its ways on are its arrangements, keyed and decided
+/// exactly as an alternation's arms are. A message with one arrangement has one unkeyed way on, which is
+/// why the common case needs nothing said about it.
+/// </para>
+/// </remarks>
+public sealed class Message(string name) : Node
+{
+    public override string Name { get; } = name;
+}
+
+/// <summary>
+/// One arrangement of a message — what follows what.
+///
+/// <para>
+/// A message has one or more, and which applies is a decision like any other. That is the whole reason
+/// this is a node rather than the field list being the arrangement: an arrangement the state chooses
+/// cannot be a property of the message, because then the message would have two.
+/// </para>
+/// </summary>
+public sealed class Packing(string name) : Node
+{
+    public override string Name { get; } = name;
+}
+
+/// <summary>
+/// A container: a header, a body, a pseudo-header. The matching concept to the ones specifications name.
+///
+/// <para>
+/// <b>It produces nothing.</b> That is the whole difference from a field, and it is not a technicality: a
+/// field makes octets, and a set only <i>spans</i> the octets its members made. Its extent is a fact about
+/// them rather than something it computed, which is exactly why a length can measure a header while the
+/// header itself writes nothing at all.
+/// </para>
+///
+/// <para>
+/// Modelling a container as a field instead — which is what the engine did, having nothing else to offer —
+/// gives every header, sequence and pseudo-header a value and an emission it has no business having, and
+/// leaves a document with fields that produce nothing yet answer when asked. The documents in the corpus
+/// inherited that from the engine rather than choosing it.
+/// </para>
+///
+/// <para>
+/// <b>It always holds something.</b> A set with no members is not a degenerate set, it is a different
+/// notion wearing the name — and this kind was doing double duty as one for a while: an alternation and an
+/// empty arm were both "a set of nothing", told apart from a real container by counting its members. That
+/// made every reader of the graph do the same count to find out which of two unrelated things it had.
+/// A place that holds nothing is a <see cref="Junction"/>.
+/// </para>
+/// </summary>
+public sealed class FieldSet(string name) : Node
+{
+    public override string Name { get; } = name;
+
+    // There is deliberately no back-reference to whatever a document declared this from. One thing has
+    // one node; a pointer to the other one is what let a fact land where nobody was looking.
+}
+
+/// <summary>
+/// A place on the path that makes no octets and holds nothing: where it branches, and where an option is
+/// to do nothing at all.
+///
+/// <para>
+/// Both are genuinely places. An alternation has to be somewhere for the keyed ways on to leave from and
+/// for the deciding edge to hang off; and an arm that writes nothing is a real answer — a section that is
+/// simply absent, a padding option — which needs somewhere to be, or "which kind is this" and "does
+/// another follow" end up as two decisions on one node with nothing to tell them apart.
+/// </para>
+///
+/// <para>
+/// It is not a <see cref="FieldSet"/>, which is what it used to be. A set of nothing is not a kind of set;
+/// it is this, and calling it a set meant every reader of the graph had to count members to find out which
+/// of two unrelated notions it was looking at.
+/// </para>
+/// </summary>
+public sealed class Junction(string name) : Node
+{
+    public override string Name { get; } = name;
+
+    // There is deliberately no back-reference to whatever a document declared this from. One thing has
+    // one node; a pointer to the other one is what let a fact land where nobody was looking.
+}
+
+// There is no edge for "a message offers this arrangement", and none for "an arrangement begins here".
+// Both were `Then` wearing another name: the message is a node whose ways on are its arrangements, keyed
+// and decided exactly as an alternation's are, and an arrangement is a node whose one way on is the first
+// thing in it. Naming them separately made packing selection look like a different mechanism from arm
+// selection, and it is the same one at a different scale.
+
+/// <summary>
+/// What comes after this, and under what.
+///
+/// <para>
+/// A single unkeyed edge is "and then"; two or more leaving one node are an alternation, and which is
+/// taken is decided by the <see cref="Decides"/> node that keys them.
+/// </para>
+///
+/// <para>
+/// <b>It never reaches back.</b> A repetition was a back edge for one round of this design and that was
+/// wrong: what repeats is inside a span, not along the path, and a cycle here put a containment fact into
+/// the arrangement — the walk revisited nodes and "what follows what" stopped being answerable by reading
+/// it. A repeated span is one place on the path, however many components turn up in it, and the
+/// unrolling happens in the run.
+/// </para>
+///
+/// <para>
+/// There is deliberately <b>no sequence number</b>. A node has one successor, or several told apart by
+/// their key.
+/// </para>
+/// </summary>
+/// <para>
+/// It runs the whole way down: a message's ways on are its arrangements, an arrangement's one way on is
+/// the first thing in it, and a field's is whatever follows. One edge, four scales, and the fork
+/// mechanism reaches all of them without knowing which it is looking at.
+/// </para>
+/// </summary>
+/// <param name="Key">The value of the deciding node that picks this way on, or null where there is nothing
+/// to decide — and null also for the way on that is taken when nothing else matches.</param>
+/// <remarks>
+public sealed record Then : Edge
+{
+    public ProtoValue? Key { get; init; }
+
+    /// <summary>Whether this is the way on when no key matched. Distinct from carrying no key at all,
+    /// which is what an unbranched step does.</summary>
+    public bool Otherwise { get; init; }
+
+    /// <summary>
+    /// Whether the step may simply not be taken.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from a fork, and deliberately not modelled as one. A fork with a way past the thing would
+    /// say it, but it makes the author name the rejoin twice and turns "this header may be absent" into
+    /// two branches that have to be kept meeting up. Here the path is the same path and one step on it is
+    /// conditional — which is also why the condition belongs to the node at the end of the step rather
+    /// than to the edge: what decides whether a part is there is a fact about that part.
+    /// </remarks>
+    public bool Optional { get; init; }
+
+    public override string Verb
+        => Otherwise ? "failing everything else, then"
+         : Optional ? (Key is null ? "if it is there, then" : $"on {Key}, if it is there, then")
+         : Key is null ? "then" : $"on {Key}, then";
+}
+
+
+/// <summary>
+/// What decides which way on is taken.
+///
+/// <para>
+/// Points at a computation, so the decision takes its inputs from edges and is scheduled like anything
+/// else. A <i>value</i> that keys the branches rather than a condition per branch: sibling conditions
+/// cannot be checked for cover or overlap by anything, which is how a message with an unanticipated
+/// discriminator binds no fields and reports nothing. Keyed ways on can be proved exhaustive, and are.
+/// </para>
+/// </summary>
+public sealed record Decides : Edge
+{
+    /// <summary>The reader's question, where the two directions ask different ones. Same asymmetry as a
+    /// recovered length: on the way in you look at the octets, on the way out at what you were given.</summary>
+    public bool Reading { get; init; }
+
+    public override string Verb => Reading ? "on the way in, decided by" : "decided by";
+}
+
+/// <summary>
+/// How a reading finds out which way on to take, by looking before it goes.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="Decides"/> answers with a value something already has. That works everywhere the deciding
+/// fact arrives before the fork — and it is exactly wrong at the top of a protocol, where which message
+/// this is, is written <i>inside</i> the message. A reader cannot be told the packet type by the caller;
+/// it is what the octets are about to say.
+/// </para>
+/// <para>
+/// So this is a <b>path, like <see cref="Then"/></b>, laid from the forking place through as many fields
+/// as it takes to arrive at the one that discriminates. The last field on it is the discriminator, and its
+/// value is what the keys on the ways on are matched against. A discriminator that is not the first thing
+/// in a message is therefore ordinary rather than a special case — the path simply weaves through what
+/// precedes it.
+/// </para>
+/// <para>
+/// <b>Nothing is consumed.</b> The fields here are read from a copy of the reader's position, and the
+/// message that gets chosen then reads its own from the beginning of its own octets. That is what keeps a
+/// message from having to know it has siblings, or that something looked ahead before choosing it — the
+/// alternative, entering a message part-read, makes every message's description depend on how it came to
+/// be selected.
+/// </para>
+/// <para>
+/// And because nothing is consumed, these fields need not be the ones the message uses. A discriminator
+/// may read one octet as an integer where the message reads it as two runs of four bits; both descriptions
+/// are of the same octet and neither owes the other anything.
+/// </para>
+/// </remarks>
+public sealed record Identifies : Edge
+{
+    public override string Verb => "to tell which, reads";
+}
+
+/// <summary>
+/// What may turn up in this span.
+///
+/// <para>
+/// A run of elements is <b>one place</b> on the path holding a list, not a loop. What repeats is inside
+/// the field's own reading of itself: it takes the octets it was given and matches each element against
+/// the definitions this edge points at, until they run out. So there is no way on that reaches back, no
+/// cardinality in the arrangement, and nothing about how many there are anywhere in the description —
+/// which is right, because how many there are is a fact about a message and not about a protocol.
+/// </para>
+///
+/// <para>
+/// It is also the validation the model was missing. A definition sitting off the path can be pointed at
+/// from anywhere, and without this nothing said <i>where</i> it was allowed to appear.
+/// </para>
+/// </summary>
+public sealed record Allowed : Edge
+{
+    public override string Verb => "may contain";
+}
+
+/// <summary>
+/// A set's members: what belongs to it, and that they are packed together.
+///
+/// <para>
+/// <b>Not a way the path goes.</b> The path through a set's members is <see cref="Then"/>, the same edge
+/// it is everywhere else — this says which set those members belong to and that they come out contiguous
+/// and in this order, which is what makes a set something a length can measure.
+/// </para>
+///
+/// <para>
+/// The distinction is worth keeping sharp because collapsing it costs both ways. Walking <i>this</i> as
+/// the path made a set a detour the walk had to remember it was inside, needing a stack of where to come
+/// back to; and it put optionality here, where it does not belong — whether a part is there is a fact
+/// about the step that reaches it, not about which set it is filed under.
+/// </para>
+/// </summary>
+public sealed record Holds : Edge
+{
+    /// <summary>Where this one comes among them. Genuinely ordinal, unlike a way on.</summary>
+    public required int Order { get; init; }
+
+    public override string Verb => $"holds[{Order}]";
+}
+
+/// <summary>
+/// Where a reading is allowed to stop: an explicit node the parse ends at.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A walk that runs out of edges has finished; whether it was <i>entitled</i> to finish there is a
+/// different question, and until something says so the two are the same answer. That is the gap a
+/// truncated message falls through: the description stops having anything more to say, so the reader stops,
+/// reports what it bound, and nothing anywhere distinguishes "the message ended" from "the message was cut".
+/// </para>
+/// <para>
+/// So a protocol that cares says where ending is legal. A reading is well-formed when it stops at one of
+/// these <b>and</b> the octets are exhausted — both, because either alone is satisfied by a message that is
+/// wrong in the other direction.
+/// </para>
+/// </remarks>
+public sealed class EndParse(string name) : Node
+{
+    public override string Name { get; } = name;
+}
+
+/// <summary>
+/// Where the reading goes next, for a protocol whose reading is not simply its writing backwards.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Opt-in, and absent by default.</b> Most of a protocol is read by walking what it writes, and where
+/// that is true this does not exist and <see cref="Then"/> serves both directions — one description, no way
+/// for the two to drift. This is for the parts where it is not true.
+/// </para>
+/// <para>
+/// And they are not rare, because protocols are built for the wire rather than for description. What can be
+/// inferred gets omitted; what repeats has no count; what is malformed has rules of its own that only a
+/// reader can apply. A reading of those is a machine with states rather than a sequence of fields, and it
+/// may loop, revisit, and stop only where it is allowed to.
+/// </para>
+/// <para>
+/// The cost is honest and worth naming: two descriptions of one thing can disagree, which is the pattern
+/// this design otherwise removes everywhere it finds it. What keeps it in check is that the write path
+/// stays the only way anything is written, so a disagreement shows up as a message that will not read back
+/// — loudly, in a round trip — rather than as an encoder and decoder that are each self-consistent.
+/// </para>
+/// </remarks>
+public sealed record Decode : Edge
+{
+    /// <summary>The value that takes this way on, or null where nothing is being decided.</summary>
+    public ProtoValue? Key { get; init; }
+
+    /// <summary>Whether this is the way taken when no key matched.</summary>
+    public bool Otherwise { get; init; }
+
+    public override string Verb
+        => Otherwise ? "on anything else, reads" : Key is null ? "reads" : $"on {Key}, reads";
+}

@@ -335,6 +335,18 @@ public sealed class FeatureManager
                             + $"'{name}' is not registered, even after activating the assembly that owns it");
                 }
             }
+            // IReadOnlyList<ISubfeatureHandle<T>> — the lazy form, and the one a feature should ask for:
+            // every discovered plugin implementing T as a descriptor, with NO assembly loaded.
+            else if (SubfeatureArg.IsHandleList(pt, out var handleContract))
+            {
+                args[i] = SubfeatureCatalog.Instance.Handles(handleContract!, workspace);
+            }
+            // IReadOnlyList<T> where T is a contract some [Subfeature] implements — the eager form. Loads
+            // every owning assembly, so it only suits a small fixed plugin set.
+            else if (SubfeatureArg.IsInstanceList(pt, out var instanceContract))
+            {
+                args[i] = SubfeatureCatalog.Instance.Resolve(instanceContract!, workspace);
+            }
             else if (parms[i].IsOptional)
             {
                 args[i] = Type.Missing;
@@ -342,8 +354,11 @@ public sealed class FeatureManager
             else
             {
                 return Defect(out defect, $"parameter '{name}' is of type '{pt.Name}', which the feature DI "
-                    + "does not supply (it injects IShellServices, IAIService, WorkspaceRuntime and "
-                    + "IFeatureConfig)");
+                    + "does not supply (it injects IShellServices, IAIService, WorkspaceRuntime, "
+                    + "IFeatureConfig, and subfeature sets as IReadOnlyList<ISubfeatureHandle<T>> or "
+                    + "IReadOnlyList<T>). If you meant a subfeature set, check that at least one type "
+                    + "carrying [Subfeature] implements that contract and shipped as a scanned "
+                    + "Nexaflow.Features.*.dll");
             }
         }
         return args;
