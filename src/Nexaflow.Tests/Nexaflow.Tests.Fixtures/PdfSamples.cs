@@ -78,6 +78,14 @@ public sealed class PdfSamples : ISampleSet
     /// <summary>Bookmark in <c>outline-named.pdf</c> reaching page 3 via an action naming a destination.</summary>
     public const string ActionNamedDestTitle = "Action to a named destination";
 
+    /// <summary>First and last words of <c>two-column.pdf</c>'s left column.</summary>
+    public const string LeftColumnFirst = "alpha";
+    public const string LeftColumnLast  = "charlie";
+
+    /// <summary>First and last words of <c>two-column.pdf</c>'s right column.</summary>
+    public const string RightColumnFirst = "xray";
+    public const string RightColumnLast  = "zulu";
+
     public IReadOnlyList<SampleFile> Files { get; } =
     [
         SampleFile.Raw("text.pdf", BuildTextDocument()),
@@ -86,6 +94,7 @@ public sealed class PdfSamples : ISampleSet
         SampleFile.Raw("jpeg-image.pdf", BuildJpegImageDocument()),
         SampleFile.Raw("outline.pdf", BuildOutlineDocument()),
         SampleFile.Raw("outline-named.pdf", BuildNamedDestinationOutlineDocument()),
+        SampleFile.Raw("two-column.pdf", BuildTwoColumnDocument()),
         SampleFile.Raw("corrupt.pdf", BuildCorruptDocument()),
     ];
 
@@ -269,6 +278,62 @@ public sealed class PdfSamples : ISampleSet
         return pdf.Finish(rootObject: 1, infoObject: null);
     }
 
+    /// <summary>
+    /// One page laid out in two columns, whose content stream deliberately writes them <em>interleaved</em>:
+    /// first line of the left column, first line of the right, second line of the left, and so on.
+    /// <para>
+    /// That is what a real two-column document does often enough to matter, and it is the case where reading
+    /// the content stream in order produces confident nonsense rather than anything that looks broken. Only
+    /// laying the words out spatially recovers the columns.
+    /// </para>
+    /// <para>
+    /// Full lines of several words each, not one word per line: spatial segmentation works by estimating the
+    /// usual within-line and between-line distances from the words themselves, so a page of six isolated
+    /// words gives it nothing to estimate from and it clusters them arbitrarily. A fixture too sparse to
+    /// segment would be testing the fixture, not the code.
+    /// </para>
+    /// </summary>
+    private static byte[] BuildTwoColumnDocument()
+    {
+        var pdf = new PdfBuilder();
+
+        pdf.Object(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        pdf.Object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        pdf.Object(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 520 260] "
+                    + "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>");
+
+        string[] left =
+        [
+            $"{LeftColumnFirst} opens the left column",
+            "with several words per line",
+            "so the usual spacing can be",
+            "estimated the way the",
+            $"algorithm expects {LeftColumnLast}",
+        ];
+        string[] right =
+        [
+            $"{RightColumnFirst} opens the right column",
+            "and also runs to several",
+            "words across each of its",
+            "lines so the gutter between",
+            $"them is the widest gap {RightColumnLast}",
+        ];
+
+        // Left column at x=40, right at x=290. At 10pt a left line reaches about x=175, so the gutter is far
+        // wider than any gap between words — which is the signal the segmentation reads.
+        var content = new StringBuilder();
+        for (var i = 0; i < left.Length; i++)
+        {
+            var y = 220 - i * 20;
+            content.Append($"BT /F1 10 Tf 40 {y} Td ({left[i]}) Tj ET\n");
+            content.Append($"BT /F1 10 Tf 290 {y} Td ({right[i]}) Tj ET\n");
+        }
+
+        pdf.Stream(4, null, Ascii(content.ToString()));
+        pdf.Object(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+        return pdf.Finish(rootObject: 1, infoObject: null);
+    }
 
     /// <summary>
     /// Header, then wreckage. Truncated mid-object with no cross-reference table, so even lenient parsing

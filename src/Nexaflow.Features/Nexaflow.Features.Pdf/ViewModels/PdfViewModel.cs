@@ -415,8 +415,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
          + "range to read it. A scanned PDF has no text at all: when pdf_read_text returns nothing for a page, "
          + "call pdf_page_image and read the picture instead. pdf_outline gives the table of contents with page "
          + "numbers, so you can go straight to the section that matters rather than reading the whole document. "
-         + "Text extracted from a multi-column page can arrive with the columns interleaved — if it reads like "
-         + "nonsense, look at the page image.";
+         + "Page text comes back in reading order, so a multi-column page reads down each column in turn - "
+         + "but an unusual layout can still defeat that, so if a page reads like nonsense, look at its image.";
 
     public IReadOnlyList<IClientTool> GetClientTools() =>
     [
@@ -580,7 +580,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         to = Math.Min(to, total);
 
         var pages = await WithDocumentAsync(
-            doc => PdfTextReader.ReadPages(doc, from, to, cap * 2L, wordExtractor: null, ct).ToList(), ct);
+            doc => PdfTextReader.ReadPages(doc, from, to, cap * 2L, PdfReadingOrder.Layout, ct).ToList(), ct);
         if (pages is null) return Unreadable();
 
         var sb        = new StringBuilder();
@@ -644,8 +644,11 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         const int Context = 80;
         var hits = new List<(int, string)>();
 
+        // Content-stream order on purpose. This walks every page of the document to locate a phrase, and
+        // layout analysis would put a clustering pass on all of them; finding WHICH pages mention something
+        // does not need them read in order. The model then calls pdf_read_text on those pages, which does.
         foreach (var page in PdfTextReader.ReadPages(
-            document, 1, document.NumberOfPages, long.MaxValue, wordExtractor: null, ct))
+            document, 1, document.NumberOfPages, long.MaxValue, PdfReadingOrder.ContentStream, ct))
         {
             var text  = page.Text;
             var start = 0;

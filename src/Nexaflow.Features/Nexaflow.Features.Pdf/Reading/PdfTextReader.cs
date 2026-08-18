@@ -6,9 +6,34 @@ using UglyToad.PdfPig;
 using UglyToad.PdfPig.AcroForms.Fields;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Outline;
-using UglyToad.PdfPig.Util;
+using UglyToad.PdfPig.DocumentLayoutAnalysis;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 
 namespace Nexaflow.Features.Pdf.Reading;
+
+/// <summary>How a page's text is put in order.</summary>
+internal enum PdfReadingOrder
+{
+    /// <summary>
+    /// The order the words appear in the content stream. Cheap, and correct for most single-column pages,
+    /// because a generator usually writes them in the order it laid them out.
+    /// </summary>
+    ContentStream,
+
+    /// <summary>
+    /// The order a person would read them, worked out from where they sit on the page: words are grouped
+    /// into blocks by spatial clustering and the blocks are then ordered.
+    /// <para>
+    /// This is what a multi-column page needs. In content-stream order a two-column page interleaves — a
+    /// line of column one, a line of column two — and the result reads as nonsense while looking like it
+    /// ought to make sense. Costs a clustering pass over every word on the page, which is why it is not
+    /// what a search sweep uses.
+    /// </para>
+    /// </summary>
+    Layout,
+}
 
 /// <summary>What reading a PDF for text produced.</summary>
 /// <param name="Text">The text, possibly empty. Empty is a real answer: an image-only scan has none.</param>
@@ -52,7 +77,7 @@ internal static class PdfTextReader
             ct.ThrowIfCancellationRequested();
             if (sb.Length >= budget) return new PdfText(sb.ToString(), Truncated: true);
 
-            if (!AppendPageWords(document, pageNumber, sb, budget, wordExtractor: null))
+            if (!AppendPage(document, pageNumber, sb, budget, PdfReadingOrder.ContentStream))
                 return new PdfText(sb.ToString(), Truncated: true);
 
             sb.Append('\n');
@@ -71,14 +96,13 @@ internal static class PdfTextReader
     /// for the rest rather than silently believing it saw everything.
     /// </para>
     /// </summary>
-    /// <param name="wordExtractor">
-    /// Optional alternative word extractor. Null uses PdfPig's default, which walks the content stream in
-    /// order — cheap, and wrong on a multi-column page, where it interleaves the columns. A layout-analysis
-    /// extractor can be passed here later without disturbing the search path, which must stay cheap.
+    /// <param name="order">
+    /// How to order the page's text. <see cref="PdfReadingOrder.Layout"/> costs a clustering pass per page
+    /// and is what a multi-column document needs; the search path never asks for it.
     /// </param>
     public static IEnumerable<PdfPageText> ReadPages(
         PdfDocument document, int firstPage, int lastPage, long maxBytes,
-        IWordExtractor? wordExtractor, CancellationToken ct)
+        PdfReadingOrder order, CancellationToken ct)
     {
         var budget = maxBytes <= 0 ? 0 : maxBytes / BytesPerChar;
         var spent  = 0L;
@@ -92,7 +116,7 @@ internal static class PdfTextReader
 
             var sb        = new StringBuilder();
             var remaining = budget - spent;
-            var complete  = remaining > 0 && AppendPageWords(document, pageNumber, sb, remaining, wordExtractor);
+            var complete  = remaining > 0 && AppendPage(document, pageNumber, sb, remaining, order);
 
             spent += sb.Length;
             yield return new PdfPageText(pageNumber, sb.ToString(), Truncated: !complete);
@@ -102,20 +126,23 @@ internal static class PdfTextReader
     }
 
     /// <summary>
-    /// Appends one page's words to <paramref name="sb"/>, stopping at <paramref name="budget"/> characters.
+    /// Appends one page's text to <paramref name="sb"/>, stopping at <paramref name="budget"/> characters.
     /// False means the budget ran out part-way. A page that can't be opened, or whose fonts defeat the
     /// extractor, contributes nothing and still counts as complete — one bad page must not cost the other 200.
     /// </summary>
-    private static bool AppendPageWords(
-        PdfDocument document, int pageNumber, StringBuilder sb, long budget, IWordExtractor? wordExtractor)
+    private static bool AppendPage(
+        PdfDocument document, int pageNumber, StringBuilder sb, long budget, PdfReadingOrder order)
     {
         Page page;
         try { page = document.GetPage(pageNumber); }
         catch { return true; }
 
+        if (order == PdfReadingOrder.Layout && TryAppendInReadingOrder(page, sb, budget, out var complete))
+            return complete;
+
         try
         {
-            foreach (var word in wordExtractor is null ? page.GetWords() : page.GetWords(wordExtractor))
+            foreach (var word in page.GetWords())
             {
                 if (sb.Length >= budget) return false;
                 Append(sb, word.Text);
@@ -126,6 +153,50 @@ internal static class PdfTextReader
 
         return true;
     }
+
+    /// <summary>
+    /// Appends the page as a person would read it: words grouped into blocks by where they sit, and the
+    /// blocks put in reading order. False means layout analysis didn't produce anything usable and the
+    /// caller should fall back — a page it can't segment must still yield its words rather than nothing.
+    /// </summary>
+    /// <remarks>
+    /// Blocks are separated by a blank line and their internal line breaks kept, rather than being flattened
+    /// to single spaces the way the search path does. Search only needs the words to exist; something reading
+    /// the page needs to see where a heading ends and a paragraph starts.
+    /// </remarks>
+    private static bool TryAppendInReadingOrder(Page page, StringBuilder sb, long budget, out bool complete)
+    {
+        complete = true;
+
+        IReadOnlyList<TextBlock> blocks;
+        try
+        {
+            var letters = page.Letters;
+            if (letters is null || letters.Count == 0) return false;
+
+            var words = NearestNeighbourWordExtractor.Instance.GetWords(letters);
+            blocks    = DocstrumBoundingBoxes.Instance.GetBlocks(words);
+            if (blocks.Count == 0) return false;
+
+            blocks = [.. UnsupervisedReadingOrderDetector.Instance.Get(blocks)];
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return false; }   // an unusual page defeats the clustering; the plain word walk still works
+
+        foreach (var block in blocks)
+        {
+            if (sb.Length >= budget) { complete = false; return true; }
+
+            var text = block.Text;
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            if (sb.Length > 0) sb.Append("\n\n");
+            sb.Append(text.Trim());
+        }
+
+        return true;
+    }
+
 
     // Title, author, subject and keywords make a document findable when its body doesn't mention its own
     // subject; bookmark titles carry a table of contents that appears nowhere in the page text; form field

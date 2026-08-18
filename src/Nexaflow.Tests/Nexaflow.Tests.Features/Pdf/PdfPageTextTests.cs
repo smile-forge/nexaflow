@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Threading;
 using Nexaflow.Features.Pdf.Reading;
@@ -18,11 +19,13 @@ public class PdfPageTextTests
 
     private static string Sample(string name) => TestSampleData.Path("pdf", name);
 
-    private static List<PdfPageText> ReadPages(string name, int from, int to, long budget = Budget)
+    private static List<PdfPageText> ReadPages(
+        string name, int from, int to, long budget = Budget,
+        PdfReadingOrder order = PdfReadingOrder.ContentStream)
     {
         using var scope = PdfDocumentScope.TryOpen(Sample(name), CancellationToken.None);
         Assert.IsNotNull(scope, $"{name} should open");
-        return PdfTextReader.ReadPages(scope.Document, from, to, budget, null, CancellationToken.None).ToList();
+        return PdfTextReader.ReadPages(scope.Document, from, to, budget, order, CancellationToken.None).ToList();
     }
 
     // ── Page identity ─────────────────────────────────────────────────────────
@@ -75,6 +78,59 @@ public class PdfPageTextTests
         Assert.AreEqual(1, pages[0].PageNumber);
         Assert.IsTrue(string.IsNullOrWhiteSpace(pages[0].Text));
         Assert.IsFalse(pages[0].Truncated, "empty because there is nothing there, not because we ran out");
+    }
+
+    // ── Reading order ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void ContentStreamOrder_InterleavesTheColumns()
+    {
+        // Not a bug being asserted — a cost being pinned. This is what the cheap path does on a two-column
+        // page, and it is why the search sweep can use it (a bag of words to match against) and a reader
+        // cannot (prose that has to make sense).
+        var text = ReadPages("two-column.pdf", 1, 1)[0].Text;
+
+        Assert.IsTrue(text.IndexOf(PdfSamples.RightColumnFirst, StringComparison.Ordinal)
+                    < text.IndexOf(PdfSamples.LeftColumnLast, StringComparison.Ordinal),
+            $"the right column's first word should appear before the left column's last: {text}");
+    }
+
+    [TestMethod]
+    public void LayoutOrder_ReadsEachColumnThrough_BeforeStartingTheNext()
+    {
+        // The whole point. Content-stream order gives "alpha xray bravo yankee charlie zulu" — confident
+        // nonsense that looks like it ought to mean something. Laying the words out spatially recovers the
+        // columns, so a model reads a page the way a person would.
+        var text = ReadPages("two-column.pdf", 1, 1, order: PdfReadingOrder.Layout)[0].Text;
+
+        int Position(string word)
+        {
+            var at = text.IndexOf(word, StringComparison.Ordinal);
+            Assert.IsTrue(at >= 0, $"'{word}' is missing from the page entirely: {text}");
+            return at;
+        }
+
+        Assert.IsTrue(Position(PdfSamples.LeftColumnFirst) < Position(PdfSamples.LeftColumnLast),
+            $"the left column must read top to bottom: {text}");
+
+        Assert.IsTrue(Position(PdfSamples.LeftColumnLast) < Position(PdfSamples.RightColumnFirst),
+            $"the left column must finish before the right one starts: {text}");
+
+        Assert.IsTrue(Position(PdfSamples.RightColumnFirst) < Position(PdfSamples.RightColumnLast),
+            $"the right column must read top to bottom: {text}");
+    }
+
+    [TestMethod]
+    public void LayoutOrder_FallsBackToTheWords_WhenThereIsNothingToSegment()
+    {
+        // A page layout analysis can't make sense of must still yield its text. Returning nothing because the
+        // clustering declined would lose the page entirely, which is far worse than losing its order.
+        var scanned = ReadPages("image-only.pdf", 1, 1, order: PdfReadingOrder.Layout);
+        Assert.AreEqual(1, scanned.Count);
+        Assert.IsFalse(scanned[0].Truncated);
+
+        var plain = ReadPages("text.pdf", 1, 1, order: PdfReadingOrder.Layout)[0].Text;
+        StringAssert.Contains(plain, PdfSamples.BodyNeedle, "a single-column page reads the same either way");
     }
 
     // ── The budget ────────────────────────────────────────────────────────────
