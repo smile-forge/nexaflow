@@ -43,6 +43,7 @@ internal sealed class IntegrityShellStub : IShellServices
     public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration) => throw new NotSupportedException();
     public void CloseTab(Page tab) => throw new NotSupportedException();
     public IReadOnlyList<Page> GetContextItemPages() => throw new NotSupportedException();
+    public IReadOnlyList<Page> GetOpenTabs() => throw new NotSupportedException();
     public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets() => throw new NotSupportedException();
     public Task RunOnUiAsync(Action action) => throw new NotSupportedException();
     public Task<T> RunOnUiAsync<T>(Func<Task<T>> action) => throw new NotSupportedException();

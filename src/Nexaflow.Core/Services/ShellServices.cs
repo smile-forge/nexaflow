@@ -718,6 +718,19 @@ public sealed class ShellServices : IShellServices
     public IReadOnlyList<Page> GetContextItemPages()
         => FeatureManager.Instance.GetContextItemPages(_workspace);
 
+    /// <summary>
+    /// The workspace's open tabs in window → pane → strip order. Reads the windows rather than
+    /// <c>_tabToWindow</c>: the dictionary is unordered, and a menu built from it would shuffle between
+    /// opens.
+    /// </summary>
+    public IReadOnlyList<Page> GetOpenTabs()
+    {
+        var tabs = new List<Page>();
+        foreach (var host in _windows)
+            tabs.AddRange(host.Tabs);
+        return tabs;
+    }
+
     public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets()
     {
         var targets = new List<QuickOpenTarget>();

@@ -143,6 +143,53 @@ public class ConversationContextStripTests
         Assert.AreEqual(1, convo.ContextItems.Count);
     });
 
+    // ── Open-tabs menu ────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("aichat-context-menu")]
+    public void AvailableOpenTabs_ExcludesThisConversationAndWhatIsAlreadyPinned() => Sta(() =>
+    {
+        // The menu is rebuilt on every open, so a tab pinned a moment ago must be gone from it — and the
+        // conversation must never offer itself (AddContextItem would refuse it anyway, silently).
+        var owner = PageOf("AIChat", "self");
+        var one   = PageOf("Fake", "a");
+        var two   = PageOf("Fake", "b");
+
+        var shell = Shell();
+        shell.GetOpenTabs().Returns([owner, one, two]);
+        var convo = new ConversationViewModel(Substitute.For<IAIService>(), shell, new AiChatConfig(), owner);
+
+        CollectionAssert.AreEquivalent(new[] { one, two }, convo.AvailableOpenTabs.ToArray(),
+            "the conversation's own tab is not a context source");
+
+        convo.AddOpenTabCommand.Execute(one);
+
+        CollectionAssert.AreEquivalent(new[] { two }, convo.AvailableOpenTabs.ToArray(),
+            "an already-pinned tab drops out of the menu — offering it again is a dead entry");
+    });
+
+    [TestMethod]
+    [CoversNode("aichat-context-menu")]
+    public void AddOpenTab_PinsTheTabWithoutTakingOwnershipOfIt() => Sta(() =>
+    {
+        // The tab strip owns an open tab. Unpinning it must not close it — unlike a page the menu
+        // *created* (AddContextPage), which this conversation owns and closes on removal.
+        var tab = PageOf("Fake", "a");
+        var closed = false;
+        tab.Closed += (_, _) => closed = true;
+
+        var shell = Shell();
+        shell.GetOpenTabs().Returns([tab]);
+        var convo = new ConversationViewModel(Substitute.For<IAIService>(), shell, new AiChatConfig(), new Page());
+
+        convo.AddOpenTabCommand.Execute(tab);
+        Assert.AreEqual(1, convo.ContextItems.Count);
+
+        convo.RemoveContextItem(tab);
+        Assert.AreEqual(0, convo.ContextItems.Count);
+        Assert.IsFalse(closed, "unpinning an open tab closed it — the strip, not the conversation, owns it");
+    });
+
     // ── Reactivation ──────────────────────────────────────────────────────
 
     [TestMethod]

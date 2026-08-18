@@ -40,6 +40,15 @@ public interface IShellServices
     /// </summary>
     IReadOnlyList<Page> GetContextItemPages();
 
+    /// <summary>
+    /// Every tab currently open across this workspace's windows, in window then pane then tab-strip order.
+    /// A live snapshot of the shell's tab registry — the same <see cref="Page"/> objects the strip holds,
+    /// not copies — so a feature can act on an open tab without owning or closing it (e.g. the AI
+    /// conversation's "Open tabs" context menu, the keyboard route to what its drop target already allows).
+    /// Re-ask rather than caching: tabs open and close under you.
+    /// </summary>
+    IReadOnlyList<Page> GetOpenTabs();
+
     /// <summary>Every page + ribbon shortcut the AI-input quick-open can jump to (label + open action),
     /// deduped by label. Lets a query handler match by name and open one without touching shell chrome.</summary>
     IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets();

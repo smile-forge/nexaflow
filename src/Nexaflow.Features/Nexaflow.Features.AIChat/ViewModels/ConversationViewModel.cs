@@ -735,6 +735,18 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     [RelayCommand]
     private void RemoveContextItemCmd(ContextItemViewModel item) => RemoveContextItem(item);
 
+    /// <summary>The workspace's open tabs that aren't this conversation and aren't pinned already — the
+    /// "Open tabs" submenu of the context-area menu. Same targets drag-and-drop offers, reachable without
+    /// a drag. Evaluated fresh each access, since tabs open and close while the menu is closed.</summary>
+    public IReadOnlyList<Page> AvailableOpenTabs
+        => [.. _shell.GetOpenTabs()
+                     .Where(tab => !ReferenceEquals(tab, _ownerPage) && FindExisting(tab) is null)];
+
+    /// <summary>Pins an already-open tab as a context item. Unlike <see cref="AddContextPage"/> this takes
+    /// no ownership — the tab strip owns the page, and unpinning must not close it.</summary>
+    [RelayCommand]
+    private void AddOpenTab(Page page) => AddContextItem(page);
+
     /// <summary>Lightweight page definitions that can be created context-free and pinned here (e.g.
     /// "Projects" when enabled), for the context-area menu — which reads each page's Title/Icon.
     /// Evaluated fresh each access (reflects live enablement) and excludes already-pinned kinds.</summary>

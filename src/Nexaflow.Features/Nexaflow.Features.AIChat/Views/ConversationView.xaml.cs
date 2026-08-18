@@ -34,30 +34,42 @@ public partial class ConversationView : UserControl, IPageView
 
     // ── Context-source menu (right-click the banner) ──────────────────────
 
-    /// <summary>Rebuilds the right-click menu of addable context pages on each open, so it reflects
-    /// current availability.</summary>
+    /// <summary>Rebuilds the right-click menu of addable context sources on each open, so it reflects
+    /// current availability: the open tabs first (a submenu — the no-drag route to what the banner's drop
+    /// target already accepts), then the context-free pages this workspace can create.</summary>
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
         if (sender is not ContextMenu menu) return;
         menu.Items.Clear();
 
-        var pages = ViewModel.AvailableContextPages;
-        if (pages.Count == 0)
-        {
-            menu.Items.Add(new MenuItem { Header = "No context sources available", IsEnabled = false });
-            return;
-        }
+        var tabs = ViewModel.AvailableOpenTabs;
+        var openTabs = new MenuItem { Header = "Open tabs", IsEnabled = tabs.Count > 0 };
+        foreach (var tab in tabs)
+            openTabs.Items.Add(new MenuItem
+            {
+                Header           = Label(tab),
+                Command          = ViewModel.AddOpenTabCommand,
+                CommandParameter = tab,
+            });
+        menu.Items.Add(openTabs);
 
+        var pages = ViewModel.AvailableContextPages;
+        if (pages.Count == 0) return;
+
+        menu.Items.Add(new Separator());
         foreach (var page in pages)
         {
             menu.Items.Add(new MenuItem
             {
-                Header           = string.IsNullOrEmpty(page.Icon) ? page.Title : $"{page.Icon}  {page.Title}",
+                Header           = Label(page),
                 Command          = ViewModel.AddContextPageCommand,
                 CommandParameter = page,
             });
         }
     }
+
+    private static string Label(Page page)
+        => string.IsNullOrEmpty(page.Icon) ? page.Title : $"{page.Icon}  {page.Title}";
 
     public void Reinitialize(Dictionary<string, string> pageParams)
     {
