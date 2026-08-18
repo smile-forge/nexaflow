@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Windows.Controls;
 using NSubstitute;
@@ -36,6 +37,25 @@ public class ConversationContextStripTests
             Title          = kind,
             PageParams     = id is null ? null : new Dictionary<string, string> { ["id"] = id },
             ContentFactory = () => new FakePageView { ViewModel = new FakeVm() },
+        };
+        page.GetOrCreateContent();
+        return page;
+    }
+
+    private sealed class RiskyVm(ContextSecurityRisk risk) : IPageViewModel
+    {
+        public string GetContext() => "fake context";
+        public ContextSecurityRisk GetContextSecurityRisk() => risk;
+    }
+
+    private static Page RiskyPageOf(string kind, string id, ContextSecurityRisk risk)
+    {
+        var page = new Page
+        {
+            PageKind       = kind,
+            Title          = kind,
+            PageParams     = new Dictionary<string, string> { ["id"] = id },
+            ContentFactory = () => new FakePageView { ViewModel = new RiskyVm(risk) },
         };
         page.GetOrCreateContent();
         return page;
@@ -141,6 +161,132 @@ public class ConversationContextStripTests
         // A silently-dropped duplicate reads as "nothing happened"; the pulse is the answer.
         Assert.IsTrue(existing.IsFlashing);
         Assert.AreEqual(1, convo.ContextItems.Count);
+    });
+
+    // ── Open-tabs menu ────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("aichat-context-menu")]
+    public void AvailableOpenTabs_ExcludesThisConversationAndWhatIsAlreadyPinned() => Sta(() =>
+    {
+        // The menu is rebuilt on every open, so a tab pinned a moment ago must be gone from it — and the
+        // conversation must never offer itself (AddContextItem would refuse it anyway, silently).
+        var owner = PageOf("AIChat", "self");
+        var one   = PageOf("Fake", "a");
+        var two   = PageOf("Fake", "b");
+
+        var shell = Shell();
+        shell.GetOpenTabs().Returns([owner, one, two]);
+        var convo = new ConversationViewModel(Substitute.For<IAIService>(), shell, new AiChatConfig(), owner);
+
+        CollectionAssert.AreEquivalent(new[] { one, two }, convo.AvailableOpenTabs.ToArray(),
+            "the conversation's own tab is not a context source");
+
+        convo.AddOpenTabCommand.Execute(one);
+
+        CollectionAssert.AreEquivalent(new[] { two }, convo.AvailableOpenTabs.ToArray(),
+            "an already-pinned tab drops out of the menu — offering it again is a dead entry");
+    });
+
+    [TestMethod]
+    [CoversNode("aichat-context-menu")]
+    public void AddOpenTab_PinsTheTabWithoutTakingOwnershipOfIt() => Sta(() =>
+    {
+        // The tab strip owns an open tab. Unpinning it must not close it — unlike a page the menu
+        // *created* (AddContextPage), which this conversation owns and closes on removal.
+        var tab = PageOf("Fake", "a");
+        var closed = false;
+        tab.Closed += (_, _) => closed = true;
+
+        var shell = Shell();
+        shell.GetOpenTabs().Returns([tab]);
+        var convo = new ConversationViewModel(Substitute.For<IAIService>(), shell, new AiChatConfig(), new Page());
+
+        convo.AddOpenTabCommand.Execute(tab);
+        Assert.AreEqual(1, convo.ContextItems.Count);
+
+        convo.RemoveContextItem(tab);
+        Assert.AreEqual(0, convo.ContextItems.Count);
+        Assert.IsFalse(closed, "unpinning an open tab closed it — the strip, not the conversation, owns it");
+    });
+
+    // ── Collapsed summary ─────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void CollapsedContext_NamesThreeThenCounts_AcrossPagesAndAttachments() => Sta(() =>
+    {
+        // The collapsed row is one line, so it names a few and counts the rest. Attachments are pinned
+        // context too — summarising only the pages would under-report what the model can see.
+        var convo = NewConversation();
+        convo.AddContextItem(PageOf("Fake", "a"));
+        convo.AddContextItem(PageOf("Fake", "b"));
+        convo.AddAttachment(@"C:\tmp\notes.txt");
+        convo.AddAttachment(@"C:\tmp\data.csv");
+
+        CollectionAssert.AreEqual(new[] { "Fake", "Fake", "notes.txt" },
+            convo.CollapsedContext.Select(e => e.Title).ToArray(),
+            "the summary names the first three, pages before attachments");
+
+        Assert.IsTrue(convo.HasCollapsedOverflow);
+        Assert.AreEqual("and 1 more", convo.CollapsedContextOverflow);
+        Assert.IsFalse(convo.HasNoContext);
+    });
+
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void CollapsedContext_CarriesTheSecurityRisk_SoTheBadgeSurvivesCollapsing() => Sta(() =>
+    {
+        // Collapsing hides the detail, not the warning: a high-risk scope stays flagged in the summary
+        // pill. The risk resolves in TrackRisk, *after* the collection change — so a summary built only
+        // on collection change would show a freshly pinned page unbadged.
+        var convo = NewConversation();
+        convo.AddContextItem(RiskyPageOf("Registry", "hklm", ContextSecurityRisk.High));
+        convo.AddAttachment(@"C:\tmp\notes.txt");
+
+        CollectionAssert.AreEqual(
+            new[] { ContextSecurityRisk.High, ContextSecurityRisk.Low },
+            convo.CollapsedContext.Select(e => e.Risk).ToArray(),
+            "the page keeps its risk; an attachment has no scope behind it to rate");
+    });
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void CollapsedContext_UnderTheCap_CountsNothing() => Sta(() =>
+    {
+        var convo = NewConversation();
+        convo.AddContextItem(PageOf("Fake", "a"));
+
+        Assert.AreEqual(1, convo.CollapsedContext.Count);
+        Assert.IsFalse(convo.HasCollapsedOverflow, "three or fewer is the whole list — nothing to count");
+        Assert.AreEqual(string.Empty, convo.CollapsedContextOverflow);
+    });
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void HasNoContext_CoversAttachmentsToo_NotJustPinnedPages() => Sta(() =>
+    {
+        // Drives the "no context items" line. HasContextItems (the expanded hint) counts pages only, so
+        // reusing it here would claim emptiness while an attachment is pinned.
+        var convo = NewConversation();
+        Assert.IsTrue(convo.HasNoContext);
+
+        convo.AddAttachment(@"C:\tmp\notes.txt");
+        Assert.IsFalse(convo.HasNoContext, "an attachment alone is still context");
+    });
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void ToggleContextCollapsed_FlipsBothWays() => Sta(() =>
+    {
+        var convo = NewConversation();
+        Assert.IsFalse(convo.IsContextCollapsed, "a conversation opens showing what the model can see");
+
+        convo.ToggleContextCollapsedCommand.Execute(null);
+        Assert.IsTrue(convo.IsContextCollapsed);
+
+        convo.ToggleContextCollapsedCommand.Execute(null);
+        Assert.IsFalse(convo.IsContextCollapsed);
     });
 
     // ── Reactivation ──────────────────────────────────────────────────────

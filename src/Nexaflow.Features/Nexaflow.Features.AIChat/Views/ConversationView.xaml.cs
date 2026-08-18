@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Nexaflow.Features.AIChat.ViewModels;
 using Nexaflow.Features.Common;
 using Page = Nexaflow.Features.Common.Page;
@@ -25,39 +26,69 @@ public partial class ConversationView : UserControl, IPageView
         ContextBanner.Drop     += OnContextBannerDrop;
         ContextBanner.DragOver += OnContextBannerDragOver;
 
-        var contextMenu = new ContextMenu();
-        contextMenu.Opened += OnContextMenuOpened;
-        ContextBanner.ContextMenu = contextMenu;
+        // One menu per anchor: a ContextMenu becomes the logical child of whatever it's attached to,
+        // so the banner and the add button can't share an instance.
+        ContextBanner.ContextMenu    = NewContextSourceMenu();
+        AddContextButton.ContextMenu = NewContextSourceMenu();
 
         RefreshFooter();
     }
 
-    // ── Context-source menu (right-click the banner) ──────────────────────
+    // ── Context-source menu (the [+] button, and right-clicking the banner) ─
 
-    /// <summary>Rebuilds the right-click menu of addable context pages on each open, so it reflects
-    /// current availability.</summary>
+    private ContextMenu NewContextSourceMenu()
+    {
+        var menu = new ContextMenu();
+        menu.Opened += OnContextMenuOpened;
+        return menu;
+    }
+
+    /// <summary>Drops the same menu below the [+] button. Right-click discovered nothing — the button is
+    /// the visible half of the affordance, so it opens on a plain left click.</summary>
+    private void OnAddContextClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement anchor || anchor.ContextMenu is not { } menu) return;
+        menu.PlacementTarget = anchor;
+        menu.Placement       = PlacementMode.Bottom;
+        menu.IsOpen          = true;
+    }
+
+    /// <summary>Rebuilds the menu of addable context sources on each open, so it reflects
+    /// current availability: the open tabs first (a submenu — the no-drag route to what the banner's drop
+    /// target already accepts), then the context-free pages this workspace can create.</summary>
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
         if (sender is not ContextMenu menu) return;
         menu.Items.Clear();
 
-        var pages = ViewModel.AvailableContextPages;
-        if (pages.Count == 0)
-        {
-            menu.Items.Add(new MenuItem { Header = "No context sources available", IsEnabled = false });
-            return;
-        }
+        var tabs = ViewModel.AvailableOpenTabs;
+        var openTabs = new MenuItem { Header = "Open tabs", IsEnabled = tabs.Count > 0 };
+        foreach (var tab in tabs)
+            openTabs.Items.Add(new MenuItem
+            {
+                Header           = Label(tab),
+                Command          = ViewModel.AddOpenTabCommand,
+                CommandParameter = tab,
+            });
+        menu.Items.Add(openTabs);
 
+        var pages = ViewModel.AvailableContextPages;
+        if (pages.Count == 0) return;
+
+        menu.Items.Add(new Separator());
         foreach (var page in pages)
         {
             menu.Items.Add(new MenuItem
             {
-                Header           = string.IsNullOrEmpty(page.Icon) ? page.Title : $"{page.Icon}  {page.Title}",
+                Header           = Label(page),
                 Command          = ViewModel.AddContextPageCommand,
                 CommandParameter = page,
             });
         }
     }
+
+    private static string Label(Page page)
+        => string.IsNullOrEmpty(page.Icon) ? page.Title : $"{page.Icon}  {page.Title}";
 
     public void Reinitialize(Dictionary<string, string> pageParams)
     {

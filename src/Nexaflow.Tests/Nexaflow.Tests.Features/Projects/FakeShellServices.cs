@@ -31,6 +31,7 @@ internal sealed class FakeShellServices : IShellServices
     public void OpenTab(string pageKind, Dictionary<string, string>? pageParams = null, IPageView? caller = null, bool inRightPane = false) => throw new NotSupportedException();
     public void CloseTab(Page tab) => throw new NotSupportedException();
     public IReadOnlyList<Page> GetContextItemPages() => throw new NotSupportedException();
+    public IReadOnlyList<Page> GetOpenTabs() => throw new NotSupportedException();
     public IReadOnlyList<QuickOpenTarget> GetQuickOpenTargets() => throw new NotSupportedException();
     public void QueueBackgroundTask(IBackgroundTask task, Action<bool>? onComplete = null, CancellationToken ct = default) => throw new NotSupportedException();
     public IDisposable RegisterMediatedTask(MediatedTaskRegistration registration) => throw new NotSupportedException();
