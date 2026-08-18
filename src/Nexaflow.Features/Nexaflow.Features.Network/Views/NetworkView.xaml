@@ -1,4 +1,5 @@
 <UserControl x:Class="Nexaflow.Features.Network.Views.NetworkView"
+             AutomationProperties.AutomationId="NetworkView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:v="clr-namespace:Nexaflow.Features.Network.Views"
@@ -9,7 +10,7 @@
         <!-- One cell that may hold several addresses, one per line. A device with three IPv6 addresses is
              ordinary, and comma-joining them makes a column nothing can be read out of. -->
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <vcc:NullToCollapsedConverter x:Key="NullToVis" />
+        <vcc:NullToVisibilityConverter x:Key="NullToVis" />
 
         <DataTemplate x:Key="AddressCell">
             <TextBlock Text="{Binding}"
@@ -32,6 +33,7 @@
         <DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,10">
             <Button DockPanel.Dock="Left"
                     Style="{StaticResource TbBtn}"
+                    AutomationProperties.AutomationId="Net_Discover"
                     Content="Discover"
                     Padding="16,6"
                     Command="{Binding DiscoverCommand}" />
@@ -73,6 +75,7 @@
             </Grid.ColumnDefinitions>
 
         <ListView Grid.Column="0"
+                  AutomationProperties.AutomationId="Net_Devices"
                   SelectedItem="{Binding Selected, Mode=TwoWay}"
                   ItemsSource="{Binding Devices}"
                   Background="{StaticResource SurfaceBrush}"
@@ -146,6 +149,7 @@
         </ListView>
 
             <v:DevicePanel Grid.Column="1"
+                           AutomationProperties.AutomationId="Net_Panel"
                            Width="330"
                            Margin="10,0,0,0"
                            Visibility="{Binding Selected, Converter={StaticResource NullToVis}}" />
