@@ -25,6 +25,23 @@ internal readonly record struct PdfImageData(
 /// <param name="Undecodable">Images skipped because no codec here could turn them into a file.</param>
 internal readonly record struct PdfImageTally(int Extracted, int Duplicates, int Undecodable);
 
+/// <summary>An image's description without its bytes — enough to decide whether fetching it is worth it.</summary>
+/// <param name="PageNumber">1-based page it is drawn on.</param>
+/// <param name="IndexOnPage">1-based position among that page's images.</param>
+/// <param name="WidthInSamples">Source pixel width.</param>
+/// <param name="HeightInSamples">Source pixel height.</param>
+/// <param name="PageCoverage">
+/// Fraction of the page's area the image is drawn over, 0..1. Near 1 means the page effectively <em>is</em>
+/// this image — the signature of a scanned page, and the thing that tells a reader it can look at the picture
+/// instead of hunting for text that was never there.
+/// </param>
+/// <param name="Extension">The file extension its bytes would be written with.</param>
+/// <param name="ByteLength">Size of those bytes.</param>
+/// <param name="IsRepeat">True when an identical image already appeared earlier in the document.</param>
+internal readonly record struct PdfImageInfo(
+    int PageNumber, int IndexOnPage, int WidthInSamples, int HeightInSamples,
+    double PageCoverage, string Extension, int ByteLength, bool IsRepeat);
+
 /// <summary>
 /// Pulls the embedded images out of a PDF. Shell-free and synchronous, so it can be tested directly and the
 /// caller decides where it runs.
@@ -76,6 +93,110 @@ internal static class PdfImageReader
         }
 
         onFinished?.Invoke(new PdfImageTally(extracted, duplicates, undecodable));
+    }
+
+    /// <summary>
+    /// One page's images, in draw order.
+    /// <para>
+    /// Deliberately <em>not</em> deduplicated, unlike <see cref="Read"/>. That method's document-wide hash
+    /// filter exists so a header logo isn't written out forty times; asked "what is on page 7" the same filter
+    /// answers "nothing" whenever page 7 reuses an XObject page 1 already used. Per-page truth beats
+    /// per-document tidiness here — a caller looking at one page needs what that page actually shows.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<PdfImageData> ReadPage(
+        PdfDocument document, int pageNumber, CancellationToken ct)
+    {
+        var results = new List<PdfImageData>();
+        if (pageNumber < 1 || pageNumber > document.NumberOfPages) return results;
+
+        IReadOnlyList<IPdfImage> images;
+        try { images = ReadPageImages(document, pageNumber); }
+        catch (OperationCanceledException) { throw; }
+        catch { return results; }
+
+        var indexOnPage = 0;
+        foreach (var image in images)
+        {
+            ct.ThrowIfCancellationRequested();
+            indexOnPage++;
+
+            try
+            {
+                if (TryGetWritableBytes(image, out var bytes, out var extension))
+                    results.Add(new PdfImageData(pageNumber, indexOnPage, bytes, extension));
+            }
+            catch { /* one image no codec here can decode shouldn't hide the others on the page */ }
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Every image's description, without its bytes — page, position, pixel size, how much of the page it
+    /// covers, and whether an identical one appeared earlier. Same content-stream walk as <see cref="Read"/>,
+    /// so it costs the same; it reports repeats rather than dropping them, because "37 images, 12 distinct"
+    /// is a truthful summary and "12 images" is not.
+    /// </summary>
+    public static IEnumerable<PdfImageInfo> Inventory(PdfDocument document, CancellationToken ct)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            Page page;
+            IReadOnlyList<IPdfImage> images;
+            try
+            {
+                page   = document.GetPage(pageNumber);
+                images = ReadPageImages(document, pageNumber);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { continue; }
+
+            var pageArea    = page.Width * page.Height;
+            var indexOnPage = 0;
+
+            foreach (var image in images)
+            {
+                ct.ThrowIfCancellationRequested();
+                indexOnPage++;
+
+                ReadOnlyMemory<byte> bytes;
+                string extension;
+                try
+                {
+                    if (!TryGetWritableBytes(image, out bytes, out extension)) continue;
+                }
+                catch { continue; }
+
+                var repeat   = !seen.Add(Hashing.Sha256(bytes.Span));
+                var coverage = PageCoverage(image, pageArea);
+
+                yield return new PdfImageInfo(
+                    pageNumber, indexOnPage, image.WidthInSamples, image.HeightInSamples,
+                    coverage, extension, bytes.Length, repeat);
+            }
+        }
+    }
+
+    /// <summary>
+    /// How much of the page the image is drawn over, 0..1. Returns 0 when the geometry is degenerate or
+    /// unreadable rather than guessing — a caller deciding "is this page a scan?" needs a coverage it can
+    /// trust, and a made-up 1.0 would send it down the wrong branch.
+    /// </summary>
+    public static double PageCoverage(IPdfImage image, double pageArea)
+    {
+        if (pageArea <= 0) return 0;
+        try
+        {
+            var area = image.BoundingBox.Width * image.BoundingBox.Height;
+            if (area <= 0) return 0;
+            return Math.Min(1.0, area / pageArea);
+        }
+        catch { return 0; }
     }
 
     // Separated so the try/catch around it can live in a method that isn't an iterator.

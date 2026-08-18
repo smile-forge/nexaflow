@@ -6,6 +6,7 @@ using UglyToad.PdfPig;
 using UglyToad.PdfPig.AcroForms.Fields;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Outline;
+using UglyToad.PdfPig.Util;
 
 namespace Nexaflow.Features.Pdf.Reading;
 
@@ -13,6 +14,12 @@ namespace Nexaflow.Features.Pdf.Reading;
 /// <param name="Text">The text, possibly empty. Empty is a real answer: an image-only scan has none.</param>
 /// <param name="Truncated">True when the byte budget ran out before the last page was read.</param>
 internal readonly record struct PdfText(string Text, bool Truncated);
+
+/// <summary>One page's text, for callers that need to say <em>which</em> page something was on.</summary>
+/// <param name="PageNumber">1-based page.</param>
+/// <param name="Text">The page's words, possibly empty — an image-only scan page has none.</param>
+/// <param name="Truncated">True when the byte budget ran out part-way through this page.</param>
+internal readonly record struct PdfPageText(int PageNumber, string Text, bool Truncated);
 
 /// <summary>
 /// Turns a PDF into plain text for searching. Shell-free and synchronous by design — the callers decide
@@ -45,25 +52,79 @@ internal static class PdfTextReader
             ct.ThrowIfCancellationRequested();
             if (sb.Length >= budget) return new PdfText(sb.ToString(), Truncated: true);
 
-            Page page;
-            try { page = document.GetPage(pageNumber); }
-            catch { continue; }   // one unreadable page shouldn't cost the other 200
-
-            try
-            {
-                foreach (var word in page.GetWords())
-                {
-                    if (sb.Length >= budget) return new PdfText(sb.ToString(), Truncated: true);
-                    Append(sb, word.Text);
-                }
-            }
-            catch (OperationCanceledException) { throw; }
-            catch { /* a page whose fonts defeat the extractor still leaves the rest searchable */ }
+            if (!AppendPageWords(document, pageNumber, sb, budget, wordExtractor: null))
+                return new PdfText(sb.ToString(), Truncated: true);
 
             sb.Append('\n');
         }
 
         return new PdfText(sb.ToString(), Truncated: false);
+    }
+
+    /// <summary>
+    /// Reads pages <paramref name="firstPage"/>..<paramref name="lastPage"/> (1-based, inclusive) one at a
+    /// time, keeping page identity. <see cref="Read"/> flattens the whole document because search only needs
+    /// a bag of words; a reader — human or model — needs to say "page 12", so this yields per page instead.
+    /// <para>
+    /// <paramref name="maxBytes"/> is the budget for the whole run, not per page: it stops mid-document like
+    /// <see cref="Read"/> does, and the page it stopped on is flagged <c>Truncated</c> so the caller can ask
+    /// for the rest rather than silently believing it saw everything.
+    /// </para>
+    /// </summary>
+    /// <param name="wordExtractor">
+    /// Optional alternative word extractor. Null uses PdfPig's default, which walks the content stream in
+    /// order — cheap, and wrong on a multi-column page, where it interleaves the columns. A layout-analysis
+    /// extractor can be passed here later without disturbing the search path, which must stay cheap.
+    /// </param>
+    public static IEnumerable<PdfPageText> ReadPages(
+        PdfDocument document, int firstPage, int lastPage, long maxBytes,
+        IWordExtractor? wordExtractor, CancellationToken ct)
+    {
+        var budget = maxBytes <= 0 ? 0 : maxBytes / BytesPerChar;
+        var spent  = 0L;
+
+        var from = Math.Max(1, firstPage);
+        var to   = Math.Min(document.NumberOfPages, lastPage);
+
+        for (var pageNumber = from; pageNumber <= to; pageNumber++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var sb        = new StringBuilder();
+            var remaining = budget - spent;
+            var complete  = remaining > 0 && AppendPageWords(document, pageNumber, sb, remaining, wordExtractor);
+
+            spent += sb.Length;
+            yield return new PdfPageText(pageNumber, sb.ToString(), Truncated: !complete);
+
+            if (!complete) yield break;
+        }
+    }
+
+    /// <summary>
+    /// Appends one page's words to <paramref name="sb"/>, stopping at <paramref name="budget"/> characters.
+    /// False means the budget ran out part-way. A page that can't be opened, or whose fonts defeat the
+    /// extractor, contributes nothing and still counts as complete — one bad page must not cost the other 200.
+    /// </summary>
+    private static bool AppendPageWords(
+        PdfDocument document, int pageNumber, StringBuilder sb, long budget, IWordExtractor? wordExtractor)
+    {
+        Page page;
+        try { page = document.GetPage(pageNumber); }
+        catch { return true; }
+
+        try
+        {
+            foreach (var word in wordExtractor is null ? page.GetWords() : page.GetWords(wordExtractor))
+            {
+                if (sb.Length >= budget) return false;
+                Append(sb, word.Text);
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { /* a page whose fonts defeat the extractor still leaves the rest searchable */ }
+
+        return true;
     }
 
     // Title, author, subject and keywords make a document findable when its body doesn't mention its own
@@ -86,7 +147,10 @@ internal static class PdfTextReader
 
         try
         {
-            if (document.TryGetBookmarks(out var bookmarks) && bookmarks is not null)
+            // allowContainerNode: without it PdfPig drops every "grouping" bookmark - a section heading with
+            // children but no destination - so a document whose only mention of "Appendices" is that heading
+            // would be unfindable by it.
+            if (document.TryGetBookmarks(out var bookmarks, allowContainerNode: true) && bookmarks is not null)
                 foreach (var node in Flatten(bookmarks.Roots))
                     Append(sb, node.Title);
         }
