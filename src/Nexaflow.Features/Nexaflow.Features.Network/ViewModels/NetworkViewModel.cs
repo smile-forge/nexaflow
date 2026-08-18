@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
@@ -19,8 +22,12 @@ public sealed partial class DeviceRow : ObservableObject
     /// never blank, because a row with no name reads as a row with no device.</summary>
     public required string Name { get; init; }
 
-    /// <summary>Where its icon lives, for the devices that published one. Null for the rest.</summary>
-    public required string? IconUrl { get; init; }
+    /// <summary>Its own icon, already fetched. Null for devices that published none.</summary>
+    /// <remarks>
+    /// The picture rather than its address, because a picture element given a device-supplied URL fetches
+    /// it — past the guard, off-segment, unlogged. What reaches the wire is decided in one place.
+    /// </remarks>
+    public required ImageSource? Icon { get; init; }
 
     /// <summary>Its addresses, kept apart and kept as lists.</summary>
     /// <remarks>
@@ -235,7 +242,7 @@ public sealed partial class NetworkViewModel : ObservableObject
             tab.Rows.Add(new FactRow
             {
                 Label = Named(fact.Key),
-                Value = Unit(fact),
+                Value = Shown(fact),
                 Provenance = $"{whence} · {fact.Confidence} · {Ago(now - fact.ObservedUtc)}",
                 Contested = node.IsContested(fact.Key),
             });
@@ -245,6 +252,12 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// <summary>What to call a fact, and an unblessed key keeps its own name rather than vanishing.</summary>
     private static string Named(FactKey key)
         => FactOntology.IsKnown(key) ? FactOntology.Describe(key).DisplayName : key.ToString();
+
+    /// <summary>What to print. Octets get a summary — a fact list is not the place for hex.</summary>
+    private static string Shown(DeviceFact fact)
+        => fact.Value.Kind == FactValueKind.Bytes
+            ? $"{fact.Value.Bytes?.Length ?? 0} bytes"
+            : Unit(fact);
 
     private static string Unit(DeviceFact fact)
         => FactOntology.IsKnown(fact.Key) && FactOntology.Describe(fact.Key).Unit is { Length: > 0 } unit
@@ -462,7 +475,7 @@ public sealed partial class NetworkViewModel : ObservableObject
             Name = node.Best(new FactKey("name", "hostname"))?.Value.Text is { Length: > 0 } named
                 ? named
                 : node.DisplayName,
-            IconUrl = node.Best(new FactKey("dev", "icon"))?.Value.Text,
+            Icon = Picture(node.Best(new FactKey("dev", "icon"))?.Value.Bytes),
             IPv4 = v4,
             IPv6 = Addresses(node, "ipv6"),
             Mac = node.Best(new FactKey("link", "mac"))?.Value.Text ?? "—",
@@ -475,6 +488,28 @@ public sealed partial class NetworkViewModel : ObservableObject
             Presence = node.Presence,
             Node = node,
         };
+    }
+
+    /// <summary>Octets a probe already fetched, decoded for display. Null when there are none or when
+    /// they are not a picture — a device may serve anything at the address it advertised.</summary>
+    private static ImageSource? Picture(byte[]? bytes)
+    {
+        if (bytes is not { Length: > 0 }) return null;
+
+        try
+        {
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.StreamSource = new MemoryStream(bytes);
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception e) when (e is NotSupportedException or ArgumentException or IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Every address of one family, in the order they were observed.</summary>

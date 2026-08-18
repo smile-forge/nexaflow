@@ -300,6 +300,46 @@ public class SsdpProbeTests
             $"a probe that found nothing has to be able to explain why. Said: {string.Join(" | ", host.Said)}");
     }
 
+    [TestMethod]
+    public async Task And_an_icon_is_fetched_here_rather_than_by_whatever_draws_it()
+    {
+        // The guard's whole claim is that nothing reaches the wire without it. Handing a device-supplied
+        // address to a picture element would have the UI fetch it — off-segment, unbudgeted, unlogged, and
+        // past the one component that exists to say no. So the octets travel with the facts.
+        var wire = new Recorded { Document = Description };
+        wire.Replies.Add(Encoding.ASCII.GetBytes(Answer));
+
+        var probe = new SsdpProbe();
+        probe.Attach(new Host(wire));
+
+        List<ProbeObservation> found = [];
+        await foreach (var o in probe.DiscoverAsync(Adapter(), CancellationToken.None)) found.Add(o);
+
+        CollectionAssert.Contains(wire.Fetched.Select(u => u.ToString()).ToArray(),
+            "http://192.168.1.42:49152/icon.png",
+            "the icon was not fetched through the transport");
+
+        var icon = found.SelectMany(o => o.Facts).Single(f => f.Key.Name == "icon");
+
+        Assert.AreEqual(FactValueKind.Bytes, icon.Value.Kind,
+            "an icon is a picture that travels with the facts, not an address for something else to chase");
+        Assert.IsTrue(icon.Value.Bytes is { Length: > 0 });
+    }
+
+    /// <summary>The least a description can be while still carrying an icon.</summary>
+    private const string Description = """
+        <root xmlns="urn:schemas-upnp-org:device-1-0">
+          <device>
+            <friendlyName>wasabi</friendlyName>
+            <manufacturer>Test</manufacturer>
+            <iconList>
+              <icon><mimetype>image/png</mimetype><width>98</width><height>55</height>
+                    <depth>24</depth><url>/icon.png</url></icon>
+            </iconList>
+          </device>
+        </root>
+        """;
+
     // ── What it declares ──────────────────────────────────────────────────────
 
     [TestMethod]

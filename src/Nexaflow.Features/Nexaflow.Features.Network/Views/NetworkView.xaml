@@ -95,9 +95,10 @@
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
-                                    <!-- The device's own icon, from its description document. Devices that
-                                         published none simply have none; nothing is substituted. -->
-                                    <Image Source="{Binding IconUrl}"
+                                    <!-- Already fetched, through the guard, during discovery. Binding a
+                                         device-supplied URL here would have WPF fetch it directly, which
+                                         is the one thing this feature promises does not happen. -->
+                                    <Image Source="{Binding Icon}"
                                            Width="20" Height="20"
                                            Margin="0,0,8,0"
                                            VerticalAlignment="Center"

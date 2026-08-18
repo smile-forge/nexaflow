@@ -350,10 +350,19 @@ public sealed class SsdpProbe : INetworkProbe
         Say(obs, new FactKey("svc", "modelUrl"), told.ModelUrl, now, Confidence.Likely);
         Say(obs, new FactKey("svc", "vendorUrl"), told.ManufacturerUrl, now, Confidence.Likely);
 
-        // The best icon it offers. One rather than all of them: a list is for choosing from, and the
-        // choice — largest, then deepest — has already been made.
-        if (told.Icons.Count > 0)
-            Say(obs, new FactKey("dev", "icon"), told.Icons[0].Url.ToString(), now, Confidence.Strong);
+        // The best icon it offers, fetched HERE rather than handed on as an address.
+        //
+        // The address is the device's to choose, and a picture element given one would have the UI fetch
+        // it: off this machine's segments, outside the budget, unlogged, and past the one component whose
+        // entire claim is that nothing reaches the wire without it. A device could point that anywhere.
+        // So the octets travel with the facts and the guard sees every request, which is the rule.
+        if (told.Icons.Count > 0 && await Picture(told.Icons[0], reply, adapter, ct).ConfigureAwait(false)
+            is { Length: > 0 } picture)
+        {
+            obs.Facts.Add(Fact(new FactKey("dev", "icon"), FactValue.OfBytes(picture), now,
+                               Confidence.Strong,
+                               $"UPnP icon, {told.Icons[0].Width}x{told.Icons[0].Height}"));
+        }
 
         if (told.Udn is { Length: > 0 } udn)
             Say(obs, new FactKey("dev", "uuid"), udn.Replace("uuid:", ""), now, Confidence.Strong);
@@ -363,6 +372,40 @@ public sealed class SsdpProbe : INetworkProbe
                      + $"{(told.Icons.Count > 0 ? $" ({told.Icons.Count} icon(s))" : "")}.");
 
         return obs;
+    }
+
+    /// <summary>
+    /// One icon, as octets, or nothing where it could not be had.
+    /// </summary>
+    /// <remarks>
+    /// Bounded twice: the guard judges the host before a connection opens, and anything that comes back
+    /// bigger than a device icon plausibly is, is dropped. A description is a device describing itself and
+    /// the size of what it offers is its choice, so the ceiling is here rather than assumed.
+    /// </remarks>
+    private async Task<byte[]> Picture(DeviceIcon icon, ReceivedDatagram reply,
+                                       NetworkAdapterInfo adapter, CancellationToken ct)
+    {
+        const int TooBig = 512 * 1024;
+
+        var intent = new SendIntent
+        {
+            Target = reply.From.Address,
+            Port = icon.Url.Port,
+            Layer = SendLayer.Tcp,
+            ByteCount = 0,
+            Initiator = SendInitiator.Probe,
+            SourceId = ProbeId,
+            Via = adapter.Addresses
+                .FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                .Address,
+        };
+
+        var got = await _host!.Transport.FetchAsync(intent, icon.Url, TimeSpan.FromSeconds(4), ct)
+                              .ConfigureAwait(false);
+
+        if (!got.Ok) return [];
+
+        return got.Body.Length is > 0 and <= TooBig ? got.Body : [];
     }
 
     /// <summary>The last meaningful word of a UPnP device type, which is what the thing is.</summary>

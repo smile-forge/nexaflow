@@ -91,7 +91,7 @@ public static class FactOntology
             // naming; one probe's private notion would not be.
             new(new("dev", "modelNumber"), "Model number",    FactValueKind.Text,      FactOntology.LayerName),
             new(new("dev", "description"), "Description",     FactValueKind.Text,      FactOntology.LayerName),
-            new(new("dev", "icon"),        "Icon",            FactValueKind.Text,      FactOntology.LayerName),
+            new(new("dev", "icon"),        "Icon",            FactValueKind.Bytes,     FactOntology.LayerName),
             new(new("svc", "presentation"),"Web interface",   FactValueKind.Text,      FactOntology.LayerService),
             new(new("svc", "modelUrl"),    "Model page",      FactValueKind.Text,      FactOntology.LayerService),
             new(new("svc", "vendorUrl"),   "Manufacturer page", FactValueKind.Text,    FactOntology.LayerService),
