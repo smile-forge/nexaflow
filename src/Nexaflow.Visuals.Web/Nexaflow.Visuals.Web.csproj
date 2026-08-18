@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+  </ItemGroup>
+
+  <!-- Visuals.Common only. Deliberately NOT Features.Common: unlike Visuals.Text/Visuals.Terminal,
+       nothing here hosts a page view-model. IAirspaceContent is implemented by the hosting *view*,
+       which forwards to WebSurface.IsSuppressed, and the shell prompt on a failed start is raised by
+       the host from the Unavailable event. Keeping the contract assembly out means this is a plain
+       control with no shell coupling. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+  </ItemGroup>
+
+</Project>

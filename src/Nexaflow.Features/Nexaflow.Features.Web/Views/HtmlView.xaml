@@ -1,7 +1,7 @@
 <UserControl x:Class="Nexaflow.Features.Web.Views.HtmlView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             xmlns:vw="clr-namespace:Nexaflow.Visuals.Web.Controls;assembly=Nexaflow.Visuals.Web"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Web_View"
              Background="{StaticResource BgBrush}">
@@ -174,20 +174,15 @@
                        VerticalAlignment="Center"/>
         </Border>
 
-        <!-- WebView2.
+        <!-- The shared chrome-free browser host (Nexaflow.Visuals.Web).
              • Visibility collapses while a shell overlay covers the page (WebViewVisible) — the WebView's
                native HWND renders above all WPF content, so the AI/Options overlays would otherwise be hidden.
              • Left/right margin keeps the WebView's HWND clear of the window's WindowChrome resize border,
                which it would otherwise swallow (making the window's side edges un-draggable). -->
-        <!-- No AutomationId: WebView2 is an HwndHost, so its native browser window is not part of this
-             window's WPF automation tree and an id here would never surface. A UI test instead reads the
-             rendered document, which WebView2 does expose to UIA (see WebJourneyTests). -->
-        <wv2:WebView2 x:Name="WebView"
-                      Grid.Row="1"
-                      Margin="8,0"
-                      Visibility="{Binding WebViewVisible, Converter={StaticResource BoolToVis}}"
-                      NavigationStarting="WebView_NavigationStarting"
-                      NavigationCompleted="WebView_NavigationCompleted"/>
+        <vw:WebSurface x:Name="Surface"
+                       Grid.Row="1"
+                       Margin="8,0"
+                       Visibility="{Binding WebViewVisible, Converter={StaticResource BoolToVis}}"/>
 
         <!-- Fallback shown when the embedded browser can't be created on this machine -->
         <Border Grid.Row="1"
