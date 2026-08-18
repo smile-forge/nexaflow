@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Windows.Controls;
 using NSubstitute;
@@ -188,6 +189,68 @@ public class ConversationContextStripTests
         convo.RemoveContextItem(tab);
         Assert.AreEqual(0, convo.ContextItems.Count);
         Assert.IsFalse(closed, "unpinning an open tab closed it — the strip, not the conversation, owns it");
+    });
+
+    // ── Collapsed summary ─────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void CollapsedContext_NamesThreeThenCounts_AcrossPagesAndAttachments() => Sta(() =>
+    {
+        // The collapsed row is one line, so it names a few and counts the rest. Attachments are pinned
+        // context too — summarising only the pages would under-report what the model can see.
+        var convo = NewConversation();
+        convo.AddContextItem(PageOf("Fake", "a"));
+        convo.AddContextItem(PageOf("Fake", "b"));
+        convo.AddAttachment(@"C:\tmp\notes.txt");
+        convo.AddAttachment(@"C:\tmp\data.csv");
+
+        CollectionAssert.AreEqual(new[] { "Fake", "Fake", "notes.txt" },
+            convo.CollapsedContext.Select(e => e.Title).ToArray(),
+            "the summary names the first three, pages before attachments");
+
+        Assert.IsTrue(convo.HasCollapsedOverflow);
+        Assert.AreEqual("and 1 more", convo.CollapsedContextOverflow);
+        Assert.IsFalse(convo.HasNoContext);
+    });
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void CollapsedContext_UnderTheCap_CountsNothing() => Sta(() =>
+    {
+        var convo = NewConversation();
+        convo.AddContextItem(PageOf("Fake", "a"));
+
+        Assert.AreEqual(1, convo.CollapsedContext.Count);
+        Assert.IsFalse(convo.HasCollapsedOverflow, "three or fewer is the whole list — nothing to count");
+        Assert.AreEqual(string.Empty, convo.CollapsedContextOverflow);
+    });
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void HasNoContext_CoversAttachmentsToo_NotJustPinnedPages() => Sta(() =>
+    {
+        // Drives the "no context items" line. HasContextItems (the expanded hint) counts pages only, so
+        // reusing it here would claim emptiness while an attachment is pinned.
+        var convo = NewConversation();
+        Assert.IsTrue(convo.HasNoContext);
+
+        convo.AddAttachment(@"C:\tmp\notes.txt");
+        Assert.IsFalse(convo.HasNoContext, "an attachment alone is still context");
+    });
+
+    [TestMethod]
+    [CoversNode("aichat-context-collapse")]
+    public void ToggleContextCollapsed_FlipsBothWays() => Sta(() =>
+    {
+        var convo = NewConversation();
+        Assert.IsFalse(convo.IsContextCollapsed, "a conversation opens showing what the model can see");
+
+        convo.ToggleContextCollapsedCommand.Execute(null);
+        Assert.IsTrue(convo.IsContextCollapsed);
+
+        convo.ToggleContextCollapsedCommand.Execute(null);
+        Assert.IsFalse(convo.IsContextCollapsed);
     });
 
     // ── Reactivation ──────────────────────────────────────────────────────

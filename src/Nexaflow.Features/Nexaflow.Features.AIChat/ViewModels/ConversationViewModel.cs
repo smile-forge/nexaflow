@@ -59,6 +59,44 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
     /// converter (always Visible), so the hint never cleared once an item was pinned.</summary>
     public bool HasContextItems => ContextItems.Count > 0;
 
+    // ── Collapsed banner ──────────────────────────────────────────────────
+
+    /// <summary>How many entries the collapsed summary names before it starts counting.</summary>
+    private const int CollapsedSummaryLimit = 3;
+
+    /// <summary>Collapses the banner to a single summary row. Chrome state, deliberately not persisted:
+    /// a conversation reopens showing what the model can see.</summary>
+    [ObservableProperty] private bool _isContextCollapsed;
+
+    [RelayCommand]
+    private void ToggleContextCollapsed() => IsContextCollapsed = !IsContextCollapsed;
+
+    /// <summary>The first few pinned pages and attachments, identity only — the collapsed row is a
+    /// reminder of what's pinned, not a place to unpin it.</summary>
+    public IReadOnlyList<ContextSummaryEntry> CollapsedContext
+        => [.. ContextSummary().Take(CollapsedSummaryLimit)];
+
+    /// <summary>"and 2 more" once the summary is capped, so a truncated row never reads as the whole list.</summary>
+    public string CollapsedContextOverflow
+        => HasCollapsedOverflow ? $"and {ContextCount - CollapsedSummaryLimit} more" : string.Empty;
+
+    public bool HasCollapsedOverflow => ContextCount > CollapsedSummaryLimit;
+    public bool HasNoContext         => ContextCount == 0;
+
+    private int ContextCount => ContextItems.Count + Attachments.Count;
+
+    private IEnumerable<ContextSummaryEntry> ContextSummary()
+        => ContextItems.Select(c => new ContextSummaryEntry(c.Page.Icon ?? string.Empty, c.Page.Title))
+            .Concat(Attachments.Select(a => new ContextSummaryEntry("📎", Path.GetFileName(a))));
+
+    private void NotifyCollapsedSummary()
+    {
+        OnPropertyChanged(nameof(CollapsedContext));
+        OnPropertyChanged(nameof(CollapsedContextOverflow));
+        OnPropertyChanged(nameof(HasCollapsedOverflow));
+        OnPropertyChanged(nameof(HasNoContext));
+    }
+
     /// <summary>The chip whose preview is open, or null when the panel is collapsed.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPreviewOpen))]
@@ -112,9 +150,15 @@ public partial class ConversationViewModel : ObservableObject, IPageViewModel, I
             RecomputeTokens();
             OnPropertyChanged(nameof(IsContextReady));
             OnPropertyChanged(nameof(HasContextItems));
+            NotifyCollapsedSummary();
             SyncContext();
         };
-        Attachments.CollectionChanged  += (_, _) => { RecomputeTokens(); SyncAttachments(); };
+        Attachments.CollectionChanged  += (_, _) =>
+        {
+            RecomputeTokens();
+            NotifyCollapsedSummary();
+            SyncAttachments();
+        };
 
         _ownerPage.Closed += OnOwnerClosed;
     }

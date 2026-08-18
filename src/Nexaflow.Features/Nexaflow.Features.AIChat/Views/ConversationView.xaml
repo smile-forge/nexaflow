@@ -232,7 +232,7 @@
             <ColumnDefinition x:Name="PreviewColumn" Width="0"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="160"/>   <!-- context banner -->
+            <RowDefinition Height="Auto"/>  <!-- context banner (content-sized, so collapsing it shrinks the row) -->
             <RowDefinition Height="*"/>     <!-- conversation  -->
             <RowDefinition Height="32"/>    <!-- token footer  -->
         </Grid.RowDefinitions>
@@ -249,18 +249,118 @@
             <Grid Margin="16,10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0"
-                           Text="Context Items"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="11" FontWeight="SemiBold"
-                           Margin="0,0,0,6"/>
+                <!-- Header line. Collapsed, the whole summary rides here too — one line, list centred
+                     over the banner exactly as the chips are when expanded. -->
+                <Grid Grid.Row="0">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center">
+                    <!-- Disclosure arrow: collapses the chips to a one-line summary, for when the pinned
+                         set is settled and the thread is what you are reading. -->
+                    <Button Command="{Binding ToggleContextCollapsedCommand}"
+                            Cursor="Hand"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Toggle context items">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="ArrowBg"
+                                        Width="16" Height="16"
+                                        CornerRadius="3"
+                                        Background="Transparent">
+                                    <Path x:Name="Arrow"
+                                          Width="7" Height="5"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Stretch="Fill"
+                                          Data="M 0,0 L 7,0 L 3.5,5 Z"
+                                          Fill="{StaticResource TextMutedBrush}"
+                                          RenderTransformOrigin="0.5,0.5"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="ArrowBg" Property="Background"
+                                                Value="{StaticResource SurfaceBrush}"/>
+                                        <Setter TargetName="Arrow" Property="Fill"
+                                                Value="{StaticResource TextBrush}"/>
+                                    </Trigger>
+                                    <!-- Collapsed: the same triangle turned to point at the summary it hides.
+                                         The transform is set here rather than named and animated — TargetName
+                                         resolves elements, and a RenderTransform is not one. -->
+                                    <DataTrigger Binding="{Binding IsContextCollapsed}" Value="True">
+                                        <Setter TargetName="Arrow" Property="RenderTransform">
+                                            <Setter.Value>
+                                                <RotateTransform Angle="-90"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <TextBlock Text="Context Items"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11" FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Collapsed summary: names what is pinned, nothing more. No remove buttons —
+                         everything you can DO about the context lives in the expanded chips. -->
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsContextCollapsed, Converter={StaticResource BoolVis}}">
+                    <TextBlock Text="no context items"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding HasNoContext, Converter={StaticResource BoolVis}}"/>
+
+                    <ItemsControl ItemsSource="{Binding CollapsedContext}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ContextSummaryEntry}">
+                                <Border Background="{StaticResource SurfaceBrush}"
+                                        CornerRadius="8"
+                                        Padding="8,3"
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Icon}" FontSize="12"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,5,0"/>
+                                        <TextBlock Text="{Binding Title}" FontSize="12"
+                                                   Foreground="{StaticResource TextBrush}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="180"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding CollapsedContextOverflow}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding HasCollapsedOverflow, Converter={StaticResource BoolVis}}"/>
+                    </StackPanel>
+                </Grid>
 
                 <!-- Items area: transparent background so drags fall through to the
                      outer Border, with content centred both axes. -->
-                <Grid Grid.Row="1" Background="Transparent">
+                <Grid Grid.Row="1" Background="Transparent" Margin="0,6,0,0"
+                      Visibility="{Binding IsContextCollapsed, Converter={StaticResource InvBoolVis}}">
                     <!-- Items, centred and laid out from the centre outwards. The empty-state hint sits
                          in the row with the chips rather than overlaying the whole area, so the add
                          button still has a place to stand when nothing is pinned yet. -->
@@ -270,18 +370,21 @@
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
-                            <!-- Empty-state placeholder. Non-hit-testable so it doesn't interfere with
-                                 drop targeting. -->
+                            <!-- Empty-state placeholder, chip-height so the row keeps its height when the
+                                 first item lands. Non-hit-testable so it does not interfere with drop
+                                 targeting. -->
                             <Border Visibility="{Binding HasContextItems, Converter={StaticResource InvBoolVis}}"
                                     VerticalAlignment="Center"
                                     BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="14,10"
+                                    CornerRadius="10"
+                                    Padding="14,8"
+                                    Height="60"
                                     IsHitTestVisible="False">
                                 <TextBlock Text="Drag tabs or files here"
                                            Foreground="{StaticResource TextMutedBrush}"
-                                           FontSize="12"/>
+                                           FontSize="12"
+                                           VerticalAlignment="Center"/>
                             </Border>
 
                             <ItemsControl ItemsSource="{Binding ContextItems}">
@@ -306,13 +409,15 @@
                                                             BorderBrush="Transparent"
                                                             BorderThickness="1"
                                                             CornerRadius="10"
-                                                            Padding="14,12"
+                                                            Padding="14,8"
                                                             Margin="6,0"
                                                             MinWidth="140"
-                                                            MinHeight="68">
+                                                            Height="60"
+                                                            VerticalAlignment="Center">
                                                         <Grid>
                                                             <StackPanel Orientation="Horizontal"
-                                                                        VerticalAlignment="Center">
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,10,0,0">
                                                                 <!-- Icon + bottom-right security-risk badge -->
                                                                 <Grid Margin="0,0,10,0" VerticalAlignment="Center">
                                                                     <TextBlock Text="{Binding Page.Icon}" FontSize="22"
@@ -441,13 +546,15 @@
                                                 BorderBrush="Transparent"
                                                 BorderThickness="1"
                                                 CornerRadius="10"
-                                                Padding="14,12"
+                                                Padding="14,8"
                                                 Margin="6,0"
                                                 MinWidth="140"
-                                                MinHeight="68">
+                                                Height="60"
+                                                VerticalAlignment="Center">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal"
-                                                            VerticalAlignment="Center">
+                                                            VerticalAlignment="Center"
+                                                            Margin="0,10,0,0">
                                                     <TextBlock Text="📎" FontSize="20"
                                                                Foreground="{StaticResource TextBrush}"
                                                                VerticalAlignment="Center"
@@ -531,7 +638,8 @@
                                                 CornerRadius="10"
                                                 Margin="6,0"
                                                 Width="46"
-                                                MinHeight="68">
+                                                Height="60"
+                                                VerticalAlignment="Center">
                                             <TextBlock Text="+" FontSize="22"
                                                        Foreground="{StaticResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
