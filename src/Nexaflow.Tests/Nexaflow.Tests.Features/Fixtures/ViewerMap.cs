@@ -24,5 +24,8 @@ internal static class ViewerMap
         ("svg",      "SvgView"),
         ("email",    "EmailView"),
         ("dicom",    "DicomView"),
+        // corrupt.pdf is in this set on purpose: an unreadable PDF must still open the reader tab with an
+        // honest panel, so the view has to construct even when PdfPig can't parse a thing.
+        ("pdf",      "PdfView"),
     ];
 }
