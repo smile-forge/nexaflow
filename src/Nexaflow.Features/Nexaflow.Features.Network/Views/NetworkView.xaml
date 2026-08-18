@@ -1,11 +1,16 @@
 <UserControl x:Class="Nexaflow.Features.Network.Views.NetworkView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:Nexaflow.Features.Network.Views"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
         <!-- One cell that may hold several addresses, one per line. A device with three IPv6 addresses is
              ordinary, and comma-joining them makes a column nothing can be read out of. -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <vcc:NullToCollapsedConverter x:Key="NullToVis" />
+
         <DataTemplate x:Key="AddressCell">
             <TextBlock Text="{Binding}"
                        Foreground="{StaticResource TextBrush}"
@@ -58,10 +63,17 @@
                    Foreground="{StaticResource TextMutedBrush}"
                    Text="{Binding Status}" />
 
-        <!-- What was found. 'Found by' is the column this page exists to show: two independent layers
-             agreeing on one device is the graph working, and a device only SSDP saw came from a protocol
-             description rather than from compiled code. -->
-        <ListView Grid.Row="2"
+        <!-- What was found, and beside it whatever the selection is. 'Found by' is the column this page
+             exists to show: two independent layers agreeing on one device is the graph working, and a
+             device only SSDP saw came from a protocol description rather than from compiled code. -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+        <ListView Grid.Column="0"
+                  SelectedItem="{Binding Selected, Mode=TwoWay}"
                   ItemsSource="{Binding Devices}"
                   Background="{StaticResource SurfaceBrush}"
                   BorderBrush="{StaticResource BorderBrush}"
@@ -132,6 +144,12 @@
                 </GridView>
             </ListView.View>
         </ListView>
+
+            <v:DevicePanel Grid.Column="1"
+                           Width="330"
+                           Margin="10,0,0,0"
+                           Visibility="{Binding Selected, Converter={StaticResource NullToVis}}" />
+        </Grid>
 
         <!-- A layer that found nothing has to be able to say why: a refused multicast join on a VPN
              adapter is normal and invisible otherwise. -->

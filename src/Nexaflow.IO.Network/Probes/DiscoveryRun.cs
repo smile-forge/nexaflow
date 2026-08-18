@@ -45,14 +45,19 @@ public sealed class DiscoveryRun : IProbeHost, IProbeLog
     /// also not a legal target.</param>
     /// <param name="transport">The only route to the wire.</param>
     /// <param name="setting">Resolves (probeId, name) to a configured value, or empty for the default.</param>
+    /// <param name="graph">The graph to fold findings into. A caller that keeps one across sweeps passes
+    /// it in, so a device seen last time and missing now is absent rather than forgotten — and so a fact an
+    /// action established survives the next discovery.</param>
     public DiscoveryRun(IReadOnlyList<NetworkAdapterInfo> adapters,
                         IGuardedTransport transport,
                         Func<string, string, string>? setting = null,
                         Func<ValuePrompt, CancellationToken, Task<string?>>? prompt = null,
-                        Func<string, string, CancellationToken, Task<bool>>? confirm = null)
+                        Func<string, string, CancellationToken, Task<bool>>? confirm = null,
+                        DeviceGraph? graph = null)
     {
         Adapters = adapters;
         Transport = transport;
+        Graph = graph ?? new DeviceGraph();
         _setting = setting ?? ((_, _) => "");
         _prompt = prompt;
         _confirm = confirm;
@@ -64,7 +69,7 @@ public sealed class DiscoveryRun : IProbeHost, IProbeLog
 
     /// <summary>The graph every sweep folds into. Kept across runs, so a device seen last time and missing
     /// now is <i>absent</i> rather than forgotten.</summary>
-    public DeviceGraph Graph { get; } = new();
+    public DeviceGraph Graph { get; }
 
     public IReadOnlyList<string> Messages => _log;
 

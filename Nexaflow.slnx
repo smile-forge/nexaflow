@@ -75,6 +75,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Arp/Nexaflow.Features.Network.Arp.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Actions/Nexaflow.Features.Network.Actions.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Ssdp/Nexaflow.Features.Network.Ssdp.csproj">
       <Platform Project="x64" />
     </Project>

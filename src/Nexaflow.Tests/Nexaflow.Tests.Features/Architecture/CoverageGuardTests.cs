@@ -25,6 +25,7 @@ public class CoverageGuardTests
         ["Compressed.SharpCompress"] = "Compressed",
         ["Network.Arp"]             = "Network",     // discovery plugins share the Network suite, the
         ["Network.Ssdp"]            = "Network",     // same way the codec backends share Compressed's
+        ["Network.Actions"]         = "Network",
     };
 
     [TestMethod]

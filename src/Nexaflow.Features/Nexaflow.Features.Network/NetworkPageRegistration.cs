@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Network.ViewModels;
 using Nexaflow.Features.Network.Views;
+using Nexaflow.IO.Network.Actions;
 using Nexaflow.IO.Network.Probes;
 using Nexaflow.Plugins;
 
@@ -10,12 +11,13 @@ namespace Nexaflow.Features.Network;
 /// Advertises the "Network" page — what is on this machine's segments.
 /// </summary>
 /// <remarks>
-/// The constructor is the whole architecture in one line: discovery layers arrive as <b>handles</b>, so
-/// none of their assemblies is loaded until the user runs one. A machine that never opens this page never
-/// pays for the probes, and adding a layer never edits this file.
+/// The constructor is the whole architecture: discovery layers and device actions both arrive as
+/// <b>handles</b>, so none of their assemblies is loaded until the user runs one. A machine that never
+/// opens this page never pays for any of them, and adding either kind never edits this file.
 /// </remarks>
 public sealed class NetworkPageRegistration(
     IReadOnlyList<ISubfeatureHandle<INetworkProbe>> layers,
+    IReadOnlyList<ISubfeatureHandle<IDeviceAction>> actions,
     IShellServices shellServices) : IPageRegistration
 {
     public static string StaticPageKind => "Network";
@@ -31,7 +33,7 @@ public sealed class NetworkPageRegistration(
             Breadcrumbs = { new BreadcrumbSegment { Label = "Network" } },
         };
 
-        page.ContentFactory = () => new NetworkView(new NetworkViewModel(layers, shellServices));
+        page.ContentFactory = () => new NetworkView(new NetworkViewModel(layers, actions, shellServices));
         return page;
     }
 }
