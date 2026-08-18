@@ -100,16 +100,19 @@ public class DeviceActionTests
     }
 
     [TestMethod]
-    public void And_it_opens_the_host_rather_than_the_description_document()
+    public void And_it_opens_exactly_what_was_advertised()
     {
-        // LOCATION points at an XML file a person has no use for; the interface is served by the same host.
         var host = new Host(new Wire());
         var device = Device(("svc.url", "http://192.168.1.42:49152/description.xml"));
 
         var result = new OpenManagementAction().PerformAsync(device, host, CancellationToken.None).Result;
 
         Assert.IsTrue(result.Ok);
-        CollectionAssert.AreEqual(new[] { "http://192.168.1.42:49152/" }, host.Opened);
+        // The whole address, not its root. Reducing it to scheme and authority was a guess that the
+        // interface lives at the root of whatever served the description; on both real devices tested,
+        // nothing is there. What was advertised is the only address there is evidence for.
+        CollectionAssert.AreEqual(
+            new[] { "http://192.168.1.42:49152/description.xml" }, host.Opened);
     }
 
     [TestMethod]

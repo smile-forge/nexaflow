@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
@@ -14,7 +15,11 @@ namespace Nexaflow.Features.Network.ViewModels;
 /// <summary>One device, flattened into what a row shows.</summary>
 public sealed partial class DeviceRow : ObservableObject
 {
+    /// <summary>What to put in the Device column — blank where the only name is the address next to it.</summary>
     public required string Name { get; init; }
+
+    /// <summary>What to call it where there is nothing beside it, so the panel is never headed by a gap.</summary>
+    public required string Title { get; init; }
 
     /// <summary>Its addresses, kept apart and kept as lists.</summary>
     /// <remarks>
@@ -51,10 +56,31 @@ public sealed class FactRow
 {
     public required string Label { get; init; }
     public required string Value { get; init; }
-    public required string Source { get; init; }
-    public required string Confidence { get; init; }
-    public required string Age { get; init; }
+
+    /// <summary>Where it came from, how sure, and how long ago — one line, so it can wrap.</summary>
+    public required string Provenance { get; init; }
+
     public required bool Contested { get; init; }
+}
+
+/// <summary>
+/// One tab of the panel.
+/// </summary>
+/// <remarks>
+/// Every tab is a list of facts, which falls out of what an action is: a ping establishes reachability and
+/// a round-trip time, and those are facts of the same kind discovery produces. So a run report and a
+/// device history need no separate shape — what differs is which facts, and whether the tab can be closed.
+/// </remarks>
+public sealed partial class PanelTab(string title, string note, bool canClose,
+                                     Action<PanelTab>? close = null) : ObservableObject
+{
+    public string Title { get; } = title;
+    public string Note { get; } = note;
+    public bool CanClose { get; } = canClose;
+    public ObservableCollection<FactRow> Rows { get; } = [];
+
+    [RelayCommand]
+    private void Close() => close?.Invoke(this);
 }
 
 /// <summary>One action, already bound to the device it was offered for.</summary>
@@ -140,11 +166,23 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// <summary>What the panel is about. Null when nothing is selected.</summary>
     [ObservableProperty] private DeviceRow? _selected;
 
-    public ObservableCollection<FactRow> Facts { get; } = [];
+    /// <summary>The panel tabs. The first is what discovery knows; the rest are what actions found.</summary>
+    public ObservableCollection<PanelTab> Tabs { get; } = [];
+
     public ObservableCollection<ActionRow> Actions { get; } = [];
 
+    [ObservableProperty] private PanelTab? _activeTab;
+
+    /// <summary>
+    /// How much room the panel's column takes, zero when there is nothing to put in it.
+    /// </summary>
+    /// <remarks>
+    /// A column keeps its width whatever its child does, so collapsing the panel alone left a blank band
+    /// the width of the panel — which reads as an empty pane rather than as no pane. Two-way, so a drag on
+    /// the splitter writes back here and the width the reader chose survives moving between devices.
+    /// </remarks>
+    [ObservableProperty] private GridLength _panelWidth = new(0);
     [ObservableProperty] private string _status = "";
-    [ObservableProperty] private string _actionResult = "";
     [ObservableProperty] private bool _isSweeping;
 
     // ── The panel ─────────────────────────────────────────────────────────────
@@ -159,34 +197,48 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// </remarks>
     partial void OnSelectedChanged(DeviceRow? value)
     {
-        Facts.Clear();
+        Tabs.Clear();
         Actions.Clear();
-        ActionResult = "";
+        ActiveTab = null;
 
-        if (value is null) return;
-
-        var now = DateTimeOffset.UtcNow;
-
-        foreach (var fact in value.Node.Facts
-                     .Where(f => f.SupersededUtc is null)
-                     .OrderBy(f => f.Layer, StringComparer.Ordinal)
-                     .ThenBy(f => f.Key.ToString(), StringComparer.Ordinal))
+        if (value is null)
         {
-            Facts.Add(new FactRow
-            {
-                Label = Named(fact.Key),
-                Value = Unit(fact),
-                Source = fact.SourceDetail.Length > 0
-                    ? $"{fact.SourceProbe} — {fact.SourceDetail}"
-                    : fact.SourceProbe,
-                Confidence = fact.Confidence.ToString(),
-                Age = Ago(now - fact.ObservedUtc),
-                Contested = value.Node.IsContested(fact.Key),
-            });
+            PanelWidth = new GridLength(0);
+            return;
         }
+
+        if (PanelWidth.Value <= 0) PanelWidth = new GridLength(360);
+
+        var discovery = new PanelTab("Discovery", "", canClose: false);
+        Fill(discovery, value.Node, value.Node.Facts.Where(f => f.SupersededUtc is null));
+        Tabs.Add(discovery);
+        ActiveTab = discovery;
 
         foreach (var handle in _actions)
             if (handle.Value.AppliesTo(value.Node)) Actions.Add(new ActionRow(handle.Value, RunActionAsync));
+    }
+
+    /// <summary>Puts facts into a tab, grouped by layer and stable within it.</summary>
+    private static void Fill(PanelTab tab, DeviceNode node, IEnumerable<DeviceFact> facts)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var fact in facts
+                     .OrderBy(f => f.Layer, StringComparer.Ordinal)
+                     .ThenBy(f => f.Key.ToString(), StringComparer.Ordinal))
+        {
+            var whence = fact.SourceDetail.Length > 0
+                ? $"{fact.SourceProbe} — {fact.SourceDetail}"
+                : fact.SourceProbe;
+
+            tab.Rows.Add(new FactRow
+            {
+                Label = Named(fact.Key),
+                Value = Unit(fact),
+                Provenance = $"{whence} · {fact.Confidence} · {Ago(now - fact.ObservedUtc)}",
+                Contested = node.IsContested(fact.Key),
+            });
+        }
     }
 
     /// <summary>What to call a fact, and an unblessed key keeps its own name rather than vanishing.</summary>
@@ -231,22 +283,57 @@ public sealed partial class NetworkViewModel : ObservableObject
             var result = await Task.Run(() => action.PerformAsync(target.Node, host, CancellationToken.None))
                                    .ConfigureAwait(false);
 
-            await _shell.RunOnUiAsync(() =>
-            {
-                ActionResult = result.Message;
-
-                if (result.Learned is null || _graph.Observe(result.Learned) is null) return;
-
-                // Re-read the panel, so a fact just learned appears where it was learned.
-                var again = Selected;
-                Selected = null;
-                Selected = again;
-            });
+            await _shell.RunOnUiAsync(() => Report(action, target, result));
         }
         catch (Exception ex)
         {
-            await _shell.RunOnUiAsync(() => ActionResult = $"{action.DisplayName} failed: {ex.Message}");
+            await _shell.RunOnUiAsync(() =>
+                Show(new PanelTab(action.DisplayName, $"Failed: {ex.Message}", canClose: true, Drop)));
         }
+    }
+
+    /// <summary>
+    /// Puts what an action came back with into a tab of its own.
+    /// </summary>
+    /// <remarks>
+    /// A tab rather than a line, because a line was where the result went to die: the previous version set
+    /// one and rebuilt the panel two statements later, which cleared it before it had been drawn. A ping
+    /// did its work, established two facts, and from the outside looked like a button that does nothing.
+    /// </remarks>
+    private void Report(IDeviceAction action, DeviceRow target, DeviceActionResult result)
+    {
+        var tab = new PanelTab(action.DisplayName, result.Message, canClose: true, Drop);
+
+        if (result.Learned is not null)
+        {
+            // Into the graph first, so what was learned belongs to the device and is dated, then shown
+            // here. Discovery is refilled too — a fact learned by an action belongs in the history.
+            _graph.Observe(result.Learned);
+            Fill(tab, target.Node, result.Learned.Facts);
+
+            if (Tabs.FirstOrDefault(t => !t.CanClose) is { } discovery)
+            {
+                discovery.Rows.Clear();
+                Fill(discovery, target.Node, target.Node.Facts.Where(f => f.SupersededUtc is null));
+            }
+        }
+
+        Show(tab);
+    }
+
+    /// <summary>Shows a tab, replacing an earlier one from the same action rather than stacking them.</summary>
+    private void Show(PanelTab tab)
+    {
+        if (Tabs.FirstOrDefault(t => t.CanClose && t.Title == tab.Title) is { } already) Tabs.Remove(already);
+
+        Tabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    private void Drop(PanelTab tab)
+    {
+        Tabs.Remove(tab);
+        ActiveTab = Tabs.FirstOrDefault();
     }
 
     /// <summary>
@@ -365,10 +452,15 @@ public sealed partial class NetworkViewModel : ObservableObject
         // graph decided were one device.
         var sources = node.Facts.Select(f => f.SourceProbe).Distinct().OrderBy(s => s, StringComparer.Ordinal);
 
+        var v4 = Addresses(node, "ipv4");
+
         return new DeviceRow
         {
-            Name = node.DisplayName,
-            IPv4 = Addresses(node, "ipv4"),
+            // Blank rather than the address twice. DisplayName falls back to whatever identified the
+            // device, which for anything nothing has named is the address already in the next column.
+            Name = v4.Contains(node.DisplayName) ? "" : node.DisplayName,
+            Title = node.DisplayName,
+            IPv4 = v4,
             IPv6 = Addresses(node, "ipv6"),
             Mac = node.Best(new FactKey("link", "mac"))?.Value.Text ?? "—",
             Detail = node.Best(new FactKey("dev", "firmware"))?.Value.Text

@@ -70,8 +70,13 @@
              device only SSDP saw came from a protocol description rather than from compiled code. -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" MinWidth="260" />
                 <ColumnDefinition Width="Auto" />
+                <!-- Dragged, not fixed: a SERVER banner is a paragraph and a name can be long, so how
+                     much room the panel deserves is the reader's call rather than a number here. Bound,
+                     because a column holds its width even when its child is collapsed — and a 360-wide
+                     band of nothing reads as an empty pane. -->
+                <ColumnDefinition Width="{Binding PanelWidth, Mode=TwoWay}" MaxWidth="720" />
             </Grid.ColumnDefinitions>
 
         <ListView Grid.Column="0"
@@ -85,7 +90,7 @@
                   ScrollViewer.HorizontalScrollBarVisibility="Auto">
             <ListView.View>
                 <GridView ColumnHeaderContainerStyle="{StaticResource GridColumnHeaderStyle}">
-                    <GridViewColumn Header="Device" Width="230">
+                    <GridViewColumn Header="Device" Width="150">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Name}"
@@ -104,7 +109,7 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
 
-                    <GridViewColumn Header="IPv6" Width="290">
+                    <GridViewColumn Header="IPv6" Width="250">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <ItemsControl ItemsSource="{Binding IPv6}"
@@ -124,7 +129,7 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
 
-                    <GridViewColumn Header="Found by" Width="170">
+                    <GridViewColumn Header="Found by" Width="160">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding FoundBy}"
@@ -134,12 +139,15 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
 
-                    <GridViewColumn Header="Detail" Width="360">
+                    <GridViewColumn Header="Detail" Width="300">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
+                                <!-- A SERVER banner names an OS, a UPnP version and a product; trimming it
+                                     to one line hides the half that says what the device is. -->
                                 <TextBlock Text="{Binding Detail}"
                                            Foreground="{StaticResource TextMutedBrush}"
-                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="290"
                                            VerticalAlignment="Center" />
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
@@ -148,10 +156,17 @@
             </ListView.View>
         </ListView>
 
-            <v:DevicePanel Grid.Column="1"
+            <GridSplitter Grid.Column="1"
+                          Width="6"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="Transparent"
+                          Cursor="SizeWE"
+                          ResizeBehavior="PreviousAndNext"
+                          Visibility="{Binding Selected, Converter={StaticResource NullToVis}}" />
+
+            <v:DevicePanel Grid.Column="2"
                            AutomationProperties.AutomationId="Net_Panel"
-                           Width="330"
-                           Margin="10,0,0,0"
                            Visibility="{Binding Selected, Converter={StaticResource NullToVis}}" />
         </Grid>
 

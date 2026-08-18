@@ -61,20 +61,33 @@ public class NetworkJourneyTests : UiJourneyTestBase
         Thread.Sleep(6000);
         Shoot("2-discovered");
 
-        CheckPresent("device list", "Net_Devices");
+        var list = CheckPresent("device list", "Net_Devices");
 
-        // The panel is left to a person, and this says so rather than pretending.
-        //
-        // The rows are on screen — a discovery finds them and a photograph shows them — but they are not
-        // reachable through UI Automation: the shared FileListRowStyle templates a ListViewItem down to a
-        // Border, and no ListItem peer survives it. So a journey can prove the tab opens, the sweep runs
-        // and the panel stays away until something is chosen, and cannot prove what a click does.
-        //
-        // An earlier version of this called that "nothing was discovered on this machine's network",
-        // which was a lie in the one place a test must not tell one: it reported a limitation of the
-        // harness as a fact about the network.
         Assert.IsNull(Find("Net_DevicePanel"),
             "the device panel is showing with nothing selected");
+
+        // Clicked by position, because the rows have no UI Automation peer: the shared FileListRowStyle
+        // templates a ListViewItem down to a Border and no ListItem survives it. A point just under the
+        // header is the first row wherever the window happens to be.
+        if (list is { } grid)
+        {
+            var box = grid.BoundingRectangle;
+            FlaUI.Core.Input.Mouse.Click(new System.Drawing.Point(box.Left + 120, box.Top + 60));
+            Thread.Sleep(900);
+            Shoot("3-selected");
+
+            if (Find("Net_DevicePanel") is { } panel)
+            {
+                // The panel is up, so the actions are real buttons. Ping is the one that used to look
+                // like it did nothing, because its result was written to a line the panel then cleared.
+                if (Find("Ping") is { } ping)
+                {
+                    ping.Click();
+                    Thread.Sleep(3000);
+                    Shoot("4-pinged");
+                }
+            }
+        }
 
         AssertJourney();
     }

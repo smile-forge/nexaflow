@@ -5,109 +5,175 @@
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Square, icon over label, the size and shape a file action is. Same gesture, same look. -->
+        <Style x:Key="DeviceActionButton" TargetType="Button">
+            <Setter Property="Width"           Value="54" />
+            <Setter Property="Height"          Value="58" />
+            <Setter Property="Margin"          Value="1" />
+            <Setter Property="Cursor"          Value="Hand" />
+            <Setter Property="Background"      Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="2">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding Icon}"
+                                           FontSize="20"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="{Binding DisplayName}"
+                                           FontSize="10"
+                                           Margin="0,3,0,0"
+                                           MaxWidth="50"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{TemplateBinding Foreground}" />
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource Surface2Brush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush"
+                                        Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One fact. Everything wraps: a SERVER banner is a paragraph and a provenance line names a
+             probe, a confidence and an age. -->
+        <DataTemplate x:Key="FactTemplate">
+            <Border Padding="0,5"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <StackPanel>
+                    <TextBlock Text="{Binding Label}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Value}"
+                               Foreground="{StaticResource TextBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,1,0,0" />
+                    <TextBlock Text="{Binding Provenance}"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="10"
+                               TextWrapping="Wrap"
+                               Margin="0,1,0,0" />
+                    <!-- Two layers disagreed. The graph has always been able to say so. -->
+                    <TextBlock Text="contested"
+                               FontSize="10"
+                               Foreground="{StaticResource WarningBrush}"
+                               Visibility="{Binding Contested, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Border Background="{StaticResource SurfaceBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
             CornerRadius="4"
-            Padding="12">
+            Padding="10">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0"
-                       Text="{Binding Selected.Name}"
+                       Text="{Binding Selected.Title}"
                        Foreground="{StaticResource TextBrush}"
                        FontSize="15" FontWeight="SemiBold"
-                       TextTrimming="CharacterEllipsis" />
+                       TextWrapping="Wrap" />
 
             <!-- Whatever applies to THIS device. The page holds no list of buttons: each action was asked
                  whether it applies, and one that cannot work is never offered. -->
-            <ItemsControl Grid.Row="1" Margin="0,10,0,0" ItemsSource="{Binding Actions}">
+            <ItemsControl Grid.Row="1" Margin="0,8,0,8" ItemsSource="{Binding Actions}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Button Style="{StaticResource TbBtn}"
-                                Margin="0,0,6,6"
+                        <Button Style="{StaticResource DeviceActionButton}"
                                 Command="{Binding RunCommand}"
-                                ToolTip="{Binding Description}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" />
-                                <TextBlock Text="{Binding DisplayName}" />
-                            </StackPanel>
-                        </Button>
+                                ToolTip="{Binding Description}"
+                                AutomationProperties.AutomationId="{Binding DisplayName}" />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <TextBlock Grid.Row="2"
-                       Text="{Binding ActionResult}"
-                       Margin="0,2,0,8"
-                       TextWrapping="Wrap"
-                       Foreground="{StaticResource AccentBrush}" />
+            <!-- What discovery knows, and one tab per action that has run. Every tab is a list of facts,
+                 because that is what an action produces too. -->
+            <TabControl Grid.Row="2"
+                        AutomationProperties.AutomationId="Net_PanelTabs"
+                        ItemsSource="{Binding Tabs}"
+                        SelectedItem="{Binding ActiveTab, Mode=TwoWay}"
+                        Background="Transparent"
+                        BorderThickness="0">
+                <TabControl.ItemContainerStyle>
+                    <Style TargetType="TabItem">
+                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                    </Style>
+                </TabControl.ItemContainerStyle>
 
-            <!-- Every fact, and where it came from. This is the column a grid cannot have: which layer
-                 said so, how sure it was, and how long ago. -->
-            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Facts}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Padding="0,5"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="0,0,0,1">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="118" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                <TabControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                            <Button Content="✕"
+                                    Margin="6,0,0,0"
+                                    Padding="2,0"
+                                    FontSize="10"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="{StaticResource TextMutedBrush}"
+                                    Cursor="Hand"
+                                    Command="{Binding CloseCommand}"
+                                    Visibility="{Binding CanClose, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
 
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding Label}"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               FontSize="11"
-                                               TextWrapping="Wrap" />
+                <TabControl.ContentTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
 
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding Value}"
-                                                   Foreground="{StaticResource TextBrush}"
-                                                   TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="0"
+                                       Text="{Binding Note}"
+                                       Margin="0,0,0,8"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       Visibility="{Binding CanClose, Converter={StaticResource BoolToVis}}" />
 
-                                        <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
-                                            <TextBlock Text="{Binding Source}"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       FontSize="10"
-                                                       TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding Confidence}"
-                                                       Margin="8,0,0,0"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       FontSize="10" />
-                                            <TextBlock Text="{Binding Age}"
-                                                       Margin="8,0,0,0"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       FontSize="10" />
-                                            <!-- Two layers disagreed. The graph has always been able to
-                                                 say so and nothing has ever shown it. -->
-                                            <TextBlock Text="contested"
-                                                       Margin="8,0,0,0"
-                                                       FontSize="10"
-                                                       Foreground="{StaticResource WarningBrush}"
-                                                       Visibility="{Binding Contested,
-                                                                    Converter={StaticResource BoolToVis}}" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Rows}"
+                                              ItemTemplate="{StaticResource FactTemplate}" />
+                            </ScrollViewer>
+                        </Grid>
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
         </Grid>
     </Border>
 </UserControl>
