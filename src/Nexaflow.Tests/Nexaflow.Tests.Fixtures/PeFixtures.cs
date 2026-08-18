@@ -2,7 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.IO;
 
-namespace Nexaflow.Tests.Features.Executable;
+namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
 /// Real binaries and synthetic broken ones, without adding a single byte to the repository.
@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Features.Executable;
 /// realistic damage rather than hand-written toy headers.
 /// </para>
 /// </summary>
-internal static class PeFixtures
+public static class PeFixtures
 {
     public static string System32(string name)
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), name);
@@ -25,8 +25,10 @@ internal static class PeFixtures
     /// <summary>A GUI app with an icon, version info, a full manifest — and catalog signing.</summary>
     public static string Notepad => System32("notepad.exe");
 
-    /// <summary>A managed assembly: CLR header, assembly references, target framework.</summary>
-    public static string ManagedAssembly => typeof(Nexaflow.IO.Pe.PeReader).Assembly.Location;
+    /// <summary>A managed assembly: CLR header, assembly references, target framework. Resolved by
+    /// path rather than <c>typeof</c> so this library keeps its no-project-reference rule; every test
+    /// project that asks for it references Nexaflow.IO.Pe and so has the DLL beside its own.</summary>
+    public static string ManagedAssembly => Path.Combine(AppContext.BaseDirectory, "Nexaflow.IO.Pe.dll");
 
     public static bool Exists(string path) => File.Exists(path);
 

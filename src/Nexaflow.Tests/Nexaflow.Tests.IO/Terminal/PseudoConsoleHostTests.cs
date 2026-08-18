@@ -3,7 +3,7 @@ using System.Linq;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Console;
+namespace Nexaflow.Tests.IO.Terminal;
 
 /// <summary>
 /// The foreground hard-stop (Ctrl+Break) kills the shell's descendant process tree while sparing the shell.

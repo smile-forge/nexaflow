@@ -2,7 +2,7 @@ using System.Linq;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Console;
+namespace Nexaflow.Tests.IO.Terminal;
 
 /// <summary>
 /// The VT screen buffer behaves like a real terminal screen: on-screen lines stay in the grid (rendered

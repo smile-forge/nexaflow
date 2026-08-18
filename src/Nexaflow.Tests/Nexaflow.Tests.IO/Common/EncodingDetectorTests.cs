@@ -3,7 +3,7 @@ using System.Text;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Tabular;
+namespace Nexaflow.Tests.IO.Common;
 
 [TestClass]
 [CoversNode("iocommon-encoding")]

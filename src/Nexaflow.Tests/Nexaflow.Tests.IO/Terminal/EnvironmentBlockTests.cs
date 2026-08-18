@@ -4,7 +4,7 @@ using System.Linq;
 using Nexaflow.IO.Terminal;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Console;
+namespace Nexaflow.Tests.IO.Terminal;
 
 /// <summary>
 /// Covers the Unicode environment-block builder used to apply per-environment variable overrides to a

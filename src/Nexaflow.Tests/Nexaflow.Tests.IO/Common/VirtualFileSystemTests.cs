@@ -6,7 +6,7 @@ using System.Text;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Compressed;
+namespace Nexaflow.Tests.IO.Common;
 
 /// <summary>
 /// Commit-1 VFS coverage: real-path access is byte-identical to <see cref="System.IO"/>, container

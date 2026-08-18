@@ -36,10 +36,12 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
     private long _lruStamp;
 
     /// <summary>Internal so tests can build an isolated instance with their own handlers without
-    /// polluting the process-wide <see cref="Instance"/>.</summary>
-    internal VirtualFileSystem()
+    /// polluting the process-wide <see cref="Instance"/>. <paramref name="tempRoot"/> isolates the
+    /// materialisation cache as well - without it two "isolated" instances still share one directory
+    /// under %TEMP%, so a test asserting on what landed there races every other test in the process.</summary>
+    internal VirtualFileSystem(string? tempRoot = null)
     {
-        _tempRoot = Path.Combine(Path.GetTempPath(), "nexaflow-vfs");
+        _tempRoot = tempRoot ?? Path.Combine(Path.GetTempPath(), "nexaflow-vfs");
         try { Directory.CreateDirectory(_tempRoot); } catch { /* best effort */ }
         System.AppDomain.CurrentDomain.ProcessExit += (_, _) => CleanupTemps();
     }

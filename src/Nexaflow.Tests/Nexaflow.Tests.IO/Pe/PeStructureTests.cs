@@ -4,7 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nexaflow.IO.Pe;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Executable;
+namespace Nexaflow.Tests.IO.Pe;
 
 /// <summary>Imports, exports, resources, version info, relocations, debug, CLR metadata and entropy.</summary>
 [TestClass]

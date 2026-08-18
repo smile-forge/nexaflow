@@ -3,7 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nexaflow.IO.Pe;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Executable;
+namespace Nexaflow.Tests.IO.Pe;
 
 /// <summary>
 /// The tolerance contract. An inspector's normal input includes packed, truncated and deliberately

@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
   </ItemGroup>
 
 </Project>

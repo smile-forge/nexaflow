@@ -3,11 +3,10 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
-using Nexaflow.Features.Compressed.Handlers;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.Io;
+namespace Nexaflow.Tests.IO.Common;
 
 /// <summary>
 /// Pass-through mounts: a <c>::{id}</c> root mapped onto a real directory. The mapping happens before
@@ -24,8 +23,9 @@ namespace Nexaflow.Tests.Features.Io;
 public class VirtualMountTests
 {
     private VirtualFileSystem _vfs = null!;
-    private string _dir  = string.Empty;   // the real directory behind the mount
-    private string _away = string.Empty;   // a real directory outside every mount
+    private string _dir   = string.Empty;   // the real directory behind the mount
+    private string _away  = string.Empty;   // a real directory outside every mount
+    private string _temps = string.Empty;   // this instance's materialisation cache
 
     private const string MountId = "docs";
     private const string Root    = "::docs";
@@ -33,8 +33,11 @@ public class VirtualMountTests
     [TestInitialize]
     public void Setup()
     {
-        _vfs = new VirtualFileSystem();               // isolated — never the process-wide Instance
-        _vfs.RegisterHandler(new ZipArchiveHandler());
+        // Isolated — never the process-wide Instance, and with its own materialisation cache so the
+        // "nothing was extracted" assertion below counts only this test's temps.
+        _temps = NewTempDir("nexa-vfstemp-");
+        _vfs   = new VirtualFileSystem(_temps);
+        _vfs.RegisterHandler(new ZipTestHandler());
 
         _dir  = NewTempDir("nexa-mount-");
         _away = NewTempDir("nexa-away-");
@@ -49,8 +52,9 @@ public class VirtualMountTests
     [TestCleanup]
     public void Cleanup()
     {
-        try { Directory.Delete(_dir,  recursive: true); } catch { }
-        try { Directory.Delete(_away, recursive: true); } catch { }
+        try { Directory.Delete(_dir,   recursive: true); } catch { }
+        try { Directory.Delete(_away,  recursive: true); } catch { }
+        try { Directory.Delete(_temps, recursive: true); } catch { }
     }
 
     // ── Resolution ───────────────────────────────────────────────────────────
@@ -104,13 +108,12 @@ public class VirtualMountTests
     [TestMethod]
     public void MaterializeReturnsTheMappedPathAndWritesNoTempCopy()
     {
-        var tempRoot = Path.Combine(Path.GetTempPath(), "nexaflow-vfs");
-        var before   = Directory.Exists(tempRoot) ? Directory.GetFiles(tempRoot).Length : 0;
+        var before = Directory.Exists(_temps) ? Directory.GetFiles(_temps).Length : 0;
 
         var real = _vfs.MaterializeFile($@"{Root}\sub\deep.txt");
 
         Assert.AreEqual(Path.Combine(_dir, "sub", "deep.txt"), real);
-        var after = Directory.Exists(tempRoot) ? Directory.GetFiles(tempRoot).Length : 0;
+        var after = Directory.Exists(_temps) ? Directory.GetFiles(_temps).Length : 0;
         Assert.AreEqual(before, after, "a pass-through mount must not extract anything to the temp cache");
     }
 
