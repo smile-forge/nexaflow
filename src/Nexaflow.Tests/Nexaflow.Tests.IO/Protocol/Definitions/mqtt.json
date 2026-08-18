@@ -1,0 +1,3104 @@
+{
+  "protocol": "mqtt",
+  "title": "MQTT 3.1.1",
+  "source": "MQTT Version 3.1.1, OASIS Standard, 29 October 2014",
+  "nodes": [
+    {
+      "id": "mqtt",
+      "kind": "protocol",
+      "as": "MQTT 3.1.1",
+      "about": [
+        "MQTT has fourteen control packet types and six of them are described here: CONNECT, CONNACK,",
+        "SUBSCRIBE, SUBACK, PINGREQ and PINGRESP. Each is its own message, because each is its own format —",
+        "§3.1 through §3.14 give them one section apiece — and each is a single path from the first octet to",
+        "the last with nothing to decide along the way.",
+        "",
+        "WHICH ONE THIS IS, IS SOMETHING THE MESSAGE SAYS. There is no caller to ask on the way in and nothing",
+        "has been read yet, so the reading looks: `identifies` lays a path to the field that discriminates,",
+        "reads it from a copy of the position, and matches it against the key on each way on. Nothing is",
+        "consumed, so the message that gets chosen reads its own fixed header from its own first octet — which",
+        "is why no message here has to know it has siblings, or that something looked before choosing it.",
+        "",
+        "Going out the same fork is decided the ordinary way, by what the caller asked for. Two directions,",
+        "two sources for one fact, and the fact is the same one: the packet type.",
+        "",
+        "WHAT IS SHARED AND WHAT IS NOT. A concept common to several messages is one node — the Packet",
+        "Identifier a SUBSCRIBE allocates and its SUBACK echoes is one input, named once, read by both. What is",
+        "NOT shared is a field whose legal values differ: a CONNECT's packet type is the constant 1 and a",
+        "CONNACK's is the constant 2, so they are two nodes that happen to be instances of one idea. The idea",
+        "itself is a node as well, and it is the one the reading consults.",
+        "",
+        "STRINGS. §1.5.3 defines one shape — two octets of length, then that many octets — and every string in",
+        "the protocol is an instance of it. Each is a set holding its own count and its own octets, so a",
+        "Client Identifier and a Will Topic share a shape and nothing else."
+      ]
+    },
+    {
+      "id": "probe.packetType",
+      "kind": "field",
+      "as": "Packet Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": [
+        "§2.2.1: the high four bits of the first octet. This is the concept — 'which control packet is this' —",
+        "as opposed to any one message's declaration that it is a particular one.",
+        "",
+        "It is read from a copy of the reader's position and consumed from nothing. Whichever message it picks",
+        "then reads the same four bits again as the first thing in its own fixed header, which costs one nibble",
+        "of work and buys every message the right to be described as though it were the only one."
+      ]
+    },
+    {
+      "id": "input.packetType",
+      "kind": "input",
+      "as": "Packet Type",
+      "purpose": "Which control packet to write: 1 CONNECT, 2 CONNACK, 8 SUBSCRIBE, 9 SUBACK, 12 PINGREQ, 13 PINGRESP.",
+      "gives": "Int"
+    },
+    {
+      "id": "evaluated.whichPacket",
+      "kind": "evaluated",
+      "label": "which control packet is this?",
+      "runs": "packetType",
+      "gives": "Int",
+      "takes": {
+        "packetType": "Int"
+      }
+    },
+    {
+      "id": "done",
+      "kind": "end-parse",
+      "as": "the end of a control packet",
+      "about": [
+        "Where a reading may stop, and the only place. Two of the messages here read round a loop until the",
+        "octets run out, and a loop that has run out is indistinguishable from one that was cut short unless",
+        "something says which endings were legal."
+      ]
+    },
+    {
+      "id": "connect",
+      "kind": "message",
+      "as": "CONNECT",
+      "about": [
+        "§3.1 — the first packet a client sends, and the only one legal before a CONNACK has come back.",
+        "",
+        "Most of it is conditional on one octet. The connect flags say whether there is a will, a user name and",
+        "a password, and in the corpus capture that decides 114 of the packet's 146 octets. Each of those parts",
+        "is an ordinary optional step whose presence reads the flag that governs it — one fact, so a flag and",
+        "the part it announces cannot disagree."
+      ]
+    },
+    {
+      "id": "packing.connect",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "connectFixed",
+      "kind": "set",
+      "as": "Fixed header"
+    },
+    {
+      "id": "connectType",
+      "kind": "field",
+      "as": "Packet Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      }
+    },
+    {
+      "id": "connectTypeFlags",
+      "kind": "field",
+      "as": "Flags",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "§2.2.2: reserved for this packet type, and the only legal value is 0000."
+    },
+    {
+      "id": "connectRemaining",
+      "kind": "field",
+      "as": "Remaining Length",
+      "form": {
+        "of": "varint",
+        "order": "LeastSignificantFirst",
+        "max": 4,
+        "minimal": true
+      },
+      "about": [
+        "§2.2.3. Seven bits of value per octet with the top bit meaning 'another follows', least",
+        "significant group first — so `8f 01` is 15 + 1×128 = 143 and `02` is 2. The width of the",
+        "field is a function of the value it carries, which is why it is a form rather than a width.",
+        "",
+        "Non-minimal chains are refused: `8f 80 00` also arrives at 15, and accepting it would give",
+        "one value two encodings and make a re-write differ from what was read."
+      ]
+    },
+    {
+      "id": "constant.type.connect",
+      "kind": "constant",
+      "label": "1, which is what makes it this",
+      "holds": {
+        "int": 1
+      }
+    },
+    {
+      "id": "constant.flags.connect",
+      "kind": "constant",
+      "label": "the flags this packet type must carry",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "connectRest",
+      "kind": "set",
+      "as": "what the remaining length counts",
+      "about": [
+        "§2.2.3: the variable header and the payload together. A set exists for it because that is the thing",
+        "whose extent the remaining length holds — a length measures a set, and this one begins after the",
+        "fixed header and runs to the end of the packet."
+      ]
+    },
+    {
+      "id": "connectVariable",
+      "kind": "set",
+      "as": "Variable header"
+    },
+    {
+      "id": "connectPayload",
+      "kind": "set",
+      "as": "Payload"
+    },
+    {
+      "id": "protocolLevel",
+      "kind": "field",
+      "as": "Protocol Level",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.1.2.2: 4 for MQTT 3.1.1."
+    },
+    {
+      "id": "connectFlags",
+      "kind": "set",
+      "as": "Connect Flags",
+      "about": [
+        "§3.1.2.3. One octet the RFC gives as a table of named bits, so it is a set of seven fields rather than",
+        "an octet somebody masks: what the will flag governs is a fact about the will flag, and a bit that is",
+        "its own node is a thing a presence condition can point at."
+      ]
+    },
+    {
+      "id": "userNameFlag",
+      "kind": "field",
+      "as": "User Name Flag",
+      "form": {
+        "of": "run",
+        "bits": 1
+      }
+    },
+    {
+      "id": "passwordFlag",
+      "kind": "field",
+      "as": "Password Flag",
+      "form": {
+        "of": "run",
+        "bits": 1
+      }
+    },
+    {
+      "id": "willRetain",
+      "kind": "field",
+      "as": "Will Retain",
+      "form": {
+        "of": "run",
+        "bits": 1
+      }
+    },
+    {
+      "id": "willQos",
+      "kind": "field",
+      "as": "Will QoS",
+      "form": {
+        "of": "run",
+        "bits": 2
+      }
+    },
+    {
+      "id": "willFlag",
+      "kind": "field",
+      "as": "Will Flag",
+      "form": {
+        "of": "run",
+        "bits": 1
+      }
+    },
+    {
+      "id": "cleanSession",
+      "kind": "field",
+      "as": "Clean Session",
+      "form": {
+        "of": "run",
+        "bits": 1
+      }
+    },
+    {
+      "id": "connectReserved",
+      "kind": "field",
+      "as": "Reserved",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "§3.1.2.3: \"The Server MUST validate that the reserved flag ... is set to zero\"."
+    },
+    {
+      "id": "keepAlive",
+      "kind": "field",
+      "as": "Keep Alive",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.1.2.10: seconds. The client must transmit something inside every window or be disconnected."
+    },
+    {
+      "id": "protocolName",
+      "kind": "set",
+      "as": "Protocol Name",
+      "about": "§3.1.2.1: the four octets \"MQTT\", always."
+    },
+    {
+      "id": "protocolNameLength",
+      "kind": "field",
+      "as": "Protocol Name Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC-equivalent §1.5.3: the two octets are a count of the octets that follow, not of characters."
+    },
+    {
+      "id": "protocolNameBytes",
+      "kind": "field",
+      "as": "Protocol Name",
+      "form": {
+        "of": "opaque"
+      }
+    },
+    {
+      "id": "evaluated.protocolNameLength",
+      "kind": "evaluated",
+      "label": "octets of Protocol Name",
+      "runs": "protocolNameBytesExtent",
+      "gives": "Int",
+      "takes": {
+        "protocolNameBytesExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.protocolNameExtent",
+      "kind": "evaluated",
+      "label": "octets of Protocol Name, from its count",
+      "runs": "protocolNameLength",
+      "gives": "Int",
+      "takes": {
+        "protocolNameLength": "Int"
+      }
+    },
+    {
+      "id": "constant.protocolName",
+      "kind": "constant",
+      "label": "\"MQTT\"",
+      "holds": {
+        "hex": "4D515454"
+      }
+    },
+    {
+      "id": "input.clientId",
+      "kind": "input",
+      "gives": "Text",
+      "as": "Client Identifier",
+      "purpose": "§3.1.3.1: identifies the client to the server, as octets."
+    },
+    {
+      "id": "input.willTopic",
+      "kind": "input",
+      "gives": "Text",
+      "as": "Will Topic",
+      "purpose": "§3.1.3.2: where the server publishes the will if the connection ends badly."
+    },
+    {
+      "id": "input.willMessage",
+      "kind": "input",
+      "as": "Will Message",
+      "purpose": "§3.1.3.3: what it publishes there. MQTT gives it no structure, so it is octets.",
+      "gives": "Bytes"
+    },
+    {
+      "id": "input.userName",
+      "kind": "input",
+      "gives": "Text",
+      "as": "User Name",
+      "purpose": "§3.1.3.4."
+    },
+    {
+      "id": "input.password",
+      "kind": "input",
+      "as": "Password",
+      "gives": "Bytes",
+      "purpose": "§3.1.3.5: binary data, which is why this one does not convert where the topic and the client identifier do."
+    },
+    {
+      "id": "clientId",
+      "kind": "set",
+      "as": "Client Identifier"
+    },
+    {
+      "id": "clientIdLength",
+      "kind": "field",
+      "as": "Client Identifier Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC-equivalent §1.5.3: the two octets are a count of the octets that follow, not of characters."
+    },
+    {
+      "id": "clientIdBytes",
+      "kind": "field",
+      "as": "Client Identifier",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unutf8"
+    },
+    {
+      "id": "evaluated.clientIdLength",
+      "kind": "evaluated",
+      "label": "octets of Client Identifier",
+      "runs": "clientIdBytesExtent",
+      "gives": "Int",
+      "takes": {
+        "clientIdBytesExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.clientIdExtent",
+      "kind": "evaluated",
+      "label": "octets of Client Identifier, from its count",
+      "runs": "clientIdLength",
+      "gives": "Int",
+      "takes": {
+        "clientIdLength": "Int"
+      }
+    },
+    {
+      "id": "willTopic",
+      "kind": "set",
+      "as": "Will Topic"
+    },
+    {
+      "id": "willTopicLength",
+      "kind": "field",
+      "as": "Will Topic Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC-equivalent §1.5.3: the two octets are a count of the octets that follow, not of characters."
+    },
+    {
+      "id": "willTopicBytes",
+      "kind": "field",
+      "as": "Will Topic",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unutf8"
+    },
+    {
+      "id": "evaluated.willTopicLength",
+      "kind": "evaluated",
+      "label": "octets of Will Topic",
+      "runs": "willTopicBytesExtent",
+      "gives": "Int",
+      "takes": {
+        "willTopicBytesExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.willTopicExtent",
+      "kind": "evaluated",
+      "label": "octets of Will Topic, from its count",
+      "runs": "willTopicLength",
+      "gives": "Int",
+      "takes": {
+        "willTopicLength": "Int"
+      }
+    },
+    {
+      "id": "willMessage",
+      "kind": "set",
+      "as": "Will Message",
+      "about": "§3.1.3.3 gives this the same shape as a string and calls it binary data — MQTT defines no structure inside it at all, so these are the octets an application chose and nothing here reads them."
+    },
+    {
+      "id": "willMessageLength",
+      "kind": "field",
+      "as": "Will Message Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC-equivalent §1.5.3: the two octets are a count of the octets that follow, not of characters."
+    },
+    {
+      "id": "willMessageBytes",
+      "kind": "field",
+      "as": "Will Message",
+      "form": {
+        "of": "opaque"
+      }
+    },
+    {
+      "id": "evaluated.willMessageLength",
+      "kind": "evaluated",
+      "label": "octets of Will Message",
+      "runs": "willMessageBytesExtent",
+      "gives": "Int",
+      "takes": {
+        "willMessageBytesExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.willMessageExtent",
+      "kind": "evaluated",
+      "label": "octets of Will Message, from its count",
+      "runs": "willMessageLength",
+      "gives": "Int",
+      "takes": {
+        "willMessageLength": "Int"
+      }
+    },
+    {
+      "id": "userName",
+      "kind": "set",
+      "as": "User Name"
+    },
+    {
+      "id": "userNameLength",
+      "kind": "field",
+      "as": "User Name Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC-equivalent §1.5.3: the two octets are a count of the octets that follow, not of characters."
+    },
+    {
+      "id": "userNameBytes",
+      "kind": "field",
+      "as": "User Name",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unutf8"
+    },
+    {
+      "id": "evaluated.userNameLength",
+      "kind": "evaluated",
+      "label": "octets of User Name",
+      "runs": "userNameBytesExtent",
+      "gives": "Int",
+      "takes": {
+        "userNameBytesExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.userNameExtent",
+      "kind": "evaluated",
+      "label": "octets of User Name, from its count",
+      "runs": "userNameLength",
+      "gives": "Int",
+      "takes": {
+        "userNameLength": "Int"
+      }
+    },
+    {
+      "id": "password",
+      "kind": "set",
+      "as": "Password"
+    },
+    {
+      "id": "passwordLength",
+      "kind": "field",
+      "as": "Password Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC-equivalent §1.5.3: the two octets are a count of the octets that follow, not of characters."
+    },
+    {
+      "id": "passwordBytes",
+      "kind": "field",
+      "as": "Password",
+      "form": {
+        "of": "opaque"
+      }
+    },
+    {
+      "id": "evaluated.passwordLength",
+      "kind": "evaluated",
+      "label": "octets of Password",
+      "runs": "passwordBytesExtent",
+      "gives": "Int",
+      "takes": {
+        "passwordBytesExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.passwordExtent",
+      "kind": "evaluated",
+      "label": "octets of Password, from its count",
+      "runs": "passwordLength",
+      "gives": "Int",
+      "takes": {
+        "passwordLength": "Int"
+      }
+    },
+    {
+      "id": "evaluated.connectRemaining",
+      "kind": "evaluated",
+      "label": "octets after the fixed header",
+      "runs": "connectRestExtent",
+      "gives": "Int",
+      "takes": {
+        "connectRestExtent": "Int"
+      }
+    },
+    {
+      "id": "input.userNameFlag",
+      "kind": "input",
+      "as": "User Name Flag",
+      "purpose": "§3.1.2.8: whether a user name is in the payload.",
+      "gives": "Int"
+    },
+    {
+      "id": "input.passwordFlag",
+      "kind": "input",
+      "as": "Password Flag",
+      "purpose": "§3.1.2.9: whether a password is.",
+      "gives": "Int"
+    },
+    {
+      "id": "input.willRetain",
+      "kind": "input",
+      "as": "Will Retain",
+      "purpose": "§3.1.2.7.",
+      "gives": "Int"
+    },
+    {
+      "id": "input.willQos",
+      "kind": "input",
+      "as": "Will QoS",
+      "purpose": "§3.1.2.6: 0, 1 or 2.",
+      "gives": "Int"
+    },
+    {
+      "id": "input.willFlag",
+      "kind": "input",
+      "as": "Will Flag",
+      "purpose": "§3.1.2.5: whether a will topic and message are in the payload.",
+      "gives": "Int"
+    },
+    {
+      "id": "input.cleanSession",
+      "kind": "input",
+      "as": "Clean Session",
+      "purpose": "§3.1.2.4.",
+      "gives": "Int"
+    },
+    {
+      "id": "constant.zeroBit",
+      "kind": "constant",
+      "label": "zero",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "input.keepAlive",
+      "kind": "input",
+      "as": "Keep Alive",
+      "purpose": "§3.1.2.10: seconds, or 0 for no keepalive.",
+      "gives": "Int"
+    },
+    {
+      "id": "constant.protocolLevel",
+      "kind": "constant",
+      "label": "4, which is MQTT 3.1.1",
+      "holds": {
+        "int": 4
+      }
+    },
+    {
+      "id": "evaluated.has.willTopic",
+      "kind": "evaluated",
+      "label": "is there a willTopic?",
+      "runs": "willFlag == 1",
+      "about": "§3.1.3.2: present if and only if the will flag is set.",
+      "gives": "Bool",
+      "takes": {
+        "willFlag": "Int"
+      }
+    },
+    {
+      "id": "evaluated.has.willMessage",
+      "kind": "evaluated",
+      "label": "is there a willMessage?",
+      "runs": "willFlag == 1",
+      "about": "§3.1.3.3: present if and only if the will flag is set.",
+      "gives": "Bool",
+      "takes": {
+        "willFlag": "Int"
+      }
+    },
+    {
+      "id": "evaluated.has.userName",
+      "kind": "evaluated",
+      "label": "is there a userName?",
+      "runs": "userNameFlag == 1",
+      "about": "§3.1.3.4: present if and only if its flag is set.",
+      "gives": "Bool",
+      "takes": {
+        "userNameFlag": "Int"
+      }
+    },
+    {
+      "id": "evaluated.has.password",
+      "kind": "evaluated",
+      "label": "is there a password?",
+      "runs": "passwordFlag == 1",
+      "about": "§3.1.3.5: present if and only if its flag is set.",
+      "gives": "Bool",
+      "takes": {
+        "passwordFlag": "Int"
+      }
+    },
+    {
+      "id": "connack",
+      "kind": "message",
+      "as": "CONNACK",
+      "about": [
+        "§3.2 — the server's answer to a CONNECT, and the second packet on any connection. Two octets of",
+        "variable header and no payload at all."
+      ]
+    },
+    {
+      "id": "packing.connack",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "connackFixed",
+      "kind": "set",
+      "as": "Fixed header"
+    },
+    {
+      "id": "connackType",
+      "kind": "field",
+      "as": "Packet Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      }
+    },
+    {
+      "id": "connackTypeFlags",
+      "kind": "field",
+      "as": "Flags",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "§2.2.2: reserved for this packet type, and the only legal value is 0000."
+    },
+    {
+      "id": "connackRemaining",
+      "kind": "field",
+      "as": "Remaining Length",
+      "form": {
+        "of": "varint",
+        "order": "LeastSignificantFirst",
+        "max": 4,
+        "minimal": true
+      },
+      "about": [
+        "§2.2.3. Seven bits of value per octet with the top bit meaning 'another follows', least",
+        "significant group first — so `8f 01` is 15 + 1×128 = 143 and `02` is 2. The width of the",
+        "field is a function of the value it carries, which is why it is a form rather than a width.",
+        "",
+        "Non-minimal chains are refused: `8f 80 00` also arrives at 15, and accepting it would give",
+        "one value two encodings and make a re-write differ from what was read."
+      ]
+    },
+    {
+      "id": "constant.type.connack",
+      "kind": "constant",
+      "label": "2, which is what makes it this",
+      "holds": {
+        "int": 2
+      }
+    },
+    {
+      "id": "constant.flags.connack",
+      "kind": "constant",
+      "label": "the flags this packet type must carry",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "connackVariable",
+      "kind": "set",
+      "as": "Variable header"
+    },
+    {
+      "id": "connackAcknowledgeFlags",
+      "kind": "set",
+      "as": "Connect Acknowledge Flags",
+      "about": "§3.2.2.1: seven reserved bits and one that says whether the server had a session for this client already."
+    },
+    {
+      "id": "connackReserved",
+      "kind": "field",
+      "as": "Reserved",
+      "form": {
+        "of": "run",
+        "bits": 7
+      },
+      "about": "§3.2.2.1: \"The Server MUST set the remaining 7 bits ... to zero\"."
+    },
+    {
+      "id": "sessionPresent",
+      "kind": "field",
+      "as": "Session Present",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": [
+        "§3.2.2.2. When it is 1 the server has resumed a session this connection never created — subscriptions",
+        "made on an earlier one, at grants nobody here observed. Neither something we asked for nor something",
+        "we were told in so many words."
+      ]
+    },
+    {
+      "id": "connectReturnCode",
+      "kind": "field",
+      "as": "Connect Return Code",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      }
+    },
+    {
+      "id": "valueSet.connectReturnCode",
+      "kind": "set-of-values",
+      "bounding": "Closed",
+      "exclusivity": "Definitive",
+      "because": "§3.2.2.3 Table 3.1.",
+      "members": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 0
+          },
+          "denotes": "Connection Accepted"
+        },
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 1
+          },
+          "denotes": "unacceptable protocol version"
+        },
+        {
+          "from": {
+            "int": 2
+          },
+          "to": {
+            "int": 2
+          },
+          "denotes": "identifier rejected"
+        },
+        {
+          "from": {
+            "int": 3
+          },
+          "to": {
+            "int": 3
+          },
+          "denotes": "server unavailable"
+        },
+        {
+          "from": {
+            "int": 4
+          },
+          "to": {
+            "int": 4
+          },
+          "denotes": "bad user name or password"
+        },
+        {
+          "from": {
+            "int": 5
+          },
+          "to": {
+            "int": 5
+          },
+          "denotes": "not authorized"
+        }
+      ]
+    },
+    {
+      "id": "evaluated.connackRemaining",
+      "kind": "evaluated",
+      "label": "octets after the fixed header",
+      "runs": "connackVariableExtent",
+      "about": "§3.2.1: CONNACK has no payload, so the variable header is the whole of what the length counts.",
+      "gives": "Int",
+      "takes": {
+        "connackVariableExtent": "Int"
+      }
+    },
+    {
+      "id": "constant.zeroSeven",
+      "kind": "constant",
+      "label": "seven zero bits",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "input.sessionPresent",
+      "kind": "input",
+      "as": "Session Present",
+      "purpose": "§3.2.2.2: 1 if the server is resuming a session it already had for this client.",
+      "gives": "Int"
+    },
+    {
+      "id": "input.connectReturnCode",
+      "kind": "input",
+      "as": "Connect Return Code",
+      "purpose": "§3.2.2.3: 0 accepts the connection; anything else refuses it and says why.",
+      "gives": "Int"
+    },
+    {
+      "id": "subscribe",
+      "kind": "message",
+      "as": "SUBSCRIBE",
+      "about": [
+        "§3.8 — one or more topic filters, each with the quality of service the client is asking for.",
+        "",
+        "HOW MANY THERE ARE IS NOWHERE IN THE PACKET. §3.8.3 says the payload holds a list and the",
+        "remaining length says where it ends, which is a fact about a message rather than about MQTT.",
+        "So going out the payload is written once per item of the list it requires, and coming in the",
+        "reading goes round until the octets run out. Neither direction has a count and neither wants",
+        "one — a count in the description would have to be right about a number the protocol never",
+        "states."
+      ]
+    },
+    {
+      "id": "packing.subscribe",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "subscribeFixed",
+      "kind": "set",
+      "as": "Fixed header"
+    },
+    {
+      "id": "subscribeType",
+      "kind": "field",
+      "as": "Packet Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      }
+    },
+    {
+      "id": "subscribeTypeFlags",
+      "kind": "field",
+      "as": "Flags",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "§3.8.1: this one is not reserved — it is mandated to be 0010, and a server must close the connection on anything else."
+    },
+    {
+      "id": "subscribeRemaining",
+      "kind": "field",
+      "as": "Remaining Length",
+      "form": {
+        "of": "varint",
+        "order": "LeastSignificantFirst",
+        "max": 4,
+        "minimal": true
+      },
+      "about": [
+        "§2.2.3. Seven bits of value per octet with the top bit meaning 'another follows', least",
+        "significant group first — so `8f 01` is 15 + 1×128 = 143 and `02` is 2. The width of the",
+        "field is a function of the value it carries, which is why it is a form rather than a width.",
+        "",
+        "Non-minimal chains are refused: `8f 80 00` also arrives at 15, and accepting it would give",
+        "one value two encodings and make a re-write differ from what was read."
+      ]
+    },
+    {
+      "id": "constant.type.subscribe",
+      "kind": "constant",
+      "label": "8, which is what makes it this",
+      "holds": {
+        "int": 8
+      }
+    },
+    {
+      "id": "constant.flags.subscribe",
+      "kind": "constant",
+      "label": "the flags this packet type must carry",
+      "holds": {
+        "int": 2
+      }
+    },
+    {
+      "id": "subscribeRest",
+      "kind": "set",
+      "as": "what the remaining length counts"
+    },
+    {
+      "id": "subscribeVariable",
+      "kind": "set",
+      "as": "Variable header"
+    },
+    {
+      "id": "subscribePayload",
+      "kind": "set",
+      "as": "Payload",
+      "about": "§3.8.3: a topic filter and a requested QoS, as many times over as there are subscriptions."
+    },
+    {
+      "id": "subscribePacketId",
+      "kind": "field",
+      "as": "Packet Identifier",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "§2.3.1. The token the SUBACK echoes, which is how an answer is matched to what it answers.",
+        "",
+        "Its own node rather than one shared with the SUBACK's, because a field is a place in a message and",
+        "these are two places in two messages. What they share is a VALUE, and the value has a node of its own",
+        "— one input, read by both — which is where sameness belongs."
+      ]
+    },
+    {
+      "id": "requestedQos",
+      "kind": "field",
+      "as": "Requested QoS",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.8.3.1: the maximum QoS the client is asking the server to send at. The top six bits are reserved."
+    },
+    {
+      "id": "input.packetIdentifier",
+      "kind": "input",
+      "as": "Packet Identifier",
+      "purpose": "§2.3.1: a non-zero 16-bit token, unique among the messages currently in flight.",
+      "gives": "Int"
+    },
+    {
+      "id": "input.subscriptions",
+      "kind": "input",
+      "as": "Subscriptions",
+      "purpose": "What to subscribe to: each item says its `filter` (octets) and its `qos`.",
+      "gives": "List",
+      "of": {
+        "filter": "Text",
+        "qos": "Int"
+      }
+    },
+    {
+      "id": "topicFilter",
+      "kind": "set",
+      "as": "Topic Filter",
+      "about": "§4.7: a topic name with wildcards allowed — `+` for one level, `#` for the rest."
+    },
+    {
+      "id": "topicFilterLength",
+      "kind": "field",
+      "as": "Topic Filter Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC-equivalent §1.5.3: the two octets are a count of the octets that follow, not of characters."
+    },
+    {
+      "id": "topicFilterBytes",
+      "kind": "field",
+      "as": "Topic Filter",
+      "form": {
+        "of": "opaque"
+      },
+      "via": "unutf8"
+    },
+    {
+      "id": "evaluated.topicFilterLength",
+      "kind": "evaluated",
+      "label": "octets of Topic Filter",
+      "runs": "topicFilterBytesExtent",
+      "gives": "Int",
+      "takes": {
+        "topicFilterBytesExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.topicFilterExtent",
+      "kind": "evaluated",
+      "label": "octets of Topic Filter, from its count",
+      "runs": "topicFilterLength",
+      "gives": "Int",
+      "takes": {
+        "topicFilterLength": "Int"
+      }
+    },
+    {
+      "id": "evaluated.subscribeRemaining",
+      "kind": "evaluated",
+      "label": "octets after the fixed header",
+      "runs": "subscribeRestExtent",
+      "gives": "Int",
+      "takes": {
+        "subscribeRestExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.eachFilter",
+      "kind": "evaluated",
+      "label": "this subscription's topic filter",
+      "runs": "item.filter",
+      "gives": "Text"
+    },
+    {
+      "id": "evaluated.eachQos",
+      "kind": "evaluated",
+      "label": "this subscription's requested QoS",
+      "runs": "item.qos",
+      "gives": "Int"
+    },
+    {
+      "id": "subscribeMore",
+      "kind": "junction",
+      "as": "another subscription, or the end",
+      "about": [
+        "Only the reading comes here. Going out the payload knows how many times to go round — it is the",
+        "length of the list — and coming in there is no such number anywhere, so what says whether another",
+        "follows is whether there are octets left."
+      ]
+    },
+    {
+      "id": "evaluated.moreFilters",
+      "kind": "evaluated",
+      "label": "is there another subscription?",
+      "runs": "remaining > 0",
+      "gives": "Bool"
+    },
+    {
+      "id": "suback",
+      "kind": "message",
+      "as": "SUBACK",
+      "about": [
+        "§3.9 — one return code per topic filter of the SUBSCRIBE it answers, in the same order.",
+        "",
+        "The count is positional and appears nowhere: §3.9.3 says the number of return codes MUST match the",
+        "number of filters, so the only way to know how many there are is to read until the packet ends. A",
+        "return code is not simply an acceptance — 0x80 refuses a subscription outright, and a code lower than",
+        "what was asked for is the server granting less than the client requested."
+      ]
+    },
+    {
+      "id": "packing.suback",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "subackFixed",
+      "kind": "set",
+      "as": "Fixed header"
+    },
+    {
+      "id": "subackType",
+      "kind": "field",
+      "as": "Packet Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      }
+    },
+    {
+      "id": "subackTypeFlags",
+      "kind": "field",
+      "as": "Flags",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "§2.2.2: reserved for this packet type, and the only legal value is 0000."
+    },
+    {
+      "id": "subackRemaining",
+      "kind": "field",
+      "as": "Remaining Length",
+      "form": {
+        "of": "varint",
+        "order": "LeastSignificantFirst",
+        "max": 4,
+        "minimal": true
+      },
+      "about": [
+        "§2.2.3. Seven bits of value per octet with the top bit meaning 'another follows', least",
+        "significant group first — so `8f 01` is 15 + 1×128 = 143 and `02` is 2. The width of the",
+        "field is a function of the value it carries, which is why it is a form rather than a width.",
+        "",
+        "Non-minimal chains are refused: `8f 80 00` also arrives at 15, and accepting it would give",
+        "one value two encodings and make a re-write differ from what was read."
+      ]
+    },
+    {
+      "id": "constant.type.suback",
+      "kind": "constant",
+      "label": "9, which is what makes it this",
+      "holds": {
+        "int": 9
+      }
+    },
+    {
+      "id": "constant.flags.suback",
+      "kind": "constant",
+      "label": "the flags this packet type must carry",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "subackRest",
+      "kind": "set",
+      "as": "what the remaining length counts"
+    },
+    {
+      "id": "subackVariable",
+      "kind": "set",
+      "as": "Variable header"
+    },
+    {
+      "id": "subackPayload",
+      "kind": "set",
+      "as": "Payload"
+    },
+    {
+      "id": "subackPacketId",
+      "kind": "field",
+      "as": "Packet Identifier",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.9.2: the same token the SUBSCRIBE carried."
+    },
+    {
+      "id": "returnCode",
+      "kind": "field",
+      "as": "Return Code",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "§3.9.3: 0, 1 or 2 grant the subscription at that maximum QoS — possibly lower than the one asked for — and 0x80 refuses it, meaning no subscription exists at all."
+    },
+    {
+      "id": "input.returnCodes",
+      "kind": "input",
+      "as": "Return Codes",
+      "purpose": "One per topic filter of the SUBSCRIBE being answered, in the same order.",
+      "gives": "List",
+      "of": "Int"
+    },
+    {
+      "id": "evaluated.subackRemaining",
+      "kind": "evaluated",
+      "label": "octets after the fixed header",
+      "runs": "subackRestExtent",
+      "gives": "Int",
+      "takes": {
+        "subackRestExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.eachReturnCode",
+      "kind": "evaluated",
+      "label": "this return code",
+      "runs": "item",
+      "gives": "Int"
+    },
+    {
+      "id": "subackMore",
+      "kind": "junction",
+      "as": "another return code, or the end"
+    },
+    {
+      "id": "evaluated.moreCodes",
+      "kind": "evaluated",
+      "label": "is there another return code?",
+      "runs": "remaining > 0",
+      "gives": "Bool"
+    },
+    {
+      "id": "constant.noBody",
+      "kind": "constant",
+      "label": "nothing follows the fixed header",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "pingreq",
+      "kind": "message",
+      "as": "PINGREQ",
+      "about": [
+        "§3.12 — a fixed header and nothing else. The client sends one when it has nothing else to say and the",
+        "keep alive window is running out; §3.1.2.10 makes transmitting SOMETHING an obligation rather than",
+        "the server's problem."
+      ]
+    },
+    {
+      "id": "packing.pingreq",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "pingreqFixed",
+      "kind": "set",
+      "as": "Fixed header"
+    },
+    {
+      "id": "pingreqType",
+      "kind": "field",
+      "as": "Packet Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      }
+    },
+    {
+      "id": "pingreqTypeFlags",
+      "kind": "field",
+      "as": "Flags",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "§2.2.2: reserved for this packet type, and the only legal value is 0000."
+    },
+    {
+      "id": "pingreqRemaining",
+      "kind": "field",
+      "as": "Remaining Length",
+      "form": {
+        "of": "varint",
+        "order": "LeastSignificantFirst",
+        "max": 4,
+        "minimal": true
+      },
+      "about": [
+        "§2.2.3. Seven bits of value per octet with the top bit meaning 'another follows', least",
+        "significant group first — so `8f 01` is 15 + 1×128 = 143 and `02` is 2. The width of the",
+        "field is a function of the value it carries, which is why it is a form rather than a width.",
+        "",
+        "Non-minimal chains are refused: `8f 80 00` also arrives at 15, and accepting it would give",
+        "one value two encodings and make a re-write differ from what was read."
+      ]
+    },
+    {
+      "id": "constant.type.pingreq",
+      "kind": "constant",
+      "label": "12, which is what makes it this",
+      "holds": {
+        "int": 12
+      }
+    },
+    {
+      "id": "constant.flags.pingreq",
+      "kind": "constant",
+      "label": "the flags this packet type must carry",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "pingresp",
+      "kind": "message",
+      "as": "PINGRESP",
+      "about": [
+        "§3.13 — the answer, and equally empty. It confirms the server was alive at the moment it was received",
+        "and says nothing whatever about any moment after that."
+      ]
+    },
+    {
+      "id": "packing.pingresp",
+      "kind": "packing",
+      "as": "the one arrangement"
+    },
+    {
+      "id": "pingrespFixed",
+      "kind": "set",
+      "as": "Fixed header"
+    },
+    {
+      "id": "pingrespType",
+      "kind": "field",
+      "as": "Packet Type",
+      "form": {
+        "of": "run",
+        "bits": 4
+      }
+    },
+    {
+      "id": "pingrespTypeFlags",
+      "kind": "field",
+      "as": "Flags",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "§2.2.2: reserved for this packet type, and the only legal value is 0000."
+    },
+    {
+      "id": "pingrespRemaining",
+      "kind": "field",
+      "as": "Remaining Length",
+      "form": {
+        "of": "varint",
+        "order": "LeastSignificantFirst",
+        "max": 4,
+        "minimal": true
+      },
+      "about": [
+        "§2.2.3. Seven bits of value per octet with the top bit meaning 'another follows', least",
+        "significant group first — so `8f 01` is 15 + 1×128 = 143 and `02` is 2. The width of the",
+        "field is a function of the value it carries, which is why it is a form rather than a width.",
+        "",
+        "Non-minimal chains are refused: `8f 80 00` also arrives at 15, and accepting it would give",
+        "one value two encodings and make a re-write differ from what was read."
+      ]
+    },
+    {
+      "id": "constant.type.pingresp",
+      "kind": "constant",
+      "label": "13, which is what makes it this",
+      "holds": {
+        "int": 13
+      }
+    },
+    {
+      "id": "constant.flags.pingresp",
+      "kind": "constant",
+      "label": "the flags this packet type must carry",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "validator.protocolLevel",
+      "kind": "validator",
+      "because": "§3.1.2.2: 4 is MQTT 3.1.1, and this describes 3.1.1.",
+      "ranges": [
+        {
+          "from": {
+            "int": 4
+          },
+          "to": {
+            "int": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.connectReserved",
+      "kind": "validator",
+      "because": "§3.1.2.3: the reserved flag must be zero.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.willQos",
+      "kind": "validator",
+      "because": "§3.1.2.6: 0, 1 or 2.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.connackReserved",
+      "kind": "validator",
+      "because": "§3.2.2.1: the other seven acknowledge flags must be zero.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.subscribePacketId",
+      "kind": "validator",
+      "because": "§2.3.1: a packet identifier must not be zero.",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 65535
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.subackPacketId",
+      "kind": "validator",
+      "because": "§2.3.1: a packet identifier must not be zero.",
+      "ranges": [
+        {
+          "from": {
+            "int": 1
+          },
+          "to": {
+            "int": 65535
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.requestedQos",
+      "kind": "validator",
+      "because": "§3.8.3.1: 0, 1 or 2.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 2
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "kind": "identifies",
+      "from": "mqtt",
+      "to": "probe.packetType"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.whichPacket",
+      "to": "input.packetType",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "packetType"
+    },
+    {
+      "kind": "decides",
+      "from": "mqtt",
+      "to": "evaluated.whichPacket"
+    },
+    {
+      "kind": "then",
+      "from": "connect",
+      "to": "packing.connect"
+    },
+    {
+      "kind": "then",
+      "from": "packing.connect",
+      "to": "connectFixed"
+    },
+    {
+      "kind": "holds",
+      "from": "connectFixed",
+      "to": "connectType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connectFixed",
+      "to": "connectTypeFlags",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "connectFixed",
+      "to": "connectRemaining",
+      "order": 2
+    },
+    {
+      "kind": "then",
+      "from": "connectFixed",
+      "to": "connectType"
+    },
+    {
+      "kind": "then",
+      "from": "connectType",
+      "to": "connectTypeFlags"
+    },
+    {
+      "kind": "then",
+      "from": "connectTypeFlags",
+      "to": "connectRemaining"
+    },
+    {
+      "kind": "computes",
+      "from": "connectType",
+      "to": "constant.type.connect",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "connectTypeFlags",
+      "to": "constant.flags.connect",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "mqtt",
+      "to": "connect",
+      "key": {
+        "int": 1
+      }
+    },
+    {
+      "kind": "holds",
+      "from": "protocolName",
+      "to": "protocolNameLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "protocolName",
+      "to": "protocolNameBytes",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "protocolName",
+      "to": "protocolNameLength"
+    },
+    {
+      "kind": "then",
+      "from": "protocolNameLength",
+      "to": "protocolNameBytes"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.protocolNameLength",
+      "to": "protocolNameBytes",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "protocolNameBytesExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "protocolNameLength",
+      "to": "evaluated.protocolNameLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.protocolNameExtent",
+      "to": "protocolNameLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "protocolNameLength"
+    },
+    {
+      "kind": "computes",
+      "from": "protocolNameBytes",
+      "to": "evaluated.protocolNameExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "protocolNameBytes",
+      "to": "constant.protocolName",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "clientId",
+      "to": "clientIdLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "clientId",
+      "to": "clientIdBytes",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "clientId",
+      "to": "clientIdLength"
+    },
+    {
+      "kind": "then",
+      "from": "clientIdLength",
+      "to": "clientIdBytes"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.clientIdLength",
+      "to": "clientIdBytes",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "clientIdBytesExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "clientIdLength",
+      "to": "evaluated.clientIdLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.clientIdExtent",
+      "to": "clientIdLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "clientIdLength"
+    },
+    {
+      "kind": "computes",
+      "from": "clientIdBytes",
+      "to": "evaluated.clientIdExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "clientIdBytes",
+      "to": "input.clientId",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "willTopic",
+      "to": "willTopicLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "willTopic",
+      "to": "willTopicBytes",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "willTopic",
+      "to": "willTopicLength"
+    },
+    {
+      "kind": "then",
+      "from": "willTopicLength",
+      "to": "willTopicBytes"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.willTopicLength",
+      "to": "willTopicBytes",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "willTopicBytesExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "willTopicLength",
+      "to": "evaluated.willTopicLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.willTopicExtent",
+      "to": "willTopicLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "willTopicLength"
+    },
+    {
+      "kind": "computes",
+      "from": "willTopicBytes",
+      "to": "evaluated.willTopicExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "willTopicBytes",
+      "to": "input.willTopic",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "willMessage",
+      "to": "willMessageLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "willMessage",
+      "to": "willMessageBytes",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "willMessage",
+      "to": "willMessageLength"
+    },
+    {
+      "kind": "then",
+      "from": "willMessageLength",
+      "to": "willMessageBytes"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.willMessageLength",
+      "to": "willMessageBytes",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "willMessageBytesExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "willMessageLength",
+      "to": "evaluated.willMessageLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.willMessageExtent",
+      "to": "willMessageLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "willMessageLength"
+    },
+    {
+      "kind": "computes",
+      "from": "willMessageBytes",
+      "to": "evaluated.willMessageExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "willMessageBytes",
+      "to": "input.willMessage",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "userName",
+      "to": "userNameLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "userName",
+      "to": "userNameBytes",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "userName",
+      "to": "userNameLength"
+    },
+    {
+      "kind": "then",
+      "from": "userNameLength",
+      "to": "userNameBytes"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.userNameLength",
+      "to": "userNameBytes",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "userNameBytesExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "userNameLength",
+      "to": "evaluated.userNameLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.userNameExtent",
+      "to": "userNameLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "userNameLength"
+    },
+    {
+      "kind": "computes",
+      "from": "userNameBytes",
+      "to": "evaluated.userNameExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "userNameBytes",
+      "to": "input.userName",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "password",
+      "to": "passwordLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "password",
+      "to": "passwordBytes",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "password",
+      "to": "passwordLength"
+    },
+    {
+      "kind": "then",
+      "from": "passwordLength",
+      "to": "passwordBytes"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.passwordLength",
+      "to": "passwordBytes",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "passwordBytesExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "passwordLength",
+      "to": "evaluated.passwordLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.passwordExtent",
+      "to": "passwordLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "passwordLength"
+    },
+    {
+      "kind": "computes",
+      "from": "passwordBytes",
+      "to": "evaluated.passwordExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "computes",
+      "from": "passwordBytes",
+      "to": "input.password",
+      "facet": "value"
+    },
+    {
+      "kind": "holds",
+      "from": "connectRest",
+      "to": "connectVariable",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connectRest",
+      "to": "connectPayload",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "connectVariable",
+      "to": "protocolName",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connectVariable",
+      "to": "protocolLevel",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "connectVariable",
+      "to": "connectFlags",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "connectVariable",
+      "to": "keepAlive",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "connectFlags",
+      "to": "userNameFlag",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connectFlags",
+      "to": "passwordFlag",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "connectFlags",
+      "to": "willRetain",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "connectFlags",
+      "to": "willQos",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "connectFlags",
+      "to": "willFlag",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "connectFlags",
+      "to": "cleanSession",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "connectFlags",
+      "to": "connectReserved",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "connectPayload",
+      "to": "clientId",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connectPayload",
+      "to": "willTopic",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "connectPayload",
+      "to": "willMessage",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "connectPayload",
+      "to": "userName",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "connectPayload",
+      "to": "password",
+      "order": 4
+    },
+    {
+      "kind": "then",
+      "from": "connectRemaining",
+      "to": "connectRest"
+    },
+    {
+      "kind": "then",
+      "from": "connectRest",
+      "to": "connectVariable"
+    },
+    {
+      "kind": "then",
+      "from": "connectVariable",
+      "to": "protocolName"
+    },
+    {
+      "kind": "then",
+      "from": "protocolNameBytes",
+      "to": "protocolLevel"
+    },
+    {
+      "kind": "then",
+      "from": "protocolLevel",
+      "to": "connectFlags"
+    },
+    {
+      "kind": "then",
+      "from": "connectFlags",
+      "to": "userNameFlag"
+    },
+    {
+      "kind": "then",
+      "from": "userNameFlag",
+      "to": "passwordFlag"
+    },
+    {
+      "kind": "then",
+      "from": "passwordFlag",
+      "to": "willRetain"
+    },
+    {
+      "kind": "then",
+      "from": "willRetain",
+      "to": "willQos"
+    },
+    {
+      "kind": "then",
+      "from": "willQos",
+      "to": "willFlag"
+    },
+    {
+      "kind": "then",
+      "from": "willFlag",
+      "to": "cleanSession"
+    },
+    {
+      "kind": "then",
+      "from": "cleanSession",
+      "to": "connectReserved"
+    },
+    {
+      "kind": "then",
+      "from": "connectReserved",
+      "to": "keepAlive"
+    },
+    {
+      "kind": "then",
+      "from": "keepAlive",
+      "to": "connectPayload"
+    },
+    {
+      "kind": "then",
+      "from": "connectPayload",
+      "to": "clientId"
+    },
+    {
+      "kind": "then",
+      "from": "clientIdBytes",
+      "to": "willTopic",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "willTopicBytes",
+      "to": "willMessage",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "willMessageBytes",
+      "to": "userName",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "userNameBytes",
+      "to": "password",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "passwordBytes",
+      "to": "done"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.connectRemaining",
+      "to": "connectRest",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "connectRestExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "connectRemaining",
+      "to": "evaluated.connectRemaining",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "userNameFlag",
+      "to": "input.userNameFlag",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "passwordFlag",
+      "to": "input.passwordFlag",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "willRetain",
+      "to": "input.willRetain",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "willQos",
+      "to": "input.willQos",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "willFlag",
+      "to": "input.willFlag",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cleanSession",
+      "to": "input.cleanSession",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "connectReserved",
+      "to": "constant.zeroBit",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "keepAlive",
+      "to": "input.keepAlive",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "protocolLevel",
+      "to": "constant.protocolLevel",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.has.willTopic",
+      "to": "willFlag",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "willFlag"
+    },
+    {
+      "kind": "computes",
+      "from": "willTopic",
+      "to": "evaluated.has.willTopic",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.has.willMessage",
+      "to": "willFlag",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "willFlag"
+    },
+    {
+      "kind": "computes",
+      "from": "willMessage",
+      "to": "evaluated.has.willMessage",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.has.userName",
+      "to": "userNameFlag",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "userNameFlag"
+    },
+    {
+      "kind": "computes",
+      "from": "userName",
+      "to": "evaluated.has.userName",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.has.password",
+      "to": "passwordFlag",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "passwordFlag"
+    },
+    {
+      "kind": "computes",
+      "from": "password",
+      "to": "evaluated.has.password",
+      "facet": "presence"
+    },
+    {
+      "kind": "then",
+      "from": "connack",
+      "to": "packing.connack"
+    },
+    {
+      "kind": "then",
+      "from": "packing.connack",
+      "to": "connackFixed"
+    },
+    {
+      "kind": "holds",
+      "from": "connackFixed",
+      "to": "connackType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connackFixed",
+      "to": "connackTypeFlags",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "connackFixed",
+      "to": "connackRemaining",
+      "order": 2
+    },
+    {
+      "kind": "then",
+      "from": "connackFixed",
+      "to": "connackType"
+    },
+    {
+      "kind": "then",
+      "from": "connackType",
+      "to": "connackTypeFlags"
+    },
+    {
+      "kind": "then",
+      "from": "connackTypeFlags",
+      "to": "connackRemaining"
+    },
+    {
+      "kind": "computes",
+      "from": "connackType",
+      "to": "constant.type.connack",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "connackTypeFlags",
+      "to": "constant.flags.connack",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "mqtt",
+      "to": "connack",
+      "key": {
+        "int": 2
+      }
+    },
+    {
+      "kind": "checks",
+      "from": "connectReturnCode",
+      "to": "valueSet.connectReturnCode",
+      "order": 0,
+      "because": "§3.2.2.3 Table 3.1 assigns the return codes; the set is closed."
+    },
+    {
+      "kind": "holds",
+      "from": "connackVariable",
+      "to": "connackAcknowledgeFlags",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connackVariable",
+      "to": "connectReturnCode",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "connackAcknowledgeFlags",
+      "to": "connackReserved",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "connackAcknowledgeFlags",
+      "to": "sessionPresent",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "connackRemaining",
+      "to": "connackVariable"
+    },
+    {
+      "kind": "then",
+      "from": "connackVariable",
+      "to": "connackAcknowledgeFlags"
+    },
+    {
+      "kind": "then",
+      "from": "connackAcknowledgeFlags",
+      "to": "connackReserved"
+    },
+    {
+      "kind": "then",
+      "from": "connackReserved",
+      "to": "sessionPresent"
+    },
+    {
+      "kind": "then",
+      "from": "sessionPresent",
+      "to": "connectReturnCode"
+    },
+    {
+      "kind": "then",
+      "from": "connectReturnCode",
+      "to": "done"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.connackRemaining",
+      "to": "connackVariable",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "connackVariableExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "connackRemaining",
+      "to": "evaluated.connackRemaining",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "connackReserved",
+      "to": "constant.zeroSeven",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "sessionPresent",
+      "to": "input.sessionPresent",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "connectReturnCode",
+      "to": "input.connectReturnCode",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "subscribe",
+      "to": "packing.subscribe"
+    },
+    {
+      "kind": "then",
+      "from": "packing.subscribe",
+      "to": "subscribeFixed"
+    },
+    {
+      "kind": "holds",
+      "from": "subscribeFixed",
+      "to": "subscribeType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "subscribeFixed",
+      "to": "subscribeTypeFlags",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "subscribeFixed",
+      "to": "subscribeRemaining",
+      "order": 2
+    },
+    {
+      "kind": "then",
+      "from": "subscribeFixed",
+      "to": "subscribeType"
+    },
+    {
+      "kind": "then",
+      "from": "subscribeType",
+      "to": "subscribeTypeFlags"
+    },
+    {
+      "kind": "then",
+      "from": "subscribeTypeFlags",
+      "to": "subscribeRemaining"
+    },
+    {
+      "kind": "computes",
+      "from": "subscribeType",
+      "to": "constant.type.subscribe",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "subscribeTypeFlags",
+      "to": "constant.flags.subscribe",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "mqtt",
+      "to": "subscribe",
+      "key": {
+        "int": 8
+      }
+    },
+    {
+      "kind": "holds",
+      "from": "subscribeRest",
+      "to": "subscribeVariable",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "subscribeRest",
+      "to": "subscribePayload",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "subscribeVariable",
+      "to": "subscribePacketId",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "subscribePayload",
+      "to": "topicFilter",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "subscribePayload",
+      "to": "requestedQos",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "topicFilter",
+      "to": "topicFilterLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "topicFilter",
+      "to": "topicFilterBytes",
+      "order": 1
+    },
+    {
+      "kind": "then",
+      "from": "topicFilter",
+      "to": "topicFilterLength"
+    },
+    {
+      "kind": "then",
+      "from": "topicFilterLength",
+      "to": "topicFilterBytes"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.topicFilterLength",
+      "to": "topicFilterBytes",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "topicFilterBytesExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "topicFilterLength",
+      "to": "evaluated.topicFilterLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.topicFilterExtent",
+      "to": "topicFilterLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "topicFilterLength"
+    },
+    {
+      "kind": "computes",
+      "from": "topicFilterBytes",
+      "to": "evaluated.topicFilterExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "then",
+      "from": "subscribeRemaining",
+      "to": "subscribeRest"
+    },
+    {
+      "kind": "then",
+      "from": "subscribeRest",
+      "to": "subscribeVariable"
+    },
+    {
+      "kind": "then",
+      "from": "subscribeVariable",
+      "to": "subscribePacketId"
+    },
+    {
+      "kind": "then",
+      "from": "subscribePacketId",
+      "to": "subscribePayload"
+    },
+    {
+      "kind": "then",
+      "from": "subscribePayload",
+      "to": "topicFilter"
+    },
+    {
+      "kind": "then",
+      "from": "topicFilterBytes",
+      "to": "requestedQos"
+    },
+    {
+      "kind": "then",
+      "from": "requestedQos",
+      "to": "done"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.subscribeRemaining",
+      "to": "subscribeRest",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "subscribeRestExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "subscribeRemaining",
+      "to": "evaluated.subscribeRemaining",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "subscribePacketId",
+      "to": "input.packetIdentifier",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "subscribePayload",
+      "to": "input.subscriptions",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "topicFilterBytes",
+      "to": "evaluated.eachFilter",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "requestedQos",
+      "to": "evaluated.eachQos",
+      "facet": "value"
+    },
+    {
+      "kind": "decode",
+      "from": "requestedQos",
+      "to": "subscribeMore"
+    },
+    {
+      "kind": "decode",
+      "from": "subscribeMore",
+      "to": "topicFilter",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "subscribeMore",
+      "to": "done",
+      "otherwise": true
+    },
+    {
+      "kind": "decides",
+      "from": "subscribeMore",
+      "to": "evaluated.moreFilters",
+      "reading": true
+    },
+    {
+      "kind": "then",
+      "from": "suback",
+      "to": "packing.suback"
+    },
+    {
+      "kind": "then",
+      "from": "packing.suback",
+      "to": "subackFixed"
+    },
+    {
+      "kind": "holds",
+      "from": "subackFixed",
+      "to": "subackType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "subackFixed",
+      "to": "subackTypeFlags",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "subackFixed",
+      "to": "subackRemaining",
+      "order": 2
+    },
+    {
+      "kind": "then",
+      "from": "subackFixed",
+      "to": "subackType"
+    },
+    {
+      "kind": "then",
+      "from": "subackType",
+      "to": "subackTypeFlags"
+    },
+    {
+      "kind": "then",
+      "from": "subackTypeFlags",
+      "to": "subackRemaining"
+    },
+    {
+      "kind": "computes",
+      "from": "subackType",
+      "to": "constant.type.suback",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "subackTypeFlags",
+      "to": "constant.flags.suback",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "mqtt",
+      "to": "suback",
+      "key": {
+        "int": 9
+      }
+    },
+    {
+      "kind": "holds",
+      "from": "subackRest",
+      "to": "subackVariable",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "subackRest",
+      "to": "subackPayload",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "subackVariable",
+      "to": "subackPacketId",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "subackPayload",
+      "to": "returnCode",
+      "order": 0
+    },
+    {
+      "kind": "then",
+      "from": "subackRemaining",
+      "to": "subackRest"
+    },
+    {
+      "kind": "then",
+      "from": "subackRest",
+      "to": "subackVariable"
+    },
+    {
+      "kind": "then",
+      "from": "subackVariable",
+      "to": "subackPacketId"
+    },
+    {
+      "kind": "then",
+      "from": "subackPacketId",
+      "to": "subackPayload"
+    },
+    {
+      "kind": "then",
+      "from": "subackPayload",
+      "to": "returnCode"
+    },
+    {
+      "kind": "then",
+      "from": "returnCode",
+      "to": "done"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.subackRemaining",
+      "to": "subackRest",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "subackRestExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "subackRemaining",
+      "to": "evaluated.subackRemaining",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "subackPacketId",
+      "to": "input.packetIdentifier",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "subackPayload",
+      "to": "input.returnCodes",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "returnCode",
+      "to": "evaluated.eachReturnCode",
+      "facet": "value"
+    },
+    {
+      "kind": "decode",
+      "from": "returnCode",
+      "to": "subackMore"
+    },
+    {
+      "kind": "decode",
+      "from": "subackMore",
+      "to": "returnCode",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "subackMore",
+      "to": "done",
+      "otherwise": true
+    },
+    {
+      "kind": "decides",
+      "from": "subackMore",
+      "to": "evaluated.moreCodes",
+      "reading": true
+    },
+    {
+      "kind": "then",
+      "from": "pingreq",
+      "to": "packing.pingreq"
+    },
+    {
+      "kind": "then",
+      "from": "packing.pingreq",
+      "to": "pingreqFixed"
+    },
+    {
+      "kind": "holds",
+      "from": "pingreqFixed",
+      "to": "pingreqType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pingreqFixed",
+      "to": "pingreqTypeFlags",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "pingreqFixed",
+      "to": "pingreqRemaining",
+      "order": 2
+    },
+    {
+      "kind": "then",
+      "from": "pingreqFixed",
+      "to": "pingreqType"
+    },
+    {
+      "kind": "then",
+      "from": "pingreqType",
+      "to": "pingreqTypeFlags"
+    },
+    {
+      "kind": "then",
+      "from": "pingreqTypeFlags",
+      "to": "pingreqRemaining"
+    },
+    {
+      "kind": "computes",
+      "from": "pingreqType",
+      "to": "constant.type.pingreq",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "pingreqTypeFlags",
+      "to": "constant.flags.pingreq",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "mqtt",
+      "to": "pingreq",
+      "key": {
+        "int": 12
+      }
+    },
+    {
+      "kind": "then",
+      "from": "pingresp",
+      "to": "packing.pingresp"
+    },
+    {
+      "kind": "then",
+      "from": "packing.pingresp",
+      "to": "pingrespFixed"
+    },
+    {
+      "kind": "holds",
+      "from": "pingrespFixed",
+      "to": "pingrespType",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pingrespFixed",
+      "to": "pingrespTypeFlags",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "pingrespFixed",
+      "to": "pingrespRemaining",
+      "order": 2
+    },
+    {
+      "kind": "then",
+      "from": "pingrespFixed",
+      "to": "pingrespType"
+    },
+    {
+      "kind": "then",
+      "from": "pingrespType",
+      "to": "pingrespTypeFlags"
+    },
+    {
+      "kind": "then",
+      "from": "pingrespTypeFlags",
+      "to": "pingrespRemaining"
+    },
+    {
+      "kind": "computes",
+      "from": "pingrespType",
+      "to": "constant.type.pingresp",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "pingrespTypeFlags",
+      "to": "constant.flags.pingresp",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "mqtt",
+      "to": "pingresp",
+      "key": {
+        "int": 13
+      }
+    },
+    {
+      "kind": "computes",
+      "from": "pingreqRemaining",
+      "to": "constant.noBody",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "pingreqRemaining",
+      "to": "done"
+    },
+    {
+      "kind": "computes",
+      "from": "pingrespRemaining",
+      "to": "constant.noBody",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "pingrespRemaining",
+      "to": "done"
+    },
+    {
+      "kind": "checks",
+      "from": "protocolLevel",
+      "to": "validator.protocolLevel",
+      "order": 0,
+      "because": "§3.1.2.2: 4 is MQTT 3.1.1, and this describes 3.1.1."
+    },
+    {
+      "kind": "checks",
+      "from": "connectReserved",
+      "to": "validator.connectReserved",
+      "order": 0,
+      "because": "§3.1.2.3: the reserved flag must be zero."
+    },
+    {
+      "kind": "checks",
+      "from": "willQos",
+      "to": "validator.willQos",
+      "order": 0,
+      "because": "§3.1.2.6: 0, 1 or 2."
+    },
+    {
+      "kind": "checks",
+      "from": "connackReserved",
+      "to": "validator.connackReserved",
+      "order": 0,
+      "because": "§3.2.2.1: the other seven acknowledge flags must be zero."
+    },
+    {
+      "kind": "checks",
+      "from": "subscribePacketId",
+      "to": "validator.subscribePacketId",
+      "order": 0,
+      "because": "§2.3.1: a packet identifier must not be zero."
+    },
+    {
+      "kind": "checks",
+      "from": "subackPacketId",
+      "to": "validator.subackPacketId",
+      "order": 0,
+      "because": "§2.3.1: a packet identifier must not be zero."
+    },
+    {
+      "kind": "checks",
+      "from": "requestedQos",
+      "to": "validator.requestedQos",
+      "order": 0,
+      "because": "§3.8.3.1: 0, 1 or 2."
+    }
+  ]
+}

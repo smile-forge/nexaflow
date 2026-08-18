@@ -1,0 +1,1918 @@
+{
+  "protocol": "tcp",
+  "title": "Transmission Control Protocol",
+  "source": "RFC 9293 (obsoletes RFC 793)",
+  "about": [
+    "Authored against RFC 9293 §3.1 directly. Nothing here was converted from a document, so nothing here",
+    "is shaped by what a document could say.",
+    "",
+    "Two things are worth reading before the nodes. First, TCP has exactly ONE header format — the RFC",
+    "calls §3.1 'Header Format', singular — so there is one message node. What varies between a SYN segment",
+    "and an established one is not the format but which options may appear in it, and that is what the two",
+    "packings are for. Second, every field is a node, including the four-bit and one-bit ones: a control bit",
+    "is a field that happens to be one bit wide, not a slice of a byte that some other node owns.",
+    "",
+    "Sets follow the RFC's own headings. §3.1 describes a header, and inside it a group it names 'Control",
+    "bits'; both are sets here, and the second nests in the first. Sets hold; they do not produce. That is",
+    "why a length can measure a header while the header writes nothing of its own."
+  ],
+  "nodes": [
+    {
+      "id": "tcp",
+      "kind": "protocol",
+      "as": "Transmission Control Protocol",
+      "about": [
+        "Where a walk begins. Its ways on are the message formats TCP declares — one, here — and they hang",
+        "off it by the same edge a packing hangs off a message and a field hangs off the one before it.",
+        "",
+        "It is a node rather than a list beside the graph so that 'which message is this?' is asked in the",
+        "same place, and the same way, as every other choice in the description."
+      ]
+    },
+    {
+      "id": "segment",
+      "kind": "message",
+      "as": "TCP segment",
+      "about": "RFC 9293 §3.1. The only message format TCP has."
+    },
+    {
+      "id": "packing.segment",
+      "kind": "packing",
+      "as": "the one arrangement",
+      "about": [
+        "TCP has one. RFC 9293 §3.1 describes a single header, and a SYN segment differs from",
+        "an established one in which options it carries rather than in how it is arranged —",
+        "which the fork on option-kind already says."
+      ]
+    },
+    {
+      "id": "header",
+      "kind": "set",
+      "as": "TCP Header",
+      "about": "RFC 9293 §3.1. What Data Offset measures, and what the checksum covers after the pseudo-header."
+    },
+    {
+      "id": "header.beforeChecksum",
+      "kind": "set",
+      "as": "header, up to the checksum",
+      "about": [
+        "Everything in the header before the Checksum field. It is a set because the checksum needs its",
+        "octets: the sum is taken over the header with a zero where the checksum goes, and this is the",
+        "half of it that comes first."
+      ]
+    },
+    {
+      "id": "header.afterChecksum",
+      "kind": "set",
+      "as": "header, past the checksum",
+      "about": [
+        "Everything in the header after it, options included. The other half of the same idea."
+      ]
+    },
+    {
+      "id": "sourcePort",
+      "kind": "field",
+      "as": "Source Port",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 9293 §3.1: 'The source port number.' 16 bits."
+    },
+    {
+      "id": "destinationPort",
+      "kind": "field",
+      "as": "Destination Port",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 9293 §3.1: 'The destination port number.' 16 bits."
+    },
+    {
+      "id": "sequenceNumber",
+      "kind": "field",
+      "as": "Sequence Number",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "RFC 9293 §3.1: the sequence number of the first data octet in this segment, except that when SYN",
+        "is set it is the initial sequence number and the first data octet is ISN+1."
+      ]
+    },
+    {
+      "id": "acknowledgmentNumber",
+      "kind": "field",
+      "as": "Acknowledgment Number",
+      "form": {
+        "of": "scalar",
+        "octets": 4,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "RFC 9293 §3.1: the next sequence number the sender expects. Significant only when ACK is set.",
+        "",
+        "A DIFFERENT NODE from the ACK control bit, though a reader skimming would call both 'ack'. One is",
+        "a 32-bit number and the other is one bit saying whether that number means anything. Same syllable,",
+        "unrelated concepts, so they are not the same field."
+      ]
+    },
+    {
+      "id": "dataOffset",
+      "kind": "field",
+      "as": "Data Offset",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": [
+        "RFC 9293 §3.1: 'The number of 32-bit words in the TCP header.' 4 bits.",
+        "Its own node, with its own width — not a slice of an octet belonging to something else."
+      ]
+    },
+    {
+      "id": "reserved",
+      "kind": "field",
+      "as": "Rsrvd",
+      "form": {
+        "of": "run",
+        "bits": 4
+      },
+      "about": "RFC 9293 §3.1: 'MUST be zero in generated segments and MUST be ignored in received segments.'"
+    },
+    {
+      "id": "controlBits",
+      "kind": "set",
+      "as": "Control bits",
+      "about": [
+        "RFC 9293 §3.1 names this group. It is a set because the RFC describes it as one — nested inside",
+        "the header set, which is what the guidance about a header containing a set of bits asks for."
+      ]
+    },
+    {
+      "id": "cwr",
+      "kind": "field",
+      "as": "CWR",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "Congestion Window Reduced (RFC 3168)."
+    },
+    {
+      "id": "ece",
+      "kind": "field",
+      "as": "ECE",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "ECN-Echo (RFC 3168)."
+    },
+    {
+      "id": "urg",
+      "kind": "field",
+      "as": "URG",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "Urgent pointer field is significant."
+    },
+    {
+      "id": "ack",
+      "kind": "field",
+      "as": "ACK",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "Acknowledgment field is significant. Not acknowledgmentNumber — see that node."
+    },
+    {
+      "id": "psh",
+      "kind": "field",
+      "as": "PSH",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "Push function."
+    },
+    {
+      "id": "rst",
+      "kind": "field",
+      "as": "RST",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "Reset the connection."
+    },
+    {
+      "id": "syn",
+      "kind": "field",
+      "as": "SYN",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "Synchronize sequence numbers. Also what picks this segment's packing."
+    },
+    {
+      "id": "fin",
+      "kind": "field",
+      "as": "FIN",
+      "form": {
+        "of": "run",
+        "bits": 1
+      },
+      "about": "No more data from sender."
+    },
+    {
+      "id": "window",
+      "kind": "field",
+      "as": "Window",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 9293 §3.1: the number of data octets the sender of this segment is willing to accept."
+    },
+    {
+      "id": "checksum",
+      "kind": "field",
+      "as": "Checksum",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "RFC 9293 §3.1: 'the 16-bit ones' complement of the ones' complement sum of all 16-bit words in the",
+        "header and text', computed over a pseudo-header prefixed to the segment.",
+        "",
+        "The pseudo-header is a set here (see pseudoHeader) rather than something the checksum converter",
+        "knows about privately. It is laid out and then read as input, which keeps the fact that TCP's",
+        "checksum reaches outside its own header a visible part of the description."
+      ]
+    },
+    {
+      "id": "urgentPointer",
+      "kind": "field",
+      "as": "Urgent Pointer",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 9293 §3.1: 'only to be interpreted in segments with the URG control bit set.'"
+    },
+    {
+      "id": "options",
+      "kind": "set",
+      "as": "Options",
+      "about": [
+        "RFC 9293 §3.1: 'Options may occupy space at the end of the TCP header and are a multiple of 8 bits in",
+        "length.' How many there are is nowhere in the segment — Data Offset says where the header ends and",
+        "the options are whatever fills the space, which is a fact about a segment rather than about TCP.",
+        "",
+        "So going out this set is written once per item of the list it requires, and coming in the reading goes",
+        "round until the header ends. Neither direction has a count and neither needs one."
+      ]
+    },
+    {
+      "id": "data",
+      "kind": "field",
+      "as": "Data",
+      "form": {
+        "of": "opaque"
+      },
+      "about": "Everything after the header. Its extent is what the carrier says, less the header."
+    },
+    {
+      "id": "pseudoHeader",
+      "kind": "set",
+      "as": "IPv4 pseudo-header",
+      "about": [
+        "RFC 9293 §3.1: 96 bits prefixed to the segment for the checksum, and never transmitted. A set with",
+        "no step on the message path reaching it — it is laid out because the checksum requires it, which",
+        "is the only reason anything here is ever laid out."
+      ]
+    },
+    {
+      "id": "pseudo.sourceAddress",
+      "kind": "field",
+      "as": "Source Address",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": "From the carrying IPv4 datagram, not from this segment."
+    },
+    {
+      "id": "pseudo.destinationAddress",
+      "kind": "field",
+      "as": "Destination Address",
+      "form": {
+        "of": "opaque",
+        "octets": 4
+      },
+      "about": "From the carrying IPv4 datagram."
+    },
+    {
+      "id": "pseudo.zero",
+      "kind": "field",
+      "as": "zero",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "One octet of zero."
+    },
+    {
+      "id": "pseudo.protocol",
+      "kind": "field",
+      "as": "PTCL",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "The IPv4 protocol number for TCP."
+    },
+    {
+      "id": "pseudo.tcpLength",
+      "kind": "field",
+      "as": "TCP Length",
+      "form": {
+        "of": "scalar",
+        "octets": 2,
+        "big": true,
+        "signed": false
+      },
+      "about": [
+        "RFC 9293 §3.1: 'the TCP header length plus the data length in octets ... It does not count the 12",
+        "octets of the pseudo-header.'"
+      ]
+    },
+    {
+      "id": "input.sourceAddress",
+      "kind": "input",
+      "purpose": "The IPv4 source address of the datagram carrying this segment.",
+      "as": "Source Address",
+      "gives": "Bytes"
+    },
+    {
+      "id": "input.destinationAddress",
+      "kind": "input",
+      "purpose": "The IPv4 destination address of the datagram carrying this segment.",
+      "as": "Destination Address",
+      "gives": "Bytes"
+    },
+    {
+      "id": "constant.zero",
+      "kind": "constant",
+      "label": "zero",
+      "holds": {
+        "int": 0
+      },
+      "about": "What Rsrvd and the pseudo-header's zero octet are."
+    },
+    {
+      "id": "constant.protocolTcp",
+      "kind": "constant",
+      "label": "PTCL = 6",
+      "holds": {
+        "int": 6
+      },
+      "about": "The IANA protocol number for TCP, as it appears in the pseudo-header."
+    },
+    {
+      "id": "evaluated.dataOffset",
+      "kind": "evaluated",
+      "label": "header words",
+      "runs": "headerExtent / 4",
+      "about": [
+        "RFC 9293 §3.1: Data Offset is the number of 32-bit words in the header. Measured off the header",
+        "set rather than declared, which is why the header is a set: it is the thing with an extent."
+      ],
+      "gives": "Int",
+      "takes": {
+        "headerExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.tcpLength",
+      "kind": "evaluated",
+      "label": "TCP length",
+      "runs": "headerExtent + dataExtent",
+      "about": "RFC 9293 §3.1: header plus data, not counting the pseudo-header.",
+      "gives": "Int",
+      "takes": {
+        "headerExtent": "Int",
+        "dataExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.hasOptions",
+      "kind": "evaluated",
+      "label": "are there options?",
+      "runs": "dataOffset > 5",
+      "about": [
+        "What decides the optional step into the options span. An optional step with nothing deciding it",
+        "is a definition error rather than a permitted default — there is no honest thing to do with one,",
+        "since guessing from leftover octets makes presence depend on what came after."
+      ],
+      "gives": "Bool",
+      "takes": {
+        "dataOffset": "Int"
+      }
+    },
+    {
+      "id": "converted.checksum",
+      "kind": "converted",
+      "label": "ones' complement sum",
+      "applies": "onesComplementSum",
+      "args": [],
+      "about": [
+        "RFC 9293 §3.1. A converter — arithmetic over octets — not a TCP-specific step: what makes it TCP's",
+        "checksum is the three things required into it, which are named on the edges and not in here."
+      ]
+    },
+    {
+      "id": "validator.reservedZero",
+      "kind": "validator",
+      "because": "RFC 9293 §3.1: Rsrvd must be zero in a generated segment.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.dataOffset",
+      "kind": "validator",
+      "because": "A header is at least five 32-bit words and Data Offset is four bits, so 5..15.",
+      "ranges": [
+        {
+          "from": {
+            "int": 5
+          },
+          "to": {
+            "int": 15
+          }
+        }
+      ]
+    },
+    {
+      "id": "validator.port",
+      "kind": "validator",
+      "because": "A port is 16 bits unsigned.",
+      "ranges": [
+        {
+          "from": {
+            "int": 0
+          },
+          "to": {
+            "int": 65535
+          }
+        }
+      ]
+    },
+    {
+      "id": "constant.zeroChecksum",
+      "kind": "constant",
+      "label": "the checksum field, as zero",
+      "holds": {
+        "hex": "0000"
+      },
+      "about": [
+        "RFC 9293 §3.1: the checksum is computed with its own field zeroed. Here that zero is a value",
+        "joined into the octets being summed, NOT a value the checksum field holds and then stops",
+        "holding. A field with two values at two moments is not a thing worth being able to say."
+      ]
+    },
+    {
+      "id": "converted.headerForChecksum",
+      "kind": "converted",
+      "label": "the header, checksum zeroed",
+      "applies": "concat",
+      "args": [],
+      "about": [
+        "The fields before the checksum, two octets of zero, then the fields after it — options and all."
+      ]
+    },
+    {
+      "id": "input.sourcePort",
+      "kind": "input",
+      "purpose": "The port this segment is sent from.",
+      "as": "Source Port",
+      "gives": "Int"
+    },
+    {
+      "id": "input.destinationPort",
+      "kind": "input",
+      "purpose": "The port this segment is sent to.",
+      "as": "Destination Port",
+      "gives": "Int"
+    },
+    {
+      "id": "input.window",
+      "kind": "input",
+      "purpose": "How many octets the sender will accept.",
+      "as": "Window",
+      "gives": "Int"
+    },
+    {
+      "id": "input.data",
+      "kind": "input",
+      "purpose": "The payload, where there is one.",
+      "as": "Data",
+      "gives": "Bytes"
+    },
+    {
+      "id": "input.cwr",
+      "kind": "input",
+      "purpose": "Congestion Window Reduced.",
+      "as": "CWR",
+      "gives": "Int"
+    },
+    {
+      "id": "input.ece",
+      "kind": "input",
+      "purpose": "ECN-Echo.",
+      "as": "ECE",
+      "gives": "Int"
+    },
+    {
+      "id": "input.urg",
+      "kind": "input",
+      "purpose": "Urgent pointer is significant.",
+      "as": "URG",
+      "gives": "Int"
+    },
+    {
+      "id": "input.ack",
+      "kind": "input",
+      "purpose": "Acknowledgment field is significant.",
+      "as": "ACK",
+      "gives": "Int"
+    },
+    {
+      "id": "input.psh",
+      "kind": "input",
+      "purpose": "Push function.",
+      "as": "PSH",
+      "gives": "Int"
+    },
+    {
+      "id": "input.rst",
+      "kind": "input",
+      "purpose": "Reset the connection.",
+      "as": "RST",
+      "gives": "Int"
+    },
+    {
+      "id": "input.syn",
+      "kind": "input",
+      "purpose": "Synchronize sequence numbers.",
+      "as": "SYN",
+      "gives": "Int"
+    },
+    {
+      "id": "input.fin",
+      "kind": "input",
+      "purpose": "No more data from sender.",
+      "as": "FIN",
+      "gives": "Int"
+    },
+    {
+      "id": "state.sequenceNumber",
+      "kind": "state",
+      "purpose": "Where this end has got to in its own stream.",
+      "as": "Sequence Number",
+      "gives": "Int"
+    },
+    {
+      "id": "state.acknowledgmentNumber",
+      "kind": "state",
+      "purpose": "The next sequence number this end expects.",
+      "as": "Acknowledgment Number",
+      "gives": "Int"
+    },
+    {
+      "id": "constant.zeroPointer",
+      "kind": "constant",
+      "label": "no urgent data",
+      "holds": {
+        "int": 0
+      }
+    },
+    {
+      "id": "evaluated.optionsAsked",
+      "kind": "evaluated",
+      "label": "did the caller ask for options?",
+      "runs": "synchronising == 1",
+      "about": [
+        "What gates the options on the way out. It points at a state, not at the SYN flag:",
+        "whether options may be carried is a fact about where the connection has got to, and",
+        "reading the flag instead would make the arrangement depend on a field of the very",
+        "message it is arranging."
+      ],
+      "gives": "Bool",
+      "takes": {
+        "synchronising": "Bool"
+      }
+    },
+    {
+      "id": "state.synchronising",
+      "kind": "state",
+      "as": "Synchronising",
+      "purpose": "Whether this connection is still being established. RFC 9293 §3.1 allows the Maximum Segment Size option only on segments with SYN set, which is a fact about where the connection has got to rather than about this segment.",
+      "gives": "Bool"
+    },
+    {
+      "id": "parsed",
+      "kind": "end-parse",
+      "as": "end of the segment",
+      "about": [
+        "Where reading a segment is allowed to stop. Everything before the options is fixed, so the only way a",
+        "reading ends anywhere else is that the option run went wrong — which is precisely the case that would",
+        "otherwise report success having read a prefix."
+      ]
+    },
+    {
+      "id": "evaluated.moreOptions",
+      "kind": "evaluated",
+      "label": "is there another option?",
+      "runs": "position < dataOffset * 4 && optionKind != 0",
+      "about": [
+        "Two ways the option run ends, and RFC 9293 §3.1 gives both. It ends where the header ends,",
+        "which Data Offset says; and it ends at an End of Option List, after which 'the content of the",
+        "header ... MUST be header padding of zeros'.",
+        "",
+        "Without the second, the padding reads as more options — which is not even wrong, since a zero",
+        "octet IS kind 0. It is just that everything after the first one is padding rather than a run of",
+        "them."
+      ],
+      "gives": "Bool",
+      "takes": {
+        "dataOffset": "Int",
+        "optionKind": "Int"
+      }
+    },
+    {
+      "id": "option",
+      "kind": "set",
+      "as": "an option",
+      "about": [
+        "RFC 9293 §3.1 gives two cases: a single octet of option-kind, or option-kind followed by",
+        "option-length and that many octets in total. Which applies is the KIND, and the split is at two —",
+        "so this describes the shapes rather than the kinds, and an option this file has never heard of is",
+        "read and written correctly by falling into the second one."
+      ]
+    },
+    {
+      "id": "optionKind",
+      "kind": "field",
+      "as": "option-kind",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "Which option this is. One node, shared by both shapes, because it is one concept."
+    },
+    {
+      "id": "option.shape",
+      "kind": "junction",
+      "as": "which shape of option"
+    },
+    {
+      "id": "option.alone",
+      "kind": "junction",
+      "as": "a single-octet option",
+      "about": [
+        "Kinds 0 and 1 — End of Option List and No-Operation — are the whole option. A junction because the",
+        "kind octet is already written and there is nothing else to it."
+      ]
+    },
+    {
+      "id": "option.counted",
+      "kind": "set",
+      "as": "an option with a length"
+    },
+    {
+      "id": "optionLength",
+      "kind": "field",
+      "as": "option-length",
+      "form": {
+        "of": "scalar",
+        "octets": 1,
+        "big": true,
+        "signed": false
+      },
+      "about": "RFC 9293 §3.1: it counts the kind and length octets as well as the data."
+    },
+    {
+      "id": "optionData",
+      "kind": "field",
+      "as": "option-data",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "Whatever the option carries, kept as octets. Reading a Maximum Segment Size as a number here would",
+        "be this file deciding that kind 2 means something — which is true, and is a different description",
+        "from this one. What THIS says is how any option is shaped."
+      ]
+    },
+    {
+      "id": "evaluated.optionShape",
+      "kind": "evaluated",
+      "label": "which shape is this option?",
+      "runs": "optionKind <= 1",
+      "gives": "Bool",
+      "takes": {
+        "optionKind": "Int"
+      }
+    },
+    {
+      "id": "evaluated.isalone",
+      "kind": "evaluated",
+      "label": "is this the alone shape?",
+      "runs": "optionKind <= 1",
+      "gives": "Bool",
+      "takes": {
+        "optionKind": "Int"
+      }
+    },
+    {
+      "id": "evaluated.iscounted",
+      "kind": "evaluated",
+      "label": "is this the counted shape?",
+      "runs": "optionKind > 1",
+      "gives": "Bool",
+      "takes": {
+        "optionKind": "Int"
+      }
+    },
+    {
+      "id": "input.options",
+      "kind": "input",
+      "as": "Options",
+      "purpose": "The options to write, in order. Each says its kind and, where it has one, its data.",
+      "gives": "List",
+      "of": {
+        "kind": "Int",
+        "data": "Bytes"
+      }
+    },
+    {
+      "id": "evaluated.eachOptionKind",
+      "kind": "evaluated",
+      "label": "this option's kind",
+      "runs": "item.kind",
+      "gives": "Int"
+    },
+    {
+      "id": "evaluated.eachOptionData",
+      "kind": "evaluated",
+      "label": "this option's data",
+      "runs": "item.data",
+      "gives": "Bytes"
+    },
+    {
+      "id": "evaluated.optionLength",
+      "kind": "evaluated",
+      "label": "kind, length, and the data",
+      "runs": "2 + optionDataExtent",
+      "about": "RFC 9293 §3.1: the length counts its own octet and the kind's as well as the data.",
+      "gives": "Int",
+      "takes": {
+        "optionDataExtent": "Int"
+      }
+    },
+    {
+      "id": "evaluated.optionDataExtent",
+      "kind": "evaluated",
+      "label": "octets of option data",
+      "runs": "optionLength - 2",
+      "gives": "Int",
+      "takes": {
+        "optionLength": "Int"
+      }
+    },
+    {
+      "id": "headerPadding",
+      "kind": "field",
+      "as": "header padding",
+      "form": {
+        "of": "opaque"
+      },
+      "about": [
+        "RFC 9293 §3.1: 'The content of the header beyond the End of Option List Option MUST be header",
+        "padding of zeros', and Data Offset counts 32-bit words, so the options have to reach a word",
+        "boundary.",
+        "",
+        "A field that computes how wide it needs to be, rather than something the walk does quietly. Without",
+        "it a six-octet option run gives a twenty-six octet header and a Data Offset of six — off by half a",
+        "word, and wrong in a way every field after it inherits."
+      ]
+    },
+    {
+      "id": "evaluated.padding",
+      "kind": "evaluated",
+      "label": "the zeros that reach a word boundary",
+      "runs": "\"00\" |> unhex() |> repeat((4 - (optionsExtent % 4)) % 4)",
+      "about": [
+        "The padding's VALUE, not its width. A field that computed how wide it was while its value said",
+        "something else would have two answers to what it lays down, and the engine refuses the second",
+        "— which is right: an extent is a fact about a value, and giving it one of its own means the",
+        "two can disagree.",
+        "",
+        "RFC 9293 §3.1: 'The content of the header beyond the End of Option List Option MUST be header",
+        "padding of zeros', and Data Offset counts 32-bit words, so the options run has to reach one."
+      ],
+      "gives": "Bytes",
+      "takes": {
+        "optionsExtent": "Int"
+      }
+    },
+    {
+      "id": "option.end",
+      "kind": "junction",
+      "as": "the end of this option",
+      "about": [
+        "Where both shapes of option meet. A fork has no single last member, so without somewhere to converge",
+        "there is nowhere to ask whether another option is due — and the writing would go round only when the",
+        "option it had just written happened to be the shape whose last field is last."
+      ]
+    },
+    {
+      "id": "evaluated.hasPadding",
+      "kind": "evaluated",
+      "label": "is any padding needed?",
+      "runs": "(4 - (optionsExtent % 4)) % 4 > 0",
+      "gives": "Bool",
+      "takes": {
+        "optionsExtent": "Int"
+      }
+    },
+    {
+      "id": "option.next",
+      "kind": "junction",
+      "as": "another option, or the payload"
+    },
+    {
+      "id": "evaluated.paddingRead",
+      "kind": "evaluated",
+      "label": "padding octets still to come",
+      "runs": "(dataOffset * 4) - position",
+      "about": "Coming in, the padding is whatever lies between here and where Data Offset says the header ends.",
+      "gives": "Int",
+      "takes": {
+        "dataOffset": "Int"
+      }
+    },
+    {
+      "id": "evaluated.paddingFollows",
+      "kind": "evaluated",
+      "label": "is there padding to read?",
+      "runs": "position < dataOffset * 4",
+      "gives": "Bool",
+      "takes": {
+        "dataOffset": "Int"
+      }
+    },
+    {
+      "id": "state.nextSequence",
+      "kind": "state",
+      "as": "Next Sequence",
+      "gives": "Int",
+      "purpose": "RFC 9293 §3.3.1: the sequence number after this segment — SND.NXT when we wrote it and RCV.NXT when we read one, which is the same arithmetic seen from the two ends."
+    },
+    {
+      "id": "evaluated.nextSequence",
+      "kind": "evaluated",
+      "label": "the sequence number after this segment",
+      "runs": "sequence + (syn == 1 ? 1 : 0) + (fin == 1 ? 1 : 0) + payload",
+      "gives": "Int",
+      "takes": {
+        "sequence": "Int",
+        "syn": "Int",
+        "fin": "Int",
+        "payload": "Int"
+      },
+      "about": [
+        "RFC 9293 §3.3.1: a SYN and a FIN each occupy one sequence number, and the payload occupies its",
+        "own length. So what the other end should acknowledge is this, and what we send next is this —",
+        "the same sum, and which of the two it means is which direction ran it.",
+        "",
+        "It lived in the test harness until now, as `+ 1` after a SYN and `+ payload.Length` after data.",
+        "That is honest for a harness and wrong for a protocol: how far a segment advances the sequence",
+        "space is a fact about TCP."
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "kind": "then",
+      "from": "tcp",
+      "to": "segment",
+      "about": [
+        "TCP has one message format, so this is the unbranched case: one way on, no key, nothing to decide.",
+        "A protocol with a request and a response would have two of these, keyed and decided exactly as the",
+        "two packings below are — same edge, same mechanism, one scale up."
+      ]
+    },
+    {
+      "kind": "then",
+      "from": "packing.segment",
+      "to": "header"
+    },
+    {
+      "kind": "then",
+      "from": "sourcePort",
+      "to": "destinationPort"
+    },
+    {
+      "kind": "then",
+      "from": "destinationPort",
+      "to": "sequenceNumber"
+    },
+    {
+      "kind": "then",
+      "from": "sequenceNumber",
+      "to": "acknowledgmentNumber"
+    },
+    {
+      "kind": "then",
+      "from": "acknowledgmentNumber",
+      "to": "dataOffset"
+    },
+    {
+      "kind": "then",
+      "from": "dataOffset",
+      "to": "reserved"
+    },
+    {
+      "kind": "then",
+      "from": "reserved",
+      "to": "controlBits"
+    },
+    {
+      "kind": "then",
+      "from": "controlBits",
+      "to": "cwr"
+    },
+    {
+      "kind": "then",
+      "from": "cwr",
+      "to": "ece"
+    },
+    {
+      "kind": "then",
+      "from": "ece",
+      "to": "urg"
+    },
+    {
+      "kind": "then",
+      "from": "urg",
+      "to": "ack"
+    },
+    {
+      "kind": "then",
+      "from": "ack",
+      "to": "psh"
+    },
+    {
+      "kind": "then",
+      "from": "psh",
+      "to": "rst"
+    },
+    {
+      "kind": "then",
+      "from": "rst",
+      "to": "syn"
+    },
+    {
+      "kind": "then",
+      "from": "syn",
+      "to": "fin"
+    },
+    {
+      "kind": "then",
+      "from": "fin",
+      "to": "window"
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "cwr",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "ece",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "urg",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "ack",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "psh",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "rst",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "syn",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "controlBits",
+      "to": "fin",
+      "order": 7
+    },
+    {
+      "kind": "holds",
+      "from": "pseudoHeader",
+      "to": "pseudo.sourceAddress",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "pseudoHeader",
+      "to": "pseudo.destinationAddress",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "pseudoHeader",
+      "to": "pseudo.zero",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "pseudoHeader",
+      "to": "pseudo.protocol",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "pseudoHeader",
+      "to": "pseudo.tcpLength",
+      "order": 4
+    },
+    {
+      "kind": "computes",
+      "from": "reserved",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "pseudo.zero",
+      "to": "constant.zero",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "pseudo.protocol",
+      "to": "constant.protocolTcp",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "dataOffset",
+      "to": "evaluated.dataOffset",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.dataOffset",
+      "to": "header",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "headerExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "pseudo.tcpLength",
+      "to": "evaluated.tcpLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.tcpLength",
+      "to": "header",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "headerExtent"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.tcpLength",
+      "to": "data",
+      "facet": "extent",
+      "sequence": 1,
+      "parameter": "dataExtent"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasOptions",
+      "to": "dataOffset",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "dataOffset"
+    },
+    {
+      "kind": "checks",
+      "from": "reserved",
+      "to": "validator.reservedZero",
+      "order": 0,
+      "because": "RFC 9293 §3.1: Rsrvd must be zero in generated segments."
+    },
+    {
+      "kind": "checks",
+      "from": "dataOffset",
+      "to": "validator.dataOffset",
+      "order": 0,
+      "because": "A header shorter than five words has no room for its own fixed fields."
+    },
+    {
+      "kind": "checks",
+      "from": "sourcePort",
+      "to": "validator.port",
+      "order": 0
+    },
+    {
+      "kind": "checks",
+      "from": "destinationPort",
+      "to": "validator.port",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "header.beforeChecksum",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "checksum",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header",
+      "to": "header.afterChecksum",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "sourcePort",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "destinationPort",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "sequenceNumber",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "acknowledgmentNumber",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "dataOffset",
+      "order": 4
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "reserved",
+      "order": 5
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "controlBits",
+      "order": 6
+    },
+    {
+      "kind": "holds",
+      "from": "header.beforeChecksum",
+      "to": "window",
+      "order": 7
+    },
+    {
+      "kind": "then",
+      "from": "header",
+      "to": "header.beforeChecksum"
+    },
+    {
+      "kind": "then",
+      "from": "header.beforeChecksum",
+      "to": "sourcePort"
+    },
+    {
+      "kind": "then",
+      "from": "window",
+      "to": "checksum"
+    },
+    {
+      "kind": "then",
+      "from": "checksum",
+      "to": "header.afterChecksum"
+    },
+    {
+      "kind": "then",
+      "from": "header.afterChecksum",
+      "to": "urgentPointer"
+    },
+    {
+      "kind": "then",
+      "from": "pseudoHeader",
+      "to": "pseudo.sourceAddress"
+    },
+    {
+      "kind": "then",
+      "from": "pseudo.sourceAddress",
+      "to": "pseudo.destinationAddress"
+    },
+    {
+      "kind": "then",
+      "from": "pseudo.destinationAddress",
+      "to": "pseudo.zero"
+    },
+    {
+      "kind": "then",
+      "from": "pseudo.zero",
+      "to": "pseudo.protocol"
+    },
+    {
+      "kind": "then",
+      "from": "pseudo.protocol",
+      "to": "pseudo.tcpLength"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.headerForChecksum",
+      "to": "header.beforeChecksum",
+      "facet": "octets",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "converted.headerForChecksum",
+      "to": "constant.zeroChecksum",
+      "facet": "value",
+      "sequence": 1
+    },
+    {
+      "kind": "requires",
+      "from": "converted.headerForChecksum",
+      "to": "header.afterChecksum",
+      "facet": "octets",
+      "sequence": 2
+    },
+    {
+      "kind": "computes",
+      "from": "checksum",
+      "to": "converted.checksum",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "converted.checksum",
+      "to": "pseudoHeader",
+      "facet": "octets",
+      "sequence": 0
+    },
+    {
+      "kind": "requires",
+      "from": "converted.checksum",
+      "to": "converted.headerForChecksum",
+      "facet": "value",
+      "sequence": 1
+    },
+    {
+      "kind": "requires",
+      "from": "converted.checksum",
+      "to": "data",
+      "facet": "value",
+      "sequence": 2
+    },
+    {
+      "kind": "computes",
+      "from": "urgentPointer",
+      "to": "constant.zeroPointer",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "sourcePort",
+      "to": "input.sourcePort",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "destinationPort",
+      "to": "input.destinationPort",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "window",
+      "to": "input.window",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "data",
+      "to": "input.data",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "cwr",
+      "to": "input.cwr",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ece",
+      "to": "input.ece",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "urg",
+      "to": "input.urg",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "ack",
+      "to": "input.ack",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "psh",
+      "to": "input.psh",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "rst",
+      "to": "input.rst",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "syn",
+      "to": "input.syn",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "fin",
+      "to": "input.fin",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "sequenceNumber",
+      "to": "state.sequenceNumber",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "acknowledgmentNumber",
+      "to": "state.acknowledgmentNumber",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "pseudo.sourceAddress",
+      "to": "input.sourceAddress",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "pseudo.destinationAddress",
+      "to": "input.destinationAddress",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "segment",
+      "to": "packing.segment"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionsAsked",
+      "to": "state.synchronising",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "synchronising"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreOptions",
+      "to": "dataOffset",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "dataOffset"
+    },
+    {
+      "kind": "decode",
+      "from": "data",
+      "to": "parsed"
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "optionKind",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.shape",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.alone",
+      "order": 2
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.counted",
+      "order": 3
+    },
+    {
+      "kind": "holds",
+      "from": "option.counted",
+      "to": "optionLength",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "option.counted",
+      "to": "optionData",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "options",
+      "to": "option",
+      "order": 0
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionShape",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "optionKind"
+    },
+    {
+      "kind": "decides",
+      "from": "option.shape",
+      "to": "evaluated.optionShape"
+    },
+    {
+      "kind": "then",
+      "from": "option.shape",
+      "to": "option.alone",
+      "key": {
+        "bool": true
+      },
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "option.shape",
+      "to": "option.counted",
+      "key": {
+        "bool": false
+      },
+      "optional": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.isalone",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "optionKind"
+    },
+    {
+      "kind": "computes",
+      "from": "option.alone",
+      "to": "evaluated.isalone",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.iscounted",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "optionKind"
+    },
+    {
+      "kind": "computes",
+      "from": "option.counted",
+      "to": "evaluated.iscounted",
+      "facet": "presence"
+    },
+    {
+      "kind": "requires",
+      "from": "options",
+      "to": "input.options",
+      "facet": "each",
+      "sequence": 0
+    },
+    {
+      "kind": "computes",
+      "from": "optionKind",
+      "to": "evaluated.eachOptionKind",
+      "facet": "value"
+    },
+    {
+      "kind": "computes",
+      "from": "optionData",
+      "to": "evaluated.eachOptionData",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionLength",
+      "to": "optionData",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "optionDataExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "optionLength",
+      "to": "evaluated.optionLength",
+      "facet": "value"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.optionDataExtent",
+      "to": "optionLength",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "optionLength"
+    },
+    {
+      "kind": "computes",
+      "from": "optionData",
+      "to": "evaluated.optionDataExtent",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.padding",
+      "to": "options",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "optionsExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.padding",
+      "facet": "value"
+    },
+    {
+      "kind": "then",
+      "from": "urgentPointer",
+      "to": "options",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "options",
+      "to": "option"
+    },
+    {
+      "kind": "then",
+      "from": "option",
+      "to": "optionKind"
+    },
+    {
+      "kind": "then",
+      "from": "optionKind",
+      "to": "option.shape"
+    },
+    {
+      "kind": "then",
+      "from": "option.counted",
+      "to": "optionLength"
+    },
+    {
+      "kind": "then",
+      "from": "optionLength",
+      "to": "optionData"
+    },
+    {
+      "kind": "holds",
+      "from": "option",
+      "to": "option.end",
+      "order": 4
+    },
+    {
+      "kind": "then",
+      "from": "option.alone",
+      "to": "option.end"
+    },
+    {
+      "kind": "then",
+      "from": "optionData",
+      "to": "option.end"
+    },
+    {
+      "kind": "then",
+      "from": "option.end",
+      "to": "headerPadding",
+      "optional": true
+    },
+    {
+      "kind": "then",
+      "from": "headerPadding",
+      "to": "data",
+      "optional": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.hasPadding",
+      "to": "options",
+      "facet": "extent",
+      "sequence": 0,
+      "parameter": "optionsExtent"
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.hasPadding",
+      "facet": "presence"
+    },
+    {
+      "kind": "decides",
+      "from": "option.next",
+      "to": "evaluated.moreOptions",
+      "reading": true
+    },
+    {
+      "kind": "decode",
+      "from": "urgentPointer",
+      "to": "options"
+    },
+    {
+      "kind": "decode",
+      "from": "options",
+      "to": "option"
+    },
+    {
+      "kind": "decode",
+      "from": "option",
+      "to": "optionKind"
+    },
+    {
+      "kind": "decode",
+      "from": "optionKind",
+      "to": "option.shape"
+    },
+    {
+      "kind": "decode",
+      "from": "option.shape",
+      "to": "option.alone",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "option.shape",
+      "to": "option.counted",
+      "key": {
+        "bool": false
+      }
+    },
+    {
+      "kind": "decode",
+      "from": "option.counted",
+      "to": "optionLength"
+    },
+    {
+      "kind": "decode",
+      "from": "optionLength",
+      "to": "optionData"
+    },
+    {
+      "kind": "decode",
+      "from": "option.alone",
+      "to": "option.end"
+    },
+    {
+      "kind": "decode",
+      "from": "optionData",
+      "to": "option.end"
+    },
+    {
+      "kind": "decode",
+      "from": "option.end",
+      "to": "option.next"
+    },
+    {
+      "kind": "decode",
+      "from": "option.next",
+      "to": "option",
+      "key": {
+        "bool": true
+      }
+    },
+    {
+      "kind": "holds",
+      "from": "header.afterChecksum",
+      "to": "urgentPointer",
+      "order": 0
+    },
+    {
+      "kind": "holds",
+      "from": "header.afterChecksum",
+      "to": "options",
+      "order": 1
+    },
+    {
+      "kind": "holds",
+      "from": "header.afterChecksum",
+      "to": "headerPadding",
+      "order": 2
+    },
+    {
+      "kind": "computes",
+      "from": "options",
+      "to": "evaluated.optionsAsked",
+      "facet": "presence",
+      "reading": false
+    },
+    {
+      "kind": "computes",
+      "from": "options",
+      "to": "evaluated.hasOptions",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.moreOptions",
+      "to": "optionKind",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "optionKind"
+    },
+    {
+      "kind": "decode",
+      "from": "option.next",
+      "to": "headerPadding",
+      "otherwise": true
+    },
+    {
+      "kind": "decode",
+      "from": "headerPadding",
+      "to": "data"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.paddingRead",
+      "to": "dataOffset",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "dataOffset"
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.paddingRead",
+      "facet": "extent",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.paddingFollows",
+      "to": "dataOffset",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "dataOffset"
+    },
+    {
+      "kind": "computes",
+      "from": "headerPadding",
+      "to": "evaluated.paddingFollows",
+      "facet": "presence",
+      "reading": true
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.nextSequence",
+      "to": "syn",
+      "facet": "value",
+      "sequence": 0,
+      "parameter": "syn"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.nextSequence",
+      "to": "fin",
+      "facet": "value",
+      "sequence": 1,
+      "parameter": "fin"
+    },
+    {
+      "kind": "requires",
+      "from": "evaluated.nextSequence",
+      "to": "data",
+      "facet": "extent",
+      "sequence": 2,
+      "parameter": "payload"
+    },
+    {
+      "kind": "updates",
+      "from": "sequenceNumber",
+      "to": "evaluated.nextSequence",
+      "parameter": "sequence"
+    },
+    {
+      "kind": "updates",
+      "from": "evaluated.nextSequence",
+      "to": "state.nextSequence"
+    }
+  ]
+}

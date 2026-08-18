@@ -69,6 +69,18 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Svg/Nexaflow.Features.Svg.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network/Nexaflow.Features.Network.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Arp/Nexaflow.Features.Network.Arp.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Actions/Nexaflow.Features.Network.Actions.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Network.Ssdp/Nexaflow.Features.Network.Ssdp.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj">
       <Platform Project="x64" />
     </Project>
@@ -164,6 +176,9 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/Nexaflow.Tests.Fixtures.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj" Id="326ee97c-f425-4981-a59a-76072e0ed179">
       <Platform Project="x64" />
     </Project>
@@ -181,7 +196,21 @@
   <Project Path="src/Nexaflow.IO.Pe/Nexaflow.IO.Pe.csproj">
     <Platform Project="x64" />
   </Project>
+  <!-- WPF-free network leaf: device graph, discovery contracts, send guard, transports. -->
+  <!-- The DynamicProtocol engine. Zero refs by design: no socket API is in scope, so a protocol
+       document cannot reach the network from here even by accident. -->
+  <Project Path="src/Nexaflow.IO.Protocol/Nexaflow.IO.Protocol.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.IO.Network/Nexaflow.IO.Network.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="src/Nexaflow.IO.Terminal/Nexaflow.IO.Terminal.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- Subfeature metadata ([Subfeature] + ISubfeatureHandle<T>). Dependency-free by design so a plugin
+       assembly can declare itself without dragging in WPF via Features.Common. -->
+  <Project Path="src/Nexaflow.Plugins.Contracts/Nexaflow.Plugins.Contracts.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- The search query language: syntax, terms, scoring. Shared behaviour, not contracts. -->

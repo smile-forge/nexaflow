@@ -60,6 +60,10 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Network.Arp\Nexaflow.Features.Network.Arp.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Network\Nexaflow.Features.Network.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Network.Ssdp\Nexaflow.Features.Network.Ssdp.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Network.Actions\Nexaflow.Features.Network.Actions.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Notebook\Nexaflow.Features.Notebook.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.OneDrive\Nexaflow.Features.OneDrive.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Pdf\Nexaflow.Features.Pdf.csproj" />
@@ -105,6 +109,10 @@
     <ProjectReference Include="..\Nexaflow.Visuals.Terminal\Nexaflow.Visuals.Terminal.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+
+    <!-- Subfeature metadata. Core reads [Subfeature] during the catalog scan and hands host features their
+         plugin sets; the attribute lives in a dependency-free leaf so a plugin assembly stays WPF-free. -->
+    <ProjectReference Include="..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
 
     <!-- Elevation: the launcher uses the contract DTOs (real ref). The bridge exe is referenced for build
          ordering only (ReferenceOutputAssembly=false) — CopyPrivilegeBridge places its output explicitly. -->

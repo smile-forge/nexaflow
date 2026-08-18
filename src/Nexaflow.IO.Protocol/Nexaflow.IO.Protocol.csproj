@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The DynamicProtocol engine: a declarative, data-driven protocol codec.
+
+    ZERO project references, and that is the single most important property of this assembly. The engine
+    has NO socket API in scope — System.Net.Sockets types never appear in anything it can name — so a
+    protocol document, including one an LLM wrote, cannot reach the network from here even by accident.
+    It encodes to byte[] plus a send *intent*, and consumes bytes from a transport it is handed.
+    Containment is structural rather than procedural, because a policy can be got around and a missing
+    reference cannot.
+
+    Consequences worth keeping: the whole engine unit-tests against a synthetic transport with no
+    networking at all, and it is reusable for serial/USB/BLE later without touching the guard.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+</Project>

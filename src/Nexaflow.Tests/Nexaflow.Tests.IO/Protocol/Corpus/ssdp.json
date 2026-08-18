@@ -1,0 +1,164 @@
+{
+  "protocol": "SSDP (UPnP 1.1 discovery) — M-SEARCH request + 200 OK response, HTTPU over UDP multicast 239.255.255.250:1900",
+  "slug": "ssdp",
+  "captures": [
+    {
+      "label": "M-SEARCH * HTTP/1.1 (control point -> 239.255.255.250:1900, UDP, src ephemeral port)",
+      "hex": "4d 2d 53 45 41 52 43 48 20 2a 20 48 54 54 50 2f 31 2e 31 0d 0a 48 4f 53 54 3a 20 32 33 39 2e 32 35 35 2e 32 35 35 2e 32 35 30 3a 31 39 30 30 0d 0a 4d 41 4e 3a 20 22 73 73 64 70 3a 64 69 73 63 6f 76 65 72 22 0d 0a 4d 58 3a 20 33 0d 0a 53 54 3a 20 73 73 64 70 3a 61 6c 6c 0d 0a 55 53 45 52 2d 41 47 45 4e 54 3a 20 57 69 6e 64 6f 77 73 2f 31 30 2e 30 20 55 50 6e 50 2f 31 2e 31 20 4e 65 78 61 66 6c 6f 77 2f 31 2e 30 0d 0a 0d 0a",
+      "fieldBreakdown": "0:8:request.method:M-SEARCH\n8:1:SP:0x20\n9:1:request.target:* (asterisk-form, no origin-form URI)\n10:1:SP:0x20\n11:8:request.version:HTTP/1.1\n19:2:CRLF:0d0a (end of request-line)\n21:4:header[0].name:HOST\n25:1:COLON:0x3a\n26:1:OWS:0x20\n27:20:header[0].value:239.255.255.250:1900\n47:2:CRLF:0d0a\n49:3:header[1].name:MAN\n52:1:COLON:0x3a\n53:1:OWS:0x20\n54:15:header[1].value:\"ssdp:discover\" (the double quotes are ON THE WIRE, bytes 54 and 68 are 0x22)\n69:2:CRLF:0d0a\n71:2:header[2].name:MX\n73:1:COLON:0x3a\n74:1:OWS:0x20\n75:1:header[2].value:3 (0x33, decimal ASCII, legal range 1..5)\n76:2:CRLF:0d0a\n78:2:header[3].name:ST\n80:1:COLON:0x3a\n81:1:OWS:0x20\n82:8:header[3].value:ssdp:all\n90:2:CRLF:0d0a\n92:10:header[4].name:USER-AGENT\n102:1:COLON:0x3a\n103:1:OWS:0x20\n104:34:header[4].value:Windows/10.0 UPnP/1.1 Nexaflow/1.0\n138:2:CRLF:0d0a\n140:2:CRLF:0d0a (blank line = end of header section = end of message; there is no body and no Content-Length)\nTOTAL:142 bytes",
+      "notes": "Every byte is US-ASCII; there is not one binary field, not one length field, and not one fixed-width field in the whole datagram. Field extents are determined ONLY by the delimiters 0x3a (colon), 0x20 (OWS) and 0d0a. Values I chose because the capture needed a legal one: USER-AGENT product tokens, and MX=3. HOST is mandatory and is fixed by the spec to the SSDP group; on IPv6 it would read [FF02::C]:1900 instead. Header ORDER here (HOST, MAN, MX, ST, USER-AGENT) is the conventional Windows ordering but is NOT normative — any permutation is the same message."
+    },
+    {
+      "label": "HTTP/1.1 200 OK (device -> control point, UDP unicast back to the requester's source port, within 0..MX seconds)",
+      "hex": "48 54 54 50 2f 31 2e 31 20 32 30 30 20 4f 4b 0d 0a 43 41 43 48 45 2d 43 4f 4e 54 52 4f 4c 3a 20 6d 61 78 2d 61 67 65 3d 31 38 30 30 0d 0a 44 41 54 45 3a 20 53 75 6e 2c 20 30 39 20 41 75 67 20 32 30 32 36 20 31 32 3a 30 30 3a 30 30 20 47 4d 54 0d 0a 45 58 54 3a 0d 0a 4c 4f 43 41 54 49 4f 4e 3a 20 68 74 74 70 3a 2f 2f 31 39 32 2e 31 36 38 2e 31 2e 34 32 3a 34 39 31 35 32 2f 64 65 73 63 72 69 70 74 69 6f 6e 2e 78 6d 6c 0d 0a 53 45 52 56 45 52 3a 20 4c 69 6e 75 78 2f 34 2e 39 20 55 50 6e 50 2f 31 2e 31 20 4d 69 6e 69 44 4c 4e 41 2f 31 2e 33 2e 30 0d 0a 53 54 3a 20 75 70 6e 70 3a 72 6f 6f 74 64 65 76 69 63 65 0d 0a 55 53 4e 3a 20 75 75 69 64 3a 34 64 36 39 36 65 36 39 2d 34 34 34 63 2d 31 36 34 65 2d 39 64 34 31 2d 62 38 32 37 65 62 32 66 31 63 33 61 3a 3a 75 70 6e 70 3a 72 6f 6f 74 64 65 76 69 63 65 0d 0a 42 4f 4f 54 49 44 2e 55 50 4e 50 2e 4f 52 47 3a 20 31 0d 0a 43 4f 4e 46 49 47 49 44 2e 55 50 4e 50 2e 4f 52 47 3a 20 31 0d 0a 0d 0a",
+      "fieldBreakdown": "0:8:status.version:HTTP/1.1\n8:1:SP:0x20\n9:3:status.code:200\n12:1:SP:0x20\n13:2:status.reason:OK\n15:2:CRLF:0d0a (end of status-line)\n17:13:header[0].name:CACHE-CONTROL\n30:1:COLON:0x3a\n31:1:OWS:0x20\n32:12:header[0].value:max-age=1800 (sub-structure: 'max-age' 0x6d61782d616765, '=' 0x3d, '1800' decimal ASCII)\n44:2:CRLF:0d0a\n46:4:header[1].name:DATE\n50:1:COLON:0x3a\n51:1:OWS:0x20\n52:29:header[1].value:Sun, 09 Aug 2026 12:00:00 GMT (RFC 1123 IMF-fixdate; sub-structure: dayname 3 + ', ' 2 + day 2 + SP + month 3 + SP + year 4 + SP + hh:mm:ss 8 + SP + 'GMT' 3)\n81:2:CRLF:0d0a\n83:3:header[2].name:EXT\n86:1:COLON:0x3a\n87:2:CRLF:0d0a  <-- NOTE: NO OWS AND NO VALUE. Byte 87 is 0x0d, not 0x20. The 'name COLON SP value CRLF' template does not hold uniformly even inside one packet.\n89:8:header[3].name:LOCATION\n97:1:COLON:0x3a\n98:1:OWS:0x20\n99:41:header[3].value:http://192.168.1.42:49152/description.xml (sub-structure: scheme 'http://' 7 + host 12 + ':' 1 + port '49152' 5 + path '/description.xml' 16)\n140:2:CRLF:0d0a\n142:6:header[4].name:SERVER\n148:1:COLON:0x3a\n149:1:OWS:0x20\n150:33:header[4].value:Linux/4.9 UPnP/1.1 MiniDLNA/1.3.0 (mandated 3-token form: OS/ver SP UPnP/1.1 SP product/ver)\n183:2:CRLF:0d0a\n185:2:header[5].name:ST\n187:1:COLON:0x3a\n188:1:OWS:0x20\n189:15:header[5].value:upnp:rootdevice (NOT the requested ssdp:all -- the responder substitutes its own target)\n204:2:CRLF:0d0a\n206:3:header[6].name:USN\n209:1:COLON:0x3a\n210:1:OWS:0x20\n211:58:header[6].value:uuid:4d696e69-444c-164e-9d41-b827eb2f1c3a::upnp:rootdevice (sub-structure: 'uuid:' 5 + UUID 36 + '::' 2 + ST-echo 15; the '::'+suffix is ABSENT when ST is the bare uuid form)\n269:2:CRLF:0d0a\n271:15:header[7].name:BOOTID.UPNP.ORG\n286:1:COLON:0x3a\n287:1:OWS:0x20\n288:1:header[7].value:1 (decimal ASCII epoch counter)\n289:2:CRLF:0d0a\n291:17:header[8].name:CONFIGID.UPNP.ORG\n308:1:COLON:0x3a\n309:1:OWS:0x20\n310:1:header[8].value:1 (decimal ASCII)\n311:2:CRLF:0d0a\n313:2:CRLF:0d0a (blank line = end of message; no body, no Content-Length)\nTOTAL:315 bytes",
+      "notes": "Legal values I chose rather than captured: the UUID (4d696e69-444c-164e-9d41-b827eb2f1c3a — version nibble 1, variant nibble 9, so a well-formed RFC 4122 v1 UUID), the LOCATION host/port, the SERVER product token, and the DATE. DATE is optional in UPnP; I included it because it is the field that breaks the converter set. EXT is written in its canonical no-value form 'EXT:' — many real stacks emit 'EXT: ' with a trailing space, which is the SAME message but 316 bytes. A root device answering ssdp:all sends N SEPARATE datagrams like this one (rootdevice, uuid:<id>, and one per embedded device/service type), each differing only in ST/USN."
+    }
+  ],
+  "v0Encodable": true,
+  "v0Decodable": false,
+  "v0RoundTrips": false,
+  "statefulness": "See the `statefulness` analysis field — full text supplied there.",
+  "gaps": [
+    {
+      "severity": "blocking",
+      "what": "No delimiter-terminated field kind. Every field extent in both captures is set by a delimiter, never by a width or a length prefix.",
+      "why": "Response bytes 17..43 are `CACHE-CONTROL: max-age=1800`. The name ends at the 0x3a at offset 30, the value ends at the 0d0a at offset 44. Nothing in the datagram says 13 or 12. Every width-bearing construct in §3 — scalars, `repeat:n`, `skip:n`, `pad:{to}`, `each:<count>` — requires a statically known or already-captured length, and SSDP has no length field anywhere in its 315 bytes. The showpiece two-pass `len(group:X)` back-patcher is 100% unused by this protocol.",
+      "fixKind": "fieldKind",
+      "proposedFix": "{ \"until\": \"0d0a\", \"as\": \"line\", \"consume\": true, \"max\": 2048 }  // and { \"until\": \"3a\", \"as\": \"name\" }. Decode: scan forward to the delimiter, capture the span before it, optionally consume it. Encode: emit the value then the delimiter, and validate at document-validate time that the value cannot contain the delimiter. `max` keeps the packet bound computable in the spirit of §4's loop bound."
+    },
+    {
+      "severity": "blocking",
+      "what": "No repeat-until-sentinel. The number of headers is unknown, unbounded, and stated nowhere in the bytes.",
+      "why": "The request carries 5 headers, the response 9. The only signal that the header section has ended is the empty line — 0d0a at 140 in the request, 0d0a at 313 in the response. §3's `each` takes either a count expression (`capture.byteCount / 2`) or a list to iterate; there is no count to give it, and the list does not exist until after parsing. So the header section cannot be iterated at all.",
+      "fixKind": "fieldKind",
+      "proposedFix": "{ \"repeatUntil\": { \"peek\": \"0d0a\" }, \"max\": 64, \"as\": \"headers\", \"fields\": [ … ] }  // `peek` tests without consuming; the loop exits on the blank line, which is then consumed by an explicit { \"expect\": \"0d0a\" }. `max` is a constant <= 256, mirroring §4's declared-cycle rule so the bound stays static."
+    },
+    {
+      "severity": "blocking",
+      "what": "No unordered key/value field kind. Header order is not significant in SSDP, but a v0 field list is strictly positional.",
+      "why": "My response emits CACHE-CONTROL, DATE, EXT, LOCATION, SERVER, ST, USN, BOOTID, CONFIGID. A different device emits exactly the same message as ST, USN, LOCATION, SERVER, CACHE-CONTROL — and my positional parse reads `upnp:rootdevice` (offset 189) into the field named cacheControl. Both are valid SSDP. The grammar cannot express 'a set of named items in any order', so byte-order-dependent parsing is the only option and it is wrong for the protocol.",
+      "fixKind": "fieldKind",
+      "proposedFix": "{ \"headers\": { \"kind\": \"httpHeaders\", \"terminator\": \"0d0a0d0a\", \"nameFold\": \"lower\", \"keepRaw\": true, \"as\": \"hdrs\" } }  // one field kind that owns the whole header section, emits a Map, and stores per-entry { rawName, ows, value, index } so re-encode is verbatim."
+    },
+    {
+      "severity": "blocking",
+      "what": "ProtoValue has no Map kind, so parsed headers have nowhere to live and no way to be addressed.",
+      "why": "§6 defines ProtoValue as Bytes | Int | Text | List. Even given the field kind above, `capture.hdrs['location']` is not expressible — a List of pairs cannot be indexed by name (there is no record type and `each … as:\"r\"` binds a scalar). Downstream, `emits` needs `capture.hdrs.usn` and `effects` needs `capture.hdrs.cacheControl`; both are unreachable.",
+      "fixKind": "engine",
+      "proposedFix": "Add Map to ProtoValue and two converters: `key(name)` (Map -> Text, case-folded lookup, first match) and `all(name)` (Map -> List, for repeated headers). Then `capture.hdrs | key('location')`. Type-checkable at validate time like every other converter, so §6's validate-time guarantee survives."
+    },
+    {
+      "severity": "blocking",
+      "what": "No Int <-> decimal-ASCII converter. Every number in this protocol is decimal text and the closed converter set cannot produce or consume it.",
+      "why": "Request byte 75 is 0x33, the decimal digit 3, for MX. Response bytes 40..43 are `1800`, 9..11 are `200`, 288 is `1` (BOOTID), 310 is `1` (CONFIGID), and 120..124 inside LOCATION are the port `49152`. §6's encode group is hex/base64/mac/ip/dnsName; the numeric group is binary widths (u16be etc.); `hexint` gives hex. Nothing maps Int 3 -> the byte 0x33 or the byte 0x33 -> Int 3. Consequence: every numeric input must be declared `type: text`, which kills range validation (MX must be 1..5), kills arithmetic (the listen window is mx*1000), and makes `capture.statusCode == 200` a type error.",
+      "fixKind": "converter",
+      "proposedFix": "Add to the numeric group: `decimal` (Int -> Text, optional width/zero-pad arg: `decimal(2,'0')` for the day field of DATE) and `undecimal` (Text -> Int, strict, rejects leading +/space/empty). Then `inputs.mx | decimal | ascii` and `capture.statusCode | undecimal == 200`. Smallest possible fix and it unblocks every text protocol, not just this one."
+    },
+    {
+      "severity": "major",
+      "what": "No RFC 1123 / IMF-fixdate converter, so the DATE header cannot be generated.",
+      "why": "Response bytes 52..80 are `Sun, 09 Aug 2026 12:00:00 GMT` — 29 bytes with an English day abbreviation, an English month abbreviation, a zero-padded day, and a literal GMT. §6's time group offers epochSeconds, epochMillis, ntpTimestamp, iso8601. `now.utc | iso8601` yields `2026-08-09T12:00:00Z` — wrong length, wrong content, wrong every byte. The only in-spec workaround is to accept the whole 29 bytes as an opaque text input, at which point the grammar validates nothing.",
+      "fixKind": "converter",
+      "proposedFix": "Add `httpDate` (Instant -> Text, IMF-fixdate, always GMT, C-locale names) and `unhttpDate` (Text -> Instant, accepting the two obsolete RFC 850 / asctime forms on decode per RFC 7231 but emitting only IMF-fixdate). Then `{ \"value\": \"now.utc | httpDate | ascii\" }`. Note the decode direction is deliberately more permissive than encode — the converter table should be allowed to declare that asymmetry."
+    },
+    {
+      "severity": "blocking",
+      "what": "The udp layer has no multicast configuration. §2 describes it as 'engine sets ports + broadcast flag', and broadcast is not multicast.",
+      "why": "This datagram must go to 239.255.255.250:1900 with IP_MULTICAST_TTL=2 (UPnP mandates TTL 2 by default), IP_MULTICAST_IF pinned to a chosen adapter (a multihomed host with a VPN will otherwise send it out the wrong interface and discover nothing), and loopback typically disabled. To receive NOTIFY announcements the socket must additionally bind port 1900 with SO_REUSEADDR and issue IP_ADD_MEMBERSHIP for the group. `adapter.*` exposes ip/mac/broadcast/prefix/gateway — a broadcast address, which is the wrong mechanism. Every udp-layer key in my encode document is invented because v0 specifies none.",
+      "fixKind": "layer",
+      "proposedFix": "Specify the udp layer schema and add a multicast block: { \"kind\":\"udp\", \"dst\":{\"ip\":\"239.255.255.250\",\"port\":1900}, \"bind\":{\"port\":0}, \"multicast\":{ \"join\":true, \"group\":\"239.255.255.250\", \"ttl\":2, \"iface\":\"adapter.ip\", \"loopback\":false, \"reuseAddr\":true } }. Also needed for mDNS, LLMNR, WS-Discovery and Bonjour, so it generalises well beyond SSDP."
+    },
+    {
+      "severity": "major",
+      "what": "No `dest.*` expression path, so the HOST header duplicates the transport destination with nothing keeping them in sync.",
+      "why": "Request bytes 27..46 spell `239.255.255.250:1900` as a const. The udp layer separately targets the same address. HTTP requires HOST to name the destination, and for IPv6 SSDP it must read `[FF02::C]:1900` (link-local) or `[FF05::C]:1900` (site-local) — different bytes AND different bracket syntax. Retarget the transport and these 20 bytes stay silently, wrongly the same.",
+      "fixKind": "expression",
+      "proposedFix": "Expose `dest.ip`, `dest.port`, and `dest.hostport` (already bracket-correct for IPv6) as expression paths resolved from the enclosing transport layer, then write { \"value\": \"dest.hostport | ascii\" }. One derived value, no duplication, correct across address families."
+    },
+    {
+      "severity": "major",
+      "what": "`broadcast` correlation yields a list, but there is no per-item scope — so N discovered devices cannot become N facts.",
+      "why": "This is the entire point of M-SEARCH. One request produces many unicast replies over the MX window, from many devices, and a single root device legitimately sends several non-duplicate replies to `ssdp:all` (one for upnp:rootdevice as captured, one for uuid:<id>, one per embedded device and service type), differing only in ST (bytes 189..203) and USN (211..268). §4 says broadcast 'yields a list'; §1 says `emits` is 'capture -> DeviceFact bindings', singular, and `capture.*` is scalar-shaped throughout §6. There is no `capture[i]`, no iteration on emitFact, and no grouping key.",
+      "fixKind": "stateModel",
+      "proposedFix": "{ \"id\":\"record\", \"kind\":\"emitFact\", \"forEach\":\"capture.responses\", \"as\":\"r\", \"identity\":\"r.hdrs | key('usn') | split('::') | index(0)\", \"groupBy\":\"identity\", \"facts\": { \"dev.upnp.location\":\"r.hdrs | key('location')\", \"dev.upnp.server\":\"r.hdrs | key('server')\" } }  // plus the `index(n)` list converter, which §6 also lacks."
+    },
+    {
+      "severity": "major",
+      "what": "`token` correlation is unsound for SSDP: the obvious token deliberately does not echo.",
+      "why": "The natural correlator is the ST echo. But request bytes 82..89 are `ssdp:all` while response bytes 189..203 are `upnp:rootdevice` — the responder substitutes its own target and MUST do so. A token correlator configured on ST silently drops every reply to the most common search there is. Correlation is really (ephemeral source port) + (MX time window) + (a conditional ST predicate).",
+      "fixKind": "stateModel",
+      "proposedFix": "{ \"correlate\": { \"kind\":\"predicate\", \"when\": \"inputs.searchTarget == 'ssdp:all' || capture.hdrs | key('st') == inputs.searchTarget\", \"collect\": \"all\", \"windowMs\": \"inputs.mx | undecimal * 1000 + 500\" } }  // generalises `token` (which is just the equality case) rather than adding a fourth correlation kind."
+    },
+    {
+      "severity": "major",
+      "what": "`effects.ttl` is a literal duration; SSDP's fact lifetime is declared by the device in the response body.",
+      "why": "Response bytes 32..43 are `max-age=1800`: the device is asserting 'presume me present for 1800 seconds and then stop'. §5 shows `\"ttl\": \"PT30S\"` — a constant. A constant TTL either expires live devices early or, far worse, keeps dead devices in the graph indefinitely. Soft-state expiry IS SSDP; a hardcoded TTL is not an approximation of it, it is a different protocol.",
+      "fixKind": "stateModel",
+      "proposedFix": "Allow ttl to be an expression and add one converter: { \"effects\": { \"presume\": {...}, \"confidence\":\"likely\", \"ttl\": \"capture.hdrs | key('cacheControl') | regex('max-age=(\\\\d+)',1) | undecimal | seconds\" } }, where `seconds` is Int -> Duration in the time group. `regex` already exists in the text group."
+    },
+    {
+      "severity": "major",
+      "what": "No epoch/generation invalidation primitive. BOOTID is the real state variable and §5 has no concept for it.",
+      "why": "Response bytes 271..288 are `BOOTID.UPNP.ORG: 1`. When a device reboots or changes IP it increments this, and that increment invalidates EVERY cached fact about the device — location, description, service list, live GENA subscriptions. CONFIGID.UPNP.ORG (bytes 291..310) increments separately when the description document changes, invalidating the cached XML but not the identity. §5's known-gaps list mentions sequence numbers only as replay protection; this is not replay protection, it is a scope-wide cache generation.",
+      "fixKind": "stateModel",
+      "proposedFix": "\"epochs\": [ { \"name\":\"bootId\", \"value\":\"capture.hdrs | key('bootId') | undecimal\", \"scope\":\"device\", \"onChange\":\"invalidateScope\" }, { \"name\":\"configId\", \"value\":\"capture.hdrs | key('configId') | undecimal\", \"scope\":\"message:describe\", \"onChange\":\"invalidateScope\" } ]  // monotonic; a decrease means a different device reusing the UUID and should raise, not silently accept."
+    },
+    {
+      "severity": "major",
+      "what": "No `invalidatedBy` — §5 can express positive confirmation of a presumption but not retraction.",
+      "why": "`confirmedBy: { message, matches }` asserts agreement. SSDP's removal signal is the opposite: NOTIFY * HTTP/1.1 with NTS: ssdp:byebye carrying a USN, which RETRACTS the presumed-alive fact immediately, before max-age expires. There is no expressible link from an inbound unsolicited message to the destruction of a fact created by a different message.",
+      "fixKind": "stateModel",
+      "proposedFix": "\"invalidatedBy\": [ { \"message\":\"notifyByebye\", \"matches\":\"capture.hdrs | key('usn') == state.usn\", \"effect\":\"revoke\" }, { \"epoch\":\"bootId\", \"effect\":\"revokeScope\" } ]  // symmetric with confirmedBy, same matcher grammar, no new expression machinery."
+    },
+    {
+      "severity": "major",
+      "what": "No unsolicited-inbound mode. §4 is send->expect shaped; SSDP's normal operating mode is a bare listener with no preceding request.",
+      "why": "Devices multicast NOTIFY ssdp:alive on startup and periodically (before max-age lapses), ssdp:byebye on shutdown, and ssdp:update on a bootId change — none of them answers anything. A control point that only ever does M-SEARCH misses every arrival and every departure. `validIn` / `requires` / `conflicts` all presuppose you initiate the message; there is no state in which an unsolicited NOTIFY is legal or illegal, it simply arrives. Separately, acting as a responder means a 200 OK is legal ONLY within MX seconds of a matching received M-SEARCH — a legality rule keyed on an inbound message plus a timer.",
+      "fixKind": "stateModel",
+      "proposedFix": "Add a role axis to model: \"roles\": [\"searcher\",\"responder\"], per-message \"inboundOnly\": true / \"validAfterInbound\": { \"message\":\"mSearch\", \"withinMs\":\"capture.mx * 1000\" }, and a step { \"kind\":\"listen\", \"unsolicited\": true, \"on\":\"239.255.255.250:1900\", \"messages\":[\"notifyAlive\",\"notifyByebye\",\"notifyUpdate\"] } with no preceding send and no terminating edge."
+    },
+    {
+      "severity": "major",
+      "what": "No way to chain to a destination that came out of a capture — which is the only chain SSDP actually has.",
+      "why": "Response bytes 99..139 are `http://192.168.1.42:49152/description.xml`. The mandated next operation is a TCP HTTP GET of that URL; everything useful about the device lives there. §5's `requires:[\"login\"]` records that an earlier message succeeded, not that its capture supplies the next message's transport target. Nothing in v0 lets a layer's dst be an expression, so the chain crosses from expressible to not at exactly the point that matters.",
+      "fixKind": "layer",
+      "proposedFix": "Allow layer destinations to be expressions and add a `url` converter (Text -> Map with scheme/host/port/path): { \"kind\":\"tcp\", \"dst\": { \"ip\":\"state.loc | url | key('host')\", \"port\":\"state.loc | url | key('port')\" }, \"frame\": {\"kind\":\"none\"} } with the request-target taken from `state.loc | url | key('path')`. Same mechanism serves any redirect-style or endpoint-discovery protocol."
+    },
+    {
+      "severity": "major",
+      "what": "Case-insensitive header names plus variable optional whitespace make byte-exact re-encode impossible without preserving raw lexical form — and my own capture already violates the uniform template.",
+      "why": "Response bytes 83..88 are `45 58 54 3a 0d 0a` — EXT, colon, CRLF. There is NO 0x20 after the colon and no value. A canonicalising writer emitting name + \": \" + value produces 316 bytes, not 315, and the re-encode fails on a packet the decoder just read. Real devices compound this: `St:` / `Location:` / `usn:` mixed casing (all legal, all must match), multiple spaces after the colon, and obs-fold continuation lines. Any representation that normalises for lookup destroys the bytes; any representation that keeps bytes cannot do case-insensitive lookup.",
+      "fixKind": "fieldKind",
+      "proposedFix": "The httpHeaders field kind stores each entry as { rawName, ows, value, index } and re-emits rawName + ':' + ows + value + CRLF verbatim in stored index order, while `key(name)` folds case for lookup. Encode-from-scratch uses a declared canonical form; encode-from-decode replays the raw form. This is the only fix that satisfies both §7.1 and §7.3 simultaneously."
+    },
+    {
+      "severity": "minor",
+      "what": "No message-boundary declaration for a datagram. Nothing says the message ends at the blank line.",
+      "why": "Response bytes 313..314 are the terminating 0d0a0d0a. §2's frame construct is explicitly 'declared once per connection' for stream framing; on UDP there is no connection and the frame is the datagram. If a device pads the datagram or (illegally but observably) appends a body, the parse has no defined stopping point and no way to assert that the remaining bytes are zero.",
+      "fixKind": "fieldKind",
+      "proposedFix": "{ \"expect\": \"0d0a\" } to consume the sentinel explicitly, plus { \"assertEnd\": true } (decode-only) which fails the parse if unconsumed bytes remain — or `{ \"assertEnd\": \"lenient\", \"as\": \"trailing\" }` to capture them. Cheaper and more precise than promoting `frame` to work per-message."
+    },
+    {
+      "severity": "minor",
+      "what": "Step timeouts and listen windows are not expression-valued, and `timeout` is framed as a failure edge when here it is the success path.",
+      "why": "MX (request byte 75) is a contract with the responders: each waits a uniform random 0..MX seconds before answering, so the collection window must be at least MX seconds plus network slack. The correct timeout is `mx * 1000 + slack` and no step field is documented as taking an expression, so it becomes a magic constant that silently desynchronises from the MX byte. And §4's edge vocabulary is ok|match|timeout|error|else — for a broadcast search, window expiry is the normal, successful completion of the operation, not an error condition. Absence of a reply is never evidence of absence in SSDP.",
+      "fixKind": "stateModel",
+      "proposedFix": "{ \"kind\":\"listen\", \"forMs\": \"inputs.mx | undecimal * 1000 + 500\", \"collect\":\"broadcast\" } plus a distinct edge `\"on\":\"window\"` meaning 'the collection window closed normally' — leaving `timeout` to mean 'a reply we required did not arrive'."
+    },
+    {
+      "severity": "minor",
+      "what": "No numeric bounds on injectable inputs, so a protocol-mandated range cannot be declared.",
+      "why": "MX (byte 75) MUST be at least 1 and SHOULD NOT exceed 5; a device receiving MX greater than 5 treats it as 5, and a malformed or missing MX means the message is ignored entirely. §6 gives `type` values u8..u64 and `enum` but no min/max, so the constraint lives only in the prompt `description` — i.e. nowhere the engine can check.",
+      "fixKind": "expression",
+      "proposedFix": "{ \"name\":\"mx\", \"kind\":\"prompt\", \"type\":\"u8\", \"min\":1, \"max\":5, \"default\":3, \"description\":\"…\" }, checked at input-binding time. Pairs with the `decimal` converter (gap 5) so the value can be both bounded and emitted as text."
+    },
+    {
+      "severity": "minor",
+      "what": "Repeated header names and obs-fold continuation lines collapse under any single-valued representation.",
+      "why": "HTTP permits a field name to appear more than once (combinable as a comma list), and permits a value to continue on a following line beginning with SP or HTAB. SSDP responses rarely do either, but vendor `X-` headers and GENA's `OPT` / `01-NLS` pairing do appear in the wild, and the parser must not lose or reorder them. A Text-valued map keyed by folded name silently discards the second occurrence.",
+      "fixKind": "fieldKind",
+      "proposedFix": "Give httpHeaders multimap semantics: `key(n)` returns the first value, `all(n)` returns a List in wire order, and an obs-fold continuation is appended to the preceding entry's value while its raw bytes are retained in that entry's rawValue for verbatim re-emission."
+    }
+  ]
+}

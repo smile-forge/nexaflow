@@ -232,14 +232,19 @@ Mnemonic: **feature settings = global (unless `[WorkspaceScopedConfig]`); person
 
 ## Tests
 
-Three test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full guide: [docs/testing.md](docs/testing.md).
+Four test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full guide: [docs/testing.md](docs/testing.md).
 
 | Project | Covers |
 |---------|--------|
 | `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*` (unit + UI). References Core. |
 | `Nexaflow.Tests.Features` | Every `Nexaflow.Features.*` (unit + UI). References the feature projects, **not** Core. |
+| `Nexaflow.Tests.IO` | `Nexaflow.IO.*` — the WPF-free IO leaves. References the IO projects and **nothing else**: no Core, no Features, no Visuals, so it needs neither a desktop session nor a shell. |
 | `Nexaflow.Tests.Providers` | Provider clients. |
-| `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset. Referenced by both Core and Features test projects. |
+| `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset. Referenced by the Core, Features and IO test projects. |
+
+A test belongs in `Tests.IO` when its **subject** is an IO library. One that merely *uses* one — `Text`
+reading through `EncodingDetector`, `Compressed` through the VFS — stays with its feature: a test follows
+what it is about, not what it imports.
 
 After any change touching `Nexaflow.Core`, run the unit tests before committing:
 

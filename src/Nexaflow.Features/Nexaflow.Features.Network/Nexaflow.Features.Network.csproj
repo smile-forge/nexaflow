@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The page that owns discovery: it enumerates adapters, holds the guard and the device graph, and runs
+    whichever probe subfeatures are installed.
+
+    It references NO probe. Layers arrive as IReadOnlyList<ISubfeatureHandle<INetworkProbe>>, resolved by
+    FeatureManager from the [Subfeature("network", ...)] attributes — which is why a new discovery layer is
+    a new assembly and never an edit here. The architecture tests forbid a feature->feature edge, so the
+    contracts they meet on live in the Nexaflow.IO.Network leaf.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+</Project>

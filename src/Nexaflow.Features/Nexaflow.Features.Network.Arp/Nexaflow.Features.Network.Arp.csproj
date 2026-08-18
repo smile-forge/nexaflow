@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Discovery layer 0: the OS neighbour (ARP/NDP) table. A subfeature plugin — it references the IO.Network
+    leaf and the subfeature metadata contract, and NOTHING else. It cannot reference Nexaflow.Features.Network
+    (the architecture tests forbid a feature->feature edge), which is exactly why the contracts live in a leaf.
+
+    UseWPF is off and stays off: a discovery probe must be headless-testable, and there is nothing in it that
+    could want a UI. NetworkPluginRulesTests asserts this for every Nexaflow.Features.Network.* assembly.
+
+    This one genuinely needs compiled code — it P/Invokes IP Helper. Protocols that are merely request/response
+    ship as DynamicProtocol documents instead; a plugin is for capability the engine cannot express.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>false</UseWPF>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+</Project>
