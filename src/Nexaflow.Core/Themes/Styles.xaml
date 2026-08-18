@@ -357,10 +357,41 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="Cursor" Value="IBeam"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentSubtleBrush}"/>
+        <!-- Without this a read-only TextBox drops its selection wash the moment it loses focus — which is
+             exactly when the user right-clicks to copy, so the selection they were about to copy vanishes as
+             the menu opens. -->
+        <Setter Property="IsInactiveSelectionHighlightEnabled" Value="True"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
                     <ScrollViewer x:Name="PART_ContentHost"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ Tab header, themed ══
+         Underline-style tab strip for an in-page TabControl (a section switcher, not the shell's tab bar).
+         Apply with ItemContainerStyle="{StaticResource ThemedTabItem}".
+         Lived inside ProjectDetailView until the PDF reader's document panel wanted the same tabs. -->
+    <Style x:Key="ThemedTabItem" TargetType="TabItem">
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="bd" Background="Transparent" BorderThickness="0,0,0,2" BorderBrush="Transparent" Padding="18,9">
+                        <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceBrush}"/></Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

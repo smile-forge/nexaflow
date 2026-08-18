@@ -236,4 +236,7 @@
   <Project Path="src/Nexaflow.Visuals.Text/Nexaflow.Visuals.Text.csproj" Id="53d7c296-1e51-4186-8de9-dd7b940d0ba6">
     <Platform Project="x64" />
   </Project>
+  <Project Path="src/Nexaflow.Visuals.Web/Nexaflow.Visuals.Web.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

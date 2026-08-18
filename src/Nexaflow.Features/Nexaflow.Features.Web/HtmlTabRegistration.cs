@@ -32,6 +32,9 @@ public sealed class HtmlTabRegistration(IShellServices shell) : IPageRegistratio
         {
             var view = new HtmlView(new HtmlViewModel(url), shell);
             view.PageChanged += () => UpdateChrome(page, view);
+            // Ends the embedded browser process with the tab. Closed fires only on a genuine close —
+            // a tear-off or move to another window re-keys the registry and never reaches it.
+            page.Closed += (_, _) => view.Dispose();
             return view;
         };
         return page;

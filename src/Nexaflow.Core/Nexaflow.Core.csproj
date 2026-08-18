@@ -108,6 +108,7 @@
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Terminal\Nexaflow.Visuals.Terminal.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <ProjectReference Include="..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
 
     <!-- Subfeature metadata. Core reads [Subfeature] during the catalog scan and hands host features their

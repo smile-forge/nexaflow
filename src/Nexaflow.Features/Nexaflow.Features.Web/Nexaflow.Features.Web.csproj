@@ -14,12 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <!-- The WebView2 package comes with this: the browser host itself lives in Visuals.Web, shared
+         with the PDF reader, and this feature keeps only the browser chrome around it. -->
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 

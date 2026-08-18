@@ -25,4 +25,13 @@ public sealed class PdfConfig : IFeatureConfig
     /// title, and a completed form findable by what was typed into it, when the page bodies say neither.
     /// </summary>
     public bool IncludeMetadata { get; set; } = true;
+
+    /// <summary>
+    /// Above this size the reader tab shows the page but doesn't parse the document's structure for its side
+    /// panel or the AI tools. Deliberately far more generous than <see cref="SearchMaxFileSizeMb"/> and
+    /// deliberately a separate setting: that limit exists because a sweep is sequential and one enormous file
+    /// stalls every candidate queued behind it, whereas a document the user just double-clicked has nothing
+    /// behind it and is worth waiting for.
+    /// </summary>
+    public int ViewerMaxFileSizeMb { get; set; } = 512;
 }

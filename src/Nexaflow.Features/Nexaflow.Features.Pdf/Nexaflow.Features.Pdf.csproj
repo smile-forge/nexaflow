@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="PdfPig" Version="0.1.15" />
     <!-- Optional image codecs the base package leaves unhandled: DCTDecode (JPEG, by far the most
          common), JBIG2Decode (what document scanners emit) and JPXDecode (JPEG 2000, archival scans).
@@ -23,6 +24,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <!-- The reader renders the document with the same chrome-free browser host the Web tab uses. -->
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

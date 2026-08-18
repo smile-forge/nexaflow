@@ -75,6 +75,13 @@
     ]
   },
   {
+    "ExperienceId": "/document/pdf/read",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.pdf" }
+    ]
+  },
+  {
     "ExperienceId": "/text/log",
     "Source": "User",
     "Criteria": [

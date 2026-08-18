@@ -288,6 +288,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | VirtualDisk | `path` (a disk image — vhd/vhdx/vdi/vmdk/dmg/img/iso — opened via "As Disk") |
 | Executable | `path` (a Portable Executable — exe/dll/sys — opened via "Inspect") |
 | Hex | `path`, `offset` (optional, decimal or `0x` hex), `length` (optional — bytes to select) |
+| Pdf | `path`, `page` (optional, 1-based — opens at, or jumps to, that page) |
 
 ---
 

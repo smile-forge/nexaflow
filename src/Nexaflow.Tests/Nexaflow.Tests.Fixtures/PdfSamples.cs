@@ -31,12 +31,70 @@ public sealed class PdfSamples : ISampleSet
     /// <summary>Value of <c>text.pdf</c>'s single form field. Also absent from the page content.</summary>
     public const string FormFieldValue = "Ada Lovelace";
 
+    /// <summary>Title of <c>outline.pdf</c>'s first root bookmark, which points at page 1.</summary>
+    public const string OutlineRootTitle = "Chapter One";
+
+    /// <summary>Title of the bookmark nested under <see cref="OutlineRootTitle"/>; points at page 2.</summary>
+    public const string OutlineChildTitle = "Nesting habits";
+
+    /// <summary>Title of <c>outline.pdf</c>'s second root bookmark, which points at page 3.</summary>
+    public const string OutlineSecondTitle = "Chapter Two";
+
+    /// <summary><c>outline.pdf</c>'s <c>/Producer</c> — a field nothing else in the set carries.</summary>
+    public const string OutlineProducer = "Nexaflow Fixture Press";
+
+    /// <summary>
+    /// Title of <c>outline.pdf</c>'s <em>grouping</em> bookmark: it has a child but no destination of its
+    /// own. That is the single most common shape in a real table of contents, and the one PdfPig discards
+    /// unless it is explicitly asked to keep it.
+    /// </summary>
+    public const string OutlineGroupTitle = "Appendices";
+
+    /// <summary>Title of the bookmark nested under <see cref="OutlineGroupTitle"/>; points at page 3.</summary>
+    public const string OutlineGroupChildTitle = "Ringing data";
+
+    /// <summary>
+    /// The raw <c>/XYZ</c> y coordinate of <see cref="OutlineChildTitle"/>'s destination, as written in the
+    /// file: PDF user space, origin bottom-left. Its page is 200 points tall, so this sits 150 up from the
+    /// bottom — near the top of the page.
+    /// </summary>
+    public const double OutlineChildDestinationY = 150;
+
+    /// <summary>Height of every page in <c>outline.pdf</c> (<c>/MediaBox [0 0 300 200]</c>).</summary>
+    public const double OutlinePageHeight = 200;
+
+    /// <summary>
+    /// The same destination expressed the way a viewer wants it — measured <em>down</em> from the top of the
+    /// page. Near the top of the page therefore means a small number, the mirror image of the raw coordinate.
+    /// </summary>
+    public const double OutlineChildOffsetFromTop = OutlinePageHeight - OutlineChildDestinationY;
+
+    /// <summary>Bookmark in <c>outline-named.pdf</c> reaching page 1 via a <c>/Dest (name)</c> lookup.</summary>
+    public const string NamedDestTitle = "Named destination";
+
+    /// <summary>Bookmark in <c>outline-named.pdf</c> reaching page 2 via a <c>/A /GoTo</c> action.</summary>
+    public const string ActionDestTitle = "Action destination";
+
+    /// <summary>Bookmark in <c>outline-named.pdf</c> reaching page 3 via an action naming a destination.</summary>
+    public const string ActionNamedDestTitle = "Action to a named destination";
+
+    /// <summary>First and last words of <c>two-column.pdf</c>'s left column.</summary>
+    public const string LeftColumnFirst = "alpha";
+    public const string LeftColumnLast  = "charlie";
+
+    /// <summary>First and last words of <c>two-column.pdf</c>'s right column.</summary>
+    public const string RightColumnFirst = "xray";
+    public const string RightColumnLast  = "zulu";
+
     public IReadOnlyList<SampleFile> Files { get; } =
     [
         SampleFile.Raw("text.pdf", BuildTextDocument()),
         SampleFile.Raw("image-only.pdf", BuildImageOnlyDocument()),
         SampleFile.Raw("repeated-image.pdf", BuildRepeatedImageDocument()),
         SampleFile.Raw("jpeg-image.pdf", BuildJpegImageDocument()),
+        SampleFile.Raw("outline.pdf", BuildOutlineDocument()),
+        SampleFile.Raw("outline-named.pdf", BuildNamedDestinationOutlineDocument()),
+        SampleFile.Raw("two-column.pdf", BuildTwoColumnDocument()),
         SampleFile.Raw("corrupt.pdf", BuildCorruptDocument()),
     ];
 
@@ -116,6 +174,163 @@ public sealed class PdfSamples : ISampleSet
         pdf.Stream(4, null, Ascii("q 100 0 0 100 0 0 cm /Im1 Do Q"));
         pdf.Stream(5, "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB "
                     + "/BitsPerComponent 8 /Filter /DCTDecode", JpegHeaderBytes());
+
+        return pdf.Finish(rootObject: 1, infoObject: null);
+    }
+
+    /// <summary>
+    /// Three pages with a real <c>/Outlines</c> tree — two roots, one of them with a child — and an
+    /// <c>/Info</c> carrying the producer/creator/date fields the other fixtures leave empty.
+    /// <para>
+    /// The one fixture that can prove a table of contents is readable at all: every other document here has
+    /// no outline, so without this the "no contents" branch would be the only one anything ever exercised.
+    /// Each bookmark's destination is an explicit <c>[page /Fit]</c> array, because the page <em>number</em>
+    /// is the part the panel and the AI both depend on.
+    /// </para>
+    /// </summary>
+    private static byte[] BuildOutlineDocument()
+    {
+        var pdf = new PdfBuilder();
+
+        pdf.Object(1, "<< /Type /Catalog /Pages 2 0 R /Outlines 10 0 R >>");
+        pdf.Object(2, "<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>");
+
+        pdf.Object(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] "
+                    + "/Resources << /Font << /F1 9 0 R >> >> /Contents 4 0 R >>");
+        pdf.Stream(4, null, Ascii("BT /F1 14 Tf 20 150 Td (first page) Tj ET"));
+        pdf.Object(5, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] "
+                    + "/Resources << /Font << /F1 9 0 R >> >> /Contents 6 0 R >>");
+        pdf.Stream(6, null, Ascii("BT /F1 14 Tf 20 150 Td (second page) Tj ET"));
+        pdf.Object(7, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] "
+                    + "/Resources << /Font << /F1 9 0 R >> >> /Contents 8 0 R >>");
+        pdf.Stream(8, null, Ascii("BT /F1 14 Tf 20 150 Td (third page) Tj ET"));
+
+        pdf.Object(9, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+        // /Outlines → 11 (Chapter One, p1) → 12 (Nesting habits, p2, child)
+        //           ; 13 (Chapter Two, p3)
+        //           ; 15 (Appendices — a GROUPING node: children but no /Dest) → 16 (Ringing data, p3)
+        //
+        // That last shape is the one worth having. PdfPig discards a destination-less parent unless it is
+        // explicitly told to keep it, hoisting its children up in its place — so without this entry the
+        // fixture could never tell a correct outline from one missing all its section headings.
+        pdf.Object(10, "<< /Type /Outlines /First 11 0 R /Last 15 0 R /Count 5 >>");
+        pdf.Object(11, $"<< /Title ({OutlineRootTitle}) /Parent 10 0 R /Next 13 0 R "
+                     + "/First 12 0 R /Last 12 0 R /Count 1 /Dest [3 0 R /Fit] >>");
+        pdf.Object(12, $"<< /Title ({OutlineChildTitle}) /Parent 11 0 R "
+                     + $"/Dest [5 0 R /XYZ 0 {OutlineChildDestinationY} 0] >>");
+        pdf.Object(13, $"<< /Title ({OutlineSecondTitle}) /Parent 10 0 R /Prev 11 0 R /Next 15 0 R "
+                     + "/Dest [7 0 R /Fit] >>");
+        pdf.Object(15, $"<< /Title ({OutlineGroupTitle}) /Parent 10 0 R /Prev 13 0 R "
+                     + "/First 16 0 R /Last 16 0 R /Count 1 >>");
+        pdf.Object(16, $"<< /Title ({OutlineGroupChildTitle}) /Parent 15 0 R /Dest [7 0 R /Fit] >>");
+
+        pdf.Object(14, $"<< /Title (Field Notes) /Author (R. Hawking) /Creator (Fixture Generator) "
+                     + $"/Producer ({OutlineProducer}) /CreationDate (D:20260101120000Z) "
+                     + "/ModDate (D:20260202130000Z) >>");
+
+        return pdf.Finish(rootObject: 1, infoObject: 14);
+    }
+    /// <summary>
+    /// Three pages whose bookmarks reach their pages the way real tools write them, rather than the way the
+    /// specification's simplest example does:
+    /// <list type="bullet">
+    /// <item>a <b>named</b> destination resolved through the catalogue's <c>/Names /Dests</c> tree — what
+    /// LaTeX's hyperref emits for every section, so most academic PDFs look like this;</item>
+    /// <item>a <b>GoTo action</b> (<c>/A</c>) instead of a <c>/Dest</c> — what most word processors emit;</item>
+    /// <item>a named destination reached <em>through</em> an action, which is the combination of the two.</item>
+    /// </list>
+    /// <para>
+    /// <c>outline.pdf</c> uses plain explicit destinations, which is the one form a hand-written fixture
+    /// reaches for and very nearly the only form real documents don't use. A reader that resolves only those
+    /// shows a table of contents with every page number missing.
+    /// </para>
+    /// </summary>
+    private static byte[] BuildNamedDestinationOutlineDocument()
+    {
+        var pdf = new PdfBuilder();
+
+        pdf.Object(1, "<< /Type /Catalog /Pages 2 0 R /Outlines 10 0 R /Names << /Dests 20 0 R >> >>");
+        pdf.Object(2, "<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>");
+
+        pdf.Object(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] "
+                    + "/Resources << /Font << /F1 9 0 R >> >> /Contents 4 0 R >>");
+        pdf.Stream(4, null, Ascii("BT /F1 14 Tf 20 150 Td (alpha page) Tj ET"));
+        pdf.Object(5, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] "
+                    + "/Resources << /Font << /F1 9 0 R >> >> /Contents 6 0 R >>");
+        pdf.Stream(6, null, Ascii("BT /F1 14 Tf 20 150 Td (beta page) Tj ET"));
+        pdf.Object(7, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] "
+                    + "/Resources << /Font << /F1 9 0 R >> >> /Contents 8 0 R >>");
+        pdf.Stream(8, null, Ascii("BT /F1 14 Tf 20 150 Td (gamma page) Tj ET"));
+
+        pdf.Object(9, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+        pdf.Object(10, "<< /Type /Outlines /First 11 0 R /Last 13 0 R /Count 3 >>");
+        pdf.Object(11, $"<< /Title ({NamedDestTitle}) /Parent 10 0 R /Next 12 0 R /Dest (sec.one) >>");
+        pdf.Object(12, $"<< /Title ({ActionDestTitle}) /Parent 10 0 R /Prev 11 0 R /Next 13 0 R "
+                     + "/A << /S /GoTo /D [5 0 R /XYZ 0 120 0] >> >>");
+        pdf.Object(13, $"<< /Title ({ActionNamedDestTitle}) /Parent 10 0 R /Prev 12 0 R "
+                     + "/A << /S /GoTo /D (sec.three) >> >>");
+
+        // The /Dests name tree: sorted /Names pairs of (name, destination array).
+        pdf.Object(20, "<< /Names [(sec.one) [3 0 R /XYZ 0 180 0] (sec.three) [7 0 R /Fit]] >>");
+
+        return pdf.Finish(rootObject: 1, infoObject: null);
+    }
+
+    /// <summary>
+    /// One page laid out in two columns, whose content stream deliberately writes them <em>interleaved</em>:
+    /// first line of the left column, first line of the right, second line of the left, and so on.
+    /// <para>
+    /// That is what a real two-column document does often enough to matter, and it is the case where reading
+    /// the content stream in order produces confident nonsense rather than anything that looks broken. Only
+    /// laying the words out spatially recovers the columns.
+    /// </para>
+    /// <para>
+    /// Full lines of several words each, not one word per line: spatial segmentation works by estimating the
+    /// usual within-line and between-line distances from the words themselves, so a page of six isolated
+    /// words gives it nothing to estimate from and it clusters them arbitrarily. A fixture too sparse to
+    /// segment would be testing the fixture, not the code.
+    /// </para>
+    /// </summary>
+    private static byte[] BuildTwoColumnDocument()
+    {
+        var pdf = new PdfBuilder();
+
+        pdf.Object(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        pdf.Object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        pdf.Object(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 520 260] "
+                    + "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>");
+
+        string[] left =
+        [
+            $"{LeftColumnFirst} opens the left column",
+            "with several words per line",
+            "so the usual spacing can be",
+            "estimated the way the",
+            $"algorithm expects {LeftColumnLast}",
+        ];
+        string[] right =
+        [
+            $"{RightColumnFirst} opens the right column",
+            "and also runs to several",
+            "words across each of its",
+            "lines so the gutter between",
+            $"them is the widest gap {RightColumnLast}",
+        ];
+
+        // Left column at x=40, right at x=290. At 10pt a left line reaches about x=175, so the gutter is far
+        // wider than any gap between words — which is the signal the segmentation reads.
+        var content = new StringBuilder();
+        for (var i = 0; i < left.Length; i++)
+        {
+            var y = 220 - i * 20;
+            content.Append($"BT /F1 10 Tf 40 {y} Td ({left[i]}) Tj ET\n");
+            content.Append($"BT /F1 10 Tf 290 {y} Td ({right[i]}) Tj ET\n");
+        }
+
+        pdf.Stream(4, null, Ascii(content.ToString()));
+        pdf.Object(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
 
         return pdf.Finish(rootObject: 1, infoObject: null);
     }

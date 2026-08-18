@@ -1,0 +1,406 @@
+<UserControl x:Class="Nexaflow.Features.Pdf.Views.PdfView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vw="clr-namespace:Nexaflow.Visuals.Web.Controls;assembly=Nexaflow.Visuals.Web"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="PdfView"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <cv:StringToVisibilityConverter x:Key="StringVis"/>
+
+        <!-- WPF falls back to SystemColors for selection the moment focus leaves the control or the window
+             deactivates — a grey wash that ignores the theme entirely. Retheme all four keys so a selected
+             row keeps its colours while the user is copying from it, or looking at another window. -->
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"                      Color="{DynamicResource Surface2Color}"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"                  Color="{DynamicResource TextColor}"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"     Color="{DynamicResource Surface2Color}"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+
+        <Style x:Key="PdfToolbarBtn" TargetType="Button">
+            <Setter Property="Background"        Value="Transparent"/>
+            <Setter Property="Foreground"        Value="{DynamicResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness"   Value="0"/>
+            <Setter Property="Padding"           Value="8,5"/>
+            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BorderBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PdfAccentBtn" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}"/>
+            <Setter Property="Padding"    Value="16,8"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A Contents row.
+             Its text is a TextBlock rather than a SelectableText box on purpose: a TextBox inside the row
+             swallows the click that jumps to the page, and jumping is the row's whole point. Copying is
+             offered through the context menu instead, which also gives the more useful "with page" and
+             "whole outline" forms.
+             Selection is what keeps the reader's place: the row they picked stays lit so they can see where
+             they are in the document instead of losing it the moment the click finishes. It stays lit while
+             the panel is unfocused and while the window is inactive, which is the state most of this reading
+             actually happens in. -->
+        <Style x:Key="PdfOutlineRow" TargetType="ListBoxItem">
+            <Setter Property="Background"          Value="Transparent"/>
+            <Setter Property="BorderThickness"     Value="0"/>
+            <Setter Property="Padding"             Value="6,4"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+
+            <!-- Pinned to the viewport width, explicitly, rather than trusting the ScrollViewer to constrain
+                 it. Letting the row size to its content is what pushed long titles past the panel edge: the
+                 star column then had infinite room, so the title never trimmed and the page number - the last
+                 column - ended up off-screen entirely. -->
+            <Setter Property="MaxWidth"
+                    Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollContentPresenter}}"/>
+
+            <!-- Button-DOWN, on the container, and left unhandled.
+                 A ListBoxItem captures the mouse on button-down, so a handler on a child never sees the
+                 matching button-up at all; and the up that does reach the container gets eaten while the
+                 list takes focus, which is why the row appeared to need clicking twice. Down always arrives.
+                 It must not be marked handled, or the list would never select the row and the highlight
+                 would never appear. -->
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="OutlineRow_Click"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Stretch"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected"  Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSubtleBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <!-- A row with no destination is a grouping heading, not a link. It can still be selected and
+                     copied, but it must not offer the hand cursor that promises a jump. -->
+                <DataTrigger Binding="{Binding CanJump}" Value="True">
+                    <Setter Property="Cursor" Value="Hand"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="PanelColumn" Width="300" MinWidth="220"/>
+            <ColumnDefinition x:Name="SplitterColumn" Width="4"/>
+            <ColumnDefinition Width="*" MinWidth="320"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ══ Document panel ══════════════════════════════════════════════ -->
+        <Border Grid.Column="0"
+                x:Name="PanelHost"
+                AutomationProperties.AutomationId="Pdf_Panel"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,1,0"
+                Visibility="{Binding IsPanelOpen, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Panel status: loading, unreadable, or oversize. The only thing shown when there is
+                     nothing else to show. -->
+                <TextBox Grid.Row="0"
+                         AutomationProperties.AutomationId="Pdf_PanelStatus"
+                         Style="{StaticResource SelectableText}"
+                         Margin="12,12,12,0"
+                         FontSize="12"
+                         Foreground="{DynamicResource TextMutedBrush}"
+                         Text="{Binding PanelStatus, Mode=OneWay}"
+                         Visibility="{Binding PanelStatus, Converter={StaticResource StringVis}}"/>
+
+                <TabControl Grid.Row="1"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            ItemContainerStyle="{StaticResource ThemedTabItem}">
+
+                    <TabItem Header="Properties" AutomationProperties.AutomationId="Pdf_Tab_Properties">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding Properties}"
+                                          AutomationProperties.AutomationId="Pdf_Properties"
+                                          Margin="12,10,12,12">
+                                <ItemsControl.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Copy all properties"
+                                                  Command="{Binding PlacementTarget.DataContext.CopyAllPropertiesCommand,
+                                                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                    </ContextMenu>
+                                </ItemsControl.ContextMenu>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <!-- Label and value are both SelectableText: everything the panel
+                                                 displays can be selected and copied (Ctrl+C or right-click). -->
+                                            <TextBox Grid.Row="0"
+                                                     Style="{StaticResource SelectableText}"
+                                                     Text="{Binding Label, Mode=OneWay}"
+                                                     FontSize="11"
+                                                     Foreground="{DynamicResource TextMutedBrush}"/>
+                                            <TextBox Grid.Row="1"
+                                                     Style="{StaticResource SelectableText}"
+                                                     Text="{Binding Value, Mode=OneWay}"
+                                                     FontSize="13"
+                                                     Margin="0,1,0,0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Contents" AutomationProperties.AutomationId="Pdf_Tab_Contents">
+                        <Grid>
+                            <TextBox Style="{StaticResource SelectableText}"
+                                     AutomationProperties.AutomationId="Pdf_ContentsEmpty"
+                                     Margin="12,12,12,0"
+                                     VerticalAlignment="Top"
+                                     FontSize="12"
+                                     Foreground="{DynamicResource TextMutedBrush}"
+                                     Text="{Binding ContentsEmptyMessage, Mode=OneWay}"
+                                     Visibility="{Binding HasContents, Converter={StaticResource InvBoolVis}}"/>
+
+                            <!-- A ListBox rather than an ItemsControl, so the row the reader picked stays
+                                 selected and they can see where they are. Its own ScrollViewer replaces the
+                                 outer one; nesting them would give the panel two scrollbars. -->
+                            <ListBox ItemsSource="{Binding Contents}"
+                                     SelectedItem="{Binding SelectedOutlineItem, Mode=TwoWay}"
+                                     AutomationProperties.AutomationId="Pdf_Contents"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Margin="6,8,6,12"
+                                     ItemContainerStyle="{StaticResource PdfOutlineRow}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     Visibility="{Binding HasContents, Converter={StaticResource BoolToVis}}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Background="Transparent"
+                                              Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                            <Grid.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Copy title"
+                                                              Command="{Binding PlacementTarget.Tag.CopyTextCommand,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                              CommandParameter="{Binding CopyText}"/>
+                                                    <MenuItem Header="Copy title and page"
+                                                              Command="{Binding PlacementTarget.Tag.CopyTextCommand,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                              CommandParameter="{Binding CopyWithPage}"/>
+                                                    <MenuItem Header="Copy whole outline"
+                                                              Command="{Binding PlacementTarget.Tag.CopyOutlineCommand,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                </ContextMenu>
+                                            </Grid.ContextMenu>
+                                            <Grid.ColumnDefinitions>
+                                                <!-- Indent, title, page. The nesting indent lives INSIDE the
+                                                     row rather than as a margin on it, so every row is exactly
+                                                     as wide as the panel: a margin made deep rows wider than
+                                                     the viewport, which stopped titles being trimmed and let
+                                                     selecting one scroll the whole list sideways.
+                                                     The page number sits in an Auto column and the title in
+                                                     the star column, so the title is what gives when space
+                                                     runs short - the page number a row exists to tell you
+                                                     must never be the part pushed out of sight. -->
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="{Binding IndentWidth}"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Title}"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       FontSize="12"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTipService.ShowDuration="30000"
+                                                       ToolTip="{Binding Title}"/>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding PageLabel}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       FontSize="11"
+                                                       Margin="8,0,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Border>
+
+        <GridSplitter Grid.Column="1"
+                      x:Name="PanelSplitter"
+                      AutomationProperties.AutomationId="Pdf_Splitter"
+                      Width="4"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      Background="{DynamicResource BorderBrush}"
+                      ResizeBehavior="PreviousAndNext"
+                      Visibility="{Binding IsPanelOpen, Converter={StaticResource BoolToVis}}"/>
+
+        <!-- ══ Reader ══════════════════════════════════════════════════════ -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="36"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Deliberately slim: no back/forward, no address bar. Edge's own PDF toolbar sits inside the
+                 surface below and already carries page selection, search, zoom and print — a second set of
+                 the same controls would be noise, and a page indicator here would go stale the moment the
+                 user scrolled (there's no API to observe the renderer's current page). -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid Margin="8,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0"
+                            Style="{StaticResource PdfToolbarBtn}"
+                            AutomationProperties.AutomationId="Pdf_TogglePanel"
+                            Command="{Binding TogglePanelCommand}"
+                            ToolTip="Show or hide the document panel">
+                        <TextBlock Text="▤" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
+                    </Button>
+
+                    <TextBox Grid.Column="1"
+                             Style="{StaticResource SelectableText}"
+                             AutomationProperties.AutomationId="Pdf_FileName"
+                             Margin="10,0"
+                             VerticalAlignment="Center"
+                             FontSize="12"
+                             TextWrapping="NoWrap"
+                             Foreground="{DynamicResource TextMutedBrush}"
+                             Text="{Binding FileName, Mode=OneWay}"/>
+
+                    <Button Grid.Column="2"
+                            Style="{StaticResource PdfToolbarBtn}"
+                            AutomationProperties.AutomationId="Pdf_OpenExternal"
+                            Click="OpenExternal_Click"
+                            ToolTip="Open in your default PDF application">
+                        <TextBlock Text="↗" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- The shared chrome-free browser host. Collapses while a shell overlay covers the page: its
+                 native HWND draws above all WPF content, so the overlay would otherwise be hidden behind it.
+                 The right margin keeps that HWND clear of the window's WindowChrome resize border. -->
+            <vw:WebSurface x:Name="Surface"
+                           Grid.Row="1"
+                           Margin="0,0,8,0"
+                           Visibility="{Binding SurfaceVisible, Converter={StaticResource BoolToVis}}"/>
+
+            <Border Grid.Row="1"
+                    AutomationProperties.AutomationId="Pdf_FallbackPanel"
+                    Background="{DynamicResource BgBrush}"
+                    Panel.ZIndex="20"
+                    Visibility="{Binding SurfaceAvailable, Converter={StaticResource InvBoolVis}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+                    <TextBlock Text="📕" FontSize="40" HorizontalAlignment="Center"
+                               Opacity="0.6" Margin="0,0,0,12"/>
+                    <TextBox Style="{StaticResource SelectableText}"
+                             Text="Can't show the document here"
+                             Foreground="{DynamicResource TextBrush}"
+                             FontSize="16" FontWeight="SemiBold"
+                             TextAlignment="Center" Margin="0,0,0,8"/>
+                    <TextBox Style="{StaticResource SelectableText}"
+                             Text="{Binding FailureMessage, Mode=OneWay}"
+                             Foreground="{DynamicResource TextMutedBrush}"
+                             FontSize="13" TextAlignment="Center" Margin="0,0,0,18"/>
+                    <Button Style="{StaticResource PdfAccentBtn}"
+                            AutomationProperties.AutomationId="Pdf_FallbackOpenExternal"
+                            HorizontalAlignment="Center"
+                            Click="OpenExternal_Click"
+                            Content="Open in your default PDF application"/>
+                    <TextBlock HorizontalAlignment="Center" FontSize="12" Margin="0,16,0,0"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               Visibility="{Binding RuntimeMissing, Converter={StaticResource BoolToVis}}">
+                        <Hyperlink NavigateUri="https://developer.microsoft.com/en-us/microsoft-edge/webview2/consumer/"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   RequestNavigate="InstallRuntime_RequestNavigate">
+                            Install the Microsoft Edge WebView2 runtime
+                        </Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
