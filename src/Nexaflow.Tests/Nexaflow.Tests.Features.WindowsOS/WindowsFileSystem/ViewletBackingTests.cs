@@ -23,7 +23,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-[CoversNode("winfs-viewlets")]
+[CoversNode("winfs-viewlet-host")]
 public class ViewletBackingTests
 {
     private string _dir = string.Empty;
