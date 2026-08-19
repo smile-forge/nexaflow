@@ -7,7 +7,7 @@ namespace Nexaflow.Features.Audio.Services;
 /// <summary>
 /// Owns the NAudio output device + decoder for one track and exposes a small transport surface
 /// (load / play / pause / stop / seek / volume) plus the live spectrum bands. The signal chain is
-/// <c>reader → SampleAggregator (FFT tap) → VolumeSampleProvider → WaveOutEvent</c> so the visualiser
+/// <c>reader → SampleAggregator (FFT tap) → VolumeSampleProvider → WaveOut</c> so the visualiser
 /// always sees the music regardless of the volume setting. Created lazily by the view-model (no device
 /// is touched until the user actually plays something), and disposed when the tab closes.
 /// </summary>
@@ -49,7 +49,7 @@ public sealed class AudioPlaybackEngine : IDisposable
         _aggregator = new SampleAggregator(_reader.ToSampleProvider()) { BandCount = bandCount };
         _volume = new VolumeSampleProvider(_aggregator) { Volume = _targetVolume };
 
-        _output = new WaveOutEvent();
+        _output = new WaveOut();
         _output.PlaybackStopped += OnPlaybackStopped;
         _output.Init(_volume);
     }

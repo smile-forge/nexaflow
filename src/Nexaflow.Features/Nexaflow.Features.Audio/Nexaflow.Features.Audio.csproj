@@ -12,9 +12,10 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Playback + DSP. NAudio matches the version Core already ships. -->
-    <PackageReference Include="NAudio" Version="2.3.0" />
-    <!-- Vorbis (.ogg) decode — MediaFoundation can't. -->
-    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageReference Include="NAudio" Version="3.0.1" />
+    <!-- Vorbis (.ogg) decode — MediaFoundation can't. NVorbis directly, not the NAudio.Vorbis
+         wrapper: that package is built against NAudio 2.x. See VorbisWaveStream. -->
+    <PackageReference Include="NVorbis" Version="0.10.4" />
     <!-- Opus (.opus) decode (pure-C#); Oggfile is the Ogg-container demuxer over Concentus. -->
     <PackageReference Include="Concentus" Version="2.2.2" />
     <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />

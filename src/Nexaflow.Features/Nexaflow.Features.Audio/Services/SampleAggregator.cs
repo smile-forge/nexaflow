@@ -45,14 +45,14 @@ public sealed class SampleAggregator : ISampleProvider
     /// <summary>Clears the published bands (e.g. when playback pauses), so the bars fall to zero.</summary>
     public void Reset() => _latestBands = [];
 
-    public int Read(float[] buffer, int offset, int count)
+    public int Read(Span<float> buffer)
     {
-        int read = _source.Read(buffer, offset, count);
+        int read = _source.Read(buffer);
 
         for (int i = 0; i + _channels <= read; i += _channels)
         {
             float mono = 0;
-            for (int c = 0; c < _channels; c++) mono += buffer[offset + i + c];
+            for (int c = 0; c < _channels; c++) mono += buffer[i + c];
             mono /= _channels;
 
             _fft[_pos].X = (float)(mono * FastFourierTransform.HannWindow(_pos, FftLength));

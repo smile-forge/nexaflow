@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using Concentus;
 using Concentus.Oggfile;
-using NAudio.Vorbis;
 using NAudio.Wave;
 using Nexaflow.IO.Common;
 
@@ -28,7 +27,7 @@ public static class AudioReaderFactory
         return ext switch
         {
             ".wav"  => new WaveFileReader(real),     // pure-managed, no Media Foundation
-            ".ogg"  => new VorbisWaveReader(real),
+            ".ogg"  => new VorbisWaveStream(real),
             ".opus" => DecodeOpus(real),
             _       => new MediaFoundationReader(real),
         };

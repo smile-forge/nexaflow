@@ -30,7 +30,7 @@ public static class WaveformAnalyzer
             float overall = 0;
 
             int read;
-            while ((read = samples.Read(block, 0, block.Length)) > 0)
+            while ((read = samples.Read(block)) > 0)
             {
                 for (int i = 0; i + channels <= read; i += channels)
                 {
