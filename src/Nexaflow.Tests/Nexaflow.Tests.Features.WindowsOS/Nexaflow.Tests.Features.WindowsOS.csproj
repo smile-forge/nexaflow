@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The features that inspect and drive Windows itself: the file system, the registry, the search index,
+       installed apps, running processes and system info. Split out of Nexaflow.Tests.Features so this half
+       builds and runs without the viewers.
+
+       It does reference a few viewer features (Dicom, Images, Compressed, Email, Text): the file-action and
+       viewlet matching tests use real actions as specimens, because a fake one would prove only that the
+       matcher matches fakes. -->
+  <PropertyGroup>
+    <!-- Pinned to the WinRT platform version because Nexaflow.Features.WindowsApps targets it. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Nexaflow.Tests.Features</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.3.2" />
+    <PackageReference Include="NSubstitute" Version="6.0.0" />
+    <PackageReference Include="FlaUI.Core" Version="5.0.0" />
+    <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
+         clean checkout (gitignored), where the analyzer degrades to the presence check only. -->
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">
+    <AdditionalFiles Include="..\..\..\.product\tree.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+
+    <ProjectReference Include="..\..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Processes\Nexaflow.Features.Processes.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.SystemInfo\Nexaflow.Features.SystemInfo.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsApps\Nexaflow.Features.WindowsApps.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsFileSystem\Nexaflow.Features.WindowsFileSystem.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsRegistry\Nexaflow.Features.WindowsRegistry.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsSearch\Nexaflow.Features.WindowsSearch.csproj" />
+
+    <!-- Specimen actions/viewlets for the matching tests (see the note above), not subjects of this suite. -->
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed\Nexaflow.Features.Compressed.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dicom\Nexaflow.Features.Dicom.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Email\Nexaflow.Features.Email.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

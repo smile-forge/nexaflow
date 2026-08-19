@@ -5,7 +5,7 @@ namespace Nexaflow.Tests.Features.Architecture;
 
 /// <summary>Repo-root resolution for source-tree-level tests — walks up from the test binary to the
 /// folder holding <c>Nexaflow.slnx</c> (same convention as <c>TestSampleData</c>).</summary>
-internal static class RepoRoot
+public static class RepoRoot
 {
     public static string Locate()
     {

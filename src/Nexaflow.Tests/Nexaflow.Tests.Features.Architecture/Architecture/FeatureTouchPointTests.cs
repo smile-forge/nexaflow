@@ -54,15 +54,21 @@ public class FeatureTouchPointTests
     }
 
     [TestMethod]
-    public void Every_feature_project_is_referenced_by_this_test_project()
+    public void Every_feature_project_is_referenced_by_one_of_the_test_suites()
     {
-        var referenced = ReferencedFeatures(Path.Combine(
-            Root, "src", "Nexaflow.Tests", "Nexaflow.Tests.Features", "Nexaflow.Tests.Features.csproj"));
+        // The union, because the suites are split by subject: a viewer belongs to Viewers, a Windows
+        // integration to WindowsOS, and neither should have to reference the other's features. What still
+        // has to hold is that SOME suite references each one — otherwise its tests, and the reflection
+        // guards that load every feature assembly from this project's output, silently can't see it.
+        var referenced = FeatureTestSuites.ProjectFiles(Root)
+            .SelectMany(ReferencedFeatures)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var missing = FeatureProjectDirs().Where(d => !referenced.Contains(d)).ToList();
 
         Assert.AreEqual(0, missing.Count,
-            "Nexaflow.Tests.Features must reference every feature project, or its tests (and the " +
-            $"architecture guards) can't see it. Missing: {string.Join(", ", missing)}");
+            "Every feature project must be referenced by one of the Nexaflow.Tests.Features* suites, or " +
+            "its tests (and the architecture guards) can't see it. Add it to whichever suite matches its " +
+            $"subject. Missing: {string.Join(", ", missing)}");
     }
 
     [TestMethod]

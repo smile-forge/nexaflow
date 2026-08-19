@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared test support for the Nexaflow.Tests.Features.* suites. NOT a test project: it holds the
+       pieces more than one suite needs — the FlaUI journey bases, the async pump, the repo-root probe,
+       the sample→viewer map, the ISearchable conformance contract — so splitting the suites by subject
+       didn't mean duplicating them.
+
+       Deliberately has NO feature ProjectReference. The UI bases drive the *built app* through UI
+       Automation rather than constructing view-models, so they need FlaUI and nothing from Nexaflow;
+       keeping it that way is what lets every suite reference this without inheriting a feature graph. -->
+  <PropertyGroup>
+    <!-- Matches the suites that consume it (pinned by Nexaflow.Features.WindowsApps' WinRT target). -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <UseWPF>true</UseWPF>
+    <!-- Files here keep the Nexaflow.Tests.Features.<Folder> namespaces they had inside the single
+         project, so no consumer's `using` changed when they moved out. -->
+    <RootNamespace>Nexaflow.Tests.Features</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- TestFramework only, not the MSTest meta-package: this library declares [TestMethod]s on abstract
+         bases for the suites to inherit, but it is never itself run. -->
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.2" />
+    <PackageReference Include="FlaUI.Core" Version="5.0.0" />
+    <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+    <!-- DicomTestFiles writes multi-frame instances and a real DICOMDIR. Shared because both the DICOM
+         viewer suite and the file-system suite's folder-action matching need one. -->
+    <PackageReference Include="fo-dicom" Version="5.2.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Contracts only (ISearchable, the search query language) plus the sample dataset. -->
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// a multi-frame image (cine) and a real DICOMDIR index (the CD path). Kept out of the dependency-free
 /// fixtures library on purpose — this test project already references fo-dicom transitively.
 /// </summary>
-internal static class DicomTestFiles
+public static class DicomTestFiles
 {
     /// <summary>Writes a single grayscale image instance (optionally multi-frame) and returns its path.
     /// <paramref name="dim"/> sets the row/column count — pass a large value (e.g. 512) to push PixelData past

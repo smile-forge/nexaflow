@@ -17,8 +17,12 @@ public class CoverageDeclarationGuardTests
     [TestMethod]
     public void Every_test_class_declares_the_node_it_covers()
     {
-        var violations = CoverageDeclarationCheck.Verify(
-            typeof(CoverageDeclarationGuardTests).Assembly, CoverageDeclarationCheck.LoadValidNodeIds());
+        // Every suite, not just this one — the declaration rule is about all feature tests, and the guards
+        // no longer live in the same assembly as the tests they hold to it.
+        var validIds = CoverageDeclarationCheck.LoadValidNodeIds();
+        var violations = FeatureTestSuites.Assemblies()
+            .SelectMany(a => CoverageDeclarationCheck.Verify(a, validIds))
+            .ToList();
 
         Assert.AreEqual(0, violations.Count,
             "Test classes must carry [CoversNode(\"node-id\")] (or [NoCoverage(\"reason\")]). "

@@ -135,7 +135,7 @@ public sealed partial class MyViewModel : ObservableObject, IPageViewModel, ISea
   regex operator translates the pattern into the widest query that still *covers* it and re-filters the rows
   with the real `Regex` — widening only ever over-matches, so the post-filter restores exactness and
   translation quality affects speed, never correctness. `AqsRegexTranslator` is the worked example against
-  Windows Search. `SearchableConformanceTests` (in `Nexaflow.Tests.Features/Search`) enforces this — derive a
+  Windows Search. `SearchableConformanceTests` (in `Nexaflow.Tests.Features.Common/Search`, so every suite can derive from it) enforces this — derive a
   `[TestClass]` from it per implementor and the shared assertions run against your page, including one that
   fails if the "regex" result is indistinguishable from a literal `Contains`.
 - **Post-filtering needs the text you matched on**, and a file index returns names, not bodies. So a

@@ -6,7 +6,7 @@ namespace Nexaflow.Tests.Features.Fixtures;
 /// and the filemap completeness guard (<c>Architecture/FeatureTouchPointTests</c>). When you add
 /// a viewer feature, add its row here (plus the sample set and the default-filemap.json entries).
 /// </summary>
-internal static class ViewerMap
+public static class ViewerMap
 {
     public static readonly (string SubDir, string ViewerId)[] BySet =
     [

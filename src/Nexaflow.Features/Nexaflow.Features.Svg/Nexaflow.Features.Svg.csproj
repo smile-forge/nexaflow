@@ -17,6 +17,6 @@
     <PackageReference Include="SharpVectors.Wpf" Version="1.8.5" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />
   </ItemGroup>
 </Project>

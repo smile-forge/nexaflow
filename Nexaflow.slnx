@@ -173,6 +173,18 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj" Id="79cfb0c8-0b1c-4342-ab15-9565928e6344">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Nexaflow.Tests.Features.Architecture.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features.Common/Nexaflow.Tests.Features.Common.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Nexaflow.Tests.Features.Viewers.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/Nexaflow.Tests.Features.WindowsOS.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/Nexaflow.Tests.Fixtures.csproj">
       <Platform Project="x64" />
     </Project>

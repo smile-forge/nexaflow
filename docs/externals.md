@@ -257,9 +257,8 @@ dotnet build src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Nexaflow.Featur
 dotnet build Nexaflow.slnx -c Debug
 
 # Architecture/wiring guards (run FIRST when a consuming feature changed):
-dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj -c Debug
-$exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.exe"
-& $exe --filter "FullyQualifiedName~Architecture"
+dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Nexaflow.Tests.Features.Architecture.csproj -c Debug
+& "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.Architecture.exe"
 ```
 
 Expect **0 errors**. Pre-existing warnings are fine (Core `MVVMTK0045`, `MSTEST0044`, and upstream

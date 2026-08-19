@@ -31,7 +31,9 @@ public class CoverageGuardTests
     [TestMethod]
     public void Every_feature_assembly_has_at_least_one_test_class()
     {
-        var covered = typeof(CoverageGuardTests).Assembly.GetTypes()
+        // Across every suite, not just this assembly: after the split, a feature's only test class
+        // usually lives in Viewers or WindowsOS, so reading one assembly would report it as untested.
+        var covered = FeatureTestSuites.Assemblies().SelectMany(a => a.GetTypes())
             .Where(t => t.IsDefined(typeof(TestClassAttribute), inherit: false))
             .Select(t => t.Namespace ?? string.Empty)
             .Where(ns => ns.StartsWith("Nexaflow.Tests.Features.", StringComparison.Ordinal))

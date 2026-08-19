@@ -22,7 +22,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
   </ItemGroup>
 
 </Project>

@@ -18,7 +18,7 @@
   <ItemGroup>
     <!-- The WMI probe layer's fault tolerance (a missing class degrades to null instead of blanking a
          dashboard card) is asserted directly — that guarantee is invisible from the public surface. -->
-    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.WindowsOS" />
   </ItemGroup>
 
   <ItemGroup>
