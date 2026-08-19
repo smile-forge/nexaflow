@@ -31,9 +31,20 @@ that contains it):
 5. Styles.xaml           shared control templates (reference the above by key)
 ```
 
-`ThemeManager.Apply(theme, contributions)` runs once at startup (`App.xaml.cs`, after
-`FeatureManager.RegisterFeatures()` so feature contributions are known). `App.xaml` holds a Dark
-bootstrap merge for the designer; `Apply` rebuilds the list deterministically.
+`ThemeManager.Apply` runs **more than once**, and the order matters if you are reasoning about when a key
+becomes resolvable. `App.xaml.cs` applies the theme early (step 1, before `FeatureManager.RegisterFeatures()`)
+with **no** contributions — features have not been discovered yet. Each feature assembly then contributes its
+dictionaries when it *activates*, which is lazy (first page, handler query, or the post-paint warm-up), and
+`FeatureManager` re-applies with the accumulated URIs — coalesced onto the dispatcher at
+`DispatcherPriority.Background`, so the merge lands slightly after the activation that caused it. `App.xaml`
+holds a Dark bootstrap merge for the designer; `Apply` rebuilds the list deterministically each time.
+
+> **A contributed key is therefore not guaranteed present when a view first loads.** Core's own keys are —
+> they are merged in step 1, before any window. A feature's own (`PostIt.*`, `ExecutableTheme` …) may not be,
+> so resolve those the way the scratchpad does: bind through a converter that reads
+> `Application.Current.Resources[key]` at binding time. A `{StaticResource}` on a contributed key can be
+> evaluated before the merge, and `{DynamicResource}` is the wrong reach for it — see the note below on why
+> this codebase is StaticResource by default.
 
 > **Theme switching restarts the window.** References are overwhelmingly `{StaticResource}` (resolved
 > once, at load) for rendering performance — a deliberate choice, so an open window does not live-reflow.

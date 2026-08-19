@@ -30,7 +30,7 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-[CoversNode("winfs-action-strip")]
+[CoversNode("winfs-action-backing")]
 public class VirtualBackingActionTests
 {
     private string _dir = string.Empty;
