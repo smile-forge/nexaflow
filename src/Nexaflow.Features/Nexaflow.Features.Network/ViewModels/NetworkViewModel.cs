@@ -95,13 +95,13 @@ public sealed partial class PanelTab(string title, string note, bool canClose,
 public sealed partial class ActionRow(IDeviceAction action, Func<IDeviceAction, Task> run) : ObservableObject
 {
     public IDeviceAction Action { get; } = action;
-    public string DisplayName => action.DisplayName;
-    public string Icon => action.Icon;
-    public string Description => action.Description;
-    public bool IsDestructive => action.IsDestructive;
+    public string DisplayName => Action.DisplayName;
+    public string Icon => Action.Icon;
+    public string Description => Action.Description;
+    public bool IsDestructive => Action.IsDestructive;
 
     [RelayCommand]
-    private Task Run() => run(action);
+    private Task Run() => run(Action);
 }
 
 /// <summary>

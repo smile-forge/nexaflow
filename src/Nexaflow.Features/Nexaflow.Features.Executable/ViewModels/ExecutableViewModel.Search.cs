@@ -253,7 +253,7 @@ public sealed partial class ExecutableViewModel : ISearchable
         if (_stringFilter is not null)
         {
             _stringFilter = null;
-            StringView.Refresh();
+            StringView?.Refresh();
         }
     }
 }

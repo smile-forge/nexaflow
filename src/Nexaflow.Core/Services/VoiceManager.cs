@@ -34,7 +34,7 @@ public sealed class VoiceManager : IDisposable
     private readonly SemaphoreSlim _transcribeLock = new(1, 1);
     private readonly Lock          _bufLock        = new();
 
-    private WaveInEvent?    _waveIn;
+    private WaveIn?         _waveIn;
     private MemoryStream?   _buffer;
     private WhisperFactory? _factory;
     private string?         _factoryModelPath;
@@ -62,7 +62,7 @@ public sealed class VoiceManager : IDisposable
             _buffer        = new MemoryStream();
             _heardVoice    = false;
             _lastVoiceTick = Environment.TickCount64;
-            _waveIn        = new WaveInEvent { WaveFormat = CaptureFormat };
+            _waveIn        = new WaveIn { WaveFormat = CaptureFormat };
             _waveIn.DataAvailable += OnDataAvailable;
             _waveIn.StartRecording();
 

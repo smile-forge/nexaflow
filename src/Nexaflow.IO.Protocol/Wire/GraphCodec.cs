@@ -2017,7 +2017,7 @@ public sealed class GraphCodec(ProtocolGraph graph,
                 if (_evaluator.Eval(asserted.Runs, Given(run, here, asserted)).AsBool()) continue;
 
                 throw new ProtoTypeException(
-                    $"'{check.From.Name}' does not satisfy: {asserted.Source.Render()}"
+                    $"'{check.From.Name}' does not satisfy: {asserted.Source?.Render() ?? "the asserted constraint"}"
                   + (check.Because.Length > 0 ? $" — {check.Because}" : ""));
             }
     }

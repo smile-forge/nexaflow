@@ -74,8 +74,11 @@ public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
         Rebuild();
     }
 
-    /// <summary>The height a diagram is given here — the host's, when it knows better than the default.</summary>
-    private double MaxHeight => _options.MaxHeight > 0 ? _options.MaxHeight : MaxDiagramHeight;
+    /// <summary>The height a diagram is given here — the host's, when it knows better than the default.
+    /// Deliberately not named <c>MaxHeight</c>: that is a <see cref="FrameworkElement"/> property, and a
+    /// private one of the same name hides it — so a host setting MaxHeight on the control would be
+    /// silently ignored by the layout below, which reads this.</summary>
+    private double DiagramHeightBudget => _options.MaxHeight > 0 ? _options.MaxHeight : MaxDiagramHeight;
 
     /// <summary>
     /// Redraws. <paramref name="relayout"/> false reuses the geometry already computed, which is what
@@ -88,7 +91,7 @@ public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
             double width = ActualWidth > 40 ? ActualWidth : _fallbackWidth;
             _laidOutFor  = width;
             _visible     = GraphExpansion.Apply(_source, _config, _state.Expansion);
-            _layout      = SugiyamaLayout.Compute(_visible, width, MaxHeight);
+            _layout      = SugiyamaLayout.Compute(_visible, width, DiagramHeightBudget);
         }
 
         // Chips are only offered when the diagram actually has something behind a node — otherwise
@@ -201,7 +204,7 @@ public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
     private const double ChromeHeight = 8 + 12 + 2;
 
     private double SurfaceHeight(Canvas canvas) =>
-        Math.Min(Math.Max(120, MaxHeight - ChromeHeight), Math.Max(220, canvas.Height + 16));
+        Math.Min(Math.Max(120, DiagramHeightBudget - ChromeHeight), Math.Max(220, canvas.Height + 16));
 
     /// <summary>
     /// The chrome for a surface that scales diagrams to its own column (the inline editor). Panning
@@ -216,7 +219,7 @@ public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
             Content                       = canvas,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
-            MaxHeight                     = MaxHeight,
+            MaxHeight                     = DiagramHeightBudget,
         }, canvas.Background);
     }
 
