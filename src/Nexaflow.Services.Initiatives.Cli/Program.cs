@@ -64,10 +64,11 @@ internal static class Program
               nfi validate   [<root>] [--json] [--save]
               nfi find       <term> [<root>] [--json]
               nfi query      [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--json]
-              nfi describe   <node-id> [<root>] [--json] [--code]
+              nfi describe   <node-id>[,<node-id>...] [<root>] [--json] [--code]
               nfi tree       <node-id> [<root>] [--depth <n>] [--full] [--json]
               nfi diff       [<root>] [--from <version>]
               nfi remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
+              nfi remap      --from-git <rev-range> [<root>] [--dry-run]
               nfi scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]
               nfi add-node   <parent-id> <title> [<root>] [--id <slug>] [--desc <text>] [--status <s>]
               nfi set-status  <node-id> <status> [<root>]
@@ -791,7 +792,13 @@ internal static class Program
 
         var mode = a.Value("--mode") ?? "index";
         if (mode is not ("index" or "content")) return VerbUsage($"--mode must be index or content (got '{mode}')");
-        if (!TryIntOpt(a, "--limit", mode == "content" ? 60 : 200, out var limit)) return Error;
+        // --limit bounds what is REPORTED; --scan-cap bounds how far the content scan walks. They used to be
+        // one number, defaulted to 60, which meant a content search stopped after 60 of ~46,000 code nodes
+        // and reported "0 matches" — indistinguishable from "not present", and the reason this verb was
+        // easier to abandon than to narrow. Scanning is cheap (files are read once and cached); it is output
+        // that needs a bound, so the cap is now a runaway guard rather than the working limit.
+        if (!TryIntOpt(a, "--limit", mode == "content" ? 40 : 200, out var limit)) return Error;
+        if (!TryIntOpt(a, "--scan-cap", 50_000, out var scanCap)) return Error;
 
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
@@ -821,9 +828,14 @@ internal static class Program
             int scanned = 0, matchedNodes = 0;
             foreach (var n in codeNodes)
             {
-                if (scanned >= limit)
+                if (matchedNodes >= limit)
                 {
-                    Console.WriteLine($"… content-scan cap {limit} hit ({codeNodes.Count} code nodes in scope) — narrow --from/--hops/--type or raise --limit.");
+                    Console.WriteLine($"… stopped after {limit} matching node(s) — raise --limit to see more.");
+                    break;
+                }
+                if (scanned >= scanCap)
+                {
+                    Console.WriteLine($"… content-scan cap {scanCap} hit ({codeNodes.Count} code nodes in scope) — narrow --from/--hops/--type or raise --scan-cap.");
                     break;
                 }
                 scanned++;
@@ -911,29 +923,56 @@ internal static class Program
     private static int Describe(string[] args)
     {
         if (!TryRead(Specs.Describe, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+
+        // One id, or several comma-separated. Comma rather than a variadic positional because the verb also
+        // takes an optional trailing <root>: `describe a b` cannot mean both "two nodes" and "node a in
+        // repo b". Reading a set of nodes is the common case when working out what a group of them covers,
+        // and one call beats N round trips.
+        var ids = a[0].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (ids.Length == 0) return Usage("describe needs at least one node id");
         if (!TryLoad(root, out var state, out var code)) return code;
 
-        var d = ProductQuery.Describe(state, id);
-        if (d is null) { Console.Error.WriteLine($"error: no node '{id}' (try: find)."); return Error; }
+        var found   = new List<ProductQuery.Detail>();
+        var missing = new List<string>();
+        foreach (var one in ids)
+        {
+            var got = ProductQuery.Describe(state, one);
+            if (got is null) missing.Add(one); else found.Add(got);
+        }
+
+        foreach (var m in missing) Console.Error.WriteLine($"error: no node '{m}' (try: find).");
+        if (found.Count == 0) return Error;
 
         if (a.Has("--json"))
         {
-            Console.WriteLine(JsonSerializer.Serialize(d, ProductJson.Options));
-            return Clean;
+            // A single id keeps its object shape; several become an array, so a caller that asked for one
+            // thing is not handed a collection it did not ask for.
+            Console.WriteLine(found.Count == 1
+                ? JsonSerializer.Serialize(found[0], ProductJson.Options)
+                : JsonSerializer.Serialize(found, ProductJson.Options));
+            return missing.Count > 0 ? Error : Clean;
         }
 
-        Console.WriteLine(ProductReport.Describe(d));
-
-        if (a.Has("--code") && state.Nodes.TryGetValue(d.Id, out var raw))
+        for (var i = 0; i < found.Count; i++)
         {
-            // Resolve snaplink source from the CALLER's working tree first (so a worktree shows the code on
-            // the branch you're editing, incl. files not yet in the main checkout), then the product root.
-            var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
-            var fileRoots = new[] { caller, root }.Where(r => r is { Length: > 0 }).Distinct().ToArray()!;
-            PrintResolvedCode(fileRoots!, raw);
+            if (i > 0) Console.WriteLine();
+            Console.WriteLine(ProductReport.Describe(found[i]));
+            if (a.Has("--code") && state.Nodes.TryGetValue(found[i].Id, out var each))
+                PrintResolvedCodeForCaller(root, each);
         }
-        return Clean;
+        return missing.Count > 0 ? Error : Clean;
+    }
+
+    /// <summary>
+    /// Prints a node's snaplinked source, resolved from the CALLER's working tree first (so a worktree shows
+    /// the code on the branch you're editing, including files not yet in the main checkout), then the
+    /// product root.
+    /// </summary>
+    private static void PrintResolvedCodeForCaller(string root, ProductNode node)
+    {
+        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var fileRoots = new[] { caller, root }.Where(r => r is { Length: > 0 }).Distinct().ToArray()!;
+        PrintResolvedCode(fileRoots!, node);
     }
 
     private static int Tree(string[] args)
@@ -1158,6 +1197,10 @@ internal static class Program
 
     private static int Remap(string[] args)
     {
+        // The bulk form: git already recorded every rename, so a move that shifted N files needs no
+        // hand-written mapping. Dispatched on the flag because it takes no <old> <new> positionals.
+        if (args.Contains("--from-git")) return RemapFromGit(args);
+
         if (!TryRead(Specs.Remap, args, out var a, out var root, out var parseCode)) return parseCode;
         if (!TryLoad(root, out var state, out var code)) return code;
 
@@ -1179,6 +1222,91 @@ internal static class Program
         return changed > 0
             ? (true, $"Remapped {changed} snaplink(s): {a[0]} -> {a[1]}.")
             : (false, $"no snaplink referenced '{a[0]}' - nothing to remap");
+    }
+
+    /// <summary>
+    /// Rewrites every snaplink whose file git says moved within a revision range, as one transaction.
+    /// <para>
+    /// Moving a directory of files is the usual way snaplinks break en masse, and the mapping needed to fix
+    /// them is one git already holds: <c>--diff-filter=R</c> lists every rename it detected. Deriving it
+    /// beats hand-writing a batch script, which is both tedious and a place to mistype a path that then
+    /// silently remaps nothing.
+    /// </para>
+    /// A rename git records but no snaplink references is silently fine — most moved files are not linked.
+    /// What this cannot know is a file that was <i>deleted</i> and its content folded into another (a merge
+    /// or a collapse); those still need an explicit remap naming the survivor.
+    /// </summary>
+    private static int RemapFromGit(string[] args)
+    {
+        if (!TryRead(Specs.RemapFromGit, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var range = a.Value("--from-git");
+        if (string.IsNullOrWhiteSpace(range)) return Usage("--from-git needs a revision range, e.g. v1.4.0..HEAD");
+
+        var repo = WorkingTreeRootOf(root) ?? root;
+        var log = RunGit(repo, "log", "--diff-filter=R", "--name-status", "--format=", "-M", range!);
+        if (log is null)
+        {
+            Console.Error.WriteLine($"error: could not read git renames for '{range}' (is '{repo}' a git repo, and the range valid?).");
+            return Error;
+        }
+
+        var renames = new List<(string Old, string New)>();
+        foreach (var line in log)
+        {
+            // R<similarity>\t<old>\t<new>
+            if (line.Length == 0 || line[0] != 'R') continue;
+            var parts = line.Split('\t');
+            if (parts.Length >= 3) renames.Add((parts[1].Replace('\\', '/'), parts[2].Replace('\\', '/')));
+        }
+        if (renames.Count == 0) { Console.WriteLine($"git recorded no renames in '{range}' - nothing to remap."); return Clean; }
+
+        var dryRun = a.Has("--dry-run");
+        var total = 0; var touched = 0;
+        foreach (var (oldPath, newPath) in renames)
+        {
+            var changed = SnaplinkRemapper.Remap(state, oldPath, newPath, null, null);
+            if (changed == 0) continue;
+            total += changed; touched++;
+            Console.WriteLine($"  {changed} snaplink(s): {oldPath} -> {newPath}");
+        }
+
+        if (total == 0)
+        {
+            Console.WriteLine($"{renames.Count} rename(s) in '{range}', none of them referenced by a snaplink - nothing remapped.");
+            return Clean;
+        }
+        if (dryRun)
+        {
+            Console.WriteLine($"Dry run - {total} snaplink(s) across {touched} renamed file(s) would be rewritten, nothing written.");
+            return Clean;
+        }
+        return SaveAndValidate(state, root, $"Remapped {total} snaplink(s) across {touched} renamed file(s) from git '{range}'.");
+    }
+
+    /// <summary>Runs git in <paramref name="repo"/> and returns its stdout lines, or null if it failed.</summary>
+    private static List<string>? RunGit(string repo, params string[] args)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("git")
+            {
+                WorkingDirectory = repo,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            foreach (var arg in args) psi.ArgumentList.Add(arg);
+
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p is null) return null;
+            var stdout = p.StandardOutput.ReadToEnd();
+            p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            return p.ExitCode == 0 ? [.. stdout.Split('\n').Select(l => l.TrimEnd('\r'))] : null;
+        }
+        catch { return null; }   // git absent, or not a repo
     }
 
     // ── scan-tests: harvest declared test↔node coverage into the manifest the Integrity page reconciles ──
@@ -1247,11 +1375,23 @@ internal static class Program
         var testsDir = Path.Combine(root, "src", "Nexaflow.Tests");
         var result = new List<string>();
         if (!Directory.Exists(testsDir)) return result;
-        foreach (var name in new[] { "Nexaflow.Tests.Core", "Nexaflow.Tests.Features", "Nexaflow.Tests.Providers" })
+
+        // Every test project there is, found by its .csproj — NOT a hard-coded list. The list this replaced
+        // named three projects and was written before the feature suite was split into .Viewers/.WindowsOS
+        // /.Architecture and before .UIJourneys existed, so it silently scanned three assemblies out of ten
+        // and the manifest was built from under a third of the declarations. A discovery rule that has to be
+        // edited whenever a suite is added will go stale again the next time one is.
+        foreach (var proj in Directory.EnumerateFiles(testsDir, "*.csproj", SearchOption.AllDirectories)
+                                      .OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
         {
-            var binDir = Path.Combine(testsDir, name, "bin");
+            var name   = Path.GetFileNameWithoutExtension(proj);
+            var binDir = Path.Combine(Path.GetDirectoryName(proj)!, "bin");
             if (!Directory.Exists(binDir)) continue;
+
+            // Newest wins: a repo can hold Debug and Release, x64 and a stale pre-pin AnyCPU tree.
             var newest = Directory.EnumerateFiles(binDir, name + ".dll", SearchOption.AllDirectories)
+                .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}ref{Path.DirectorySeparatorChar}",
+                                        StringComparison.OrdinalIgnoreCase))   // reference assemblies carry no IL
                 .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
             if (newest is not null) result.Add(newest);
         }
@@ -1357,8 +1497,10 @@ internal static class Program
         public static readonly VerbSpec Query = new("query", 0, ["--under", "--concern", "--status"],
             ["--leaf", "--panel", "--unbacked", "--json"],
             "query [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--unbacked] [--json]");
+        public static readonly VerbSpec RemapFromGit = new("remap", 0, ["--from-git"], ["--dry-run"],
+            "remap --from-git <rev-range> [<root>] [--dry-run]");
         public static readonly VerbSpec Describe = new("describe", 1, None, ["--json", "--code"],
-            "describe <node-id> [<root>] [--json] [--code]");
+            "describe <node-id>[,<node-id>...] [<root>] [--json] [--code]");
         public static readonly VerbSpec Tree = new("tree", 1, ["--depth"], ["--full", "--json"],
             "tree <node-id> [<root>] [--depth <n>] [--full] [--json]");
         public static readonly VerbSpec Diff = new("diff", 0, ["--from"], None,
@@ -1421,8 +1563,8 @@ internal static class Program
         public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main"],
             "graph context <id> [<root>] [--lines N] [--limit N] [--main]");
         public static readonly VerbSpec GraphGrep = new("graph grep", 1,
-            ["--from", "--hops", "--mode", "--type", "--limit"], ["--main"],
-            "graph grep <pattern> [<root>] [--from <id>] [--hops N] [--mode index|content] [--type t] [--limit N] [--main]");
+            ["--from", "--hops", "--mode", "--type", "--limit", "--scan-cap"], ["--main"],
+            "graph grep <pattern> [<root>] [--from <id>] [--hops N] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main]");
         public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main"],
             "graph code <id> [<root>] [--lines A-B] [--main]");
     }
