@@ -11,6 +11,12 @@
              Focusable="True">
 
     <UserControl.Resources>
+        <!-- The picker resolves the PostIt.* bank exactly as the notes do. The bank arrives as a
+             feature theme contribution whose merge is queued at Background priority, so a
+             {StaticResource} here can be evaluated before it lands; the converter's lookup runs at
+             binding time and is re-evaluated when the window is rebuilt for a theme change. -->
+        <conv:PostItColorToBrushConverter       x:Key="ColorBrush"/>
+        <conv:PostItColorToHeaderBrushConverter x:Key="HeaderBrush"/>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
 
@@ -174,30 +180,30 @@
                     <!-- Color row 1: Yellow Blue Green Pink -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Yellow" Click="RibbonColorBtn_Click" ToolTip="Yellow">
-                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Yellow.Fill}"/>
+                            <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Blue" Click="RibbonColorBtn_Click" ToolTip="Blue">
-                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Blue.Fill}"/>
+                            <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Green" Click="RibbonColorBtn_Click" ToolTip="Green">
-                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Green.Fill}"/>
+                            <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Pink" Click="RibbonColorBtn_Click" ToolTip="Pink">
-                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Pink.Fill}"/>
+                            <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                     </StackPanel>
 
                     <!-- Color row 2: Orange Purple White -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Orange" Click="RibbonColorBtn_Click" ToolTip="Orange">
-                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Orange.Fill}"/>
+                            <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Purple" Click="RibbonColorBtn_Click" ToolTip="Purple">
-                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Purple.Fill}"/>
+                            <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="White" Click="RibbonColorBtn_Click" ToolTip="White">
-                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.White.Fill}"
-                                     Stroke="{DynamicResource PostIt.White.Header}" StrokeThickness="1"/>
+                            <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"
+                                     Stroke="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource HeaderBrush}}" StrokeThickness="1"/>
                         </Button>
                     </StackPanel>
 
