@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OllamaSharp" Version="5.4.27" />
+    <PackageReference Include="OllamaSharp" Version="5.4.30" />
   </ItemGroup>
 
   <ItemGroup>

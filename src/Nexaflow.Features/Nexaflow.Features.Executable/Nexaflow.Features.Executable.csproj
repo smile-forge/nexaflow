@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <!-- root\SecurityCenter2 — names the registered antivirus product for the Analysis tab. -->
-    <PackageReference Include="System.Management" Version="10.0.10" />
+    <PackageReference Include="System.Management" Version="10.0.11" />
     <!-- Read-only XML view behind the manifest tab's "raw" toggle. XML has no tree-sitter grammar
          in this repo, but AvalonEdit ships a built-in .xshd for it. -->
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />

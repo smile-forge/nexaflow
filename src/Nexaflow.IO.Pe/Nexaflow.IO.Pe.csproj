@@ -17,7 +17,7 @@
          Microsoft.WindowsDesktop.App, which is why it is correctly absent from Nexaflow.exe's
          output), and gets copied locally for a plain Microsoft.NETCore.App consumer. Either way the
          package reference is what makes both work. -->
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.10" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.11" />
   </ItemGroup>
 
   <!-- No ProjectReference on purpose: hashing here is incremental over a mapped buffer rather than
