@@ -15,7 +15,7 @@
     <PackageReference Include="NAudio" Version="3.0.1" />
     <!-- Vorbis (.ogg) decode — MediaFoundation can't. NVorbis directly, not the NAudio.Vorbis
          wrapper: that package is built against NAudio 2.x. See VorbisWaveStream. -->
-    <PackageReference Include="NVorbis" Version="0.10.4" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
     <!-- Opus (.opus) decode (pure-C#); Oggfile is the Ogg-container demuxer over Concentus. -->
     <PackageReference Include="Concentus" Version="2.2.2" />
     <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
