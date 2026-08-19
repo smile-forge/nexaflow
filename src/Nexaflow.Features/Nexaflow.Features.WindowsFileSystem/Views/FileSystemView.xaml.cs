@@ -87,6 +87,23 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         DriveListView.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(OnColumnHeaderClick));
 
         Loaded += (_, _) => UpdateListViewVisibility();
+
+        // Catch up on the navigation that already happened, because subscribing above was too late to hear
+        // it. A tab opened AT a path — a ribbon folder button, a restored session tab, open-in-new-tab —
+        // gets a FileSystemViewModel constructed with that path, and its constructor calls NavigateTo. That
+        // raises NavigationChanged before this view exists, so the only announcement of the folder is made
+        // to nobody and RefreshViewlets never runs: the tab shows the right files and no viewlets at all.
+        //
+        // It used to work by accident. Selecting the folder's tree node echoed back into OnTreeNodeSelected,
+        // which called NavigateTo a second time — by then this view was listening, so the event arrived and
+        // the viewlets appeared. The tree-probe perf work stopped that duplicate navigation (rightly: it
+        // enumerated the folder twice), and took the accident with it.
+        //
+        // Once, here, rather than on Loaded: this is a full teardown and rebuild that constructs each
+        // viewlet's view — git and dotnet run real tools — so doing it on every tab switch would repeat
+        // that work for a folder whose viewlets are already on screen.
+        if (!ViewModel.IsThisPcMode && !string.IsNullOrEmpty(ViewModel.CurrentPath))
+            RefreshViewlets(ViewModel.CurrentPath, ViewModel.IsThisPcMode);
     }
 
     private void WireDragDrop()
