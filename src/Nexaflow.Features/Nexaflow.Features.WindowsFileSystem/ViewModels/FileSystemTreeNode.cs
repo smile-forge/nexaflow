@@ -82,11 +82,10 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         Kind     = TreeNodeKind.Folder;
         _isDummy = isDummy;
 
-        // Two blocking directory probes per node, and LoadChildren constructs one node per subfolder —
-        // so expanding a folder costs 2xN synchronous opens before the UI can draw.
-        using (Timing.Measure($"Tree.node-probe {fullPath}"))
-            if (!isDummy && DirectoryExistsSafe(fullPath) && HasSubDirectoriesSafe(fullPath))
-                Children.Add(Dummy);
+        // Deliberately no I/O here. Deciding whether this node gets an expander costs two directory
+        // opens, and a parent builds one child per subfolder — so probing in the constructor put 2xN
+        // blocking opens on the dispatcher before the tree could draw. ProbeExpandersAsync does the whole
+        // batch off-thread instead; see LoadChildren.
     }
 
     /// <summary>Drive or This PC node — readiness is checked asynchronously; no blocking I/O here.</summary>
@@ -119,12 +118,21 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         catch { return false; }
     }
 
+    /// <summary>Whether this node's real children have been read. Explicit rather than inferred from the
+    /// Dummy child: now that the expander is settled asynchronously, "no children" is ambiguous between
+    /// "not probed yet" and "genuinely empty", and expanding on the first reading skipped the load.</summary>
+    internal bool ChildrenLoaded { get; private set; }
+
     private void LoadChildren()
     {
-        if (Children.Count == 1 && Children[0] == Dummy)
+        if (ChildrenLoaded) return;
+        ChildrenLoaded = true;
+
+        // The child list itself stays synchronous: it is ONE directory read, and TryExpandTo walks
+        // Children the instant it sets IsExpanded, so an empty collection here would break expand-to-path.
+        var made = new List<FileSystemTreeNode>();
+        using (Timing.Measure($"Tree.LoadChildren {FullPath} (UI thread)"))
         {
-            using var _t = Timing.Measure($"Tree.LoadChildren {FullPath} (UI thread)");
-            var made = 0;
             Children.Clear();
             if (RealDirOf(FullPath) is not { } real) return;
             try
@@ -132,15 +140,56 @@ public class FileSystemTreeNode : INotifyPropertyChanged
                 foreach (var dir in Directory.GetDirectories(real)
                                              .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
                 {
-                    made++;
                     // Child paths extend THIS node's path, which under a mount is the virtual one —
                     // taking `dir` verbatim would leak the real location into the tree.
                     var name = Path.GetFileName(dir);
-                    Children.Add(new FileSystemTreeNode(name, Path.Combine(FullPath, name)));
+                    var child = new FileSystemTreeNode(name, Path.Combine(FullPath, name));
+                    Children.Add(child);
+                    made.Add(child);
                 }
             }
             catch { /* access denied etc. */ }
-            finally { Timing.Note($"Tree.LoadChildren {FullPath} children", made.ToString()); }
+        }
+        Timing.Note($"Tree.LoadChildren {FullPath} children", made.Count.ToString());
+        _ = ProbeExpandersAsync(made);
+    }
+
+    /// <summary>
+    /// Settles the expander on a freshly built batch of sibling nodes, off the dispatcher.
+    /// <para>
+    /// Whether a folder is expandable is two directory opens — cheap warm, tens of milliseconds cold on a
+    /// spindle, and unbounded behind a mount that resolves somewhere slow. Done inline that cost is paid
+    /// N times before the tree draws; done here the children appear immediately and each twisty arrives
+    /// when its answer does. Nothing is claimed before it is known: a node shows no expander until the
+    /// probe says it has one, so the tree never offers to open something empty.
+    /// </para>
+    /// <para>
+    /// Awaited from the dispatcher, so the continuation returns there and the collection is mutated on the
+    /// thread that owns it — the same shape as the drive probe in <c>CheckDriveAsync</c>.
+    /// </para>
+    /// </summary>
+    internal static async Task ProbeExpandersAsync(IReadOnlyList<FileSystemTreeNode> nodes)
+    {
+        if (nodes.Count == 0) return;
+
+        var paths = new string[nodes.Count];
+        for (var i = 0; i < nodes.Count; i++) paths[i] = nodes[i].FullPath;
+
+        bool[] expandable;
+        using (Timing.Measure($"Tree.probeExpanders n={paths.Length} (background)"))
+            expandable = await Task.Run(
+                () => Array.ConvertAll(paths, p => DirectoryExistsSafe(p) && HasSubDirectoriesSafe(p)));
+
+        using var _t = Timing.Measure($"Tree.applyExpanders n={paths.Length} (UI thread)");
+        for (var i = 0; i < nodes.Count; i++)
+        {
+            // ChildrenLoaded is the load-bearing half of this test. A node can be expanded while its probe
+            // is still out — expand-to-path does exactly that on the way to the target — and dropping a
+            // Dummy in afterwards leaves a "…" row under a node that has already loaded, with nothing left
+            // to clear it because IsExpanded never changes again. Count == 0 alone would also mis-mark a
+            // folder that really is empty.
+            if (expandable[i] && !nodes[i].ChildrenLoaded && nodes[i].Children.Count == 0)
+                nodes[i].Children.Add(Dummy);
         }
     }
 

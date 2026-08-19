@@ -1093,7 +1093,30 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (node.Kind == TreeNodeKind.ThisPc)
             GoToThisPc(rebuildTree: false);  // tree already has this node — don't rebuild
         else if (!string.IsNullOrEmpty(node.FullPath))
+        {
+            // Opening a folder re-selects its tree node, and that selection arrives back here after
+            // _navigating has cleared — an echo of the navigation we just did, not a new one. Left alone
+            // it enumerated the folder a second time and threw the first result away mid-stream, which is
+            // visible whenever the cases differ (typing "D:\downloads" lands on the "D:\Downloads" node).
+            // SelectAndExpandPath announces the selection it is about to make so exactly that one is
+            // swallowed, and only that one.
+            if (_expectedTreeEcho is { } echo
+                && string.Equals(echo, node.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _expectedTreeEcho = null;
+                return;
+            }
+
+            // A real click on the folder already open means "reload this" — the cheap path that re-reads
+            // the entries and diffs the tree, rather than a full navigation to where we already are.
+            if (string.Equals(CurrentPath, node.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                Refresh();
+                return;
+            }
+
             NavigateTo(node.FullPath);
+        }
     }
 
     /// <summary>Opens <paramref name="folderPath"/> as a new File Explorer tab in the window's right
@@ -1576,8 +1599,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// Expands the tree to the given path and marks that node as selected,
     /// without refreshing entries (the caller is responsible for that).
     /// </summary>
+    /// <summary>The one tree selection this view-model is itself about to cause, so
+    /// <see cref="OnTreeNodeSelected"/> can tell its own echo from a click by the user.</summary>
+    private string? _expectedTreeEcho;
+
     public void SelectAndExpandPath(string path)
     {
+        _expectedTreeEcho = path;
         // Clear any existing selection first
         ClearSelection(TreeRoots);
         // Walk the tree roots and expand each level to reach `path`
@@ -1607,7 +1635,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // Only diff nodes with a real filesystem path and loaded children
         if (string.IsNullOrEmpty(node.FullPath)) return;
-        if (node.Children.Count == 0 || node.Children[0] == FileSystemTreeNode.Dummy) return;
+        if (!node.ChildrenLoaded) return;
 
         // Enumerate the real directory but express the results in THIS node's path space: under a mount
         // the children are ::mount\… while the disk reports C:\…, and comparing the two would find no
@@ -1632,12 +1660,16 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // Insert children new on disk (maintains alphabetical order)
         var existing = new HashSet<string>(node.Children.Select(c => c.FullPath), StringComparer.OrdinalIgnoreCase);
+        var inserted = new List<FileSystemTreeNode>();
         foreach (var dir in childPaths.OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
         {
             if (existing.Contains(dir)) continue;
             var newNode = new FileSystemTreeNode(Path.GetFileName(dir), dir);
             InsertSorted(node.Children, newNode);
+            inserted.Add(newNode);
         }
+        // Same deal as LoadChildren: a refreshed node's expander is settled off the dispatcher.
+        _ = FileSystemTreeNode.ProbeExpandersAsync(inserted);
     }
 
     private static void InsertSorted(ObservableCollection<FileSystemTreeNode> children, FileSystemTreeNode newNode)
