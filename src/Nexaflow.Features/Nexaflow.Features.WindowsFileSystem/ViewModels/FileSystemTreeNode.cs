@@ -82,8 +82,11 @@ public class FileSystemTreeNode : INotifyPropertyChanged
         Kind     = TreeNodeKind.Folder;
         _isDummy = isDummy;
 
-        if (!isDummy && DirectoryExistsSafe(fullPath) && HasSubDirectoriesSafe(fullPath))
-            Children.Add(Dummy);
+        // Two blocking directory probes per node, and LoadChildren constructs one node per subfolder —
+        // so expanding a folder costs 2xN synchronous opens before the UI can draw.
+        using (Timing.Measure($"Tree.node-probe {fullPath}"))
+            if (!isDummy && DirectoryExistsSafe(fullPath) && HasSubDirectoriesSafe(fullPath))
+                Children.Add(Dummy);
     }
 
     /// <summary>Drive or This PC node — readiness is checked asynchronously; no blocking I/O here.</summary>
@@ -120,6 +123,8 @@ public class FileSystemTreeNode : INotifyPropertyChanged
     {
         if (Children.Count == 1 && Children[0] == Dummy)
         {
+            using var _t = Timing.Measure($"Tree.LoadChildren {FullPath} (UI thread)");
+            var made = 0;
             Children.Clear();
             if (RealDirOf(FullPath) is not { } real) return;
             try
@@ -127,6 +132,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
                 foreach (var dir in Directory.GetDirectories(real)
                                              .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
                 {
+                    made++;
                     // Child paths extend THIS node's path, which under a mount is the virtual one —
                     // taking `dir` verbatim would leak the real location into the tree.
                     var name = Path.GetFileName(dir);
@@ -134,6 +140,7 @@ public class FileSystemTreeNode : INotifyPropertyChanged
                 }
             }
             catch { /* access denied etc. */ }
+            finally { Timing.Note($"Tree.LoadChildren {FullPath} children", made.ToString()); }
         }
     }
 
