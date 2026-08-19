@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Every test that launches Nexaflow.exe and drives the real mouse and keyboard, in one assembly.
+       They used to be spread across four suites, which meant a whole-suite run started four test hosts:
+       each asked the machine's owner for the mouse separately, and each launched its own app, so the
+       instances stole one another's clicks. One assembly is one launcher, one prompt, one app at a time.
+       It also means a feature suite can no longer take over the desktop by accident — running the tests
+       for the feature you are editing cannot start the app, because none of these live there any more.
+
+       Tests that merely need a desktop session but launch nothing (the WPF rendering tests over
+       Nexaflow.Visuals.*) deliberately stay in Nexaflow.Tests.Core, next to their subject. -->
+  <PropertyGroup>
+    <!-- Pinned to the WinRT platform version because Nexaflow.Features.WindowsApps targets it. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
+    <!-- Each test file keeps the namespace it had before the move, so [CoversNode] ids, the
+         folder→feature convention and any FullyQualifiedName filter still read the same. -->
+    <RootNamespace>Nexaflow.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.3.3" />
+    <PackageReference Include="NSubstitute" Version="6.2.0" />
+    <PackageReference Include="FlaUI.Core" Version="5.0.0" />
+    <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
+         clean checkout (gitignored), where the analyzer degrades to the presence check only. -->
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">
+    <AdditionalFiles Include="..\..\..\.product\tree.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The git-ignored sample dataset and the [CoversNode] attribute. Dependency-free by charter, which
+         is why it is the only project reference here. -->
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+  </ItemGroup>
+
+  <!-- No product reference, by design. A journey drives the built Nexaflow.exe and knows it only as a
+       running application; anything it needs on disk is built into the sample corpus by the suite that owns
+       that format, and looked up through RequiredFixture — which reports inconclusive when the corpus has
+       not been built. So run the other suites first and this one opens what they left behind. The moment
+       this suite references a feature assembly, it is preparing its input with the very code it is meant to
+       be exercising through the UI. -->
+
+</Project>

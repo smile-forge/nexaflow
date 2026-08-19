@@ -19,6 +19,14 @@ namespace Nexaflow.Tests.Features.Font;
 /// </para>
 /// </summary>
 [TestClass]
+// Serialised: every case builds real WPF font objects (Fonts.SystemFontFamilies, then a GlyphTypeface per
+// face), which go through WPF's shared font cache. Under method-level parallelism that cache is contended
+// and a build can transiently come back with no code points — GlyphGrid_IsPaged_… was seen to fail exactly
+// once in a full run and never in twenty runs on its own. The production code already allows for it
+// (FontItemViewModel.AllCodePoints refuses to cache an empty build), which is the same symptom from the
+// other side. Mitigation rather than a proven fix: a one-in-many flake is not something a test run can
+// confirm, but this is how the WPF-touching classes in Tests.Core are handled for the same reason.
+[DoNotParallelize]
 public class FontViewModelTests
 {
     /// <summary>An installed family that is certain to exist on Windows, with a usable fallback.</summary>

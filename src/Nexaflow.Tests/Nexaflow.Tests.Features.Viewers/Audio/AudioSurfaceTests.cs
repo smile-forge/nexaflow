@@ -296,11 +296,11 @@ public class AudioSurfaceTests
         private int _n;
         public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(44100, 1);
 
-        public int Read(float[] buffer, int offset, int count)
+        public int Read(Span<float> buffer)
         {
-            for (var i = 0; i < count; i++)
-                buffer[offset + i] = (float)Math.Sin(2 * Math.PI * 440 * _n++ / 44100);
-            return count;
+            for (var i = 0; i < buffer.Length; i++)
+                buffer[i] = (float)Math.Sin(2 * Math.PI * 440 * _n++ / 44100);
+            return buffer.Length;
         }
     }
 
@@ -312,7 +312,7 @@ public class AudioSurfaceTests
         Assert.AreEqual(0, aggregator.LatestBands.Length, "nothing to draw before the first frame");
 
         var buffer = new float[4096];
-        aggregator.Read(buffer, 0, buffer.Length);      // pass-through fills the buffer and taps the FFT
+        aggregator.Read(buffer);                        // pass-through fills the buffer and taps the FFT
 
         Assert.AreEqual(32, aggregator.LatestBands.Length, "one magnitude per bar");
         Assert.IsTrue(aggregator.LatestBands.All(b => b is >= 0 and <= 1), "bars are drawn from a 0..1 scale");

@@ -19,8 +19,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MSTest" Version="4.3.2" />
-    <PackageReference Include="NSubstitute" Version="6.0.0" />
+    <PackageReference Include="MSTest" Version="4.3.3" />
+    <PackageReference Include="NSubstitute" Version="6.2.0" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
   </ItemGroup>

@@ -27,7 +27,17 @@ public static class AsyncPumpCore
         try
         {
             var task = work();
-            task.ContinueWith(_ => context.Complete(), TaskScheduler.Default);
+            // ExecuteSynchronously: end the pump on whichever thread completed the work, instead of
+            // queueing that job to the thread pool. Run() blocks its caller — an MSTest worker, i.e. a pool
+            // thread — inside RunOnCurrentThread until Complete() is called, so a pool-scheduled completion
+            // means every pumped test holds one pool thread hostage while waiting for another pool thread to
+            // release it. Alone there is slack and nobody notices; with method-level parallelism across the
+            // ~28 conformance-derived classes the pool runs out and the rest queue behind its ~1-per-500ms
+            // thread injection. That is the whole of "these tests take five times longer when run together".
+            task.ContinueWith(_ => context.Complete(),
+                              CancellationToken.None,
+                              TaskContinuationOptions.ExecuteSynchronously,
+                              TaskScheduler.Default);
             context.RunOnCurrentThread();
             task.GetAwaiter().GetResult(); // surface exceptions / failed asserts
         }
