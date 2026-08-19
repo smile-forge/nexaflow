@@ -8,6 +8,8 @@ under the license noted below.
 | [AvalonEdit](https://github.com/icsharpcode/AvalonEdit) | MIT |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MIT |
 | [Concentus](https://github.com/lostromb/concentus) (+ Oggfile) | MIT |
+| [DiscUtils](https://github.com/LTRData/DiscUtils) (built from source) | MIT |
+| [fo-dicom](https://github.com/fo-dicom/fo-dicom) (+ fo-dicom.Codecs, bundled native codecs) | MS-PL |
 | [Google.GenAI](https://github.com/googleapis/dotnet-genai) | Apache-2.0 |
 | [HelixToolkit.Wpf](https://github.com/helix-toolkit/helix-toolkit) | MIT |
 | [HtmlAgilityPack](https://github.com/zzzprojects/html-agility-pack) | MIT |
@@ -17,13 +19,20 @@ under the license noted below.
 | [LibVLCSharp](https://github.com/videolan/libvlcsharp) (+ LibVLCSharp.WPF) | LGPL-2.1-or-later |
 | [Markdig](https://github.com/xoofx/markdig) | BSD-2-Clause |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License |
+| [MimeKit](https://github.com/jstedfast/MimeKit) | MIT |
+| [MsgReader](https://github.com/Sicos1977/MSGReader) | MIT |
 | [NAudio](https://github.com/naudio/NAudio) | MIT |
-| [NAudio.Vorbis](https://github.com/naudio/Vorbis) | MIT |
+| [NVorbis](https://github.com/NVorbis/NVorbis) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [OpenAI .NET](https://github.com/openai/openai-dotnet) | MIT |
+| [PdfPig](https://github.com/UglyToad/PdfPig) | Apache-2.0 |
+| [PdfPig.Filters.Dct.JpegLibrary](https://github.com/BobLd/UglyToad.PdfPig.Filters.Dct.JpegLibrary) | Apache-2.0 |
+| [PdfPig.Filters.Jbig2.PdfboxJbig2](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jbig2.PdfboxJbig2) | Apache-2.0 |
+| [PdfPig.Filters.Jpx.OpenJpeg](https://github.com/BobLd/UglyToad.PdfPig.Filters.Jpx.OpenJpeg) (bundled OpenJPEG) | BSD-2-Clause |
 | [SharpAssimp](https://github.com/JeremyAnsel/SharpAssimp) | MIT (bundled native Assimp: BSD-3-Clause) |
 | [SharpCompress](https://github.com/adamhathcock/sharpcompress) | MIT |
 | [SharpGLTF.Toolkit](https://github.com/vpenades/SharpGLTF) | MIT |
+| [SharpVectors](https://github.com/ElinamLLC/SharpVectors) | BSD-3-Clause |
 | [SharpZipLib](https://github.com/icsharpcode/SharpZipLib) | MIT |
 | [TagLibSharp](https://github.com/mono/taglib-sharp) | LGPL-2.1 |
 | [tree-sitter](https://github.com/tree-sitter/tree-sitter) | MIT |

@@ -12,9 +12,9 @@
     <Company>Smile-Forge</Company>
     <Product>Nexaflow</Product>
     <Description>Nexaflow is an open-source Windows shell replacement</Description>
-    <AssemblyVersion>1.4.0.0</AssemblyVersion>
-    <FileVersion>1.4.0.0</FileVersion>
-    <Version>1.4.0</Version>
+    <AssemblyVersion>1.5.0.0</AssemblyVersion>
+    <FileVersion>1.5.0.0</FileVersion>
+    <Version>1.5.0</Version>
     <NeutralLanguage>en</NeutralLanguage>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Nexaflow</AssemblyName>
@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="NAudio" Version="3.0.1" />
     <PackageReference Include="Updatum" Version="1.4.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
@@ -118,8 +118,7 @@
     <!-- Elevation: the launcher uses the contract DTOs (real ref). The bridge exe is referenced for build
          ordering only (ReferenceOutputAssembly=false) — CopyPrivilegeBridge places its output explicitly. -->
     <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
-    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj"
-                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\Nexaflow.Elevation\Nexaflow.PrivilegeBridge\Nexaflow.PrivilegeBridge.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
   <!--
@@ -140,8 +139,7 @@
          that drops Platform (Configuration only) is a *separate* AnyCPU instance: it builds a stray bin\<Config>\
          tree and, on an incremental build, leaves GetTargetPath pointing at an output the bridge wasn't built
          into. Just query the path, passing the same Configuration+Platform Core was built with. -->
-    <MSBuild Projects="$(_BridgeProj)" Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration);Platform=$(Platform)">
+    <MSBuild Projects="$(_BridgeProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
       <Output TaskParameter="TargetOutputs" ItemName="_BridgeTarget" />
     </MSBuild>
 
@@ -154,9 +152,7 @@
     </ItemGroup>
 
     <MakeDir Directories="$(_BridgeDest)" />
-    <Copy SourceFiles="@(_BridgeFile)"
-          DestinationFiles="@(_BridgeFile->'$(_BridgeDest)%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_BridgeFile)" DestinationFiles="@(_BridgeFile->'$(_BridgeDest)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
   <!--
@@ -177,8 +173,7 @@
          drops Platform is a *separate* AnyCPU instance: it builds a stray bin\<Config>\ tree and, on an
          incremental build, leaves GetTargetPath resolving an output where libVLC isn't staged — the "no libVLC
          native files found" error. Just query the path with the same Configuration+Platform. -->
-    <MSBuild Projects="$(_VideoProj)" Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration);Platform=$(Platform)">
+    <MSBuild Projects="$(_VideoProj)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
       <Output TaskParameter="TargetOutputs" ItemName="_VideoTarget" />
     </MSBuild>
 
@@ -212,19 +207,14 @@
       <_VlcFile Include="$(_VideoOutDir)libvlc\**\*" Exclude="@(_VlcPrune)" />
     </ItemGroup>
 
-    <Error Condition="'@(_VlcFile)' == ''"
-           Text="CopyLibVlc: no libVLC native files found under '$(_VideoOutDir)libvlc'. The VideoLAN.LibVLC.Windows runtime is missing from the Video project's output, so video playback would not ship — rebuild Nexaflow.Features.Video." />
+    <Error Condition="'@(_VlcFile)' == ''" Text="CopyLibVlc: no libVLC native files found under '$(_VideoOutDir)libvlc'. The VideoLAN.LibVLC.Windows runtime is missing from the Video project's output, so video playback would not ship — rebuild Nexaflow.Features.Video." />
 
     <!-- Build output (this is also what the WiX harvester globs). -->
-    <Copy SourceFiles="@(_VlcFile)"
-          DestinationFiles="@(_VlcFile->'$(OutDir)libvlc\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_VlcFile)" DestinationFiles="@(_VlcFile->'$(OutDir)libvlc\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <!-- Publish output — ONLY when actually publishing. $(PublishDir) has a non-empty default even during a
          plain build, so gate on $(_IsPublishing) (set by the SDK publish pipeline); otherwise a normal build
          would create a stray bin\…\publish\libvlc\ tree that the harvester would then duplicate. -->
-    <Copy Condition="'$(_IsPublishing)' == 'true'" SourceFiles="@(_VlcFile)"
-          DestinationFiles="@(_VlcFile->'$(PublishDir)libvlc\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
+    <Copy Condition="'$(_IsPublishing)' == 'true'" SourceFiles="@(_VlcFile)" DestinationFiles="@(_VlcFile->'$(PublishDir)libvlc\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
 
     <!-- Clear any pruned plugins left in the destination by an earlier un-pruned copy, so incremental
          builds (which never delete) don't keep shipping them. -->

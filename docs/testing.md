@@ -9,15 +9,16 @@ All under `src/Nexaflow.Tests/`:
 
 | Project | Target | Covers | References |
 |---------|--------|--------|------------|
+| `Nexaflow.Tests.UIJourneys` | `net10.0-windows10.0.19041.0`, MSTest exe | **Every test that launches the app.** `Core\` for the shell, `Features\<Feature>\` for the rest | `Nexaflow.Tests.Fixtures` **and nothing else** — a journey knows the app as a running process, never as an assembly |
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome, services, `Nexaflow.Visuals.*` | `Nexaflow.Core`, `Nexaflow.Visuals.Text`, `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the three suites above (for their **output**, not their API) |
-| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — the FlaUI journey bases, `AsyncPump`, `RepoRoot`, `ViewerMap`, `DicomTestFiles`, the `ISearchable` conformance contract | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
+| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` conformance contract. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
-| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset.** Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
+| `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
 No `Nexaflow.Tests.Features*` suite references Core (they mirror the architectural rule that features
 don't depend on Core). The sample-data generator therefore lives in its own dependency-free library,
@@ -65,11 +66,26 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 ### Categories
 
 - **Unit / non-UI** — fast, headless, no desktop. The default for CI.
-- **`TestCategory("UI")`** — drives the real `Nexacore.exe` via FlaUI (UI Automation). Requires an
-  interactive desktop session; skip in headless/CI with `--filter "TestCategory!=UI"`. Each UI test
-  launches a fresh app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp
-  dir), so it neither depends on nor pollutes the developer's real `%APPDATA%` config. See
-  `UITestBase`.
+- **`TestCategory("UI")`** — needs an interactive desktop session; skip in headless/CI with
+  `--filter "TestCategory!=UI"`. Two kinds, and the split is the point:
+  - **`Nexaflow.Tests.UIJourneys`** drives the real `Nexaflow.exe` via FlaUI. Each test launches a fresh
+    app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp dir), so it neither
+    depends on nor pollutes the developer's real `%APPDATA%` config. See `UITestBase`.
+  - The remainder, in `Tests.Core/Visuals`, render WPF controls off-screen. They want a desktop session
+    but launch nothing and touch no pointer, so they stay beside their subject.
+
+  They live in one assembly because they used to be spread over four, and a whole-suite run then started
+  four test hosts: each asked for the machine separately, and each launched its own app, so the instances
+  stole one another's clicks. One assembly is one launcher and one prompt; `UiTestGate` adds a
+  machine-wide semaphore so even a concurrent host cannot put a second app on screen.
+
+  **They reference nothing but the built app.** A journey that constructed its own input would be linking
+  the assembly it is meant to drive through the UI — preparing and asserting with the same code. So
+  anything that cannot be clicked into being (a git repository, a disk image, a seeded workspace config)
+  is built into `test-samples/ui/` by the suite that owns that format, as part of that suite's normal run,
+  and looked up through `RequiredFixture`. A missing fixture is **inconclusive**, not a failure: it means
+  the corpus has not been built on this machine, which says nothing about whether the app works.
+  **Run the other suites first.**
 
   > **They ask before taking the machine.** The first launch in a run puts up a confirmation
   > (`UiTakeoverPrompt`), because these drive the real mouse and keyboard: started while you are working
@@ -274,8 +290,10 @@ When you add a **new viewer**, give its root `UserControl` a stable
 |---------|------|
 | Sample dataset generator | `Nexaflow.Tests.Fixtures/TestSampleData.cs` |
 | Sample catalogs | `Nexaflow.Tests.Fixtures/{Markdown,Tabular,Text,Code,Notebook,Json,Log,Binary,Image,Archive,Model3D,Audio,Video}Samples.cs` |
-| UI test base (app launch, isolated config) | `*/UI/Infrastructure/UITestBase.cs` |
-| File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.Features.Common/WindowsFileSystem/UI/FileSystemUiTestBase.cs` |
-| Per-file viewer UI tests | `Nexaflow.Tests.Features.Viewers/Fixtures/SampleFileViewerTests.cs` |
+| UI test base (app launch, isolated config) | `Nexaflow.Tests.UIJourneys/Infrastructure/UITestBase.cs` |
+| File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.UIJourneys/Infrastructure/FileSystemUiTestBase.cs` |
+| Machine-wide UI gate (semaphore, consent, DPI, foreground) | `Nexaflow.Tests.Fixtures/UiTestGate.cs` |
+| Fixtures the journeys open | `Nexaflow.Tests.Fixtures/UiFixtures.cs` + `RequiredFixture.cs` |
+| Per-file viewer UI tests | `Nexaflow.Tests.UIJourneys/Features/Fixtures/SampleFileViewerTests.cs` |
 | Tabular detection over samples | `Nexaflow.Tests.Features.Viewers/Tabular/SampleFileDetectionTests.cs` |
 | Non-tabular fixture smoke (BOM/binary) | `Nexaflow.Tests.Features.Viewers/Fixtures/GeneratedSampleFilesTests.cs` |

@@ -232,19 +232,20 @@ Mnemonic: **feature settings = global (unless `[WorkspaceScopedConfig]`); person
 
 ## Tests
 
-Four test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full guide: [docs/testing.md](docs/testing.md).
+Test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full guide: [docs/testing.md](docs/testing.md).
 
 | Project | Covers |
 |---------|--------|
-| `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*` (unit + UI). References Core. |
+| `Nexaflow.Tests.UIJourneys` | **Every test that launches the app** and drives the real mouse — `Core\` for the shell, `Features\<Feature>\` for the rest. References **only** `Tests.Fixtures`: a journey knows the app as a running process, never as an assembly. Fixtures it can't click into being are built by the suite that owns that format, into `test-samples/ui/`; a missing one is *inconclusive*, not a failure. **So run the other suites first.** |
+| `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*`. References Core. Its remaining `TestCategory("UI")` tests render WPF off-screen — they need a desktop session but launch nothing. |
 | `Nexaflow.Tests.Features` | The shell-adjacent features — AI chat, console, network, OneDrive, Product/Projects, scratchpad, This PC, web — plus the feature-agnostic search plumbing. References the feature projects, **not** Core. |
 | `Nexaflow.Tests.Features.Viewers` | Every viewer/editor/player (Audio…Video) and the sample-file corpus. |
 | `Nexaflow.Tests.Features.WindowsOS` | The Windows-integration features: file system, registry, search index, installed apps, processes, system info. |
 | `Nexaflow.Tests.Features.Architecture` | The whole-repo guards. References the three suites for their **output** — the rules reflect over every feature and test assembly. |
-| `Nexaflow.Tests.Features.Common` | **Not a test project** — shared support for the suites above: the FlaUI journey bases, `AsyncPump`, `RepoRoot`, `ViewerMap`, `DicomTestFiles`, the `ISearchable` conformance contract. No feature reference. |
+| `Nexaflow.Tests.Features.Common` | **Not a test project** — shared support for the suites above: `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` conformance contract. No feature reference. (The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures`, which both its consumers reference.) |
 | `Nexaflow.Tests.IO` | `Nexaflow.IO.*` — the WPF-free IO leaves. References the IO projects and **nothing else**: no Core, no Features, no Visuals, so it needs neither a desktop session nor a shell. |
 | `Nexaflow.Tests.Providers` | Provider clients. |
-| `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset. Referenced by the Core, Features and IO test projects. |
+| `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Referenced by every test project. |
 
 A test belongs in `Tests.IO` when its **subject** is an IO library. One that merely *uses* one — `Text`
 reading through `EncodingDetector`, `Compressed` through the VFS — stays with its feature: a test follows
@@ -257,7 +258,19 @@ dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
 src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
 ```
 
-UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, the AI bar, or any viewer.
+UI journeys live in their own assembly and take over the mouse and keyboard, so they are never part of a
+feature's inner loop — editing a feature cannot launch the app any more, because nothing in its suite can.
+Run them last, on a machine you are not using, and after the other suites (which build the fixtures they
+open):
+
+```powershell
+src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.UIJourneys.exe
+```
+
+They ask once before taking the machine (`NEXAFLOW_UITESTS_NOPROMPT=1` skips it), and `UiTestGate` holds a
+machine-wide semaphore so only one app instance runs at a time even if another test host is live. The
+remaining `TestCategory=UI` tests in `Tests.Core` render WPF off-screen: they need a desktop session but
+launch nothing.
 
 A feature's tests go in the suite matching its **subject** — a viewer in `.Viewers`, a Windows integration in `.WindowsOS`, anything shell-adjacent in `.Features`. Namespaces are the same in all of them (`Nexaflow.Tests.Features.<Folder>`), so only the project a file belongs to changed.
 
@@ -274,6 +287,10 @@ ItemsControl.ItemsSource binding + Items.Add is illegal — pick one
 ObservableCollection.Clear() + N × Add() fires N+1 CollectionChanged events — the intermediate state of "empty" can render as a blank frame if anything in the view rebuilds on each event. Batch updates via Dispatcher.BeginInvoke
 
 A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF wraps it in the default popup TextBlock. Assign an explicit TextBlock if you care about alignment
+
+**`AutomationProperties.AutomationId` is only reliable on elements that create an `AutomationPeer`** — `Control` subclasses (TextBox, TabItem, Button, ContentControl, TabControl…). Decorators (`Border`) and panels (`Grid`, `StackPanel`) create none by default, so an id set on one may never resolve: `FindFirstDescendant(ByAutomationId(…))` returns null forever. It is *unpredictable* rather than always-absent — `Pdf_Panel` on a Border never appears, while `TabItem_{PageKind}` (also a Border, set in `TabStrip.xaml.cs`) does — so treat an id on a non-control as unusable regardless of whether it happens to work today. The failure is nastier than a red test: the *inverse* assertion ("hidden → the id is null") passes for the wrong reason, so a toggle test reads green while testing nothing. To assert a container is shown/hidden, assert on a real control inside it — collapsing the container removes its children from the tree too. Don't reshape the visual tree just to host an id.
+
+**A WPF `TextBox` publishes its text through the UIA `Value` pattern, not its `Name`.** Anything rendered as a selectable/copyable TextBox (the PDF panel's property rows, for instance) is invisible to `ByName`/`element.Name` — read `element.Patterns.Value` (or `AsTextBox().Text`) instead. A test searching by name for a value it can see on screen is the usual symptom.
 
 A UIElement embedded in a RichTextBox (BlockUIContainer) does not reliably receive mouse events, and the routed event's OriginalSource over it is unreliable too — the text container attributes clicks to the container, the FlowDocument, or even a NEIGHBOURING Paragraph/Run depending on the region. To give an embedded element its own mouse interaction, hook the RichTextBox's Preview event, find the element with a geometric VisualTreeHelper.HitTest, and drive it directly (see IInteractiveBlock + InlineMarkdownEditor/SelectableMarkdownView)
 
