@@ -9,7 +9,10 @@
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Column="0" Text="🧭" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
+        <!-- The feature mark. WPF renders emoji as monochrome glyphs, so without a Foreground this
+             inherits the default black and disappears against every theme's surface. -->
+        <TextBlock Grid.Column="0" Text="🧭" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"
+                   Foreground="{StaticResource AccentBrush}"/>
 
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
             <TextBlock x:Name="TitleText" Text="Product" FontSize="12" FontWeight="SemiBold"

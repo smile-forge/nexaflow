@@ -88,7 +88,7 @@
 
         <Style x:Key="RibbonBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#C8D0E8"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="8,5"/>
             <Setter Property="Cursor"          Value="Hand"/>
@@ -104,10 +104,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#30FFFFFF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#50FFFFFF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -116,8 +116,8 @@
         </Style>
 
         <Style x:Key="RibbonBtnActive" TargetType="Button" BasedOn="{StaticResource RibbonBtn}">
-            <Setter Property="Background" Value="#40A0E0FF"/>
-            <Setter Property="Foreground" Value="#A0E0FF"/>
+            <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
         </Style>
 
         <Style x:Key="ColorDotBtn" TargetType="Button">
@@ -135,10 +135,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#80FFFFFF"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FFFFFFFF"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource TextBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -159,48 +159,49 @@
                AllowsTransparency="True"
                StaysOpen="False"
                Placement="AbsolutePoint">
-            <Border Background="#1A1F2F"
-                    BorderBrush="#2A3047"
+            <Border Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="8,6"
                     MinWidth="130">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="14" ShadowDepth="3" Direction="270"
-                                      Color="#000000" Opacity="0.6"/>
+                                      Color="Black" Opacity="0.6"/>
                 </Border.Effect>
                 <StackPanel>
 
                     <!-- Color row 1: Yellow Blue Green Pink -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Yellow" Click="RibbonColorBtn_Click" ToolTip="Yellow">
-                            <Ellipse Width="18" Height="18" Fill="#FFF59D"/>
+                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Yellow.Fill}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Blue" Click="RibbonColorBtn_Click" ToolTip="Blue">
-                            <Ellipse Width="18" Height="18" Fill="#90CAF9"/>
+                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Blue.Fill}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Green" Click="RibbonColorBtn_Click" ToolTip="Green">
-                            <Ellipse Width="18" Height="18" Fill="#A5D6A7"/>
+                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Green.Fill}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Pink" Click="RibbonColorBtn_Click" ToolTip="Pink">
-                            <Ellipse Width="18" Height="18" Fill="#F48FB1"/>
+                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Pink.Fill}"/>
                         </Button>
                     </StackPanel>
 
                     <!-- Color row 2: Orange Purple White -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Orange" Click="RibbonColorBtn_Click" ToolTip="Orange">
-                            <Ellipse Width="18" Height="18" Fill="#FFCC80"/>
+                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Orange.Fill}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="Purple" Click="RibbonColorBtn_Click" ToolTip="Purple">
-                            <Ellipse Width="18" Height="18" Fill="#CE93D8"/>
+                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.Purple.Fill}"/>
                         </Button>
                         <Button Style="{StaticResource ColorDotBtn}" Tag="White" Click="RibbonColorBtn_Click" ToolTip="White">
-                            <Ellipse Width="18" Height="18" Fill="#FAFAFA" Stroke="#CCCCCC" StrokeThickness="1"/>
+                            <Ellipse Width="18" Height="18" Fill="{DynamicResource PostIt.White.Fill}"
+                                     Stroke="{DynamicResource PostIt.White.Header}" StrokeThickness="1"/>
                         </Button>
                     </StackPanel>
 
-                    <Rectangle Height="1" Fill="#2A3047" Margin="0,0,0,6"/>
+                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,0,0,6"/>
 
                     <!-- Shape row 1: Square -->
                     <Button x:Name="RibbonShapeSquare" Tag="Square" Click="RibbonShapeBtn_Click"
@@ -216,7 +217,7 @@
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="13" Height="13" CornerRadius="3"
-                                    BorderBrush="#C8D0E8" BorderThickness="2"
+                                    BorderBrush="{StaticResource TextBrush}" BorderThickness="2"
                                     Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="Rounded" VerticalAlignment="Center"/>
                         </StackPanel>
@@ -227,7 +228,7 @@
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="13" Height="13" CornerRadius="5,0,5,0"
-                                    BorderBrush="#C8D0E8" BorderThickness="2"
+                                    BorderBrush="{StaticResource TextBrush}" BorderThickness="2"
                                     Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="Diagonals" VerticalAlignment="Center"/>
                         </StackPanel>
@@ -242,7 +243,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Rectangle Height="1" Fill="#2A3047" Margin="0,0,0,6"/>
+                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,0,0,6"/>
 
                     <!-- Bring to Front / Send to Back -->
                     <StackPanel Orientation="Horizontal">

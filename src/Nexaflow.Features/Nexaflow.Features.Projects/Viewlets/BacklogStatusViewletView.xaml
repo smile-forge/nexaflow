@@ -42,7 +42,10 @@
                 Background="{DynamicResource AccentSubtleBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,1,0">
+            <!-- Foreground is load-bearing: WPF draws emoji as monochrome glyphs, so an unset one
+                 comes out black on the accent strip. Matches the .NET viewlet's logo mark. -->
             <TextBlock Text="📋" FontSize="15"
+                       Foreground="{DynamicResource AccentBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
 
