@@ -53,8 +53,21 @@ public partial class WebSurface : UserControl, IDisposable
 
     // ── State ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The live browser, or null when there is not one — <b>including after disposal</b>, where reading
+    /// <c>View.CoreWebView2</c> throws <see cref="ObjectDisposedException"/> rather than answering.
+    /// <para>
+    /// Every operation below already treats "no CoreWebView2" as "not ready, say so and return", which is the
+    /// contract a host depends on: the Web tab and the PDF reader both call in while the browser is still
+    /// starting, or on a machine where it never will. A disposed surface is the same situation — a tab closed
+    /// while something was still reading it — so it has to answer the same way instead of throwing from the
+    /// guard meant to prevent exactly that.
+    /// </para>
+    /// </summary>
+    private Microsoft.Web.WebView2.Core.CoreWebView2? Core => _disposed ? null : View.CoreWebView2;
+
     /// <summary>True once the underlying CoreWebView2 exists and can be driven.</summary>
-    public bool IsReady => !_disposed && View.CoreWebView2 is not null;
+    public bool IsReady => Core is not null;
 
     /// <summary>False once starting the browser has failed on this machine. Never returns to true.</summary>
     public bool IsAvailable { get; private set; } = true;
@@ -71,7 +84,7 @@ public partial class WebSurface : UserControl, IDisposable
     /// <summary>The URL currently loaded, as last reported by navigation. Empty before the first one.</summary>
     public string CurrentUrl { get; private set; } = string.Empty;
 
-    public string DocumentTitle => View.CoreWebView2?.DocumentTitle ?? string.Empty;
+    public string DocumentTitle => Core?.DocumentTitle ?? string.Empty;
 
     // No public CoreWebView2 escape hatch. Exposing it would force every consumer — and every test that
     // touches this control — to reference the WebView2 package directly, which is exactly the coupling this
@@ -98,7 +111,7 @@ public partial class WebSurface : UserControl, IDisposable
     public async Task<bool> EnsureReadyAsync()
     {
         if (_disposed || !IsAvailable) return false;
-        if (View.CoreWebView2 is not null) return true;
+        if (Core is not null) return true;
         if (_initStarted) return false;
         _initStarted = true;
 
@@ -112,7 +125,7 @@ public partial class WebSurface : UserControl, IDisposable
 
             if (_disposed) return false;
 
-            var core = View.CoreWebView2
+            var core = Core
                 ?? throw new InvalidOperationException("WebView2 initialised without a CoreWebView2.");
 
             core.DocumentTitleChanged += OnCoreDocumentTitleChanged;
@@ -173,7 +186,7 @@ public partial class WebSurface : UserControl, IDisposable
     /// <summary>Navigates to <paramref name="url"/>. False when the browser isn't ready.</summary>
     public bool NavigateTo(string url)
     {
-        if (View.CoreWebView2 is not { } core) return false;
+        if (Core is not { } core) return false;
         core.Navigate(url);
         return true;
     }
@@ -191,7 +204,7 @@ public partial class WebSurface : UserControl, IDisposable
     /// </summary>
     public async Task<bool> NavigateAndWaitAsync(string url, TimeSpan timeout, CancellationToken ct)
     {
-        if (View.CoreWebView2 is not { } core) return false;
+        if (Core is not { } core) return false;
 
         var settled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         void OnCompleted(object? s, CoreWebView2NavigationCompletedEventArgs e) => settled.TrySetResult(true);
@@ -230,7 +243,7 @@ public partial class WebSurface : UserControl, IDisposable
     /// <param name="fragment">The new fragment, with or without its leading <c>#</c>.</param>
     public async Task<bool> TrySetFragmentAsync(string fragment, CancellationToken ct)
     {
-        if (View.CoreWebView2 is null) return false;
+        if (Core is null) return false;
 
         var hash = fragment.StartsWith('#') ? fragment : "#" + fragment;
         var literal = JsonSerializer.Serialize(hash);
@@ -289,7 +302,7 @@ public partial class WebSurface : UserControl, IDisposable
     /// </summary>
     public async Task<byte[]?> CapturePngAsync(double maxEdge, CancellationToken ct)
     {
-        if (View.CoreWebView2 is not { } core) return null;
+        if (Core is not { } core) return null;
 
         using var raw = new MemoryStream();
         await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, raw);
@@ -314,7 +327,7 @@ public partial class WebSurface : UserControl, IDisposable
     /// <summary>Runs a script in the page and returns its JSON-serialized result; null when not ready.</summary>
     public async Task<string?> ExecuteScriptAsync(string script, CancellationToken ct)
     {
-        if (View.CoreWebView2 is not { } core) return null;
+        if (Core is not { } core) return null;
         var result = await core.ExecuteScriptAsync(script);
         ct.ThrowIfCancellationRequested();
         return result;
