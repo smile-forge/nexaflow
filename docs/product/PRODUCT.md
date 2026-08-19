@@ -1,41 +1,13 @@
 # Nexaflow — product status
 
-_Version **v1.4.0** · 2026-07-23_
+_Version **v1.5.0** · 2026-08-20_
 
-**94% shipping** — 920/979 components done (56 should · 0 faulted · 3 shouldn't)
+**91% shipping** — 1174/1286 components done (108 should · 0 faulted · 4 shouldn't)
 
 ## Tree
 
 - **Features** — _should_
   - **Code** — _done_
-    - **Class view** — _done_
-    - **Code View** — _done_
-      - **Editor toolbar** — _done_
-        - **Encoding selector** — _done_
-        - **Line-ending selector** — _done_
-        - **Line numbers toggle** — _done_
-      - **Save** — _done_
-      - **Reload (F5) & external-change watch** — _done_
-      - **Status bar** — _done_
-      - **Cut / Copy / Paste** — _done_
-      - **Read-only / too-large banner** — _done_
-      - **Editor commands panel** — _done_
-        - **Checksum** — _done_
-        - **Base64 encode / decode** — _done_
-      - **Line operations** — _done_
-    - **Open As Code** — _done_
-    - **Max editable size** — _done_
-    - **Syntax highlighting** — _done_
-      - **Tree-sitter colouring** — _done_
-      - **Markup (.xshd) colouring** — _done_
-      - **Role palette** — _done_
-    - **Code folding** — _done_
-    - **Embedded languages** — _done_
-    - **Code map panel** — _done_
-      - **Dependencies list** — _done_
-      - **Free functions list** — _done_
-      - **Map navigation** — _done_
-      - **Show/hide map** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and now readiness-gated: "Editing <file>" plus the first 4000 chars of the live document; the AI send waits for the load to finish (IsContextReady).
       - **Act - client tools** — _done_ — Full parity via the shared editor base: read (get_editor_text), edit (set_editor_text / replace_all) and save (save_file). Reads auto-run; edits/save are approval-gated. Read-only for over-size files.
@@ -45,30 +17,70 @@ _Version **v1.4.0** · 2026-07-23_
         - **replace_all** — _done_ — Find/replace across the document, optional regex (approval-gated).
         - **save_file** — _done_ — Persist the document, encoding/EOL-aware (approval-gated).
       - **Preview - IContextPreview** — _done_ — Implemented via IContextPreview using the shared ReadOnlyTextPreview control (file name + meta + capped monospace snippet), inherited from the editor base so every editor gets it.
+    - **UI** — _done_
+      - **Editor toolbar** — _done_
+        - **Encoding selector** — _done_
+        - **Line-ending selector** — _done_
+        - **Line numbers toggle** — _done_
+        - **Save** — _done_
+      - **Code View** — _done_
+        - **Cut / Copy / Paste** — _done_ — Standard WPF ApplicationCommands (Cut/Copy/Paste) forwarded to a focused AvalonEdit text area — no view-model state to assert. Covered by the UI journey's presence check.
+        - **Read-only / too-large banner** — _done_
+        - **External-change banner** — _done_
+      - **Editor commands panel** — _done_
+        - **Checksum** — _done_
+        - **Base64 encode / decode** — _done_
+      - **Status bar** — _done_
+        - **Line operations** — _done_
+        - **File size** — _done_
+        - **Unsaved / read-only indicators** — _done_
+      - **Code map panel** — _done_
+        - **Dependencies list** — _done_
+        - **Free functions list** — _done_
+        - **Map navigation** — _done_
+        - **Show/hide map** — _done_
+        - **Class view** — _done_
+    - **Functionality** — _done_
+      - **Syntax highlighting** — _done_
+        - **Tree-sitter colouring** — _done_
+        - **Markup (.xshd) colouring** — _done_
+        - **Role palette** — _done_
+      - **Code folding** — _done_
+      - **Embedded languages** — _done_
+      - **Reload (F5) & external-change watch** — _done_
+      - **Open As Code** — _done_
+      - **Max editable size** — _done_
+      - **Structure extraction** — _done_
+      - **Search ? support** — _done_
   - **Console** — _should_
-    - **PTY Terminal** — _done_
-    - **Cmd Here** — _done_
-    - **Command vs AI routing** — _done_
-      - **Enter line classification** — _done_
-      - **'>' prefix to terminal** — _done_
-      - **AI-bar history / completion keys** — _done_
-      - **Drop file onto AI bar** — _done_
-    - **Side panels** — _done_
-      - **Files panel** — _done_
-      - **Environment panel** — _done_
-        - **Env-var add/edit overlay** — _done_
-      - **History panel** — _done_
-      - **Copy / Paste terminal menu** — _done_
-    - **Per-location environments** — _done_
-      - **Environments config editor** — _done_
-      - **Launch environment picker** — _done_
-      - **Configure button** — _done_
-    - **Inline AI banner** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — The terminal VM owns a live pseudo-console (cmd.exe/PTY); constructing it starts a real shell, so GetContext/GetSecurityContext are not unit-testable without an integration harness. The scope (GetSecurityContext => cwd) is guarded structurally by AiSurfaceRulesTests; reusable terminal input logic is covered by TerminalKeyHistoryTests/TerminalScreenTests.
       - **Act - client tools** — _done_ — Real command-execution parity (run anything the user could), approval-gated, with automatic output capture and background completion watching. Guidance present.
         - **run_command** — _done_ — run_command sends to a live cmd.exe/PTY and waits for the display to settle; not unit-testable without a live shell (integration/UI concern). The command classifier + key/history input logic is covered by TerminalKeyHistoryTests/TerminalScreenTests.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Terminal Surface** — _done_
+        - **Screen & Scrollback** — _done_
+        - **Path Bar & Busy Indicator** — _done_
+        - **Enter Line Routing** — _done_
+        - **Copy / Paste terminal menu** — _done_ — Copy and Paste themselves are clipboard calls with no rule between the selection and the clipboard. What is asserted is the part that is a decision: Ctrl-C interrupts rather than copying, which is the opposite of what Windows means by it everywhere else.
+        - **Inline AI banner** — _done_
+        - **Configure button** — _done_
+      - **Side Panels** — _done_
+        - **Files panel** — _done_
+        - **Environment panel** — _done_
+        - **History panel** — _done_
+      - **Environment Surfaces** — _done_
+        - **Env-var add/edit overlay** — _done_
+        - **Launch environment picker** — _done_
+        - **Environments config editor** — _done_ — The master/detail form itself is bindings over a config object; what is asserted is the three rules it enforces, all of which fail silently - a rename must carry its pinned locations across unless another environment still owns the old name, a new environment must not collide with an existing name, and the last environment must not be removable.
+    - **Functionality** — _done_
+      - **Command vs AI Routing** — _done_
+        - **'>' prefix to terminal** — _done_
+        - **AI-bar history / completion keys** — _done_
+        - **Drop file onto AI bar** — _done_
+      - **Per-location Environments** — _done_
+      - **Cmd Here** — _done_
   - **DotNet** — _should_
     - **UI** — _done_
       - **.NET Viewlet** — _done_
@@ -151,18 +163,18 @@ _Version **v1.4.0** · 2026-07-23_
         - **git_file_history** — _done_
       - **Preview - IContextPreview** — _shouldn't_ — has no page to represent
   - **Hex** — _should_
-    - **View Hex** — _done_
-      - **Hex + ASCII Panel** — _done_
-      - **Windowed Buffer** — _done_
+    - **UI** — _done_
+      - **Hex + ASCII Surface** — _done_ — The drawing itself is an OnRender over a byte window - what is asserted is which rows that window is, since every visible-range bug shows up there: the scroll clamps at the last row, the cursor is scrolled back into view from either direction, and a row change repaints.
       - **Text Evaluation Pane** — _done_
-      - **Go To Offset** — _done_
-      - **Edit Modes** — _done_
-      - **Encoding Selector** — _done_
-      - **Undo / Redo** — _done_
-      - **Save / Save As** — _done_
       - **Selection & Status Bar** — _done_
+      - **Toolbar** — _done_
+        - **Edit Modes** — _done_
+        - **Go To Offset** — _done_
+        - **Undo / Redo** — _done_
+        - **Save / Save As** — _done_
+        - **Encoding Selector** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _done_ — Thin: file path, size, edit mode only. Omits cursor offset, selection range, the visible byte rows, top row, and resolved encoding - all of which the VM has.
+      - **Context - get_context** — _done_ — Honest: file, size, edit mode, resolved encoding, cursor, selection, and the visible byte window - which the model needs because read_bytes deliberately reaches past what is displayed. (The old note here claimed it reported only path/size/mode; that had already been fixed in code and is now pinned by tests.)
       - **Act - client tools** — _should_ — read_bytes / find_bytes / get_selection to read beyond the visible window; goto/select/set_encoding view moves; overwrite_bytes + save (approval-gated) mirror the user edits.
         - **read_bytes** — _done_
         - **find_bytes** — _done_
@@ -172,33 +184,13 @@ _Version **v1.4.0** · 2026-07-23_
         - **set_encoding** — _done_
         - **overwrite_bytes** — _done_
         - **save** — _done_
-      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+      - **Preview - IContextPreview** — _should_ — Viewlet only features dont have a preview
+    - **Functionality** — _done_
+      - **Windowed Piece-table Buffer** — _done_
+      - **Byte Edit Operations** — _done_
+      - **Open Actions** — _done_
+      - **Unreadable File Recovery** — _done_
   - **Images** — _done_
-    - **Display Modes** — _done_
-      - **Album** — _done_
-      - **Carousel** — _done_
-      - **Explore (Hybrid Album)** — _done_
-      - **Collage** — _done_
-        - **Collage Minimap** — _done_
-    - **Navigation** — _done_
-      - **Previous / Next Arrows** — _done_
-      - **Wheel & Keyboard Stepping** — _done_
-      - **Dot Position Indicator** — _done_
-      - **Thumbnail Select / Open** — _done_
-    - **Image Tools** — _done_
-      - **Rotate Left / Right** — _done_
-      - **Fit / Actual Size** — _done_
-      - **Full-Screen View** — _done_
-    - **Slideshow** — _done_
-      - **Auto-Advance Toggle** — _done_
-      - **Speed Slider** — _done_
-    - **Delete Image** — _done_
-    - **Thumbnail Loading** — _done_
-    - **Open Actions** — _done_
-      - **Open As Image** — _done_
-      - **Folder Slideshow** — _done_
-      - **Folder Album** — _done_
-    - **EXIF / Metadata Panel** — _should_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest but thin: mode (carousel/album/...), filename and index. Conveys nothing about the image content itself.
       - **Act - client tools** — _should_ — capture_image hands the pixels to the model (ContextImage); get_image_info + next/previous_image (navigation marshalled to the UI thread).
@@ -207,77 +199,114 @@ _Version **v1.4.0** · 2026-07-23_
         - **next_image** — _done_
         - **previous_image** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Top Toolbar** — _done_
+        - **Sub-View Selector** — _done_
+        - **Heading** — _done_
+        - **Auto-Advance Toggle** — _done_
+        - **Speed Slider** — _done_
+        - **Full-Screen Button** — _done_
+      - **Carousel** — _done_
+        - **Previous / Next Arrows** — _done_
+        - **Wheel & Keyboard Stepping** — _done_
+        - **Dot Position Indicator** — _done_
+        - **Dot Paging** — _done_
+      - **Album** — _done_
+        - **Thumbnail Select / Open** — _done_
+      - **Explore (Hybrid Album)** — _done_
+        - **Wheel Stepping (image pane)** — _done_
+      - **Collage** — _done_
+        - **Collage Minimap** — _done_
+        - **Pan and Zoom** — _done_
+      - **Full-Screen View** — _done_
+        - **Full-Screen Navigation** — _done_
+      - **Image Context Menu** — _done_
+        - **Delete Image** — _done_
+      - **EXIF / Metadata Panel** — _done_
+      - **Image Tools** — _done_
+        - **Rotate Left / Right** — _done_
+        - **Fit / Actual Size** — _done_
+    - **Functionality** — _done_
+      - **Stepping and Clamping** — _done_
+      - **Slideshow Timing** — _done_
+      - **Thumbnail Loading** — _done_
+      - **Open Actions** — _done_
+        - **Open As Image** — _done_
+        - **Folder Slideshow** — _done_
+        - **Folder Album** — _done_
+      - **Collage Layout** — _done_
   - **Json** — _should_
-    - **View Json** — _done_
-      - **Tree View** — _done_
-      - **Raw Text Mode** — _done_
-      - **Table Mode** — _done_
-      - **Seek-by-Item Windowing** — _done_
-      - **Expand / Collapse** — _done_
-      - **JSONPath Query** — _done_
+    - **UI** — _done_
       - **Path Breadcrumb** — _done_
-      - **Format JSON** — _done_
-      - **Edit & Save** — _done_
+      - **Toolbar** — _done_
+        - **Format JSON** — _done_
+        - **Edit & Save** — _done_
+      - **Display List** — _done_
+        - **Tree View** — _done_
+        - **Raw Text Mode** — _done_
+        - **Table Mode** — _done_
+        - **Expand / Collapse** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _done_ — Thin: filename, size, node count and the selected JSONPath only. Omits the visible nodes, tree/table contents, expanded state, and current view mode.
-      - **Act - client tools** — _should_ — One tool (re-indent). The JSONPath handler navigates the UI but returns null - no data flows back to the model; no edit/navigate/mode tools.
+      - **Context - get_context** — _done_ — Reports the file, the root's shape and size, the active view mode, the selected JSONPath and whether there are unsaved changes - and says when a large root is only loaded in a window, which is what stops a partial array being read as the whole thing. It does NOT enumerate the visible rows; read_json and query_json_path are how content is reached. (The earlier note here also claimed the view mode was omitted; it is not.)
+      - **Act - client tools** — _should_ — Three read-mostly tools: read_json returns the loaded document, query_json_path reads a value at any path, format_json re-indents in place. There is deliberately no edit or navigate tool - the model reads, the user edits.
         - **format_json** — _done_ — Re-indents the JSON in place.
         - **query_json_path** — _done_
         - **read_json** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **Functionality** — _done_
+      - **Streaming Loader & Windowing** — _done_
+      - **JSONPath Query** — _done_
+      - **Open Actions** — _done_
+      - **Streaming Re-indent** — _should_
+      - **Splice Save** — _should_ — Until this exists, Save refuses while any part of the document is unloaded (json-edit-save) - the only correct behaviour for the current design, since writing the loaded tree would truncate everything unread. This lifts the restriction; it does not fix a defect.
+      - **Search (?)** — _should_
   - **Log Viewer** — _done_
-    - **Toolbar** — _done_
-      - **Level Highlight Toggles** — _done_
-      - **Custom Highlight Term** — _done_
-      - **Pause / Resume** — _done_
-      - **Follow / Auto-Scroll** — _done_
-      - **Line Selection & Copy** — _done_
-      - **Encoding Selector** — _done_
-    - **Log View** — _done_
-    - **Tail-First Streaming** — _done_
-    - **Live File Watch / Append** — _done_
-    - **Regex Filter** — _done_
-    - **Time Range Filter** — _done_
-    - **Format Auto-Detect** — _done_
-    - **Log File Types** — _should_
-      - **Text** — _done_
-      - **Json** — _should_
-      - **ETL** — _should_
-      - **EVTX** — _should_
     - **AI Integration** — _should_
-      - **Context — get_context** — _done_ — Stub: reports only filename + loaded-line count; omits the visible tail content, the active regex/time/level filters, and the detected timestamp range. LineCount reflects only loaded (tail) lines until the head finishes streaming.
+      - **Context — get_context** — _done_ — Honest and reasonably full: filename, size and path, loaded line count (flagged as tail-only while the head streams in), the detected format, the timestamp span, live-tail/pause state, every active filter and highlight with the caveat that lines are faded rather than removed, and the selected-line count. It does not include the log text itself - the read tools do that.
       - **Act — client tools** — _should_ — read_tail / read_lines / search_log / read_selected_lines plus toolbar mirrors (regex + time filters, level highlights, tail pause) — all auto-run, view-only, no file mutation.
         - **read_tail** — _done_
         - **read_lines** — _done_
-        - **search_log** — _done_
         - **read_selected_lines** — _done_
         - **set_regex_filter** — _done_
         - **set_time_filter** — _done_
         - **highlight_levels** — _done_
         - **set_tail_paused** — _done_
       - **Preview — IContextPreview** — _should_ — IContextPreview not implemented.
+    - **UI** — _done_
+      - **Toolbar** — _done_
+        - **Level Highlight Toggles** — _done_
+        - **Custom Highlight Term** — _done_
+        - **Pause / Resume** — _done_
+        - **Follow / Auto-Scroll** — _done_
+        - **Copy Selected Lines** — _done_
+        - **Encoding Selector** — _done_
+      - **Log View** — _done_
+        - **Line Selection Margin** — _done_
+      - **Filter Panel** — _done_
+        - **Regex Pattern** — _done_
+        - **Clear Filter** — _done_
+        - **Time Range Fields** — _done_
+        - **Apply Time Range** — _done_
+        - **Clear Time Range** — _done_
+      - **Status Bar** — _done_
+        - **Line Count** — _done_
+        - **File Size** — _done_
+        - **Detected Format** — _done_
+        - **Active Filter Indicator** — _done_
+        - **History-Loading Indicator** — _done_
+    - **Functionality** — _done_
+      - **Tail-First Streaming** — _done_
+      - **Live File Watch / Append** — _done_
+      - **Format Auto-Detect** — _done_
+      - **Encoding Detection** — _done_
+      - **Timestamp Detection** — _done_
+      - **Log File Types** — _should_
+        - **Text** — _done_
+        - **JSON lines** — _done_ — Serilog's compact formatter omits the level entirely for Information - the commonest level in most files - so a missing level alongside its message-template marker is read as Information. Without that rule most of a Serilog log would sit uncoloured while the rest lit up.
+        - **ETL** — _should_
+        - **EVTX** — _should_
+      - **Search (?)** — _should_
   - **Markdown** — _done_
-    - **Open in Markdown editor** — _done_
-    - **Editor toolbar** — _done_
-      - **File name label** — _done_
-      - **Source toggle** — _done_
-      - **Save button** — _done_
-    - **Inline (live) editor** — _done_
-      - **Block model + edit keys** — _done_
-      - **Block-level undo** — _done_
-      - **Scroll anchoring** — _done_
-      - **Scroll-to-heading deep link** — _done_
-    - **Source-only editor** — _done_
-    - **Formatting mini-toolbar** — _done_
-      - **Heading buttons (H1/H2/H3)** — _done_
-      - **Inline formatting (bold/italic/strike/code)** — _done_
-      - **Quote button** — _done_
-      - **Code-block button** — _done_
-    - **Render-mode context menu** — _done_
-    - **Copy as markdown** — _done_
-    - **Paste (HTML to markdown)** — _done_
-    - **Drag and drop** — _done_
-    - **Dirty tracking** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
       - **Act - client tools** — _done_
@@ -287,29 +316,37 @@ _Version **v1.4.0** · 2026-07-23_
         - **replace_all** — _done_
         - **save_file** — _done_
       - **Preview - IContextPreview** — _done_
+    - **UI** — _done_
+      - **Document Surface** — _done_
+        - **Inline (live) editor** — _done_
+        - **Source-only editor** — _done_
+        - **Render-mode context menu** — _done_ — A themed WPF ContextMenu built in code-behind over the RichTextBox selection; needs a focused, rendered control and has no view-model state. Covered by the UI journey's presence check.
+      - **Editor toolbar** — _done_
+        - **File name label** — _done_
+        - **Source toggle** — _done_
+        - **Save button** — _done_
+      - **Formatting mini-toolbar** — _done_
+        - **Heading buttons (H1/H2/H3)** — _done_
+        - **Inline formatting (bold/italic/strike/code)** — _done_
+        - **Quote button** — _done_
+        - **Code-block button** — _done_
+        - **Clipboard buttons** — _done_ — Cut/Copy/Paste drive the RichTextBox selection + the system clipboard — no view-model state to assert. Presence and enablement are covered by the UI journey.
+    - **Functionality** — _done_
+      - **Block model + edit keys** — _done_
+      - **Block-level undo** — _done_
+      - **Scroll anchoring** — _done_ — Pure scroll-offset arithmetic against a live FlowDocument render pass — there is no deterministic layout to assert off-screen. Exercised by the inline-editor UI tests.
+      - **Scroll-to-heading deep link** — _done_
+      - **Copy as markdown** — _done_ — Writes three formats to the system clipboard from a live TextSelection; the clipboard is machine-global and the selection needs a rendered document. The inverse (clipboard to markdown) is covered by the paste tests.
+      - **Paste (HTML to markdown)** — _done_
+      - **Drag and drop** — _done_ — Drop/drag-out need a real OLE drag loop (DoDragDrop) — not reachable from a test. The markdown produced from dropped content is covered by the paste conversion tests.
+      - **Dirty tracking** — _done_
+      - **Open in Markdown editor** — _done_
+      - **Find in the open document** — _done_
   - **Processes** — _done_
-    - **Process View** — _done_
-      - **Sortable Columns** — _done_
-      - **Row Context Menu** — _done_
-        - **Kill Process / Tree** — _done_
-        - **Open File Location** — _done_
-        - **Copy Name / PID / Path / Details** — _done_
-    - **Tree vs List** — _done_
-    - **Expand / Collapse All** — _done_
-    - **Live vs Pause** — _done_
-    - **Search / Filter** — _done_
-    - **Details View** — _done_
-      - **General Info** — _done_
-        - **Set Priority** — _done_
-      - **Performance** — _done_
-      - **Threads** — _done_
-      - **Modules** — _done_
-      - **Handles** — _done_
-    - **System CPU / RAM Gauges** — _done_
-    - **View Controls** — _done_
-    - **Privilege Escalation** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _done_ — Honest and readiness-gated: process count, system CPU/mem, and the top CPU/memory consumers.
+      - **Context - get_context** — _done_
+        - **Process list context** — _done_
+        - **Process detail context** — _done_
       - **Act - client tools** — _done_ — Full parity over every running process (not just visible rows): inspect, kill/kill-tree and set-priority, approval + UAC double-gated. (The detail page, pinned alone, is read-only.)
         - **list_processes** — _done_ — Snapshot of running processes.
         - **get_top_consumers** — _done_ — Top CPU/memory processes.
@@ -319,9 +356,57 @@ _Version **v1.4.0** · 2026-07-23_
         - **kill_process** — _done_ — Approval + UAC. Kills a process or tree.
         - **set_process_priority** — _done_ — Approval + UAC. Changes priority.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Header** — _done_
+        - **Process counts** — _done_
+        - **System CPU / RAM Gauges** — _done_
+      - **Search & view controls** — _done_
+        - **Search / Filter** — _done_
+        - **Tree vs List** — _done_
+        - **Expand / Collapse All** — _done_
+        - **Live vs Pause** — _done_
+        - **Refresh now** — _done_
+      - **Process list** — _done_
+        - **Sortable Columns** — _done_
+        - **Row Context Menu** — _done_
+          - **Kill Process / Tree** — _done_
+          - **Open File Location** — _done_
+          - **Copy Name / PID / Path / Details** — _done_ — Copy Name / PID / Path / Details write the system clipboard through a WPF static, which a headless test can't observe. What is asserted is the guard in front of it — copying a path the tab never resolved reports that instead of silently copying an empty string.
+          - **View details** — _done_
+      - **Details View** — _done_
+        - **General Info** — _done_
+        - **Performance** — _done_
+        - **Threads** — _done_
+        - **Modules** — _done_
+        - **Handles** — _done_
+        - **Set Priority** — _done_
+        - **Kill (details)** — _done_
+    - **Functionality** — _done_
+      - **Privilege Escalation** — _done_ — Only the trigger is unreachable: provoking a real Win32 access denial needs a protected process, which a test must not go hunting for. Both sides of it are asserted — the paths that must never escalate (a process that already exited, an unparseable priority class), the exact bridge request each escalation sends (op name + arg keys, which otherwise break elevation silently on the one branch no test reaches), and the declined-vs-failed reporting rule. HandlesTests runs the inspect leg end-to-end with the bridge result faked.
+      - **CPU sampling** — _done_
+      - **Snapshot reconciliation** — _done_
+      - **Process tree building** — _done_
+      - **Live process source** — _done_
+      - **Search (?)** — _should_
+      - **Search (?) - details page** — _should_
   - **Product** — _should_
-    - **Sunburst** — _should_
-      - **UI** — _should_
+    - **Functionality** — _should_
+      - **Data model** — _done_
+      - **Folder viewlet** — _done_ — Summary is computed in the view code-behind (Loaded -> Refresh) from the shared ProductStore/aggregator; the AI surface (GetContext/GetClientTools) delegates to ProductTools (covered by ProductToolsTests) and opening delegates to IShellServices.OpenTab. No isolable view-model to unit-test.
+      - **Create .product action** — _done_
+      - **Snaplink validation** — _done_
+      - **Test-coverage reconcile** — _done_
+      - **Graph load** — _done_
+      - **Layout (force / focus / hybrid)** — _done_
+      - **Graph build** — _done_
+      - **Graph cache** — _done_
+      - **Neighbourhood realisation** — _done_
+      - **Zoom LOD** — _done_
+      - **Node cap** — _done_
+      - **Shared Report Rendering** — _done_
+      - **Graph Query & Rendering** — _done_
+    - **UI** — _done_
+      - **Sunburst View** — _should_
         - **Sunburst View** — _done_
           - **Node context menu** — _done_
           - **Version bar** — _done_
@@ -334,9 +419,27 @@ _Version **v1.4.0** · 2026-07-23_
         - **Snaplinks** — _done_
           - **Snaplink picker overlay** — _done_
         - **Concerns** — _done_
-      - **AI Integration** — _should_
-        - **Context - get_context** — _done_ — Honest and rich: whole-product survey + a zoom on the focused node (breadcrumb, status, concerns, snaplinks, children) + a faulted-items list.
-        - **Act - client tools** — _should_ — High but not full: flip status, edit desc/note, add/remove concerns + snaplinks - but NOT the structural tree ops (add/rename/delete/reparent). The five editing tools write tree.json while typed SafeOperation, so they auto-run without approval - reconsider vs RequiresApproval.
+        - **Search (?)** — _should_
+      - **Integrity View** — _should_
+        - **Issues list** — _done_
+        - **Coverage advisories** — _done_
+        - **Re-point / remove link** — _done_
+      - **Graph View** — _should_
+        - **Canvas - pan / zoom / render** — _done_ — STA render/interaction surface: the code-behind drives the Scale/Translate transform, wheel-zoom-to-cursor, armed pan and the CompositionTarget.Rendering tween. The interactive behaviours (realise / zoom LOD / node cap) are the Graph Functionality leaves.
+        - **Community colouring** — _done_ — Deterministic value converter mapping a community index to a themed Swatch brush (with a last-resort fallback); visually verified. The community list + visibility toggle is the Segments rail (graph-segments).
+        - **Hyperedges** — _done_
+        - **Segments rail** — _done_
+        - **Property drawer** — _done_ — Passive display bound to the selected node; exercised via the selection tests + the Graph UI journey.
+      - **Search Results** — _should_
+        - **Drill into a result** — _should_
+        - **Name and source passes** — _done_
+    - **AI Integration** — _should_
+      - **Context - get_context** — _done_
+        - **Sunburst context** — _done_
+        - **Integrity context** — _done_
+        - **Graph context** — _done_
+      - **Act - client tools** — _should_
+        - **Product tree commands** — _done_
           - **product_survey** — _done_ — Whole-product status survey.
           - **product_zoom** — _done_ — Walks the entire tree a ring at a time, beyond the focused view.
           - **product_needs_attention** — _done_ — Lists faulted items.
@@ -349,101 +452,69 @@ _Version **v1.4.0** · 2026-07-23_
           - **product_remove_concern_snaplink** — _done_ — Approval-gated removal.
           - **product_add_concern** — _done_ — Approval-gated.
           - **product_remove_concern** — _done_ — Approval-gated.
-        - **Preview - IContextPreview** — _should_ — IContextPreview is an optional page enhancement the Product page does not implement - it falls back to the identity-placeholder preview. Nothing to unit-test until a preview view is built.
-    - **Integrity** — _should_
-      - **UI** — _should_
-        - **Issues list** — _done_
-        - **Coverage advisories** — _done_
-        - **Re-point / remove link** — _done_
-      - **Functionality** — _should_
-        - **Snaplink validation** — _done_
-        - **Test-coverage reconcile** — _done_
-    - **Functionality** — _should_
-      - **Data model** — _done_
-      - **Folder viewlet** — _done_ — Summary is computed in the view code-behind (Loaded -> Refresh) from the shared ProductStore/aggregator; the AI surface (GetContext/GetClientTools) delegates to ProductTools (covered by ProductToolsTests) and opening delegates to IShellServices.OpenTab. No isolable view-model to unit-test.
-      - **Create .product action** — _done_
-    - **Graph** — _should_
-      - **AI Integration** — _should_
-        - **Context - get_context** — _done_ — Honest and readiness-gated: node/edge/hyperedge counts and the focused N-hop neighbourhood.
-        - **Act - client tools** — _should_ — No client tools - ironic for an explorer. The AI cannot re-focus a node, change hop radius, filter, or read any node detail.
+          - **product_find** — _done_
+          - **product_query** — _done_
+          - **product_tree** — _done_
+          - **product_validate** — _done_
+          - **product_lint** — _done_
+          - **product_add_node** — _done_
+          - **product_move_node** — _done_
+          - **product_rename_node** — _done_
+          - **product_remove_node** — _done_
+          - **product_remap_snaplinks** — _done_
+          - **product_doctor** — _done_
+        - **Knowledge graph commands** — _done_
+          - **graph_search** — _done_
+          - **graph_context** — _done_
+          - **graph_node** — _done_
+          - **graph_walk** — _done_
+          - **graph_grep** — _done_
+          - **graph_code** — _done_
+          - **graph_stats** — _done_
+          - **graph_build** — _done_ — The build itself is asserted by GraphBuilderTests and GraphCacheTests, which is where the incremental cache and the byte-determinism live. What the tool adds is the approval gate and the 'no graph yet - build one' path, and that is what its own test covers.
+        - **Graph view commands** — _done_
           - **read_graph** — _done_
           - **focus_node** — _done_
-        - **Preview - IContextPreview** — _should_ — IContextPreview is an optional page enhancement the Graph page does not implement - it falls back to the identity-placeholder preview. Nothing to unit-test until a preview view is built.
-      - **UI** — _should_
-        - **Canvas - pan / zoom / render** — _done_ — STA render/interaction surface: the code-behind drives the Scale/Translate transform, wheel-zoom-to-cursor, armed pan and the CompositionTarget.Rendering tween. The interactive behaviours (realise / zoom LOD / node cap) are the Graph Functionality leaves.
-        - **Community colouring** — _done_ — Deterministic value converter mapping a community index to a themed Swatch brush (with a last-resort fallback); visually verified. The community list + visibility toggle is the Segments rail (graph-segments).
-        - **Hyperedges** — _done_
-        - **Segments rail** — _done_
-        - **Property drawer** — _done_ — Passive display bound to the selected node; exercised via the selection tests + the Graph UI journey.
-      - **Functionality** — _should_
-        - **Graph load** — _done_
-        - **Layout (force / focus / hybrid)** — _done_
-        - **Graph build** — _done_
-        - **Graph cache** — _done_
-        - **Neighbourhood realisation** — _done_
-        - **Zoom LOD** — _done_
-        - **Node cap** — _done_
+      - **Preview - IContextPreview** — _should_ — IContextPreview is an optional page enhancement the Product page does not implement - it falls back to the identity-placeholder preview. Nothing to unit-test until a preview view is built.
   - **Projects** — _should_
-    - **Project list** — _done_
-    - **Project summary pane** — _done_
-    - **Project detail tab** — _done_
-      - **Description & completion criteria** — _done_
-    - **Backlog** — _done_
-      - **Configurable statuses** — _done_
-      - **Add backlog item** — _done_
-      - **Progress item** — _done_
-      - **Backlog item editor** — _done_
-      - **Delete item** — _done_
-      - **Task to AI / Plan with AI** — _done_
-    - **AI Summary viewlet** — _done_
-    - **Projects config** — _done_
-    - **Archive / Shelf / Reactivate** — _done_
-    - **Schema migration (v2)** — _done_
-    - **Backlog folder viewlet** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _done_ — Thin: a project-count + selected-project summary (list page) / project name + backlog count (detail page). Omits description, criteria, and item detail.
+      - **Context - get_context** — _done_
+        - **Project list context** — _done_ — Thin: a count plus the selection. It omits the project's description and criteria, which the AI can still reach through the read tools.
+        - **Project detail context** — _done_ — Thin: name plus a backlog count, with no item detail. Worth widening before this is called done - the page is showing a backlog the context does not describe.
       - **Act - client tools** — _should_ — Read-only across both page VMs: list_projects / read_project (list) and read_project / read_backlog_item (detail). Archive/shelf/backlog-edit stay user-only.
         - **list_projects** — _done_
         - **read_project** — _done_
         - **read_backlog_item** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Project list** — _done_
+        - **Bucket Tabs** — _done_
+        - **Project Rows** — _done_
+        - **Search (?)** — _should_
+      - **Project summary pane** — _done_
+        - **Summary Markdown** — _done_
+        - **Open Project / Open Files** — _done_
+        - **Archive / Shelf / Reactivate** — _done_
+      - **Project detail tab** — _done_
+        - **Description & completion criteria** — _done_
+        - **Detail Tabs** — _done_ — Which tab opens first is decided in the page factory from whether the project already has a description, and the tabs themselves are a TabControl. There is no view-model state to read back; the journey opens a project and checks both tabs are reachable.
+        - **Search (?)** — _should_
+      - **Backlog** — _done_
+        - **Add backlog item** — _done_
+        - **Progress item** — _done_
+        - **Backlog item editor** — _done_
+        - **Delete item** — _done_
+        - **Task to AI / Plan with AI** — _done_ — Both buttons open a new conversation seeded with the item and the project folder pinned as context, then auto-send - the effect is a live AI turn, which a unit test must not start. The payload they build is the same backlog item detail read by the read_backlog_item tool, which IS asserted.
+      - **Explorer Viewlets** — _done_
+        - **Backlog folder viewlet** — _done_
+        - **AI Summary viewlet** — _done_ — A small edit-and-save control over a folder hidden .aisummary file, with no view-model of its own - the Save handler writes the text box straight to disk. Worth a view-model if it grows; today the journey covers that it appears for a folder that has one.
+    - **Functionality** — _done_
+      - **Archive / Shelf / Reactivate** — _done_
+      - **Configurable statuses** — _done_
+      - **Schema migration (v2)** — _done_
+      - **Projects config** — _done_
+      - **Project File Store** — _done_
   - **Scratchpad** — _done_
-    - **Canvas View** — _done_
-      - **Canvas Context Menu** — _done_
-    - **Universal Drop Target** — _done_
-    - **Minimap Navigation** — _done_
-    - **Recycle Bin** — _done_
-    - **Shapes** — _done_
-      - **Square** — _done_
-      - **Rounded** — _done_
-      - **Diagonals** — _done_
-      - **Speech Bubble** — _done_
-    - **Toolbar** — _done_
-      - **New** — _done_
-      - **Zoom to Fit** — _done_
-      - **Recycle Bin Button** — _done_
-    - **Pan & Zoom** — _done_
-      - **Pan** — _done_
-      - **Mouse-wheel Zoom** — _done_
-      - **Zoom % Picker** — _done_
-    - **Post-it Note** — _done_
-      - **Inline Markdown Editor** — _done_
-      - **Drag to Move** — _done_
-      - **Resize Handles** — _done_
-      - **Rotate Handle** — _done_
-      - **Pin / Expiry Timer** — _done_
-      - **Remove Note** — _done_
-      - **Z-order (Front / Back)** — _done_
-      - **Note Mini-ribbon** — _done_
-        - **Colours** — _done_
-    - **Content Types** — _done_
-      - **Image Note** — _done_
-      - **File / Folder Link Note** — _done_
-      - **URL Preview Note** — _done_
-      - **Text / Markdown Note** — _done_
-      - **Note Attachments** — _done_
-    - **Settings** — _done_
-    - **PostIt Theme Tokens** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest live per-colour breakdown of the board (excludes the recycle bin).
       - **Act - client tools** — _should_ — Read + add only. The AI cannot edit, delete, recolour, move, pin, or restore notes the user can. (add_note is a safe operation - a visible new note.)
@@ -451,32 +522,56 @@ _Version **v1.4.0** · 2026-07-23_
         - **scratchpad_read_notes** — _done_ — Full markdown of notes, filterable.
         - **scratchpad_add_note** — _done_ — Creates a note (safe operation - immediately visible).
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Toolbar** — _done_
+        - **New** — _done_
+        - **Zoom to Fit** — _done_
+        - **Recycle Bin Button** — _done_
+      - **Canvas View** — _done_
+        - **Canvas Context Menu** — _done_ — A ContextMenu whose entries call into the drop classifier (universal-drop-target) and AddNote (toolbar-new-note), both asserted on their own nodes. What is left here is opening the menu and reading the clipboard to decide whether Paste is enabled - a focused-control concern with no view-model state, covered by the journey.
+        - **Pan** — _done_
+        - **Mouse-wheel Zoom** — _done_
+        - **Zoom % Picker** — _done_
+        - **Minimap Navigation** — _done_ — The whole overview - the mapping in Visuals.Common PanZoomMiniMap and the box that draws it in PanZoomSurface - is shared with the image viewer collage and markdown graph diagrams. The board supplies only what is its own: each note as a swatch in its own paper colour, and the corner it sits in (top-left, because the recycle-bin panel covers the right-hand edge). Drawing the swatches is a paint pass; the arithmetic that decides where each lands, and whether the box appears at all, is asserted there.
+        - **Search (?)** — _should_
+      - **Post-it Note** — _done_
+        - **Inline Markdown Editor** — _done_ — The body is the shared InlineMarkdownEditor, tested in its own right under Visuals.Text (block model, edit keys, block-level undo). What the note adds is hosting it and migrating legacy RichTextBox-XAML content on first load, both of which need the rendered control; the journey covers typing into a note.
+        - **Drag to Move** — _done_ — A header drag converts pointer movement into canvas coordinates and raises the note - no rule of its own beyond the coordinate transform WPF already provides, and no state to read back but X/Y. The rotated-axis maths that IS non-obvious lives in postit-resize, where it is asserted.
+        - **Resize Handles** — _done_
+        - **Rotate Handle** — _done_ — The handle sets Rotation from the angle between the note centre and the pointer; the interesting consequence - that a rotated note still resizes about the corner you are not dragging - is asserted in postit-resize.
+        - **Pin / Expiry Timer** — _done_
+        - **Remove Note** — _done_
+        - **Z-order (Front / Back)** — _done_
+      - **Recycle Bin** — _done_
+        - **Restore Note** — _done_
+        - **Delete Permanently** — _done_
+        - **Empty Recycle Bin** — _done_
+        - **Binned Note List** — _done_
+      - **Note Mini-ribbon** — _done_
+        - **Colours** — _done_
+        - **Shapes** — _done_
+          - **Square** — _done_
+          - **Rounded** — _done_
+          - **Diagonals** — _done_
+          - **Speech Bubble** — _done_
+    - **Functionality** — _done_
+      - **Universal Drop Target** — _done_
+      - **Content Types** — _done_
+        - **Image Note** — _done_
+        - **File / Folder Link Note** — _done_
+        - **URL Preview Note** — _done_
+        - **Text / Markdown Note** — _done_
+        - **Note Attachments** — _done_
+      - **Settings** — _done_
+      - **PostIt Theme Tokens** — _done_ — A ResourceDictionary of PostIt.* brushes merged below the active theme. There is no behaviour to assert - a missing key surfaces as a XAML resolution failure the moment a note paints, which the journey catches; the mapping from a note colour to its brush is asserted through postit-colors.
+      - **Persistence** — _done_
+      - **Expiry and Purge** — _done_
   - **SysInfo** — _done_
-    - **Dashboard Panels** — _done_
-      - **Operating System** — _done_
-      - **Hardware** — _done_
-      - **Display** — _done_
-      - **Storage** — _done_
-      - **Windows Security** — _done_
-      - **Health Colour Coding** — _done_
-    - **Dashboard** — _done_
-      - **Refresh** — _done_
-    - **WMI Probe Layer** — _done_
-    - **Services Page** — _done_
-      - **Service List & Filter** — _done_
-      - **Services Refresh** — _done_
-      - **Start / Stop / Restart / Pause / Resume** — _done_
-      - **Startup Type Picker** — _done_
-    - **Environment Variables Page** — _done_
-      - **Scope Selector & Filter** — _done_
-      - **Value Editor** — _done_
-      - **PATH Entry Editor** — _done_
-      - **Save Variable** — _done_
-      - **Delete Variable** — _done_
-      - **Add Variable** — _done_
-    - **Privilege Bridge** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _done_ — Across three pages: the Device dashboard, Services, and Environment Variables each give an honest, readiness-gated context (device summary / service counts / var counts + PATH state).
+      - **Context - get_context** — _done_
+        - **Dashboard context** — _done_
+        - **Services context** — _done_
+        - **Environment Variables context** — _done_
       - **Act - client tools** — _should_ — Read/query live services + env vars (get_services / find_service / get_service / get_environment_variable(s)); the service/env write tools are approval-gated.
         - **get_services** — _done_ — (Services page) service snapshot.
         - **find_service** — _done_ — (Services page) searches the whole services list.
@@ -490,45 +585,34 @@ _Version **v1.4.0** · 2026-07-23_
         - **set_environment_variable** — _done_ — Not unit-tested: starts/stops/rewrites real Windows services or persistent (User/Machine) env vars — no process-only scope — so it is unsafe to exercise headless.
         - **delete_environment_variable** — _done_ — Not unit-tested: starts/stops/rewrites real Windows services or persistent (User/Machine) env vars — no process-only scope — so it is unsafe to exercise headless.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Dashboard** — _done_
+        - **Refresh** — _done_
+        - **Operating System** — _done_
+        - **Hardware** — _done_
+        - **Display** — _done_
+        - **Storage** — _done_
+        - **Windows Security** — _done_
+        - **Health Colour Coding** — _done_
+        - **Search (?)** — _should_
+      - **Services Page** — _done_
+        - **Service List & Filter** — _done_
+        - **Services Refresh** — _done_
+        - **Start / Stop / Restart / Pause / Resume** — _done_
+        - **Startup Type Picker** — _done_
+        - **Search (?)** — _should_
+      - **Environment Variables Page** — _done_
+        - **Scope Selector & Filter** — _done_
+        - **Value Editor** — _done_
+        - **PATH Entry Editor** — _done_
+        - **Save Variable** — _done_
+        - **Delete Variable** — _done_
+        - **Add Variable** — _done_
+        - **Search (?)** — _should_
+    - **Functionality** — _done_
+      - **WMI Probe Layer** — _done_
+      - **Privilege Bridge** — _done_
   - **Tabular** — _done_
-    - **View table** — _done_
-      - **Windowed loading** — _done_
-      - **Row count** — _done_
-      - **Column resize** — _done_
-      - **Horizontal scroll** — _done_
-      - **Status footer** — _done_
-      - **Path breadcrumb** — _done_
-    - **Open As Table** — _done_
-    - **Reading & shape detection** — _done_
-      - **Fixed-width fallback** — _done_
-      - **Single-column fallback** — _done_
-      - **Header detection** — _done_
-      - **Column-type detection** — _done_
-      - **Comment-line stripping** — _done_
-      - **Encoding & line-ending detection** — _done_
-      - **AI shape disambiguation** — _done_
-      - **Parser** — _done_
-        - **CSV** — _done_
-        - **TSV** — _done_
-    - **Column actions** — _done_
-      - **Select column** — _done_
-      - **Rename column** — _done_
-      - **Merge with previous** — _done_
-      - **Split by** — _done_
-      - **Evaluate as** — _done_
-    - **Column sort** — _done_
-    - **Filter panel** — _done_
-      - **Text filter** — _done_
-      - **Numeric range filter** — _done_
-      - **Date range filter** — _done_
-      - **Boolean filter** — _done_
-    - **Row selection** — _done_
-    - **Templates** — _done_
-      - **Template This** — _done_
-      - **Apply Template panel** — _done_
-      - **Auto-apply on open** — _done_
-      - **Templates options editor** — _done_
-      - **Ribbon pin (with reshaping)** — _done_
     - **AI Integration** — _done_
       - **Context — get_context** — _done_ — Honest summary (columns with display types, row count or still-counting, a data sample of selected/visible rows) but omits active filters and sort, and is not IsContextReady-gated — can report still-counting or zero columns mid-load.
       - **Act — client tools** — _should_ — read_rows reads cell content beyond the visible window; open_filter / scroll_to_top / scroll_to_end mirror the toolbar (view-only).
@@ -537,6 +621,62 @@ _Version **v1.4.0** · 2026-07-23_
         - **scroll_to_end** — _done_ — Jumps the viewport to the last row (loads the tail window).
         - **read_rows** — _done_ — Reads arbitrary rows/columns as data (start/count), so the AI can see cells past what GetContext sampled.
       - **Preview — IContextPreview** — _should_ — IContextPreview not implemented.
+    - **UI** — _done_
+      - **Toolbar** — _done_
+        - **Detected-shape descriptor** — _done_
+        - **Template This button** — _done_
+        - **Apply Template button** — _done_
+      - **Data grid** — _done_
+        - **Column resize** — _done_ — A drag thumb on the header edge: the behaviour is a live mouse-drag against measured column widths inside VirtualizedRowsControl, with no view-model state to assert. Covered by the UI journey's presence check.
+        - **Horizontal scroll** — _done_ — Header and body scroll in lock-step off a shared scrollbar whose visibility depends on measured content width — a layout-pass behaviour with no view-model state. Covered by the UI journey.
+        - **Column actions** — _done_
+          - **Rename column** — _done_
+          - **Merge with previous** — _done_
+          - **Split by** — _done_
+          - **Evaluate as** — _done_
+        - **Select column** — _done_
+        - **Column sort** — _done_
+        - **Row selection** — _done_
+      - **Status footer** — _done_
+        - **Row count** — _done_
+        - **Encoding label** — _done_
+        - **Small/large mode label** — _done_
+      - **Filter panel** — _done_
+        - **Text filter** — _done_
+        - **Numeric range filter** — _done_
+        - **Date range filter** — _done_
+        - **Boolean filter** — _done_
+      - **Template This popup** — _done_
+        - **Template name** — _done_
+        - **Scope choice** — _done_
+        - **Save** — _done_
+        - **Cancel** — _done_
+      - **Apply Template panel** — _done_
+        - **Apply a template** — _done_
+        - **Show only compatible** — _done_
+        - **Delete template** — _done_
+        - **Close panel** — _done_
+      - **Chart view** — _should_
+    - **Functionality** — _done_
+      - **Reading & shape detection** — _done_
+        - **Fixed-width fallback** — _done_
+        - **Single-column fallback** — _done_
+        - **Header detection** — _done_
+        - **Column-type detection** — _done_
+        - **Comment-line stripping** — _done_
+        - **Encoding & line-ending detection** — _done_
+        - **AI shape disambiguation** — _done_
+        - **Parser** — _done_
+          - **CSV** — _done_
+          - **TSV** — _done_
+      - **Windowed loading** — _done_
+      - **Templates** — _done_
+        - **Auto-apply on open** — _done_
+        - **Templates options editor** — _done_ — An Options-page UserControl over the saved template list with no view-model of its own; the config it edits is covered by the template capture/apply tests. Covered by the Options UI journey.
+        - **Ribbon pin (with reshaping)** — _done_
+      - **Open As Table** — _done_
+      - **Path breadcrumb** — _done_
+      - **Search (?)** — _should_
   - **Text Viewer** — _done_
     - **UI** — _should_
       - **Toolbar** — _done_
@@ -551,7 +691,9 @@ _Version **v1.4.0** · 2026-07-23_
           - **Cut** — _done_ — Delegates to a WPF ApplicationCommands verb against a focused editor - no VM state to unit-test; presence / edit-only visibility is covered by the UI journey (TextJourneyTests).
           - **Paste** — _done_ — Delegates to a WPF ApplicationCommands verb against a focused editor - no VM state to unit-test; presence / edit-only visibility is covered by the UI journey (TextJourneyTests).
           - **Editing** — _done_
+          - **Undo / Redo** — _done_
         - **Copy** — _done_ — Delegates to a WPF ApplicationCommands verb against a focused editor - no VM state to unit-test; presence / edit-only visibility is covered by the UI journey (TextJourneyTests).
+        - **Go to Line** — _done_
       - **Text View** — _done_
         - **Context Menu** — _done_ — Pure XAML right-click menu invoking the same WPF ApplicationCommands (cut/copy/paste) against a focused editor - nothing VM-testable; covered by the UI journey.
         - **File-Changed Banner** — _done_
@@ -561,7 +703,10 @@ _Version **v1.4.0** · 2026-07-23_
       - **Search Bar** — _done_
         - **Search Indicator** — _done_
         - **Clear Search** — _done_
-        - **Find Next / Previous** — _done_ — Tooltips say F3 / Shift+F3 but those shortcuts are not wired - the buttons work by click only.
+        - **Find Next / Previous** — _done_ — F3 / Shift+F3 wired to Find Next / Previous; Enter / Shift+Enter do the same from the find box.
+        - **Replace** — _done_
+        - **Match Case** — _done_
+        - **Regex** — _done_
       - **Split Panel** — _done_
         - **Split Mode** — _done_
         - **Split Value** — _done_
@@ -572,13 +717,15 @@ _Version **v1.4.0** · 2026-07-23_
         - **Line Count** — _done_
         - **Match Count** — _done_
         - **Streaming Indicator** — _done_
+        - **Zoom** — _done_
     - **Functionality** — _should_
-      - **Find** — _done_ — User-triggerable only by typing in the AI input bar (a code IQueryHandler catches it); there is no Ctrl+F / toolbar entry. The find-nav tooltips advertise F3 / Shift+F3 but those keys are not wired (only Ctrl+S is).
+      - **Find** — _done_ — Reachable from the Find bar (Ctrl+F), the toolbar Find button, and by typing in the AI input bar. Replaced the two hand-written query handlers (plain text / leading backslash) in the ISearchable migration.
       - **Head-First Windowing** — _done_
       - **Encoding Detection** — _done_
       - **File Monitoring** — _done_
       - **Confined-Window Editing** — _done_
       - **File Splitting** — _done_
+      - **Search In File** — _should_
     - **AI Integration** — _should_
       - **Context — get_context** — _done_ — Honest and visible-slice-aware: filename, path, dirty/editing state, encoding, total line count, and the actual on-screen numbered lines. Faithfully reflects the window the user sees.
       - **Act — client tools** — _should_ — Full parity: read, search, line-edit, find/replace and save all funnel through the same TextViewModel/OverlayTextFile the user drives.
@@ -606,66 +753,77 @@ _Version **v1.4.0** · 2026-07-23_
         - **scroll_web_page** — _done_ — Scrolling drives a live WebView2 then re-captures; the not-wired error path is covered by WebAiTests, the actual scroll+capture needs a live browser control and is not unit-testable headless.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
   - **Installed Apps** — _done_
-    - **View Apps** — _done_
-      - **Windows Store Apps** — _done_
-      - **Registry Apps** — _done_
-      - **App Columns** — _done_
-      - **Column Sort** — _done_
-      - **Size Measurement Pass** — _done_
-      - **Name Filter** — _done_
-    - **Uninstall** — _done_
-    - **Remove from list** — _done_
-    - **Header Bar** — _done_
-      - **Refresh** — _done_
-      - **Loading / Count Indicator** — _done_
-    - **Row Actions Menu** — _done_
-      - **Open Location** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: selected apps, or "still scanning", or up to 200 app names.
       - **Act - client tools** — _should_ — list_installed_applications / get_application_details — read-only queries over the installed-apps scan.
         - **get_application_details** — _done_ — Details for a named app.
         - **list_installed_applications** — _done_ — The full loaded inventory, ignoring the current filter/selection.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Header Bar** — _done_
+        - **Refresh** — _done_
+        - **Loading / Count Indicator** — _done_
+      - **App list** — _done_
+        - **App Columns** — _done_
+        - **Column Sort** — _done_
+        - **Row Actions Menu** — _done_
+          - **Open Location** — _done_
+          - **Uninstall** — _done_
+          - **Remove from list** — _done_
+          - **Modify** — _done_
+          - **Move** — _done_
+      - **Advanced Options** — _should_
+        - **Background Permission** — _done_
+        - **Terminate** — _done_
+        - **Repair** — _done_
+        - **Reset** — _done_
+        - **App Add-ons** — _done_
+    - **Functionality** — _done_
+      - **Windows Store Apps** — _done_
+      - **Registry Apps** — _done_
+      - **Size Measurement Pass** — _done_
+      - **Name Filter** — _done_ — The old flat-0.7 scoring defect is fixed: scoring now runs through ISearchable.ScoreQuery with the shared prose filter, so an explicit '?' wins outright and a genuine question about the list reaches the agent instead of being claimed as a filter.
   - **Win File System** — _done_
-    - **File Explorer Tab** — _done_
-      - **This PC (drive list)** — _done_
-      - **Named-folder tab variants** — _done_
+    - **UI** — _done_
       - **Directory Tree** — _done_
       - **File List** — _done_
         - **Open / Navigate Entry** — _done_
         - **Column Sorting** — _done_
         - **Footer Counts + Quick-Filter** — _done_
-      - **Breadcrumb / Address Bar** — _done_
-        - **Path Navigation Query (>)** — _done_
+        - **This PC (drive list)** — _done_
+          - **Provided items** — _done_
+          - **Drive rows** — _done_
+      - **Breadcrumb / Address Bar** — _done_ — The segments are rebuilt from the current path and each navigates on click - a projection with no rule of its own beyond the path itself. The path-driving half is asserted on winfs-path-query, and the segments' presence by the journey.
       - **File Action Strip** — _done_
-        - **Copy** — _done_
-        - **Cut** — _done_
+        - **Copy** — _done_ — Putting a CF_HDROP on the Windows clipboard is a native call with no rule between the selection and the clipboard, and a test that takes the clipboard interferes with whatever else the machine is doing. What Copy is for is asserted on the other end: winfs-act-paste, which is where a clipboard drop can actually go wrong.
+        - **Cut** — _done_ — As winfs-act-copy, plus the move flag the paste reads back. Asserted from the paste end (FileOperationErrorsTests) rather than by writing to the live clipboard.
         - **Paste** — _done_
         - **Rename** — _done_
         - **Delete** — _done_
-        - **Run** — _done_
-        - **Install** — _done_
-        - **Properties** — _done_
-        - **Open With** — _done_
-        - **Shell Verb Actions** — _done_
+        - **Run** — _done_ — Launches an executable. A test must not start arbitrary programs, and there is no decision between the click and Process.Start - which files get the button is winfs-default-open's business, and that is asserted.
+        - **Install** — _done_ — Runs an .msi/.msix through the shell - a test must not start an installer. What is checkable is the mapping that puts the button there, which is winfs-default-open's business.
+        - **Properties** — _done_ — Opens the native Windows properties dialog. There is nothing between the click and the shell call, and a modal dialog in a test run has nobody to close it.
+        - **Open With** — _done_ — Opens the native 'Open with.' chooser. Same shape as Properties: a shell call with a modal on the other side. Its one rule - that it sorts to the end of the strip and the menu - falls out of the ordering asserted in BuildContextActions.
+        - **Shell Verb Actions** — _done_ — The verbs come from whatever this machine's registry says about the file type, so an assertion about a particular verb is an assertion about the test machine. The registry-derived-handler import path is asserted in RegistryHandlerImportTests.
         - **Custom External-App Actions** — _done_
-        - **Action Button Context Menu** — _done_
-        - **Pin Action / Tab to Ribbon** — _done_
-        - **Run In Sandbox** — _should_
+        - **Action Button Context Menu** — _done_ — Two menu items that deep-link to an Options page and pin to the ribbon. The pin half is asserted on winfs-ribbon-pin; the Modify half is a navigation call with no decision in it.
       - **File/Folder Context Menu** — _done_
       - **New / Create Overlay** — _done_
         - **New Folder** — _done_
         - **ShellNew Types** — _done_
         - **Templated Create** — _done_
-      - **Define New (association wizard)** — _done_
-      - **External Apps Editor** — _done_
-      - **File Type Actions Editor** — _done_
-      - **Confirmation Overlay** — _done_
-      - **Input Prompt Overlay** — _done_
       - **Drag & Drop** — _done_
       - **Keyboard Shortcuts** — _done_
         - **Open Selected (Shift+Enter)** — _done_
-      - **Folder Viewlets Host** — _done_
+      - **Folder Viewlets Host** — _done_ — Which viewlets a folder gets, and whether a Full one takes over the pane, is decided by the registry's matching - which is what is asserted. The stacking layout itself is a panel swap in the view.
+      - **Pin Action / Tab to Ribbon** — _done_
+      - **Modal Overlays** — _done_
+        - **Confirmation Overlay** — _done_
+        - **Input Prompt Overlay** — _done_ — A single-field modal with Enter to confirm and Esc to cancel. The one behaviour worth having - pre-selecting the base name so a rename does not eat the extension - is a TextBox selection call in the view with no state behind it; the journey covers that the prompt appears.
+        - **Define New (association wizard)** — _done_ — The wizard writes a filemap or external-app rule and then scopes it to this file, this folder or the whole PC. Every rule it can produce is asserted where it lands - FileMapPathSpecificityTests for the scoping, ExternalAppRegistryTests and CriterionValidityTests for the app definitions - so a test here would re-assert those through a multi-step form.
+      - **Options Editors** — _done_
+        - **External Apps Editor** — _done_
+        - **File Type Actions Editor** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest: path, folder/file counts, selection, plus each active viewlet's line. (Counts can lag mid-load - not readiness-gated.)
       - **Act - client tools** — _done_ — Full Explorer parity - read + write, delete is soft (Recycle Bin). Path-confined to the current root, except the deliberate unconfined This-PC / no-folder mode (flagged High risk).
@@ -681,22 +839,14 @@ _Version **v1.4.0** · 2026-07-23_
         - **rename_file** — _done_ — Approval-gated rename.
         - **delete_file** — _done_ — Approval-gated soft delete (Recycle Bin only).
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **Functionality** — _done_
+      - **Run In Sandbox** — _should_
+      - **Named-folder tab variants** — _done_ — The variants are known-folder GUIDs resolved by Windows, so asserting a particular path asserts the test machine's shell folders. That each variant opens is the journey's business.
+      - **Path Navigation Query (>)** — _done_
+      - **Default-Open Resolution** — _done_
+      - **Browser search (? / ISearchable)** — _done_
+      - **Backing-aware action availability** — _done_
   - **Win Registry** — _done_
-    - **Toolbar** — _done_
-      - **Hive Dropdown** — _done_
-      - **Export** — _done_
-      - **Import** — _done_
-    - **Key Tree** — _done_
-      - **New Key** — _done_
-      - **Rename Key** — _done_
-      - **Delete Key** — _done_
-    - **Value List** — _done_
-      - **Modify Value** — _done_
-      - **New Value** — _done_
-      - **Delete Value** — _done_
-    - **Elevation-gated Writes** — _done_
-    - **Input & Confirmation Overlays** — _done_
-    - **Pin Key to Ribbon** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest: current key, subkey/value counts (cheap - avoids enumerating huge hives), and the selected value.
       - **Act - client tools** — _should_ — registry_list_subkeys / registry_get_values read the live registry; registry_set_value / registry_insert_value (approval-gated) write it.
@@ -705,43 +855,51 @@ _Version **v1.4.0** · 2026-07-23_
         - **registry_set_value** — _done_ — Not unit-tested: writes the live Windows registry. The in-process write path is covered by RegistryWriterTests against a disposable HKCU key.
         - **registry_insert_value** — _done_ — Not unit-tested: writes the live Windows registry. The in-process write path is covered by RegistryWriterTests against a disposable HKCU key.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Toolbar** — _done_
+        - **Hive Dropdown** — _done_
+        - **Export** — _done_
+        - **Import** — _done_
+      - **Key Tree** — _done_
+        - **New Key** — _done_
+        - **Rename Key** — _done_
+        - **Delete Key** — _done_
+      - **Value List** — _done_
+        - **Modify Value** — _done_
+        - **New Value** — _done_
+        - **Delete Value** — _done_
+      - **Input & Confirmation Overlays** — _done_
+        - **Input prompt** — _done_
+        - **Delete confirmation** — _done_
+    - **Functionality** — _done_
+      - **Elevation-gated Writes** — _done_
+      - **Pin Key to Ribbon** — _done_
+      - **Search (?)** — _should_
   - **Win Search** — _done_
-    - **Top Bar** — _done_
-    - **Scope / Root** — _done_
-    - **Query Parser** — _done_
-    - **SystemIndex Query (OLE DB)** — _done_
-    - **Results List** — _done_
-      - **Column Sort** — _done_
-    - **Action Strip** — _done_
-      - **Open Location** — _done_
-      - **Open File** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest: reports the query, the scope (a specific root or "This PC / all drives") and the result count. A This-PC cross-drive search is now reported correctly, not as "no search performed".
       - **Act - client tools** — _should_ — One generic tool. It is fire-and-forget: starts the search without awaiting, returns "Started search" with no results, so the AI must re-read context. Cannot open a file/location.
         - **search** — _done_ — Runs a Windows Search query over the whole indexed scope, far beyond the visible rows - but returns before results land, and the bare name collides easily.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Top Bar** — _done_
+      - **Results List** — _done_
+        - **Column Sort** — _done_
+        - **Result Row** — _done_
+      - **Action Strip** — _done_
+        - **Open Location** — _done_
+        - **Open File** — _done_ — Launching the file is a shell execute - a test must not start real applications - so what is asserted is the gate either side: disabled with nothing selected, and quiet when the index is stale and the file has since gone.
+    - **Functionality** — _done_
+      - **SystemIndex Query (OLE DB)** — _done_
+      - **Scope / Root** — _done_
+      - **User Input Handling** — _should_
+        - **Query Refinement** — _done_
+        - **Query Suitability Scoring** — _done_
+        - **Query Parser** — _done_
+        - **AQS property terms** — _done_ — Parsed ONCE into a SearchCondition tree (IQueryParser -> IQuerySolution.Resolve), then projected twice: SearchConditionSql for the index, SearchConditionEvaluator for the folder walk. Resolve is mandatory - without it values come back untyped (a size is unreadable text, a relative date is a phrase) - and its reference-time argument is [ref], so passing null fails the whole resolve. The legacy SearchQueryParser.Parse(string) overload still carries the old size:/date: regexes; they no longer serve any user-typed query (those go through terms + AQS) but remain the only implementation behind that string entry point.
+      - **Manual folder scan** — _done_
+      - **Index coverage** — _done_
   - **Audio** — _done_
-    - **Open Actions** — _done_
-      - **Open As Audio** — _done_
-      - **Play Folder** — _done_
-    - **Now Playing** — _done_
-    - **Transport** — _done_
-      - **Play / Pause** — _done_
-      - **Stop** — _done_
-      - **Next Track** — _done_
-      - **Previous Track** — _done_
-      - **Volume Slider** — _done_
-      - **Seek (waveform click)** — _done_
-      - **Auto-advance** — _done_
-    - **Playlist Drawer** — _done_
-      - **Play Playlist Item** — _done_
-      - **Reorder Playlist (drag)** — _done_
-    - **Spectrum Analyser** — _done_
-    - **Waveform View** — _done_
-    - **Lyrics Panel** — _done_
-    - **Tag Editor** — _done_
-      - **Album Art (change / remove)** — _done_
-    - **Background play** — _should_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest now-playing line: play state, resolved title/artist, and queue position.
       - **Act - client tools** — _should_ — No client tools. The AI is a blind bystander - it cannot play/pause/seek/skip/reorder, edit tags, or read lyrics.
@@ -751,8 +909,49 @@ _Version **v1.4.0** · 2026-07-23_
         - **next_track** — _done_ — Mid-queue advance loads the next track through the engine; the no-op-at-last-track guard is covered by AudioAiTests.Navigation_NoOpsAtQueueBoundaries, the advance itself is not unit-testable.
         - **previous_track** — _done_ — Mid-queue rewind loads the previous track through the engine; the no-op-at-first-track guard is covered by AudioAiTests.Navigation_NoOpsAtQueueBoundaries, the rewind itself is not unit-testable.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Top Bar** — _done_
+        - **Playlist Toggle** — _done_
+        - **Background play** — _done_
+        - **Tags Toggle** — _done_
+        - **Lyrics Toggle** — _done_
+      - **Playlist Drawer** — _done_
+        - **Play Playlist Item** — _done_ — Playing the double-clicked row loads it through the engine (a real output device); the bounds guard that keeps a stray index from blanking the player is what is unit-tested.
+        - **Reorder Playlist (drag)** — _done_
+      - **Now Playing** — _done_
+        - **Album Art** — _done_
+        - **Track Details** — _done_
+        - **Queue Position** — _done_
+      - **Visualisers** — _done_
+        - **Spectrum Analyser** — _done_ — The bars themselves are an OnRender pass over a DrawingContext fed by the live output thread - there is no state to read back. What they draw is asserted in audio-fft (SampleAggregator band magnitudes), and their presence by the UI journey.
+        - **Waveform View** — _done_
+        - **Seek (waveform click)** — _done_ — The click-to-position mapping is asserted through ProgressFraction (audio-waveform); the seek itself moves a loaded NAudio stream on a real output device, so only the no-track guard is unit-tested.
+        - **Position / Duration** — _done_
+      - **Transport** — _done_
+        - **Play / Pause** — _done_
+        - **Stop** — _done_
+        - **Next Track** — _done_
+        - **Previous Track** — _done_ — The restart-if-past-three-seconds rule needs a loaded engine to report a position, so only the disabled-at-the-first-track half is unit-tested; the restart is exercised by the UI journey.
+        - **Volume Slider** — _done_
+      - **Tag Editor** — _done_
+        - **Album Art (change / remove)** — _done_
+        - **Tag Fields** — _done_
+        - **Save Tags** — _done_
+      - **Lyrics Panel** — _done_
+        - **Synced Highlight** — _done_
+    - **Functionality** — _done_
+      - **Open Actions** — _done_
+        - **Open As Audio** — _done_
+        - **Play Folder** — _done_
+      - **Auto-advance** — _done_ — Advancing on end is raised by the engine's PlaybackStopped on a real output device, which a headless test has none of. Both sides of it are covered elsewhere: the config flag that gates it, the queue-boundary behaviour it depends on (audio-queue), and the no-op at the last track (AudioAiTests.Navigation_NoOpsAtQueueBoundaries).
+      - **Playback Engine** — _done_ — Only the lazy half is unit-testable, and it is the half that breaks: every transport command must be safe before the engine exists, because the tab opens without one. Actually starting audio needs an output device (none headless), so playback itself is left to the UI journey.
+      - **Play Queue** — _done_
+      - **Lyrics Parsing** — _done_
+      - **Waveform Analysis** — _done_
+      - **Spectrum Analysis** — _done_
+      - **Tag Read / Write** — _done_
   - **Compressed / Archives** — _done_
-    - **Archive Inspector Tab** — _done_
+    - **UI** — _done_
       - **Metadata Pane** — _done_
       - **Entry Tree** — _done_
       - **Open File Inside Archive** — _done_
@@ -768,18 +967,7 @@ _Version **v1.4.0** · 2026-07-23_
         - **Recompress** — _done_
         - **Convert** — _done_
       - **Choice & Password Overlays** — _done_
-      - **Drag-and-Drop Add** — _done_
-    - **Virtual Filesystem (Browse Like a Folder)** — _done_
-      - **Browse Archive in File Tree** — _done_
-    - **File / Folder Actions** — _done_
-      - **As Archive (Open)** — _done_
-      - **Unzip Here** — _done_
-      - **Zip It** — _done_
-    - **Format Backends** — _done_
-      - **ZIP Backend (in-box)** — _done_
-      - **tar / 7z / rar Backend** — _done_
-      - **zstd / lz4 Backend** — _done_
-      - **AES-256 Zip Backend** — _done_
+      - **Drag-and-Drop Add** — _done_ — The drop goes through the same AddSourcesAsync the Add button uses, so the read-only-format refusal and the skip-what-is-not-there rule are asserted once, on compressed-addfile.
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Accurate one-line summary (format, entry count, uncompressed size) but omits the visible entry tree, selection, and the encryption/signature status it computed.
       - **Act - client tools** — _should_ — Read-only surface: list_entries / read_entry / test_archive. extract/add/sign/verify/recompress/convert stay user-only (dialogs, elevation, heavy backends).
@@ -787,16 +975,20 @@ _Version **v1.4.0** · 2026-07-23_
         - **read_entry** — _done_
         - **test_archive** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **Functionality** — _done_
+      - **Virtual Filesystem (Browse Like a Folder)** — _done_
+        - **Browse Archive in File Tree** — _done_
+      - **File / Folder Actions** — _done_
+        - **As Archive (Open)** — _done_ — The action hands the shell a path and a page kind; what matters is what opens on the other side, which is asserted by loading the inspector over a real archive.
+        - **Unzip Here** — _done_
+        - **Zip It** — _done_
+      - **Format Backends** — _done_
+        - **ZIP Backend (in-box)** — _done_
+        - **tar / 7z / rar Backend** — _done_
+        - **zstd / lz4 Backend** — _done_
+        - **AES-256 Zip Backend** — _done_
+      - **Search (?)** — _should_
   - **3D Model** — _done_
-    - **Viewport** — _done_
-      - **Rotate / Zoom / Pan** — _done_
-      - **Alt+Right-Drag Turn** — _done_
-    - **Toolbar** — _done_
-      - **Wireframe Toggle** — _done_
-      - **Reset View** — _done_
-    - **Stats Footer** — _done_
-    - **Material Inspector** — _done_
-    - **Loader Format Coverage** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: format, triangle/vertex/mesh/material counts, render mode, and any unsupported elements.
       - **Act - client tools** — _done_ — Gold standard: every toolbar camera/inspect action plus wireframe toggle, and the AI can orbit to inspect unseen sides then re-capture.
@@ -809,33 +1001,46 @@ _Version **v1.4.0** · 2026-07-23_
         - **reset_view** — _done_ — Returns the camera to the default pose.
         - **set_render_mode** — _done_ — Toggles solid/wireframe to reveal internal structure.
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Toolbar** — _done_
+        - **Wireframe Toggle** — _done_
+        - **Reset View** — _done_
+        - **Inspector Toggle** — _done_
+      - **Viewport** — _done_
+        - **Rotate / Zoom / Pan** — _done_ — Rotate / zoom / pan are HelixViewport3D's own mouse handling - there is no Nexaflow code between the gesture and the camera to assert. The journey's presence check covers that the viewport is there; the camera maths this feature does own is model3d-camera.
+        - **Alt+Right-Drag Turn** — _done_
+        - **Load Error Overlay** — _done_
+      - **Stats Footer** — _done_
+        - **Detected Format** — _done_
+        - **Geometry Counts** — _done_
+      - **Material Inspector** — _done_
+        - **Material List** — _done_
+        - **Declared but Not Rendered** — _done_
+    - **Functionality** — _done_
+      - **Loader Format Coverage** — _done_
+      - **Camera Maths** — _done_
+      - **Categorical Tinting** — _done_
+      - **Unrendered Content Report** — _done_
   - **Notebook** — _done_
-    - **Cell List** — _done_
-      - **Markdown Cell** — _done_
-      - **Code Cell** — _done_
-        - **Kernel Language Detection** — _done_
-    - **Code Outline** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _done_ — Honest once loaded (kernel + code/markdown cell counts), but NOT readiness-gated: a pre-load pin reports the python/0/0 stub.
+      - **Context - get_context** — _done_ — Honest and readiness-gated: kernel plus code/markdown cell counts and a preview of the first fifteen cells, held back until the file has actually parsed. Before the gate existed a notebook pinned the instant it opened reported the empty python/0/0 stub as though that were the file.
       - **Act - client tools** — _should_ — No client tools - no read-cell or read-outline tool despite an outline being built.
         - **read_notebook** — _done_
         - **read_cell** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Cell List** — _done_
+        - **Markdown Cell** — _done_
+        - **Code Cell** — _done_
+        - **Search (?)** — _should_
+      - **Code Outline** — _done_
+        - **Outline Entries** — _done_
+    - **Functionality** — _done_
+      - **Kernel Language Detection** — _done_
+      - **nbformat Parsing** — _done_
+      - **Code Structure Extraction** — _done_
+      - **Open Actions** — _done_
   - **Video** — _done_
-    - **Video Surface** — _done_
-      - **Poster & Big Play Button** — _done_
-      - **Loading / Error States** — _done_
-    - **Transport Bar** — _done_
-      - **Play / Pause** — _done_
-      - **Skip Back / Forward** — _done_
-      - **Scrubber & Time** — _done_
-      - **Volume & Mute** — _done_
-      - **Playback Speed** — _done_
-      - **Subtitles (CC)** — _done_
-    - **Media Info Panel** — _done_
-    - **Scene Strip (Keyframes)** — _done_
-    - **Fullscreen** — _done_
-    - **Hardware Decoding Setting** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest: file, media summary (resolution/codec/duration/audio), and current playback position. Not readiness-gated (an IsLoading flag exists but is not tied to the send).
       - **Act - client tools** — _should_ — video_capture_frame (see) + get_media_info (read) + seek (approval-gated, move the playhead).
@@ -843,23 +1048,70 @@ _Version **v1.4.0** · 2026-07-23_
         - **get_media_info** — _done_
         - **seek** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Video Surface** — _done_
+        - **Poster & Big Play Button** — _done_
+        - **Loading / Error States** — _done_
+        - **Click to Play / Pause** — _done_
+      - **Transport Bar** — _done_
+        - **Play / Pause** — _done_
+        - **Skip Back / Forward** — _done_
+        - **Scrubber & Time** — _done_
+        - **Volume & Mute** — _done_
+        - **Playback Speed** — _done_
+        - **Subtitles (CC)** — _done_
+        - **Media Info Toggle** — _done_
+        - **Scene Strip Toggle** — _done_
+        - **Fullscreen Toggle** — _done_
+      - **Media Info Panel** — _done_
+        - **Track Sections** — _done_
+      - **Scene Strip (Keyframes)** — _done_
+        - **Seek to Scene** — _done_
+      - **Fullscreen Window** — _done_
+        - **Fullscreen Transport** — _done_ — The same template bound to the same view-model, so its buttons run the very commands asserted on the tab transport leaves - there is no second code path to test. The journey checks it opens and closes.
+    - **Functionality** — _done_
+      - **Hardware Decoding Setting** — _done_
+      - **Engine Lifecycle** — _done_ — Standing the engine up needs libVLC natives and a decodable clip, and tearing it down needs one that is running - neither is available headlessly. What the tab is actually exposed to is the window before the engine exists, and that IS tested: every transport command is reachable from a painted tab with no player, and VideoSurfaceTests asserts each one no-ops rather than throwing.
+      - **Frame Sink** — _done_ — The sink is fed by libVLC decode callbacks straight into a WriteableBitmap - there is no input to it without a running decoder, and nothing to read back but pixels. The UI journey covers that a picture appears.
+      - **Media Info Model** — _done_
+      - **Keyframe Sampling** — _done_ — Sampling itself spins up a second libVLC decoder, so only the strip own model - the time labels the thumbnails carry, and the empty-until-sampled state - is unit-tested; the sampling run is left to the UI journey.
+      - **Open Actions** — _done_
   - **AI Chat** — _done_
-    - **Conversation browser** — _done_
-    - **New conversation** — _done_
-    - **Conversation row actions** — _done_
-    - **Analysis overlay** — _done_
-    - **Conversation view** — _done_
-      - **Inline tool approvals** — _done_
-      - **Mid-turn interjections** — _done_
-      - **Context Preview Panel** — _should_
-      - **Message Timestamps and Rewind** — _should_
-    - **Context pinning** — _done_
-    - **History & resume** — _done_
-    - **AI Chat config** — _done_
     - **AI Integration** — _should_
-      - **Context - get_context** — _done_ — The hub: assembles each pinned page's context (FileSystem pages augmented with a live listing), attachment contents, optional prior analysis, then budgeted history. Readiness-gated on every pinned page.
+      - **Context - get_context** — _done_
+        - **Conversation context** — _done_
+        - **Browser context** — _done_
       - **Act - client tools** — _done_ — No native tools; exposes the UNION of every pinned page's tools, and when a name appears under >=2 distinct security contexts wraps them as one MultiContextClientTool with a security_context selector - the aspect-4 disambiguation engine.
       - **Preview - IContextPreview** — _shouldn't_ — N/A - the conversation IS the context-preview host; it renders other pages' IContextPreview, it is not itself previewed.
+    - **UI** — _done_
+      - **Conversation browser** — _done_
+        - **New conversation** — _done_
+        - **Row Actions** — _done_
+        - **Conversation Rows** — _done_
+        - **Date Filter** — _done_
+        - **Search (?)** — _should_
+      - **Analysis overlay** — _done_
+        - **Analysis Sections** — _done_
+      - **Conversation view** — _done_
+        - **Inline tool approvals** — _done_ — The prompt is raised from inside a running agent turn and completes a TaskCompletionSource the agent is awaiting - reaching it without starting a real turn would mean faking the agent loop itself. The journey covers that a batch renders with Accept and Deny.
+        - **Mid-turn interjections** — _done_ — Queuing a message mid-turn only means anything while an agent turn is in flight; the delivery point is the turn boundary inside that loop. Covered by the journey rather than by faking the loop.
+        - **Message Timestamps and Rewind** — _done_
+        - **Message Thread** — _done_
+        - **Token Budget Footer** — _done_ — A live readout of the running token estimate against the model context window. The budgeting it displays is asserted on aichat-history-resume; the footer itself is two bound numbers with no rule of its own.
+        - **Search (?)** — _should_
+      - **Context pinning** — _done_
+        - **Context Chips** — _done_
+        - **Attachments** — _done_ — Attachments are a plain path list with a missing-file marker; the content they contribute is assembled and asserted through aichat-ai-context.
+        - **Add-context menu** — _done_
+        - **Collapse to a summary** — _done_
+      - **Context Preview Panel** — _should_
+        - **Preview Pane** — _done_
+    - **Functionality** — _done_
+      - **History & resume** — _done_
+      - **AI Chat config** — _done_ — Two settings - an analysis toggle and a retention window - read at construction. The behaviour they drive is asserted on aichat-analysis and aichat-purge; the config object itself is a pair of properties.
+      - **Background Analysis** — _done_ — Producing an analysis is a real model call on a background queue - a unit test must not make one. What the analysis is FOR is asserted either side of it: aichat-history-resume checks a prior analysis stands in for the messages it covers on resume, and the browser row updates in place when one lands.
+      - **Retention Purge** — _done_ — Shares its last-activity rule with the browser filter (ConversationPurgeTask.LastActivity), which is where that rule is asserted - a conversation is judged by when it was last used, not when it began, so retention never deletes one still in play.
+      - **Pinned Tool Union** — _done_ — Exercising it needs two pinned pages that both expose a same-named tool under different security contexts, which means two live page view-models inside a conversation - the journey territory. The readiness and pinning half that decides WHICH pages contribute is asserted in ConversationContextReadinessTests.
   - **Font** — _should_
     - **UI** — _should_
       - **Font Selected** — _should_
@@ -884,6 +1136,7 @@ _Version **v1.4.0** · 2026-07-23_
         - **Decoder registry** — _done_
         - **WOFF decoder** — _done_
       - **Open As Font** — _done_
+      - **Search (?)** — _should_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and rich: each font by index + name + status + selection mark, plus preview text/size/style and the specimen line.
       - **Act - client tools** — _done_ — Full parity plus more: mirrors the details panel and the rendered rows, with custom text/size overrides beyond the on-screen values.
@@ -891,20 +1144,25 @@ _Version **v1.4.0** · 2026-07-23_
         - **render_font_preview** — _done_ — Rendering a font to an image uses WPF RenderTargetBitmap + PngBitmapEncoder, which needs an STA/interactive desktop and is not reliable headless (the existing FontClientToolsTests skips it for the same reason). Exercised via the UI journey.
       - **Preview - IContextPreview** — _done_ — Built fresh on each chip selection and discarded on deselect, per the IContextPreview contract - a pinned page's live content cannot be re-hosted because a WPF element cannot have two parents. The control needs an STA thread to construct, so the unit test asserts the contract and the identity/specimen data it binds to; rendering is covered by the UI journey.
   - **SVG** — _should_
-    - **SVG Loader** — _should_
-    - **Viewer** — _should_
+    - **UI** — _should_
+      - **Toolbar** — _done_
+        - **Reset View** — _done_
+        - **Checkerboard Toggle** — _done_
+      - **Canvas** — _done_ — The wheel-zoom shares Visuals.Common's PanZoomMiniMap.ZoomAt with the collage and the corkboard, and the fit shares ViewportFit with the DICOM stage - so 'the point under the cursor stays put' and 'fit letterboxes and centres' are asserted once, in Tests.Core, for every surface that has them. What is left here is the drag threshold, which is a mouse gesture against a live canvas.
+      - **Error Overlay** — _done_
+      - **Metadata Footer** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: dimensions, viewBox, drawable-element count and file size, with distinct loading/failed states.
       - **Act - client tools** — _done_ — Full for a static viewer: the AI sees the same art (render) and the same metadata (info).
         - **render_svg_image** — _done_ — Rasterizes the frozen vector drawing to PNG - art the AI cannot get from metadata alone.
         - **get_svg_info** — _done_ — Mirrors the footer (dimensions, viewBox, element count).
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
-  - **Database Viewer** — _should_
-  - **Calculator** — _should_
+    - **Functionality** — _done_
+      - **SVG Loader** — _done_
+      - **Load Gate** — _done_
+      - **Open Actions** — _done_
+  - **Solver** — _should_
   - **Email** — _should_
-    - **Open As Email** — _done_
-    - **Message parsing** — _done_
-    - **Attachments** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and content-rich: subject/from/to/cc/date/attachment names + the full body (up to 4000 chars) - more than the visible pane. Guidance says the AI cannot send from here.
       - **Act - client tools** — _should_ — read_email / list_attachments / read_attachment — read-only; the AI cannot send/reply/forward.
@@ -912,8 +1170,21 @@ _Version **v1.4.0** · 2026-07-23_
         - **list_attachments** — _done_
         - **read_attachment** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Envelope Header** — _done_
+      - **Raw Header List** — _done_
+      - **Body View Toolbar** — _done_
+        - **View Mode Buttons** — _done_
+        - **Open in Browser** — _done_ — Exports the HTML body to a temp file and hands it to the shell's WebView2 tab - a second live surface a unit test has no business spawning. That the button is offered only when there IS an HTML body falls out of HasHtmlBody, asserted on email-body-modes.
+      - **Body Pane** — _done_
+      - **Parse Failure State** — _done_
+      - **Attachment Strip** — _done_
+    - **Functionality** — _done_
+      - **Message Parsing** — _done_
+      - **Attachments as a Virtual Filesystem** — _done_
+      - **Open Actions** — _done_
+      - **Search ? Support** — _done_
   - **Gerber Viewer** — _should_
-  - **DICOM Viewer** — _should_
   - **Virtual Disk Viewer** — _should_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: format, partition scheme, volume count and capacity once loaded; holds the AI send while loading and says "still reading" rather than the unreadable fallback.
@@ -922,6 +1193,153 @@ _Version **v1.4.0** · 2026-07-23_
         - **list_files** — _done_
         - **read_file** — _done_
       - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_ — The UI journey here is the file-explorer route rather than a control sweep: the tab is three read-only panes with two buttons, and the interesting path is that double-clicking an image in the browser walks into it. Each pane is asserted against the view-model.
+      - **Metadata Pane** — _done_
+        - **Format Summary** — _done_
+        - **Volume Table** — _done_
+      - **Contents Tree** — _done_ — The read-only rule is asserted directly: activating a file row opens nothing, internally or through the shell. Content is reached by browsing the image in the file explorer instead, so a file inside a disk has one open path rather than two with different scopes.
+      - **Busy / Status Line** — _done_
+      - **Action Bar** — _done_
+        - **Extract All** — _done_
+        - **Mount** — _done_ — Attaching a drive letter is an elevated system call, so what is asserted is the gate rather than the effect: which formats offer the button at all, and which of those need elevation. The mount itself goes through the privilege bridge, not the feature.
+    - **Functionality** — _done_
+      - **Disk Image Reader** — _done_
+      - **Disk as a Virtual Filesystem** — _done_
+      - **Mount / Unmount** — _done_
+      - **Open Actions** — _done_
+      - **Search (?)** — _should_
+  - **DICOM** — _should_
+    - **AI Integration** — _should_
+      - **Context - get_context** — _done_
+      - **Act - client tools** — _done_
+        - **dicom_list_contents** — _done_
+        - **dicom_view_image** — _done_
+        - **dicom_get_current_image_info** — _done_
+        - **dicom_read_tags** — _done_
+        - **dicom_next_frame** — _done_
+        - **dicom_prev_frame** — _done_
+        - **dicom_capture_image** — _done_ — The PNG encode itself is a PngBitmapEncoder over a live WriteableBitmap - an STA render, not a unit test. What is asserted is that the tool is offered and declared a safe operation; that the pixels are the ones on screen follows from it encoding CurrentBitmap rather than re-rendering.
+      - **Preview - IContextPreview** — _should_ — IContextPreview not implemented (no feature is yet). A narrow read-only preview would let the conversation context panel show this page without re-hosting the live view.
+    - **UI** — _done_
+      - **Contents Panel** — _done_
+        - **Content Tree** — _done_
+        - **Container Summary** — _done_
+        - **Hide Patient Toggle** — _done_
+      - **Image Toolbar** — _done_
+        - **Fit / Actual Size** — _done_
+        - **Invert** — _done_
+        - **Measurement Tool Picker** — _done_
+        - **Clear Measurements** — _done_
+        - **Window Presets** — _done_
+        - **Tags Toggle** — _done_
+      - **Image Pane** — _should_
+        - **Rendered Frame** — _done_
+        - **Zoom & Pan** — _done_ — The fit and cursor-anchored zoom live in Visuals.Common's ViewportFit, shared with the SVG canvas - the second surface that had to own its own transform rather than lean on Stretch, because both draw something in screen space over the content.
+        - **Window / Level Drag** — _done_
+        - **Series Scroll** — _done_
+        - **Measurement Overlay** — _done_
+        - **Pixel / HU Probe** — _done_
+        - **Corner Overlays** — _done_
+      - **Cine Transport** — _should_
+        - **Play / Pause** — _done_ — The timer ticking is a dispatcher loop no unit test has, so what is asserted is the state around it: cine stops when another image opens, and the transport is not shown at all for a single-frame image.
+        - **Step Frame** — _done_
+        - **Frame Slider** — _done_
+      - **Tag Drawer** — _done_
+        - **Tag List** — _done_
+        - **Tag Filter** — _done_
+        - **Copy Tag Menu** — _done_ — Four menu items that put a string on the Windows clipboard. There is no rule between the row and the clipboard to get wrong - and a test that takes the clipboard is a test that interferes with whatever else the machine is doing. The drawer's own behaviour is covered on dicom-tag-list and dicom-tag-filter.
+    - **Functionality** — _done_
+      - **Container Loading** — _done_
+      - **Encapsulated Reports** — _should_
+      - **DICOM Detection** — _done_
+      - **Open Actions** — _done_
+  - **OneDrive** — _done_
+    - **UI** — _done_
+      - **Options** — _done_
+    - **Functionality** — _done_
+      - **Detection** — _done_
+      - **This PC rows** — _done_
+    - **AI Integration** — _shouldn't_
+  - **Executable Inspector** — _should_
+    - **UI** — _should_
+    - **Functionality** — _should_
+    - **AI Integration** — _should_
+  - **PDF** — _should_
+    - **Functionality** — _should_
+      - **Search text extraction** — _done_
+      - **Extract Images** — _done_
+      - **Image codec filters** — _done_
+      - **Page text, outline and page images** — _done_
+      - **Reading order (layout analysis)** — _done_
+    - **UI** — _should_
+      - **Rendered page surface** — _done_
+      - **Document panel** — _should_
+        - **Properties tab** — _done_
+        - **Contents tab** — _done_
+      - **As Pdf file action** — _done_
+    - **AI Integration** — _should_
+      - **Context - get_context** — _done_
+      - **Act - client tools** — _should_
+        - **pdf_get_info** — _done_
+        - **pdf_outline** — _done_
+        - **pdf_read_text** — _done_
+        - **pdf_find_text** — _done_
+        - **pdf_list_images** — _done_
+        - **pdf_get_image** — _done_
+        - **pdf_page_image** — _done_
+        - **pdf_view_page** — _done_
+      - **Preview - IContextPreview** — _should_
+  - **Network** — _should_
+    - **UI** — _should_
+      - **Discovery page** — _done_
+        - **Device list** — _done_
+        - **Device panel** — _done_
+        - **Probe settings** — _should_
+        - **What was here last time** — _should_
+        - **Stopping a sweep** — _should_
+        - **Rows a test can reach** — _should_
+      - **Device actions** — _done_
+        - **Ping** — _done_
+        - **Published addresses** — _done_
+        - **Port scan** — _should_
+        - **Wake on LAN** — _should_
+    - **Functionality** — _should_
+      - **Discovery** — _should_
+        - **ARP / neighbour table** — _done_
+        - **SSDP / UPnP** — _done_
+        - **Device description** — _done_
+        - **Address sweep** — _should_
+        - **mDNS / DNS-SD** — _should_
+        - **Listening** — _should_
+      - **Device graph** — _should_
+        - **Topology** — _should_
+        - **Addresses derived from hardware** — _should_
+      - **DynamicProtocol** — _should_ — Ten corpus protocols round-trip byte-exact against real captures. NOT yet consumed by anything: the engine is referenced only by Nexaflow.Tests.IO, so nothing in the shell can reach it. Wants sub-nodes once it has a consumer - engine, definitions and the reviewing surface are three different things being tracked as one leaf.
+        - **The codec** — _done_
+        - **The corpus** — _done_
+        - **Protocol descriptions** — _done_
+        - **A run of nothing** — _should_
+        - **Names that point at names** — _should_
+        - **A conversion with an argument** — _should_
+        - **Walkable both ways** — _should_
+        - **A validator's own words** — _should_
+        - **Lengths that check themselves** — _should_
+        - **State** — _should_
+          - **A peer that grants less** — _should_
+          - **Saying it again** — _should_
+          - **Several at once** — _should_
+          - **Learning nothing** — _should_
+          - **A device that restarted** — _should_
+          - **Nobody asked** — _should_
+          - **Which segment is legal when** — _should_
+        - **Authoring** — _should_
+        - **Review** — _should_
+        - **Trust** — _should_
+        - **Where a description lives** — _should_
+      - **Send guard** — _should_
+        - **Network options** — _should_
+        - **Audit** — _should_
+    - **AI Integration** — _should_
 - **Providers** — _should_
   - **Claude** — _done_
   - **Gemini** — _done_
@@ -979,6 +1397,7 @@ _Version **v1.4.0** · 2026-07-23_
         - **Architecture** — _done_
         - **Cynefin** — _done_
         - **Swimlanes** — _done_
+        - **Expandable Nodes** — _done_
       - **Markdig Extensions** — _should_
         - **Pipe tables** — _done_
         - **Grid tables** — _done_
@@ -1066,6 +1485,7 @@ _Version **v1.4.0** · 2026-07-23_
     - **File Change Watcher** — _done_
     - **Glob** — _done_
     - **Virtual File System** — _done_
+      - **Pass-through mounts** — _done_
     - **Codec / Archive Contracts** — _done_
     - **Text Transforms & Hashing** — _done_
   - **Visuals.Common** — _done_
@@ -1073,6 +1493,7 @@ _Version **v1.4.0** · 2026-07-23_
     - **Value Converters** — _done_
     - **Formatters** — _done_
     - **Collections** — _done_
+  - **Visuals.Web** — _done_
 - **Core UX** — _should_
   - **Themes** — _done_
     - **Dark** — _done_
@@ -1215,6 +1636,12 @@ _Version **v1.4.0** · 2026-07-23_
       - **Escalate to Overlay** — _done_
     - **Background Activity Ticker** — _done_
     - **Page Quick-Open** — _should_
+    - **Page Search (? / ISearchable)** — _done_
+      - **Search conformance** — _done_
+      - **Agent search tools** — _done_
+      - **Regex everywhere** — _done_
+        - **Two-stage content verification** — _done_ — Row states are five-way, and the split is about EVIDENCE not just outcome. Verified = name matched, or content matched in a file we decoded properly. Uncertain = the pattern WAS found, but by scanning the raw bytes of a format we don't understand - real, possibly incidental, like a plain-text scan finding 'magic' in a JPEG tag. Rejected = read as proper text and not there (conclusive). Unreadable = couldn't open it, OR not found in raw bytes of a container whose real text is compressed - absence there proves nothing, so it must never be reported as a miss. Candidate = not yet checked. An unknown file type is never skipped: it is always scanned as text, and only the CONFIDENCE differs. Unreadable and Uncertain are never re-offered for checking, since re-reading gives the same answer and makes the button look dead.
+      - **Search status chip** — _should_
   - **Window Handling** — _done_
     - **Tear Off Tab** — _done_
     - **Split View (Dual Pane)** — _done_
@@ -1226,6 +1653,7 @@ _Version **v1.4.0** · 2026-07-23_
     - **DPI-Aware Placement** — _done_
     - **Themed File Picker** — _done_
     - **Themed Folder Picker** — _done_
+    - **Tab Reuse on Open** — _done_
   - **Shell Prompt Overlays** — _done_
     - **Input Prompt Dialog** — _done_
     - **Confirmation Dialog** — _done_
@@ -1261,9 +1689,9 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| i18n | 0/979 |
-| theming | 479/979 |
-| tests | 600/979 |
-| docs | 1/979 |
-| AI Ready | 0/979 |
-| Expanded | 25/979 |
+| i18n | 0/1286 |
+| theming | 609/1286 |
+| tests | 982/1286 |
+| docs | 1/1286 |
+| AI Ready | 0/1286 |
+| Expanded | 25/1286 |
