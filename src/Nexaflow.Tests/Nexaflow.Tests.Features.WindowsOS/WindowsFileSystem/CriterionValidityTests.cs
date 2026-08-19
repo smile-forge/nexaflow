@@ -4,11 +4,11 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
 [TestClass]
-[CoversNode("winfs-external-apps-editor")]
-[CoversNode("winfs-filemap-editor")]
 public class CriterionValidityTests
 {
     [TestMethod]
+    [CoversNode("winfs-external-apps-editor")]
+    [CoversNode("winfs-filemap-editor")]
     public void Extension_RejectsPathLikeValues()
     {
         Assert.IsTrue(CriterionValidity.IsValid("Extension", "*.slnx"));
@@ -19,6 +19,8 @@ public class CriterionValidityTests
     }
 
     [TestMethod]
+    [CoversNode("winfs-external-apps-editor")]
+    [CoversNode("winfs-filemap-editor")]
     public void Empty_IsValid_AndPathPatternIsLenient()
     {
         Assert.IsTrue(CriterionValidity.IsValid("Extension", ""));

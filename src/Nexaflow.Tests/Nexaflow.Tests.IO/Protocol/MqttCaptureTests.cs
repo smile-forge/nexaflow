@@ -225,7 +225,7 @@ public class MqttCaptureTests
             "granted as asked, granted lower than asked, and refused outright");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(PingReq, 12)]
     [DataRow(PingResp, 13)]
     public void A_ping_is_a_fixed_header_and_nothing_else(int which, long type)
@@ -239,7 +239,7 @@ public class MqttCaptureTests
 
     // ── Back out again ────────────────────────────────────────────────────────
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(Connect, "a CONNECT with a will and credentials")]
     [DataRow(Connack, "a CONNACK")]
     [DataRow(Subscribe, "a SUBSCRIBE with three filters")]

@@ -56,7 +56,12 @@ public class SearchableConformanceGuardTests
         }
     }
 
+    // Deliberately NOT [TestClass]: this derives the conformance suite so the guard can *invoke* its
+    // assertions against a deliberately-broken page and check they fail. Marking it would have MSTest
+    // discover and run it as a real suite, which is the opposite of the point.
+#pragma warning disable MSTEST0030
     private sealed class Probe(ISearchable page) : SearchableContentConformanceTests
+#pragma warning restore MSTEST0030
     {
         protected override Task<ISearchable> CreateAsync() => Task.FromResult(page);
         protected override string LiteralTermInContent => "alpha42";

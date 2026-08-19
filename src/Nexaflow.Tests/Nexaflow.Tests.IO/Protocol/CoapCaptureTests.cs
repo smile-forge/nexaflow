@@ -184,7 +184,7 @@ public class CoapCaptureTests
 
     // ── Back out again ────────────────────────────────────────────────────────
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(Get, "a GET with six options and two escapes")]
     [DataRow(Content, "an ACK with three options and a payload")]
     [DataRow(Escaped, "a GET with no token and a sixteen-bit delta")]

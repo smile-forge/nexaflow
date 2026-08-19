@@ -152,7 +152,7 @@ public class AiChatBrowserTests
         vm.DeleteConversationCommand.Execute(vm.Items.Single());
 
         Assert.AreEqual(1, vm.Items.Count, "a declined delete must leave the row alone");
-        _ai.DidNotReceiveWithAnyArgs().DeleteConversationAsync(default!);
+        _ = _ai.DidNotReceiveWithAnyArgs().DeleteConversationAsync(default!);
     }
 
     [TestMethod]

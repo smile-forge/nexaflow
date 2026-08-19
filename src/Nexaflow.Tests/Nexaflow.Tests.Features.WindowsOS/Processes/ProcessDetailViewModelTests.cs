@@ -101,7 +101,7 @@ public class ProcessDetailViewModelTests
         vm.ApplyDetail(Detail(priority: "High"));
 
         Assert.AreEqual("High", vm.SelectedPriority, "the dropdown reflects the live priority class");
-        shell.DidNotReceiveWithAnyArgs().RunElevatedAsync(default!, default);
+        _ = shell.DidNotReceiveWithAnyArgs().RunElevatedAsync(default!, default);
     }
 
     [TestMethod]
@@ -241,7 +241,7 @@ public class ProcessDetailViewModelTests
             Arg.Is<string>(t => t.Contains("target.exe") && t.Contains("4242")),
             Arg.Is<string>(b => b.Contains("Unsaved work is lost")),
             Arg.Any<CancellationToken>());
-        shell.DidNotReceiveWithAnyArgs().RunElevatedAsync(default!, default);
+        _ = shell.DidNotReceiveWithAnyArgs().RunElevatedAsync(default!, default);
     }
 
     // ── Re-targeting the tab ──────────────────────────────────────────────────

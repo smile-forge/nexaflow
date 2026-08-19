@@ -9,7 +9,6 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// <summary>The measurement geometry: length converts pixels to mm via PixelSpacing (falls back to px when
 /// uncalibrated), angle is the interior angle at the vertex, and ROI reports area.</summary>
 [TestClass]
-[CoversNode("dicom-measurements")]
 public class MeasurementMathTests
 {
     private static DicomInstanceInfo Calibrated(double spacing) => new(
@@ -22,6 +21,7 @@ public class MeasurementMathTests
     private static DicomInstanceInfo Uncalibrated() => Calibrated(0) with { PixelSpacingX = null, PixelSpacingY = null };
 
     [TestMethod]
+    [CoversNode("dicom-measurements")]
     public void Length_WithPixelSpacing_ReportsMillimetres()
     {
         // 3-4-5 triangle at 2 mm/px → 5 px × 2 = 10 mm.
@@ -31,6 +31,7 @@ public class MeasurementMathTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-measurements")]
     public void Length_WithoutSpacing_ReportsPixels()
     {
         var label = MeasurementMath.LengthLabel(new Point(0, 0), new Point(3, 4), Uncalibrated());
@@ -39,6 +40,7 @@ public class MeasurementMathTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-measurements")]
     public void Angle_RightAngle_Is90Degrees()
     {
         var label = MeasurementMath.AngleLabel(new Point(1, 0), new Point(0, 0), new Point(0, 1));
@@ -47,6 +49,7 @@ public class MeasurementMathTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-measurements")]
     public void RoiRectangle_ReportsArea_InMillimetresSquared()
     {
         // 4×4 px at 1 mm/px, rectangle → 16 mm². No sampler → area only.
@@ -56,6 +59,7 @@ public class MeasurementMathTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-measurements")]
     [CoversNode("dicom-probe")]
     public void Probe_OnRealImage_ReadsRawPixelValue()
     {

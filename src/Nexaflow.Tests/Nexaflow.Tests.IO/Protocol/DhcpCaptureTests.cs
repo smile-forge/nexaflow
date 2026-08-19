@@ -209,7 +209,7 @@ public class DhcpCaptureTests
 
     // ── Back out again ────────────────────────────────────────────────────────
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(Discover, "a DHCPDISCOVER padded to three hundred octets")]
     [DataRow(Offer, "a DHCPOFFER with ten options and no fill")]
     public void A_capture_written_back_is_the_same_octets(int which, string what)

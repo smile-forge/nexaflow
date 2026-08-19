@@ -18,7 +18,6 @@ namespace Nexaflow.Tests.Features.CodeIntel;
 /// the As Code / As Text actions.
 /// </summary>
 [TestClass]
-[CoversNode("syntax-outline")]
 public class CodeIntelligenceTests
 {
     private const string CSharp = """
@@ -45,6 +44,7 @@ public class CodeIntelligenceTests
     // ── Extraction ──────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     [CoversNode("code-structure")]
     public void Extract_CSharp_FindsImportsTypesAndMembers()
     {
@@ -104,6 +104,7 @@ public class CodeIntelligenceTests
         """;
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     public void Extract_CSharp_CapturesVisibilityAndSignatures()
     {
         var outline = new CodeStructureExtractor().Extract("c-sharp", Inheritance);
@@ -126,6 +127,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     public void Extract_CSharp_CapturesBaseClassAndInterface()
     {
         var outline = new CodeStructureExtractor().Extract("c-sharp", Inheritance);
@@ -136,6 +138,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     [CoversNode("code-map-class-view")]
     public void Build_EmitsInheritanceEdgesAndVisibility()
     {
@@ -150,6 +153,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     [CoversNode("code-map-class-view")]
     public void Build_AbbreviatesLongMemberSignatures()
     {
@@ -167,6 +171,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     [CoversNode("code-map-deps")]
     public void Extract_Python_ResolvesRelativeImportButNotLibrary()
     {
@@ -191,6 +196,7 @@ public class CodeIntelligenceTests
     // ── More languages (Java / PHP / C++ / Rust / TypeScript) ────────────────
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     public void Extract_Java_TypesMembersBasesVisibility()
     {
         const string src = """
@@ -224,6 +230,7 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
     public void Extract_Php_TypesMembersBasesVisibility()
     {
         const string src = """

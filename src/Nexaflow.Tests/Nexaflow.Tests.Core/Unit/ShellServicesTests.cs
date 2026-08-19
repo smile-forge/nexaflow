@@ -12,7 +12,6 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Core.Unit;
 
 [TestClass]
-[CoversNode("win-cux-window-registry")]
 public class ShellServicesTests
 {
     private static ShellServices CreateSvc() => new(new WorkspaceRuntime());
@@ -201,6 +200,7 @@ public class ShellServicesTests
     }
 
     [TestMethod]
+    [CoversNode("win-cux-window-registry")]
     public void CloseTab_RemovesFromRegistry()
     {
         var svc = CreateSvc();
@@ -215,6 +215,7 @@ public class ShellServicesTests
     }
 
     [TestMethod]
+    [CoversNode("win-cux-window-registry")]
     public void CloseTab_UnknownTab_IsNoOp()
     {
         var svc = CreateSvc();
@@ -226,6 +227,7 @@ public class ShellServicesTests
     }
 
     [TestMethod]
+    [CoversNode("win-cux-window-registry")]
     public void CloseWindowTabs_RaisesClosedForEachTab_AndClearsRegistry()
     {
         var svc = CreateSvc();

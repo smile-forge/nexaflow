@@ -10,10 +10,10 @@ namespace Nexaflow.Tests.Features.VirtualDisk;
 /// <summary>Mount policy (which formats, elevation gating, drive-letter parsing) and the disk file/folder
 /// actions' contracts. Live mounting needs admin + real hardware, so these cover the routing, not the attach.</summary>
 [TestClass]
-[CoversNode("vdisk-mount-service")]
 public class DiskMountAndActionsTests
 {
     [TestMethod]
+    [CoversNode("vdisk-mount-service")]
     public void CanMount_OnlyNativelyMountableFormats()
     {
         Assert.IsTrue(MountSupport.CanMount("x.iso"));
@@ -24,6 +24,7 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
+    [CoversNode("vdisk-mount-service")]
     public void RequiresElevation_TrueForEverythingButIso()
     {
         Assert.IsFalse(MountSupport.RequiresElevation("x.iso"));
@@ -51,6 +52,7 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
+    [CoversNode("vdisk-mount-service")]
     [CoversNode("vdisk-open-actions")]
     public void Mount_TargetsTheMountableExperience()
     {
@@ -61,6 +63,7 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
+    [CoversNode("vdisk-mount-service")]
     [CoversNode("vdisk-open-actions")]
     public void Unmount_IsDriveAction_HiddenForNonDrivePaths()
     {
@@ -76,6 +79,7 @@ public class DiskMountAndActionsTests
     // ── Session mount registry (the source of truth for the Unmount action) ──
 
     [TestMethod]
+    [CoversNode("vdisk-mount-service")]
     public void NoteMounted_MarksDriveImageBacked_AndResolvesPath_UntilUnmounted()
     {
         var mounter = new DiskMounter();
@@ -96,6 +100,7 @@ public class DiskMountAndActionsTests
     }
 
     [TestMethod]
+    [CoversNode("vdisk-mount-service")]
     public void NoteMounted_AcceptsLetterColonAndTrailingSlashForms()
     {
         var mounter = new DiskMounter();

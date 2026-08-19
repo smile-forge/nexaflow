@@ -96,15 +96,6 @@ public class NetworkJourneyTests : UiJourneyTestBase
     private AutomationElement? Find(string automationId)
         => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
 
-    private AutomationElement? WaitForId(string automationId, int seconds)
-    {
-        for (int i = 0; i < seconds * 4; i++)
-        {
-            if (Find(automationId) is { } found && !found.IsOffscreen) return found;
-            Thread.Sleep(250);
-        }
-        return null;
-    }
 
     /// <summary>A picture of the window, somewhere a person can open it.</summary>
     private void Shoot(string name)

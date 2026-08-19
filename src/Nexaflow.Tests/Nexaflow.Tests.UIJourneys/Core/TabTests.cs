@@ -7,7 +7,6 @@ namespace Nexaflow.Tests.Core.UI;
 
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("chrome-content-area")]
 public class TabTests : UITestBase
 {
     private AutomationElement TabStrip =>
@@ -106,6 +105,7 @@ public class TabTests : UITestBase
     }
 
     [TestMethod]
+    [CoversNode("chrome-content-area")]
     [CoversNode("dual-pane")]
     [CoversNode("win-cux-split-empty")]
     public void Split_FromEmptyStripArea_CreatesSecondPane()
@@ -125,6 +125,7 @@ public class TabTests : UITestBase
     }
 
     [TestMethod]
+    [CoversNode("chrome-content-area")]
     [CoversNode("dual-pane")]
     [CoversNode("win-cux-close-pane")]
     public void Split_ThenClosePane_CollapsesBackWithContent()

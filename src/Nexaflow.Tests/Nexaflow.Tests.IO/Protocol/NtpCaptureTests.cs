@@ -114,7 +114,7 @@ public class NtpCaptureTests
 
     // ── And what it writes back ───────────────────────────────────────────────
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(0, "a client request")]
     [DataRow(1, "a server response")]
     [DataRow(2, "a request carrying a symmetric-key MAC")]

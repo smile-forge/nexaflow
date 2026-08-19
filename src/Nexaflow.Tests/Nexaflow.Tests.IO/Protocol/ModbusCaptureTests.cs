@@ -70,7 +70,7 @@ public class ModbusCaptureTests
         Assert.AreEqual(2, Number(run, "exceptionCode"), "ILLEGAL DATA ADDRESS");
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(0, Asking, "a request")]
     [DataRow(1, Answering, "a normal response")]
     [DataRow(2, Answering, "an exception response")]

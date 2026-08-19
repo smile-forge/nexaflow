@@ -19,10 +19,10 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown.Music;
 /// </summary>
 [TestClass]
 [CoversNode("abc-notation")]
-[CoversNode("ly-core")]
 public class MusicSampleDocTests
 {
     [TestMethod]
+    [CoversNode("ly-core")]
     public void EveryLilyPondSampleBlock_Engraves()
     {
         AssertDoc("music-lilypond.md", src => new LilyPondParser().Parse(src));

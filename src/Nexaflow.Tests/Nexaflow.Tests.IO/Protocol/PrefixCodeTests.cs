@@ -167,7 +167,7 @@ public class PrefixCodeTests
     /// RFC 7541 Appendix C, the encoded string literals — four independent confirmations that the table
     /// and the packing agree with the people who wrote them down.
     /// </summary>
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("www.example.com", "f1e3c2e5f23a6ba0ab90f4ff")]
     [DataRow("no-cache", "a8eb10649cbf")]
     [DataRow("custom-key", "25a849e95ba97d7f")]

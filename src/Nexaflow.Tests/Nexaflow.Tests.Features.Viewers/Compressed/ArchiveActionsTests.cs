@@ -9,10 +9,10 @@ namespace Nexaflow.Tests.Features.Compressed;
 
 /// <summary>VFS create + extract used by the "Zip It" / "Unzip here" actions, including the zip-slip guard.</summary>
 [TestClass]
-[CoversNode("compressed-unzip-here")]
 public class ArchiveActionsTests
 {
     [TestMethod]
+    [CoversNode("compressed-unzip-here")]
     [CoversNode("compressed-zip-it")]
     public void CreateThenExtract_RoundTrips()
     {
@@ -34,6 +34,7 @@ public class ArchiveActionsTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-unzip-here")]
     public void ExtractAll_SkipsZipSlipEntries()
     {
         using var fix = new Dir();

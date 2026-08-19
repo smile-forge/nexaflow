@@ -20,8 +20,6 @@ namespace Nexaflow.Tests.Features.Pdf;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("pdf-search")]
-[CoversNode("pdf-extract-images")]
 public class PdfWriterRoundTripTests
 {
     private const string Needle = "peregrine";
@@ -72,6 +70,7 @@ public class PdfWriterRoundTripTests
             .First(p => p.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
 
     [TestMethod]
+    [CoversNode("pdf-search")]
     public async Task Text_IsExtractedFromACompressedContentStream()
     {
         var text = await new PdfTextExtractor(new PdfConfig()).ExtractAsync(WriteDocument(), Budget, default);
@@ -82,6 +81,7 @@ public class PdfWriterRoundTripTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-extract-images")]
     public void Images_AreExtracted_WithTheJpegPassedThroughAndTheRepeatDropped()
     {
         using var scope = PdfDocumentScope.TryOpen(WriteDocument(), default);
@@ -103,6 +103,7 @@ public class PdfWriterRoundTripTests
     }
 
     [TestMethod]
+    [CoversNode("pdf-extract-images")]
     public async Task ExtractionTask_WritesBothImages()
     {
         var task = new Nexaflow.Features.Pdf.Services.PdfImageExtractionTask([WriteDocument()], _dir);

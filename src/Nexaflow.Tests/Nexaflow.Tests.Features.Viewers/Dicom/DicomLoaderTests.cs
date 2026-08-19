@@ -12,7 +12,6 @@ namespace Nexaflow.Tests.Features.Dicom;
 /// the <c>DICM</c> magic (extensionless CD files).
 /// </summary>
 [TestClass]
-[CoversNode("dicom-load")]
 public class DicomLoaderTests
 {
     private static string SampleDcm => TestSampleData.Path("dicom", "ct.dcm");
@@ -33,6 +32,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-load")]
     [CoversNode("dicom-sniffer")]
     public void Sniffer_Recognises_Dcm_And_Magic_ButNotText()
     {
@@ -50,6 +50,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-load")]
     public void Load_SingleImage_BuildsTree_WithOneImage()
     {
         var container = DicomContainerLoader.Load([SampleDcm]);
@@ -68,6 +69,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-load")]
     [CoversNode("dicom-hide-patient")]
     public void Load_SingleImage_PatientNodeCarriesPhi_MaskedWhenHidden()
     {
@@ -87,6 +89,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-load")]
     public void Load_DicomDir_ResolvesReferencedFiles_IntoSeries()
     {
         var dicomdir = DicomTestFiles.WriteDicomDir(_tmp);
@@ -102,6 +105,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-load")]
     public void Load_Folder_WithoutDicomDir_ScansInstances()
     {
         DicomTestFiles.WriteImage(_tmp, "a.dcm", "PX", "A^B", "1.9.1", "1.9.1.1", "1.9.1.1.1");
@@ -114,6 +118,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-load")]
     public void Load_Series_OrdersByInstanceNumber_AndLinksSeriesImages()
     {
         // Written out of order (instance 3, 1, 2); the loaded series must be ordered 1, 2, 3.
@@ -135,6 +140,7 @@ public class DicomLoaderTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-load")]
     public void Load_LargePixelData_ClassifiedAsImage_NotReport()
     {
         // The loader opens headers with SkipLargeTags, which DROPS PixelData for real (large) images. Image

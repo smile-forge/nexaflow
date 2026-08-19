@@ -9,13 +9,13 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Processes;
 
 [TestClass]
-[CoversNode("processes-reconcile")]
 public class ReconciliationTests
 {
     private static ProcessesViewModel NewVm() =>
         new(Substitute.For<IShellServices>(), new FakeProcessSource());
 
     [TestMethod]
+    [CoversNode("processes-reconcile")]
     public void RowIdentity_SurvivesRefresh()
     {
         using var vm = NewVm();
@@ -27,6 +27,7 @@ public class ReconciliationTests
     }
 
     [TestMethod]
+    [CoversNode("processes-reconcile")]
     public void DeadProcess_IsRemoved()
     {
         using var vm = NewVm();
@@ -39,6 +40,7 @@ public class ReconciliationTests
     }
 
     [TestMethod]
+    [CoversNode("processes-reconcile")]
     public void Metrics_UpdateInPlace()
     {
         using var vm = NewVm();
@@ -51,6 +53,7 @@ public class ReconciliationTests
     }
 
     [TestMethod]
+    [CoversNode("processes-reconcile")]
     public void ExpansionState_SurvivesRefresh()
     {
         using var vm = NewVm();

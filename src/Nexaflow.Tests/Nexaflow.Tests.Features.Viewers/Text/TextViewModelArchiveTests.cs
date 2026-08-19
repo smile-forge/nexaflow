@@ -19,7 +19,6 @@ namespace Nexaflow.Tests.Features.Text;
 /// (<see cref="OverlayTextFile"/>) path, which is what the 100 KB threshold selects.
 /// </summary>
 [TestClass]
-[CoversNode("compressed-open-inner-file")]
 public class TextViewModelArchiveTests
 {
     private string _dir = string.Empty;
@@ -62,6 +61,7 @@ public class TextViewModelArchiveTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-open-inner-file")]
     public void LoadAsync_SmallFileInsideZip_LoadsContent() => AsyncPump.Run(async () =>
     {
         using var vm = new TextViewModel(Path.Combine(_zip, "small.txt"), Substitute.For<IShellServices>())
@@ -73,6 +73,7 @@ public class TextViewModelArchiveTests
     });
 
     [TestMethod]
+    [CoversNode("compressed-open-inner-file")]
     [CoversNode("text-viewer-windowing")]
     public void LoadAsync_LargeFileInsideZip_LoadsContent() => AsyncPump.Run(async () =>
     {
@@ -89,6 +90,7 @@ public class TextViewModelArchiveTests
 
     /// <summary>An edited entry is written back into the archive, not into the materialised temp copy.</summary>
     [TestMethod]
+    [CoversNode("compressed-open-inner-file")]
     public void Save_SmallFileInsideZip_WritesBackIntoArchive() => AsyncPump.Run(async () =>
     {
         var entryPath = Path.Combine(_zip, "small.txt");
@@ -115,6 +117,7 @@ public class TextViewModelArchiveTests
     /// file in place, which an archive path has no equivalent for. The viewer must refuse rather than silently
     /// write the materialised temp copy.</summary>
     [TestMethod]
+    [CoversNode("compressed-open-inner-file")]
     [CoversNode("text-viewer-windowing")]
     public void LargeFileInsideZip_IsNotEditable() => AsyncPump.Run(async () =>
     {

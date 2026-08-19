@@ -14,7 +14,6 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// never reaches the archive on disk. Each level must be rebuilt back into its parent.
 /// </summary>
 [TestClass]
-[CoversNode("compressed-editwriteback")]
 [CoversNode("compressed-vfs")]
 public class NestedArchiveWriteBackTests
 {
@@ -34,6 +33,7 @@ public class NestedArchiveWriteBackTests
     public void Cleanup() { try { Directory.Delete(_dir, recursive: true); } catch { } }
 
     [TestMethod]
+    [CoversNode("compressed-editwriteback")]
     public void WriteAllText_EntryInTopLevelZip_WritesBackIntoArchive()
     {
         var outer = Path.Combine(_dir, "outer.zip");
@@ -45,6 +45,7 @@ public class NestedArchiveWriteBackTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-editwriteback")]
     public void WriteAllText_EntryInNestedZip_WritesBackIntoOuterArchive()
     {
         var inner = BuildZip(("x.txt", Utf8("original")));
@@ -64,6 +65,7 @@ public class NestedArchiveWriteBackTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-editwriteback")]
     public void WriteAllText_EntryThreeLevelsDeep_WritesBackIntoOuterArchive()
     {
         var inner  = BuildZip(("x.txt", Utf8("original")));
@@ -78,6 +80,7 @@ public class NestedArchiveWriteBackTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-editwriteback")]
     public void ReadAfterWrite_EntryInNestedZip_SeesTheNewContent()
     {
         var inner = BuildZip(("x.txt", Utf8("original")));

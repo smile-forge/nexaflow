@@ -21,7 +21,6 @@ namespace Nexaflow.Tests.Core.Unit.Editor;
 /// </summary>
 [TestClass]
 [CoversNode("vtext-editor")]
-[CoversNode("vtext-editor-host")]
 public class FileTextEditorViewModelTests
 {
     private const long Big = 50L * 1024 * 1024;
@@ -176,6 +175,7 @@ public class FileTextEditorViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("vtext-editor-host")]
     public void LineCommands_HideLineReorderingForCode() => AsyncPump.Run(async () =>
     {
         using var code = new FileTextEditorViewModel("snippet.cs", Shell(), Big);
@@ -191,6 +191,7 @@ public class FileTextEditorViewModelTests
     });
 
     [TestMethod]
+    [CoversNode("vtext-editor-host")]
     [CoversNode("code-commands")]
     public void CommandGroups_HideSelectionOnlyGroups_UntilSelectionExists() => AsyncPump.Run(async () =>
     {
@@ -232,6 +233,7 @@ public class FileTextEditorViewModelTests
     // ── Toolbar: line-number gutter ───────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("vtext-editor-host")]
     [CoversNode("code-line-numbers")]
     public void LineNumbers_AreOnByDefault_AndTheToggleFlipsThem() => AsyncPump.Run(async () =>
     {

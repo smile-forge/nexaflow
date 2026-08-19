@@ -16,7 +16,6 @@ namespace Nexaflow.Tests.Core.Visuals.Layout;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("dicom-zoom-pan")]
 public class ViewportFitTests
 {
     private const double Tol = 1e-9;
@@ -81,6 +80,7 @@ public class ViewportFitTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-zoom-pan")]
     [CoversNode("svg-canvas")]
     public void FitScaled_ClampsToTheZoomRange_AndStillCentres()
     {
@@ -131,6 +131,7 @@ public class ViewportFitTests
     // ── Zoom ──────────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("dicom-zoom-pan")]
     public void ZoomAt_KeepsThePointUnderTheCursorUnderTheCursor()
     {
         var view = ViewportFit.Fit(512, 512, 800, 600);
@@ -146,6 +147,7 @@ public class ViewportFitTests
     }
 
     [TestMethod]
+    [CoversNode("dicom-zoom-pan")]
     public void ZoomAt_InAndBackOut_ReturnsToWhereItStarted()
     {
         var view = ViewportFit.Fit(512, 512, 800, 600);

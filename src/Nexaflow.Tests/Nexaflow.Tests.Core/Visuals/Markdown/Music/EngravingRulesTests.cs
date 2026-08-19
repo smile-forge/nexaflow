@@ -12,9 +12,6 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown.Music;
 /// pure geometry, so they are asserted directly rather than inferred from a bitmap.
 /// </summary>
 [TestClass]
-[CoversNode("sr-notes")]
-[CoversNode("sr-beaming")]
-[CoversNode("sr-layout")]
 public class EngravingRulesTests
 {
     private static readonly StaffGeometry Treble = StaffGeometry.For(ClefKind.Treble);
@@ -25,6 +22,7 @@ public class EngravingRulesTests
     // ── Stem direction ──────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("sr-notes")]
     public void StemFlips_StrictlyAboveTheMiddleLine()
     {
         // Treble middle line is B4. Everything up to and including it stems up; c5 and above stem down.
@@ -36,6 +34,7 @@ public class EngravingRulesTests
     }
 
     [TestMethod]
+    [CoversNode("sr-notes")]
     public void BeamGroup_TakesTheDirectionOfTheNoteFurthestFromTheMiddleLine()
     {
         // G A B c reaches two half-spaces below the middle line and only one above → the group stems up.
@@ -48,6 +47,7 @@ public class EngravingRulesTests
     }
 
     [TestMethod]
+    [CoversNode("sr-notes")]
     public void Chord_StemsFromItsOutermostNote()
     {
         var low = new Chord();
@@ -63,6 +63,7 @@ public class EngravingRulesTests
         Engraving.BeamSlope([.. Enumerable.Range(0, outerY.Length).Select(i => i * 20.0)], outerY);
 
     [TestMethod]
+    [CoversNode("sr-beaming")]
     public void Beam_Rises_WhenTheGroupRises()
     {
         double s = Slope(100, 96, 92, 88);          // pitch climbing (y shrinking)
@@ -70,12 +71,14 @@ public class EngravingRulesTests
     }
 
     [TestMethod]
+    [CoversNode("sr-beaming")]
     public void Beam_Falls_WhenTheGroupFalls()
     {
         Assert.IsTrue(Slope(88, 92, 96, 100) > 0);
     }
 
     [TestMethod]
+    [CoversNode("sr-beaming")]
     public void Beam_IsFlat_WhenTheGroupIsNotMonotonic()
     {
         // ABcdABcd — two rising runs, but the contour is a zig-zag, so the beam must not lean.
@@ -85,6 +88,7 @@ public class EngravingRulesTests
     }
 
     [TestMethod]
+    [CoversNode("sr-beaming")]
     public void Beam_NeverExceedsItsSlopeCap_HoweverBigTheInterval()
     {
         double s = Slope(200, 100);                 // a huge leap over one note-width
@@ -97,6 +101,7 @@ public class EngravingRulesTests
     /// right edge, and the tail — though ragged — keeps the same note spacing as the lines above it, rather
     /// than bunching up at its natural width.</summary>
     [TestMethod]
+    [CoversNode("sr-layout")]
     public void ShortFinalSystem_IsRagged_ButKeepsTheSpacingOfTheLinesAboveIt()
     {
         const string tune =
@@ -129,6 +134,7 @@ public class EngravingRulesTests
     // ── Layout: note spacing ────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("sr-layout")]
     public void ShorterNotes_TakeLessRoomThanLongerOnes()
     {
         // A whole note is not eight times an eighth — the curve is compressed — but it is decidedly wider,
@@ -147,6 +153,7 @@ public class EngravingRulesTests
     /// double: on this line it would push the first gap to roughly 4× the plain one instead of 2×.
     /// </summary>
     [TestMethod]
+    [CoversNode("sr-layout")]
     public void ASungNote_IsChargedHalfItsSyllable_NotAllOfIt()
     {
         var layout = Layout("X:1\nM:4/4\nL:1/4\nK:C\nA A A A A A |\nw:extraordinarily by a to be it\n", 900);
@@ -171,6 +178,7 @@ public class EngravingRulesTests
     /// every staff. Without that the bar lines don't line up, and a reader can't tell the parts are sounding
     /// together.</summary>
     [TestMethod]
+    [CoversNode("sr-layout")]
     public void VoicesThatRunInStep_ShareOneBarGrid()
     {
         var layout = Layout(PartSong, 900);
@@ -193,6 +201,7 @@ public class EngravingRulesTests
     }
 
     [TestMethod]
+    [CoversNode("sr-layout")]
     public void ABassVoice_GetsABassStaff()
     {
         var layout = Layout(PartSong, 900);
@@ -206,6 +215,7 @@ public class EngravingRulesTests
     /// <summary>Voices the source barred differently aren't a system — they fall back to an honest stack rather
     /// than a false alignment.</summary>
     [TestMethod]
+    [CoversNode("sr-layout")]
     public void VoicesThatDoNotRunInStep_AreNotBracketed()
     {
         var layout = Layout(
@@ -220,6 +230,7 @@ public class EngravingRulesTests
     /// <summary>A chord symbol belongs above the <em>music</em>, and how high that is depends on how high the
     /// music went. Pinned a fixed distance above the top line, it collided with anything reaching over it.</summary>
     [TestMethod]
+    [CoversNode("sr-layout")]
     public void ChordSymbols_ClearTheNotesBeneathThem_HoweverHighTheyReach()
     {
         var low = Layout("X:1\nM:C\nL:1/4\nK:C\n\"Dm\"G \"A7\"G G G |]\n", 900).Systems[0];

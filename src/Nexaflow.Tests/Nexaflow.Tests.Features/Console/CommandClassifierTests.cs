@@ -9,12 +9,12 @@ namespace Nexaflow.Tests.Features.Console;
 /// built-in / PATH executable / existing file → command; otherwise → natural-language request.
 /// </summary>
 [TestClass]
-[CoversNode("vterm-classifier")]
 public class CommandClassifierTests
 {
     private static readonly IReadOnlySet<string> Builtins = CommandClassifier.CmdBuiltins;
 
     [TestMethod]
+    [CoversNode("vterm-classifier")]
     [DataRow("echo hello")]
     [DataRow("dir")]
     [DataRow("cd ..")]
@@ -26,6 +26,7 @@ public class CommandClassifierTests
         => Assert.IsTrue(CommandClassifier.IsCommand(line, Builtins), $"'{line}' should be a command");
 
     [TestMethod]
+    [CoversNode("vterm-classifier")]
     [DataRow("summarise the errors in this log")]
     [DataRow("explain what just happened")]
     [DataRow("qwzzx the temp folder")]   // first token is clearly not a program
@@ -34,10 +35,12 @@ public class CommandClassifierTests
         => Assert.IsFalse(CommandClassifier.IsCommand(line, Builtins), $"'{line}' should go to the model");
 
     [TestMethod]
+    [CoversNode("vterm-classifier")]
     public void BlankLine_GoesToTheShell()
         => Assert.IsTrue(CommandClassifier.IsCommand("   ", Builtins));
 
     [TestMethod]
+    [CoversNode("vterm-classifier")]
     public void NonexistentExplicitPath_IsNotACommand()
         => Assert.IsFalse(CommandClassifier.IsCommand(@"C:\does\not\exist\nope.exe arg", Builtins));
 }

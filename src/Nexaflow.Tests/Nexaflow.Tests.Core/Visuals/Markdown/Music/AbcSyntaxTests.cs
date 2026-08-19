@@ -12,10 +12,7 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown.Music;
 /// that print around the score.
 /// </summary>
 [TestClass]
-[CoversNode("abc-core")]
 [CoversNode("abc-notation")]
-[CoversNode("abc-decorations")]
-[CoversNode("abc-multivoice")]
 public class AbcSyntaxTests
 {
     /// <summary>Parses a one-line tune body under the given header, returning its only staff.</summary>
@@ -28,6 +25,7 @@ public class AbcSyntaxTests
     // ── Note lengths ────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void NoteLengths_ScaleFromTheUnitLength_UpToTheBreve()
     {
         // M:C with no L: → the unit note length is an eighth, so A16 is two whole notes: a breve.
@@ -53,6 +51,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void UnitNoteLength_Redefines_WhatEveryMultiplierMeans()
     {
         // The same written note under three L: values — all three lines say "a whole note last".
@@ -64,6 +63,7 @@ public class AbcSyntaxTests
     // ── Broken rhythm ───────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void BrokenRhythm_LengthensOneSideAndShortensTheOther()
     {
         var n = Notes("M:3/4", "A>A A<A |]");
@@ -81,6 +81,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void BrokenRhythm_Doubled_TakesTwoDotsAndQuartersTheOther()
     {
         var n = Notes("M:3/4", "A>>A |]");
@@ -90,6 +91,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void BrokenRhythm_KeepsTheBeam_WhenBothHalvesStillCarryFlags()
     {
         var n = Notes("M:3/4", "A>A |]");
@@ -100,6 +102,7 @@ public class AbcSyntaxTests
     // ── Tuplets ─────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Tuplet_MarksItsMembers_WithTheRatioItPlaysAt()
     {
         var n = Notes("M:C", "(3ABA A |]");
@@ -109,6 +112,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Tuplet_OddNumbers_ReadTheMeter_ForHowLongTheyLast()
     {
         // (5 is five-in-the-time-of-two in a simple meter, five-in-the-time-of-three in a compound one.
@@ -117,6 +121,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Tuplet_ExplicitRatio_Wins()
     {
         var n = Notes("M:C", "(3:2:2AB A |]");
@@ -128,6 +133,7 @@ public class AbcSyntaxTests
     // ── Ties and slurs ──────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Tie_MarksTheNoteItStartsOn_AcrossABarLine()
     {
         var st = Staff("M:C", "A-A | A2-|A4 |]");
@@ -138,6 +144,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Slurs_Nest()
     {
         var n = Notes("M:C", "(A(A)A) |]");
@@ -150,6 +157,7 @@ public class AbcSyntaxTests
     // ── Text on the score ───────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void ChordSymbols_AndPlacedAnnotations_AreDifferentThings()
     {
         var n = Notes("M:C", "\"Gm7\"D \"^Fine\"A \"_below\"A |]");
@@ -164,6 +172,7 @@ public class AbcSyntaxTests
     // ── Decorations ─────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Decorations_ShorthandAndBangForm_BothLand()
     {
         var n = Notes("M:C", "~A .A vA uA !fermata!A !trill!A |]");
@@ -178,6 +187,7 @@ public class AbcSyntaxTests
     // ── Grace notes ─────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void GraceNotes_AttachToTheNoteTheyPrecede()
     {
         var n = Notes("M:6/8", "{g}A3 {gAGAG}A3 |]");
@@ -192,6 +202,7 @@ public class AbcSyntaxTests
     // ── Chords ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Chord_IsOneEvent_CarryingItsNotes_LowestFirst()
     {
         var st = Staff("M:2/4", "[CEGc] [A4d4] |]");
@@ -208,6 +219,7 @@ public class AbcSyntaxTests
     // ── Bar lines and repeat brackets ───────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void BarLines_EveryForm()
     {
         var st = Staff("M:C", "[| A4 A4 | A4 A4 || A4 A4 |: A4 A4 :: A4 A4 :| A4 A4 |]");
@@ -224,6 +236,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void RepeatBrackets_LabelTheBarTheyOpenOn()
     {
         var st = Staff("M:C", "A4 A4 |1 A4 A4 :|2 A4 A4 |]");
@@ -234,6 +247,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void RepeatBracket_WithoutItsOwnBarLine_StillLands()
     {
         // "|[1" — the bar line and the bracket are written separately.
@@ -244,6 +258,7 @@ public class AbcSyntaxTests
     // ── Keys and modes ──────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-core")]
     [DataRow("C", 0)]
     [DataRow("CMAJOR", 0)]
     [DataRow("Cmajor", 0)]
@@ -270,6 +285,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void Key_CarriesAClef_AndModeSurvivesBesideIt()
     {
         var (key, clef) = AbcParser.ParseKeyField("D Dorian clef=bass");
@@ -278,6 +294,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void Key_None_IsCMajor_WithNoAccidentals()
     {
         Assert.AreEqual(0, AbcParser.ParseKeyField("none").key.Fifths);
@@ -286,6 +303,7 @@ public class AbcSyntaxTests
     // ── Mid-tune changes ────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void MidTuneKeyChange_RidesOnTheBarItTakesEffectAt_LeavingTheHeaderAlone()
     {
         var st = new AbcParser().Parse("X:1\nM:C\nK:C\nCDEF |\nK:G\nCDEF |]\n").Staves[0];
@@ -295,6 +313,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void MidTuneMeterChange_IsRecordedOnItsBar()
     {
         var st = new AbcParser().Parse("X:1\nM:9/8\nK:G\nGFG GAG G2D |\nM:12/8\nE2E EFE E2E EFG |]\n").Staves[0];
@@ -303,6 +322,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void MidTuneTitle_BecomesASectionHeading()
     {
         var st = new AbcParser().Parse("X:1\nM:C\nK:C\nCDEF |\nT:Second strain\nGABc |]\n").Staves[0];
@@ -310,6 +330,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void CommonAndCutTime_KeepTheirSymbols()
     {
         // M:C means the symbol. Engraving it as "4/4" would print something the writer didn't ask for.
@@ -325,6 +346,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void FreeMeter_PrintsNoTimeSignature()
     {
         Assert.IsFalse(new AbcParser().Parse("X:1\nM:none\nK:C\nCDEF |]\n").Staves[0].ShowTime);
@@ -334,6 +356,7 @@ public class AbcSyntaxTests
     // ── Header fields that print around the score ───────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void HeaderFields_LandWhereTheEngraverPrintsThem()
     {
         var score = new AbcParser().Parse(
@@ -352,6 +375,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void TrailingComments_AreStripped_FromFieldsAndMusicAlike()
     {
         var score = new AbcParser().Parse("X:1\nT:Dusty Miller % title\nM:3/4  % meter\nK:G % key\nGAB % notes\n");
@@ -363,6 +387,7 @@ public class AbcSyntaxTests
     // ── Lyrics ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Lyrics_AlignSyllablesToNotes_WithHyphensSkipsAndHolds()
     {
         var n = Notes("M:4/4\nL:1/4", "A A A A | A A A A |\nw:syl-la-ble * word_ done");
@@ -380,6 +405,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Lyrics_BarSymbol_SkipsToTheNextBar()
     {
         // "|" is a sync point: whatever is left of the bar goes unsung.
@@ -391,6 +417,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-decorations")]
     public void Lyrics_StackedWLines_BecomeVerses()
     {
         var n = Notes("M:4/4\nL:1/4", "A A A A |\nw:one two three four\nw:un deux trois quatre");
@@ -403,6 +430,7 @@ public class AbcSyntaxTests
     // ── Voices ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-multivoice")]
     public void Voices_BecomeOneStaffEach()
     {
         var score = new AbcParser().Parse(
@@ -415,6 +443,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-multivoice")]
     public void AVoiceTakesTheClefItAsksFor()
     {
         var score = new AbcParser().Parse(
@@ -426,6 +455,7 @@ public class AbcSyntaxTests
     /// <summary>A part song writes its lower voices with no clef at all and expects the engraver to know.
     /// Reading it off the range keeps a bass line out of six ledger lines — without moving an ordinary tune.</summary>
     [TestMethod]
+    [CoversNode("abc-multivoice")]
     public void AVoiceThatNamesNoClef_HasOneReadOffItsRange()
     {
         var score = new AbcParser().Parse(
@@ -435,6 +465,7 @@ public class AbcSyntaxTests
     }
 
     [TestMethod]
+    [CoversNode("abc-multivoice")]
     public void ASingleVoiceTune_StaysInTreble_HoweverLowItDips()
     {
         // The inference is for part songs only. A one-voice tune takes ABC's default, as the standard says.
@@ -444,6 +475,7 @@ public class AbcSyntaxTests
     // ── Rests ───────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("abc-core")]
     public void Rests_VisibleInvisibleAndWholeBar()
     {
         var evs = Staff("M:3/4", "z2 x2 Z |]").Measures.SelectMany(m => m.Events).OfType<Rest>().ToArray();

@@ -20,9 +20,6 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown.Music;
 [TestClass]
 [TestCategory("UI")]
 [CoversNode("score-renderer")]
-[CoversNode("sr-selection")]
-[CoversNode("sr-slursties")]
-[CoversNode("sr-lyrics")]
 // InteractiveSelection owns a single selection for the whole page — a process-wide static. Two ScoreElements
 // selecting on different UI threads at once would each clear the other, so these run on their own.
 [DoNotParallelize]
@@ -119,6 +116,7 @@ public class WpfScoreRendererTests
     });
 
     [TestMethod]
+    [CoversNode("sr-selection")]
     public void Selection_NoteClick_MeasureClick_DragExtends_Clear() => UiThread.Run(() =>
     {
         var se = StaffOf(SpeedThePlough);
@@ -157,6 +155,7 @@ public class WpfScoreRendererTests
     });
 
     [TestMethod]
+    [CoversNode("sr-selection")]
     public void Selection_IsCleared_WhenAnotherBlockOrTextTakesIt() => UiThread.Run(() =>
     {
         var a = StaffOf(SpeedThePlough);
@@ -180,6 +179,8 @@ public class WpfScoreRendererTests
     });
 
     [TestMethod]
+    [CoversNode("sr-lyrics")]
+    [CoversNode("sr-slursties")]
     public void EveryEngravedConstruct_PaintsWithoutFaulting() => UiThread.Run(() =>
     {
         var score = new AbcParser().Parse(TheWorks);

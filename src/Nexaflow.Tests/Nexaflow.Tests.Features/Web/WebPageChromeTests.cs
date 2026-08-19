@@ -11,8 +11,6 @@ namespace Nexaflow.Tests.Features.Web;
 /// navigation — hence the two covered nodes.
 /// </summary>
 [TestClass]
-[CoversNode("web-breadcrumbs")]
-[CoversNode("chrome-breadcrumb-navigate")]
 public class WebPageChromeTests
 {
     private const string Deep = "https://www.example.com/somedir/anotherdir/source.py?gh=213123123123123sdasd";
@@ -20,22 +18,26 @@ public class WebPageChromeTests
     // ── Title ─────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("web-breadcrumbs")]
     [TestCategory("Unit")]
     public void Title_NoPageTitle_UsesWebFormWithLastSegment()
         => Assert.AreEqual("web:/.../source.py", WebPageChrome.Title(Deep, null));
 
     [TestMethod]
+    [CoversNode("web-breadcrumbs")]
     [TestCategory("Unit")]
     public void Title_LongLastSegment_ClippedToTenChars()
         => Assert.AreEqual("web:/.../abcdefghij",
             WebPageChrome.Title("https://x.com/abcdefghijklmnop", null));
 
     [TestMethod]
+    [CoversNode("web-breadcrumbs")]
     [TestCategory("Unit")]
     public void Title_ShortPageTitle_UsedAsIs()
         => Assert.AreEqual("Example", WebPageChrome.Title(Deep, "Example"));
 
     [TestMethod]
+    [CoversNode("web-breadcrumbs")]
     [TestCategory("Unit")]
     public void Title_LongPageTitle_TruncatedToFourteenPlusEllipsis()
         => Assert.AreEqual("ABCDEFGHIJKLMN…",
@@ -44,6 +46,7 @@ public class WebPageChromeTests
     // ── Breadcrumbs ───────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("web-breadcrumbs")]
     [TestCategory("Unit")]
     public void Crumbs_HostThenPathSegments_QueryStripped()
     {
@@ -53,6 +56,7 @@ public class WebPageChromeTests
     }
 
     [TestMethod]
+    [CoversNode("chrome-breadcrumb-navigate")]
     [TestCategory("Unit")]
     public void Crumbs_HostNavigatesToRoot_SegmentToCumulativeUrl()
     {
@@ -67,6 +71,7 @@ public class WebPageChromeTests
     }
 
     [TestMethod]
+    [CoversNode("web-breadcrumbs")]
     [TestCategory("Unit")]
     public void Crumbs_LocalFile_SingleFileNameCrumb()
     {

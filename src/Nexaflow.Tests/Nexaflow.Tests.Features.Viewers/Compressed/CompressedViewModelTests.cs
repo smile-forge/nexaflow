@@ -18,10 +18,10 @@ namespace Nexaflow.Tests.Features.Compressed;
 /// builds from the VFS, and folder expand/collapse of the visible rows.</summary>
 [TestClass]
 [CoversNode("compressed-ui")]
-[CoversNode("compressed-entry-tree")]
 public class CompressedViewModelTests
 {
     [TestMethod]
+    [CoversNode("compressed-entry-tree")]
     [CoversNode("compressed-metadata-pane")]
     public void Load_PopulatesMetadataAndTree()
     {
@@ -99,6 +99,7 @@ public class CompressedViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("compressed-entry-tree")]
     public void ActivateRow_TogglesFolderVisibility()
     {
         using var fix = new Fixture();
