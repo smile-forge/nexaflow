@@ -70,6 +70,15 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
   launches a fresh app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp
   dir), so it neither depends on nor pollutes the developer's real `%APPDATA%` config. See
   `UITestBase`.
+
+  > **They ask before taking the machine.** The first launch in a run puts up a confirmation
+  > (`UiTakeoverPrompt`), because these drive the real mouse and keyboard: started while you are working
+  > they interrupt you *and* flake themselves, since a click meant for the app lands wherever focus
+  > actually went. Answer no and every UI test in that run reports inconclusive rather than re-asking.
+  > It is asked once per process at the first launch — not at assembly load — so a headless run never
+  > sees it, and it is suppressed entirely on CI (`CI`, `TF_BUILD`, `GITHUB_ACTIONS`, `JENKINS_URL`,
+  > `TEAMCITY_VERSION`) or with **`NEXAFLOW_UITESTS_NOPROMPT=1`** for a deliberately unattended local
+  > run. An unanswered prompt proceeds after two minutes, so nothing can stall on an absent human.
 - **`TestCategory("Interactive")`** — calls a real Windows service instead of a fake, to prove our use
   of an external API is actually correct. Read-only and safe to run on any developer machine, but the
   results depend on that machine's state, so CI never runs them (the workflow filters out both this

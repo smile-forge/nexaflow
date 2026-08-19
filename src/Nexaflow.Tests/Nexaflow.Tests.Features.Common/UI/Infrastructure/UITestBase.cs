@@ -11,7 +11,8 @@ namespace Nexaflow.Tests.Features.UI.Infrastructure;
 /// <summary>
 /// Launches Nexaflow.exe before each test and kills it after.
 /// UI tests require an interactive desktop session — skip in headless/CI with
-/// --filter "TestCategory!=UI".
+/// --filter "TestCategory!=UI". The first launch in a process asks the machine's owner for the mouse and
+/// keyboard first (<see cref="UiTakeoverPrompt"/>); CI and <c>NEXAFLOW_UITESTS_NOPROMPT=1</c> skip it.
 ///
 /// Each test runs against an isolated, throwaway config dir (NEXAFLOW_CONFIG_DIR) so it
 /// neither depends on nor pollutes the developer's real %APPDATA% config. The app is launched
@@ -52,6 +53,10 @@ public abstract class UITestBase
     [TestInitialize]
     public void UISetup()
     {
+        // Before anything is launched or seeded: these drive the real mouse and keyboard, so ask once
+        // whether the machine is free. No-ops on CI and after the first answer.
+        UiTakeoverPrompt.EnsureAllowed();
+
         _configDir = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
 

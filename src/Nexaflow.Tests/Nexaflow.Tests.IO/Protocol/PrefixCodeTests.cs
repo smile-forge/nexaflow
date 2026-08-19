@@ -23,7 +23,7 @@ namespace Nexaflow.Tests.IO.Protocol;
 /// </para>
 /// </summary>
 [TestClass]
-[NoCoverage("DynamicProtocol converter set — a codec law, not a product node")]
+[CoversNode("protocol-codec")]
 public class PrefixCodeTests
 {
     private static ProtoValue R(long symbol, long code, int bits)

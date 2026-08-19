@@ -34,6 +34,7 @@ public class NetworkJourneyTests : UiJourneyTestBase
 
     [TestMethod]
     [CoversNode("network-discovery")]
+    [CoversNode("network-page-list")]
     public void Network_Discovers_AndTheePanelFollowsTheSelection()
     {
         // Foreground first: Capture.Element grabs the screen region the window occupies, so a window

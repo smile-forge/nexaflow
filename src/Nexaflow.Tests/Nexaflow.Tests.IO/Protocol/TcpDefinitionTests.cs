@@ -33,7 +33,7 @@ public static class Definitions
 /// </para>
 /// </summary>
 [TestClass]
-[NoCoverage("DynamicProtocol authored protocol definitions — engine structure, no single product node")]
+[CoversNode("protocol-definitions")]
 public class TcpDefinitionTests
 {
     private static ProtocolFile.Loaded Tcp() => Definitions.Load("tcp");

@@ -48,6 +48,12 @@
     <!-- ── File view secondary panels (tree + action strip). Default to the panel surface so Dark is
          unchanged; a theme can make them transparent-to-scene like the file list. ── -->
     <SolidColorBrush x:Key="FileList.PanelBg" Color="{StaticResource SurfaceColor}"/>
+    <!-- Outline on an action button that came from the registry (a shell verb) rather than a built-in, so
+         the two are tellable apart at a glance. The secondary accent because it must read as "different
+         kind of thing" rather than "warning" — these are ordinary actions the user can turn off in Options.
+         The view asked for this key long before anything defined it, so the distinction silently never
+         drew; a DynamicResource on a missing key yields no brush and no error. -->
+    <SolidColorBrush x:Key="ExternalApp.Border" Color="{StaticResource Accent2Color}"/>
 
     <!-- ── Cross-feature semantic tokens ── -->
     <!-- User chat-bubble background. Default = AccentBrush (Dark: #4F8EF7 blue — light text readable).

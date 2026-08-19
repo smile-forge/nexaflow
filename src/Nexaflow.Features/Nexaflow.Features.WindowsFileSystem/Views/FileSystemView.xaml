@@ -987,7 +987,7 @@
                                                                      them apart from built-ins (and disable them in Options). Themeable. -->
                                                                 <DataTrigger Binding="{Binding IsShellHandler}" Value="True">
                                                                     <Setter TargetName="Bd" Property="BorderBrush"
-                                                                            Value="{DynamicResource ExternalApp.Border}"/>
+                                                                            Value="{StaticResource ExternalApp.Border}"/>
                                                                 </DataTrigger>
                                                                 <Trigger Property="IsMouseOver" Value="True">
                                                                     <Setter TargetName="Bd" Property="Background"

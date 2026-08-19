@@ -90,6 +90,7 @@ public class DeviceActionTests
     // ── What is offered ───────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("network-action-urls")]
     public void A_web_interface_is_offered_only_where_the_device_published_one()
     {
         // The whole point of the contract. Trying port 80 on everything would find more and would be a
@@ -110,6 +111,7 @@ public class DeviceActionTests
     }
 
     [TestMethod]
+    [CoversNode("network-action-urls")]
     public void And_it_opens_exactly_what_was_advertised()
     {
         var host = new Host(new Wire());
@@ -126,6 +128,7 @@ public class DeviceActionTests
     }
 
     [TestMethod]
+    [CoversNode("network-action-urls")]
     public void And_a_published_address_that_is_not_a_web_address_is_not_offered()
     {
         Assert.IsFalse(new OpenManagementAction().AppliesTo(
@@ -134,6 +137,7 @@ public class DeviceActionTests
     }
 
     [TestMethod]
+    [CoversNode("network-action-ping")]
     public void A_ping_is_offered_to_anything_with_an_address()
     {
         Assert.IsTrue(new PingAction().AppliesTo(Device(("net.ipv4", "192.168.1.42"))));
@@ -144,6 +148,7 @@ public class DeviceActionTests
     // ── What running one produces ─────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("network-action-ping")]
     public async Task A_ping_that_answers_is_a_fact_with_a_short_life()
     {
         // Every other fact on the page is a memory. This one is the only thing that says the device is
@@ -168,6 +173,7 @@ public class DeviceActionTests
     }
 
     [TestMethod]
+    [CoversNode("network-action-ping")]
     public async Task And_silence_is_recorded_rather_than_treated_as_a_failure()
     {
         // Plenty of devices refuse ICMP by policy while being perfectly reachable, so "it did not answer"
@@ -187,6 +193,7 @@ public class DeviceActionTests
     }
 
     [TestMethod]
+    [CoversNode("network-action-ping")]
     public async Task And_what_it_learned_lands_on_the_device_it_was_run_against()
     {
         // An action is another way of finding out about a device, so its result goes into the graph
@@ -214,6 +221,8 @@ public class DeviceActionTests
     // ── What they declare ─────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("network-action-ping")]
+    [CoversNode("network-action-urls")]
     public void Neither_of_these_changes_anything_on_the_device()
     {
         // IsDestructive is what the host renders differently and confirms before running. Asking a device
