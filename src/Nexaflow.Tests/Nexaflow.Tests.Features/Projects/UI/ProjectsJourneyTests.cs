@@ -5,57 +5,94 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Projects.UI;
 
 /// <summary>
-/// One-pass UI journey for the Projects tab (PageKind "Projects", ribbon label "Projects" in
-/// default-ribbon.json). Like the Scratchpad journey it opens from a ribbon button via
-/// <see cref="UITestBase.TryOpenTabWithElement"/> until the view root (<c>ProjectsView</c>) appears.
+/// The Projects UI journey — one launch covering both surfaces the feature presents: the backlog-status
+/// folder viewlet in the file explorer, and the Projects tab's list / bucket / detail flow.
 /// <para>
-/// In a fresh, throwaway test config the feature is <b>disabled</b> — <c>ProjectsConfig.EnableProjects</c>
-/// defaults to <c>false</c> and no project directory is configured — so the view renders the
-/// "Projects is disabled" placeholder (<c>Projects_DisabledPlaceholder</c>) and the whole list/detail
-/// split (Refresh, project list, Open Project / Open Files) is collapsed out of the tree. The journey
-/// therefore always asserts the root + placeholder, then <i>guards</i> every enabled-only control: a
-/// control is only invoked when <see cref="UITestBase.WaitForId"/> finds it within a short window,
-/// otherwise it is skipped rather than failed. This keeps the pass green in the disabled default state
-/// while still exercising the controls whenever a config happens to have Projects enabled.
+/// It runs against a seeded workspace (Projects enabled, a real project directory) and starts on the
+/// default file-browser tab, so the viewlet is reachable before anything navigates away; the Projects tab
+/// is then opened from the ribbon. The order matters — <c>NavigateFileBrowserTo</c> needs the file browser
+/// on screen, and once the Projects tab is active it is not.
 /// </para>
-/// The Open Project / Open Files buttons open a tab, so they are checked for presence only (never
-/// invoked) — invoking them would navigate away from the view mid-pass.
+/// <para>
+/// The <b>disabled</b> state is deliberately not a journey. Projects is off in a fresh config, so a
+/// journey for it spent a full app launch to assert one placeholder and then waited out a timeout per
+/// enabled-only control proving absences the view had collapsed out of the tree by construction. What it
+/// actually verified — that a disabled feature lists nothing — is a view-model question, and
+/// <c>ProjectsViewModelTests.Disabled_ShowsNoProjects</c> already answers it in milliseconds.
+/// </para>
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
 [CoversNode("projects")]
 public class ProjectsJourneyTests : UiJourneyTestBase
 {
-    protected override string? LaunchTabKind => "Projects";
+    // No LaunchTabKind: the default file-browser tab is where the viewlet half of the journey starts.
+    protected override void SeedConfig(string configDir) => ProjectsUiSeed.Write(configDir);
 
     [TestMethod]
-    public void Projects_Controls_RespondInOnePass()
+    [CoversNode("projects-ui")]
+    [CoversNode("projects-viewlets")]
+    [CoversNode("projects-backlog-viewlet")]
+    public void Projects_ViewletListBucketsAndDetail_RespondInOnePass()
     {
-        var view = WaitForId("ProjectsView", 15);
-        Assert.IsNotNull(view, "ProjectsView did not open via --openTab Projects.");
+        // ── Explorer surface: a folder holding a .project file grows the backlog-status viewlet ──
+        NavigateFileBrowserTo(ProjectsUiSeed.AlphaFolder(ConfigDir));
 
-        // Root is always present regardless of enabled/disabled state.
-        CheckPresent("Projects root", "ProjectsView");
+        Assert.IsNotNull(WaitForId("Projects_BacklogViewlet", 10),
+            "The backlog-status viewlet did not appear for a folder containing a .project file.");
+        CheckPresent("Backlog viewlet", "Projects_BacklogViewlet");
 
-        // Fresh test config → feature disabled → the placeholder is the only visible content.
-        // If a config has Projects enabled the placeholder is collapsed and the list/detail controls
-        // appear instead, so treat both the placeholder and the enabled controls as optional and guard each.
-        if (WaitForId("Projects_DisabledPlaceholder", 3) is not null)
-            CheckPresent("Disabled placeholder", "Projects_DisabledPlaceholder");
+        // ── Tab surface: open Projects from the ribbon ──
+        Assert.IsNotNull(TryOpenTabWithElement("ProjectsView"), "ProjectsView did not open from the ribbon.");
 
-        // Refresh only mutates the in-memory project list — safe to invoke when present.
-        if (WaitForId("Projects_Refresh", 3) is not null)
-            CheckInvoke("Refresh", "Projects_Refresh");
+        // Enabled → the list + bucket tabs render (not the disabled placeholder).
+        CheckPresent("Project list", "Projects_List");
+        CheckPresent("Projects bucket", "Projects_BucketProjects");
+        CheckPresent("Shelf bucket", "Projects_BucketShelf");
+        CheckPresent("Archives bucket", "Projects_BucketArchive");
 
-        // Project list appears only when the feature is enabled.
-        if (WaitForId("Projects_List", 3) is not null)
-            CheckPresent("Project list", "Projects_List");
+        // Projects bucket, Alpha auto-selected.
+        CheckPresent("Open Project", "Projects_OpenProject");
+        // Open Files and Archive/Shelf are presence-only on purpose: the first navigates away mid-journey,
+        // and the other two move Alpha out of the bucket every later step depends on. Their behaviour is
+        // covered headlessly by ProjectOperationsTests.
+        CheckPresent("Open Files", "Projects_OpenFiles");
+        CheckPresent("Archive action", "Projects_Archive");
+        CheckPresent("Shelf action", "Projects_Shelf");
 
-        // Open Project / Open Files open a tab — presence only, and only reachable with a selected project.
-        if (WaitForId("Projects_OpenProject", 3) is not null)
-            CheckPresent("Open Project", "Projects_OpenProject");
-        if (WaitForId("Projects_OpenFiles", 3) is not null)
-            CheckPresent("Open Files", "Projects_OpenFiles");
+        // Each bucket switch has to actually re-bind the list, so assert the action only that bucket
+        // offers: shelf → Reactivate, projects → Archive. A bucket button that changed nothing would
+        // satisfy a bare invoke.
+        CheckDoes("Switch to Shelf", "Projects_BucketShelf",
+                  () => WaitForId("Projects_Reactivate", 5) is not null);
+        CheckDoes("Switch to Projects", "Projects_BucketProjects",
+                  () => WaitForId("Projects_Archive", 5) is not null);
+
+        // Open Alpha into the tabbed detail view — the effect IS the detail view.
+        CheckDoes("Open Project", "Projects_OpenProject",
+                  () => WaitForId("ProjectDetailView", 10) is not null);
+        CheckPresent("Project Details tab", "Projects_Tab_Details");
+
+        CheckDoes("Open Backlog tab", "Projects_Tab_Backlog",
+                  () => WaitForId("Projects_Detail_NewTodoTitle", 5) is not null);
+
+        // Actually add a backlog item rather than noting the button exists: type a title, press Add, and
+        // require the row to show up. This is the one write path the journey can exercise without
+        // disturbing the seeded state the checks above depend on.
+        const string added = "Journey task";
+        SetText("Projects_Detail_NewTodoTitle", added);
+        CheckDoes("Add todo", "Projects_Detail_AddTodo", () => WaitForName(added, 5) is not null);
+
+        // Selecting a row reveals the per-item controls.
+        var item = WaitForName("First task", 5);
+        if (item is not null)
+        {
+            item.Click();
+            System.Threading.Thread.Sleep(250);
+            CheckPresent("Status dropdown", "Projects_Detail_StatusCombo");
+            CheckPresent("Task to AI", "Projects_Detail_TaskToAi");
+            CheckPresent("Plan with AI", "Projects_Detail_PlanWithAi");
+        }
 
         AssertJourney();
     }
