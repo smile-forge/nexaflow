@@ -809,6 +809,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     public static FileSystemViewModel CreateThisPc(IShellServices shell, IAIService ai,
                                                    IReadOnlyDictionary<Type, IFeatureConfig> configs)
     {
+        using var _t = Timing.Measure("ThisPC.CreateThisPc (total, UI thread)");
         var vm = new FileSystemViewModel(shell, ai, configs);
         vm.InitDebounceTimer();
         vm._rootPath     = string.Empty;
@@ -821,17 +822,21 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         };
         vm.TreeRoots.Add(thisPc);
 
-        vm.FillThisPc(thisPc, addTreeNodes: true);
+        using (Timing.Measure("ThisPC.FillThisPc (enumerate places, UI thread)"))
+            vm.FillThisPc(thisPc, addTreeNodes: true);
 
-        vm.RecountEntries();
+        using (Timing.Measure("ThisPC.RecountEntries"))
+            vm.RecountEntries();
         vm.NavigationChanged?.Invoke([("This PC", string.Empty)]);
         return vm;
     }
 
     private static async Task CheckDriveAsync(DriveInfo drive, FileSystemTreeNode? node, FileSystemEntry entry)
     {
+        using var _t = Timing.Measure($"ThisPC.CheckDrive {drive.Name} (probe + UI settle)");
         try
         {
+            using var _probe = Timing.Measure($"ThisPC.CheckDrive {drive.Name} .probe (background)");
             var result = await Task.Run(() =>
             {
                 if (!drive.IsReady)
@@ -907,8 +912,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     private void FillThisPc(FileSystemTreeNode? thisPc, bool addTreeNodes)
     {
         IReadOnlyList<ThisPcPlace> places;
-        try { places = ThisPcItemSet.Enumerate(Registry.ThisPcItemProviders); }
-        catch { return; }   // never let a contributor break This PC itself
+        using (Timing.Measure("ThisPC.ThisPcItemSet.Enumerate"))
+        {
+            try { places = ThisPcItemSet.Enumerate(Registry.ThisPcItemProviders); }
+            catch { return; }   // never let a contributor break This PC itself
+        }
+        Timing.Note("ThisPC.places", places.Count.ToString());
 
         foreach (var place in places)
         {
@@ -1084,7 +1093,30 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (node.Kind == TreeNodeKind.ThisPc)
             GoToThisPc(rebuildTree: false);  // tree already has this node — don't rebuild
         else if (!string.IsNullOrEmpty(node.FullPath))
+        {
+            // Opening a folder re-selects its tree node, and that selection arrives back here after
+            // _navigating has cleared — an echo of the navigation we just did, not a new one. Left alone
+            // it enumerated the folder a second time and threw the first result away mid-stream, which is
+            // visible whenever the cases differ (typing "D:\downloads" lands on the "D:\Downloads" node).
+            // SelectAndExpandPath announces the selection it is about to make so exactly that one is
+            // swallowed, and only that one.
+            if (_expectedTreeEcho is { } echo
+                && string.Equals(echo, node.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _expectedTreeEcho = null;
+                return;
+            }
+
+            // A real click on the folder already open means "reload this" — the cheap path that re-reads
+            // the entries and diffs the tree, rather than a full navigation to where we already are.
+            if (string.Equals(CurrentPath, node.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                Refresh();
+                return;
+            }
+
             NavigateTo(node.FullPath);
+        }
     }
 
     /// <summary>Opens <paramref name="folderPath"/> as a new File Explorer tab in the window's right
@@ -1567,8 +1599,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// Expands the tree to the given path and marks that node as selected,
     /// without refreshing entries (the caller is responsible for that).
     /// </summary>
+    /// <summary>The one tree selection this view-model is itself about to cause, so
+    /// <see cref="OnTreeNodeSelected"/> can tell its own echo from a click by the user.</summary>
+    private string? _expectedTreeEcho;
+
     public void SelectAndExpandPath(string path)
     {
+        _expectedTreeEcho = path;
         // Clear any existing selection first
         ClearSelection(TreeRoots);
         // Walk the tree roots and expand each level to reach `path`
@@ -1598,7 +1635,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // Only diff nodes with a real filesystem path and loaded children
         if (string.IsNullOrEmpty(node.FullPath)) return;
-        if (node.Children.Count == 0 || node.Children[0] == FileSystemTreeNode.Dummy) return;
+        if (!node.ChildrenLoaded) return;
 
         // Enumerate the real directory but express the results in THIS node's path space: under a mount
         // the children are ::mount\… while the disk reports C:\…, and comparing the two would find no
@@ -1623,12 +1660,16 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // Insert children new on disk (maintains alphabetical order)
         var existing = new HashSet<string>(node.Children.Select(c => c.FullPath), StringComparer.OrdinalIgnoreCase);
+        var inserted = new List<FileSystemTreeNode>();
         foreach (var dir in childPaths.OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
         {
             if (existing.Contains(dir)) continue;
             var newNode = new FileSystemTreeNode(Path.GetFileName(dir), dir);
             InsertSorted(node.Children, newNode);
+            inserted.Add(newNode);
         }
+        // Same deal as LoadChildren: a refreshed node's expander is settled off the dispatcher.
+        _ = FileSystemTreeNode.ProbeExpandersAsync(inserted);
     }
 
     private static void InsertSorted(ObservableCollection<FileSystemTreeNode> children, FileSystemTreeNode newNode)
@@ -1688,6 +1729,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// </summary>
     private async Task RefreshEntriesAsync()
     {
+        using var _t = Timing.Measure($"Folder.RefreshEntriesAsync {CurrentPath} (total, UI thread)");
         var path = CurrentPath;
 
         // A mutation is in flight on this folder (e.g. it's being deleted): don't enumerate it — the view
@@ -1725,15 +1767,23 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         try
         {
+            var batches = 0;
             await foreach (var batch in channel.Reader.ReadAllAsync(ct))
             {
                 if (CurrentPath != path) break; // superseded mid-stream
-                if (batch.Replace)
-                    Entries.ReplaceAll(batch.Items);
-                else
-                    foreach (var e in batch.Items) Entries.Add(e);
-                UpdateEntryCountLabel(batch.Folders, batch.Files, 0);
+                batches++;
+                // The UI-thread half: everything below raises CollectionChanged, so this is the cost the
+                // list actually pays to show what the producer found.
+                using (Timing.Measure($"Folder.applyBatch#{batches} n={batch.Items.Count} replace={batch.Replace}"))
+                {
+                    if (batch.Replace)
+                        Entries.ReplaceAll(batch.Items);
+                    else
+                        foreach (var e in batch.Items) Entries.Add(e);
+                    UpdateEntryCountLabel(batch.Folders, batch.Files, 0);
+                }
             }
+            Timing.Note("Folder.batches", batches.ToString());
         }
         catch (OperationCanceledException) { /* superseded by a newer navigation */ }
         catch (Exception ex) { Debug.WriteLine($"Folder load failed: {ex.Message}"); }
@@ -1765,6 +1815,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// </summary>
     private async Task ProduceEntriesAsync(string path, ChannelWriter<LoadBatch> writer, CancellationToken ct)
     {
+        using var _t = Timing.Measure($"Folder.ProduceEntriesAsync {path} (background, incl. writer waits)");
         Exception? error = null;
         try
         {
@@ -1777,8 +1828,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             var realPath = Vfs.TryResolveReal(path) ?? path;
 
             IEnumerator<FileSystemInfo> iterator;
-            try { iterator = new DirectoryInfo(realPath).EnumerateFileSystemInfos().GetEnumerator(); }
-            catch { return; } // path gone / access denied → empty list (finally completes writer)
+            using (Timing.Measure($"Folder.openEnumerator {realPath}"))
+            {
+                try { iterator = new DirectoryInfo(realPath).EnumerateFileSystemInfos().GetEnumerator(); }
+                catch { return; } // path gone / access denied → empty list (finally completes writer)
+            }
+            var enumerate = Timing.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
 
             try
             {
@@ -1817,12 +1872,20 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             }
             finally { iterator.Dispose(); }
 
+            if (Timing.Enabled)
+            {
+                Timing.Note($"Folder.enumerate+ToEntry {realPath}", $"{enumerate!.Elapsed.TotalMilliseconds:F1} ms");
+                Timing.Note($"Folder.entries {realPath}", $"{folders} folders, {files} files");
+            }
+
             ct.ThrowIfCancellationRequested();
 
             if (!streaming)
             {
                 // Small/medium folder: sort the whole set (off the UI thread), one Reset.
-                var sorted = ApplySort(buffer).ToList();
+                List<FileSystemEntry> sorted;
+                using (Timing.Measure($"Folder.sort n={buffer.Count}"))
+                    sorted = ApplySort(buffer).ToList();
                 await writer.WriteAsync(new(sorted, true, folders, files), ct);
             }
             else if (buffer.Count > 0)

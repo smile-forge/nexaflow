@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.WindowsOS" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.Common" />
   </ItemGroup>
 
 </Project>

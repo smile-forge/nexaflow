@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Whole-repo guards: the reference and dispatcher rules, the add-a-feature touch points, solution
+       membership, XAML resource keys, and the [CoversNode] declarations.
+
+       It compiles against almost nothing — Features.Common and the plugin contracts — but it must SEE
+       everything at run time: the rules reflect over every Nexaflow.Features.*.dll and the coverage guards
+       over every Nexaflow.Tests.Features*.dll. Referencing the three suites is what puts both sets in this
+       project's output directory, so the guards keep globbing AppContext.BaseDirectory instead of guessing
+       at sibling bin paths that change with configuration and target framework.
+
+       That makes this the heaviest project in the repo to build, which is the right trade: it is the one
+       nobody edits while working on a feature, and it is what buys the other three suites their independence. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Nexaflow.Tests.Features</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">
+    <AdditionalFiles Include="..\..\..\.product\tree.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The subjects of the reflection rules. Referenced for their OUTPUT, not their API: nothing here
+         compiles against a suite, but every feature and test assembly has to land in bin for the guards
+         to find. Removing one silently narrows what the rules check. -->
+    <ProjectReference Include="..\Nexaflow.Tests.Features\Nexaflow.Tests.Features.csproj" />
+    <ProjectReference Include="..\Nexaflow.Tests.Features.Viewers\Nexaflow.Tests.Features.Viewers.csproj" />
+    <ProjectReference Include="..\Nexaflow.Tests.Features.WindowsOS\Nexaflow.Tests.Features.WindowsOS.csproj" />
+
+    <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Plugins.Contracts\Nexaflow.Plugins.Contracts.csproj" />
+    <!-- TestCoverageCollector, for the guard that every [CoversNode] resolves a source file. -->
+    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

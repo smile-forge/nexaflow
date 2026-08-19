@@ -181,7 +181,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 - **Features never elevate directly.** No `Process.Start` with `runas` in a feature — route admin actions through `IShellServices.RunElevatedAsync` (a DTO in `Elevation.Contracts` + an `IElevatedOperation` in the PrivilegeBridge). See [docs/Architecture.md → Elevation](docs/Architecture.md#elevation--privilege-bridge).
 - **Third-party source deps are git submodules under `external/`, consumed via `ProjectReference` from the smile-forge fork — never `PackageReference`, never vendored/copied.** `origin` = the org fork, `upstream` = the original; a per-repo `nexaflow` integration branch is what's pinned, and upstream PRs come only from atomic `feat/*` branches. **Before touching anything under `external/`, adding/bumping a submodule, or wiring one of these deps, read the runbook [docs/externals.md](docs/externals.md)** (also pointed to by `external/README.md`). Remember the cwd is pinned → use `git -C external/<name> …` for every submodule git op.
 
-The reference and dispatcher rules are **mechanically enforced**: `Nexaflow.Tests.Features/Architecture/ArchitectureRulesTests` + `Nexaflow.Tests.Providers/ArchitectureRulesTests` fail on a violation, and `FeatureTouchPointTests` names any missed add-a-feature wiring step (Core/tests ProjectReference, filemap entry).
+The reference and dispatcher rules are **mechanically enforced**: `Nexaflow.Tests.Features.Architecture/Architecture/ArchitectureRulesTests` + `Nexaflow.Tests.Providers/ArchitectureRulesTests` fail on a violation, and `FeatureTouchPointTests` names any missed add-a-feature wiring step (Core/tests ProjectReference, filemap entry).
 
 ## Key Files
 
@@ -237,7 +237,11 @@ Four test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. 
 | Project | Covers |
 |---------|--------|
 | `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*` (unit + UI). References Core. |
-| `Nexaflow.Tests.Features` | Every `Nexaflow.Features.*` (unit + UI). References the feature projects, **not** Core. |
+| `Nexaflow.Tests.Features` | The shell-adjacent features — AI chat, console, network, OneDrive, Product/Projects, scratchpad, This PC, web — plus the feature-agnostic search plumbing. References the feature projects, **not** Core. |
+| `Nexaflow.Tests.Features.Viewers` | Every viewer/editor/player (Audio…Video) and the sample-file corpus. |
+| `Nexaflow.Tests.Features.WindowsOS` | The Windows-integration features: file system, registry, search index, installed apps, processes, system info. |
+| `Nexaflow.Tests.Features.Architecture` | The whole-repo guards. References the three suites for their **output** — the rules reflect over every feature and test assembly. |
+| `Nexaflow.Tests.Features.Common` | **Not a test project** — shared support for the suites above: the FlaUI journey bases, `AsyncPump`, `RepoRoot`, `ViewerMap`, `DicomTestFiles`, the `ISearchable` conformance contract. No feature reference. |
 | `Nexaflow.Tests.IO` | `Nexaflow.IO.*` — the WPF-free IO leaves. References the IO projects and **nothing else**: no Core, no Features, no Visuals, so it needs neither a desktop session nor a shell. |
 | `Nexaflow.Tests.Providers` | Provider clients. |
 | `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset. Referenced by the Core, Features and IO test projects. |
@@ -255,7 +259,9 @@ src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0
 
 UI tests (`--filter "TestCategory=UI"`) require an interactive desktop session — skip in headless/CI. Run them manually when changes touch shell chrome, tab strip, ribbon, the AI bar, or any viewer.
 
-**Fast inner loop for feature work:** build only the feature csproj you touched (features don't depend on Core), then build + run `Nexaflow.Tests.Features` with `--filter "FullyQualifiedName~<Class>"`. Test output is under `bin/x64/<Config>/` (the solution is pinned x64 — a stray `bin/<Config>/` is a stale pre-pin leftover; delete it).
+A feature's tests go in the suite matching its **subject** — a viewer in `.Viewers`, a Windows integration in `.WindowsOS`, anything shell-adjacent in `.Features`. Namespaces are the same in all of them (`Nexaflow.Tests.Features.<Folder>`), so only the project a file belongs to changed.
+
+**Fast inner loop for feature work:** build only the feature csproj you touched (features don't depend on Core), then build + run the one suite that owns it with `--filter "FullyQualifiedName~<Class>"` — that split is why editing a viewer test no longer rebuilds the Windows suite. Test output is under `bin/x64/<Config>/` (the solution is pinned x64 — a stray `bin/<Config>/` is a stale pre-pin leftover; delete it).
 
 **Sample files.** `TestSampleData` (in `Nexaflow.Tests.Fixtures`) lazily materialises a git-ignored, cached dataset under `<repoRoot>/test-samples/` — markdown, tabular (csv/tsv), text (varied BOMs + line endings), json, logs, and binary fixtures. Generation is idempotent: a file is rewritten only when missing or drifted, so deleting `test-samples/` forces a clean rebuild. Use these instead of hand-curated machine-local sample folders. Add a new family by implementing `ISampleSet` and registering it in `TestSampleData.Sets`. Every sample file has a per-file UI test (`SampleFileViewerTests`) asserting it opens in the expected viewer. Details + the file→viewer map in [docs/testing.md](docs/testing.md).
 

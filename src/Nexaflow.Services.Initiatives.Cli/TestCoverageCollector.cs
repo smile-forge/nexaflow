@@ -184,9 +184,44 @@ internal static class TestCoverageCollector
         private readonly MetadataReader _reader;
         private readonly Stream _stream;
 
+        /// <summary>
+        /// Kickoff methoddef token → the document its body was written in, for methods whose own debug
+        /// info has none.
+        /// <para>
+        /// An <c>async</c> method compiles to a stub that starts a state machine; the sequence points —
+        /// and therefore the document — belong to the generated <c>MoveNext</c>, so asking the PDB about
+        /// the method the test author actually wrote returns nothing. That is most UI and IO tests, and it
+        /// left them out of the manifest entirely when every method in a class was async, since the
+        /// class-level fallback probes those same methods. The PDB records the link in the other
+        /// direction, so this walks it once per assembly and inverts it.
+        /// </para>
+        /// </summary>
+        private readonly Dictionary<int, string> _stateMachineDocuments = [];
+
         private PdbLookup(MetadataReaderProvider provider, MetadataReader reader, Stream stream)
         {
             _provider = provider; _reader = reader; _stream = stream;
+            IndexStateMachines();
+        }
+
+        private void IndexStateMachines()
+        {
+            foreach (var handle in _reader.MethodDebugInformation)
+            {
+                try
+                {
+                    var mdi = _reader.GetMethodDebugInformation(handle);
+                    if (mdi.Document.IsNil) continue;
+
+                    var kickoff = mdi.GetStateMachineKickoffMethod();
+                    if (kickoff.IsNil) continue;
+
+                    var token = MetadataTokens.GetToken(kickoff);
+                    if (!_stateMachineDocuments.ContainsKey(token))
+                        _stateMachineDocuments[token] = _reader.GetString(_reader.GetDocument(mdi.Document).Name);
+                }
+                catch { /* one unreadable entry must not cost the whole index */ }
+            }
         }
 
         public static PdbLookup? TryOpen(string dll)
@@ -208,7 +243,8 @@ internal static class TestCoverageCollector
             {
                 var handle = MetadataTokens.MethodDefinitionHandle(methodToken & 0x00FFFFFF);
                 var mdi = _reader.GetMethodDebugInformation(handle);
-                if (mdi.Document.IsNil) return null;
+                if (mdi.Document.IsNil)
+                    return _stateMachineDocuments.GetValueOrDefault(methodToken);   // async/iterator
                 return _reader.GetString(_reader.GetDocument(mdi.Document).Name);
             }
             catch { return null; }

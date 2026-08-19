@@ -1,7 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- What is left once the viewers and the Windows-integration features moved to their own suites: the
+       shell-adjacent features — AI chat, the console, network discovery, OneDrive, the product and project
+       managers, the scratchpad, the web viewer, This PC — plus the generic search plumbing (query syntax,
+       term parsing, the conformance guard) that belongs to no single feature.
+
+       Sibling suites: Nexaflow.Tests.Features.Viewers, .WindowsOS, .Architecture; shared support in
+       .Common. Add a new feature's tests to whichever suite matches its subject. -->
   <PropertyGroup>
-    <!-- Pinned to the WinRT platform version because Nexaflow.Features.WindowsApps targets it (see memory). -->
+    <!-- Pinned to the WinRT platform version so all four suites share one target with the support library
+         (Nexaflow.Features.WindowsApps, over in .WindowsOS, is what forces it). -->
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -29,55 +37,30 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Shared, git-ignored sample-file dataset (TestSampleData / ISampleSet). -->
+    <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj" />
+
+    <ProjectReference Include="..\..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Terminal\Nexaflow.IO.Terminal.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Terminal\Nexaflow.Visuals.Terminal.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />
+
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.AIChat\Nexaflow.Features.AIChat.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network\Nexaflow.Features.Network.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network.Arp\Nexaflow.Features.Network.Arp.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network.Ssdp\Nexaflow.Features.Network.Ssdp.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Network.Actions\Nexaflow.Features.Network.Actions.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Notebook\Nexaflow.Features.Notebook.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.OneDrive\Nexaflow.Features.OneDrive.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Pdf\Nexaflow.Features.Pdf.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed\Nexaflow.Features.Compressed.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SharpCompress\Nexaflow.Features.Compressed.SharpCompress.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.Modern\Nexaflow.Features.Compressed.Modern.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SecureZip\Nexaflow.Features.Compressed.SecureZip.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Console\Nexaflow.Features.Console.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dicom\Nexaflow.Features.Dicom.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dotnet\Nexaflow.Features.Dotnet.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Email\Nexaflow.Features.Email.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Executable\Nexaflow.Features.Executable.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Font\Nexaflow.Features.Font.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Markdown\Nexaflow.Features.Markdown.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Model3D\Nexaflow.Features.Model3D.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Processes\Nexaflow.Features.Processes.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.ProductManager\Nexaflow.Features.ProductManager.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Projects\Nexaflow.Features.Projects.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Svg\Nexaflow.Features.Svg.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.SystemInfo\Nexaflow.Features.SystemInfo.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.VirtualDisk\Nexaflow.Features.VirtualDisk.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsApps\Nexaflow.Features.WindowsApps.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsFileSystem\Nexaflow.Features.WindowsFileSystem.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsRegistry\Nexaflow.Features.WindowsRegistry.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.WindowsSearch\Nexaflow.Features.WindowsSearch.csproj" />
   </ItemGroup>
 
   <ItemGroup>

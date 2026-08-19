@@ -10,15 +10,38 @@ All under `src/Nexaflow.Tests/`:
 | Project | Target | Covers | References |
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome, services, `Nexaflow.Visuals.*` | `Nexaflow.Core`, `Nexaflow.Visuals.Text`, `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | Every `Nexaflow.Features.*` | the feature projects + `Nexaflow.Tests.Fixtures` — **never Core** |
+| `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
+| `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
+| `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
+| `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the three suites above (for their **output**, not their API) |
+| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — the FlaUI journey bases, `AsyncPump`, `RepoRoot`, `ViewerMap`, `DicomTestFiles`, the `ISearchable` conformance contract | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset.** Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
-`Nexaflow.Tests.Features` deliberately does **not** reference Core (it mirrors the architectural rule
-that features don't depend on Core). The sample-data generator therefore lives in its own
-dependency-free library, `Nexaflow.Tests.Fixtures`, so the test projects can share it without one
-test exe dragging in another (and without pulling Core's x64 RID into the Features tests).
+No `Nexaflow.Tests.Features*` suite references Core (they mirror the architectural rule that features
+don't depend on Core). The sample-data generator therefore lives in its own dependency-free library,
+`Nexaflow.Tests.Fixtures`, so the test projects can share it without one test exe dragging in another
+(and without pulling Core's x64 RID into the feature tests).
+
+### Why the feature tests are four projects
+
+One project referencing ~50 feature assemblies meant editing a single viewer test rebuilt everything.
+The suites are split by **subject**, so a viewer change rebuilds only `Viewers`. Two consequences worth
+knowing:
+
+- **`Search/` was split with them.** It is one `<Feature>SearchableTests.cs` per feature, and keeping it
+  whole would have left its project referencing nearly the entire graph — which is exactly the cost the
+  split exists to remove. Each file follows its feature; only the feature-agnostic ones (query syntax,
+  term parsing, the conformance guard) stayed behind.
+- **`Architecture` is the heaviest project on purpose.** Its guards reflect over every
+  `Nexaflow.Features.*.dll` *and* every `Nexaflow.Tests.Features*.dll`, so it references the three suites
+  to bring both sets into its output directory rather than guessing at sibling `bin` paths that shift with
+  configuration and target framework. It is also the project nobody edits while working on a feature.
+
+Namespaces did **not** change: a test in `Viewers` is still `Nexaflow.Tests.Features.Audio`. That keeps the
+folder→feature convention `CoverageGuardTests` enforces readable across all four assemblies, and meant no
+`using` churn when files moved.
 
 **Which project a test belongs in is decided by its subject, not its imports.** A test whose subject is an
 IO library goes in `Tests.IO`; one that merely reaches through an IO library on its way to a feature —
@@ -47,6 +70,15 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
   launches a fresh app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp
   dir), so it neither depends on nor pollutes the developer's real `%APPDATA%` config. See
   `UITestBase`.
+
+  > **They ask before taking the machine.** The first launch in a run puts up a confirmation
+  > (`UiTakeoverPrompt`), because these drive the real mouse and keyboard: started while you are working
+  > they interrupt you *and* flake themselves, since a click meant for the app lands wherever focus
+  > actually went. Answer no and every UI test in that run reports inconclusive rather than re-asking.
+  > It is asked once per process at the first launch — not at assembly load — so a headless run never
+  > sees it, and it is suppressed entirely on CI (`CI`, `TF_BUILD`, `GITHUB_ACTIONS`, `JENKINS_URL`,
+  > `TEAMCITY_VERSION`) or with **`NEXAFLOW_UITESTS_NOPROMPT=1`** for a deliberately unattended local
+  > run. An unanswered prompt proceeds after two minutes, so nothing can stall on an absent human.
 - **`TestCategory("Interactive")`** — calls a real Windows service instead of a fake, to prove our use
   of an external API is actually correct. Read-only and safe to run on any developer machine, but the
   results depend on that machine's state, so CI never runs them (the workflow filters out both this
@@ -69,9 +101,10 @@ declared on the test* for the full loop (scan-tests → manifest → Integrity-p
 
 ## Coverage by feature
 
-Feature assemblies (`Nexaflow.Features.*`) are tested in `Nexaflow.Tests.Features`, **one folder
-per feature** (`Audio/`, `Compressed/`, `Projects/`, … — the Code feature's tests live under
-`CodeIntel/`), plus the shared `Common/`, `Fixtures/`, `Infrastructure/` and `UI/` support folders.
+Feature assemblies (`Nexaflow.Features.*`) are tested across the `Nexaflow.Tests.Features*` suites,
+**one folder per feature** (`Audio/`, `Compressed/`, `Projects/`, … — the Code feature's tests live under
+`CodeIntel/`). Which suite holds the folder follows the feature's subject; shared support lives in
+`Nexaflow.Tests.Features.Common`.
 **Unit** = the headless `TestCategory!=UI` tests; **UI** = `[TestCategory("UI")]` (drives the real
 shell via FlaUI). The file-viewer features additionally get a per-file open-smoke UI case from the
 shared, data-driven `SampleFileViewerTests` (each fixture → its viewer; see
@@ -242,7 +275,7 @@ When you add a **new viewer**, give its root `UserControl` a stable
 | Sample dataset generator | `Nexaflow.Tests.Fixtures/TestSampleData.cs` |
 | Sample catalogs | `Nexaflow.Tests.Fixtures/{Markdown,Tabular,Text,Code,Notebook,Json,Log,Binary,Image,Archive,Model3D,Audio,Video}Samples.cs` |
 | UI test base (app launch, isolated config) | `*/UI/Infrastructure/UITestBase.cs` |
-| File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.Features/WindowsFileSystem/UI/FileSystemUiTestBase.cs` |
-| Per-file viewer UI tests | `Nexaflow.Tests.Features/Fixtures/SampleFileViewerTests.cs` |
-| Tabular detection over samples | `Nexaflow.Tests.Features/Tabular/SampleFileDetectionTests.cs` |
-| Non-tabular fixture smoke (BOM/binary) | `Nexaflow.Tests.Features/Fixtures/GeneratedSampleFilesTests.cs` |
+| File-browser UI helpers (navigate, waits) | `Nexaflow.Tests.Features.Common/WindowsFileSystem/UI/FileSystemUiTestBase.cs` |
+| Per-file viewer UI tests | `Nexaflow.Tests.Features.Viewers/Fixtures/SampleFileViewerTests.cs` |
+| Tabular detection over samples | `Nexaflow.Tests.Features.Viewers/Tabular/SampleFileDetectionTests.cs` |
+| Non-tabular fixture smoke (BOM/binary) | `Nexaflow.Tests.Features.Viewers/Fixtures/GeneratedSampleFilesTests.cs` |

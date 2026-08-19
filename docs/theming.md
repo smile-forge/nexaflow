@@ -31,9 +31,27 @@ that contains it):
 5. Styles.xaml           shared control templates (reference the above by key)
 ```
 
-`ThemeManager.Apply(theme, contributions)` runs once at startup (`App.xaml.cs`, after
-`FeatureManager.RegisterFeatures()` so feature contributions are known). `App.xaml` holds a Dark
-bootstrap merge for the designer; `Apply` rebuilds the list deterministically.
+`ThemeManager.Apply` runs **more than once**, and the order matters if you are reasoning about when a key
+becomes resolvable. `App.xaml.cs` applies the theme early (step 1, before `FeatureManager.RegisterFeatures()`)
+with **no** contributions — features have not been discovered yet. Each feature assembly then contributes its
+dictionaries when it *activates*, which is lazy (first page, handler query, or the post-paint warm-up), and
+`FeatureManager` re-applies with the accumulated URIs — coalesced onto the dispatcher at
+`DispatcherPriority.Background`, so the merge lands slightly after the activation that caused it. `App.xaml`
+holds a Dark bootstrap merge for the designer; `Apply` rebuilds the list deterministically each time.
+
+> **This is mostly self-solving, and the ordering is why.** A feature's dictionary and the views that use it
+> ship in the *same* assembly, and a view cannot be constructed without activating that assembly first — so a
+> contributed key is in place by the time anything asks for it. The post-paint warm-up
+> (`FeatureCatalog.WarmUpAll`, off the UI thread) activates every feature within a second or two of first
+> paint, long before a human opens a tab.
+>
+> The one seam: activation *queues* the re-apply rather than doing it inline, so a view built in the same
+> dispatcher pass as its assembly's very first activation can precede the merge. That is a race only a fast
+> driver can win, which is exactly why `--skipSetup` forces `EnsureAllActivated()` for UI automation.
+> Accordingly, **contributed keys are referenced with `{DynamicResource}`** — Audio, Logs, Executable, DICOM,
+> SVG and Model3D all do, and none use `{StaticResource}`. It is the reach that tolerates a late merge, and
+> it costs nothing here because these are a handful of brushes rather than whole templates. Core keys stay
+> `{StaticResource}` for the reason in the next note.
 
 > **Theme switching restarts the window.** References are overwhelmingly `{StaticResource}` (resolved
 > once, at load) for rendering performance — a deliberate choice, so an open window does not live-reflow.

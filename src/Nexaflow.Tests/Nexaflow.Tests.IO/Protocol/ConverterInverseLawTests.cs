@@ -29,7 +29,7 @@ namespace Nexaflow.Tests.IO.Protocol;
 /// </para>
 /// </summary>
 [TestClass]
-[NoCoverage("round-trip laws for the converter set — no single product node")]
+[CoversNode("protocol-codec")]
 public class ConverterInverseLawTests
 {
     private static readonly Evaluator Eval = new();

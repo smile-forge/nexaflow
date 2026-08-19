@@ -25,7 +25,7 @@ namespace Nexaflow.Tests.Features.Search;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("product-search-page")]
+[CoversNode("product-search-passes")]
 public class ProductSearchPageTests : SearchableContentConformanceTests
 {
     protected override string LiteralTermInContent => "alpha42";

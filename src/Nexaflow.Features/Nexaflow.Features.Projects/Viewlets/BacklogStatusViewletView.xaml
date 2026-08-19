@@ -6,7 +6,7 @@
         <!-- Flat text button (mirrors the .NET viewlet's toolbar buttons). -->
         <Style x:Key="FlatBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource AccentBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Padding"         Value="8,3"/>
@@ -20,7 +20,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BorderBrush}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -29,7 +29,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Background="{DynamicResource SurfaceBrush}">
+    <Grid Background="{StaticResource SurfaceBrush}">
         <Grid.ColumnDefinitions>
             <!-- Logo strip -->
             <ColumnDefinition Width="44"/>
@@ -39,10 +39,13 @@
 
         <!-- ── Left: logo strip ─────────────────────────────────────────── -->
         <Border Grid.Column="0"
-                Background="{DynamicResource AccentSubtleBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
+                Background="{StaticResource AccentSubtleBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,1,0">
+            <!-- Foreground is load-bearing: WPF draws emoji as monochrome glyphs, so an unset one
+                 comes out black on the accent strip. Matches the .NET viewlet's logo mark. -->
             <TextBlock Text="📋" FontSize="15"
+                       Foreground="{StaticResource AccentBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
 
@@ -65,16 +68,16 @@
                                     ToolTip="{Binding Label}">
                             <Border Width="9" Height="9" CornerRadius="4" Background="{Binding Brush}"
                                     VerticalAlignment="Center" Margin="0,0,5,0"/>
-                            <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Label}" FontSize="11" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding Count}" FontSize="11" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                       Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="4,0,0,0"/>
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
             <TextBlock x:Name="EmptyText" Grid.Column="0" Text="No backlog items" Visibility="Collapsed"
-                       FontSize="11" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"/>
+                       FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
 
             <Button Grid.Column="1" Style="{StaticResource FlatBtn}" Content="Open project ↗"
                     VerticalAlignment="Center" HorizontalAlignment="Right"

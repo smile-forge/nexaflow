@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
@@ -394,6 +395,86 @@ public class ProductTreeOpsTests
         Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests"), "clears the rest");
         Assert.AreEqual(0, s.Nodes["n"].Concerns!.Single().Snaplinks!.Count);
     }
+
+    /// <summary>Three links in one file, one per method. An index would name whichever happens to sit at
+    /// that position; the filter names the link itself, which is the only handle that survives a reorder.</summary>
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RemoveSnaplink_ByFilter_TakesOnlyTheLinksThatAgreeWithEveryFieldGiven()
+    {
+        var s = WithLinks(
+            new Snaplink { Type = "code", Doc = "tests/A.cs", Class = "A", Method = "One" },
+            new Snaplink { Type = "code", Doc = "tests/A.cs", Class = "A", Method = "Two" },
+            new Snaplink { Type = "code", Doc = "tests/A.cs", Class = "A" },
+            new Snaplink { Type = "code", Doc = "tests/B.cs", Class = "B" });
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests",
+            match: new SnaplinkFilter(Doc: "tests/A.cs", Method: "Two")));
+        CollectionAssert.AreEqual(
+            new[] { "One", null, null },
+            Links(s).Select(l => l.Method).ToArray(),
+            "only the link whose method matched went");
+
+        // Doc alone is the broader handle: every remaining link in that file, class-only one included.
+        Assert.AreEqual(2, ProductTreeOps.RemoveSnaplink(s, "n", "tests",
+            match: new SnaplinkFilter(Doc: "tests/A.cs")));
+        Assert.AreEqual("tests/B.cs", Links(s).Single().Doc);
+    }
+
+    /// <summary>A path pasted from Explorer or a Windows stack trace is backslashed and arbitrarily cased;
+    /// matching nothing there would read as "already removed" and send the caller off to clear the list.</summary>
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RemoveSnaplink_ByFilter_ComparesPathsSlashAndCaseInsensitively()
+    {
+        var s = WithLinks(new Snaplink { Type = "code", Doc = "src/Tests/A.cs", Class = "A" });
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests",
+            match: new SnaplinkFilter(Doc: @"src\TESTS\A.cs")));
+        Assert.AreEqual(0, Links(s).Count);
+    }
+
+    /// <summary>An empty filter is "no filter given", not "match everything" — otherwise a caller who built
+    /// one from absent options would clear the node instead of removing nothing.</summary>
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RemoveSnaplink_WithAnEmptyFilter_FallsBackToTheIndexOrClearAllBehaviour()
+    {
+        var s = WithLinks(
+            new Snaplink { Type = "code", Doc = "A.cs", Class = "A" },
+            new Snaplink { Type = "code", Doc = "B.cs", Class = "B" });
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests", index: 0, match: new SnaplinkFilter()));
+        Assert.AreEqual("B.cs", Links(s).Single().Doc);
+
+        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests", match: new SnaplinkFilter()));
+        Assert.AreEqual(0, Links(s).Count);
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RemoveSnaplink_ByFilter_ThatMatchesNothing_LeavesTheListAlone()
+    {
+        var s = WithLinks(new Snaplink { Type = "code", Doc = "A.cs", Class = "A" });
+
+        Assert.AreEqual(0, ProductTreeOps.RemoveSnaplink(s, "n", "tests",
+            match: new SnaplinkFilter(Class: "Absent")));
+        Assert.AreEqual(1, Links(s).Count);
+    }
+
+    private static ProductState WithLinks(params Snaplink[] links) => new()
+    {
+        Nodes = new()
+        {
+            ["n"] = new ProductNode
+            {
+                Title = "n",
+                Concerns = [new ConcernLink { Tag = "tests", Snaplinks = [.. links] }]
+            }
+        }
+    };
+
+    private static List<Snaplink> Links(ProductState s) => s.Nodes["n"].Concerns!.Single().Snaplinks!;
 
     [TestMethod]
     [CoversNode("data-model")]

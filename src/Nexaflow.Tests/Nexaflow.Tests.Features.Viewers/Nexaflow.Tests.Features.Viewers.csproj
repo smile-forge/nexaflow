@@ -1,0 +1,83 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The file-opening half of the feature suite: every viewer/editor/player, plus the sample-file corpus
+       that proves each sample lands in the right one. Split out of Nexaflow.Tests.Features because one
+       project referencing ~50 feature assemblies meant editing a viewer test rebuilt everything. -->
+  <PropertyGroup>
+    <!-- Pinned to the WinRT platform version because Nexaflow.Features.WindowsApps targets it, and the
+         suites share the shared support library with the one that references it. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
+    <!-- Namespaces stayed Nexaflow.Tests.Features.<Folder> through the split, so the folder→feature
+         convention CoverageGuardTests enforces still reads the same across all the suites. -->
+    <RootNamespace>Nexaflow.Tests.Features</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.3.2" />
+    <PackageReference Include="NSubstitute" Version="6.0.0" />
+    <PackageReference Include="FlaUI.Core" Version="5.0.0" />
+    <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
+         clean checkout (gitignored), where the analyzer degrades to the presence check only. -->
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">
+    <AdditionalFiles Include="..\..\..\.product\tree.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared test support (FlaUI journey bases, AsyncPump, ViewerMap, the ISearchable conformance
+         contract) and the git-ignored sample dataset. -->
+    <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Pe\Nexaflow.IO.Pe.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Audio\Nexaflow.Features.Audio.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Code\Nexaflow.Features.Code.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed\Nexaflow.Features.Compressed.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.Modern\Nexaflow.Features.Compressed.Modern.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SecureZip\Nexaflow.Features.Compressed.SecureZip.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SharpCompress\Nexaflow.Features.Compressed.SharpCompress.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dicom\Nexaflow.Features.Dicom.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dotnet\Nexaflow.Features.Dotnet.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Email\Nexaflow.Features.Email.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Executable\Nexaflow.Features.Executable.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Font\Nexaflow.Features.Font.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Markdown\Nexaflow.Features.Markdown.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Model3D\Nexaflow.Features.Model3D.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Notebook\Nexaflow.Features.Notebook.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Pdf\Nexaflow.Features.Pdf.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Svg\Nexaflow.Features.Svg.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Tabular\Nexaflow.Features.Tabular.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.VirtualDisk\Nexaflow.Features.VirtualDisk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

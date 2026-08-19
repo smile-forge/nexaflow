@@ -297,6 +297,14 @@ run it from anywhere with no root arg. Build once and call the exe directly, or 
   `remove <id> [--recursive]`, `set-status`, `set-concern`, `remove-concern`, `add-snaplink`,
   `remove-snaplink`, `set-node`.
 
+> **Address a snaplink by what it is, not where it sits.** `remove-snaplink <id> [--concern <tag>]` takes
+> `--type/--doc/--class/--method/--target`, and every field you give has to agree: `--doc` alone drops every
+> link into that file, adding `--method` narrows it to the one (paths compare slash- and case-insensitively,
+> so a backslashed path pasted from Explorer still matches). `--index <n>` still removes by position, but a
+> position is only valid until the next edit reorders the list — which is exactly what an earlier line in the
+> same batch does — so the two are mutually exclusive and giving both is an error. Give neither and it clears
+> the list, so say what you mean.
+
 > **Ids are one flat global namespace.** `add-node` slugs the title, so a node titled "Run" under any feature
 > claims the bare id `run`. Give every node a feature-prefixed id (`dotnet-verb-run`, not `run`) and use
 > `rename` to fix an existing one — it retargets the parent, the children and every `node` snaplink, but
@@ -325,6 +333,12 @@ run it from anywhere with no root arg. Build once and call the exe directly, or 
 **Workflow for a restructure:** generate a `.batch` file (one instruction per line — the standalone verbs
 minus `<root>`; `#` comments; `"quote"` spaces), `batch … --dry-run`, apply, then `doctor` + `validate`.
 Prefer generating the batch with a script over hand-writing dozens of lines.
+
+**Moving files** is the same workflow: `remap <old-path> <new-path>` is a batch instruction too, so a move
+that shifts several files lands as one validated transaction and `--dry-run` reports how many snaplinks each
+line would rewrite before anything is written. Inside a batch a remap that matches nothing is an *error* (the
+path came from a move you already made, so a miss means the script is wrong); standalone it is just reported,
+because there "nothing references that path" is a fair answer to a question.
 
 > **Arguments are strict.** Every verb declares exactly what it accepts, so an unknown option, a missing
 > option value, or a surplus positional is a hard error naming that verb's usage — never silently ignored.

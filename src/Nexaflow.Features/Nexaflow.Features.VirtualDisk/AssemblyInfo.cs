@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Windows;
 
-[assembly: InternalsVisibleTo("Nexaflow.Tests.Features")]
+[assembly: InternalsVisibleTo("Nexaflow.Tests.Features.Viewers")]
 
 [assembly: ThemeInfo(
     ResourceDictionaryLocation.None,            //where theme specific resource dictionaries are located
