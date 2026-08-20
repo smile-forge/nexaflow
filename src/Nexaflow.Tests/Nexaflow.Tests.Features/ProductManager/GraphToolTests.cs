@@ -49,6 +49,18 @@ public class GraphToolTests
             }
             """.Replace("\r\n", "\n"));
 
+        // Sprocket carries two properties of the real code this came from (a 1,900-line view-model): the
+        // feature's snaplink names ONE member (Turn), so a sibling member sits three hops out - out to the
+        // member, up to the type, back down - and the class runs past 400 lines, which is what the block
+        // scan used to stop at. The filler is what makes the second true; see BlockScanLines.
+        var filler   = string.Join("\n", Enumerable.Range(0, 420).Select(i => $"    private void Filler{i}() {{ }}"));
+        var sprocket = "namespace Demo;\n\npublic class Sprocket\n{\n"
+                     + "    public void Turn()\n    {\n        Ratchet();\n    }\n\n"
+                     + filler
+                     + "\n\n    private void Ratchet()\n    {\n        var pawl = \"click\";\n    }\n}\n";
+        File.WriteAllText(Path.Combine(_root, "src", "Sprocket.cs"), sprocket);
+        var ratchetLine = Array.FindIndex(sprocket.Split('\n'), l => l.Contains("void Ratchet")) + 1;
+
         File.WriteAllText(Path.Combine(_root, "src", "Gadget.cs"), """
             namespace Demo;
 
@@ -83,11 +95,33 @@ public class GraphToolTests
                     FilePath = "src/Gadget.cs",
                     Metadata = new Dictionary<string, string> { ["line"] = "3", ["kind"] = "class" },
                 },
+                new GraphNode
+                {
+                    Id = "code:src/Sprocket.cs#T:Sprocket", Type = NodeType.Type, Label = "Sprocket",
+                    FilePath = "src/Sprocket.cs",
+                    Metadata = new Dictionary<string, string> { ["line"] = "3", ["kind"] = "class" },
+                },
+                new GraphNode
+                {
+                    Id = "code:src/Sprocket.cs#T:Sprocket/M:Turn", Type = NodeType.Member, Label = "Turn",
+                    FilePath = "src/Sprocket.cs",
+                    Metadata = new Dictionary<string, string> { ["line"] = "5", ["kind"] = "method" },
+                },
+                new GraphNode
+                {
+                    Id = "code:src/Sprocket.cs#T:Sprocket/M:Ratchet", Type = NodeType.Member, Label = "Ratchet",
+                    FilePath = "src/Sprocket.cs",
+                    Metadata = new Dictionary<string, string> { ["line"] = ratchetLine.ToString(), ["kind"] = "method" },
+                },
             ],
             Edges =
             [
                 new GraphEdge { Source = "product:widget", Target = "code:src/Widget.cs#T:Widget", Relationship = "implemented_by" },
                 new GraphEdge { Source = "code:src/Gadget.cs#T:Gadget", Target = "code:src/Widget.cs#T:Widget", Relationship = "calls" },
+                // The snaplink lands on the member, exactly as a real one does.
+                new GraphEdge { Source = "product:widget", Target = "code:src/Sprocket.cs#T:Sprocket/M:Turn", Relationship = "implemented_by" },
+                new GraphEdge { Source = "code:src/Sprocket.cs#T:Sprocket", Target = "code:src/Sprocket.cs#T:Sprocket/M:Turn", Relationship = EdgeRelationship.Contains },
+                new GraphEdge { Source = "code:src/Sprocket.cs#T:Sprocket", Target = "code:src/Sprocket.cs#T:Sprocket/M:Ratchet", Relationship = EdgeRelationship.Contains },
             ],
         };
         store.SaveGraph(graph);
@@ -180,6 +214,18 @@ public class GraphToolTests
     }
 
     [TestMethod]
+    public async Task Context_NamesTheFilesTheFeatureOwns_AndHowToSearchThem()
+    {
+        var r = await Run("graph_context", new JsonObject { ["node_id"] = "product:widget" });
+
+        Assert.IsFalse(r.IsError);
+        StringAssert.Contains(r.ModelText, "src/Sprocket.cs", "the anchor is the answer, not an exercise");
+        StringAssert.Contains(r.ModelText, "--scope owned",
+            "context hands back the command to search them - the step between 'I found the feature' and "
+            + "'I searched its code' is where the graph gets abandoned for a text search");
+    }
+
+    [TestMethod]
     public async Task Context_OfAnUnknownNodePointsBackAtSearch()
     {
         var r = await Run("graph_context", new JsonObject { ["node_id"] = "code:nope#T:Nope" });
@@ -228,6 +274,83 @@ public class GraphToolTests
     }
 
     [TestMethod]
+    public async Task Grep_ReadsPastTheOldFourHundredLineCap()
+    {
+        var r = await Run("graph_grep", new JsonObject
+        {
+            ["pattern"] = "pawl", ["from"] = "product:widget", ["hops"] = 2,
+        });
+
+        Assert.IsFalse(r.IsError);
+        StringAssert.Contains(r.ModelText, "pawl",
+            "Ratchet sits ~430 lines into Sprocket. A block scan that stops at 400 reports no match here, "
+            + "which reads identically to 'not present' - the failure that sends someone to a blanket text "
+            + "search. GraphQuery.BlockScanLines is what makes this findable.");
+    }
+
+    [TestMethod]
+    public async Task Grep_ByHops_StopsShortOfTheSiblingMember()
+    {
+        var r = await Run("graph_grep", new JsonObject
+        {
+            ["pattern"] = "pawl", ["from"] = "product:widget", ["hops"] = 1,
+        });
+
+        Assert.IsFalse(r.IsError);
+        StringAssert.Contains(r.ModelText, "No source matches",
+            "one hop reaches the snaplinked member and nothing else - a radius is measured from the link, "
+            + "not from the feature");
+    }
+
+    [TestMethod]
+    public async Task Grep_ByOwnership_ReachesTheSiblingMember()
+    {
+        var r = await Run("graph_grep", new JsonObject
+        {
+            ["pattern"] = "pawl", ["from"] = "product:widget", ["scope"] = "owned",
+        });
+
+        Assert.IsFalse(r.IsError);
+        StringAssert.Contains(r.ModelText, "pawl", "the feature owns Sprocket.cs, so it owns all of it");
+        StringAssert.Contains(r.ModelText, "Ratchet", "and the hit still names the member it came from");
+    }
+
+    [TestMethod]
+    public async Task Grep_ByOwnership_StaysInsideTheFeature()
+    {
+        var r = await Run("graph_grep", new JsonObject
+        {
+            ["pattern"] = "class", ["from"] = "product:widget", ["scope"] = "owned",
+        });
+
+        Assert.IsFalse(r.IsError);
+        StringAssert.Contains(r.ModelText, "Sprocket");
+        Assert.IsFalse(r.ModelText.Contains("Gadget"),
+            "no snaplink names Gadget, so the feature does not own it. This is what ownership buys that a "
+            + "radius cannot: widening hops until the feature is covered also drags in whatever else "
+            + "happens to be two hops away.");
+    }
+
+    [TestMethod]
+    public async Task Grep_OwnershipNeedsAStartingNode()
+    {
+        var r = await Run("graph_grep", new JsonObject { ["pattern"] = "pawl", ["scope"] = "owned" });
+
+        Assert.IsTrue(r.IsError, "'owned' is relative to a node - without one it has no meaning to guess at");
+    }
+
+    [TestMethod]
+    public async Task Grep_AnUnknownScopeIsRefused_NotIgnored()
+    {
+        var r = await Run("graph_grep", new JsonObject
+        {
+            ["pattern"] = "pawl", ["from"] = "product:widget", ["scope"] = "sideways",
+        });
+
+        Assert.IsTrue(r.IsError, "silently falling back to hops would answer a question nobody asked");
+    }
+
+    [TestMethod]
     public async Task Grep_AMalformedRegexIsAnAnswer_NotACrash()
     {
         var r = await Run("graph_grep", new JsonObject { ["pattern"] = "([unclosed" });
@@ -265,8 +388,13 @@ public class GraphToolTests
         var r = await Run("graph_stats");
 
         Assert.IsFalse(r.IsError);
-        StringAssert.Contains(r.ModelText, "node(s)");
-        StringAssert.Contains(r.ModelText, "edge(s)");
+        StringAssert.Contains(r.ModelText, "nodes", "the headline counts");
+        StringAssert.Contains(r.ModelText, "edges");
+        // The breakdown by node type and relationship is the part that makes this worth calling: it was
+        // CLI-only until the two renderings were consolidated, so the assistant used to get a bare count.
+        StringAssert.Contains(r.ModelText, "nodes:  ", "the per-type breakdown");
+        StringAssert.Contains(r.ModelText, NodeType.Type, "…which names each node type present");
+        StringAssert.Contains(r.ModelText, "edges:  ", "the per-relationship breakdown");
     }
 
     // ── The missing-graph case ────────────────────────────────────────────────

@@ -211,13 +211,13 @@ public sealed class GraphBuilder
 
         var lang = TreeSitterLanguages.ForFile(relPath);
         var typeId = "code:" + relPath + "#" + type.AstPath;
-        AddCodeNode(typeId, NodeType.Type, type.Name, relPath, lang, type.Kind.ToString(), type.Line, type.AstPath);
+        AddCodeNode(typeId, NodeType.Type, type.Name, relPath, lang, type.Kind.ToString(), type.Line, type.EndLine, type.AstPath);
         Edge("file:" + relPath, typeId, EdgeRelationship.Contains, provenance: relPath);
 
         if (member is null) return typeId;
 
         var memberId = "code:" + relPath + "#" + member.AstPath;
-        AddCodeNode(memberId, NodeType.Member, member.Name, relPath, lang, member.Kind.ToString(), member.Line, member.AstPath);
+        AddCodeNode(memberId, NodeType.Member, member.Name, relPath, lang, member.Kind.ToString(), member.Line, member.EndLine, member.AstPath);
         Edge(typeId, memberId, EdgeRelationship.Contains, provenance: relPath);
         return memberId;
     }
@@ -328,11 +328,14 @@ public sealed class GraphBuilder
             nodes[id] = n;
             return n;
         }
-        void CodeNode(string id, string type, string label, string kind, int line, string ast)
+        void CodeNode(string id, string type, string label, string kind, int line, int endLine, string ast)
         {
             var n = Local(id, type, label, rel, lang);
             (n.Metadata ??= new())["kind"] = kind.ToLowerInvariant();
             n.Metadata["line"] = line.ToString();
+            // The parser knows where the declaration stops; recording it here is what saves every reader from
+            // re-deriving it by counting braces. Absent (0) when the extractor had no end for this node.
+            if (endLine > 0) n.Metadata["endLine"] = endLine.ToString();
             n.Metadata["ast"] = ast;
         }
         void LocalEdge(string s, string t, string relationship)
@@ -367,7 +370,7 @@ public sealed class GraphBuilder
             foreach (var t in outline.Types)
             {
                 var typeId = "code:" + rel + "#" + t.AstPath;
-                CodeNode(typeId, NodeType.Type, t.Name, t.Kind.ToString(), t.Line, t.AstPath);
+                CodeNode(typeId, NodeType.Type, t.Name, t.Kind.ToString(), t.Line, t.EndLine, t.AstPath);
                 LocalEdge(fileId, typeId, EdgeRelationship.Contains);
                 foreach (var b in t.Bases) c.Bases.Add(new CachedBase { TypeId = typeId, Name = b.Name, IsInterface = b.IsInterface });
 
@@ -375,7 +378,7 @@ public sealed class GraphBuilder
                     foreach (var m in t.Members)
                     {
                         var memberId = "code:" + rel + "#" + m.AstPath;
-                        CodeNode(memberId, NodeType.Member, m.Name, m.Kind.ToString(), m.Line, m.AstPath);
+                        CodeNode(memberId, NodeType.Member, m.Name, m.Kind.ToString(), m.Line, m.EndLine, m.AstPath);
                         LocalEdge(typeId, memberId, EdgeRelationship.Contains);
                     }
             }
@@ -717,11 +720,13 @@ public sealed class GraphBuilder
         return outline;
     }
 
-    private void AddCodeNode(string id, string type, string label, string relPath, string? lang, string kind, int line, string ast)
+    private void AddCodeNode(string id, string type, string label, string relPath, string? lang, string kind,
+                             int line, int endLine, string ast)
     {
         var n = Node(id, type, label, file: relPath, language: lang, source: relPath);
         Meta(n, "kind", kind.ToLowerInvariant());
         Meta(n, "line", line.ToString());
+        if (endLine > 0) Meta(n, "endLine", endLine.ToString());
         Meta(n, "ast", ast);
     }
 
