@@ -92,7 +92,13 @@ public sealed class FileSystemPageRegistration(
 
         if (mode == "path" && pageParams!.TryGetValue("path", out var path))
         {
-            var label = pageParams.GetValueOrDefault("label") ?? "Files";
+            // "label" is optional, and most openers don't supply it — a ribbon button stores only mode+path,
+            // and ApplyBreadcrumbs rewrites the params to mode+path on every navigation, so a tab rebuilt
+            // afterwards (options save, restored session) arrives here without one. Falling back to a literal
+            // put "Files" on the tab in all of those cases; the folder's own name is the answer everywhere.
+            var label = pageParams.GetValueOrDefault("label") is { Length: > 0 } given
+                ? given
+                : FileBreadcrumbs.DirectoryLabel(path);
             var tab = new Page
             {
                 Title       = label,
@@ -154,8 +160,10 @@ public sealed class FileSystemPageRegistration(
             };
         }).ToList();
 
-        var currentLabel = segments[^1].Label;
-        tab.Title = currentLabel.Length > 15 ? currentLabel[..10] + "…" : currentLabel;
+        // The full folder name. How much of it fits on a tab is the shell's rule (TabTitle), applied by the
+        // tab strip for every feature — a feature shortening its own title made this one disagree with the
+        // rest (11 characters where the shell allows 15) and hid the full name from the hover that shows it.
+        tab.Title = segments[^1].Label;
         tab.PageParams = string.IsNullOrEmpty(segments[^1].Path)
             ? new Dictionary<string, string> { ["mode"] = "thispc" }
             : new Dictionary<string, string> { ["mode"] = "path", ["path"] = segments[^1].Path };
