@@ -1685,6 +1685,17 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         children.Add(newNode);
     }
 
+    /// <summary>True when <paramref name="target"/> lies strictly below <paramref name="dir"/>.
+    /// The separator is part of the test: a bare prefix match makes "C:\Data" claim "C:\Datasets",
+    /// so expanding one folder would also expand every sibling whose name it starts with.</summary>
+    private static bool IsUnder(string target, string dir)
+    {
+        var root = dir.TrimEnd(Path.DirectorySeparatorChar);
+        return target.Length > root.Length
+            && target[root.Length] == Path.DirectorySeparatorChar
+            && target.AsSpan(0, root.Length).Equals(root, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool TryExpandTo(FileSystemTreeNode node, string target)
     {
         if (string.Equals(node.FullPath, target, StringComparison.OrdinalIgnoreCase))
@@ -1696,9 +1707,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         // Only descend if the target is under this node.
         // Empty FullPath means a virtual root (e.g. "This PC") — always descend into its children.
-        if (!string.IsNullOrEmpty(node.FullPath) &&
-            !target.StartsWith(node.FullPath.TrimEnd(Path.DirectorySeparatorChar),
-                               StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(node.FullPath) && !IsUnder(target, node.FullPath))
             return false;
 
         node.IsExpanded = true; // triggers lazy load
