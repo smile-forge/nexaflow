@@ -522,4 +522,109 @@ public class CodeIntelligenceTests
     [TestMethod]
     public void ShowTextAction_IsRenamedToAsText()
         => Assert.AreEqual("As Text", new ShowTextAction(Substitute.For<IShellServices>()).DisplayName);
+
+    // ── Declaration spans ─────────────────────────────────────────────────────
+    //
+    // The extractor used to keep a node's StartPosition and throw its EndPosition away, so every consumer
+    // re-derived where a declaration stopped by counting braces — a small C# parser beside a real one, wrong
+    // on raw string literals and on property initialisers. Both ends now come from the parse.
+
+    [TestMethod]
+    [CoversNode("syntax-outline")]
+    public void Outline_RecordsWhereEachDeclarationEnds()
+    {
+        var outline = new CodeStructureExtractor().Extract("c-sharp", CSharp);
+        var calc = outline.Types.Single(t => t.Name == "Calculator");
+
+        Assert.IsTrue(calc.EndLine > calc.Line, "a class spans more than its declaration line");
+        foreach (var m in calc.Members)
+            Assert.IsTrue(m.EndLine >= m.Line, $"{m.Name} ends before it starts");
+
+        var reset = calc.Members.Single(m => m.Name == "Reset");
+        Assert.AreEqual(reset.Line, reset.EndLine, "a one-line method starts and ends on the same line");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-outline")]
+    public void Outline_EndLineCoversAMultiLineMember()
+    {
+        const string src = """
+            public class C
+            {
+                public void M()
+                {
+                    var x = 1;
+                }
+            }
+            """;
+
+        var m = new CodeStructureExtractor().Extract("c-sharp", src).Types.Single().Members.Single();
+
+        Assert.AreEqual(3, m.Line);
+        Assert.AreEqual(6, m.EndLine, "the member ends at its closing brace, not at its signature");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-outline")]
+    public void Outline_EndLineSpansAPropertyInitialiser()
+    {
+        // The accessor list's '}' is not the end of the declaration. A brace counter stops there; the parser
+        // does not.
+        const string src = """
+            public class C
+            {
+                public static Dictionary<string, string> Map { get; } = new Dictionary<string, string>
+                {
+                    ["a"] = "one",
+                };
+            }
+            """;
+
+        var m = new CodeStructureExtractor().Extract("c-sharp", src).Types.Single().Members.Single();
+
+        Assert.AreEqual(3, m.Line);
+        Assert.AreEqual(6, m.EndLine, "the property ends at the initialiser's semicolon");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-outline")]
+    public void Outline_EndLineSpansARawStringLiteral()
+    {
+        // Deliberately an ODD number of quotes in the body: that is the case a naive in-string flag gets
+        // wrong, because three quotes toggle it on-off-on. (Four-quote fence here so the fixture can contain
+        // a three-quote one.)
+        const string src = """"
+            public class C
+            {
+                public string M()
+                {
+                    return """
+                        he said "hello
+                        }
+                        """;
+                }
+            }
+            """";
+
+        var m = new CodeStructureExtractor().Extract("c-sharp", src).Types.Single().Members.Single();
+
+        Assert.AreEqual(3, m.Line);
+        Assert.AreEqual(9, m.EndLine, "the brace inside the raw literal is text, not the end of the method");
+    }
+
+    [TestMethod]
+    [CoversNode("code-structure")]
+    public void ResolveSpan_ReturnsBothEnds_AndTracksInsertedLines()
+    {
+        var ext = new CodeStructureExtractor();
+
+        var span = ext.ResolveSpan("c-sharp", CSharp, "T:Calculator/M:Reset");
+        Assert.IsNotNull(span);
+        Assert.AreEqual(ext.ResolveLine("c-sharp", CSharp, "T:Calculator/M:Reset"), span!.Value.Line,
+            "ResolveLine is the same answer, narrowed");
+
+        var shifted = ext.ResolveSpan("c-sharp", "\n\n" + CSharp, "T:Calculator/M:Reset");
+        Assert.AreEqual(span.Value.Line + 2, shifted!.Value.Line);
+        Assert.AreEqual(span.Value.EndLine + 2, shifted.Value.EndLine, "both ends move with the declaration");
+    }
 }

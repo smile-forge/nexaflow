@@ -59,10 +59,16 @@ public static class GraphTools
             new DelegateClientTool("graph_grep",
                 "Search the source of nodes near a starting node. Unlike a plain text search this one "
                 + "understands 'near' - scoping a regex to the neighbourhood of a type finds the callers that "
-                + "matter without the thousand unrelated files that happen to share a word.",
+                + "matter without the thousand unrelated files that happen to share a word. To search a whole "
+                + "FEATURE rather than a radius, pass scope='owned' with the feature's product node.",
                 [new ClientToolParameter("pattern", "Regular expression (case-insensitive)."),
                  new ClientToolParameter("from", "Node id to search around; omit to search every code node.", Required: false),
-                 new ClientToolParameter("hops", "Neighbourhood radius when 'from' is given (default 2).", Required: false, Type: "number"),
+                 new ClientToolParameter("scope",
+                     "'hops' (default) searches within 'hops' edges of 'from' - use it for \"near THIS code\". "
+                     + "'owned' searches every file the feature's snaplinks land in - use it for \"inside this "
+                     + "feature\", where a radius either falls short of the sibling members or overshoots into "
+                     + "the next feature.", Required: false),
+                 new ClientToolParameter("hops", "Neighbourhood radius when 'from' is given and scope is 'hops' (default 2).", Required: false, Type: "number"),
                  new ClientToolParameter("limit", "Maximum matches (default 40).", Required: false, Type: "number")],
                 ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(Grep(productRoot, a))),
@@ -145,8 +151,15 @@ public static class GraphTools
         var from = Blank(Str(a, "from"));
         if (from is not null && !GraphQuery.Index(g).ContainsKey(from)) return NoNode(from);
 
-        var hits = GraphQuery.Grep(g, pattern, Reader(root), from, Int(a, "hops", 2), Int(a, "limit", 40));
-        return ToolResult.Ok($"{hits.Count} match(es)", GraphReport.Grep(hits, pattern, from));
+        var scopeText = Blank(Str(a, "scope")) ?? "hops";
+        if (scopeText is not ("hops" or "owned"))
+            return ToolResult.Error($"'scope' must be 'hops' or 'owned' (got '{scopeText}').");
+        if (scopeText == "owned" && from is null)
+            return ToolResult.Error("'scope' of 'owned' needs a 'from' node - ownership is relative to one.");
+        var scope = scopeText == "owned" ? GraphQuery.GrepScope.Owned : GraphQuery.GrepScope.Hops;
+
+        var hits = GraphQuery.Grep(g, pattern, Reader(root), from, Int(a, "hops", 2), Int(a, "limit", 40), scope);
+        return ToolResult.Ok($"{hits.Count} match(es)", GraphReport.Grep(hits, pattern, from, scope));
     }
 
     private static ToolResult Code(string root, JsonObject a)

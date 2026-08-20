@@ -391,7 +391,7 @@ internal static class Program
               graph node   <id> [<root>] [--limit N]                            one node + ALL its edges/hyperedges
               graph walk   <id> [<root>] [--hops N] [--types a,b] [--limit N]   BFS neighbourhood out to N hops
               graph context <id> [<root>] [--lines N] [--limit N]               ONE-SHOT: node + source + neighbours + owning feature
-              graph grep <pat> [<root>] [--from <id>] [--hops N] [--mode index|content] [--type t] [--limit N]
+              graph grep <pat> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N]
                                                                                 regex the graph (index=graph text; content=nodes' source)
               graph code   <id> [<root>] [--lines A-B]                          code:<file>#<ast> → its block; file:<relpath> → the file
 
@@ -402,8 +402,15 @@ internal static class Program
             worktree: run from a linked worktree and the code layer defaults to THAT branch's source — build
                   re-parses only files that differ from the main checkout, and code/context/grep dump the branch's
                   copy. --main forces the main-checkout source; `graph --code-root <dir>` points it anywhere.
-            tip:  `graph context <id>` is the fastest way to understand a node. `graph grep <pat> --from <id> --hops 2 --mode content`
-                  searches the source of a feature's neighbourhood. .xaml → its class is a `view_of` edge; .csproj deps are `depends_on`.
+            tip:  `graph context <id>` is the fastest way to understand a node — it also names the files that node
+                  owns and prints the grep command for them. To search a FEATURE's code use ownership, not radius:
+                  `graph grep <pat> --from product:<slug> --scope owned --mode content` covers every file the
+                  feature's snaplinks land in, whereas --hops 2 from a product node typically finds nothing and
+                  --hops 3 has already left the feature. Use --hops when you mean "near THIS code" (callers of a
+                  type), --scope owned when you mean "inside this feature". With no --from, content mode greps
+                  every code node in the repo — the graph-native replacement for a blanket text search, and the
+                  one that still reports the owning type/member of each hit.
+                  .xaml → its class is a `view_of` edge; .csproj deps are `depends_on`.
             """);
         return Clean;
     }
@@ -421,43 +428,17 @@ internal static class Program
         graph = loaded; code = Clean; return true;
     }
 
-    private static int TypeRank(string type) => type switch
-    {
-        NodeType.Product => 0, NodeType.Type => 1, NodeType.File => 2, NodeType.Member => 3, _ => 4,
-    };
-
-    /// <summary>One compact line for a node: id, type (+ code kind), label, and file:line when it has one.</summary>
-    private static string NodeLine(GraphNode n)
-    {
-        var kind = (n.Type is NodeType.Type or NodeType.Member) && n.Metadata?.GetValueOrDefault("kind") is { Length: > 0 } k ? "/" + k : "";
-        var loc = n.FilePath is { Length: > 0 } f
-            ? $"  ({f}{(n.Metadata?.GetValueOrDefault("line") is { Length: > 0 } ln ? ":" + ln : "")})"
-            : "";
-        return $"  [{n.Type}{kind}] {n.Label}{loc}\n      {n.Id}";
-    }
+    // TypeRank / NodeLine / BlockEnd / BuildAdjacency / Bfs were once declared here as private copies of the
+    // GraphQuery and GraphReport originals. They are gone, and call sites use the library directly: this file
+    // is a shell over that library, not a second implementation of it. GraphQuery.BlockEnd records what the
+    // copies had quietly diverged into, and CliHasNoPrivateGraphTwinsTests keeps them from coming back.
 
     private static int GraphStats(string[] args)
     {
         if (!TryRead(Specs.GraphStats, args, out _, out var root, out var parseCode)) return parseCode;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var byType = g.Nodes.GroupBy(n => n.Type).OrderByDescending(x => x.Count());
-        var byRel = g.Edges.GroupBy(e => e.Relationship).OrderByDescending(x => x.Count());
-        var byHyper = g.HyperEdges.GroupBy(h => h.Relationship).OrderByDescending(x => x.Count());
-        var comm = g.Nodes.Where(n => n.Community is not null).GroupBy(n => n.Community!.Value)
-                          .OrderByDescending(x => x.Count()).Take(12);
-
-        Console.WriteLine($"{g.Metadata.ProductName ?? "graph"} — {g.Nodes.Count:N0} nodes, {g.Edges.Count:N0} edges, "
-                        + $"{g.HyperEdges.Count:N0} hyperedges, {g.Metadata.CommunityCount} communities (scope {g.Metadata.Scope}).");
-        Console.WriteLine("nodes:  " + string.Join("  ", byType.Select(x => $"{x.Key}={x.Count():N0}")));
-        Console.WriteLine("edges:  " + string.Join("  ", byRel.Select(x => $"{x.Key}={x.Count():N0}")));
-        if (g.HyperEdges.Count > 0) Console.WriteLine("hyper:  " + string.Join("  ", byHyper.Select(x => $"{x.Key}={x.Count():N0}")));
-        Console.WriteLine("biggest communities: " + string.Join("  ", comm.Select(x =>
-        {
-            var rep = x.OrderBy(n => n.Type == NodeType.Product ? 0 : 1).ThenBy(n => n.Label?.Length ?? 99).First();
-            return $"#{x.Key}={x.Count()}({rep.Label})";
-        })));
-        Console.WriteLine("next:   graph search <term> | graph node product:<feature> | graph list --type file");
+        Console.WriteLine(GraphReport.Stats(g));
         return Clean;
     }
 
@@ -493,7 +474,7 @@ internal static class Program
                 (file is null || (n.FilePath?.Contains(file, StringComparison.OrdinalIgnoreCase) ?? false)))
             .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
 
-        foreach (var n in hits.Take(limit)) Console.WriteLine(NodeLine(n));
+        foreach (var n in hits.Take(limit)) Console.WriteLine(GraphReport.NodeLine(n));
         Console.WriteLine($"{hits.Count} node(s)" + (hits.Count > limit ? $" — showing {limit} (raise --limit or add a filter)" : "") + ".");
         return Clean;
     }
@@ -505,43 +486,10 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
-        foreach (var n in g.Nodes) byId[n.Id] = n;
-        if (!byId.TryGetValue(id, out var node)) { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
-        string Label(string nid) => byId.TryGetValue(nid, out var o) ? o.Label : "?";
+        if (GraphQuery.Node(g, id) is not { } hood)
+        { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
 
-        Console.WriteLine($"{node.Id}\n  [{node.Type}]  {node.Label}");
-        if (node.FilePath is { Length: > 0 }) Console.WriteLine($"  file:      {node.FilePath}{(node.Metadata?.GetValueOrDefault("line") is { Length: > 0 } ln ? ":" + ln : "")}");
-        if (node.Language is { Length: > 0 }) Console.WriteLine($"  language:  {node.Language}");
-        if (node.Community is { } cm) Console.WriteLine($"  community: #{cm}");
-        if (node.Confidence < 0.999) Console.WriteLine($"  confidence:{node.Confidence:0.##}");
-        if (node.Metadata is { Count: > 0 } md)
-            foreach (var kv in md.Where(kv => kv.Key is not ("line" or "ast")))
-                Console.WriteLine($"  {kv.Key}: {kv.Value}");
-
-        void PrintEdges(char arrow, List<GraphEdge> edges, bool outgoing)
-        {
-            foreach (var grp in edges.GroupBy(e => e.Relationship).OrderBy(x => x.Key, StringComparer.Ordinal))
-            {
-                Console.WriteLine($"  {arrow} {grp.Key} ({grp.Count()}):");
-                foreach (var e in grp.Take(limit))
-                {
-                    var other = outgoing ? e.Target : e.Source;
-                    Console.WriteLine($"      {Label(other)}{(e.Confidence < 0.999 ? $" ~{e.Confidence:0.##}" : "")}  {other}");
-                }
-                if (grp.Count() > limit) Console.WriteLine($"      … +{grp.Count() - limit} more (--limit)");
-            }
-        }
-
-        var outE = g.Edges.Where(e => e.Source == id).ToList();
-        var inE = g.Edges.Where(e => e.Target == id).ToList();
-        var hyper = g.HyperEdges.Where(h => h.Endpoints.Any(p => p.Node == id)).ToList();
-        if (outE.Count > 0) PrintEdges('→', outE, true);
-        if (inE.Count > 0) PrintEdges('←', inE, false);
-        foreach (var h in hyper.Take(limit))
-            Console.WriteLine($"  ⬡ {h.Relationship}: " + string.Join(", ", h.Endpoints.Select(p => $"{p.Role}={Label(p.Node)}")));
-        if (hyper.Count > limit) Console.WriteLine($"  ⬡ … +{hyper.Count - limit} more");
-        if (outE.Count == 0 && inE.Count == 0 && hyper.Count == 0) Console.WriteLine("  (no edges)");
+        Console.WriteLine(GraphReport.Node(hood, limit));
         return Clean;
     }
 
@@ -553,43 +501,13 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
-        foreach (var n in g.Nodes) byId[n.Id] = n;
-        if (!byId.ContainsKey(id)) { Console.Error.WriteLine($"error: no node '{id}'."); return Error; }
+        var types = a.Value("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                     .ToHashSet(StringComparer.Ordinal);
 
-        var types = a.Value("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
+        if (GraphQuery.Walk(g, id, hops, types) is not { } reached)
+        { Console.Error.WriteLine($"error: no node '{id}'."); return Error; }
 
-        var adj = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        void Link(string a, string b)
-        {
-            if (!adj.TryGetValue(a, out var s)) adj[a] = s = new HashSet<string>(StringComparer.Ordinal);
-            s.Add(b);
-        }
-        foreach (var e in g.Edges) { Link(e.Source, e.Target); Link(e.Target, e.Source); }
-        foreach (var h in g.HyperEdges)
-            for (var i = 0; i < h.Endpoints.Count; i++)
-                for (var j = i + 1; j < h.Endpoints.Count; j++) { Link(h.Endpoints[i].Node, h.Endpoints[j].Node); Link(h.Endpoints[j].Node, h.Endpoints[i].Node); }
-
-        var dist = new Dictionary<string, int>(StringComparer.Ordinal) { [id] = 0 };
-        var queue = new Queue<string>(); queue.Enqueue(id);
-        while (queue.Count > 0)
-        {
-            var u = queue.Dequeue();
-            if (dist[u] >= hops || !adj.TryGetValue(u, out var ns)) continue;
-            foreach (var v in ns) if (!dist.ContainsKey(v)) { dist[v] = dist[u] + 1; queue.Enqueue(v); }
-        }
-
-        var reached = dist.Keys
-            .Where(k => byId.ContainsKey(k) && (types is null || types.Contains(byId[k].Type)))
-            .OrderBy(k => dist[k]).ThenBy(k => byId[k].Type, StringComparer.Ordinal).ThenBy(k => k, StringComparer.Ordinal)
-            .ToList();
-
-        foreach (var grp in reached.GroupBy(k => dist[k]))
-        {
-            Console.WriteLine($"— hop {grp.Key} ({grp.Count()}) —");
-            foreach (var k in grp.Take(limit)) Console.WriteLine(NodeLine(byId[k]));
-        }
-        Console.WriteLine($"{reached.Count} node(s) within {hops} hop(s) of {byId[id].Label}" + (reached.Count > limit ? " (per-hop capped by --limit)" : "") + ".");
+        Console.WriteLine(GraphReport.Walk(reached, GraphQuery.Index(g)[id].Label, hops, limit));
         return Clean;
     }
 
@@ -616,10 +534,14 @@ internal static class Program
         if (ast is not null)   // AST block
         {
             var lang = TreeSitterLanguages.ForFile(rel);
-            var start = lang is null ? null : new CodeStructureExtractor().ResolveLine(lang, string.Join('\n', lines), ast);
-            if (start is null) { Console.Error.WriteLine($"error: ast path '{ast}' not found in {rel} (regenerate the graph?)."); return Error; }
-            s0 = start.Value - 1;
-            e0 = BlockEnd(lines, s0, 400);
+            var span = lang is null ? null : new CodeStructureExtractor().ResolveSpan(lang, string.Join('\n', lines), ast);
+            if (span is null) { Console.Error.WriteLine($"error: ast path '{ast}' not found in {rel} (regenerate the graph?)."); return Error; }
+            s0 = span.Value.Line - 1;
+            // Both ends come from the parse that just resolved the path. The brace scan is only for a language
+            // whose extractor records no end.
+            e0 = span.Value.EndLine > 0
+                ? Math.Min(span.Value.EndLine - 1, lines.Length - 1)
+                : GraphQuery.BlockEnd(lines, s0, GraphQuery.BlockScanLines);
         }
         else if (a.Value("--lines") is { } range)   // a slice of a file
         {
@@ -645,46 +567,6 @@ internal static class Program
         return false;
     }
 
-    /// <summary>The last line of the block starting at <paramref name="start"/>: brace-matched (skipping strings +
-    /// comments) for a braced body, else to the terminating <c>;</c>, else a small window. Good enough for reading —
-    /// not a compiler.</summary>
-    private static int BlockEnd(string[] lines, int start, int maxLines)
-    {
-        int depth = 0; bool opened = false;
-        bool inBlockComment = false, inString = false, inChar = false, verbatim = false;
-        for (var i = start; i < lines.Length && i - start <= maxLines; i++)
-        {
-            var line = lines[i];
-            bool inLineComment = false;
-            for (var j = 0; j < line.Length; j++)
-            {
-                var ch = line[j];
-                var next = j + 1 < line.Length ? line[j + 1] : '\0';
-                if (inLineComment) break;
-                if (inBlockComment) { if (ch == '*' && next == '/') { inBlockComment = false; j++; } continue; }
-                if (inString)
-                {
-                    if (verbatim) { if (ch == '"' && next == '"') j++; else if (ch == '"') inString = false; }
-                    else if (ch == '\\') j++;
-                    else if (ch == '"') inString = false;
-                    continue;
-                }
-                if (inChar) { if (ch == '\\') j++; else if (ch == '\'') inChar = false; continue; }
-                switch (ch)
-                {
-                    case '/' when next == '/': inLineComment = true; break;
-                    case '/' when next == '*': inBlockComment = true; j++; break;
-                    case '"': inString = true; verbatim = j > 0 && line[j - 1] == '@'; break;
-                    case '\'': inChar = true; break;
-                    case '{': depth++; opened = true; break;
-                    case '}': depth--; if (opened && depth <= 0) return i; break;
-                    case ';' when !opened && depth == 0: return i;
-                }
-            }
-        }
-        return Math.Min(lines.Length - 1, start + Math.Min(maxLines, 40));
-    }
-
     private static string[]? TryReadLines(string productRoot, string rel, bool main)
     {
         var full = CodeFilePath(productRoot, rel, main);
@@ -706,30 +588,6 @@ internal static class Program
         return null;
     }
 
-    private static Dictionary<string, HashSet<string>> BuildAdjacency(KnowledgeGraph g)
-    {
-        var adj = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        void Link(string a, string b) { if (!adj.TryGetValue(a, out var s)) adj[a] = s = new HashSet<string>(StringComparer.Ordinal); s.Add(b); }
-        foreach (var e in g.Edges) { Link(e.Source, e.Target); Link(e.Target, e.Source); }
-        foreach (var h in g.HyperEdges)
-            for (var i = 0; i < h.Endpoints.Count; i++)
-                for (var j = i + 1; j < h.Endpoints.Count; j++) { Link(h.Endpoints[i].Node, h.Endpoints[j].Node); Link(h.Endpoints[j].Node, h.Endpoints[i].Node); }
-        return adj;
-    }
-
-    private static Dictionary<string, int> Bfs(Dictionary<string, HashSet<string>> adj, string start, int hops)
-    {
-        var dist = new Dictionary<string, int>(StringComparer.Ordinal) { [start] = 0 };
-        var q = new Queue<string>(); q.Enqueue(start);
-        while (q.Count > 0)
-        {
-            var u = q.Dequeue();
-            if (dist[u] >= hops || !adj.TryGetValue(u, out var ns)) continue;
-            foreach (var v in ns) if (!dist.ContainsKey(v)) { dist[v] = dist[u] + 1; q.Enqueue(v); }
-        }
-        return dist;
-    }
-
     /// <summary>One call that packs everything about a node an agent needs to act: identity + metadata, its source
     /// (budgeted), its immediate relationships, and the product feature(s) that own it — so a single fetch replaces a
     /// node+code+walk sequence.</summary>
@@ -741,43 +599,12 @@ internal static class Program
         if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
-        var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
-        foreach (var n in g.Nodes) byId[n.Id] = n;
-        if (!byId.TryGetValue(id, out var node)) { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
-        string Label(string nid) => byId.TryGetValue(nid, out var o) ? o.Label : "?";
+        // The library reads source through a callback precisely so the CLI can resolve the caller's working
+        // tree first (and --main can override it) without the query layer knowing anything about worktrees.
+        if (GraphQuery.Context(g, id, rel => TryReadLines(root, rel, a.Has("--main")), sourceLines) is not { } ctx)
+        { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
 
-        // 1 · identity
-        Console.WriteLine($"{node.Id}\n  [{node.Type}] {node.Label}");
-        if (node.FilePath is { Length: > 0 } fp) Console.WriteLine($"  file: {fp}{(node.Metadata?.GetValueOrDefault("line") is { Length: > 0 } l ? ":" + l : "")}");
-        if (node.Community is { } cm) Console.WriteLine($"  community: #{cm}");
-        if (node.Metadata is { Count: > 0 } md)
-            foreach (var kv in md.Where(k => k.Key is not ("line" or "ast"))) Console.WriteLine($"  {kv.Key}: {kv.Value}");
-
-        // 2 · source (code nodes) — budgeted
-        if (node.FilePath is { Length: > 0 } rel && node.Metadata?.GetValueOrDefault("line") is { } lnStr
-            && int.TryParse(lnStr, out var startLine) && TryReadLines(root, rel, a.Has("--main")) is { } lines)
-        {
-            var s0 = startLine - 1;
-            var full = BlockEnd(lines, s0, 400);
-            var e0 = Math.Min(full, s0 + sourceLines - 1);
-            Console.WriteLine($"  --- source {rel}:{s0 + 1}-{e0 + 1} ---");
-            for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) Console.WriteLine($"  {i + 1,5}  {lines[i]}");
-            if (full > e0) Console.WriteLine($"  … +{full - e0} more line(s) — graph code {node.Id}");
-        }
-
-        // 3 · immediate relationships
-        foreach (var grp in g.Edges.Where(e => e.Source == id).GroupBy(e => e.Relationship).OrderBy(x => x.Key, StringComparer.Ordinal))
-            Console.WriteLine($"  → {grp.Key} ({grp.Count()}): " + string.Join(", ", grp.Take(near).Select(e => Label(e.Target))) + (grp.Count() > near ? " …" : ""));
-        foreach (var grp in g.Edges.Where(e => e.Target == id).GroupBy(e => e.Relationship).OrderBy(x => x.Key, StringComparer.Ordinal))
-            Console.WriteLine($"  ← {grp.Key} ({grp.Count()}): " + string.Join(", ", grp.Take(near).Select(e => Label(e.Source))) + (grp.Count() > near ? " …" : ""));
-        foreach (var h in g.HyperEdges.Where(h => h.Endpoints.Any(p => p.Node == id)).Take(near))
-            Console.WriteLine($"  ⬡ {h.Relationship}: " + string.Join(", ", h.Endpoints.Select(p => $"{p.Role}={Label(p.Node)}")));
-
-        // 4 · owning feature(s) — nearest product nodes
-        var dist = Bfs(BuildAdjacency(g), id, 3);
-        var owners = dist.Keys.Where(k => byId.TryGetValue(k, out var o) && o.Type == NodeType.Product)
-                              .OrderBy(k => dist[k]).ThenBy(k => k, StringComparer.Ordinal).Take(5).ToList();
-        if (owners.Count > 0) Console.WriteLine("  owning feature(s): " + string.Join(", ", owners.Select(k => $"{Label(k)} <{k}>")));
+        Console.WriteLine(GraphReport.Context(ctx, near));
         return Clean;
     }
 
@@ -789,6 +616,15 @@ internal static class Program
         if (!TryRead(Specs.GraphGrep, args, out var a, out var root, out var parseCode)) return parseCode;
         var pattern = a[0];
         if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
+
+        // --hops and --scope owned are two different answers to "what counts as near", so taking both would
+        // mean silently ignoring one. Strict beats convenient here, as everywhere else in this parser.
+        var scope = a.Value("--scope") ?? "hops";
+        if (scope is not ("hops" or "owned")) return VerbUsage($"--scope must be hops or owned (got '{scope}')");
+        if (scope == "owned" && a.Value("--from") is null)
+            return VerbUsage("--scope owned needs --from <id> - ownership is relative to a node");
+        if (scope == "owned" && a.Value("--hops") is not null)
+            return VerbUsage("--scope owned ignores radius - drop --hops, or drop --scope");
 
         var mode = a.Value("--mode") ?? "index";
         if (mode is not ("index" or "content")) return VerbUsage($"--mode must be index or content (got '{mode}')");
@@ -806,22 +642,22 @@ internal static class Program
         try { rx = new Regex(pattern, RegexOptions.IgnoreCase); }
         catch (Exception ex) { Console.Error.WriteLine($"error: bad regex: {ex.Message}"); return Error; }
 
-        var byId = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
-        foreach (var n in g.Nodes) byId[n.Id] = n;
-        var type = a.Value("--type");
+        var from = a.Value("--from");
+        if (from is not null && !GraphQuery.Index(g).ContainsKey(from))
+        { Console.Error.WriteLine($"error: no node '{from}'."); return Error; }
 
-        IEnumerable<GraphNode> scope = g.Nodes;
-        if (a.Value("--from") is { } from)
-        {
-            if (!byId.ContainsKey(from)) { Console.Error.WriteLine($"error: no node '{from}'."); return Error; }
-            var set = new HashSet<string>(Bfs(BuildAdjacency(g), from, hops).Keys, StringComparer.Ordinal);
-            scope = g.Nodes.Where(n => set.Contains(n.Id));
-        }
-        if (type is not null) scope = scope.Where(n => n.Type == type);
+        IEnumerable<GraphNode> searched = GraphQuery.Scope(
+            g, from, hops,
+            scope == "owned" ? GraphQuery.GrepScope.Owned : GraphQuery.GrepScope.Hops,
+            out var ownedButEmpty);
+        if (ownedButEmpty)
+            Console.WriteLine($"note: '{from}' owns no files - it has no snaplinks to code. Falling back to the whole graph.");
+
+        if (a.Value("--type") is { } type) searched = searched.Where(n => n.Type == type);
 
         if (mode == "content")
         {
-            var codeNodes = scope.Where(n => n.FilePath is { Length: > 0 } && n.Metadata != null
+            var codeNodes = searched.Where(n => n.FilePath is { Length: > 0 } && n.Metadata != null
                                              && n.Metadata.ContainsKey("line") && n.Metadata.ContainsKey("ast"))
                                  .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
             var fileCache = new Dictionary<string, string[]?>(StringComparer.Ordinal);
@@ -835,19 +671,19 @@ internal static class Program
                 }
                 if (scanned >= scanCap)
                 {
-                    Console.WriteLine($"… content-scan cap {scanCap} hit ({codeNodes.Count} code nodes in scope) — narrow --from/--hops/--type or raise --scan-cap.");
+                    Console.WriteLine($"… content-scan cap {scanCap} hit ({codeNodes.Count} code nodes in scope) — narrow --from/--hops/--scope owned/--type or raise --scan-cap.");
                     break;
                 }
                 scanned++;
                 if (!fileCache.TryGetValue(n.FilePath!, out var lines)) fileCache[n.FilePath!] = lines = TryReadLines(root, n.FilePath!, a.Has("--main"));
                 if (lines is null || !int.TryParse(n.Metadata!["line"], out var startLine)) continue;
                 var s0 = startLine - 1;
-                var e0 = BlockEnd(lines, s0, 400);
+                var e0 = GraphQuery.BlockEnd(lines, s0, GraphQuery.BlockScanLines);
                 var hits = new List<(int Line, string Text)>();
                 for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) if (rx.IsMatch(lines[i])) hits.Add((i + 1, lines[i]));
                 if (hits.Count == 0) continue;
                 matchedNodes++;
-                Console.WriteLine(NodeLine(n));
+                Console.WriteLine(GraphReport.NodeLine(n));
                 foreach (var (line, text) in hits.Take(6)) Console.WriteLine($"      {line,5}: {text.Trim()}");
                 if (hits.Count > 6) Console.WriteLine($"      … +{hits.Count - 6} more matching line(s)");
             }
@@ -857,8 +693,8 @@ internal static class Program
         {
             bool Matches(GraphNode n) => rx.IsMatch(n.Id) || (n.Label is { } lb && rx.IsMatch(lb))
                                          || (n.Metadata is { } m && m.Values.Any(v => rx.IsMatch(v)));
-            var hits = scope.Where(Matches).OrderBy(n => TypeRank(n.Type)).ThenBy(n => n.Id, StringComparer.Ordinal).ToList();
-            foreach (var n in hits.Take(limit)) Console.WriteLine(NodeLine(n));
+            var hits = searched.Where(Matches).OrderBy(n => GraphQuery.TypeRank(n.Type)).ThenBy(n => n.Id, StringComparer.Ordinal).ToList();
+            foreach (var n in hits.Take(limit)) Console.WriteLine(GraphReport.NodeLine(n));
             Console.WriteLine($"{hits.Count} node(s) whose graph text matches /{pattern}/" + (hits.Count > limit ? $" — showing {limit}" : "") + ".");
         }
         return Clean;
@@ -1092,7 +928,7 @@ internal static class Program
                 return (false, $"'{what}' not found in {link.Doc}", []);
             }
             s0 = line.Value - 1;
-            e0 = BlockEnd(lines, s0, 400);
+            e0 = GraphQuery.BlockEnd(lines, s0, GraphQuery.BlockScanLines);
         }
         else   // whole-file link — preview only; the member-scoped blocks are the point of --code
         {
@@ -1563,8 +1399,8 @@ internal static class Program
         public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main"],
             "graph context <id> [<root>] [--lines N] [--limit N] [--main]");
         public static readonly VerbSpec GraphGrep = new("graph grep", 1,
-            ["--from", "--hops", "--mode", "--type", "--limit", "--scan-cap"], ["--main"],
-            "graph grep <pattern> [<root>] [--from <id>] [--hops N] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main]");
+            ["--from", "--hops", "--scope", "--mode", "--type", "--limit", "--scan-cap"], ["--main"],
+            "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main]");
         public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main"],
             "graph code <id> [<root>] [--lines A-B] [--main]");
     }

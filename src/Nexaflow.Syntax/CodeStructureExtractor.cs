@@ -74,23 +74,30 @@ public sealed class CodeStructureExtractor
     /// longer exists (renamed / removed). Resolved against the live <paramref name="text"/>. Searches embedded
     /// regions too, so links into an embedded language navigate correctly.</summary>
     public int? ResolveLine(string grammarId, string text, string astPath, string? baseDir = null)
+        => ResolveSpan(grammarId, text, astPath, baseDir)?.Line;
+
+    /// <summary>Both ends of the element with <paramref name="astPath"/>, 1-based, or null if it no longer
+    /// exists. The same parse yields both, so a caller that has already paid for the parse never has to
+    /// re-derive where the declaration stops by counting braces. <c>EndLine</c> is 0 if the extractor for
+    /// that language doesn't record one.</summary>
+    public (int Line, int EndLine)? ResolveSpan(string grammarId, string text, string astPath, string? baseDir = null)
     {
         if (string.IsNullOrEmpty(astPath)) return null;
         return Search(Extract(grammarId, text, baseDir), astPath);
     }
 
-    private static int? Search(CodeOutline o, string astPath)
+    private static (int Line, int EndLine)? Search(CodeOutline o, string astPath)
     {
         foreach (var t in o.Types)
         {
-            if (t.AstPath == astPath) return t.Line;
+            if (t.AstPath == astPath) return (t.Line, t.EndLine);
             foreach (var m in t.Members)
-                if (m.AstPath == astPath) return m.Line;
+                if (m.AstPath == astPath) return (m.Line, m.EndLine);
         }
         foreach (var m in o.TopLevel)
-            if (m.AstPath == astPath) return m.Line;
+            if (m.AstPath == astPath) return (m.Line, m.EndLine);
         foreach (var e in o.Embedded)
-            if (Search(e.Outline, astPath) is { } line) return line;
+            if (Search(e.Outline, astPath) is { } span) return span;
         return null;
     }
 
@@ -101,7 +108,8 @@ public sealed class CodeStructureExtractor
     {
         var types = o.Types.Select(t => new OutlineType(
             t.Name, t.Line + lineOffset, t.Kind, $"{prefix}/{t.AstPath}",
-            t.Members.Select(m => Shift(m, prefix, lineOffset)).ToList()) { Bases = t.Bases }).ToList();
+            t.Members.Select(m => Shift(m, prefix, lineOffset)).ToList())
+            { Bases = t.Bases, EndLine = t.EndLine == 0 ? 0 : t.EndLine + lineOffset }).ToList();
         var top = o.TopLevel.Select(m => Shift(m, prefix, lineOffset)).ToList();
         var embeds = o.Embedded.Select(e => new EmbeddedOutline(
             e.Language, e.HostLabel, e.HostLine + lineOffset, Reproject(e.Outline, prefix, lineOffset))).ToList();
@@ -109,7 +117,8 @@ public sealed class CodeStructureExtractor
     }
 
     private static OutlineMember Shift(OutlineMember m, string prefix, int lineOffset) =>
-        new(m.Name, m.Line + lineOffset, m.Kind, m.Signature, $"{prefix}/{m.AstPath}") { Visibility = m.Visibility };
+        new(m.Name, m.Line + lineOffset, m.Kind, m.Signature, $"{prefix}/{m.AstPath}")
+        { Visibility = m.Visibility, EndLine = m.EndLine == 0 ? 0 : m.EndLine + lineOffset };
 
     private static CodeOutline Build(string grammar, Node root, string? baseDir) => grammar switch
     {
@@ -129,6 +138,15 @@ public sealed class CodeStructureExtractor
     // ── Shared helpers ─────────────────────────────────────────────────────────
 
     private static int Line(Node n) => n.StartPosition.Row + 1;
+
+    /// <summary>The 1-based line a node ends on. <c>EndPosition</c> is exclusive — it points just past the
+    /// last character — so a node finishing at the end of its line reports the next row at column 0, and
+    /// that has to be stepped back or every block would claim one line too many.</summary>
+    private static int EndLine(Node n)
+    {
+        var end = n.EndPosition;
+        return end.Column == 0 && end.Row > n.StartPosition.Row ? end.Row : end.Row + 1;
+    }
 
     private static string? NameOf(Node n)
     {
@@ -209,9 +227,12 @@ public sealed class CodeStructureExtractor
     }
 
     /// <summary>One raw member before AST-path finalisation.</summary>
-    private readonly record struct RawMember(string Name, int Line, OutlineKind Kind, OutlineVisibility Vis, string Signature);
+    private readonly record struct RawMember(string Name, int Line, int EndLine, OutlineKind Kind,
+                                             OutlineVisibility Vis, string Signature);
 
-    private static void AddMember(List<RawMember> raw, string? name, int line, OutlineKind kind,
+    /// <summary>Records a member from the node that declares it, so both ends of its span come from the parse
+    /// rather than one end from the parse and the other from a brace count downstream.</summary>
+    private static void AddMember(List<RawMember> raw, string? name, Node node, OutlineKind kind,
         OutlineVisibility vis = OutlineVisibility.Public, string? signature = null)
     {
         var n = (name ?? "").Trim();
@@ -219,7 +240,7 @@ public sealed class CodeStructureExtractor
         var sig = string.IsNullOrWhiteSpace(signature)
             ? (kind is OutlineKind.Method or OutlineKind.Constructor ? $"{n}()" : n)
             : Compact(signature);
-        raw.Add(new RawMember(n, line, kind, vis, sig));
+        raw.Add(new RawMember(n, Line(node), EndLine(node), kind, vis, sig));
     }
 
     /// <summary>Turns raw members into <see cref="OutlineMember"/>s with stable AST paths, appending
@@ -247,6 +268,7 @@ public sealed class CodeStructureExtractor
             result.Add(new OutlineMember(raw[i].Name, raw[i].Line, raw[i].Kind, raw[i].Signature, path)
             {
                 Visibility = raw[i].Vis,
+                EndLine    = raw[i].EndLine,
             });
         }
         return result;
@@ -289,7 +311,7 @@ public sealed class CodeStructureExtractor
                 var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
                 var body = child.GetChildForField("body");
                 var members = body is { } b ? CsMembers(b, path, kind) : [];
-                outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = CsBases(child) });
+                outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = CsBases(child), EndLine = EndLine(child) });
                 if (body is { } b2) ScanCsTypes(b2, path, outTypes);   // nested types
             }
             else if (child.Type is "namespace_declaration" or "file_scoped_namespace_declaration" or "declaration_list")
@@ -358,20 +380,20 @@ public sealed class CodeStructureExtractor
             {
                 case "method_declaration":
                 case "local_function_statement":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Method, CsVisibility(m, dflt),
+                    AddMember(raw, NameOf(m), m, OutlineKind.Method, CsVisibility(m, dflt),
                         CallableSig(NameOf(m) ?? "", Field(m, "parameters"), Field(m, "returns") ?? Field(m, "type")));
                     break;
                 case "constructor_declaration":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Constructor, CsVisibility(m, dflt),
+                    AddMember(raw, NameOf(m), m, OutlineKind.Constructor, CsVisibility(m, dflt),
                         CallableSig(NameOf(m) ?? "", Field(m, "parameters"), null));
                     break;
                 case "property_declaration":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Property, CsVisibility(m, dflt),
+                    AddMember(raw, NameOf(m), m, OutlineKind.Property, CsVisibility(m, dflt),
                         FieldSig(NameOf(m) ?? "", Field(m, "type")));
                     break;
                 case "indexer_declaration":
                 case "event_declaration":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Property, CsVisibility(m, dflt),
+                    AddMember(raw, NameOf(m), m, OutlineKind.Property, CsVisibility(m, dflt),
                         FieldSig(NameOf(m) ?? "", Field(m, "type")));
                     break;
                 case "field_declaration":
@@ -381,12 +403,12 @@ public sealed class CodeStructureExtractor
                     var type = FirstChild(m, "variable_declaration") is { } vdcl ? Field(vdcl, "type") : null;
                     foreach (var vd in Descendants(m))
                         if (vd.Type == "variable_declarator")
-                            AddMember(raw, NameOf(vd), Line(vd), OutlineKind.Field, vis,
+                            AddMember(raw, NameOf(vd), vd, OutlineKind.Field, vis,
                                 FieldSig(NameOf(vd) ?? "", type));
                     break;
                 }
                 case "enum_member_declaration":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Field); break;
+                    AddMember(raw, NameOf(m), m, OutlineKind.Field); break;
             }
         }
     }
@@ -463,14 +485,14 @@ public sealed class CodeStructureExtractor
                     var kind = child.Type is "interface_declaration" or "type_alias_declaration"
                         ? OutlineKind.Interface
                         : child.Type == "enum_declaration" ? OutlineKind.Enum : OutlineKind.Class;
-                    outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = JsBases(child) });
+                    outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = JsBases(child), EndLine = EndLine(child) });
                     if (body is { } b2) ScanJsTypes(b2, path, outTypes, topFuncs);
                     break;
                 }
                 case "function_declaration":
                 case "generator_function_declaration":
                     if (parentPath.Length == 0)
-                        AddMember(topFuncs, NameOf(child), Line(child), OutlineKind.Method,
+                        AddMember(topFuncs, NameOf(child), child, OutlineKind.Method,
                             OutlineVisibility.Public,
                             CallableSig(NameOf(child) ?? "", Field(child, "parameters"), StripAnno(Field(child, "return_type"))));
                     break;
@@ -524,13 +546,13 @@ public sealed class CodeStructureExtractor
                     var sig = kind == OutlineKind.Constructor
                         ? CallableSig(name ?? "", Field(m, "parameters"), null)
                         : CallableSig(name ?? "", Field(m, "parameters"), StripAnno(Field(m, "return_type")));
-                    AddMember(raw, name, Line(m), kind, JsVisibility(m, name), sig);
+                    AddMember(raw, name, m, kind, JsVisibility(m, name), sig);
                     break;
                 }
                 case "public_field_definition":
                 case "field_definition":
                 case "property_signature":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Property, JsVisibility(m, NameOf(m)),
+                    AddMember(raw, NameOf(m), m, OutlineKind.Property, JsVisibility(m, NameOf(m)),
                         FieldSig(NameOf(m) ?? "", StripAnno(Field(m, "type"))));
                     break;
             }
@@ -610,12 +632,12 @@ public sealed class CodeStructureExtractor
                 var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
                 var body = child.GetChildForField("body");
                 var members = body is { } b ? PyMembers(b, path) : [];
-                outTypes.Add(new OutlineType(name, Line(child), OutlineKind.Class, path, members) { Bases = PyBases(child) });
+                outTypes.Add(new OutlineType(name, Line(child), OutlineKind.Class, path, members) { Bases = PyBases(child), EndLine = EndLine(child) });
                 if (body is { } b2) ScanPyTypes(b2, path, outTypes, topFuncs);
             }
             else if (child.Type == "function_definition" && parentPath.Length == 0)
             {
-                AddMember(topFuncs, NameOf(child), Line(child), OutlineKind.Method, OutlineVisibility.Public,
+                AddMember(topFuncs, NameOf(child), child, OutlineKind.Method, OutlineVisibility.Public,
                     CallableSig(NameOf(child) ?? "", Field(child, "parameters"), StripArrow(Field(child, "return_type"))));
             }
             else if (child.Type is "block" or "module")
@@ -651,13 +673,13 @@ public sealed class CodeStructureExtractor
             {
                 var name = NameOf(m) ?? "";
                 var kind = name == "__init__" ? OutlineKind.Constructor : OutlineKind.Method;
-                AddMember(raw, name, Line(m), kind, PyVisibility(name),
+                AddMember(raw, name, m, kind, PyVisibility(name),
                     CallableSig(name, Field(m, "parameters"), StripArrow(Field(m, "return_type"))));
             }
             else if (m.Type == "expression_statement" && FirstChild(m) is { Type: "assignment" } asg)
             {
                 if (asg.GetChildForField("left") is { Type: "identifier" } lhs)
-                    AddMember(raw, lhs.Text, Line(m), OutlineKind.Field, PyVisibility(lhs.Text),
+                    AddMember(raw, lhs.Text, m, OutlineKind.Field, PyVisibility(lhs.Text),
                         FieldSig(lhs.Text, Field(asg, "type")));
             }
         }
@@ -738,7 +760,7 @@ public sealed class CodeStructureExtractor
                 var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
                 var members = RbMembers(child, path);
                 outTypes.Add(new OutlineType(name, Line(child), child.Type == "module" ? OutlineKind.Interface : OutlineKind.Class, path, members)
-                    { Bases = RbBases(child) });
+                    { Bases = RbBases(child), EndLine = EndLine(child) });
                 ScanRbTypes(child.GetChildForField("body") is { } b ? b : child, path, outTypes);
             }
             else if (child.Type is "body_statement")
@@ -768,11 +790,11 @@ public sealed class CodeStructureExtractor
             {
                 var name = NameOf(m) ?? "";
                 var kind = name == "initialize" ? OutlineKind.Constructor : OutlineKind.Method;
-                AddMember(raw, name, Line(m), kind, OutlineVisibility.Public,
+                AddMember(raw, name, m, kind, OutlineVisibility.Public,
                     CallableSig(name, Field(m, "parameters"), null));
             }
             else if (m.Type is "singleton_method")
-                AddMember(raw, NameOf(m), Line(m), OutlineKind.Method, OutlineVisibility.Public,
+                AddMember(raw, NameOf(m), m, OutlineKind.Method, OutlineVisibility.Public,
                     CallableSig(NameOf(m) ?? "", Field(m, "parameters"), null));
         }
         return Finalize(raw, typePath);
@@ -822,7 +844,7 @@ public sealed class CodeStructureExtractor
                 var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
                 var body = child.GetChildForField("body");
                 var members = body is { } b ? JavaMembers(b, path, kind) : [];
-                outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = JavaBases(child) });
+                outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = JavaBases(child), EndLine = EndLine(child) });
                 if (body is { } b2) ScanJavaTypes(b2, path, outTypes);   // nested types
             }
         }
@@ -856,11 +878,11 @@ public sealed class CodeStructureExtractor
             switch (m.Type)
             {
                 case "method_declaration":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Method, JavaVisibility(m, dflt),
+                    AddMember(raw, NameOf(m), m, OutlineKind.Method, JavaVisibility(m, dflt),
                         CallableSig(NameOf(m) ?? "", Field(m, "parameters"), Field(m, "type")));
                     break;
                 case "constructor_declaration":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Constructor, JavaVisibility(m, dflt),
+                    AddMember(raw, NameOf(m), m, OutlineKind.Constructor, JavaVisibility(m, dflt),
                         CallableSig(NameOf(m) ?? "", Field(m, "parameters"), null));
                     break;
                 case "field_declaration":
@@ -869,15 +891,15 @@ public sealed class CodeStructureExtractor
                     var type = Field(m, "type");
                     foreach (var vd in m.NamedChildren)
                         if (vd.Type == "variable_declarator")
-                            AddMember(raw, NameOf(vd), Line(vd), OutlineKind.Field, vis, FieldSig(NameOf(vd) ?? "", type));
+                            AddMember(raw, NameOf(vd), vd, OutlineKind.Field, vis, FieldSig(NameOf(vd) ?? "", type));
                     break;
                 }
                 case "enum_constant":
-                    AddMember(raw, NameOf(m), Line(m), OutlineKind.Field, OutlineVisibility.Public);
+                    AddMember(raw, NameOf(m), m, OutlineKind.Field, OutlineVisibility.Public);
                     break;
                 case "enum_body_declarations":
                     foreach (var inner in JavaMembers(m, typePath, typeKind)) raw.Add(
-                        new RawMember(inner.Name, inner.Line, inner.Kind, inner.Visibility, inner.Signature));
+                        new RawMember(inner.Name, inner.Line, inner.EndLine, inner.Kind, inner.Visibility, inner.Signature));
                     break;
             }
         }
@@ -931,11 +953,11 @@ public sealed class CodeStructureExtractor
                 var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
                 var body = FirstChild(child, "declaration_list");
                 var members = body is { } b ? PhpMembers(b, path) : [];
-                outTypes.Add(new OutlineType(name, Line(child), PhpTypeKind(child.Type), path, members) { Bases = PhpBases(child) });
+                outTypes.Add(new OutlineType(name, Line(child), PhpTypeKind(child.Type), path, members) { Bases = PhpBases(child), EndLine = EndLine(child) });
             }
             else if (child.Type == "function_definition" && parentPath.Length == 0)
             {
-                AddMember(topFuncs, NameOf(child), Line(child), OutlineKind.Method, OutlineVisibility.Public,
+                AddMember(topFuncs, NameOf(child), child, OutlineKind.Method, OutlineVisibility.Public,
                     CallableSig(NameOf(child) ?? "", Field(child, "parameters"), Field(child, "return_type")));
             }
         }
@@ -970,7 +992,7 @@ public sealed class CodeStructureExtractor
                 {
                     var name = NameOf(m) ?? "";
                     var kind = name == "__construct" ? OutlineKind.Constructor : OutlineKind.Method;
-                    AddMember(raw, name, Line(m), kind, PhpVisibility(m),
+                    AddMember(raw, name, m, kind, PhpVisibility(m),
                         CallableSig(name, Field(m, "parameters"), Field(m, "return_type")));
                     break;
                 }
@@ -982,7 +1004,7 @@ public sealed class CodeStructureExtractor
                         if (pe.Type == "property_element" && pe.GetChildForField("name") is { } vn)
                         {
                             var pname = StripDollar(vn.Text);
-                            AddMember(raw, pname, Line(pe), OutlineKind.Property, vis, FieldSig(pname, type));
+                            AddMember(raw, pname, pe, OutlineKind.Property, vis, FieldSig(pname, type));
                         }
                     break;
                 }
@@ -991,7 +1013,7 @@ public sealed class CodeStructureExtractor
                     var vis = PhpVisibility(m);
                     foreach (var ce in m.NamedChildren)
                         if (ce.Type == "const_element")
-                            AddMember(raw, FirstChild(ce, "name")?.Text, Line(ce), OutlineKind.Field, vis);
+                            AddMember(raw, FirstChild(ce, "name")?.Text, ce, OutlineKind.Field, vis);
                     break;
                 }
             }
@@ -1040,7 +1062,7 @@ public sealed class CodeStructureExtractor
                     var body = FirstChild(child, "field_declaration_list");
                     var dflt = child.Type == "struct_specifier" ? OutlineVisibility.Public : OutlineVisibility.Private;
                     var members = body is { } b ? CppMembers(b, path, name, dflt) : [];
-                    outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = CppBases(child) });
+                    outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = CppBases(child), EndLine = EndLine(child) });
                     if (body is { } b2) ScanCppTypes(b2, path, outTypes, topFuncs);   // nested types
                     break;
                 }
@@ -1052,8 +1074,8 @@ public sealed class CodeStructureExtractor
                     var raw = new List<RawMember>();
                     if (FirstChild(child, "enumerator_list") is { } el)
                         foreach (var e in el.NamedChildren)
-                            if (e.Type == "enumerator") AddMember(raw, NameOf(e), Line(e), OutlineKind.Field);
-                    outTypes.Add(new OutlineType(name, Line(child), OutlineKind.Enum, path, Finalize(raw, path)));
+                            if (e.Type == "enumerator") AddMember(raw, NameOf(e), e, OutlineKind.Field);
+                    outTypes.Add(new OutlineType(name, Line(child), OutlineKind.Enum, path, Finalize(raw, path)) { EndLine = EndLine(child) });
                     break;
                 }
                 case "namespace_definition":
@@ -1064,7 +1086,7 @@ public sealed class CodeStructureExtractor
                     break;
                 case "function_definition":
                     if (parentPath.Length == 0 && CppFunctionName(child) is { } fname)
-                        AddMember(topFuncs, fname, Line(child), OutlineKind.Method, OutlineVisibility.Public, CppSig(child, fname));
+                        AddMember(topFuncs, fname, child, OutlineKind.Method, OutlineVisibility.Public, CppSig(child, fname));
                     break;
             }
         }
@@ -1100,13 +1122,13 @@ public sealed class CodeStructureExtractor
                 case "function_definition":
                 case "declaration":
                     if (CppFunctionName(m) is { } fn)
-                        AddMember(raw, fn, Line(m), fn == typeName ? OutlineKind.Constructor : OutlineKind.Method, vis, CppSig(m, fn));
+                        AddMember(raw, fn, m, fn == typeName ? OutlineKind.Constructor : OutlineKind.Method, vis, CppSig(m, fn));
                     break;
                 case "field_declaration":
                     if (CppFunctionName(m) is { } mfn)                                    // a method declaration
-                        AddMember(raw, mfn, Line(m), mfn == typeName ? OutlineKind.Constructor : OutlineKind.Method, vis, CppSig(m, mfn));
+                        AddMember(raw, mfn, m, mfn == typeName ? OutlineKind.Constructor : OutlineKind.Method, vis, CppSig(m, mfn));
                     else if (CppFieldName(m) is { } dn)                                   // a data member
-                        AddMember(raw, dn, Line(m), OutlineKind.Field, vis, FieldSig(dn, Field(m, "type")));
+                        AddMember(raw, dn, m, OutlineKind.Field, vis, FieldSig(dn, Field(m, "type")));
                     break;
             }
         }
@@ -1141,6 +1163,7 @@ public sealed class CodeStructureExtractor
     {
         public string Name = "";
         public int Line;
+        public int EndLine;
         public OutlineKind Kind;
         public readonly List<RawMember> Members = [];
         public readonly List<BaseRef> Bases = [];
@@ -1165,7 +1188,7 @@ public sealed class CodeStructureExtractor
                 case "enum_item":   RustDeclare(byName, order, child, OutlineKind.Enum, RustEnumVariants(child)); break;
                 case "trait_item":  RustDeclare(byName, order, child, OutlineKind.Interface, RustTraitMethods(child)); break;
                 case "function_item":
-                    AddMember(topRaw, NameOf(child), Line(child), OutlineKind.Method, RustVisibility(child),
+                    AddMember(topRaw, NameOf(child), child, OutlineKind.Method, RustVisibility(child),
                         CallableSig(NameOf(child) ?? "", Field(child, "parameters"), Field(child, "return_type")));
                     break;
                 case "impl_item": RustApplyImpl(byName, order, child); break;
@@ -1176,16 +1199,16 @@ public sealed class CodeStructureExtractor
         foreach (var name in order)
         {
             var rt = byName[name];
-            types.Add(new OutlineType(rt.Name, rt.Line, rt.Kind, $"T:{rt.Name}", Finalize(rt.Members, $"T:{rt.Name}")) { Bases = rt.Bases });
+            types.Add(new OutlineType(rt.Name, rt.Line, rt.Kind, $"T:{rt.Name}", Finalize(rt.Members, $"T:{rt.Name}")) { Bases = rt.Bases, EndLine = rt.EndLine });
         }
         return new CodeOutline(imports, types, Finalize(topRaw, ""));
     }
 
-    private static RustType RustEntry(Dictionary<string, RustType> byName, List<string> order, string name, int line, OutlineKind kind)
+    private static RustType RustEntry(Dictionary<string, RustType> byName, List<string> order, string name, Node node, OutlineKind kind)
     {
         if (!byName.TryGetValue(name, out var rt))
         {
-            rt = new RustType { Name = name, Line = line, Kind = kind };
+            rt = new RustType { Name = name, Line = Line(node), EndLine = EndLine(node), Kind = kind };
             byName[name] = rt;
             order.Add(name);
         }
@@ -1196,7 +1219,7 @@ public sealed class CodeStructureExtractor
     {
         var name = Simple(NameOf(node) ?? "");
         if (name.Length == 0) return;
-        var rt = RustEntry(byName, order, name, Line(node), kind);
+        var rt = RustEntry(byName, order, name, node, kind);
         rt.Kind = kind;                 // a real declaration wins over a placeholder created by an impl block
         rt.Members.AddRange(members);
     }
@@ -1205,7 +1228,7 @@ public sealed class CodeStructureExtractor
     {
         var typeName = Simple(Field(impl, "type") ?? "");
         if (typeName.Length == 0) return;
-        var rt = RustEntry(byName, order, typeName, Line(impl), OutlineKind.Struct);
+        var rt = RustEntry(byName, order, typeName, impl, OutlineKind.Struct);
 
         if (impl.GetChildForField("trait") is { } tr)
         {
@@ -1215,7 +1238,7 @@ public sealed class CodeStructureExtractor
         if (FirstChild(impl, "declaration_list") is { } body)
             foreach (var f in body.NamedChildren)
                 if (f.Type is "function_item" or "function_signature_item")
-                    AddMember(rt.Members, NameOf(f), Line(f), OutlineKind.Method, RustVisibility(f),
+                    AddMember(rt.Members, NameOf(f), f, OutlineKind.Method, RustVisibility(f),
                         CallableSig(NameOf(f) ?? "", Field(f, "parameters"), Field(f, "return_type")));
     }
 
@@ -1225,7 +1248,7 @@ public sealed class CodeStructureExtractor
         if (FirstChild(structItem, "field_declaration_list") is { } body)
             foreach (var f in body.NamedChildren)
                 if (f.Type == "field_declaration")
-                    AddMember(raw, Field(f, "name"), Line(f), OutlineKind.Field, RustVisibility(f),
+                    AddMember(raw, Field(f, "name"), f, OutlineKind.Field, RustVisibility(f),
                         FieldSig(Field(f, "name") ?? "", Field(f, "type")));
         return raw;
     }
@@ -1236,7 +1259,7 @@ public sealed class CodeStructureExtractor
         if (FirstChild(enumItem, "enum_variant_list") is { } body)
             foreach (var v in body.NamedChildren)
                 if (v.Type == "enum_variant")
-                    AddMember(raw, NameOf(v), Line(v), OutlineKind.Field, RustVisibility(v));
+                    AddMember(raw, NameOf(v), v, OutlineKind.Field, RustVisibility(v));
         return raw;
     }
 
@@ -1246,7 +1269,7 @@ public sealed class CodeStructureExtractor
         if (FirstChild(traitItem, "declaration_list") is { } body)
             foreach (var f in body.NamedChildren)
                 if (f.Type is "function_signature_item" or "function_item")
-                    AddMember(raw, NameOf(f), Line(f), OutlineKind.Method, OutlineVisibility.Public,
+                    AddMember(raw, NameOf(f), f, OutlineKind.Method, OutlineVisibility.Public,
                         CallableSig(NameOf(f) ?? "", Field(f, "parameters"), Field(f, "return_type")));
         return raw;
     }

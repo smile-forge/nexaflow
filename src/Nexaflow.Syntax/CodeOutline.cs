@@ -26,6 +26,15 @@ public sealed record OutlineMember(string Name, int Line, OutlineKind Kind, stri
 {
     /// <summary>The member's access level (defaults to public so callers that don't extract it still render a <c>+</c>).</summary>
     public OutlineVisibility Visibility { get; init; } = OutlineVisibility.Public;
+
+    /// <summary>1-based line the declaration ends on, or 0 when the extractor didn't record one.
+    /// <para>
+    /// The parser knows this exactly — it is <c>EndPosition</c> on the very tree-sitter node <see cref="Line"/>
+    /// comes from. Carrying it means a consumer never has to re-derive where a member stops by counting
+    /// braces, which is a small C# parser sitting next to a real one and wrong in all the ways you would
+    /// expect (raw string literals, property initialisers after an accessor list).
+    /// </para></summary>
+    public int EndLine { get; init; }
 }
 
 /// <summary>A declared type and its members. <see cref="AstPath"/> encodes nesting (e.g. <c>T:Outer/T:Inner</c>).
@@ -34,6 +43,10 @@ public sealed record OutlineType(string Name, int Line, OutlineKind Kind, string
 {
     /// <summary>The type's parent class(es) and implemented interfaces, for drawing inheritance edges.</summary>
     public IReadOnlyList<BaseRef> Bases { get; init; } = [];
+
+    /// <summary>1-based line the type ends on, or 0 when the extractor didn't record one. See
+    /// <see cref="OutlineMember.EndLine"/>.</summary>
+    public int EndLine { get; init; }
 }
 
 /// <summary>A region of the file written in another language (the JavaScript inside an HTML

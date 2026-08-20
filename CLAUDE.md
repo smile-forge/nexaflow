@@ -79,10 +79,32 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph node <id>         # a node + ALL its edges (both directions) + hyperedges
 & $nfi graph context <id>      # ONE-SHOT: node + its source + neighbours + owning feature
 & $nfi graph walk <id> --hops 2                                # its N-hop neighbourhood
-& $nfi graph grep <regex> --from <id> --hops 2 --mode content  # grep source of nodes near <id>
+& $nfi graph grep <regex> --from <id> --hops 2 --mode content        # grep source NEAR a code node
+& $nfi graph grep <regex> --from product:<slug> --scope owned --mode content   # grep a whole FEATURE
+& $nfi graph grep <regex> --mode content                             # grep EVERY code node (~1s, 47k nodes)
 & $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
 & $nfi graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
+
+**Searching for a code *pattern* is a graph query too** — not just "where is X". A defect signature ("a path
+compared with a bare `StartsWith`"), an idiom sweep, a "does anything still do Y" — all of it is
+`graph grep … --mode content`, which reports each hit as file:line **plus the owning type/member and feature**.
+Reach for it exactly where you would otherwise type `grep -rn`; a blanket text search is never the better tool
+here, and with no `--from` it covers the whole repo in about a second.
+
+Pick the scope by what you mean, not by tuning a number:
+
+| You mean | Use |
+|---|---|
+| near THIS code (callers, collaborators) | `--from <code-id> --hops 1..2` |
+| inside THIS feature | `--from product:<slug> --scope owned` |
+| anywhere in the repo | no `--from` |
+
+`--scope owned` searches every file the feature's snaplinks land in, so it covers members no link names while
+still stopping at the feature boundary — widening `--hops` until a feature is covered also drags in whatever
+else happens to be that far away. `graph context <id>` prints the owned-file list **and the exact grep command
+for it**, so the anchor never has to be guessed. The two are mutually exclusive by design: passing both
+`--hops` and `--scope owned` is a hard error rather than a silently ignored option.
 
 Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. **`graph` is
 worktree-aware**: run from a linked worktree and both `graph build` and the source-dumping queries (`code`/`context`/
@@ -171,6 +193,8 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 ## Hard Rules
 
 - **Discovery goes through `nfi.exe` — never Grep/Glob/Read-first.** "Where is X / what is X / who calls or instantiates X / what feature owns X / how does X relate to Y" is answered by `graph search`, `graph context`, `find` or `describe` (see above) **before any file is opened**; Read is for the specific block the graph names. Reach for it as reflexively as for Grep — it is cheaper and it surfaces call/ownership/dependency edges grep cannot. Sub-agents follow the same rule: point them at the exe, or spawn `nexaflow-explorer`.
+  - **This covers searching for a code *pattern*, not just a named thing.** "Which code looks like Y" feels like a different job from "where is X" and is the same verb: `graph grep <regex> --mode content` (scope it per the table above). That split is how the rule gets abandoned in practice — the entity lookup goes through the graph, then the pattern hunt falls back to `grep -rn`. It shouldn't: the graph answers it, faster, and names the owning member and feature of every hit instead of just a line.
+  - **Read a block with `graph code <id>`, a whole file with `graph cat file:<relpath>`** — never `sed -n A,Bp` on line numbers guessed from a search hit. Both are worktree-aware; hand-sliced ranges are not.
 - **Before calling a change complete, ask the graph who else depends on what you touched.** Discovery-first finds the thing; this finds the *rest* of it. A package bump is `graph node external:<Name>` (its `depends_on` edges list every consuming project); a type or member is `graph node <id>` / `graph walk <id> --hops 2` for the incoming callers. Do this before you say a fix is done — grep answers "where is this token", the graph answers "what else breaks", and only the second one closes a change.
   > Worked example: the NAudio 3.0 bump renamed `WaveOutEvent`→`WaveOut` and `WaveInEvent`→`WaveIn`. Fixing the Audio feature's playback looked complete and wasn't — Core's `VoiceManager` captures audio and broke the same way. `graph node external:NAudio` names both `Nexaflow.Core.csproj` and `Nexaflow.Features.Audio.csproj` in one query; a grep of the feature you happen to be in names neither.
 - Features depend only on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) — never on Core, rarely on each other
