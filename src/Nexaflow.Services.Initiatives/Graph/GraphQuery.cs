@@ -473,4 +473,186 @@ public static class GraphQuery
         }
         return Math.Min(lines.Length - 1, start + maxLines);
     }
+
+    // ── Orphans ───────────────────────────────────────────────────────────────
+
+    /// <summary>A declaration nothing appears to reach, and the reason that might be fine anyway.</summary>
+    /// <param name="Excuse">
+    /// Null when the node looks genuinely unreached. Otherwise why the graph cannot see the caller — a test the
+    /// runner invokes by reflection, an interface member called through the interface, an entry point. These
+    /// are reported separately rather than hidden, because "unreached, but here is why" is a different claim
+    /// from "unreached".
+    /// </param>
+    public sealed record Orphan(GraphNode Node, string? Excuse);
+
+    /// <summary>
+    /// Declarations with no incoming reference of any kind — nothing calls, constructs, extends, implements,
+    /// tests, documents, binds to or snaplinks them.
+    ///
+    /// <para>
+    /// <c>contains</c> is ignored on purpose: every member is contained by its type and every type by its file,
+    /// so counting structure would mean nothing is ever an orphan. What is counted is a *use*.
+    /// </para>
+    /// <para>
+    /// This is a lead, not a verdict, and the honest reasons it can be wrong are worth stating: edges are
+    /// name-resolved, so a call the resolver could not place leaves its target looking unused; and anything
+    /// reached purely at runtime — reflection by string, a DI container, a serializer reading properties — is
+    /// invisible here by construction. Treat a hit as "worth looking at", which is exactly what nothing at all
+    /// could tell you before.
+    /// </para>
+    /// </summary>
+    /// <param name="type">Restrict to a node type; defaults to <c>type</c>, which is far and away the least noisy.</param>
+    /// <param name="under">
+    /// Path prefix to restrict to. Defaults to <c>src/</c> for a reason worth keeping: a submodule under
+    /// <c>external/</c> is a whole third-party library, and the parts of it this repo does not call are not
+    /// findings — left in, they were every single hit. Pass an empty string to search everything.
+    /// </param>
+    /// <param name="includeExcused">Also return the nodes that have a reason (tests, interface members, entry points).</param>
+    public static IReadOnlyList<Orphan> Orphans(KnowledgeGraph g, string? type = NodeType.Type,
+                                                string? under = "src/",
+                                                bool includeExcused = false, int limit = 200)
+    {
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+            if (e.Relationship != EdgeRelationship.Contains)
+                used.Add(e.Target);
+
+        // A hyperedge is a use too: an argument to a call, a parameter or return in a signature, an attribute.
+        foreach (var h in g.HyperEdges)
+            foreach (var p in h.Endpoints)
+                if (p.Role != EndpointRole.Target && p.Role != EndpointRole.Member)
+                    used.Add(p.Node);
+
+        // A type whose member is reached is reached. Without this every static utility class is an orphan:
+        // `RepoFiles.EnumerateSource(...)` is an edge to the *method*, and nothing ever names the class.
+        foreach (var id in used.ToList())
+            if (OwningTypeId(id) is { } owner)
+                used.Add(owner);
+
+        var index = Index(g);
+        var attributes = AttributesByNode(g);
+        var inherited = InheritedMemberNames(g, index);
+
+        // A resource key defined in more than one dictionary — a light and a dark theme both declaring
+        // AccentBrush. A {StaticResource} reference resolves to one of them, so the others look unreferenced
+        // when the truth is that merge order picks the winner at runtime.
+        var duplicateKeys = g.Nodes
+            .Where(n => n.Type == NodeType.Type
+                        && n.Metadata?.GetValueOrDefault("ast") is { } a && a.StartsWith("K:", StringComparison.Ordinal))
+            .GroupBy(n => n.Label, StringComparer.Ordinal)
+            .Where(gr => gr.Count() > 1 && gr.Any(n => used.Contains(n.Id)))
+            .Select(gr => gr.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var found = new List<Orphan>();
+        foreach (var n in g.Nodes)
+        {
+            if (n.FilePath is null) continue;                       // product/external nodes have no declaration
+            if (under is { Length: > 0 } prefix
+                && !n.FilePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            if (type is not null && n.Type != type) continue;
+            if (n.Type is not (NodeType.Type or NodeType.Member)) continue;
+            if (used.Contains(n.Id)) continue;
+
+            var excuse = Excuse(n, attributes, inherited, duplicateKeys);
+            if (excuse is not null && !includeExcused) continue;
+            found.Add(new Orphan(n, excuse));
+            if (found.Count >= limit) break;
+        }
+        return found;
+    }
+
+    /// <summary>Why an apparently-unreached declaration may be reached anyway, or null if nothing excuses it.</summary>
+    private static string? Excuse(GraphNode n,
+                                  IReadOnlyDictionary<string, HashSet<string>> attributes,
+                                  IReadOnlyDictionary<string, HashSet<string>> inherited,
+                                  IReadOnlySet<string> duplicateKeys)
+    {
+        // An enum is used as `Severity.Warning` — a value reference, and the extractor records calls and
+        // constructions rather than every mention of a type. So an unreferenced enum says little.
+        if (n.Metadata?.GetValueOrDefault("kind") == "enum")
+            return "an enum - a value reference is not an edge the graph records";
+
+        if (duplicateKeys.Contains(n.Label))
+            return "another dictionary defines this key and is referenced; merge order decides at runtime";
+
+        // A XAML anchor is reached in ways nothing here records yet: a UI journey finds an AutomationId by
+        // string, and ElementName / TargetName reference an x:Name from inside the XAML itself. Until those
+        // are edges, an unreferenced anchor is not evidence of anything.
+        if (n.FilePath?.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase) == true)
+            return "a XAML anchor - a UI test's string id and an ElementName binding are not edges yet";
+
+        if (attributes.TryGetValue(n.Id, out var attrs))
+        {
+            foreach (var a in attrs)
+                if (a.EndsWith("TestMethod", StringComparison.Ordinal)
+                    || a.EndsWith("TestClass", StringComparison.Ordinal)
+                    || a.EndsWith("TestInitialize", StringComparison.Ordinal)
+                    || a.EndsWith("TestCleanup", StringComparison.Ordinal)
+                    || a.EndsWith("AssemblyInitialize", StringComparison.Ordinal)
+                    || a.EndsWith("ClassInitialize", StringComparison.Ordinal))
+                    return "a test, run by reflection";
+
+            foreach (var a in attrs)
+                if (a.EndsWith("RelayCommand", StringComparison.Ordinal)
+                    || a.EndsWith("ObservableProperty", StringComparison.Ordinal))
+                    return "generates a public member the view may bind";
+        }
+
+        if (n.Type == NodeType.Member && n.Label == "Main") return "an entry point";
+
+        // Declared on a base or interface: the call goes through that, not through this declaration.
+        var owner = OwningTypeId(n.Id);
+        if (owner is not null && inherited.TryGetValue(owner, out var names) && names.Contains(n.Label))
+            return "declared on a base type or interface";
+
+        return null;
+    }
+
+    /// <summary>Attribute names per annotated node, from the <c>annotated</c> hyperedges.</summary>
+    private static Dictionary<string, HashSet<string>> AttributesByNode(KnowledgeGraph g)
+    {
+        var map = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var h in g.HyperEdges)
+        {
+            if (h.Relationship != HyperRelationship.Annotated) continue;
+            var target = h.Endpoints.FirstOrDefault(p => p.Role == EndpointRole.Target)?.Node;
+            var attr = h.Endpoints.FirstOrDefault(p => p.Role == EndpointRole.Attr)?.Node;
+            if (target is null || attr is null) continue;
+            if (!map.TryGetValue(target, out var set)) map[target] = set = new HashSet<string>(StringComparer.Ordinal);
+            set.Add(attr);
+        }
+        return map;
+    }
+
+    /// <summary>For each type, the member names its bases and interfaces declare — the ones a call reaches indirectly.</summary>
+    private static Dictionary<string, HashSet<string>> InheritedMemberNames(
+        KnowledgeGraph g, IReadOnlyDictionary<string, GraphNode> index)
+    {
+        var membersOf = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+        {
+            if (e.Relationship != EdgeRelationship.Contains) continue;
+            if (!index.TryGetValue(e.Target, out var target) || target.Type != NodeType.Member) continue;
+            if (!membersOf.TryGetValue(e.Source, out var list)) membersOf[e.Source] = list = [];
+            list.Add(target.Label);
+        }
+
+        var map = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+        {
+            if (e.Relationship is not (EdgeRelationship.Extends or EdgeRelationship.Implements)) continue;
+            if (!membersOf.TryGetValue(e.Target, out var names)) continue;
+            if (!map.TryGetValue(e.Source, out var set)) map[e.Source] = set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var name in names) set.Add(name);
+        }
+        return map;
+    }
+
+    /// <summary>The type node id owning a member id — <c>code:F.cs#T:A/M:B</c> → <c>code:F.cs#T:A</c>.</summary>
+    private static string? OwningTypeId(string memberId)
+    {
+        var cut = memberId.LastIndexOf('/');
+        return cut > 0 ? memberId[..cut] : null;
+    }
 }

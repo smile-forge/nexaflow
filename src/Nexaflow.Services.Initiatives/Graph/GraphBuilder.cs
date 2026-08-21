@@ -470,10 +470,15 @@ public sealed class GraphBuilder
 
         // Every x:Key in the repo, for resolving a {StaticResource} that points at a merged dictionary.
         var keysByName = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
+        var typesByName = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
         foreach (var n in _nodes.Values)
-            if (n.Type == NodeType.Type && n.Metadata?.GetValueOrDefault("ast") is { } a
-                && a.StartsWith("K:", StringComparison.Ordinal))
+        {
+            if (n.Type != NodeType.Type) continue;
+            if (n.Metadata?.GetValueOrDefault("ast") is { } a && a.StartsWith("K:", StringComparison.Ordinal))
                 Index(keysByName, n.Label, n);
+            else if (n.FilePath is { } f && f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                Index(typesByName, n.Label, n);
+        }
 
         foreach (var rel in _nodes.Values
                      .Where(n => n.Type == NodeType.File && n.FilePath is { } f
@@ -494,6 +499,7 @@ public sealed class GraphBuilder
             LinkXamlHandlers(rel, codeBehind);
             LinkCodeBehindUsage(rel, codeBehind, anchors);
             LinkXamlResources(rel, anchors, keysByName);
+            LinkXamlTypeUses(rel, typesByName);
         }
     }
 
@@ -602,6 +608,41 @@ public sealed class GraphBuilder
 
     private static readonly Regex ResourceRef =
         new(@"\{\s*(?:Static|Dynamic)Resource\s+([A-Za-z_][\w.]*)\s*\}", RegexOptions.Compiled);
+
+    /// <summary>A namespace-prefixed name: an element <c>&lt;ctrl:ActivityTicker&gt;</c>, or a type argument
+    /// <c>{x:Type vmo:PromptOverlay}</c>. The prefix is what marks it as one of ours rather than a framework tag.</summary>
+    private static readonly Regex PrefixedTypeUse =
+        new(@"[<{]\s*(?:x:Type\s+)?[A-Za-z_]\w*:([A-Za-z_]\w*)", RegexOptions.Compiled);
+
+    /// <summary>An attached property — <c>ctrl:FocusOnLoad.Enabled="True"</c>. The type is named by an
+    /// attribute rather than a tag, which is the other half of how a view uses one of our classes.</summary>
+    private static readonly Regex PrefixedAttachedUse =
+        new(@"[\s{][A-Za-z_]\w*:([A-Za-z_]\w*)\.[A-Za-z_]", RegexOptions.Compiled);
+
+    /// <summary>
+    /// A view's use of a CLR type — <c>&lt;ctrl:ActivityTicker/&gt;</c>, <c>&lt;conv:BoolToVis/&gt;</c>,
+    /// <c>{x:Type vmo:PromptOverlay}</c>.
+    /// <para>
+    /// Without this a control or converter written for XAML has no incoming edge at all: it is constructed by
+    /// the XAML loader, so no C# ever names it. That reads as dead code, and the whole class of "used only
+    /// from a view" was the bulk of what an orphan search first turned up.
+    /// </para>
+    /// Only prefixed names are considered — an unprefixed tag is a framework type (<c>Grid</c>, <c>Border</c>)
+    /// and matching those against our type index would invent edges from a coincidence of naming.
+    /// </summary>
+    private void LinkXamlTypeUses(string rel, Dictionary<string, List<GraphNode>> typesByName)
+    {
+        var full = Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) return;
+
+        foreach (var pattern in new[] { PrefixedTypeUse, PrefixedAttachedUse })
+            foreach (Match m in pattern.Matches(text))
+            {
+                if (!typesByName.TryGetValue(m.Groups[1].Value, out var candidates) || candidates.Count != 1) continue;
+                Edge("file:" + rel, candidates[0].Id, EdgeRelationship.References,
+                     GraphConfidence.Strong, provenance: rel);
+            }
+    }
 
     private static readonly Regex BindingRef = new(@"\{\s*Binding\s+([^}]+)\}", RegexOptions.Compiled);
 

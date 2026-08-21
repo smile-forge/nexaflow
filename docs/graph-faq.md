@@ -69,7 +69,7 @@ in the package** — `TreeSitterLanguages` registers `cpp` for `.cpp/.hpp/...` a
 | What are the major dependency chains? | `graph node file:<x>.csproj` → `depends_on`. Project-level layering is exact — it comes from `ProjectReference`, not inference | ✅ |
 | Which components are central to the repository? | `graph stats` names the largest communities; `graph node` shows a node's edge counts | 🟡 — there is no fan-in ranking, so "central" is eyeballed |
 | What are the major architectural boundaries? | `depends_on` gives the real project graph. But the *rules* (features never reference Core, etc.) are enforced by `Nexaflow.Tests.Features.Architecture`, not the graph | 🟡 |
-| What code is dead, orphaned, or disconnected? | — | ❌ **No orphan query.** Nothing lists nodes with no incoming edges. This is the single most valuable missing verb, and it is straightforward: the data is already there |
+| What code is dead, orphaned, or disconnected? | `nfi graph orphans` (AI: `graph_orphans`) — declarations with no incoming reference, scoped to `src/`, with the innocent explanations (a test run by reflection, an interface member, an enum, a theme key another dictionary also defines) filtered out and shown by `--all` | 🟡 — **a lead, not a verdict**; see the note below |
 | What are the primary entry points? | `graph grep "static.*void Main" --mode content` finds them, but by text | 🟡 — see *Executable surfaces* |
 | What are the executable surfaces, and what participates in each? | — | 🟡/❌ — see below |
 
@@ -188,7 +188,16 @@ member and feature of every hit, which a text search cannot.
 
 **Not answered, and worth fixing** (in rough value order):
 
-1. **Orphans** — nodes with no incoming edges. Highest value, lowest effort; the data exists.
+1. ~~**Orphans**~~ — **added**, and it turned up something bigger than itself. The query works, but on this
+   graph it still reports ~215 candidate types in `src/` and a substantial share are false positives. The
+   cause is one thing, and it limits far more than orphan detection: **the extractor records calls and
+   constructions, not general references.** `ElevatedOps.DiskMount` is a member access; a converter is reached
+   through its `x:Key`; an enum is used by value. None produce an edge, so all of them read as unreached.
+   (Measured: only 13 of 201 distinct orphan names even have an unresolved `external:` stub, so this is not
+   the resolver declining — the reference was never recorded at all.) Building the graph found and fixed three
+   other causes along the way — XAML element and attached-property type uses, and rolling a member's use up to
+   its type — which took it from 627 to 215. The remaining fix is a **type-mention edge in the C# extractor**,
+   which would also complete "what references this type" for every other question here.
 2. **Paths between two nodes** — blocks every "trace X to Y" and "what does this entry point reach" question.
 3. **Fan-in/fan-out ranking** — turns "which components are central" from eyeballing into an answer.
 4. **Entry points as a first-class kind** — `Main`, `IPageRegistration`, test entry, installer.

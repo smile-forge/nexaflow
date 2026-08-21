@@ -86,6 +86,20 @@ public static class GraphTools
                 [], ToolSafety.SafeOperation,
                 (_, _) => Task.FromResult(Stats(productRoot))),
 
+            new DelegateClientTool("graph_orphans",
+                "Declarations nothing appears to reach - no call, construction, inheritance, test or snaplink "
+                + "points at them. A starting point for dead-code hunting, NOT proof: edges are name-resolved, "
+                + "the graph records calls and constructions rather than every mention of a type, and anything "
+                + "reached only at runtime (reflection, DI, a serializer) leaves no edge. Each hit that has a "
+                + "known innocent explanation says so. Verify before deleting anything.",
+                [new ClientToolParameter("type", "'type' (default, least noisy) or 'member'.", Required: false),
+                 new ClientToolParameter("under", "Path prefix to search; defaults to 'src/' so a third-party "
+                                                + "submodule's unused half is not reported. '' searches all.", Required: false),
+                 new ClientToolParameter("all", "Also list hits that have a known explanation.", Required: false, Type: "boolean"),
+                 new ClientToolParameter("limit", "Maximum rows (default 200).", Required: false, Type: "number")],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Orphans(productRoot, a))),
+
             new DelegateClientTool("graph_build",
                 "Rebuild graph.json from the product tree and the current source. Incremental - only files "
                 + "that changed are re-parsed - but it still walks the repo, so it is the one graph tool that "
@@ -172,6 +186,21 @@ public static class GraphTools
         var block = GraphQuery.ReadSource(node, Reader(root), Int(a, "lines", 200));
         return ToolResult.Ok(block is null ? "no source" : $"{node.Label} source",
                              GraphReport.Source(node, block));
+    }
+
+    private static ToolResult Orphans(string root, JsonObject a)
+    {
+        if (!TryLoad(root, out var g, out var error)) return error;
+
+        var type = Blank(Str(a, "type")) ?? NodeType.Type;
+        if (type is not (NodeType.Type or NodeType.Member))
+            return ToolResult.Error($"'type' must be 'type' or 'member' (got '{type}').");
+
+        var under = Str(a, "under") ?? "src/";
+        var all = Str(a, "all") is { } flag && bool.TryParse(flag, out var b) && b;
+
+        var orphans = GraphQuery.Orphans(g, type, under, all, Int(a, "limit", 200));
+        return ToolResult.Ok($"{orphans.Count} unreached {type}(s)", GraphReport.Orphans(orphans, type, all));
     }
 
     private static ToolResult Stats(string root)

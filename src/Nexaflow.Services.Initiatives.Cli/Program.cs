@@ -310,6 +310,7 @@ internal static class Program
             switch (args[0])
             {
                 case "stats":                 return GraphStats(args[1..]);
+                case "orphans":               return GraphOrphans(args[1..]);
                 case "node":                  return GraphNode(args[1..]);
                 case "search":                return GraphSearch(args[1..]);
                 case "list":                  return GraphList(args[1..]);
@@ -437,6 +438,23 @@ internal static class Program
     // GraphQuery and GraphReport originals. They are gone, and call sites use the library directly: this file
     // is a shell over that library, not a second implementation of it. GraphQuery.BlockEnd records what the
     // copies had quietly diverged into, and CliHasNoPrivateGraphTwinsTests keeps them from coming back.
+
+    /// <summary>Declarations nothing appears to reach. A lead to look at, not a verdict - see GraphQuery.Orphans.</summary>
+    private static int GraphOrphans(string[] args)
+    {
+        if (!TryRead(Specs.GraphOrphans, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
+
+        var type = a.Value("--type") ?? NodeType.Type;
+        if (type is not (NodeType.Type or NodeType.Member))
+            return Usage($"graph orphans: --type must be 'type' or 'member' (got '{type}')");
+
+        if (!TryIntOpt(a, "--limit", 200, out var limit)) return Error;
+        var orphans = GraphQuery.Orphans(g, type, a.Value("--under") ?? "src/", a.Has("--all"), limit);
+
+        Console.WriteLine(GraphReport.Orphans(orphans, type, a.Has("--all")));
+        return Clean;
+    }
 
     private static int GraphStats(string[] args)
     {
@@ -1396,6 +1414,9 @@ internal static class Program
             ["--json", "--product-anchored", "--no-incremental", "--main"],
             "graph [<root>] [--no-incremental] [--product-anchored] [--main | --code-root <dir>] [--json]");
         public static readonly VerbSpec GraphStats = new("graph stats", 0, None, None, "graph stats [<root>]");
+        public static readonly VerbSpec GraphOrphans = new("graph orphans", 0,
+            ["--type", "--limit", "--under"], ["--all"],
+            "graph orphans [<root>] [--type type|member] [--under <path>] [--all] [--limit N]");
         public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], None,
             "graph search <term> [<root>] [--type <t>] [--limit N]");
         public static readonly VerbSpec GraphList = new("graph list", 0,

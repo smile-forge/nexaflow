@@ -223,4 +223,41 @@ public static class GraphReport
             sb.AppendLine($"  ⬡ {hyper.Relationship}: "
                         + string.Join(", ", hyper.Endpoints.Select(p => $"{p.Role}={LabelOf(h, p.Node)}")));
     }
+
+    /// <summary>
+    /// The orphan list. Deliberately reads as a lead rather than a verdict: the closing line says what the
+    /// graph cannot see, because a reader who takes "0 incoming edges" as proof will delete something a
+    /// serializer or a DI container was using.
+    /// </summary>
+    public static string Orphans(IReadOnlyList<GraphQuery.Orphan> orphans, string type, bool includeExcused)
+    {
+        var sb = new StringBuilder();
+        var noun = type == NodeType.Type ? "type" : "member";
+
+        if (orphans.Count == 0)
+        {
+            sb.AppendLine($"No unreached {noun}s found.");
+        }
+        else
+        {
+            foreach (var o in orphans)
+            {
+                var where = o.Node.FilePath is { } f
+                    ? $"{f}:{o.Node.Metadata?.GetValueOrDefault("line") ?? "?"}"
+                    : "";
+                sb.AppendLine($"  {o.Node.Label,-42} {where}");
+                sb.AppendLine($"      {o.Node.Id}");
+                if (o.Excuse is { } excuse) sb.AppendLine($"      likely reached anyway - {excuse}");
+            }
+            sb.AppendLine();
+            sb.AppendLine($"{orphans.Count} {noun}(s) with no incoming reference"
+                        + (includeExcused ? ", including ones with a known reason." : "."));
+        }
+
+        sb.Append("Nothing calls, constructs, extends, tests or snaplinks these. Worth a look - not proof: "
+                + "edges are name-resolved, and anything reached only at runtime (reflection, DI, a serializer "
+                + "reading properties) leaves no edge to find."
+                + (includeExcused ? "" : " Add --all to also list the ones with a known reason."));
+        return sb.ToString();
+    }
 }
