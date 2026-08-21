@@ -322,7 +322,7 @@ public sealed class CodeHighlighter : IDisposable
         {
             if (inj.GroupKey is null) continue;
             if (inj.Start < 0 || inj.End <= inj.Start || inj.End > textLength) continue;
-            var key = inj.TargetGrammarId + " " + inj.GroupKey;
+            var key = inj.TargetGrammarId + "\0" + inj.GroupKey;
             if (!byKey.TryGetValue(key, out var g)) { g = (inj.TargetGrammarId, new List<InjectionRange>()); byKey[key] = g; order.Add(key); }
             g.Ranges.Add(inj);
         }
