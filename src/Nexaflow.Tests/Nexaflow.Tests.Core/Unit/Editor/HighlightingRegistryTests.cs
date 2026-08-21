@@ -9,14 +9,15 @@ namespace Nexaflow.Tests.Core.Unit.Editor;
 public class HighlightingRegistryTests
 {
     [TestMethod]
-    public void XmlFamily_ResolvesToXshd()
+    public void XmlFamily_ResolvesToTreeSitter()
     {
-        // xml/xaml/xsl keep the built-in .xshd engine (no bundled tree-sitter xml grammar).
-        foreach (var name in new[] { "a.xml", "b.xsl" })
+        // The xml grammar is built from external/tree-sitter-xml, so the whole family left the .xshd engine
+        // behind: one parser now serves highlighting, folding and the structure outline.
+        foreach (var (name, grammar) in new[] { ("a.xml", "xml"), ("b.xsl", "xml"), ("c.xslt", "xml") })
         {
             var r = HighlightingRegistry.Resolve(name);
-            Assert.AreEqual(HighlightMode.Xshd, r.Mode, name);
-            Assert.IsNotNull(r.Definition, name);
+            Assert.AreEqual(HighlightMode.TreeSitter, r.Mode, name);
+            Assert.AreEqual(grammar, r.TreeSitterLanguage, name);
         }
     }
 
@@ -53,11 +54,13 @@ public class HighlightingRegistryTests
     }
 
     [TestMethod]
-    public void Xaml_ResolvesToXmlXshd()
+    public void Xaml_ResolvesToItsOwnGrammarId()
     {
+        // XAML parses with the xml grammar (CodeHighlighter.NativeAlias) but keeps a distinct id, which is
+        // what lets the structure extractor read x:Class / x:Name / x:Key / handlers out of the same tree.
         var r = HighlightingRegistry.Resolve("MainWindow.xaml");
-        Assert.AreEqual(HighlightMode.Xshd, r.Mode);
-        Assert.IsNotNull(r.Definition);
+        Assert.AreEqual(HighlightMode.TreeSitter, r.Mode);
+        Assert.AreEqual("xaml", r.TreeSitterLanguage);
     }
 
     [TestMethod]
