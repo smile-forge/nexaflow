@@ -684,4 +684,151 @@ public static class GraphQuery
         var cut = memberId.LastIndexOf('/');
         return cut > 0 ? memberId[..cut] : null;
     }
+
+    // ── Paths ─────────────────────────────────────────────────────────────────
+
+    /// <summary>One hop along a path: the relationship taken and the node arrived at.</summary>
+    public sealed record PathStep(string Relationship, GraphNode Node);
+
+    /// <summary>A route between two nodes — the start, then every hop taken to reach the end.</summary>
+    public sealed record GraphPath(GraphNode From, IReadOnlyList<PathStep> Steps)
+    {
+        public int Hops => Steps.Count;
+    }
+
+    /// <summary>
+    /// Routes from one node to another — the question <c>walk</c> could never answer, because a walk returns
+    /// a ball around a single node rather than the ways two nodes connect.
+    ///
+    /// <para>
+    /// <b>Directed by default</b>, which is the useful reading: "what does this entry point reach" follows
+    /// edges the way the code does. <paramref name="undirected"/> answers the looser "how are these two
+    /// related at all".
+    /// </para>
+    /// <para>
+    /// <b>Containment is never dropped</b> — it is real structure, and in the product tree it is the whole
+    /// backbone: a feature contains its UI, which contains a panel. What is meaningless is not the edge but
+    /// one <i>traversal shape</i>: walking <i>up</i> a container and straight back <i>down</i> into a sibling.
+    /// That move makes every pair of declarations in a file two hops apart via the file, which would drown
+    /// every real answer. So undirected search forbids exactly that — a descent immediately after an ascent —
+    /// and keeps containment available everywhere else. (Snaplink edges are deliberately kept too: a
+    /// <c>tests</c> or <c>documents</c> link is how a path crosses from the product tree into code, which is
+    /// usually the most useful hop in the whole route.)
+    /// </para>
+    /// <para>
+    /// Only <b>shortest</b> paths are returned. Enumerating every route between two nodes in a graph this
+    /// dense is exponential and unreadable; the shortest ones are the ones that explain the relationship.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<GraphPath> Paths(KnowledgeGraph g, string fromId, string toId,
+                                                 int maxHops = 6, int limit = 10, bool undirected = false)
+    {
+        var index = Index(g);
+        if (!index.TryGetValue(fromId, out var from) || !index.ContainsKey(toId)) return [];
+        if (fromId == toId) return [new GraphPath(from, [])];
+
+        var next = new Dictionary<string, List<(string To, string Rel, bool Ascending)>>(StringComparer.Ordinal);
+        void Link(string a, string b, string rel, bool ascending)
+        {
+            if (!next.TryGetValue(a, out var list)) next[a] = list = [];
+            list.Add((b, rel, ascending));
+        }
+        foreach (var e in g.Edges)
+        {
+            Link(e.Source, e.Target, e.Relationship, ascending: false);
+            if (undirected) Link(e.Target, e.Source, e.Relationship, ascending: true);
+        }
+
+        // Up-then-down through a container is the one move that means nothing, so it is the one move barred.
+        // The state carries whether the last hop climbed a containment edge; a descent is refused from there.
+        bool Barred(bool climbed, string rel, bool ascending) =>
+            climbed && !ascending && rel == EdgeRelationship.Contains;
+
+        // Distance from the start, capped — then walk forward taking only hops that close the gap, which
+        // yields exactly the shortest routes without enumerating the whole graph.
+        var dist = new Dictionary<(string Node, bool Climbed), int> { [(fromId, false)] = 0 };
+        var queue = new Queue<(string Node, bool Climbed)>();
+        queue.Enqueue((fromId, false));
+        while (queue.Count > 0)
+        {
+            var state = queue.Dequeue();
+            var d = dist[state];
+            if (d >= maxHops || state.Node == toId) continue;
+            if (!next.TryGetValue(state.Node, out var outgoing)) continue;
+            foreach (var (to, rel, ascending) in outgoing)
+            {
+                if (Barred(state.Climbed, rel, ascending)) continue;
+                var step = (to, ascending && rel == EdgeRelationship.Contains);
+                if (!dist.ContainsKey(step)) { dist[step] = d + 1; queue.Enqueue(step); }
+            }
+        }
+
+        var target = dist.Where(kv => kv.Key.Node == toId).Select(kv => kv.Value).DefaultIfEmpty(-1).Min();
+        if (target < 0) return [];
+
+        var found = new List<GraphPath>();
+        var steps = new List<PathStep>();
+        void Walk(string current, bool climbed, int depth)
+        {
+            if (found.Count >= limit) return;
+            if (current == toId) { found.Add(new GraphPath(from, [.. steps])); return; }
+            if (!next.TryGetValue(current, out var outgoing)) return;
+
+            foreach (var (to, rel, ascending) in outgoing.OrderBy(x => x.To, StringComparer.Ordinal))
+            {
+                if (Barred(climbed, rel, ascending)) continue;
+                var nextClimbed = ascending && rel == EdgeRelationship.Contains;
+                if (!dist.TryGetValue((to, nextClimbed), out var d) || d != depth + 1 || d > target) continue;
+                if (!index.TryGetValue(to, out var node)) continue;
+                steps.Add(new PathStep(ascending ? rel + " (up)" : rel, node));
+                Walk(to, nextClimbed, d);
+                steps.RemoveAt(steps.Count - 1);
+                if (found.Count >= limit) return;
+            }
+        }
+        Walk(fromId, false, 0);
+        return found;
+    }
+
+    // ── Fan-in / fan-out ──────────────────────────────────────────────────────
+
+    /// <summary>A node with how many edges point at it and how many it sends out.</summary>
+    public sealed record Ranking(GraphNode Node, int FanIn, int FanOut);
+
+    /// <summary>
+    /// Nodes ordered by how much of the graph points at them (fan-in) or how much they reach (fan-out) — the
+    /// difference between "which components are central" being eyeballed from community sizes and being read
+    /// off a list.
+    ///
+    /// <para>
+    /// <c>contains</c> never counts. It is pure structure: counting it would rank types by how many members
+    /// they declare and files by how many types they hold, which measures size, not centrality — and the
+    /// biggest class would win every time regardless of whether anything uses it.
+    /// </para>
+    /// </summary>
+    /// <param name="type">Restrict to a node type; null for all.</param>
+    /// <param name="under">Path prefix to restrict to — defaults to everything, unlike orphans, because a
+    /// heavily-used third-party type is a legitimate answer to "what is central here".</param>
+    public static IReadOnlyList<Ranking> Rank(KnowledgeGraph g, bool byFanIn = true, string? type = null,
+                                              string? under = null, int limit = 25)
+    {
+        var fanIn = new Dictionary<string, int>(StringComparer.Ordinal);
+        var fanOut = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+        {
+            if (e.Relationship == EdgeRelationship.Contains) continue;
+            fanIn[e.Target] = fanIn.GetValueOrDefault(e.Target) + 1;
+            fanOut[e.Source] = fanOut.GetValueOrDefault(e.Source) + 1;
+        }
+
+        return [.. g.Nodes
+            .Where(n => type is null || n.Type == type)
+            .Where(n => under is not { Length: > 0 } prefix
+                        || (n.FilePath?.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ?? false))
+            .Select(n => new Ranking(n, fanIn.GetValueOrDefault(n.Id), fanOut.GetValueOrDefault(n.Id)))
+            .Where(r => (byFanIn ? r.FanIn : r.FanOut) > 0)
+            .OrderByDescending(r => byFanIn ? r.FanIn : r.FanOut)
+            .ThenBy(r => r.Node.Id, StringComparer.Ordinal)
+            .Take(limit)];
+    }
 }

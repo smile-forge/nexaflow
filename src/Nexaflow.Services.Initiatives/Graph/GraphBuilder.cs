@@ -844,7 +844,11 @@ public sealed class GraphBuilder
         string? Property(string name) => doc.Descendants()
             .FirstOrDefault(e => e.Name.LocalName == name && !string.IsNullOrWhiteSpace(e.Value))?.Value.Trim();
 
-        var project = Node(fileId, NodeType.File, Path.GetFileName(rel), file: rel);
+        // Carry the language even though the structured layer usually created this node already: node creation
+        // is first-wins, so whichever call arrives first decides, and a language-less winner makes a parsed
+        // project look unparsed (which is exactly what `graph list --unparsed` keys off).
+        var project = Node(fileId, NodeType.File, Path.GetFileName(rel), file: rel,
+                           language: Path.GetExtension(rel).TrimStart('.').ToLowerInvariant(), source: rel);
         Meta(project, "output_type", (Property("OutputType") ?? "Library").ToLowerInvariant());
         if ((Property("TargetFramework") ?? Property("TargetFrameworks")) is { Length: > 0 } tfm)
             Meta(project, "target_framework", tfm);
@@ -922,13 +926,13 @@ public sealed class GraphBuilder
             if (r.Kind == RawRefKind.Call)
             {
                 // An unresolved call is a built-in / library method — skip it rather than guess or explode the graph.
-                if (ResolveOne(membersByName, r.Name, relPath) is { } hit)
+                if (ResolveCall(membersByName, r.Name, relPath) is { } hit)
                 {
                     Edge(sourceId, hit.Node.Id, EdgeRelationship.Calls, hit.Confidence, provenance: relPath);
                     linked.Add((sourceId, hit.Node.Id));
                 }
             }
-            else if (ResolveOne(typesByName, r.Name, relPath) is { } hit)   // New → instantiates
+            else if (ResolveMention(typesByName, r.Name, relPath) is { } hit)   // New → instantiates
             {
                 Edge(sourceId, hit.Node.Id, EdgeRelationship.Instantiates, hit.Confidence, provenance: relPath);
                 linked.Add((sourceId, hit.Node.Id));
@@ -958,11 +962,73 @@ public sealed class GraphBuilder
             if (r.Kind != RawRefKind.Mention) continue;
             var sourceId = "code:" + relPath + "#" + r.FromAst;
             if (!_nodes.ContainsKey(sourceId)) continue;
-            if (ResolveOne(typesByName, r.Name, relPath) is not { } hit) continue;
+            if (ResolveMention(typesByName, r.Name, relPath) is not { } hit) continue;
             if (OwningTypeId(sourceId) == hit.Node.Id) continue;   // a member naming its own type says nothing
             if (!linked.Add((sourceId, hit.Node.Id))) continue;
             Edge(sourceId, hit.Node.Id, EdgeRelationship.References, hit.Confidence, provenance: relPath);
         }
+    }
+
+    /// <summary>
+    /// Resolves a called name, refusing the matches the language itself would refuse. A bare method name is
+    /// the most collision-prone thing in the graph — every <c>.Where(…)</c>, <c>.Trim()</c> and
+    /// <c>.StartsWith(…)</c> in the repository is a call to the BCL, and name-only matching happily bound all
+    /// of them to whatever local declaration shared the name: one private helper called <c>Where</c> was
+    /// collecting 488 callers, and <c>EndpointRole.Return</c> — a const string — was collecting 128.
+    ///
+    /// <list type="number">
+    /// <item><b>Only a method can be called.</b> A field, a property or an enum member sharing the name is
+    /// not a call target, whatever the text says.</item>
+    /// <item><b>A private member is invisible from another file.</b> Now checkable, because visibility is
+    /// recorded on the node.</item>
+    /// <item><b>A call does not cross languages</b>, for the same reason a mention does not.</item>
+    /// </list>
+    /// Nothing here invents an edge; each rule only declines one the compiler would have declined.
+    /// </summary>
+    private (GraphNode Node, double Confidence)? ResolveCall(
+        Dictionary<string, List<GraphNode>> index, string name, string relPath)
+    {
+        // Rejecting AFTER the normal resolve, never narrowing before it. Narrowing first looks tidier and is
+        // a trap: dropping a candidate can leave one survivor where there were two, turning a name the
+        // resolver used to abandon as ambiguous into a confident wrong edge. Filtering first made a LINQ
+        // `Select` bind to one ViewModel's method 909 times. This shape can only ever remove an edge.
+        if (ResolveOne(index, name, relPath) is not { } hit) return null;
+
+        var node = hit.Node;
+        if (node.FilePath == relPath) return hit;   // same file: the compiler's scope, and ours
+
+        if (node.Language is not null && node.Language != TreeSitterLanguages.ForFile(relPath)) return null;
+        if (node.Metadata?.GetValueOrDefault("kind") is { } kind and not ("method" or "constructor")) return null;
+        if (node.Metadata?.GetValueOrDefault("visibility") == "private") return null;
+        return hit;
+    }
+
+    /// <summary>
+    /// Resolves a bare type name (a mention, or the type in a `new`) written in <paramref name="relPath"/>,
+    /// applying two rules the general
+    /// resolver cannot. Both exist because a bare type identifier has nothing to
+    /// anchor it, so a common name will otherwise land on whatever single declaration happens to share it.
+    ///
+    /// <list type="number">
+    /// <item><b>A nested type is not addressable by its simple name from another file.</b> C# requires
+    /// <c>Outer.Inner</c>. Without this, one <c>ProtoValue.List</c> record swallowed every <c>List&lt;T&gt;</c>
+    /// in the repository — 1,422 edges to a type none of them had ever heard of.</item>
+    /// <item><b>A mention does not cross languages.</b> A C# file naming <c>Color</c> cannot mean a type
+    /// declared in a TypeScript fixture, however unique that name happens to be in the graph.</item>
+    /// </list>
+    /// </summary>
+    private (GraphNode Node, double Confidence)? ResolveMention(
+        Dictionary<string, List<GraphNode>> index, string name, string relPath)
+    {
+        // Reject after resolving, never narrow before it — see ResolveCall for why that distinction matters.
+        if (ResolveOne(index, name, relPath) is not { } hit) return null;
+
+        var node = hit.Node;
+        if (node.FilePath == relPath) return hit;
+
+        if (node.Language is not null && node.Language != TreeSitterLanguages.ForFile(relPath)) return null;
+        if (node.Metadata?.GetValueOrDefault("ast") is { } ast && ast.Contains('/')) return null;
+        return hit;
     }
 
     /// <summary>The type a code node belongs to — <c>code:F.cs#T:A/M:B</c> → <c>code:F.cs#T:A</c>, or null when
@@ -1153,7 +1219,16 @@ public sealed class GraphBuilder
     private GraphNode Node(string id, string type, string label, string? file = null, string? language = null,
                            string? source = null, double confidence = GraphConfidence.Extracted)
     {
-        if (_nodes.TryGetValue(id, out var existing)) return existing;
+        if (_nodes.TryGetValue(id, out var existing))
+        {
+            // First-wins on identity, but a later caller may know something the first did not. A snaplink
+            // creates a file node before anything has read the file, so the .csproj a feature links to was
+            // arriving language-less and staying that way — reading as "nothing parsed this" long after the
+            // structured layer had in fact parsed it. Filling a blank is not overwriting a fact.
+            if (string.IsNullOrEmpty(existing.Language) && !string.IsNullOrEmpty(language)) existing.Language = language;
+            if (string.IsNullOrEmpty(existing.FilePath) && !string.IsNullOrEmpty(file)) existing.FilePath = file;
+            return existing;
+        }
         var n = new GraphNode
         {
             Id = id,

@@ -260,4 +260,64 @@ public static class GraphReport
                 + (includeExcused ? "" : " Add --all to also list the ones with a known reason."));
         return sb.ToString();
     }
+
+    /// <summary>Routes between two nodes, each hop showing the relationship taken - so a path reads as an
+    /// explanation ("calls, then references") rather than a list of ids.</summary>
+    public static string Paths(IReadOnlyList<GraphQuery.GraphPath> paths, string fromId, string toId,
+                               int maxHops, bool undirected)
+    {
+        var sb = new StringBuilder();
+        if (paths.Count == 0)
+        {
+            sb.AppendLine($"No path from {fromId} to {toId} within {maxHops} hops"
+                        + (undirected ? "." : " following edge direction."));
+            sb.Append(undirected
+                ? "The two are in unconnected parts of the graph, or the link between them is one nothing records - a runtime lookup, a string key, DI."
+                : "Try --undirected to ask how they are related at all rather than what reaches what.");
+            return sb.ToString();
+        }
+
+        foreach (var p in paths)
+        {
+            sb.AppendLine($"  {Label(p.From)}   [{p.Hops} hop(s)]");
+            foreach (var step in p.Steps)
+                sb.AppendLine($"    --{step.Relationship}-->  {Label(step.Node)}");
+            sb.AppendLine();
+        }
+
+        sb.Append($"{paths.Count} shortest path(s)"
+                + (undirected
+                    ? " (undirected; `(up)` marks a hop taken against the edge, and climbing a container then "
+                      + "descending into a sibling is barred - it would put every declaration in a file two hops apart)."
+                    : " following edge direction.")
+                + " Only shortest routes are shown - enumerating every route is exponential and unreadable.");
+        return sb.ToString();
+    }
+
+    /// <summary>The fan-in / fan-out ranking.</summary>
+    public static string Rank(IReadOnlyList<GraphQuery.Ranking> ranked, bool byFanIn, string? under)
+    {
+        var sb = new StringBuilder();
+        if (ranked.Count == 0)
+        {
+            sb.Append("Nothing matched.");
+            return sb.ToString();
+        }
+
+        sb.AppendLine($"  {"in",5} {"out",5}  node");
+        foreach (var r in ranked)
+            sb.AppendLine($"  {r.FanIn,5} {r.FanOut,5}  {Label(r.Node)}");
+
+        sb.AppendLine();
+        sb.Append($"Ranked by fan-{(byFanIn ? "in" : "out")}"
+                + (under is { Length: > 0 } ? $" under '{under}'" : "")
+                + ". `contains` is not counted: it is structure, so counting it would rank a type by how many "
+                + "members it declares rather than by how much of the repo depends on it.");
+        return sb.ToString();
+    }
+
+    private static string Label(GraphNode n) =>
+        n.FilePath is { Length: > 0 } f
+            ? $"[{n.Type}] {n.Label}  ({f}{(n.Metadata?.GetValueOrDefault("line") is { } l ? ":" + l : "")})"
+            : $"[{n.Type}] {n.Label}  {n.Id}";
 }

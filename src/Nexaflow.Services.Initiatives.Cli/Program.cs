@@ -311,6 +311,8 @@ internal static class Program
             {
                 case "stats":                 return GraphStats(args[1..]);
                 case "orphans":               return GraphOrphans(args[1..]);
+                case "paths" or "path":       return GraphPaths(args[1..]);
+                case "rank":                  return GraphRank(args[1..]);
                 case "node":                  return GraphNode(args[1..]);
                 case "search":                return GraphSearch(args[1..]);
                 case "list":                  return GraphList(args[1..]);
@@ -393,7 +395,9 @@ internal static class Program
               graph [<root>] [--no-incremental] [--product-anchored] [--main|--code-root <dir>] [--json]   (re)build the graph
               graph stats  [<root>]                                             counts + type/edge/community breakdown
               graph search <term> [<root>] [--type <t>] [--limit N]             nodes whose id/label matches <term>
-              graph list   [<root>] [--type <t>] [--community N] [--file <f>] [--limit N]   bulk list with filters
+              graph list   [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N]   bulk list with filters
+              graph paths  <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]   routes between two nodes
+              graph rank   [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]   most-depended-on nodes
               graph node   <id> [<root>] [--limit N]                            one node + ALL its edges/hyperedges
               graph walk   <id> [<root>] [--hops N] [--types a,b] [--limit N]   BFS neighbourhood out to N hops
               graph context <id> [<root>] [--lines N] [--limit N]               ONE-SHOT: node + source + neighbours + owning feature
@@ -438,6 +442,41 @@ internal static class Program
     // GraphQuery and GraphReport originals. They are gone, and call sites use the library directly: this file
     // is a shell over that library, not a second implementation of it. GraphQuery.BlockEnd records what the
     // copies had quietly diverged into, and CliHasNoPrivateGraphTwinsTests keeps them from coming back.
+
+    /// <summary>Routes between two nodes - the question `walk` cannot answer. See GraphQuery.Paths.</summary>
+    private static int GraphPaths(string[] args)
+    {
+        if (!TryRead(Specs.GraphPaths, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryIntOpt(a, "--hops", 6, out var hops)) return Error;
+        if (!TryIntOpt(a, "--limit", 10, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
+
+        var from = a[0];
+        var to = a[1];
+        if (!g.Nodes.Any(n => n.Id == from)) return Usage($"graph paths: no node '{from}' (try: graph search)");
+        if (!g.Nodes.Any(n => n.Id == to)) return Usage($"graph paths: no node '{to}' (try: graph search)");
+
+        var undirected = a.Has("--undirected");
+        Console.WriteLine(GraphReport.Paths(GraphQuery.Paths(g, from, to, hops, limit, undirected), from, to, hops, undirected));
+        return Clean;
+    }
+
+    /// <summary>Nodes ordered by fan-in or fan-out - "which components are central", read rather than eyeballed.</summary>
+    private static int GraphRank(string[] args)
+    {
+        if (!TryRead(Specs.GraphRank, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryIntOpt(a, "--limit", 25, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
+
+        var by = a.Value("--by") ?? "fanin";
+        if (by is not ("fanin" or "fanout"))
+            return Usage($"graph rank: --by must be 'fanin' or 'fanout' (got '{by}')");
+
+        var type = a.Value("--type");
+        var under = a.Value("--under");
+        Console.WriteLine(GraphReport.Rank(GraphQuery.Rank(g, by == "fanin", type, under, limit), by == "fanin", under));
+        return Clean;
+    }
 
     /// <summary>Declarations nothing appears to reach. A lead to look at, not a verdict - see GraphQuery.Orphans.</summary>
     private static int GraphOrphans(string[] args)
@@ -491,14 +530,21 @@ internal static class Program
             if (!int.TryParse(cs, out var c)) return VerbUsage($"--community must be a number (got '{cs}')");
             comm = c;
         }
+        // --unparsed: a file node with no language is one nothing could read - it is in the graph as a name
+        // and nothing more. Answering "what is not understood here" used to mean leaving the graph entirely.
+        var unparsed = a.Has("--unparsed");
         var hits = g.Nodes.Where(n =>
                 (type is null || n.Type == type) &&
                 (comm is null || n.Community == comm) &&
+                (!unparsed || (n.Type == NodeType.File && string.IsNullOrEmpty(n.Language))) &&
                 (file is null || (n.FilePath?.Contains(file, StringComparison.OrdinalIgnoreCase) ?? false)))
             .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
 
         foreach (var n in hits.Take(limit)) Console.WriteLine(GraphReport.NodeLine(n));
         Console.WriteLine($"{hits.Count} node(s)" + (hits.Count > limit ? $" — showing {limit} (raise --limit or add a filter)" : "") + ".");
+        if (unparsed)
+            Console.WriteLine("These have no grammar and no structured extractor, so they are located but not "
+                            + "understood - no types, no members, no edges. Extensions, not files, are what to fix.");
         return Clean;
     }
 
@@ -1420,8 +1466,14 @@ internal static class Program
         public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], None,
             "graph search <term> [<root>] [--type <t>] [--limit N]");
         public static readonly VerbSpec GraphList = new("graph list", 0,
-            ["--type", "--community", "--file", "--limit"], None,
-            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--limit N]");
+            ["--type", "--community", "--file", "--limit"], ["--unparsed"],
+            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N]");
+        public static readonly VerbSpec GraphPaths = new("graph paths", 2,
+            ["--hops", "--limit"], ["--undirected"],
+            "graph paths <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]");
+        public static readonly VerbSpec GraphRank = new("graph rank", 0,
+            ["--by", "--type", "--under", "--limit"], None,
+            "graph rank [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]");
         public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], None,
             "graph node <id> [<root>] [--limit N]");
         public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], None,

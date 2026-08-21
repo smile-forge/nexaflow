@@ -16,7 +16,7 @@ that is stated rather than dressed up.
 
 ## First: is the whole solution actually in the graph?
 
-`nfi graph stats` — **56,303 nodes, 97,575 edges, 15,338 hyperedges** over 3,977 files.
+`nfi graph stats` — **63,148 nodes, 121,523 edges, 15,792 hyperedges** over 5,613 files.
 
 Every file in the repo is *at least* a node, so nothing is invisible. The question is how much of each is
 *understood* — parsed into types, members and edges — versus merely located.
@@ -40,12 +40,24 @@ The real gap is **the repo root — the build and packaging of the app, as oppos
 | `.yml` (1) | the CI workflow | no YAML grammar in the package |
 | extensionless (5) | git hooks | shell; no grammar |
 
-Two of those are now cheap to close: `.wxs`/`.wixproj`/`.props`/`.targets` are XML, and the repo gained an
-`xml` grammar. `.ps1` and `.yml` need grammars the binding does not ship.
+Two of those are now cheap to close: `.wxs`/`.wxl`/`.props`/`.targets` are XML, and the repo gained an `xml`
+grammar. (`.wixproj` already reads through the csproj path — it is XML with `PropertyGroup`s like any other
+project file.) `.ps1` and `.yml` need grammars the binding does not ship.
 
-`external/`'s 112 are other languages inside submodules (F#, C headers, Go, Swift) — third-party, and not
-what anyone queries. Worth noting though: **`.c` and `.h` have no mapping even though `tree-sitter-c` ships
-in the package** — `TreeSitterLanguages` registers `cpp` for `.cpp/.hpp/...` and never registers plain C.
+**Ask the graph rather than re-deriving this table:** `nfi graph list --unparsed` lists every file nothing
+read — no grammar, no structured extractor, so no types, members or edges. It reports **1,268** across the
+whole repo, of which only ~60 are ours; the rest are submodules.
+
+`external/`'s share is dominated by two things, and neither is a gap:
+
+| in submodules | count | why it is fine |
+|---|---|---|
+| `.h` `.c` | 220 | **the tree-sitter grammars themselves.** Registering `.c` would be actively harmful, not an improvement: these are generated parser tables, and the C# grammar's `parser.c` alone is 31 MB. Parsing them would bloat the graph with nothing anyone will ever query |
+| `.txt` `.yml` `.md` `.toml` `.scm` `.go` `.swift` `.fs` `.vcxproj` | ~700 | other languages' bindings, CI, queries and docs inside third-party repos — not what anyone asks this graph about |
+
+So the earlier note that "`.c` and `.h` have no mapping even though `tree-sitter-c` ships in the package"
+was reading a deliberate choice as an oversight. It is the right choice, and more clearly so now that the
+grammar sources live in the tree.
 
 ### Two caveats that colour every answer below
 
@@ -67,7 +79,7 @@ in the package** — `TreeSitterLanguages` registers `cpp` for `.cpp/.hpp/...` a
 | What are the important libraries/packages within it? | `graph list --type external` (915 of them); per-project via `depends_on` | ✅ |
 | Which parts are app code vs tests/tooling/generated? | Product tree + path convention (`src/Nexaflow.Tests/**`), or `depends_on external:MSTest`, which every test project has and no product project does — a real discriminator, though still derived rather than declared (no `IsTestProject` exists to harvest). **Generated** code is the interesting one: `annotated` hyperedges name `[ObservableProperty]`/`[RelayCommand]`, so the generated public surface is identifiable from its declaration | 🟡 |
 | What are the major dependency chains? | `graph node file:<x>.csproj` → `depends_on`. Project-level layering is exact — it comes from `ProjectReference`, not inference | ✅ |
-| Which components are central to the repository? | `graph stats` names the largest communities; `graph node` shows a node's edge counts | 🟡 — there is no fan-in ranking, so "central" is eyeballed |
+| Which components are central to the repository? | `nfi graph rank [--by fanin\|fanout] [--type t] [--under path]` (AI: `graph_rank`) — most-depended-on first. Containment is never counted: it would rank a type by how many members it declares, which is size, not importance | ✅ |
 | What are the major architectural boundaries? | `depends_on` gives the real project graph. But the *rules* (features never reference Core, etc.) are enforced by `Nexaflow.Tests.Features.Architecture`, not the graph | 🟡 |
 | What code is dead, orphaned, or disconnected? | `nfi graph orphans` (AI: `graph_orphans`) — declarations with no incoming reference, scoped to `src/`, with the innocent explanations (a test run by reflection, an interface member, a name two declarations share, a type the shell finds by scanning assemblies, a theme key another dictionary also defines, a language the extractor does not read) filtered out and shown by `--all` | 🟡 — **a lead, not a verdict**, but 22 hand-checkable hits rather than the 215 it started at; see the note below |
 | What are the primary entry points? | `graph node file:<x>.csproj` carries `output_type` (`winexe`/`exe`/`library`) and `target_framework`, so the executables are a property now rather than a `Main` text search | ✅ for *which projects are executables*; 🟡 for what each one reaches — see *Executable surfaces* |
@@ -89,7 +101,7 @@ This is the graph's strongest area.
 | What are the blast-radius boundaries? | `graph walk --hops 2` for code, `depends_on` for the project boundary | 🟡 |
 | What parts are safe to change independently? | Inverse of the above; communities hint at clusters | 🟡 |
 | I want to change X — what should I be careful not to break? | `graph node` incoming edges + `tests` edges | 🟡 |
-| What are all the paths from this entry point to this component? | — | ❌ **No path query.** `walk` returns a BFS *ball* around one node, not routes between two. Answering this means walking and correlating by hand |
+| What are all the paths from this entry point to this component? | `nfi graph paths <from> <to> [--undirected] [--hops N]` (AI: `graph_paths`) — shortest routes, each hop naming its relationship. Only shortest ones: enumerating every route between two nodes here is exponential and unreadable | ✅ |
 | Which executable surfaces depend on this component? | — | ❌ — follows from the two gaps above (no entry-point concept, no paths) |
 | Which configuration affects this component? | `graph grep "IFeatureConfig" --from product:<slug> --scope owned --mode content` | 🟡 — works because this repo names config by convention |
 
@@ -101,8 +113,8 @@ you at the right code fast, not by tracing execution.
 | Question | How | |
 |---|---|---|
 | Where is this state created and modified? | `graph node <field-id>` → members that reference it | 🟡 |
-| Where does this operation perform I/O? | `graph grep "File\.(Read|Write)AllText|Stream" --from product:<slug> --scope owned --mode content` | 🟡 — a text search, correctly scoped |
-| Where are errors generated and handled? | `graph grep "catch|throw new" --scope owned` | 🟡 — same |
+| Where does this operation perform I/O? | `graph grep "File\.(Read\|Write)AllText\|Stream" --from product:<slug> --scope owned --mode content` | 🟡 — a text search, correctly scoped |
+| Where are errors generated and handled? | `graph grep "catch\|throw new" --scope owned` | 🟡 — same |
 | Where does authentication/authorization happen? | No auth in a desktop shell; the analogue is privilege escalation: `graph grep "RunElevatedAsync" --mode content` | 🟡 |
 | Where is configuration loaded? | `graph search ConfigManager`, then `graph node` for its callers | 🟡 |
 | Where are dependencies instantiated? | `instantiates` edges (13,521 of them) — `graph node <type-id>` shows who constructs it | ✅ |
@@ -207,11 +219,25 @@ member and feature of every hit, which a text search cannot.
    Four causes were found and fixed on the way, each one a real graph gap: XAML element and attached-property
    type uses, rolling a member's use up to its type, duplicate declarations of one name (a reference cannot be
    attributed to either, so neither collects it), and reflection-discovered contract implementations.
-2. **Paths between two nodes** — blocks every "trace X to Y" and "what does this entry point reach" question.
-3. **Fan-in/fan-out ranking** — turns "which components are central" from eyeballing into an answer.
-4. **Entry points as a first-class kind** — `Main`, `IPageRegistration`, test entry, installer.
-5. **Cycle detection.**
-6. **Parse the build** — `.wxs`/`.wixproj`/`.props`/`.targets` are XML and the grammar now exists.
+2. ~~**Paths between two nodes**~~ and ~~**fan-in/fan-out ranking**~~ — **both added** (`graph paths`, `graph rank`).
+   Ranking paid for itself on its first run by exposing a defect nothing else had shown: **name-only
+   resolution was binding common BCL names to whatever local declaration shared them.** One nested
+   `ProtoValue.List` record had collected 1,422 incoming edges from every `List<T>` in the repository; a
+   private helper named `Where` had 488 callers; `EndpointRole.Return`, a `const string`, had 128. Four rules
+   now decline what the language itself would decline — a nested type is not addressable by its simple name
+   from another file, only a method can be called, a private member is invisible outside its file, and
+   neither a call nor a mention crosses languages. About 3,000 wrong edges went away, and the top of the
+   ranking became legible (theme keys, `IShellServices`, `SearchRequest`).
+
+   One trap worth recording, because the tidier-looking version of this fix is wrong: the rules **reject
+   after resolving**, never narrow the candidate set first. Narrowing first can leave one survivor where
+   there were two, turning a name the resolver used to abandon as ambiguous into a confident wrong edge — it
+   made a LINQ `Select` bind to one ViewModel's method 909 times before that was caught.
+3. **Entry points as a first-class kind** — `Main`, `IPageRegistration`, test entry, installer. Half-closed:
+   `output_type` on a project node names the executables, but not what each one reaches.
+4. **Cycle detection.**
+5. **Parse the build** — `.wxs`/`.wxl`/`.props`/`.targets` are XML and the grammar now exists. (`.wixproj`
+   already goes through the csproj path, so it is only these that are still unread.)
 
 **Not answered, and correctly so:** dataflow, control flow, runtime DI resolution. Those need a different
 kind of model, and inventing them from name-resolved edges would produce confident wrong answers — the
