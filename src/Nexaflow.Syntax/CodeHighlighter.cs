@@ -104,6 +104,10 @@ public sealed class CodeHighlighter : IDisposable
                 spans.Add(new HighlightSpan(node.StartIndex + offset, length, capture.Name));
         }
 
+        // XAML asks for one thing the grammar cannot give: an attribute value is a single token to XML, but
+        // {StaticResource Foo} has structure a reader relies on. Appended here so the finer spans win.
+        if (_grammarId == "xaml") XamlHighlighting.AddValueSpans(tree.RootNode, text, offset, spans);
+
         // Embedded spans appended after the outer spans ⇒ last-wins gives them priority.
         ForEachInjection(text, tree.RootNode, offset, budget,
             (child, t, o, inc) => child.HighlightInto(spans, t, o, inc, budget));
