@@ -4,9 +4,10 @@
 
 .DESCRIPTION
     A fresh `git worktree` starts with EMPTY submodule directories (external/DiscUtils,
-    external/xaml-math), so the `ProjectReference`s into them point at .csproj files that do not
-    exist yet and Visual Studio / `dotnet build` fail to resolve them. This populates any missing
-    submodule so the references resolve and the build "just works".
+    external/xaml-math, external/tree-sitter-xml), so the `ProjectReference`s into them point at
+    .csproj files that do not exist yet - and the tree-sitter grammar has no C sources to compile -
+    so Visual Studio / `dotnet build` fail. This populates any missing submodule so the references
+    resolve and the build "just works".
 
     Safe and idempotent: it only initialises submodules that are NOT yet checked out (the ones
     `git submodule status` marks with a leading '-'). Already-checked-out submodules are left

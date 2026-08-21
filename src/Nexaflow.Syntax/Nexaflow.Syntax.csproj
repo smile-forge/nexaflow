@@ -17,4 +17,29 @@
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
+  <!-- TreeSitter.DotNet bundles ~30 native grammars but no xml/xaml one, so we build that single grammar
+       from the pinned external/tree-sitter-xml submodule. It loads by id like every other grammar
+       (CodeHighlighter -> new Language("xml")), so it must sit in the output ROOT beside
+       tree-sitter-c-sharp.dll - that is where the RID-specific package natives get flattened to.
+       Objects go to obj/native/, never into the submodule, so it never shows up as dirty. -->
+  <PropertyGroup>
+    <TreeSitterXmlGrammarRoot>$(MSBuildThisFileDirectory)..\..\external\tree-sitter-xml</TreeSitterXmlGrammarRoot>
+    <TreeSitterXmlDll>$(MSBuildThisFileDirectory)obj\native\tree-sitter-xml.dll</TreeSitterXmlDll>
+  </PropertyGroup>
+
+  <Target Name="BuildTreeSitterXml"
+          BeforeTargets="AssignTargetPaths"
+          Inputs="$(TreeSitterXmlGrammarRoot)\xml\src\parser.c;$(TreeSitterXmlGrammarRoot)\xml\src\scanner.c"
+          Outputs="$(TreeSitterXmlDll)">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\tools\build-tree-sitter-xml.ps1&quot; -GrammarRoot &quot;$(TreeSitterXmlGrammarRoot)&quot; -OutputDll &quot;$(TreeSitterXmlDll)&quot;" />
+  </Target>
+
+  <ItemGroup>
+    <!-- Flows to consuming projects' output too: GetCopyToOutputDirectoryItems recurses ProjectReferences. -->
+    <Content Include="$(TreeSitterXmlDll)" Visible="false">
+      <TargetPath>tree-sitter-xml.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

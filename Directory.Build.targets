@@ -14,7 +14,8 @@
           BeforeTargets="_SplitProjectReferencesByFileExistence;ResolveProjectReferences;PrepareForBuild"
           Condition="'$(NexaflowSkipSubmoduleInit)' != 'true'
                      And ( !Exists('$(MSBuildThisFileDirectory)external\DiscUtils\Library\DiscUtils.Core\DiscUtils.Core.csproj')
-                           Or !Exists('$(MSBuildThisFileDirectory)external\xaml-math\src\WpfMath\WpfMath.csproj') )">
+                           Or !Exists('$(MSBuildThisFileDirectory)external\xaml-math\src\WpfMath\WpfMath.csproj')
+                           Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-xml\xml\src\parser.c') )">
     <Message Importance="high"
              Text="Nexaflow: external/ submodules are not initialised — populating them (fresh worktree)…" />
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\ensure-submodules.ps1&quot;"
