@@ -86,16 +86,58 @@ public class GraphOrphanTests
     }
 
     [TestMethod]
-    public void AnEnumIsExcused_BecauseAValueReferenceIsNotAnEdge()
+    public void AnEnumIsReportedNow_BecauseAValueReferenceIsAnEdge()
     {
+        // This used to be excused on the grounds that `Severity.Warning` left no edge. Type mentions changed
+        // that, so an unreached enum is a real finding again — and the excuse had to go with the gap it named.
         var anEnum = Type("src/A.cs", "Severity");
         anEnum.Metadata!["kind"] = "enum";
         var g = new KnowledgeGraph { Nodes = [anEnum] };
 
-        Assert.AreEqual(0, GraphQuery.Orphans(g).Count, "not reported by default");
+        Assert.AreEqual(1, GraphQuery.Orphans(g).Count);
+        Assert.IsNull(GraphQuery.Orphans(g).Single().Excuse);
+    }
 
-        var excused = GraphQuery.Orphans(g, includeExcused: true).Single();
-        StringAssert.Contains(excused.Excuse, "enum");
+    [TestMethod]
+    public void TwoDeclarationsSharingANameAreExcused()
+    {
+        // Core and Visuals.Common both declare InverseBoolToVisibilityConverter. Edges are name-resolved, so a
+        // reference that could mean either is dropped — neither collects it, and neither is evidence of death.
+        var g = new KnowledgeGraph { Nodes = [Type("src/A.cs", "Twin"), Type("src/B.cs", "Twin")] };
+
+        Assert.AreEqual(0, GraphQuery.Orphans(g).Count);
+        StringAssert.Contains(GraphQuery.Orphans(g, includeExcused: true).First().Excuse, "shares this name");
+    }
+
+    [TestMethod]
+    public void AnImplementationOfARepoContractIsExcused_ButNotOfAForeignOne()
+    {
+        // Nothing names an IPageRegistration or an IThemeContribution: the shell scans assemblies for them. The
+        // base has to be a declaration in this repo though, or implementing IDisposable would excuse everything.
+        var g = new KnowledgeGraph
+        {
+            Nodes = [Type("src/I.cs", "IThing"), Type("src/A.cs", "Thing"), Type("src/B.cs", "Loner")],
+            Edges =
+            [
+                Edge("code:src/A.cs#T:Thing", "code:src/I.cs#T:IThing", EdgeRelationship.Implements),
+                Edge("code:src/B.cs#T:Loner", "external:IDisposable", EdgeRelationship.Implements),
+            ],
+        };
+
+        var orphans = GraphQuery.Orphans(g).Select(o => o.Node.Label).ToList();
+        CollectionAssert.DoesNotContain(orphans, "Thing");
+        CollectionAssert.Contains(orphans, "Loner", "a framework interface excuses nothing");
+    }
+
+    [TestMethod]
+    public void ALanguageTheExtractorDoesNotReadIsExcused()
+    {
+        // The syntax-highlighting corpus is .js/.py/.rb/.ts. No relation extractor runs on those, so no edge to
+        // one can exist and its absence says nothing.
+        var g = new KnowledgeGraph { Nodes = [Type("src/corpus/example.ts", "SquareConfig")] };
+
+        Assert.AreEqual(0, GraphQuery.Orphans(g).Count);
+        StringAssert.Contains(GraphQuery.Orphans(g, includeExcused: true).Single().Excuse, "does not read");
     }
 
     [TestMethod]

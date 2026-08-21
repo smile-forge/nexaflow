@@ -888,8 +888,12 @@ public sealed class GraphBuilder
             else if (n.Type == NodeType.Type) Index(typesByName, n.Label, n);
         }
 
+        // Two passes, because a mention must never restate something already said more precisely: a member that
+        // constructs Foo also mentions Foo in the `new` itself, and `instantiates` is the truer edge.
+        var linked = new HashSet<(string Source, string Target)>();
         foreach (var (relPath, r) in _rawRefs)
         {
+            if (r.Kind == RawRefKind.Mention) continue;
             var sourceId = "code:" + relPath + "#" + r.FromAst;
             if (!_nodes.ContainsKey(sourceId)) continue;   // enclosing member isn't in the graph
 
@@ -897,11 +901,15 @@ public sealed class GraphBuilder
             {
                 // An unresolved call is a built-in / library method — skip it rather than guess or explode the graph.
                 if (ResolveOne(membersByName, r.Name, relPath) is { } hit)
+                {
                     Edge(sourceId, hit.Node.Id, EdgeRelationship.Calls, hit.Confidence, provenance: relPath);
+                    linked.Add((sourceId, hit.Node.Id));
+                }
             }
             else if (ResolveOne(typesByName, r.Name, relPath) is { } hit)   // New → instantiates
             {
                 Edge(sourceId, hit.Node.Id, EdgeRelationship.Instantiates, hit.Confidence, provenance: relPath);
+                linked.Add((sourceId, hit.Node.Id));
             }
             else
             {
@@ -911,7 +919,36 @@ public sealed class GraphBuilder
             }
         }
 
+        ResolveMentions(typesByName, linked);
         ResolveHyperEdges(membersByName, typesByName);
+    }
+
+    /// <summary>
+    /// A named-but-not-invoked type becomes a <c>references</c> edge. Unlike <c>new X</c>, an unresolved mention
+    /// is <b>dropped rather than made external</b>: nearly every type a member names is a framework one, so
+    /// stubbing them would bury the repo's own graph under <c>external:Task</c> and friends without answering
+    /// anything. A mention is therefore only ever evidence about a type this repo actually declares.
+    /// </summary>
+    private void ResolveMentions(Dictionary<string, List<GraphNode>> typesByName, HashSet<(string, string)> linked)
+    {
+        foreach (var (relPath, r) in _rawRefs)
+        {
+            if (r.Kind != RawRefKind.Mention) continue;
+            var sourceId = "code:" + relPath + "#" + r.FromAst;
+            if (!_nodes.ContainsKey(sourceId)) continue;
+            if (ResolveOne(typesByName, r.Name, relPath) is not { } hit) continue;
+            if (OwningTypeId(sourceId) == hit.Node.Id) continue;   // a member naming its own type says nothing
+            if (!linked.Add((sourceId, hit.Node.Id))) continue;
+            Edge(sourceId, hit.Node.Id, EdgeRelationship.References, hit.Confidence, provenance: relPath);
+        }
+    }
+
+    /// <summary>The type a code node belongs to — <c>code:F.cs#T:A/M:B</c> → <c>code:F.cs#T:A</c>, or null when
+    /// the node is already a type.</summary>
+    private static string? OwningTypeId(string id)
+    {
+        var cut = id.LastIndexOf('/');
+        return cut > 0 && id.IndexOf('#') is var hash && hash > 0 && cut > hash ? id[..cut] : null;
     }
 
     // ── Phase D.2 — n-ary hyperedges: signature (member→return,params), annotated (target→attr), calls (caller→callee,args) ──

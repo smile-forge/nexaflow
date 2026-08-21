@@ -3,10 +3,12 @@ using TreeSitter;
 
 namespace Nexaflow.Syntax;
 
-/// <summary>What a raw (unresolved) reference site is: a method <see cref="Call"/> or an object <see cref="New"/>
-/// (instantiation). The referenced <see cref="RawRef.Name"/> is a bare identifier — cross-file resolution to a
-/// specific declaration (with a confidence score) happens later, against the whole graph's symbol set.</summary>
-public enum RawRefKind { Call, New }
+/// <summary>What a raw (unresolved) reference site is: a method <see cref="Call"/>, an object <see cref="New"/>
+/// (instantiation), or a <see cref="Mention"/> — a type named without being called or constructed (a declared
+/// type, a generic argument, a cast, a pattern, the receiver of a static or enum access). The referenced
+/// <see cref="RawRef.Name"/> is a bare identifier — cross-file resolution to a specific declaration (with a
+/// confidence score) happens later, against the whole graph's symbol set.</summary>
+public enum RawRefKind { Call, New, Mention }
 
 /// <summary>
 /// One reference found in a source file: <see cref="FromAst"/> is the enclosing member's AST path (the same
@@ -48,8 +50,9 @@ public sealed record CodeRelations(
 
 /// <summary>
 /// Walks a parse tree for the <b>relationships inside member bodies + declarations</b> — method calls, object
-/// creations, member signatures, and attributes — that the structural <see cref="CodeOutline"/> deliberately
-/// skips. Each site is attributed to its enclosing type/member so an edge can hang off the right code node. C#
+/// creations, type mentions, member signatures, and attributes — that the structural <see cref="CodeOutline"/>
+/// deliberately skips. Each site is attributed to its enclosing type/member so an edge can hang off the right
+/// code node. C#
 /// only for now (every other grammar returns nothing); a manual walk (not a tree-sitter query) so it can thread
 /// the enclosing AST path and fail soft on node kinds a grammar build may not expose. Single-thread use, like
 /// <see cref="CodeHighlighter"/>.
@@ -65,6 +68,7 @@ public sealed class CodeRelationshipExtractor
         public readonly List<RawCall> Calls = [];
         public readonly List<RawFileRef> FileRefs = [];
         public readonly HashSet<(string, string)> SeenFileRefs = [];   // dedup (member, token) within a file
+        public readonly HashSet<(string, string)> SeenMentions = [];   // dedup (member, type) — one edge, not one per use
     }
 
     public CodeRelations Extract(string grammarId, string text, string? baseDir = null)
@@ -150,6 +154,7 @@ public sealed class CodeRelationshipExtractor
             var fseg = total[seg] > 1 ? $"{seg}#{idx}" : seg;
             var memberPath = $"{typePath}/{fseg}";
             CollectSites(node, memberPath, acc);
+            CollectDeclaredType(declares, memberPath, acc);
             CollectSignature(node, memberPath, acc);
             CollectAttributes(declares, memberPath, acc);
         }
@@ -186,7 +191,83 @@ public sealed class CodeRelationshipExtractor
                     if (acc.SeenFileRefs.Add((memberPath, token)))
                         acc.FileRefs.Add(new RawFileRef(memberPath, token, d.StartPosition.Row + 1));
             }
+
+            CollectMentions(d, memberPath, acc);
         }
+    }
+
+    // ── type mentions ─────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Every way a member names a type without calling or constructing it — the graph's long-standing blind
+    /// spot. A type reached only like this (<c>ElevatedOps.DiskMount</c> is a member access, <c>Severity.High</c>
+    /// an enum value, <c>List&lt;RowVm&gt;</c> a generic argument) left no edge at all, so it read as dead and
+    /// nothing answered "what references this type".
+    ///
+    /// <para>Two site families, in decreasing certainty. A <b>type position</b> is grammar-given: anything with
+    /// a <c>type</c> field (a declaration, a cast, a <c>typeof</c>, a pattern, a catch) plus the arguments of a
+    /// generic name. A <b>static access receiver</b> is a convention call: the left of a <c>.</c> is either a
+    /// type or a variable, and only PascalCase is taken. That last rule mistakes a PascalCase <i>property</i>
+    /// for a type of the same name — the cost of reaching enum values and static classes at all, and it can
+    /// only ever add an edge to a type that really exists.</para>
+    /// </summary>
+    private static void CollectMentions(Node n, string memberPath, Acc acc)
+    {
+        if (n.GetChildForField("type") is { } t) Harvest(t, memberPath, acc);
+        else if (n.Type == "type_arguments") Harvest(n, memberPath, acc);
+        else if (n.Type == "member_access_expression"
+                 && n.GetChildForField("expression") is { Type: "identifier" } receiver)
+            AddMention(acc, memberPath, receiver.Text, receiver.StartPosition.Row + 1);
+    }
+
+    /// <summary>The type a member declares — a field's or property's type, a method's return. A field's member
+    /// node is its <c>variable_declarator</c>, so the type is neither on it nor below it; it hangs off the
+    /// enclosing declaration, which is what <paramref name="declares"/> is.</summary>
+    private static void CollectDeclaredType(Node declares, string memberPath, Acc acc)
+    {
+        if (declares.GetChildForField("type") is { } t) { Harvest(t, memberPath, acc); return; }
+        foreach (var c in declares.NamedChildren)
+            if (c.Type == "variable_declaration" && c.GetChildForField("type") is { } vt)
+                Harvest(vt, memberPath, acc);
+    }
+
+    /// <summary>The type names inside a type expression, unwrapping nullable/array/tuple/generic shells so
+    /// <c>Dictionary&lt;string, List&lt;RowVm&gt;&gt;?</c> yields <c>Dictionary</c> and <c>RowVm</c>. A qualified
+    /// name contributes only its last segment: <c>System.Text.StringBuilder</c> names one type, not three.</summary>
+    private static void Harvest(Node n, string memberPath, Acc acc)
+    {
+        switch (n.Type)
+        {
+            case "predefined_type":
+                return;                                     // int/string/void — never a repo declaration
+            case "qualified_name":
+            case "alias_qualified_name":
+                if (LastNamed(n) is { } last) Harvest(last, memberPath, acc);
+                return;
+        }
+
+        if (n.Type.EndsWith("identifier", StringComparison.Ordinal))
+        {
+            AddMention(acc, memberPath, n.Text, n.StartPosition.Row + 1);
+            return;
+        }
+
+        foreach (var c in n.NamedChildren) Harvest(c, memberPath, acc);   // generic_name, nullable, array, tuple, …
+    }
+
+    private static void AddMention(Acc acc, string memberPath, string rawName, int line)
+    {
+        var name = Simple(rawName ?? "");
+        if (name.Length == 0 || !char.IsUpper(name[0])) return;   // locals and parameters are camelCase here
+        if (acc.SeenMentions.Add((memberPath, name)))
+            acc.Refs.Add(new RawRef(memberPath, RawRefKind.Mention, name, line));
+    }
+
+    private static Node? LastNamed(Node n)
+    {
+        Node? last = null;
+        foreach (var c in n.NamedChildren) last = c;
+        return last;
     }
 
     // A path-ish token ending in a letter-led extension (so "logo.png"/"docs/x.md" match, but "1.0.0"/"127.0.0.1" don't).

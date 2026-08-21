@@ -132,6 +132,48 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
+    public void Build_TurnsTypeMentionsIntoReferences_ResolvingOrDropping()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "Uses.cs"),
+            "namespace Demo;\npublic enum Severity { Low, High }\npublic static class Ops { public static int Mount; }\n"
+            + "public class Service\n{\n    private readonly Widget _w;\n"
+            + "    public void Go() { var s = Severity.High; var m = Ops.Mount; var b = new StringBuilder(); }\n}\n"
+            + "public class Widget { }\n");
+
+        var state = new ProductState
+        {
+            Product = new ProductDocument { Product = "Demo" },
+            Nodes = new Dictionary<string, ProductNode> { ["root"] = new ProductNode { Title = "Root" } },
+        };
+
+        try
+        {
+            var g = GraphBuilder.Build(state, root, new GraphBuildOptions { GeneratedAt = "T" });
+            const string go = "code:Uses.cs#T:Service/M:Go";
+
+            bool Refs(string source, string target) => g.Edges.Any(e =>
+                e.Source == source && e.Target == target && e.Relationship == EdgeRelationship.References);
+
+            Assert.IsTrue(Refs(go, "code:Uses.cs#T:Severity"), "an enum value reaches its enum");
+            Assert.IsTrue(Refs(go, "code:Uses.cs#T:Ops"), "a static access reaches the class");
+            Assert.IsTrue(Refs("code:Uses.cs#T:Service/F:_w", "code:Uses.cs#T:Widget"),
+                          "a field's declared type is a reference from the field");
+
+            // A construction says more than a mention of the same pair, so only the stronger edge survives.
+            Assert.IsTrue(g.Edges.Any(e => e.Source == go && e.Target == "external:StringBuilder"
+                                        && e.Relationship == EdgeRelationship.Instantiates));
+            Assert.IsFalse(Refs(go, "external:StringBuilder"), "instantiates is not restated as references");
+
+            // An unresolved *mention* is dropped rather than stubbed — a `new` earns an external node, but
+            // merely naming a framework type must not, or every member would drag one in.
+            Assert.IsFalse(g.Nodes.Any(n => n.Id == "external:Severity" || n.Id == "external:Ops"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [TestMethod]
     public void Build_ExtractsHyperEdges_SignatureAnnotatedAndCalls()
     {
         var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));

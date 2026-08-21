@@ -544,6 +544,26 @@ public static class GraphQuery
             .Select(gr => gr.Key)
             .ToHashSet(StringComparer.Ordinal);
 
+        // Two declarations sharing a simple name — Core and Visuals.Common both declaring
+        // InverseBoolToVisibilityConverter. Edges are name-resolved, so a reference that could mean either is
+        // dropped rather than guessed: neither declaration collects the edge, and neither is evidence of death.
+        var ambiguous = g.Nodes
+            .Where(n => n.FilePath is not null && n.Type is NodeType.Type or NodeType.Member)
+            .GroupBy(n => n.Type + " " + n.Label, StringComparer.Ordinal)
+            .Where(gr => gr.Count() > 1)
+            .Select(gr => gr.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // A type that implements a contract this repo declares. Nothing names an IPageRegistration, an
+        // IThemeContribution or an IElevatedOperation: the shell scans assemblies for them at startup, so the
+        // only edge that could exist is the one the graph cannot see. Narrow on purpose — the base has to be a
+        // declaration in this repo, so implementing a framework interface excuses nothing.
+        var contractual = g.Edges
+            .Where(e => e.Relationship is EdgeRelationship.Implements or EdgeRelationship.Extends
+                        && index.TryGetValue(e.Target, out var t) && t.FilePath is not null)
+            .Select(e => e.Source)
+            .ToHashSet(StringComparer.Ordinal);
+
         var found = new List<Orphan>();
         foreach (var n in g.Nodes)
         {
@@ -554,7 +574,7 @@ public static class GraphQuery
             if (n.Type is not (NodeType.Type or NodeType.Member)) continue;
             if (used.Contains(n.Id)) continue;
 
-            var excuse = Excuse(n, attributes, inherited, duplicateKeys);
+            var excuse = Excuse(n, attributes, inherited, duplicateKeys, ambiguous, contractual);
             if (excuse is not null && !includeExcused) continue;
             found.Add(new Orphan(n, excuse));
             if (found.Count >= limit) break;
@@ -566,15 +586,24 @@ public static class GraphQuery
     private static string? Excuse(GraphNode n,
                                   IReadOnlyDictionary<string, HashSet<string>> attributes,
                                   IReadOnlyDictionary<string, HashSet<string>> inherited,
-                                  IReadOnlySet<string> duplicateKeys)
+                                  IReadOnlySet<string> duplicateKeys,
+                                  IReadOnlySet<string> ambiguous,
+                                  IReadOnlySet<string> contractual)
     {
-        // An enum is used as `Severity.Warning` — a value reference, and the extractor records calls and
-        // constructions rather than every mention of a type. So an unreferenced enum says little.
-        if (n.Metadata?.GetValueOrDefault("kind") == "enum")
-            return "an enum - a value reference is not an edge the graph records";
+        // A source file in a language the relation extractor does not read — the syntax-highlighting corpus is
+        // .js/.py/.rb/.ts. No edge to it can exist, so its absence means nothing at all.
+        if (n.FilePath is { } path && !path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                                   && !path.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
+            return "a language whose references the extractor does not read yet";
 
         if (duplicateKeys.Contains(n.Label))
             return "another dictionary defines this key and is referenced; merge order decides at runtime";
+
+        if (ambiguous.Contains(n.Type + " " + n.Label))
+            return "another declaration shares this name; a name-resolved reference cannot be attributed to either";
+
+        if (contractual.Contains(n.Id))
+            return "implements a contract this repo declares; the shell finds those by scanning assemblies";
 
         // A XAML anchor is reached in ways nothing here records yet: a UI journey finds an AutomationId by
         // string, and ElementName / TargetName reference an x:Name from inside the XAML itself. Until those
