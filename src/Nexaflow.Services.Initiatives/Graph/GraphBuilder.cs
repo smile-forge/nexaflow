@@ -79,6 +79,7 @@ public sealed class GraphBuilder
         BuildCodeLayer();
         BuildStructuredLayer();
         BuildAssetLayer();
+        ResolveXamlViews();
         ResolveReferences();
         ResolveFileMentions();
 
@@ -435,7 +436,6 @@ public sealed class GraphBuilder
             {
                 switch (ext)
                 {
-                    case ".xaml":   ExtractXaml(rel, fileId, XDocument.Load(full)); break;
                     case ".csproj": ExtractCsproj(rel, full, fileId, XDocument.Load(full)); break;
                     case ".slnx":   ExtractSolutionXml(rel, full, fileId, XDocument.Load(full)); break;
                     case ".sln":    ExtractSolutionLegacy(rel, full, fileId); break;
@@ -445,21 +445,28 @@ public sealed class GraphBuilder
         }
     }
 
-    /// <summary>A WPF view's <c>x:Class</c> is the compiler-enforced pairing to its code-behind partial class — a
-    /// rock-solid link from the .xaml to the C# type node (from which its ViewModel is a further hop via the code layer).</summary>
-    private void ExtractXaml(string rel, string fileId, XDocument doc)
+    // ── Phase C.4 — pair each WPF view with its code-behind ──────────────────────────────────────────
+    /// <summary>
+    /// A view's <c>x:Class</c> is the compiler-enforced pairing to its code-behind partial class — the one
+    /// rock-solid link from a <c>.xaml</c> to a C# type (from which its ViewModel is a further hop through the
+    /// code layer). The XAML outline already names that class: it is the root anchor's label.
+    /// <para>
+    /// This runs as its own pass rather than inline, because both halves are now built by the code layer and
+    /// nothing orders <c>Foo.xaml</c> before <c>Foo.xaml.cs</c> within it.
+    /// </para></summary>
+    private void ResolveXamlViews()
     {
-        var root = doc.Root;
-        if (root is null) return;
-        Meta(_nodes[fileId], "root", root.Name.LocalName);   // UserControl / Window / ResourceDictionary / …
+        foreach (var node in _nodes.Values.ToList())
+        {
+            if (node.FilePath is not { } rel || node.Type != NodeType.Type) continue;
+            if (!rel.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)) continue;
+            if (node.Metadata?.GetValueOrDefault("ast") is not { } ast || !ast.StartsWith("T:", StringComparison.Ordinal))
+                continue;   // only the root anchor names the code-behind class
 
-        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var cls = root.Attribute(xaml + "Class")?.Value;
-        if (string.IsNullOrWhiteSpace(cls)) return;
-
-        var simple = cls[(cls.LastIndexOf('.') + 1)..];              // Ns.GraphView → GraphView
-        var codeTypeId = "code:" + rel + ".cs#T:" + simple;         // GraphView.xaml → GraphView.xaml.cs#T:GraphView
-        if (_nodes.ContainsKey(codeTypeId)) Edge(fileId, codeTypeId, EdgeRelationship.ViewOf, provenance: rel);
+            var codeTypeId = "code:" + rel + ".cs#T:" + node.Label;   // GraphView.xaml → GraphView.xaml.cs#T:GraphView
+            if (_nodes.ContainsKey(codeTypeId))
+                Edge("file:" + rel, codeTypeId, EdgeRelationship.ViewOf, provenance: rel);
+        }
     }
 
     /// <summary>A project's <c>ProjectReference</c>/<c>PackageReference</c> — the build dependency graph.</summary>

@@ -188,7 +188,9 @@ public class GraphBuilderTests
         // A WPF view + its code-behind, and two projects with a reference + a package.
         File.WriteAllText(Path.Combine(root, "Widget.xaml"),
             "<UserControl x:Class=\"Demo.Widget\" xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n" +
-            "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" />\n");
+            "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"Go\" AutomationProperties.AutomationId=\"Go_Button\" Click=\"OnGo\" />\n" +
+            "</UserControl>\n");
         File.WriteAllText(Path.Combine(root, "Widget.xaml.cs"), "namespace Demo;\npublic partial class Widget { }\n");
         File.WriteAllText(Path.Combine(root, "A.csproj"),
             "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <ItemGroup>\n" +
@@ -206,10 +208,19 @@ public class GraphBuilderTests
         {
             var g = GraphBuilder.Build(state, root, new GraphBuildOptions { GeneratedAt = "T" });
 
-            // XAML view → its code-behind class (x:Class), high-certainty.
+            // XAML view → its code-behind class (x:Class), high-certainty. Resolved in its own pass now that
+            // both halves come from the code layer, where nothing orders Widget.xaml before Widget.xaml.cs.
             Assert.IsTrue(g.Nodes.Any(n => n.Id == "file:Widget.xaml"), "the .xaml is a node");
             Assert.IsTrue(g.Edges.Any(e => e is { Source: "file:Widget.xaml", Target: "code:Widget.xaml.cs#T:Widget", Relationship: EdgeRelationship.ViewOf }),
                 "view_of links the .xaml to its code-behind type");
+
+            // The view's own structure is in the graph: the xml grammar makes .xaml real code, so its
+            // addressable elements are nodes rather than an opaque file.
+            foreach (var id in new[] { "code:Widget.xaml#T:Widget", "code:Widget.xaml#N:Go", "code:Widget.xaml#A:Go_Button" })
+                Assert.IsTrue(g.Nodes.Any(n => n.Id == id), $"{id} is a node");
+            Assert.IsTrue(g.Nodes.Any(n => n.Id == "code:Widget.xaml#N:Go/M:OnGo"), "the Click handler is a member");
+            Assert.IsTrue(g.Edges.Any(e => e is { Source: "file:Widget.xaml", Target: "code:Widget.xaml#N:Go", Relationship: EdgeRelationship.Contains }),
+                "the file contains its anchors");
 
             // csproj → project + package dependencies.
             Assert.IsTrue(g.Edges.Any(e => e is { Source: "file:A.csproj", Target: "file:B.csproj", Relationship: EdgeRelationship.DependsOn }),

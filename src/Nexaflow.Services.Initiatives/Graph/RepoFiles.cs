@@ -20,11 +20,18 @@ public static class RepoFiles
     };
 
     /// <summary>Structured (XML-ish) project files a tree-sitter grammar doesn't cover, but whose explicit
-    /// references we can extract with certainty: WPF views (<c>.xaml</c> → its code-behind class), project files
-    /// (<c>.csproj</c> → project/package dependencies), and solutions (<c>.slnx</c>/<c>.sln</c> → member projects).</summary>
+    /// references we can extract with certainty: project files (<c>.csproj</c> → project/package dependencies)
+    /// and solutions (<c>.slnx</c>/<c>.sln</c> → member projects).
+    /// <para>
+    /// <c>.xaml</c> used to live here. It is real code to the parser now (the xml grammar, built from
+    /// <c>external/tree-sitter-xml</c>), so it belongs to the code layer — which also gains it the
+    /// content-addressed cache this lane doesn't have. The three sets must stay disjoint: only
+    /// <see cref="EnumerateOther"/> excludes both, so an extension in <em>both</em> this set and a grammar
+    /// would be walked by two layers and survive on nothing but first-wins node dedup.
+    /// </para></summary>
     private static readonly HashSet<string> StructuredExts = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".xaml", ".csproj", ".slnx", ".sln",
+        ".csproj", ".slnx", ".sln",
     };
 
     /// <summary>The repo's code files (those a tree-sitter grammar covers).</summary>
