@@ -82,6 +82,7 @@ public sealed class GraphBuilder
         BuildAssetLayer();
         ResolveXamlPairing();
         ResolveReferences();
+        ResolveXamlBindings();
         ResolveFileMentions();
 
         var graph = new KnowledgeGraph
@@ -601,6 +602,162 @@ public sealed class GraphBuilder
 
     private static readonly Regex ResourceRef =
         new(@"\{\s*(?:Static|Dynamic)Resource\s+([A-Za-z_][\w.]*)\s*\}", RegexOptions.Compiled);
+
+    private static readonly Regex BindingRef = new(@"\{\s*Binding\s+([^}]+)\}", RegexOptions.Compiled);
+
+    private static readonly Regex DesignInstance =
+        new(@"d:DataContext\s*=\s*""\{\s*d:DesignInstance[^}]*?Type\s*=\s*(?:\{\s*x:Type\s+)?(?:\w+:)?(\w+)", RegexOptions.Compiled);
+
+    // ── Phase D.2 — bindings → the ViewModel member they name ────────────────────────────────────────
+    /// <summary>
+    /// Resolves <c>{Binding Foo}</c> to the ViewModel property it names — the edge that answers "what drives
+    /// this control", which is otherwise a guess from the outside.
+    /// <para>
+    /// The DataContext is a runtime value, so this only resolves it where the file states it: an explicit
+    /// <c>d:DesignInstance</c>, else the single <c>*ViewModel</c> the code-behind is seen to instantiate. It
+    /// runs after <see cref="ResolveReferences"/> because that is what produces those instantiation edges, and
+    /// it skips anything inside a keyed resource — a template carries its own data context, and guessing there
+    /// is what would make the whole layer untrustworthy.
+    /// </para></summary>
+    private void ResolveXamlBindings()
+    {
+        if (_opts.Scope != GraphScope.WholeRepo) return;
+
+        var typesByName = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
+        foreach (var n in _nodes.Values)
+            if (n.Type == NodeType.Type && n.FilePath is { } f && f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                Index(typesByName, n.Label, n);
+
+        foreach (var rel in _nodes.Values
+                     .Where(n => n.Type == NodeType.File && n.FilePath is { } f
+                                 && f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
+                     .Select(n => n.FilePath!)
+                     .ToList())
+        {
+            var full = Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) continue;
+            if (!text.Contains("{Binding", StringComparison.Ordinal)) continue;
+
+            var (vm, confidence) = ViewModelFor(rel, text, typesByName);
+            if (vm is null) continue;
+
+            var prefix = vm.Metadata?.GetValueOrDefault("ast") + "/";
+            var properties = _nodes.Values
+                .Where(n => n.Type == NodeType.Member && n.FilePath == vm.FilePath
+                            && n.Metadata?.GetValueOrDefault("ast") is { } a
+                            && a.StartsWith(prefix, StringComparison.Ordinal))
+                .GroupBy(n => n.Label, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            AddGeneratedMvvmNames(vm, prefix, properties);
+            if (properties.Count == 0) continue;
+
+            var anchors = AnchorsOf(rel)
+                .Select(a => (a.Ast, a.Node,
+                              Start: int.TryParse(a.Node.Metadata?.GetValueOrDefault("line"), out var s) ? s : 0,
+                              End: int.TryParse(a.Node.Metadata?.GetValueOrDefault("endLine"), out var e) ? e : int.MaxValue))
+                .Where(a => a.Start > 0)
+                .ToList();
+
+            var lines = text.Replace("\r", "").Split('\n');
+            for (var i = 0; i < lines.Length; i++)
+                foreach (Match m in BindingRef.Matches(lines[i]))
+                {
+                    if (BindingPath(m.Groups[1].Value) is not { } path) continue;
+                    if (!properties.TryGetValue(path, out var property)) continue;
+
+                    var lineNo = i + 1;
+                    var enclosing = anchors.Where(a => lineNo >= a.Start && lineNo <= a.End).ToList();
+                    if (enclosing.Count == 0) continue;
+                    if (enclosing.Any(a => a.Ast.StartsWith("K:", StringComparison.Ordinal))) continue;  // template scope
+
+                    var owner = enclosing.OrderBy(a => a.End - a.Start).First().Node;
+                    Edge(owner.Id, property.Id, EdgeRelationship.BindsTo, confidence, provenance: rel);
+                }
+        }
+    }
+
+    /// <summary>
+    /// Adds the names the MVVM Toolkit generates, pointing at the declaration that produces them:
+    /// <c>[ObservableProperty] private bool _wordWrap</c> → <c>WordWrap</c>, and
+    /// <c>[RelayCommand] private void Save()</c> → <c>SaveCommand</c>.
+    /// <para>
+    /// Without this almost nothing resolves, because those are the names a view actually binds to and they
+    /// exist only in generated source no parser here ever sees — the same shape as the <c>x:Name</c> field.
+    /// The attribute is the evidence, so this is a mapping rather than a naming guess.
+    /// </para></summary>
+    private void AddGeneratedMvvmNames(GraphNode vm, string prefix, Dictionary<string, GraphNode> into)
+    {
+        foreach (var (relPath, attr) in _attributes)
+        {
+            if (relPath != vm.FilePath || !attr.TargetAst.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            if (!_nodes.TryGetValue("code:" + relPath + "#" + attr.TargetAst, out var member)) continue;
+
+            string? generated = attr.AttrName switch
+            {
+                "ObservableProperty" => PascalCase(member.Label.TrimStart('_')),
+                "RelayCommand" => TrimSuffix(member.Label, "Async") + "Command",
+                _ => null,
+            };
+            if (generated is { Length: > 0 }) into[generated] = member;
+        }
+
+        static string PascalCase(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
+        static string TrimSuffix(string s, string suffix) =>
+            s.EndsWith(suffix, StringComparison.Ordinal) && s.Length > suffix.Length ? s[..^suffix.Length] : s;
+    }
+
+    /// <summary>The view's DataContext type, or null when the file does not say. Never inferred from the
+    /// <c>View</c>/<c>ViewModel</c> name convention — a convention is not evidence, and a wrong binding edge
+    /// is worse than none.</summary>
+    private (GraphNode? Vm, double Confidence) ViewModelFor(
+        string rel, string text, Dictionary<string, List<GraphNode>> typesByName)
+    {
+        if (DesignInstance.Match(text) is { Success: true } d
+            && typesByName.TryGetValue(d.Groups[1].Value, out var declared) && declared.Count == 1)
+            return (declared[0], GraphConfidence.Extracted);
+
+        // Else: the single *ViewModel the code-behind is seen to use. Not just `new FooViewModel(...)` — the
+        // usual shape here is `DataContext = _vm;` over an injected field, so any reference the code layer
+        // already resolved out of that file counts. Exactly one, or nothing: two candidates is not an answer.
+        var codeBehind = rel + ".cs";
+        var used = _edges.Values
+            .Where(e => e.ProvenanceFile == codeBehind)
+            .Select(e => _nodes.GetValueOrDefault(e.Target))
+            .Where(n => n is { Type: NodeType.Type }
+                        && n.Label.EndsWith("ViewModel", StringComparison.Ordinal)
+                        && n.FilePath != codeBehind)
+            .DistinctBy(n => n!.Id)
+            .ToList();
+        if (used.Count == 1) return (used[0], GraphConfidence.Strong);
+
+        // Last: the naming convention. Weaker evidence than the file stating its type, and marked as such —
+        // but name resolution is how every other cross-file edge in this graph is worked out, and a DataContext
+        // assigned from an injected field leaves nothing stronger to go on. A unique match only.
+        var stem = Path.GetFileNameWithoutExtension(rel);
+        foreach (var candidate in new[] { stem + "Model", stem + "ViewModel" })
+            if (candidate.EndsWith("ViewModel", StringComparison.Ordinal)
+                && typesByName.TryGetValue(candidate, out var byName) && byName.Count == 1)
+                return (byName[0], GraphConfidence.Reasonable);
+
+        return (null, 0);
+    }
+
+    /// <summary>The first segment of a binding's property path, or null when the binding names something other
+    /// than a plain path on the current DataContext (another element, an ancestor, its own source).</summary>
+    private static string? BindingPath(string inner)
+    {
+        if (inner.Contains("RelativeSource", StringComparison.Ordinal)
+            || inner.Contains("ElementName", StringComparison.Ordinal)
+            || inner.Contains("Source=", StringComparison.Ordinal)) return null;
+
+        var first = inner.Split(',')[0].Trim();
+        if (first.StartsWith("Path=", StringComparison.Ordinal)) first = first[5..].Trim();
+        else if (first.Contains('=', StringComparison.Ordinal)) return null;   // a named option, not a path
+
+        var cut = first.IndexOfAny(['.', '[', '(', '/', ' ']);
+        if (cut >= 0) first = first[..cut];
+        return first.Length > 0 && (char.IsLetter(first[0]) || first[0] == '_') ? first : null;
+    }
 
     /// <summary>The XAML anchors declared by one file, each with its structure path.</summary>
     private List<(string Ast, GraphNode Node)> AnchorsOf(string rel) =>

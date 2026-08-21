@@ -193,8 +193,17 @@ public class GraphBuilderTests
             "    <SolidColorBrush x:Key=\"GoBrush\" Color=\"Red\" />\n" +
             "  </UserControl.Resources>\n" +
             "  <Button x:Name=\"Go\" AutomationProperties.AutomationId=\"Go_Button\" Click=\"OnGo\"\n" +
-            "          Background=\"{StaticResource GoBrush}\" />\n" +
+            "          Background=\"{StaticResource GoBrush}\" Content=\"{Binding Caption}\"\n" +
+            "          Command=\"{Binding RefreshCommand}\" />\n" +
             "</UserControl>\n");
+        // The MVVM Toolkit generates the names the view binds to, so the graph has to map them back.
+        File.WriteAllText(Path.Combine(root, "WidgetViewModel.cs"),
+            "namespace Demo;\n" +
+            "public partial class WidgetViewModel\n" +
+            "{\n" +
+            "    [ObservableProperty] private string _caption = \"\";\n" +
+            "    [RelayCommand] private void Refresh() { }\n" +
+            "}\n");
         File.WriteAllText(Path.Combine(root, "Widget.xaml.cs"),
             "namespace Demo;\n" +
             "public partial class Widget\n" +
@@ -245,6 +254,15 @@ public class GraphBuilderTests
             Assert.IsNotNull(res, "uses_resource links the element to the brush it resolves");
             Assert.AreEqual("code:Widget.xaml#K:GoBrush", res!.Target);
             Assert.AreEqual(GraphConfidence.NearCertain, res.Confidence);
+
+            // A binding names the MVVM Toolkit's generated surface — WordWrap, RefreshCommand — which exists
+            // only in generated source. Both must land on the declaration that produces them.
+            var bindings = g.Edges.Where(e => e.Relationship == EdgeRelationship.BindsTo)
+                                  .Select(e => e.Target).ToList();
+            CollectionAssert.Contains(bindings, "code:WidgetViewModel.cs#T:WidgetViewModel/F:_caption",
+                "{Binding Caption} resolves to the [ObservableProperty] field behind it");
+            CollectionAssert.Contains(bindings, "code:WidgetViewModel.cs#T:WidgetViewModel/M:Refresh",
+                "{Binding RefreshCommand} resolves to the [RelayCommand] method behind it");
 
             // csproj → project + package dependencies.
             Assert.IsTrue(g.Edges.Any(e => e is { Source: "file:A.csproj", Target: "file:B.csproj", Relationship: EdgeRelationship.DependsOn }),

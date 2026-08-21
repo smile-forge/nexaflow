@@ -18,7 +18,7 @@ public enum CommunityAlgorithm
 /// <summary>The current extractor/schema stamp. Bump when extraction changes so caches force a full re-extract.</summary>
 public static class GraphSchema
 {
-    public const int Version = 3;   // v3: .xaml moved from the structured layer to the code layer (xml grammar)
+    public const int Version = 4;   // v4: attributes on fields ([ObservableProperty]) reach the extractor
 }
 
 /// <summary>Inputs to <c>GraphBuilder.Build</c>. Kept a value bag so <c>Build</c> is a pure function of its inputs.</summary>

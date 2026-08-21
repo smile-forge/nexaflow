@@ -114,7 +114,10 @@ public sealed class CodeRelationshipExtractor
     // the #index overload suffixes match the graph's member AST paths, then collect the sites in each member.
     private static void ScanMembers(Node body, string typePath, Acc acc)
     {
-        var members = new List<(Node Node, string Seg)>();
+        // Declares is where the member's attributes live. For a field that is NOT the member node: the
+        // declarator names the field, but [ObservableProperty] hangs off the enclosing field_declaration, so
+        // reading attributes from the declarator would miss every one of them.
+        var members = new List<(Node Node, string Seg, Node Declares)>();
         foreach (var m in body.NamedChildren)
         {
             switch (m.Type)
@@ -122,25 +125,25 @@ public sealed class CodeRelationshipExtractor
                 case "method_declaration":
                 case "local_function_statement":
                 case "constructor_declaration":
-                    AddMember(members, m, NameOf(m), 'M'); break;
+                    AddMember(members, m, NameOf(m), 'M', m); break;
                 case "property_declaration":
                 case "indexer_declaration":
                 case "event_declaration":
-                    AddMember(members, m, NameOf(m), 'P'); break;
+                    AddMember(members, m, NameOf(m), 'P', m); break;
                 case "field_declaration":
                 case "event_field_declaration":
                     foreach (var d in Descendants(m))
                         if (d.Type == "variable_declarator")
-                            AddMember(members, d, NameOf(d), 'F');
+                            AddMember(members, d, NameOf(d), 'F', m);
                     break;
             }
         }
 
         var total = new Dictionary<string, int>();
-        foreach (var (_, seg) in members) total[seg] = total.GetValueOrDefault(seg) + 1;
+        foreach (var (_, seg, _) in members) total[seg] = total.GetValueOrDefault(seg) + 1;
 
         var seen = new Dictionary<string, int>();
-        foreach (var (node, seg) in members)
+        foreach (var (node, seg, declares) in members)
         {
             var idx = seen.GetValueOrDefault(seg);
             seen[seg] = idx + 1;
@@ -148,14 +151,14 @@ public sealed class CodeRelationshipExtractor
             var memberPath = $"{typePath}/{fseg}";
             CollectSites(node, memberPath, acc);
             CollectSignature(node, memberPath, acc);
-            CollectAttributes(node, memberPath, acc);
+            CollectAttributes(declares, memberPath, acc);
         }
     }
 
-    private static void AddMember(List<(Node, string)> members, Node node, string? name, char kind)
+    private static void AddMember(List<(Node, string, Node)> members, Node node, string? name, char kind, Node declares)
     {
         var n = (name ?? string.Empty).Trim();
-        if (n.Length > 0) members.Add((node, $"{kind}:{n}"));
+        if (n.Length > 0) members.Add((node, $"{kind}:{n}", declares));
     }
 
     // ── call / instantiation sites (binary refs) + new-arg calls (hyperedge) ──────────────────────
