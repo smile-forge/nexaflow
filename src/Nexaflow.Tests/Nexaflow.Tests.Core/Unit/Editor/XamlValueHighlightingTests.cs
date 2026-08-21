@@ -58,9 +58,21 @@ public class XamlValueHighlightingTests
 
         Assert.AreEqual("operator", RoleOf(Xaml, "{"));
         Assert.AreEqual("keyword", RoleOf(Xaml, "StaticResource"), "the extension name is the part that says what this value is");
-        Assert.AreEqual("variable", RoleOf(Xaml, "PopupBorder"));
+        Assert.AreEqual("constant", RoleOf(Xaml, "PopupBorder"));
         Assert.AreEqual("operator", RoleOf(Xaml, "}"));
         Assert.AreEqual("string", RoleOf(Xaml, "\"", from: Xaml.IndexOf('=')), "the quotes still belong to the value");
+    }
+
+    [TestMethod]
+    public void AResourceKey_ReadsDifferentlyFromABindingPath()
+    {
+        // Not cosmetic: a key names something declared elsewhere, and the swatch renderer resolves *only*
+        // these against the theme — so a binding path can never be mistaken for a brush.
+        const string Xaml = """<Border Background="{StaticResource AccentBrush}" Tag="{Binding AccentBrush}"/>""";
+
+        Assert.AreEqual("constant", RoleOf(Xaml, "AccentBrush"), "the resource key");
+        Assert.AreEqual("variable", RoleOf(Xaml, "AccentBrush", from: Xaml.IndexOf("Binding", StringComparison.Ordinal)),
+                        "the identically-named binding path");
     }
 
     [TestMethod]

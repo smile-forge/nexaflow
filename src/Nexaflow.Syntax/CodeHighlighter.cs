@@ -20,6 +20,10 @@ namespace Nexaflow.Syntax;
 public sealed class CodeHighlighter : IDisposable
 {
     private readonly string _grammarId;
+
+    /// <summary>The grammar this highlighter reads, for callers whose behaviour is language-specific (an
+    /// 8-digit hex colour means <c>#AARRGGBB</c> in XAML and <c>#RRGGBBAA</c> in CSS).</summary>
+    public string GrammarId => _grammarId;
     private readonly Language _language;
     private readonly Parser _parser;
     private readonly Query _query;

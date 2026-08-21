@@ -85,12 +85,18 @@ internal static class XamlHighlighting
         // The extension name: StaticResource, Binding, x:Type — the part that says what this value is.
         var nameStart = i;
         while (i < end && (char.IsLetterOrDigit(text[i]) || text[i] is '_' or '.' or ':')) i++;
+        var isResourceLookup = false;
         if (i > nameStart)
         {
             AddPrefix(nameStart, i, text, offset, spans);   // the x: in x:Type
             var afterPrefix = PrefixEnd(text, nameStart, i);
             Emit(afterPrefix, i - afterPrefix, "keyword");
+            isResourceLookup = text.AsSpan(afterPrefix, i - afterPrefix).EndsWith("Resource");
         }
+
+        // A resource key is not a binding path: it names something declared elsewhere in the document (or a
+        // merged dictionary), which reads differently and — when it resolves to a brush — is previewable.
+        var argument = isResourceLookup ? "constant" : "variable";
 
         while (i < end)
         {
@@ -119,7 +125,7 @@ internal static class XamlHighlighting
             {
                 AddPrefix(tokenStart, i, text, offset, spans);   // the vmo: in vmo:PromptOverlay
                 var afterPrefix = PrefixEnd(text, tokenStart, i);
-                Emit(afterPrefix, i - afterPrefix, "variable");
+                Emit(afterPrefix, i - afterPrefix, argument);
             }
         }
         return i;
