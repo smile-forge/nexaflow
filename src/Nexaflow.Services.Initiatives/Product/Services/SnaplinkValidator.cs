@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Syntax;
 
@@ -136,6 +137,10 @@ public sealed class SnaplinkValidator
             .OrderBy(i => i.NodeId, StringComparer.Ordinal)
             .ThenBy(i => i.Concern ?? string.Empty, StringComparer.Ordinal)
             .ThenBy(i => i.Index)];
+        report.Advisories = [.. report.Advisories
+            .OrderBy(a => a.NodeId, StringComparer.Ordinal)
+            .ThenBy(a => a.Concern ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(a => a.Index)];
         return report;
     }
 
@@ -275,7 +280,20 @@ public sealed class SnaplinkValidator
         {
             report.ScannedSnaplinks++;
             var (kind, detail) = Check(links[i]);
-            if (detail is null) continue;   // sound, or unverifiable — never reported
+            if (detail is null)
+            {
+                // Sound at the level that gates a build. Its finer ast target may still be wrong, which is a
+                // suggestion rather than breakage — the field has never been checked, so it holds free text.
+                if (CheckAst(links[i]) is { } advisory)
+                {
+                    advisory.NodeId = nodeId;
+                    advisory.NodeTitle = title;
+                    advisory.Concern = concern;
+                    advisory.Index = i;
+                    report.Advisories.Add(advisory);
+                }
+                continue;
+            }
             report.Issues.Add(new IntegrityIssue
             {
                 NodeId = nodeId, NodeTitle = title, Concern = concern, Index = i,
@@ -283,6 +301,68 @@ public sealed class SnaplinkValidator
             });
         }
     }
+
+    /// <summary>
+    /// The advisory for a link whose <see cref="Snaplink.Ast"/> does not resolve, or null when it resolves —
+    /// or when nothing can be proven (no <c>ast</c>, no grammar for the file, an unreadable file).
+    /// <para>
+    /// Never an <see cref="IntegrityIssue"/>. Nothing has ever validated this field, so it holds prose as
+    /// often as a path; failing a release build on that would be punishing links whose real target is sound.
+    /// </para></summary>
+    private SnaplinkAdvisory? CheckAst(Snaplink link)
+    {
+        if (string.IsNullOrWhiteSpace(link.Ast) || string.IsNullOrWhiteSpace(link.Doc)) return null;
+
+        var facts = Facts(link.Doc!);
+        if (!facts.Exists || facts.Text is null) return null;
+        if (facts.Outline() is not { HasContent: true } outline) return null;   // unverifiable, as ever
+
+        var paths = outline.Types.Select(t => t.AstPath)
+                           .Concat(outline.Types.SelectMany(t => t.Members).Select(m => m.AstPath))
+                           .ToList();
+        if (paths.Contains(link.Ast!, StringComparer.Ordinal)) return null;
+
+        return new SnaplinkAdvisory
+        {
+            Kind = SnaplinkAdvisoryKind.UnresolvedAst,
+            Doc = link.Doc!,
+            Current = link.Ast!,
+            Suggestion = NearestPath(link.Ast!, outline),
+        };
+    }
+
+    /// <summary>
+    /// The structure path a stale <c>ast</c> most likely meant. Matches on the names inside the value rather
+    /// than the value as a whole, because these were written as descriptions — <c>"ListView[x:Name=AppListView]"</c>,
+    /// <c>"Grid[Carousel]"</c>, <c>"SuccessBrush"</c> — and the name buried in one is the part that is real.
+    /// Returns null when nothing in the file is a close enough match to be worth offering.
+    /// </summary>
+    private static string? NearestPath(string ast, CodeOutline outline)
+    {
+        var words = Words.Matches(ast).Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
+        if (words.Count == 0) return null;
+
+        var candidates = outline.Types
+            .Select(t => (t.AstPath, t.Name))
+            .Concat(outline.Types.SelectMany(t => t.Members).Select(m => (m.AstPath, m.Name)));
+
+        // An exact name match is the only thing confident enough to suggest; anything looser would be a guess
+        // dressed up as a fix, and the point of the advisory is to be actioned without re-checking it.
+        var list = candidates.ToList();
+        foreach (var (path, name) in list)
+            if (words.Contains(name)) return path;
+
+        // Then the same test with the punctuation and casing taken out, which is what separates a label like
+        // "Mic button" from the MicButton it was written for. Still an equality, not a similarity.
+        var flattened = Flatten(ast);
+        foreach (var (path, name) in list)
+            if (flattened == Flatten(name)) return path;
+        return null;
+
+        static string Flatten(string s) => string.Concat(s.Where(char.IsLetterOrDigit)).ToLowerInvariant();
+    }
+
+    private static readonly Regex Words = new(@"[A-Za-z_][A-Za-z0-9_]*", RegexOptions.Compiled);
 
     /// <summary>The failure for this link, or a null detail when it is sound (or unverifiable).</summary>
     private (IntegrityKind Kind, string? Detail) Check(Snaplink link)

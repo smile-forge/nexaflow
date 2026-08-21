@@ -214,6 +214,62 @@ public class SnaplinkValidatorTests
         Assert.IsTrue(report.IsClean, report.Issues.FirstOrDefault()?.Detail ?? "");
     }
 
+    // ── ast: checked at last, but only ever as a suggestion ──────────────────
+
+    [TestMethod]
+    public void UnresolvedAst_IsAdvisory_NeverGating()
+    {
+        // The whole point of the advisory channel: `ast` has never been validated, so it holds prose. Failing
+        // a release build on that would punish links whose real target is sound.
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"MicButton\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Ast = "Mic button" }));
+
+        Assert.IsTrue(report.IsClean, "an unresolved ast must never fail the build");
+        Assert.AreEqual(0, report.IssueCount);
+        var advisory = report.Advisories.Single();
+        Assert.AreEqual(SnaplinkAdvisoryKind.UnresolvedAst, advisory.Kind);
+        Assert.AreEqual("Mic button", advisory.Current);
+        Assert.AreEqual("N:MicButton", advisory.Suggestion, "the name buried in the prose is the part that is real");
+        StringAssert.Contains(advisory.Command, "--ast \"N:MicButton\"");
+    }
+
+    [TestMethod]
+    public void ResolvedAst_RaisesNothing()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"MicButton\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Ast = "N:MicButton" }));
+
+        Assert.IsTrue(report.IsClean);
+        Assert.AreEqual(0, report.Advisories.Count);
+    }
+
+    [TestMethod]
+    public void UnresolvableAst_WithNothingToSuggest_OffersToClearIt()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" />");
+        var report = Validate(TreeWith(
+            new Snaplink { Type = "code", Doc = "src/View.xaml", Ast = "ROW 4 - AI INTERACTION BAR" }));
+
+        var advisory = report.Advisories.Single();
+        Assert.IsNull(advisory.Suggestion, "a guess dressed up as a fix is worse than no suggestion");
+        StringAssert.Contains(advisory.Command, "--clear ast");
+    }
+
+    [TestMethod]
+    public void AstInAFileWithNoGrammar_StaysUnverifiable()
+    {
+        WriteFile("src/notes.txt", "nothing structural in here");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/notes.txt", Ast = "N:Whatever" }));
+        Assert.AreEqual(0, report.Advisories.Count, "no outline means nothing can be proven either way");
+    }
+
     [TestMethod]
     public void XamlElementThatIsGone_IsReported()
     {
