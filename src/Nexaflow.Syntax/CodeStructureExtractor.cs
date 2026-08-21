@@ -132,8 +132,335 @@ public sealed class CodeStructureExtractor
         "cpp"        => BuildCpp(root, baseDir),
         "rust"       => BuildRust(root, baseDir),
         "razor"      => BuildRazor(root, baseDir),
+        "xaml"       => BuildXaml(root, baseDir),
+        "xml"        => BuildXml(root),
         _            => CodeOutline.Empty,
     };
+
+    // ── XAML / XML ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The XAML language namespace. Conventionally bound to the <c>x:</c> prefix, but a document may bind it
+    /// to any name, so directives are matched by resolving the prefix through the xmlns declarations in scope
+    /// rather than by assuming the spelling.
+    /// </summary>
+    private const string XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+    /// <summary>
+    /// A WPF view's structure. Only <em>anchors</em> become outline entries — the root element, anything with
+    /// an <c>x:Name</c>, and anything with an <c>x:Key</c> — because a large view holds thousands of elements
+    /// and all but these are unaddressable anyway (there is nothing stable to name them by).
+    ///
+    /// <para>AST paths are deliberately <b>flat</b>: <c>N:HeaderPanel</c>, not <c>T:View/N:HeaderPanel</c>.
+    /// An <c>x:Name</c> is unique per namescope and an <c>x:Key</c> per dictionary, so a flat path survives an
+    /// element being moved between panels — the common edit, and the one a nested path would break.</para>
+    /// </summary>
+    private static CodeOutline BuildXaml(Node root, string? baseDir)
+    {
+        var imports = new List<ImportRef>();
+        var types = new List<OutlineType>();
+        var used = new HashSet<string>(StringComparer.Ordinal);
+
+        if (FirstChild(root, "element") is { } rootEl)
+            ScanXaml(rootEl, new Dictionary<string, string>(StringComparer.Ordinal), types, imports, used, baseDir,
+                     isRoot: true, ownerMembers: null, ownerPath: null);
+        else
+            ScanXamlTags(root, types, used);
+
+        return types.Count == 0 && imports.Count == 0 ? CodeOutline.Empty : new CodeOutline(imports, types, []);
+    }
+
+    /// <summary>
+    /// The degraded walk for a file that does not parse into an element tree — which is the normal state of a
+    /// file being typed into. The grammar recovers by hoisting the tags it did understand into an
+    /// <c>ERROR</c> node, so the anchors are still all there; only the element extents are not, and a tag's own
+    /// span stands in for them. Being useful mid-edit is the whole reason for parsing XAML rather than
+    /// loading it into an XML DOM, which would simply throw.
+    /// </summary>
+    private static void ScanXamlTags(Node root, List<OutlineType> types, HashSet<string> used)
+    {
+        var scope = new Dictionary<string, string>(StringComparer.Ordinal);
+        var isRoot = true;
+
+        foreach (var tag in Descendants(root))
+        {
+            if (tag.Type is not ("STag" or "EmptyElemTag")) continue;
+            var attrs = XamlAttributes(tag);
+
+            // No element nesting to scope by, so declarations simply accumulate as they are met.
+            foreach (var a in attrs)
+                if (a.Name.StartsWith("xmlns:", StringComparison.Ordinal))
+                    scope[a.Name["xmlns:".Length..]] = a.Value;
+
+            void Emit(string path, string label) =>
+                types.Add(new OutlineType(label, Line(tag), OutlineKind.Class, UniquePath(path, used), [])
+                          { EndLine = EndLine(tag) });
+
+            if (isRoot)
+            {
+                var cls = XamlDirective(attrs, scope, "Class");
+                Emit("T:" + (cls is { Length: > 0 } ? Simple(cls[(cls.LastIndexOf('.') + 1)..]) : XamlLocalName(tag)),
+                     cls is { Length: > 0 } ? Simple(cls[(cls.LastIndexOf('.') + 1)..]) : XamlLocalName(tag));
+                isRoot = false;
+            }
+            else if (XamlDirective(attrs, scope, "Name") is { Length: > 0 } named) Emit("N:" + named, named);
+            else if (XamlDirective(attrs, scope, "Key") is { Length: > 0 } keyed) Emit("K:" + keyed, keyed);
+
+            if (XamlAutomationId(attrs) is { } aid) Emit("A:" + aid, aid);
+        }
+    }
+
+    /// <summary>Plain XML has no <c>x:Name</c>/<c>x:Key</c> to anchor on, so the outline is deliberately
+    /// minimal: the root element, and nothing else. Enough for a whole-file snaplink to resolve and for the
+    /// file to carry a type node, without inventing structure the document does not have.</summary>
+    private static CodeOutline BuildXml(Node root)
+    {
+        if (FirstChild(root, "element") is not { } el) return CodeOutline.Empty;
+        if (FirstChild(el, "STag", "EmptyElemTag") is not { } tag) return CodeOutline.Empty;
+        var name = XamlLocalName(tag);
+        if (name.Length == 0) return CodeOutline.Empty;
+        return new CodeOutline([], [new OutlineType(name, Line(el), OutlineKind.Class, "T:" + name, [])
+                                    { EndLine = EndLine(el) }], []);
+    }
+
+    private static void ScanXaml(Node element, Dictionary<string, string> ns, List<OutlineType> types,
+                                 List<ImportRef> imports, HashSet<string> used, string? baseDir, bool isRoot,
+                                 List<OutlineMember>? ownerMembers, string? ownerPath)
+    {
+        if (FirstChild(element, "STag", "EmptyElemTag") is not { } tag)
+        {
+            foreach (var c in XamlChildren(element))
+                ScanXaml(c, ns, types, imports, used, baseDir, false, ownerMembers, ownerPath);
+            return;
+        }
+
+        var attrs = XamlAttributes(tag);
+
+        // xmlns declarations scope to this element and its descendants, so copy-on-write rather than mutate.
+        Dictionary<string, string>? declared = null;
+        foreach (var a in attrs)
+        {
+            if (a.Name == "xmlns")
+                (declared ??= new(ns, StringComparer.Ordinal))[""] = a.Value;
+            else if (a.Name.StartsWith("xmlns:", StringComparison.Ordinal))
+            {
+                (declared ??= new(ns, StringComparer.Ordinal))[a.Name["xmlns:".Length..]] = a.Value;
+                if (a.Value.StartsWith("clr-namespace:", StringComparison.Ordinal))
+                    imports.Add(new ImportRef(a.Name + "=" + a.Value, null));   // a namespace, not a file
+            }
+        }
+        var scope = declared ?? ns;
+
+        var local = XamlLocalName(tag);
+        string? label = null, astPath = null;
+
+        if (isRoot)
+        {
+            // x:Class is the compiler-enforced pairing to the code-behind partial class; without one
+            // (a ResourceDictionary, say) the element name is the only honest label.
+            var cls = XamlDirective(attrs, scope, "Class");
+            label = cls is { Length: > 0 } ? Simple(cls[(cls.LastIndexOf('.') + 1)..]) : local;
+            astPath = "T:" + label;
+        }
+        else if (XamlDirective(attrs, scope, "Name") is { Length: > 0 } named)
+        {
+            label = named;
+            astPath = "N:" + named;
+        }
+        else if (XamlDirective(attrs, scope, "Key") is { Length: > 0 } keyed)
+        {
+            label = keyed;
+            astPath = "K:" + keyed;
+        }
+
+        // AutomationProperties.AutomationId is a third identity, and by far the most common one: it is what
+        // the UI journeys click, and most elements carrying it have no x:Name at all. An element with two
+        // identities deliberately gets two handles - each is a real, separately-looked-up name - but only the
+        // primary one owns the handlers, so they are never counted twice.
+        var automationId = XamlAutomationId(attrs);
+
+        if (astPath is not null)
+        {
+            astPath = UniquePath(astPath, used);
+            // The list is handed to the type and kept mutable: handlers on the *unnamed* elements below this
+            // anchor are appended as we descend, since an unnamed Button still has a real Click handler and
+            // the nearest anchor is the only addressable place to hang it.
+            var anchored = new List<OutlineMember>();
+            types.Add(new OutlineType(label!, Line(element), OutlineKind.Class, astPath, anchored)
+                      { EndLine = EndLine(element) });
+            ownerMembers = anchored;
+            ownerPath = astPath;
+        }
+
+        else if (automationId is not null)
+        {
+            astPath = UniquePath("A:" + automationId, used);
+            var anchored = new List<OutlineMember>();
+            types.Add(new OutlineType(automationId, Line(element), OutlineKind.Class, astPath, anchored)
+                      { EndLine = EndLine(element) });
+            ownerMembers = anchored;
+            ownerPath = astPath;
+            automationId = null;   // already the primary handle; don't emit it twice
+        }
+
+        if (automationId is not null)
+            types.Add(new OutlineType(automationId, Line(element), OutlineKind.Class,
+                                      UniquePath("A:" + automationId, used), []) { EndLine = EndLine(element) });
+
+        if (ownerMembers is not null && ownerPath is not null)
+            AddXamlHandlers(attrs, ownerPath, ownerMembers, used);
+
+        if (local == "ResourceDictionary")
+            foreach (var a in attrs)
+                if (a.Name == "Source")
+                    imports.Add(new ImportRef(a.Value, ResolveXamlSource(a.Value, baseDir)));
+
+        foreach (var c in XamlChildren(element))
+            ScanXaml(c, scope, types, imports, used, baseDir, false, ownerMembers, ownerPath);
+    }
+
+    /// <summary>The value of a XAML directive (<c>x:Name</c>, <c>x:Key</c>, <c>x:Class</c>) on this element,
+    /// matched by resolved namespace rather than by the literal <c>x:</c> spelling of the prefix.</summary>
+    private static string? XamlDirective(List<XamlAttr> attrs, Dictionary<string, string> scope, string localName)
+    {
+        foreach (var a in attrs)
+        {
+            int colon = a.Name.IndexOf(':');
+            if (colon <= 0 || a.Name.Length - colon - 1 != localName.Length) continue;
+            if (string.CompareOrdinal(a.Name, colon + 1, localName, 0, localName.Length) != 0) continue;
+            if (scope.TryGetValue(a.Name[..colon], out var uri) && uri == XamlNamespace) return a.Value;
+        }
+        return null;
+    }
+
+    /// <summary>Appends this element's event-handler attributes to the nearest anchor, as method members —
+    /// so a snaplink can name <c>class: SendButton, method: OnSendClick</c> and have it checked.</summary>
+    private static void AddXamlHandlers(List<XamlAttr> attrs, string ownerPath, List<OutlineMember> members,
+                                        HashSet<string> used)
+    {
+        foreach (var a in attrs)
+        {
+            if (!IsEventHandlerAttribute(a.Name, a.Value)) continue;
+            var path = UniquePath($"{ownerPath}/M:{a.Value}", used);
+            members.Add(new OutlineMember(a.Value, Line(a.Node), OutlineKind.Method,
+                                          a.Name + "=" + a.Value, path));
+        }
+    }
+
+    /// <summary>An attribute whose last dotted segment ends with one of these reads as a WPF event.</summary>
+    private static readonly string[] EventNameSuffixes =
+    [
+        "Changed", "Changing", "Click", "Down", "Up", "Move", "Enter", "Leave", "Over", "Wheel",
+        "Focus", "Loaded", "Unloaded", "Opened", "Opening", "Closed", "Closing", "Checked", "Unchecked",
+        "Expanded", "Collapsed", "Drop", "Scroll", "Started", "Completed", "Requested", "Selected",
+        "Invoked", "Executed", "Initialized", "Activated", "Deactivated", "Error", "Failed",
+        "Navigate", "Input", "IntoView",
+    ];
+
+    /// <summary>
+    /// Whether an attribute is an event handler rather than a property. Nothing in XAML's <em>syntax</em>
+    /// separates the two — it takes the type system — so this is a heuristic: an identifier-shaped value
+    /// (ruling out bindings, numbers and <c>True</c>/<c>False</c>) on an event-shaped name. It errs toward
+    /// missing an unconventionally named custom event rather than inventing a handler that isn't one, and
+    /// the graph tightens it further by only emitting an edge when the code-behind really declares the method.
+    /// </summary>
+    private static bool IsEventHandlerAttribute(string name, string value)
+    {
+        if (value is "True" or "False" || !IsIdentifier(value)) return false;
+        int dot = name.LastIndexOf('.');
+        var local = dot >= 0 ? name[(dot + 1)..] : name;     // attached events, e.g. ButtonBase.Click
+        if (local.IndexOf(':') >= 0) return false;           // x:/d:/xmlns: directives are never handlers
+        if (local == "Handler") return true;                 // <EventSetter Event="Click" Handler="OnX"/>
+        foreach (var suffix in EventNameSuffixes)
+            if (local.EndsWith(suffix, StringComparison.Ordinal)) return true;
+        return false;
+    }
+
+    private static bool IsIdentifier(string s)
+    {
+        if (s.Length == 0 || (!char.IsLetter(s[0]) && s[0] != '_')) return false;
+        foreach (var ch in s)
+            if (!char.IsLetterOrDigit(ch) && ch != '_') return false;
+        return true;
+    }
+
+    /// <summary>A merged <c>ResourceDictionary</c> source resolved to a real file when it is a relative path.
+    /// A <c>pack://</c> URI addresses an assembly rather than a directory, so it stays unresolved — never guessed.</summary>
+    private static string? ResolveXamlSource(string spec, string? baseDir)
+    {
+        if (baseDir is null || spec.Length == 0) return null;
+        if (spec.Contains("://", StringComparison.Ordinal)) return null;
+        try
+        {
+            var full = Path.GetFullPath(Path.Combine(baseDir, spec.Replace('/', Path.DirectorySeparatorChar)));
+            return File.Exists(full) ? full : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// The literal <c>AutomationProperties.AutomationId</c> on this element, or null. A bound value
+    /// (<c>{Binding AutomationId}</c>) names nothing at author time, so it is not an anchor.
+    /// </summary>
+    private static string? XamlAutomationId(List<XamlAttr> attrs)
+    {
+        foreach (var a in attrs)
+        {
+            if (!a.Name.EndsWith("AutomationProperties.AutomationId", StringComparison.Ordinal)) continue;
+            if (a.Value.Length == 0 || a.Value.IndexOf('{') >= 0) return null;
+            return a.Value;
+        }
+        return null;
+    }
+
+    /// <summary>An element name minus any namespace prefix. A dotted name (<c>UserControl.Resources</c>) is
+    /// property-element syntax and is kept whole — it is a property setter, not a control.</summary>
+    private static string XamlLocalName(Node tag)
+    {
+        var raw = FirstChild(tag, "Name")?.Text ?? "";
+        int colon = raw.LastIndexOf(':');
+        return colon >= 0 ? raw[(colon + 1)..] : raw;
+    }
+
+    private readonly record struct XamlAttr(string Name, string Value, Node Node);
+
+    private static List<XamlAttr> XamlAttributes(Node tag)
+    {
+        var list = new List<XamlAttr>();
+        foreach (var a in tag.NamedChildren)
+        {
+            if (a.Type != "Attribute") continue;
+            string? name = null, value = null;
+            foreach (var c in a.NamedChildren)
+            {
+                if (c.Type == "Name" && name is null) name = c.Text;
+                else if (c.Type == "AttValue") value = StripQuotes(c.Text);
+            }
+            if (name is not null) list.Add(new XamlAttr(name, value ?? "", a));
+        }
+        return list;
+    }
+
+    /// <summary>Child elements, reaching through the <c>content</c> node the grammar wraps them in.</summary>
+    private static IEnumerable<Node> XamlChildren(Node element)
+    {
+        foreach (var c in element.NamedChildren)
+        {
+            if (c.Type == "element") yield return c;
+            else if (c.Type == "content")
+                foreach (var g in c.NamedChildren)
+                    if (g.Type == "element") yield return g;
+        }
+    }
+
+    /// <summary>Keeps AST paths unique when a name repeats (two dictionaries in one file can each define the
+    /// same key), mirroring the <c>#0</c>/<c>#1</c> disambiguation the code grammars use for overloads.</summary>
+    private static string UniquePath(string path, HashSet<string> used)
+    {
+        if (used.Add(path)) return path;
+        for (int i = 1; ; i++)
+            if (used.Add(path + "#" + i)) return path + "#" + i;
+    }
 
     // ── Shared helpers ─────────────────────────────────────────────────────────
 

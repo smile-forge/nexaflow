@@ -183,11 +183,47 @@ public class SnaplinkValidatorTests
     [TestMethod]
     public void ClassInFileWithNoTreeSitterGrammar_IsUnverifiable_NotBroken()
     {
-        // .xaml has no bundled grammar, so its structure cannot be resolved. Reporting it would fail every
-        // release build on links the product tree legitimately carries (e.g. TabularView.xaml::TabularView).
-        WriteFile("src/View.xaml", "<UserControl x:Class=\"View\" />");
-        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "AnythingAtAll" }));
+        // A .txt has no grammar, so its structure cannot be resolved at all. Reporting it would invent
+        // breakage, which fails a release build on a link that may be perfectly sound.
+        WriteFile("src/notes.txt", "AnythingAtAll is not a class in here.");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/notes.txt", Class = "AnythingAtAll" }));
         Assert.IsTrue(report.IsClean, "a file with no grammar must be treated as unverifiable, not broken");
+    }
+
+    // ── XAML is verifiable now that the xml grammar is built from source ─────
+
+    [TestMethod]
+    public void XamlClass_ResolvesThroughXClass()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" />");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "View" }));
+        Assert.IsTrue(report.IsClean, "x:Class names the code-behind partial and must satisfy a class link");
+    }
+
+    [TestMethod]
+    public void XamlNamedElementAndHandler_AreVerifiable()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"SendButton\" Click=\"OnSendClick\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(
+            new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "SendButton" },
+            new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "SendButton", Method = "OnSendClick" }));
+        Assert.IsTrue(report.IsClean, report.Issues.FirstOrDefault()?.Detail ?? "");
+    }
+
+    [TestMethod]
+    public void XamlElementThatIsGone_IsReported()
+    {
+        // The whole point of giving XAML a grammar: a renamed or deleted element stops being invisible.
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"SendButton\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "OldButton" }));
+        Assert.AreEqual(IntegrityKind.MissingClass, report.Issues.Single().Kind);
     }
 
     [TestMethod]

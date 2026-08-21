@@ -258,5 +258,40 @@ public static class HighlightQueries
               "if" "else" "for" "while" "switch" "case" "break" "continue" "try" "catch" "finally" "throw" "throws"
             ] @keyword
             """,
+
+        // XML family. One query text, registered under both ids: `xaml` parses with the same native xml
+        // grammar (CodeHighlighter.NativeAlias) but stays a separate id so CodeStructureExtractor can read
+        // WPF meaning out of it. Capture names are limited to the roles SyntaxTokenMap knows - anything else
+        // would parse fine and simply paint nothing.
+        ["xml"]  = XmlQuery,
+        ["xaml"] = XmlQuery,
     };
+
+    /// <summary>Shared by the <c>xml</c> and <c>xaml</c> grammar ids - both parse with the native xml grammar.</summary>
+    private const string XmlQuery =
+        """
+        (Comment) @comment
+
+        (STag (Name) @tag)
+        (ETag (Name) @tag)
+        (EmptyElemTag (Name) @tag)
+
+        (Attribute (Name) @attribute)
+        (Attribute (AttValue) @string)
+
+        (CDSect (CData) @string)
+        (EntityRef) @constant
+        (CharRef) @constant
+
+        (PI (PITarget) @keyword)
+        (doctypedecl "DOCTYPE" @keyword)
+        (doctypedecl (Name) @type)
+
+        "xml" @keyword
+        [ "version" "encoding" "standalone" ] @attribute
+        (EncName) @string
+        (VersionNum) @number
+
+        [ "<" ">" "</" "/>" "<?" "?>" "=" ] @operator
+        """;
 }

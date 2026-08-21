@@ -34,8 +34,13 @@ public static class TreeSitterLanguages
         Register("razor",             ".razor", ".cshtml");
         Register("php",               ".php", ".phtml");
         Register("jinja",             ".j2", ".jinja", ".jinja2");   // html + python {{ }}/{% %}
+        // XML family. XAML *is* XML, so both ids resolve to the one native xml grammar we build from
+        // external/tree-sitter-xml (see CodeHighlighter.NativeAlias). They stay separate ids so the
+        // structure extractor can read WPF meaning - x:Class/x:Name/x:Key, event handlers - out of .xaml
+        // while a plain .xml gets a generic element outline.
+        Register("xaml", ".xaml");
+        Register("xml",  ".xml", ".xsl", ".xslt");
         // .ipynb is owned by the Notebook feature (its own viewer), not the code editor.
-        // xml/xaml/xsl stay on AvalonEdit's built-in .xshd (no bundled tree-sitter xml grammar).
     }
 
     /// <summary>Registers a tree-sitter grammar for a set of extensions.</summary>

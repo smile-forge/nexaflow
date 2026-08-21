@@ -41,6 +41,7 @@ public sealed class CodeHighlighter : IDisposable
     private static readonly Dictionary<string, string> NativeAlias = new()
     {
         ["jinja"] = "html",   // markup parses as html; python injected into {{ }}/{% %}
+        ["xaml"]  = "xml",    // XAML is XML; the id stays distinct so the outline can read WPF meaning
     };
 
     private CodeHighlighter(string grammarId, Language language, Parser parser, Query query)
