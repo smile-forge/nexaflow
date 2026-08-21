@@ -7,3 +7,7 @@
 	url = https://github.com/smile-forge/DiscUtils.git
 	branch = nexaflow
 	ignore = untracked
+[submodule "external/tree-sitter-xml"]
+	path = external/tree-sitter-xml
+	url = https://github.com/smile-forge/tree-sitter-xml.git
+	branch = nexaflow
