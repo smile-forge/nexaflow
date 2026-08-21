@@ -638,7 +638,12 @@ public sealed class CodeStructureExtractor
                 var path = parentPath.Length > 0 ? $"{parentPath}/T:{name}" : $"T:{name}";
                 var body = child.GetChildForField("body");
                 var members = body is { } b ? CsMembers(b, path, kind) : [];
-                outTypes.Add(new OutlineType(name, Line(child), kind, path, members) { Bases = CsBases(child), EndLine = EndLine(child) });
+                // C#'s own defaults when no modifier is written: internal at file scope, private when nested.
+                var dflt = parentPath.Length > 0 ? OutlineVisibility.Private : OutlineVisibility.Internal;
+                outTypes.Add(new OutlineType(name, Line(child), kind, path, members)
+                {
+                    Bases = CsBases(child), EndLine = EndLine(child), Visibility = CsVisibility(child, dflt),
+                });
                 if (body is { } b2) ScanCsTypes(b2, path, outTypes);   // nested types
             }
             else if (child.Type is "namespace_declaration" or "file_scoped_namespace_declaration" or "declaration_list")

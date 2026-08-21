@@ -214,13 +214,13 @@ public sealed class GraphBuilder
 
         var lang = TreeSitterLanguages.ForFile(relPath);
         var typeId = "code:" + relPath + "#" + type.AstPath;
-        AddCodeNode(typeId, NodeType.Type, type.Name, relPath, lang, type.Kind.ToString(), type.Line, type.EndLine, type.AstPath);
+        AddCodeNode(typeId, NodeType.Type, type.Name, relPath, lang, type.Kind.ToString(), type.Line, type.EndLine, type.AstPath, type.Visibility);
         Edge("file:" + relPath, typeId, EdgeRelationship.Contains, provenance: relPath);
 
         if (member is null) return typeId;
 
         var memberId = "code:" + relPath + "#" + member.AstPath;
-        AddCodeNode(memberId, NodeType.Member, member.Name, relPath, lang, member.Kind.ToString(), member.Line, member.EndLine, member.AstPath);
+        AddCodeNode(memberId, NodeType.Member, member.Name, relPath, lang, member.Kind.ToString(), member.Line, member.EndLine, member.AstPath, member.Visibility);
         Edge(typeId, memberId, EdgeRelationship.Contains, provenance: relPath);
         return memberId;
     }
@@ -331,7 +331,8 @@ public sealed class GraphBuilder
             nodes[id] = n;
             return n;
         }
-        void CodeNode(string id, string type, string label, string kind, int line, int endLine, string ast)
+        void CodeNode(string id, string type, string label, string kind, int line, int endLine, string ast,
+                      OutlineVisibility visibility)
         {
             var n = Local(id, type, label, rel, lang);
             (n.Metadata ??= new())["kind"] = kind.ToLowerInvariant();
@@ -340,6 +341,10 @@ public sealed class GraphBuilder
             // re-deriving it by counting braces. Absent (0) when the extractor had no end for this node.
             if (endLine > 0) n.Metadata["endLine"] = endLine.ToString();
             n.Metadata["ast"] = ast;
+            // The outline has always known this and the graph used to drop it, so "what is the public surface
+            // of X" had no answer short of re-parsing. Only C# populates it meaningfully today; other grammars
+            // fall back to the record's public default rather than claiming a modifier the language lacks.
+            n.Metadata["visibility"] = visibility.ToString().ToLowerInvariant();
         }
         void LocalEdge(string s, string t, string relationship)
         {
@@ -347,7 +352,12 @@ public sealed class GraphBuilder
         }
 
         var fileId = "file:" + rel;
-        Local(fileId, NodeType.File, Path.GetFileName(rel), rel, lang);
+        var fileNode = Local(fileId, NodeType.File, Path.GetFileName(rel), rel, lang);
+        // How big a file is turns out to be one of the questions most often asked of the graph — "what are the
+        // biggest files", "does this one carry too much" — and until this was recorded the only way to answer
+        // was to leave the graph and count lines on disk, which is exactly the fallback the discovery rule
+        // exists to prevent. The text is already in hand here for the hash and the outline, so it is free.
+        (fileNode.Metadata ??= new())["lines"] = (text.AsSpan().Count('\n') + 1).ToString();
 
         var outline = OutlineFor(rel, full, text);
         if (outline is not null)
@@ -373,7 +383,7 @@ public sealed class GraphBuilder
             foreach (var t in outline.Types)
             {
                 var typeId = "code:" + rel + "#" + t.AstPath;
-                CodeNode(typeId, NodeType.Type, t.Name, t.Kind.ToString(), t.Line, t.EndLine, t.AstPath);
+                CodeNode(typeId, NodeType.Type, t.Name, t.Kind.ToString(), t.Line, t.EndLine, t.AstPath, t.Visibility);
                 LocalEdge(fileId, typeId, EdgeRelationship.Contains);
                 foreach (var b in t.Bases) c.Bases.Add(new CachedBase { TypeId = typeId, Name = b.Name, IsInterface = b.IsInterface });
 
@@ -381,7 +391,7 @@ public sealed class GraphBuilder
                     foreach (var m in t.Members)
                     {
                         var memberId = "code:" + rel + "#" + m.AstPath;
-                        CodeNode(memberId, NodeType.Member, m.Name, m.Kind.ToString(), m.Line, m.EndLine, m.AstPath);
+                        CodeNode(memberId, NodeType.Member, m.Name, m.Kind.ToString(), m.Line, m.EndLine, m.AstPath, m.Visibility);
                         LocalEdge(typeId, memberId, EdgeRelationship.Contains);
                     }
             }
@@ -826,6 +836,18 @@ public sealed class GraphBuilder
     private void ExtractCsproj(string rel, string full, string fileId, XDocument doc)
     {
         var dir = Path.GetDirectoryName(full)!;
+
+        // The properties that say what a project *is*. They were already in the XML this pass has open, and
+        // dropping them left the graph unable to answer "which of these are executables" — the one question
+        // a solution's project list most obviously invites. `OutputType` absent means a library, which is the
+        // SDK's own default, so record that rather than leaving the fact missing.
+        string? Property(string name) => doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == name && !string.IsNullOrWhiteSpace(e.Value))?.Value.Trim();
+
+        var project = Node(fileId, NodeType.File, Path.GetFileName(rel), file: rel);
+        Meta(project, "output_type", (Property("OutputType") ?? "Library").ToLowerInvariant());
+        if ((Property("TargetFramework") ?? Property("TargetFrameworks")) is { Length: > 0 } tfm)
+            Meta(project, "target_framework", tfm);
         foreach (var pr in doc.Descendants().Where(e => e.Name.LocalName == "ProjectReference"))
             if (pr.Attribute("Include")?.Value is { Length: > 0 } inc
                 && ToRel(Path.GetFullPath(Path.Combine(dir, inc.Replace('\\', Path.DirectorySeparatorChar)))) is { } target)
@@ -1118,13 +1140,14 @@ public sealed class GraphBuilder
     }
 
     private void AddCodeNode(string id, string type, string label, string relPath, string? lang, string kind,
-                             int line, int endLine, string ast)
+                             int line, int endLine, string ast, OutlineVisibility visibility)
     {
         var n = Node(id, type, label, file: relPath, language: lang, source: relPath);
         Meta(n, "kind", kind.ToLowerInvariant());
         Meta(n, "line", line.ToString());
         if (endLine > 0) Meta(n, "endLine", endLine.ToString());
         Meta(n, "ast", ast);
+        Meta(n, "visibility", visibility.ToString().ToLowerInvariant());
     }
 
     private GraphNode Node(string id, string type, string label, string? file = null, string? language = null,

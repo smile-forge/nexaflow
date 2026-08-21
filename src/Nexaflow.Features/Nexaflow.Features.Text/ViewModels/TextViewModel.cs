@@ -18,16 +18,6 @@ using System.Windows;
 
 namespace Nexaflow.Features.Text.ViewModels;
 
-public sealed record EncodingOption(string Name, Encoding Encoding)
-{
-    public override string ToString() => Name;
-}
-
-public sealed record SplitModeOption(SplitMode Mode, string Label)
-{
-    public override string ToString() => Label;
-}
-
 public sealed partial class TextViewModel : ObservableObject, IDisposable, IPageViewModel, IContextPreview, ISearchable
 {
     private const long SmallFileSizeLimit = 100 * 1024; // 100 KB

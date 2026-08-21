@@ -44,6 +44,11 @@ public sealed record OutlineType(string Name, int Line, OutlineKind Kind, string
     /// <summary>The type's parent class(es) and implemented interfaces, for drawing inheritance edges.</summary>
     public IReadOnlyList<BaseRef> Bases { get; init; } = [];
 
+    /// <summary>The type's declared access level. Defaults to public because most languages here have no
+    /// meaningful type-level modifier; the C# extractor sets it from the real modifiers, defaulting the way
+    /// the language does (a top-level type is internal, a nested one private).</summary>
+    public OutlineVisibility Visibility { get; init; } = OutlineVisibility.Public;
+
     /// <summary>1-based line the type ends on, or 0 when the extractor didn't record one. See
     /// <see cref="OutlineMember.EndLine"/>.</summary>
     public int EndLine { get; init; }

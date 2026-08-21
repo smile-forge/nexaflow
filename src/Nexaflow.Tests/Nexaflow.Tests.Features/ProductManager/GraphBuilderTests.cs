@@ -132,6 +132,48 @@ public class GraphBuilderTests
     }
 
     [TestMethod]
+    public void Build_RecordsDeclaredVisibility_AndProjectOutputType()
+    {
+        // Both facts sat in data the build already had — the outline computes visibility and ExtractCsproj
+        // already had the .csproj XML open — and both were dropped, so "what is the public surface" and
+        // "which projects are executables" had no answer that didn't mean re-reading the source.
+        var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "Visible.cs"),
+            "namespace Demo;\ninternal class Hidden\n{\n    public void Open() { }\n    private void Shut() { }\n    protected int Guarded() => 1;\n}\npublic class Shown { }\n");
+        File.WriteAllText(Path.Combine(root, "App.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>WinExe</OutputType>"
+            + "<TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(root, "Lib.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+        var state = new ProductState
+        {
+            Product = new ProductDocument { Product = "Demo" },
+            Nodes = new Dictionary<string, ProductNode> { ["root"] = new ProductNode { Title = "Root" } },
+        };
+
+        try
+        {
+            var g = GraphBuilder.Build(state, root, new GraphBuildOptions { GeneratedAt = "T" });
+            string? Meta(string id, string key) =>
+                g.Nodes.FirstOrDefault(n => n.Id == id)?.Metadata?.GetValueOrDefault(key);
+
+            Assert.AreEqual("internal", Meta("code:Visible.cs#T:Hidden", "visibility"), "no modifier at file scope is internal");
+            Assert.AreEqual("public", Meta("code:Visible.cs#T:Shown", "visibility"));
+            Assert.AreEqual("public", Meta("code:Visible.cs#T:Hidden/M:Open", "visibility"));
+            Assert.AreEqual("private", Meta("code:Visible.cs#T:Hidden/M:Shut", "visibility"));
+            Assert.AreEqual("protected", Meta("code:Visible.cs#T:Hidden/M:Guarded", "visibility"));
+
+            Assert.AreEqual("winexe", Meta("file:App.csproj", "output_type"));
+            Assert.AreEqual("net10.0", Meta("file:App.csproj", "target_framework"));
+            // Absent OutputType means a library — the SDK's own default, recorded rather than left missing.
+            Assert.AreEqual("library", Meta("file:Lib.csproj", "output_type"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [TestMethod]
     public void Build_TurnsTypeMentionsIntoReferences_ResolvingOrDropping()
     {
         var root = Path.Combine(Path.GetTempPath(), "nexgraph-" + Guid.NewGuid().ToString("N"));
