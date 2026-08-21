@@ -9,35 +9,43 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
+  <!-- The .NET bindings come from our fork by ProjectReference (the standard external/ rule), NOT from the
+       TreeSitter.DotNet package. The package would also carry ~30 prebuilt native grammars frozen at whatever
+       its submodules pointed at when it was published, and those go stale: its C# grammar predates collection
+       expressions and slice patterns, so `= []` and `[.. var rest]` were parse errors and one slice pattern
+       cost Program.cs its entire parse. Referencing the source lets us pin the runtime and every grammar
+       ourselves - see docs/externals.md. -->
   <ItemGroup>
-    <PackageReference Include="TreeSitter.DotNet" Version="1.3.0" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <ProjectReference Include="..\..\external\tree-sitter-dotnet-bindings\src\TreeSitter.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
   </ItemGroup>
 
-  <!-- TreeSitter.DotNet bundles ~30 native grammars but no xml/xaml one, so we build that single grammar
-       from the pinned external/tree-sitter-xml submodule. It loads by id like every other grammar
-       (CodeHighlighter -> new Language("xml")), so it must sit in the output ROOT beside
-       tree-sitter-c-sharp.dll - that is where the RID-specific package natives get flattened to.
-       Objects go to obj/native/, never into the submodule, so it never shows up as dirty. -->
+  <!-- The grammar set, shared with tools/build-tree-sitter-natives.ps1 and tools/ensure-submodules.ps1. -->
+  <Import Project="..\..\tools\tree-sitter-grammars.props" />
+
   <PropertyGroup>
-    <TreeSitterXmlGrammarRoot>$(MSBuildThisFileDirectory)..\..\external\tree-sitter-xml</TreeSitterXmlGrammarRoot>
-    <TreeSitterXmlDll>$(MSBuildThisFileDirectory)obj\native\tree-sitter-xml.dll</TreeSitterXmlDll>
+    <TreeSitterNativeDir>$(MSBuildThisFileDirectory)obj\native\</TreeSitterNativeDir>
   </PropertyGroup>
 
-  <Target Name="BuildTreeSitterXml"
-          BeforeTargets="AssignTargetPaths"
-          Inputs="$(TreeSitterXmlGrammarRoot)\xml\src\parser.c;$(TreeSitterXmlGrammarRoot)\xml\src\scanner.c"
-          Outputs="$(TreeSitterXmlDll)">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\tools\build-tree-sitter-xml.ps1&quot; -GrammarRoot &quot;$(TreeSitterXmlGrammarRoot)&quot; -OutputDll &quot;$(TreeSitterXmlDll)&quot;" />
+  <!-- Compiling the natives is one script invocation for the whole set (one vcvars session, ~16s cold,
+       nothing when warm). Objects go to obj/native/int/, never into a submodule, so the superproject never
+       sees one as dirty. -->
+  <Target Name="BuildTreeSitterNatives" BeforeTargets="AssignTargetPaths">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\tools\build-tree-sitter-natives.ps1&quot; -RepoRoot &quot;$(MSBuildThisFileDirectory)..\..&quot; -OutputDir &quot;$(TreeSitterNativeDir.TrimEnd('\'))&quot;" />
   </Target>
 
+  <!-- Every native must land in the consuming app's output ROOT: the runtime is bound by a plain
+       DllImport("tree-sitter") and a grammar is resolved by id through LoadLibrary, and both probe the app
+       directory. Content flows through ProjectReferences (GetCopyToOutputDirectoryItems recurses), so the
+       app two hops out gets them. Note the app's real OutDir is the RID subfolder bin\x64\<Config>\<tfm>\win-x64\. -->
   <ItemGroup>
-    <!-- Flows to consuming projects' output too: GetCopyToOutputDirectoryItems recurses ProjectReferences. -->
-    <Content Include="$(TreeSitterXmlDll)" Visible="false">
-      <TargetPath>tree-sitter-xml.dll</TargetPath>
+    <Content Include="$(TreeSitterNativeDir)tree-sitter.dll" Visible="false">
+      <TargetPath>tree-sitter.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="@(TreeSitterGrammar->'$(TreeSitterNativeDir)tree-sitter-%(Identity).dll')" Visible="false">
+      <!-- %(Identity) is the transformed PATH here, not the grammar id - Filename+Extension is the DLL name. -->
+      <TargetPath>%(Filename)%(Extension)</TargetPath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

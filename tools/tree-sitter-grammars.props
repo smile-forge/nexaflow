@@ -1,0 +1,43 @@
+<Project>
+
+  <!--
+    The tree-sitter grammars Nexaflow builds from source, and where each one's C sources live.
+
+    This is the single source of truth for the set: Nexaflow.Syntax.csproj imports it (to declare the
+    Content items that flow each DLL to the output root), tools/build-tree-sitter-grammars.ps1 reads it
+    to know what to compile, and tools/ensure-submodules.ps1 reads it to know which nested submodules a
+    fresh worktree has to populate. Adding a language means adding one row here.
+
+    Why build them at all, when TreeSitter.DotNet ships ~30 prebuilt natives: the package's grammars are
+    pinned to whatever its own submodules pointed at when it was published, and they go stale. Its C#
+    grammar predates collection expressions and slice patterns, so `= []` and `[.. var rest]` were parse
+    errors - and one slice pattern cost src/Nexaflow.Services.Initiatives.Cli/Program.cs its ENTIRE parse
+    (root ERROR, no type nodes, invisible to the graph). Building from pinned submodules puts the grammar
+    version under our control, for every language, not just the one that broke.
+
+    Id = the tree-sitter language id. It decides both the DLL name (tree-sitter-<id>.dll) and the export
+    the runtime binds (tree_sitter_<id>), so it must match what CodeHighlighter passes to `new Language`.
+    Aliases (xaml -> xml, jinja -> html) resolve to another id and need no row of their own.
+
+    Root defaults to the bindings submodule's tree-sitter-<id> folder; xml has its own submodule because
+    the bindings repo carries no XML grammar.
+  -->
+  <ItemGroup>
+    <TreeSitterGrammar Include="c-sharp"           SourceDir="src" />
+    <TreeSitterGrammar Include="javascript"        SourceDir="src" />
+    <TreeSitterGrammar Include="typescript"        SourceDir="typescript/src" />
+    <TreeSitterGrammar Include="python"            SourceDir="src" />
+    <TreeSitterGrammar Include="ruby"              SourceDir="src" />
+    <TreeSitterGrammar Include="json"              SourceDir="src" />
+    <TreeSitterGrammar Include="rust"              SourceDir="src" />
+    <TreeSitterGrammar Include="cpp"               SourceDir="src" />
+    <TreeSitterGrammar Include="java"              SourceDir="src" />
+    <TreeSitterGrammar Include="html"              SourceDir="src" />
+    <TreeSitterGrammar Include="css"               SourceDir="src" />
+    <TreeSitterGrammar Include="embedded-template" SourceDir="src" />
+    <TreeSitterGrammar Include="php"               SourceDir="php/src" />
+    <TreeSitterGrammar Include="razor"             SourceDir="src" />
+    <TreeSitterGrammar Include="xml"               SourceDir="xml/src" Root="external/tree-sitter-xml" />
+  </ItemGroup>
+
+</Project>

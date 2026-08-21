@@ -36,7 +36,7 @@ public sealed class CodeStructureExtractor
         try
         {
             res = hl.WithParseTree(text, root =>
-                (Build(grammarId, root, baseDir),
+                (Build(grammarId, root, baseDir) with { ParseFailed = root.Type == "ERROR" },
                  LanguageInjections.HasInjections(grammarId)
                      ? LanguageInjections.Find(grammarId, root, text)
                      : (IReadOnlyList<InjectionRange>)[]));
