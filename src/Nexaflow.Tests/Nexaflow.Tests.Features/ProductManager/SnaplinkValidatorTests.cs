@@ -327,12 +327,40 @@ public class SnaplinkValidatorTests
     // ── single-link recheck (what the Integrity page's "Apply fix" uses) ─────
 
     [TestMethod]
-    public void CheckLink_OnASoundLink_ReportsNoDetail()
+    public void CheckLink_OnASoundLink_ReportsSound()
     {
         WriteFile("src/Widget.cs", Csharp);
-        var (_, detail) = SnaplinkValidator.CheckLink(
+        var check = SnaplinkValidator.CheckLink(
             new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Spin" }, _root);
-        Assert.IsNull(detail);
+        Assert.AreEqual(LinkVerdict.Sound, check.Verdict);
+        Assert.IsNull(check.Detail);
+    }
+
+    [TestMethod]
+    public void CheckLink_SeparatesSoundFromUnverifiable()
+    {
+        // The Integrity page tells the user their edit worked off the back of this. "Nothing could be checked"
+        // must not arrive looking like "checked, and it is fine".
+        WriteFile("src/Widget.cs", Csharp);
+        WriteFile("src/notes.txt", "no structure in here");
+
+        var sound = SnaplinkValidator.CheckLink(
+            new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget" }, _root);
+        var unverifiable = SnaplinkValidator.CheckLink(
+            new Snaplink { Type = "code", Doc = "src/notes.txt", Class = "Widget" }, _root);
+
+        Assert.AreEqual(LinkVerdict.Sound, sound.Verdict);
+        Assert.AreEqual(LinkVerdict.Unverifiable, unverifiable.Verdict);
+        Assert.IsNull(unverifiable.Detail, "still not reported as broken - nothing was proven");
+    }
+
+    [TestMethod]
+    public void CheckLink_OnAWholeFileLink_IsSound_NotUnverifiable()
+    {
+        // Existence was the entire claim, so it really was checked - even for a file nothing can parse.
+        WriteFile("src/notes.txt", "anything");
+        var check = SnaplinkValidator.CheckLink(new Snaplink { Type = "code", Doc = "src/notes.txt" }, _root);
+        Assert.AreEqual(LinkVerdict.Sound, check.Verdict);
     }
 
     [TestMethod]
@@ -342,10 +370,11 @@ public class SnaplinkValidatorTests
         var link = new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Wobble" };
 
         var fromScan = Validate(TreeWith(link)).Issues.Single();
-        var (kind, detail) = SnaplinkValidator.CheckLink(link, _root);
+        var check = SnaplinkValidator.CheckLink(link, _root);
 
-        Assert.AreEqual(fromScan.Kind, kind);
-        Assert.AreEqual(fromScan.Detail, detail);
+        Assert.AreEqual(LinkVerdict.Broken, check.Verdict);
+        Assert.AreEqual(fromScan.Kind, check.Kind);
+        Assert.AreEqual(fromScan.Detail, check.Detail);
     }
 
     [TestMethod]
@@ -388,8 +417,9 @@ public class SnaplinkValidatorTests
     {
         // The tree-less single-link path can't know which node ids exist, so a node link is deferred to the
         // next full scan rather than falsely failed — same conservatism as a no-grammar code file.
-        var (_, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root);
-        Assert.IsNull(detail);
+        var check = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root);
+        Assert.IsNull(check.Detail);
+        Assert.AreEqual(LinkVerdict.Unverifiable, check.Verdict, "deferred, not confirmed good");
     }
 
     [TestMethod]
@@ -398,7 +428,7 @@ public class SnaplinkValidatorTests
         var ids = new HashSet<string>(StringComparer.Ordinal) { "n", "visuals-text" };
         Assert.IsNull(SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "visuals-text" }, _root, ids).Detail);
 
-        var (kind, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root, ids);
+        var (_, kind, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root, ids);
         Assert.AreEqual(IntegrityKind.MissingNode, kind);
         Assert.IsNotNull(detail);
     }

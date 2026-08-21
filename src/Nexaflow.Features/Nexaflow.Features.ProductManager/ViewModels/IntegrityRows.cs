@@ -192,3 +192,31 @@ public sealed class CoverageAdvisoryItem(CoverageAdvisory advisory) : IIntegrity
     public Brush KindBrush => StatusInfo.Res(CanAdd ? "AccentBrush" : "WarningBrush");
     public string FilterText => $"{NodeTitle} {Scope} {Kind} {TestDisplay} {File}";
 }
+
+/// <summary>
+/// One <em>ast</em> advisory in the Integrity page: a link whose file and class are sound but whose finer
+/// element target no longer resolves. Non-gating, like a coverage suggestion — the difference is that this one
+/// already knows the answer often enough to offer it, so the row carries the replacement path when there is one.
+/// </summary>
+public sealed class SnaplinkAdvisoryItem(SnaplinkAdvisory advisory) : IIntegrityRow
+{
+    public SnaplinkAdvisory Advisory { get; } = advisory;
+
+    public string NodeId    => Advisory.NodeId;
+    public string NodeTitle => Advisory.NodeTitle;
+    public string Scope     => Advisory.Concern ?? "node";
+    public string Kind      => "stale ast";
+
+    /// <summary>Sub-line: what it says now, and what it should say.</summary>
+    public string Detail => $"ast \"{Advisory.Current}\"  ·  {Advisory.Doc}"
+                          + (HasSuggestion ? $"  ·  → {Advisory.Suggestion}" : "  ·  nothing in the file matches");
+
+    /// <summary>Whether the one-click fix re-points the link; without it the only honest fix is to clear it.</summary>
+    public bool HasSuggestion => Advisory.Suggestion is { Length: > 0 };
+
+    public bool IsAdvisory => true;
+
+    // Accent when we can re-point it, warning when all we can do is drop a value that means nothing.
+    public Brush KindBrush => StatusInfo.Res(HasSuggestion ? "AccentBrush" : "WarningBrush");
+    public string FilterText => $"{NodeTitle} {Scope} {Kind} {Advisory.Current} {Advisory.Doc} {Advisory.Suggestion}";
+}

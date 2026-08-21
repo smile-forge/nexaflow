@@ -97,16 +97,17 @@ public sealed class SnaplinkValidator
     /// <summary>
     /// Re-checks a <em>single</em> link. The Integrity page uses this after an inline edit so a fix is
     /// confirmed in milliseconds rather than forcing another full-tree scan (which parses every referenced
-    /// source file and takes seconds). Returns a null detail when the link is sound — or unverifiable.
+    /// source file and takes seconds). The verdict distinguishes a link proven good from one nothing could be
+    /// proven about — the caller is telling a user their edit worked, and only the first earns that.
     /// </summary>
-    public static (IntegrityKind Kind, string? Detail) CheckLink(Snaplink link, string productRoot)
+    public static LinkCheck CheckLink(Snaplink link, string productRoot)
         => new SnaplinkValidator(productRoot).Check(link);
 
     /// <summary>
     /// Single-link recheck that can also verify a <c>node</c> link, given the set of live node ids. The
     /// Integrity page uses this after editing a node snaplink so the fix confirms without a full rescan.
     /// </summary>
-    public static (IntegrityKind Kind, string? Detail) CheckLink(Snaplink link, string productRoot, IReadOnlySet<string> nodeIds)
+    public static LinkCheck CheckLink(Snaplink link, string productRoot, IReadOnlySet<string> nodeIds)
     {
         var validator = new SnaplinkValidator(productRoot) { _nodeIds = nodeIds };
         return validator.Check(link);
@@ -279,8 +280,8 @@ public sealed class SnaplinkValidator
         for (var i = 0; i < links.Count; i++)
         {
             report.ScannedSnaplinks++;
-            var (kind, detail) = Check(links[i]);
-            if (detail is null)
+            var check = Check(links[i]);
+            if (check.Detail is null)
             {
                 // Sound at the level that gates a build. Its finer ast target may still be wrong, which is a
                 // suggestion rather than breakage — the field has never been checked, so it holds free text.
@@ -297,7 +298,7 @@ public sealed class SnaplinkValidator
             report.Issues.Add(new IntegrityIssue
             {
                 NodeId = nodeId, NodeTitle = title, Concern = concern, Index = i,
-                Kind = kind, Detail = detail, Link = links[i]
+                Kind = check.Kind, Detail = check.Detail, Link = links[i]
             });
         }
     }
@@ -364,68 +365,70 @@ public sealed class SnaplinkValidator
 
     private static readonly Regex Words = new(@"[A-Za-z_][A-Za-z0-9_]*", RegexOptions.Compiled);
 
-    /// <summary>The failure for this link, or a null detail when it is sound (or unverifiable).</summary>
-    private (IntegrityKind Kind, string? Detail) Check(Snaplink link)
+    /// <summary>What can be established about this link — sound, broken, or neither. The three are kept
+    /// apart because only <see cref="LinkVerdict.Broken"/> gates a build, while only
+    /// <see cref="LinkVerdict.Sound"/> earns telling someone their link is good.</summary>
+    private LinkCheck Check(Snaplink link)
     {
         if (link.Type == "url")
         {
             if (string.IsNullOrWhiteSpace(link.Target))
-                return (IntegrityKind.EmptyTarget, "url snaplink has no target");
+                return LinkCheck.Broken(IntegrityKind.EmptyTarget, "url snaplink has no target");
             return Uri.TryCreate(link.Target, UriKind.Absolute, out _)
-                ? (default, null)
-                : (IntegrityKind.InvalidUrl, $"'{link.Target}' is not a well-formed absolute URL");
+                ? LinkCheck.Sound()
+                : LinkCheck.Broken(IntegrityKind.InvalidUrl, $"'{link.Target}' is not a well-formed absolute URL");
         }
 
         if (link.Type == "node")
         {
             if (string.IsNullOrWhiteSpace(link.Target))
-                return (IntegrityKind.EmptyTarget, "node snaplink has no target node id");
-            if (_nodeIds is null) return (default, null);   // no tree in scope → unverifiable, not broken
+                return LinkCheck.Broken(IntegrityKind.EmptyTarget, "node snaplink has no target node id");
+            if (_nodeIds is null) return LinkCheck.Unverifiable();   // no tree in scope
             return _nodeIds.Contains(link.Target)
-                ? (default, null)
-                : (IntegrityKind.MissingNode, $"node '{link.Target}' is not in the tree");
+                ? LinkCheck.Sound()
+                : LinkCheck.Broken(IntegrityKind.MissingNode, $"node '{link.Target}' is not in the tree");
         }
 
         if (string.IsNullOrWhiteSpace(link.Doc))
-            return (IntegrityKind.MissingDoc, $"{link.Type} snaplink has no doc path");
+            return LinkCheck.Broken(IntegrityKind.MissingDoc, $"{link.Type} snaplink has no doc path");
 
         // A doc inside a linked worktree resolves today and dies with that branch — broken on arrival, and
         // checked before existence so the message names the real fix rather than "file not found".
         if (GitWorktrees.TryReRoot(link.Doc!, productRoot, Worktrees, out var reRooted))
-            return (IntegrityKind.WorktreePath,
+            return LinkCheck.Broken(IntegrityKind.WorktreePath,
                     $"'{link.Doc}' points into a linked git worktree — use the repo path: {reRooted}");
 
         var facts = Facts(link.Doc!);
-        if (!facts.Exists) return (IntegrityKind.MissingFile, $"file not found: {link.Doc}");
-        if (facts.Text is null) return (default, null);   // exists but unreadable/huge → unverifiable
+        if (!facts.Exists) return LinkCheck.Broken(IntegrityKind.MissingFile, $"file not found: {link.Doc}");
+        if (facts.Text is null) return LinkCheck.Unverifiable();   // exists but unreadable/huge
 
         if (link.Type == "markdown")
             return link.TitlePath is { Count: > 0 } path && !SnaplinkTargets.HasHeadingPath(facts.Text, path)
-                ? (IntegrityKind.MissingHeading, $"heading '{string.Join(" › ", path)}' not found in {link.Doc}")
-                : (default, null);
+                ? LinkCheck.Broken(IntegrityKind.MissingHeading, $"heading '{string.Join(" › ", path)}' not found in {link.Doc}")
+                : LinkCheck.Sound();
 
         // code (and any other file-backed type): only structure we can actually resolve is checked.
         var wantsStructure = !string.IsNullOrWhiteSpace(link.Class) || !string.IsNullOrWhiteSpace(link.Method);
-        if (!wantsStructure) return (default, null);            // whole-file link → existence is enough; no parse
-        if (facts.Outline() is not { HasContent: true } outline) return (default, null);   // unverifiable
+        if (!wantsStructure) return LinkCheck.Sound();          // whole-file link — existence was the whole claim
+        if (facts.Outline() is not { HasContent: true } outline) return LinkCheck.Unverifiable();
 
         if (!string.IsNullOrWhiteSpace(link.Class))
         {
             var type = outline.Types.FirstOrDefault(t => string.Equals(t.Name, link.Class, StringComparison.Ordinal));
             if (type is null)
-                return (IntegrityKind.MissingClass, $"class '{link.Class}' is not declared in {link.Doc}");
+                return LinkCheck.Broken(IntegrityKind.MissingClass, $"class '{link.Class}' is not declared in {link.Doc}");
 
             if (!string.IsNullOrWhiteSpace(link.Method)
                 && !type.Members.Any(m => string.Equals(m.Name, link.Method, StringComparison.Ordinal)))
-                return (IntegrityKind.MissingMethod, $"method '{link.Class}.{link.Method}' is not declared in {link.Doc}");
+                return LinkCheck.Broken(IntegrityKind.MissingMethod, $"method '{link.Class}.{link.Method}' is not declared in {link.Doc}");
 
-            return (default, null);
+            return LinkCheck.Sound();
         }
 
         // Method without a class → a top-level function.
         return outline.TopLevel.Any(m => string.Equals(m.Name, link.Method, StringComparison.Ordinal))
-            ? (default, null)
-            : (IntegrityKind.MissingMethod, $"top-level '{link.Method}' is not declared in {link.Doc}");
+            ? LinkCheck.Sound()
+            : LinkCheck.Broken(IntegrityKind.MissingMethod, $"top-level '{link.Method}' is not declared in {link.Doc}");
     }
 
     private FileFacts Facts(string doc)
