@@ -41,6 +41,7 @@ internal static class Program
             "set-concern" => SetConcern(args[1..]),
             "remove-concern" => RemoveConcern(args[1..]),
             "add-snaplink"=> AddSnaplink(args[1..]),
+            "set-snaplink" => SetSnaplink(args[1..]),
             "remove-snaplink" => RemoveSnaplink(args[1..]),
             "set-node"    => SetNode(args[1..]),
             "move"        => Move(args[1..]),
@@ -76,6 +77,7 @@ internal static class Program
               nfi remove-concern <node-id> <tag> [<root>]
               nfi add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
                                                 [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
+              nfi set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] [--clear <f,f>]
               nfi remove-snaplink <node-id> [<root>] [--concern <tag>]
                                                 [--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]
               nfi set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
@@ -132,6 +134,9 @@ internal static class Program
             add-snaplink Attaches a snaplink to the node — or, with --concern <tag>, to that concern's link.
                        --type picks the shape: code (--doc/--class/--method), markdown (--doc/--title-path),
                        node (--target = another node id), url (--url). --status is optional.
+            set-snaplink Edits one existing snaplink in place, by --index (see: describe <node-id>).
+                       --clear <fields> unsets them (class,method,ast,doc,target,title-path,status) - the one
+                       edit remove+add cannot make without losing the link's other fields and its position.
             remove-snaplink Drops snaplinks from the node — or, with --concern <tag>, from that concern's link.
                        Name the link by what it IS: --type/--doc/--class/--method/--target, every one given
                        having to agree (--doc alone drops every link into that file, adding --method narrows
@@ -1368,6 +1373,10 @@ internal static class Program
             ["--concern", "--index", "--type", "--doc", "--class", "--method", "--target"], None,
             "remove-snaplink <node-id> [<root>] [--concern <tag>] "
             + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]");
+        public static readonly VerbSpec SetSnaplink = new("set-snaplink", 1,
+            ["--index", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--status", "--clear"], None,
+            "set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] "
+            + "[--doc <p>] [--class <c>] [--method <m>] [--ast <a>] [--target <t>] [--status <s>] [--clear <f,f>]");
         public static readonly VerbSpec SetNode = new("set-node", 1, ["--title", "--desc", "--note"], None,
             "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]");
         public static readonly VerbSpec AddNode = new("add-node", 2, ["--id", "--desc", "--status"], None,
@@ -1443,7 +1452,7 @@ internal static class Program
         return true;
     }
 
-    // ── typed tree mutations (set-status / set-concern / add-snaplink / set-node / doctor) ──
+    // ── typed tree mutations (set-status / set-concern / add-snaplink / set-snaplink / set-node / doctor) ──
     // All go through the typed model + ProductStore.SaveTree (the canonical serializer), so a hand-edit's
     // structural hazards (a stray string concat in children[], a malformed concern) simply can't happen.
 
@@ -1517,6 +1526,49 @@ internal static class Program
         return ProductTreeOps.RemoveConcern(s, a[0], a[1])
             ? (true, $"Removed concern '{a[1]}' from '{a[0]}'.")
             : (false, $"'{a[0]}' has no '{a[1]}' concern to remove");
+    }
+
+    private static int SetSnaplink(string[] args) => RunOne(Specs.SetSnaplink, args, ApplySetSnaplink);
+
+    private static (bool Ok, string Message) ApplySetSnaplink(ProductState s, VerbArgs a)
+    {
+        var id = a[0];
+        if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
+        if (a.Value("--index") is not { } raw) return (false, "set-snaplink needs --index <n> (see: describe " + id + ")");
+        if (!int.TryParse(raw, out var index)) return (false, $"--index must be a number (got '{raw}')");
+
+        Status? status = null;
+        if (a.Value("--status") is { } st)
+        {
+            if (!TryParseStatus(st, out var sv)) return (false, $"unknown --status '{st}'");
+            status = sv;
+        }
+
+        var clear = a.Value("--clear") is { Length: > 0 } c
+            ? c.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            : [];
+        var touched = clear.Length > 0 || status is not null;
+
+        var concern = a.Value("--concern");
+        var ok = ProductTreeOps.SetSnaplink(s, id, index, concern, link =>
+        {
+            foreach (var (opt, assign) in new (string, Action<string>)[]
+                     {
+                         ("--doc",    v => link.Doc = v),
+                         ("--class",  v => link.Class = v),
+                         ("--method", v => link.Method = v),
+                         ("--ast",    v => link.Ast = v),
+                         ("--target", v => link.Target = v),
+                     })
+                if (a.Value(opt) is { } v) { assign(v); touched = true; }
+            if (status is not null) link.Status = status;
+        }, clear);
+
+        if (!touched) return (false, "nothing to change - pass a field (--doc/--class/--method/--ast/--target/--status) or --clear <f,f>");
+        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
+        return ok
+            ? (true, $"Updated snaplink #{index} on {where}.")
+            : (false, $"no snaplink #{index} on {where} (or an unknown --clear field)");
     }
 
     private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink);
