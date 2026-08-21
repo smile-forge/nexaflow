@@ -27,6 +27,8 @@ public static class EdgeRelationship
     public const string Tests          = "tests";         // snaplink-derived
     public const string Documents      = "documents";     // snaplink-derived
     public const string ViewOf         = "view_of";       // a .xaml view → the code-behind class it declares (x:Class)
+    public const string Handles        = "handles";       // a XAML element → the code-behind method wired to one of its events
+    public const string UsesResource   = "uses_resource"; // a XAML element → the x:Key it resolves ({StaticResource …})
     public const string DependsOn      = "depends_on";    // a .csproj → a referenced project / package
     public const string Mentions       = "mentions";      // a member → a repo file named in one of its string literals (a hint)
 }

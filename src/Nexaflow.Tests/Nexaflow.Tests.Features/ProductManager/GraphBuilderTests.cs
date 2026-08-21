@@ -189,9 +189,21 @@ public class GraphBuilderTests
         File.WriteAllText(Path.Combine(root, "Widget.xaml"),
             "<UserControl x:Class=\"Demo.Widget\" xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n" +
             "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
-            "  <Button x:Name=\"Go\" AutomationProperties.AutomationId=\"Go_Button\" Click=\"OnGo\" />\n" +
+            "  <UserControl.Resources>\n" +
+            "    <SolidColorBrush x:Key=\"GoBrush\" Color=\"Red\" />\n" +
+            "  </UserControl.Resources>\n" +
+            "  <Button x:Name=\"Go\" AutomationProperties.AutomationId=\"Go_Button\" Click=\"OnGo\"\n" +
+            "          Background=\"{StaticResource GoBrush}\" />\n" +
             "</UserControl>\n");
-        File.WriteAllText(Path.Combine(root, "Widget.xaml.cs"), "namespace Demo;\npublic partial class Widget { }\n");
+        File.WriteAllText(Path.Combine(root, "Widget.xaml.cs"),
+            "namespace Demo;\n" +
+            "public partial class Widget\n" +
+            "{\n" +
+            "    private void OnGo(object sender, System.EventArgs e)\n" +
+            "    {\n" +
+            "        Go.IsEnabled = false;\n" +
+            "    }\n" +
+            "}\n");
         File.WriteAllText(Path.Combine(root, "A.csproj"),
             "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <ItemGroup>\n" +
             "    <ProjectReference Include=\"B.csproj\" />\n    <PackageReference Include=\"SomePackage\" Version=\"1.0.0\" />\n" +
@@ -221,6 +233,18 @@ public class GraphBuilderTests
             Assert.IsTrue(g.Nodes.Any(n => n.Id == "code:Widget.xaml#N:Go/M:OnGo"), "the Click handler is a member");
             Assert.IsTrue(g.Edges.Any(e => e is { Source: "file:Widget.xaml", Target: "code:Widget.xaml#N:Go", Relationship: EdgeRelationship.Contains }),
                 "the file contains its anchors");
+
+            // The two halves of the view, joined: which method handles the button, and which code touches it.
+            Assert.IsTrue(g.Edges.Any(e => e is { Source: "code:Widget.xaml#N:Go", Target: "code:Widget.xaml.cs#T:Widget/M:OnGo", Relationship: EdgeRelationship.Handles }),
+                "handles links the element to the code-behind method wired to its Click");
+            Assert.IsTrue(g.Edges.Any(e => e is { Source: "code:Widget.xaml.cs#T:Widget/M:OnGo", Target: "code:Widget.xaml#N:Go", Relationship: EdgeRelationship.References }),
+                "references runs code-behind → element: the x:Name field is generated into obj/, so the usage is the only evidence");
+
+            // {StaticResource} → the x:Key it resolves to, near-certain when the key is in the same file.
+            var res = g.Edges.SingleOrDefault(e => e.Relationship == EdgeRelationship.UsesResource);
+            Assert.IsNotNull(res, "uses_resource links the element to the brush it resolves");
+            Assert.AreEqual("code:Widget.xaml#K:GoBrush", res!.Target);
+            Assert.AreEqual(GraphConfidence.NearCertain, res.Confidence);
 
             // csproj → project + package dependencies.
             Assert.IsTrue(g.Edges.Any(e => e is { Source: "file:A.csproj", Target: "file:B.csproj", Relationship: EdgeRelationship.DependsOn }),

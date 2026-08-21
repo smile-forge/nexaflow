@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Communities;
@@ -79,7 +80,7 @@ public sealed class GraphBuilder
         BuildCodeLayer();
         BuildStructuredLayer();
         BuildAssetLayer();
-        ResolveXamlViews();
+        ResolveXamlPairing();
         ResolveReferences();
         ResolveFileMentions();
 
@@ -447,26 +448,180 @@ public sealed class GraphBuilder
 
     // ── Phase C.4 — pair each WPF view with its code-behind ──────────────────────────────────────────
     /// <summary>
-    /// A view's <c>x:Class</c> is the compiler-enforced pairing to its code-behind partial class — the one
-    /// rock-solid link from a <c>.xaml</c> to a C# type (from which its ViewModel is a further hop through the
-    /// code layer). The XAML outline already names that class: it is the root anchor's label.
+    /// Joins the two halves of a WPF view. A <c>.xaml</c> and its <c>.xaml.cs</c> are one component to the
+    /// compiler but two files to everything else, and the edges between them are exactly what a reader needs:
+    /// which method handles this button, which code touches this element, which brush this control resolves.
+    /// <list type="bullet">
+    ///   <item><c>view_of</c> — the file → the partial class its <c>x:Class</c> names.</item>
+    ///   <item><c>handles</c> — an element → the code-behind method wired to one of its events.</item>
+    ///   <item><c>references</c> — a code-behind member → the named element it touches. Deliberately this
+    ///   direction: WPF generates the <c>x:Name</c> field into <c>obj/*.g.i.cs</c>, so there is no member in
+    ///   the code-behind to point <em>at</em>; what exists is the code that uses it.</item>
+    ///   <item><c>uses_resource</c> — an element → the <c>x:Key</c> a <c>{StaticResource}</c> resolves to.</item>
+    /// </list>
     /// <para>
-    /// This runs as its own pass rather than inline, because both halves are now built by the code layer and
-    /// nothing orders <c>Foo.xaml</c> before <c>Foo.xaml.cs</c> within it.
+    /// Runs as its own pass because both halves are built by the code layer now, and nothing there orders
+    /// <c>Foo.xaml</c> before <c>Foo.xaml.cs</c>.
     /// </para></summary>
-    private void ResolveXamlViews()
+    private void ResolveXamlPairing()
     {
-        foreach (var node in _nodes.Values.ToList())
-        {
-            if (node.FilePath is not { } rel || node.Type != NodeType.Type) continue;
-            if (!rel.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)) continue;
-            if (node.Metadata?.GetValueOrDefault("ast") is not { } ast || !ast.StartsWith("T:", StringComparison.Ordinal))
-                continue;   // only the root anchor names the code-behind class
+        if (_opts.Scope != GraphScope.WholeRepo) return;
 
-            var codeTypeId = "code:" + rel + ".cs#T:" + node.Label;   // GraphView.xaml → GraphView.xaml.cs#T:GraphView
-            if (_nodes.ContainsKey(codeTypeId))
-                Edge("file:" + rel, codeTypeId, EdgeRelationship.ViewOf, provenance: rel);
+        // Every x:Key in the repo, for resolving a {StaticResource} that points at a merged dictionary.
+        var keysByName = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
+        foreach (var n in _nodes.Values)
+            if (n.Type == NodeType.Type && n.Metadata?.GetValueOrDefault("ast") is { } a
+                && a.StartsWith("K:", StringComparison.Ordinal))
+                Index(keysByName, n.Label, n);
+
+        foreach (var rel in _nodes.Values
+                     .Where(n => n.Type == NodeType.File && n.FilePath is { } f
+                                 && f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
+                     .Select(n => n.FilePath!)
+                     .ToList())
+        {
+            var anchors = AnchorsOf(rel);
+            if (anchors.Count == 0) continue;
+
+            var codeBehind = rel + ".cs";
+            var rootClass = anchors.Where(a => a.Ast.StartsWith("T:", StringComparison.Ordinal))
+                                   .Select(a => a.Node.Label).FirstOrDefault();
+
+            if (rootClass is not null && _nodes.ContainsKey("code:" + codeBehind + "#T:" + rootClass))
+                Edge("file:" + rel, "code:" + codeBehind + "#T:" + rootClass, EdgeRelationship.ViewOf, provenance: rel);
+
+            LinkXamlHandlers(rel, codeBehind);
+            LinkCodeBehindUsage(rel, codeBehind, anchors);
+            LinkXamlResources(rel, anchors, keysByName);
         }
+    }
+
+    /// <summary>An element's event handler → the code-behind method it names. The pairing is compiler-enforced,
+    /// so a match is <see cref="GraphConfidence.Extracted"/>; a handler with no such method simply gets no edge,
+    /// which is also what keeps the outline's deliberately permissive event heuristic from inventing one.</summary>
+    private void LinkXamlHandlers(string rel, string codeBehind)
+    {
+        var methods = _nodes.Values
+            .Where(n => n.Type == NodeType.Member && n.FilePath == codeBehind)
+            .GroupBy(n => n.Label, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        if (methods.Count == 0) return;
+
+        foreach (var m in _nodes.Values.Where(n => n.Type == NodeType.Member && n.FilePath == rel).ToList())
+        {
+            if (m.Metadata?.GetValueOrDefault("ast") is not { } ast) continue;
+            var cut = ast.LastIndexOf("/M:", StringComparison.Ordinal);
+            if (cut <= 0) continue;                       // a handler always hangs off an anchor
+            var owner = "code:" + rel + "#" + ast[..cut];
+            if (!_nodes.ContainsKey(owner)) continue;
+            if (methods.TryGetValue(m.Label, out var target))
+                Edge(owner, target.Id, EdgeRelationship.Handles, provenance: rel);
+        }
+    }
+
+    /// <summary>
+    /// Code-behind members that touch a named element. The <c>x:Name</c> field is compiler-generated into
+    /// <c>obj/</c>, so it is never a declaration the code layer saw — the only evidence is the identifier in
+    /// the code-behind, matched on a word boundary and attributed to whichever member's span contains it.
+    /// Scoped to the paired file, which is also the namescope, so a name shared with another view can't cross over.
+    /// </summary>
+    private void LinkCodeBehindUsage(string rel, string codeBehind, List<(string Ast, GraphNode Node)> anchors)
+    {
+        var named = anchors.Where(a => a.Ast.StartsWith("N:", StringComparison.Ordinal)).ToList();
+        if (named.Count == 0) return;
+
+        var full = Path.Combine(_codeRoot, codeBehind.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) return;
+
+        var members = _nodes.Values
+            .Where(n => n.Type == NodeType.Member && n.FilePath == codeBehind
+                        && n.Metadata is not null && n.Metadata.ContainsKey("line"))
+            .Select(n => (Node: n,
+                          Start: int.Parse(n.Metadata!["line"]),
+                          End: int.TryParse(n.Metadata.GetValueOrDefault("endLine"), out var e) ? e : int.MaxValue))
+            .OrderBy(x => x.End - x.Start)   // innermost span wins
+            .ToList();
+        if (members.Count == 0) return;
+
+        var lines = text.Replace("\r", "").Split('\n');
+        foreach (var (_, anchor) in named)
+        {
+            var name = anchor.Label;
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (!ContainsWord(lines[i], name)) continue;
+                var lineNo = i + 1;
+                foreach (var m in members)
+                    if (lineNo >= m.Start && lineNo <= m.End)
+                    {
+                        Edge(m.Node.Id, anchor.Id, EdgeRelationship.References, provenance: codeBehind);
+                        break;
+                    }
+            }
+        }
+    }
+
+    /// <summary>A <c>{StaticResource Key}</c> → the <c>x:Key</c> it resolves to. Resolution is genuinely
+    /// ambiguous at rest (merge order decides at runtime), so it rides the confidence ladder: same file is
+    /// near-certain, a single definition repo-wide is strong, and several candidates is weak rather than a guess.</summary>
+    private void LinkXamlResources(string rel, List<(string Ast, GraphNode Node)> anchors,
+                                   Dictionary<string, List<GraphNode>> keysByName)
+    {
+        var full = Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) return;
+
+        // Anchors sorted innermost-first so a reference lands on the tightest element that encloses it.
+        var spans = anchors
+            .Select(a => (a.Node,
+                          Start: int.TryParse(a.Node.Metadata?.GetValueOrDefault("line"), out var s) ? s : 0,
+                          End: int.TryParse(a.Node.Metadata?.GetValueOrDefault("endLine"), out var e) ? e : int.MaxValue))
+            .Where(x => x.Start > 0)
+            .OrderBy(x => x.End - x.Start)
+            .ToList();
+        if (spans.Count == 0) return;
+
+        var lines = text.Replace("\r", "").Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+            foreach (Match match in ResourceRef.Matches(lines[i]))
+            {
+                var key = match.Groups[1].Value;
+                if (!keysByName.TryGetValue(key, out var candidates)) continue;
+
+                var lineNo = i + 1;
+                var owner = spans.FirstOrDefault(x => lineNo >= x.Start && lineNo <= x.End).Node;
+                if (owner is null) continue;
+
+                var sameFile = candidates.Where(c => c.FilePath == rel).ToList();
+                var (target, confidence) = sameFile.Count == 1 ? (sameFile[0], GraphConfidence.NearCertain)
+                    : candidates.Count == 1 ? (candidates[0], GraphConfidence.Strong)
+                    : (candidates[0], GraphConfidence.Weak);
+                Edge(owner.Id, target.Id, EdgeRelationship.UsesResource, confidence, provenance: rel);
+            }
+    }
+
+    private static readonly Regex ResourceRef =
+        new(@"\{\s*(?:Static|Dynamic)Resource\s+([A-Za-z_][\w.]*)\s*\}", RegexOptions.Compiled);
+
+    /// <summary>The XAML anchors declared by one file, each with its structure path.</summary>
+    private List<(string Ast, GraphNode Node)> AnchorsOf(string rel) =>
+        [.. _nodes.Values
+            .Where(n => n.Type == NodeType.Type && n.FilePath == rel
+                        && n.Metadata?.GetValueOrDefault("ast") is { Length: > 0 })
+            .Select(n => (Ast: n.Metadata!["ast"], Node: n))];
+
+    /// <summary>Whole-word containment — <c>Root</c> must not match <c>RootGrid</c>.</summary>
+    private static bool ContainsWord(string line, string word)
+    {
+        var i = 0;
+        while ((i = line.IndexOf(word, i, StringComparison.Ordinal)) >= 0)
+        {
+            var before = i == 0 || (!char.IsLetterOrDigit(line[i - 1]) && line[i - 1] != '_');
+            var afterAt = i + word.Length;
+            var after = afterAt >= line.Length || (!char.IsLetterOrDigit(line[afterAt]) && line[afterAt] != '_');
+            if (before && after) return true;
+            i += word.Length;
+        }
+        return false;
     }
 
     /// <summary>A project's <c>ProjectReference</c>/<c>PackageReference</c> — the build dependency graph.</summary>
