@@ -5,10 +5,11 @@ namespace Nexaflow.Tests.Fixtures;
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
 /// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey,
 /// ER, Venn, architecture, swimlanes, Cynefin), plus an <c>extensions.md</c> exercising the non-diagram
-/// Markdig extensions (emphasis extras, abbreviations, alert blocks) and three <c>latex-math-*.md</c>
-/// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters,
-/// fonts/styling) — a supported construct typesets, an unsupported one falls back to its raw source, so
-/// the docs double as a live map of engine support. Two <c>music-*.md</c> references exercise the
+/// Markdig extensions (emphasis extras, abbreviations, alert blocks) and four <c>latex-math-*.md</c>
+/// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters
+/// and environments, fonts/styling, AMS symbols) — a supported construct typesets, an unsupported one
+/// falls back to its raw source, so the docs double as a live map of engine support, which
+/// <c>MarkdownSampleRenderTests.LatexMathSamplesTypeset</c> holds them to. Two <c>music-*.md</c> references exercise the
 /// musical-notation engraver (<c>#%abc … #%</c> and <c>#%lilypond … #%</c> blocks → sheet music). Each
 /// document showcases several variations, so the fixtures double as a human-readable reference. The
 /// <c>mermaid-*</c> naming marks the diagram docs.
@@ -60,10 +61,9 @@ internal sealed class MarkdownSamples : ISampleSet
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
         called out under each section as *Not supported*. When a formula does fail, the app shows
         its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\mathbb` (blackboard bold needs the AMS `msbm` font,
-        which is not bundled):
+        deliberately uses the unsupported `\boldsymbol`:
 
-        $$ \mathbb{R} \quad \text{blackboard R} $$
+        $$ \boldsymbol{\alpha} + \beta $$
 
         ## Spacing
 
@@ -113,13 +113,20 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Set theory and logic
 
-        $$ a \in A \;\; a \notin A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \varnothing \;\; \forall x \;\; \exists y \;\; \nexists z \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q \;\; p \implies q \;\; p \iff q $$
+        $$ a \in A \;\; a \notin A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \varnothing \;\; \forall x \;\; \exists y \;\; \nexists z \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q \;\; p \implies q \;\; p \impliedby q \;\; p \iff q $$
 
-        *Not supported (need the AMS `msbm` font):* blackboard bold `\mathbb{R}` · Hebrew `\beth` / `\gimel` / `\daleth`
+        `\mathbb{R}` parses, but the AMS `msbm` font is not bundled, so it is set in upright roman rather
+        than blackboard bold — see the [fonts reference](latex-math-fonts.md).
+
+        *Not supported (need the AMS `msbm` font):* Hebrew `\beth` / `\gimel` / `\daleth`
 
         ## Arrows
 
-        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \mapsto b \;\; a \longrightarrow b \;\; a \longleftarrow b \;\; a \hookrightarrow b \;\; a \Longrightarrow b \;\; a \Longleftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
+        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \mapsto b \;\; a \longrightarrow b \;\; a \longleftarrow b \;\; a \hookrightarrow b \;\; a \Longrightarrow b \;\; a \Longleftarrow b \;\; a \Longleftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
+
+        Arrows that stretch to fit a label written over (and optionally under) them:
+
+        $$ A \xrightarrow{f} B \;\; B \xleftarrow{g} C \;\; A \xrightarrow[\cong]{\varphi} B \;\; A \xleftrightarrow{h} B \;\; A \xRightarrow{p} B \;\; A \xLeftarrow{q} B \;\; a \xmapsto{\iota} b $$
 
         ## Accents
 
@@ -144,7 +151,8 @@ internal sealed class MarkdownSamples : ISampleSet
         # LaTeX math — structures
 
         Constructs that arrange sub-expressions: fractions, roots, big operators, integrals,
-        auto-sized delimiters, and **matrices** (all delimiter variants). See the
+        auto-sized delimiters, **matrices** (all delimiter variants), the aligned and gathered
+        environments, style switches, stacked annotations, frames and phantoms. See the
         [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
         supported, with engine gaps flagged as *Not supported*.
 
@@ -218,9 +226,9 @@ internal sealed class MarkdownSamples : ISampleSet
         The matrix environments differ only in the delimiters that surround them. Each works both
         as a command (`\bmatrix{ … }`) and as an environment (`\begin{bmatrix} … \end{bmatrix}`).
 
-        No delimiters — the `\matrix` command (the `\begin{matrix}` environment is **not** supported):
+        No delimiters — `matrix`:
 
-        $$ \matrix{ a & b \\ c & d } $$
+        $$ \matrix{ a & b \\ c & d } \;\; \begin{matrix} a & b \\ c & d \end{matrix} $$
 
         Parentheses — `pmatrix`:
 
@@ -251,17 +259,65 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \begin{bmatrix} a_{11} & \cdots & a_{1n} \\ \vdots & \ddots & \vdots \\ a_{m1} & \cdots & a_{mn} \end{bmatrix} $$
 
+        `smallmatrix` is the same layout set in script size, so it fits on a text line:
+
+        $$ \left( \begin{smallmatrix} a & b \\ c & d \end{smallmatrix} \right) $$
+
         ## Piecewise definitions (cases)
 
-        The `\cases{ … }` command is supported (the `\begin{cases}` environment is **not**):
+        Both the `\cases{ … }` command and the `cases` environment:
 
-        $$ f(x) = \cases{ 1 & x > 0 \\ 0 & x = 0 \\ -1 & x < 0 } $$
+        $$ f(x) = \cases{ 1 & x > 0 \\ 0 & x = 0 \\ -1 & x < 0 } \;\; g(x) = \begin{cases} 1 & x > 0 \\ 0 & x \leq 0 \end{cases} $$
 
-        ## Aligned equations
+        ## Aligned and gathered equations
+
+        `align` (and `aligned`, `split`, and the starred `align*`) line the rows up on `&`:
 
         $$ \begin{align} (a+b)^2 &= a^2 + 2ab + b^2 \\ (a-b)^2 &= a^2 - 2ab + b^2 \end{align} $$
 
-        *Not supported:* `\begin{matrix}` · `\begin{cases}` · `\begin{array}` · `\begin{aligned}` · `\begin{gather}` · `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\substack`
+        $$ \begin{aligned} x &= y + 1 \\ y &= z - 1 \end{aligned} $$
+
+        `gather` (and `gathered`, `gather*`) centres each row instead:
+
+        $$ \begin{gather} a^2 + b^2 = c^2 \\ e^{i\pi} + 1 = 0 \end{gather} $$
+
+        ## Style switches
+
+        `\displaystyle`, `\textstyle`, `\scriptstyle` and `\scriptscriptstyle` are switches: each applies
+        from where it appears to the end of its group. `\displaystyle` is what moves the limits of a big
+        operator above and below it, even inline:
+
+        $$ \textstyle\sum_{i=1}^{n} i \quad \displaystyle\sum_{i=1}^{n} i $$
+
+        $$ {\scriptstyle a + b} \quad {\scriptscriptstyle a + b} \quad a + b $$
+
+        ## Stacked annotations
+
+        `\overset{…}{…}` and `\underset{…}{…}` set an annotation in script size above or below a base;
+        `\stackrel` does the same but is typed as a relation, so it spaces like the arrow it sits on:
+
+        $$ \overset{\text{def}}{=} \;\; \underset{n \to \infty}{\lim} a_n \;\; A \stackrel{f}{\rightarrow} B $$
+
+        ## Framed formulas
+
+        `\boxed{…}` (also spelled `\fbox{…}`) draws a rectangle around its content:
+
+        $$ \boxed{e^{i\pi} + 1 = 0} \;\; \boxed{\frac{a}{b}} $$
+
+        ## Ink without extent, extent without ink
+
+        `\phantom` measures its argument and prints nothing, so it reserves space; `\hphantom` and
+        `\vphantom` keep only the width or only the height. The two fractions below line up because the
+        second reserves the width of the first's numerator:
+
+        $$ \frac{a + b}{c} \;\; \frac{\phantom{a + b}}{c} \;\; \frac{\hphantom{a+b}}{c} \;\; x^{\vphantom{2}} $$
+
+        `\smash` is the inverse — it prints without claiming any height — and `\mathllap` / `\mathrlap` /
+        `\mathclap` print without claiming any width, so the content overlaps its neighbours:
+
+        $$ \smash{\frac{a}{b}} \;\; a\mathllap{/}b \;\; a\mathrlap{/}b \;\; a\mathclap{/}b $$
+
+        *Not supported:* `\begin{array}` · `\overbrace` · `\underbrace` · `\substack`
         """;
 
     private const string LatexMathFonts =
@@ -274,22 +330,38 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Math alphabets
 
-        $$ \mathrm{Abc} \;\; \mathit{Abc} \;\; \mathcal{ABC} $$
+        $$ \mathrm{Abc} \;\; \mathit{Abc} \;\; \mathcal{ABC} \;\; \mathscr{ABC} $$
 
-        *Not supported:* `\mathbb` · `\mathbf` · `\mathsf` · `\mathtt` · `\mathfrak` · `\boldsymbol`
-        (so no blackboard-bold ℝ/ℂ/ℤ, bold, sans, or Fraktur yet).
+        The remaining alphabets **parse**, but only three faces ship with the engine (Computer Modern
+        roman, math italic and the symbol font), so there is no bold, sans-serif, monospace,
+        blackboard-bold or Fraktur face to set them in — each falls back to upright roman:
+
+        $$ \mathbb{R} \;\; \mathbf{Abc} \;\; \mathsf{Abc} \;\; \mathtt{Abc} \;\; \mathfrak{g} $$
+
+        So `\mathbb{R}` reads as *R*, not ℝ. `\mathscr` is the exception: it is genuinely the
+        calligraphic alphabet, the same one `\mathcal` uses.
+
+        *Not supported:* `\boldsymbol`
 
         ## Text inside math
 
-        $$ x + y = z \;\; \text{(a labelled equation)} $$
+        `\text` and the `\text*` family treat their argument as text rather than maths, so the spaces
+        inside survive. The same face caveat as above applies: only `\textrm` and `\textit` get the face
+        they ask for, and `\textsc` sets small letters as full capitals.
 
-        *Not supported:* `\textrm` · `\mbox` · `\operatorname`
+        $$ x + y = z \;\; \text{(a labelled equation)} \;\; \textrm{roman text} \;\; \textit{italic text} $$
+
+        $$ \textbf{bold text} \;\; \textsf{sans text} \;\; \texttt{mono text} \;\; \textsc{small caps} $$
+
+        *Not supported:* `\mbox` · `\operatorname`
 
         ## Colour
 
         $$ \color{red}{a^2} + \color{blue}{b^2} = \color{green}{c^2} $$
 
-        *Not supported:* `\textcolor`
+        `\textcolor` is accepted as a spelling of the same two-argument command:
+
+        $$ \textcolor{red}{a^2} + \textcolor{blue}{b^2} = \textcolor{green}{c^2} $$
 
         ## Cancellation
 
@@ -302,11 +374,14 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y \;\; x\quad y \;\; x\qquad y \;\; x~y \;\; x\ y \;\; x\hspace{12pt}y $$
 
-        ## Not supported — decorations & phantoms
+        ## Not supported — decorations
 
         These otherwise-standard constructs currently fall back to source rather than rendering:
 
-        `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\stackrel` · `\substack` · `\phantom` · `\hphantom` · `\vphantom`
+        `\overbrace` · `\underbrace` · `\substack`
+
+        The phantoms and the stacked annotations moved the other way and now render — see the
+        [structures reference](latex-math-structures.md).
         """;
 
     private const string LatexMathAmssymb =

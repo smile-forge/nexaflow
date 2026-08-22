@@ -19,6 +19,8 @@ internal static class UiThread
         thread.SetApartmentState(System.Threading.ApartmentState.STA);
         thread.Start();
         thread.Join();
-        if (caught is not null) throw caught;
+        // Rethrow with the STA thread's own stack intact — a bare `throw caught` resets it to this
+        // line, which leaves a failure inside the body with nothing to point at.
+        if (caught is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(caught).Throw();
     }
 }

@@ -77,6 +77,52 @@ public class MarkdownSampleRenderTests
         }
     });
 
+    /// <summary>
+    /// The <c>latex-math-*.md</c> references claim that every formula in them uses only constructs the
+    /// engine supports. This holds them to it, through the same check the renderer makes
+    /// (<see cref="WpfMath.Controls.FormulaControl.HasError"/>): a formula that stops typesetting fails
+    /// here instead of quietly turning a reference page into a wall of raw LaTeX. The symbols page
+    /// deliberately shows one unsupported formula to demonstrate the fallback, and that one is
+    /// required to keep failing.
+    /// </summary>
+    [TestMethod]
+    public void LatexMathSamplesTypeset() => UiThread.Run(() =>
+    {
+        const string deliberatelyUnsupported = @"\boldsymbol";
+
+        var files = TestSampleData.Files("markdown")
+            .Where(p => Path.GetFileName(p).StartsWith("latex-math-", StringComparison.Ordinal))
+            .ToList();
+        Assert.AreNotEqual(0, files.Count, "no latex-math-* samples found");
+
+        int typeset = 0, fellBack = 0;
+        foreach (var path in files)
+        {
+            var    doc  = MdMarkdown.Parse(File.ReadAllText(path), MarkdownPipelineFactory.Default);
+            string name = Path.GetFileName(path);
+
+            foreach (var math in doc.Descendants().OfType<Markdig.Extensions.Mathematics.MathInline>())
+            {
+                string latex = math.Content.ToString();
+                bool   ok    = !new WpfMath.Controls.FormulaControl { Formula = latex }.HasError;
+
+                if (latex.Contains(deliberatelyUnsupported, StringComparison.Ordinal))
+                {
+                    Assert.IsFalse(ok, $"{name}: the fallback demo now typesets: {latex}");
+                    fellBack++;
+                }
+                else
+                {
+                    Assert.IsTrue(ok, $"{name}: formula fell back to source: {latex}");
+                    typeset++;
+                }
+            }
+        }
+
+        Assert.AreNotEqual(0, typeset, "no formula was found in the latex-math-* samples");
+        Assert.AreEqual(1, fellBack, "the fallback demo should be the only formula that does not typeset");
+    });
+
     /// <summary>The <c>music-*.md</c> references parse into <c>#% … #%</c> music blocks and engrave (or
     /// gracefully fall back) through <see cref="BlockRenderer"/> without throwing — the docs double as a
     /// live map of the notation engine's support.</summary>
