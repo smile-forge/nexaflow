@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Communities;
@@ -79,7 +80,9 @@ public sealed class GraphBuilder
         BuildCodeLayer();
         BuildStructuredLayer();
         BuildAssetLayer();
+        ResolveXamlPairing();
         ResolveReferences();
+        ResolveXamlBindings();
         ResolveFileMentions();
 
         var graph = new KnowledgeGraph
@@ -211,13 +214,13 @@ public sealed class GraphBuilder
 
         var lang = TreeSitterLanguages.ForFile(relPath);
         var typeId = "code:" + relPath + "#" + type.AstPath;
-        AddCodeNode(typeId, NodeType.Type, type.Name, relPath, lang, type.Kind.ToString(), type.Line, type.EndLine, type.AstPath);
+        AddCodeNode(typeId, NodeType.Type, type.Name, relPath, lang, type.Kind.ToString(), type.Line, type.EndLine, type.AstPath, type.Visibility);
         Edge("file:" + relPath, typeId, EdgeRelationship.Contains, provenance: relPath);
 
         if (member is null) return typeId;
 
         var memberId = "code:" + relPath + "#" + member.AstPath;
-        AddCodeNode(memberId, NodeType.Member, member.Name, relPath, lang, member.Kind.ToString(), member.Line, member.EndLine, member.AstPath);
+        AddCodeNode(memberId, NodeType.Member, member.Name, relPath, lang, member.Kind.ToString(), member.Line, member.EndLine, member.AstPath, member.Visibility);
         Edge(typeId, memberId, EdgeRelationship.Contains, provenance: relPath);
         return memberId;
     }
@@ -291,7 +294,16 @@ public sealed class GraphBuilder
     private FileContribution GetContribution(string rel, string full)
     {
         var text = SnaplinkTargets.ReadText(full);
-        if (text is null) return new FileContribution { Nodes = { BareFileNode(rel) } };
+        if (text is null)
+        {
+            // Absent, binary, or past the read cap. Say which of those it is rather than leaving a node that
+            // is silently emptier than its neighbours: a 31 MB generated parser table and a corrupt file look
+            // identical here otherwise, and only one of them is a problem.
+            var bare = BareFileNode(rel);
+            (bare.Metadata ??= new())["unread"] = RepoFiles.IsGenerated(full) ? "generated" : "too-large-or-binary";
+            if (RepoFiles.IsGenerated(full)) bare.Metadata["generated"] = "true";
+            return new FileContribution { Nodes = { bare } };
+        }
 
         var hash = Hashing.Md5(text);
         if (_cache.Files.TryGetValue(rel, out var cached) && cached.Hash == hash) return cached;
@@ -328,7 +340,8 @@ public sealed class GraphBuilder
             nodes[id] = n;
             return n;
         }
-        void CodeNode(string id, string type, string label, string kind, int line, int endLine, string ast)
+        void CodeNode(string id, string type, string label, string kind, int line, int endLine, string ast,
+                      OutlineVisibility visibility)
         {
             var n = Local(id, type, label, rel, lang);
             (n.Metadata ??= new())["kind"] = kind.ToLowerInvariant();
@@ -337,6 +350,10 @@ public sealed class GraphBuilder
             // re-deriving it by counting braces. Absent (0) when the extractor had no end for this node.
             if (endLine > 0) n.Metadata["endLine"] = endLine.ToString();
             n.Metadata["ast"] = ast;
+            // The outline has always known this and the graph used to drop it, so "what is the public surface
+            // of X" had no answer short of re-parsing. Only C# populates it meaningfully today; other grammars
+            // fall back to the record's public default rather than claiming a modifier the language lacks.
+            n.Metadata["visibility"] = visibility.ToString().ToLowerInvariant();
         }
         void LocalEdge(string s, string t, string relationship)
         {
@@ -344,7 +361,23 @@ public sealed class GraphBuilder
         }
 
         var fileId = "file:" + rel;
-        Local(fileId, NodeType.File, Path.GetFileName(rel), rel, lang);
+        var fileNode = Local(fileId, NodeType.File, Path.GetFileName(rel), rel, lang);
+        // How big a file is turns out to be one of the questions most often asked of the graph — "what are the
+        // biggest files", "does this one carry too much" — and until this was recorded the only way to answer
+        // was to leave the graph and count lines on disk, which is exactly the fallback the discovery rule
+        // exists to prevent. The text is already in hand here for the hash and the outline, so it is free.
+        (fileNode.Metadata ??= new())["lines"] = (text.AsSpan().Count('\n') + 1).ToString();
+
+        // A generated file is located, sized and labelled, and then left alone. Expanding one is all cost:
+        // a tree-sitter parser.c would contribute thousands of table entries nobody will ever query, and the
+        // hand-written scanner.c beside it stays fully parsed because the test is the file, not the language.
+        if (RepoFiles.IsGenerated(full))
+        {
+            fileNode.Metadata["generated"] = "true";
+            c.Nodes = [.. nodes.Values];
+            c.Edges = [.. edges.Values];
+            return c;
+        }
 
         var outline = OutlineFor(rel, full, text);
         if (outline is not null)
@@ -370,7 +403,7 @@ public sealed class GraphBuilder
             foreach (var t in outline.Types)
             {
                 var typeId = "code:" + rel + "#" + t.AstPath;
-                CodeNode(typeId, NodeType.Type, t.Name, t.Kind.ToString(), t.Line, t.EndLine, t.AstPath);
+                CodeNode(typeId, NodeType.Type, t.Name, t.Kind.ToString(), t.Line, t.EndLine, t.AstPath, t.Visibility);
                 LocalEdge(fileId, typeId, EdgeRelationship.Contains);
                 foreach (var b in t.Bases) c.Bases.Add(new CachedBase { TypeId = typeId, Name = b.Name, IsInterface = b.IsInterface });
 
@@ -378,7 +411,7 @@ public sealed class GraphBuilder
                     foreach (var m in t.Members)
                     {
                         var memberId = "code:" + rel + "#" + m.AstPath;
-                        CodeNode(memberId, NodeType.Member, m.Name, m.Kind.ToString(), m.Line, m.EndLine, m.AstPath);
+                        CodeNode(memberId, NodeType.Member, m.Name, m.Kind.ToString(), m.Line, m.EndLine, m.AstPath, m.Visibility);
                         LocalEdge(typeId, memberId, EdgeRelationship.Contains);
                     }
             }
@@ -394,7 +427,7 @@ public sealed class GraphBuilder
     /// stay pristine), and the unresolved bases + raw relation sites for the global resolution passes.</summary>
     private void ApplyContribution(string rel, FileContribution c)
     {
-        foreach (var n in c.Nodes) _nodes.TryAdd(n.Id, n);
+        foreach (var n in c.Nodes) Merge(n);
         foreach (var e in c.Edges) Edge(e.Source, e.Target, e.Relationship, e.Confidence, e.ProvenanceFile);
         foreach (var b in c.Bases) _bases.Add((b.TypeId, b.Name, b.IsInterface, rel));
         foreach (var r in c.Refs) _rawRefs.Add((rel, r));
@@ -402,6 +435,33 @@ public sealed class GraphBuilder
         foreach (var a in c.Attributes) _attributes.Add((rel, a));
         foreach (var cc in c.Calls) _calls.Add((rel, cc));
         foreach (var fr in c.FileRefs) _fileRefs.Add((rel, fr));
+    }
+
+    /// <summary>
+    /// Adds a parsed node, or folds it into the one already there.
+    /// <para>
+    /// The order layers run in is not the order of knowledge. A snaplink creates <c>file:Foo.cs</c> before
+    /// anything has read Foo.cs, so a plain <c>TryAdd</c> here discarded the code layer's version of that
+    /// node — the one that actually knows the language, the line count and the structure. The symptom was
+    /// silent and selective: a file was fully parsed, its types and members were all present, and only the
+    /// *file* node looked like nothing had ever read it. Whether a file happened to be a snaplink target
+    /// decided whether it carried its own facts.
+    /// </para>
+    /// <para>Blanks are filled and unseen metadata keys added; a value already present is never overwritten,
+    /// so the merge stays order-independent and the build stays deterministic.</para>
+    /// </summary>
+    private void Merge(GraphNode incoming)
+    {
+        if (!_nodes.TryGetValue(incoming.Id, out var existing)) { _nodes[incoming.Id] = incoming; return; }
+
+        if (string.IsNullOrEmpty(existing.Language)) existing.Language = incoming.Language;
+        if (string.IsNullOrEmpty(existing.FilePath)) existing.FilePath = incoming.FilePath;
+        if (string.IsNullOrEmpty(existing.Source)) existing.Source = incoming.Source;
+        if (incoming.Metadata is null) return;
+
+        existing.Metadata ??= new();
+        foreach (var (key, value) in incoming.Metadata)
+            if (!existing.Metadata.ContainsKey(key)) existing.Metadata[key] = value;
     }
 
     // ── Phase C.3 — bare nodes for every other repo file (docs / config / images / resources) ──
@@ -435,7 +495,6 @@ public sealed class GraphBuilder
             {
                 switch (ext)
                 {
-                    case ".xaml":   ExtractXaml(rel, fileId, XDocument.Load(full)); break;
                     case ".csproj": ExtractCsproj(rel, full, fileId, XDocument.Load(full)); break;
                     case ".slnx":   ExtractSolutionXml(rel, full, fileId, XDocument.Load(full)); break;
                     case ".sln":    ExtractSolutionLegacy(rel, full, fileId); break;
@@ -445,27 +504,408 @@ public sealed class GraphBuilder
         }
     }
 
-    /// <summary>A WPF view's <c>x:Class</c> is the compiler-enforced pairing to its code-behind partial class — a
-    /// rock-solid link from the .xaml to the C# type node (from which its ViewModel is a further hop via the code layer).</summary>
-    private void ExtractXaml(string rel, string fileId, XDocument doc)
+    // ── Phase C.4 — pair each WPF view with its code-behind ──────────────────────────────────────────
+    /// <summary>
+    /// Joins the two halves of a WPF view. A <c>.xaml</c> and its <c>.xaml.cs</c> are one component to the
+    /// compiler but two files to everything else, and the edges between them are exactly what a reader needs:
+    /// which method handles this button, which code touches this element, which brush this control resolves.
+    /// <list type="bullet">
+    ///   <item><c>view_of</c> — the file → the partial class its <c>x:Class</c> names.</item>
+    ///   <item><c>handles</c> — an element → the code-behind method wired to one of its events.</item>
+    ///   <item><c>references</c> — a code-behind member → the named element it touches. Deliberately this
+    ///   direction: WPF generates the <c>x:Name</c> field into <c>obj/*.g.i.cs</c>, so there is no member in
+    ///   the code-behind to point <em>at</em>; what exists is the code that uses it.</item>
+    ///   <item><c>uses_resource</c> — an element → the <c>x:Key</c> a <c>{StaticResource}</c> resolves to.</item>
+    /// </list>
+    /// <para>
+    /// Runs as its own pass because both halves are built by the code layer now, and nothing there orders
+    /// <c>Foo.xaml</c> before <c>Foo.xaml.cs</c>.
+    /// </para></summary>
+    private void ResolveXamlPairing()
     {
-        var root = doc.Root;
-        if (root is null) return;
-        Meta(_nodes[fileId], "root", root.Name.LocalName);   // UserControl / Window / ResourceDictionary / …
+        if (_opts.Scope != GraphScope.WholeRepo) return;
 
-        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var cls = root.Attribute(xaml + "Class")?.Value;
-        if (string.IsNullOrWhiteSpace(cls)) return;
+        // Every x:Key in the repo, for resolving a {StaticResource} that points at a merged dictionary.
+        var keysByName = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
+        var typesByName = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
+        foreach (var n in _nodes.Values)
+        {
+            if (n.Type != NodeType.Type) continue;
+            if (n.Metadata?.GetValueOrDefault("ast") is { } a && a.StartsWith("K:", StringComparison.Ordinal))
+                Index(keysByName, n.Label, n);
+            else if (n.FilePath is { } f && f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                Index(typesByName, n.Label, n);
+        }
 
-        var simple = cls[(cls.LastIndexOf('.') + 1)..];              // Ns.GraphView → GraphView
-        var codeTypeId = "code:" + rel + ".cs#T:" + simple;         // GraphView.xaml → GraphView.xaml.cs#T:GraphView
-        if (_nodes.ContainsKey(codeTypeId)) Edge(fileId, codeTypeId, EdgeRelationship.ViewOf, provenance: rel);
+        foreach (var rel in _nodes.Values
+                     .Where(n => n.Type == NodeType.File && n.FilePath is { } f
+                                 && f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
+                     .Select(n => n.FilePath!)
+                     .ToList())
+        {
+            var anchors = AnchorsOf(rel);
+            if (anchors.Count == 0) continue;
+
+            var codeBehind = rel + ".cs";
+            var rootClass = anchors.Where(a => a.Ast.StartsWith("T:", StringComparison.Ordinal))
+                                   .Select(a => a.Node.Label).FirstOrDefault();
+
+            if (rootClass is not null && _nodes.ContainsKey("code:" + codeBehind + "#T:" + rootClass))
+                Edge("file:" + rel, "code:" + codeBehind + "#T:" + rootClass, EdgeRelationship.ViewOf, provenance: rel);
+
+            LinkXamlHandlers(rel, codeBehind);
+            LinkCodeBehindUsage(rel, codeBehind, anchors);
+            LinkXamlResources(rel, anchors, keysByName);
+            LinkXamlTypeUses(rel, typesByName);
+        }
+    }
+
+    /// <summary>An element's event handler → the code-behind method it names. The pairing is compiler-enforced,
+    /// so a match is <see cref="GraphConfidence.Extracted"/>; a handler with no such method simply gets no edge,
+    /// which is also what keeps the outline's deliberately permissive event heuristic from inventing one.</summary>
+    private void LinkXamlHandlers(string rel, string codeBehind)
+    {
+        var methods = _nodes.Values
+            .Where(n => n.Type == NodeType.Member && n.FilePath == codeBehind)
+            .GroupBy(n => n.Label, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        if (methods.Count == 0) return;
+
+        foreach (var m in _nodes.Values.Where(n => n.Type == NodeType.Member && n.FilePath == rel).ToList())
+        {
+            if (m.Metadata?.GetValueOrDefault("ast") is not { } ast) continue;
+            var cut = ast.LastIndexOf("/M:", StringComparison.Ordinal);
+            if (cut <= 0) continue;                       // a handler always hangs off an anchor
+            var owner = "code:" + rel + "#" + ast[..cut];
+            if (!_nodes.ContainsKey(owner)) continue;
+            if (methods.TryGetValue(m.Label, out var target))
+                Edge(owner, target.Id, EdgeRelationship.Handles, provenance: rel);
+        }
+    }
+
+    /// <summary>
+    /// Code-behind members that touch a named element. The <c>x:Name</c> field is compiler-generated into
+    /// <c>obj/</c>, so it is never a declaration the code layer saw — the only evidence is the identifier in
+    /// the code-behind, matched on a word boundary and attributed to whichever member's span contains it.
+    /// Scoped to the paired file, which is also the namescope, so a name shared with another view can't cross over.
+    /// </summary>
+    private void LinkCodeBehindUsage(string rel, string codeBehind, List<(string Ast, GraphNode Node)> anchors)
+    {
+        var named = anchors.Where(a => a.Ast.StartsWith("N:", StringComparison.Ordinal)).ToList();
+        if (named.Count == 0) return;
+
+        var full = Path.Combine(_codeRoot, codeBehind.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) return;
+
+        var members = _nodes.Values
+            .Where(n => n.Type == NodeType.Member && n.FilePath == codeBehind
+                        && n.Metadata is not null && n.Metadata.ContainsKey("line"))
+            .Select(n => (Node: n,
+                          Start: int.Parse(n.Metadata!["line"]),
+                          End: int.TryParse(n.Metadata.GetValueOrDefault("endLine"), out var e) ? e : int.MaxValue))
+            .OrderBy(x => x.End - x.Start)   // innermost span wins
+            .ToList();
+        if (members.Count == 0) return;
+
+        var lines = text.Replace("\r", "").Split('\n');
+        foreach (var (_, anchor) in named)
+        {
+            var name = anchor.Label;
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (!ContainsWord(lines[i], name)) continue;
+                var lineNo = i + 1;
+                foreach (var m in members)
+                    if (lineNo >= m.Start && lineNo <= m.End)
+                    {
+                        Edge(m.Node.Id, anchor.Id, EdgeRelationship.References, provenance: codeBehind);
+                        break;
+                    }
+            }
+        }
+    }
+
+    /// <summary>A <c>{StaticResource Key}</c> → the <c>x:Key</c> it resolves to. Resolution is genuinely
+    /// ambiguous at rest (merge order decides at runtime), so it rides the confidence ladder: same file is
+    /// near-certain, a single definition repo-wide is strong, and several candidates is weak rather than a guess.</summary>
+    private void LinkXamlResources(string rel, List<(string Ast, GraphNode Node)> anchors,
+                                   Dictionary<string, List<GraphNode>> keysByName)
+    {
+        var full = Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) return;
+
+        // Anchors sorted innermost-first so a reference lands on the tightest element that encloses it.
+        var spans = anchors
+            .Select(a => (a.Node,
+                          Start: int.TryParse(a.Node.Metadata?.GetValueOrDefault("line"), out var s) ? s : 0,
+                          End: int.TryParse(a.Node.Metadata?.GetValueOrDefault("endLine"), out var e) ? e : int.MaxValue))
+            .Where(x => x.Start > 0)
+            .OrderBy(x => x.End - x.Start)
+            .ToList();
+        if (spans.Count == 0) return;
+
+        var lines = text.Replace("\r", "").Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+            foreach (Match match in ResourceRef.Matches(lines[i]))
+            {
+                var key = match.Groups[1].Value;
+                if (!keysByName.TryGetValue(key, out var candidates)) continue;
+
+                var lineNo = i + 1;
+                var owner = spans.FirstOrDefault(x => lineNo >= x.Start && lineNo <= x.End).Node;
+                if (owner is null) continue;
+
+                var sameFile = candidates.Where(c => c.FilePath == rel).ToList();
+                var (target, confidence) = sameFile.Count == 1 ? (sameFile[0], GraphConfidence.NearCertain)
+                    : candidates.Count == 1 ? (candidates[0], GraphConfidence.Strong)
+                    : (candidates[0], GraphConfidence.Weak);
+                Edge(owner.Id, target.Id, EdgeRelationship.UsesResource, confidence, provenance: rel);
+            }
+    }
+
+    private static readonly Regex ResourceRef =
+        new(@"\{\s*(?:Static|Dynamic)Resource\s+([A-Za-z_][\w.]*)\s*\}", RegexOptions.Compiled);
+
+    /// <summary>A namespace-prefixed name: an element <c>&lt;ctrl:ActivityTicker&gt;</c>, or a type argument
+    /// <c>{x:Type vmo:PromptOverlay}</c>. The prefix is what marks it as one of ours rather than a framework tag.</summary>
+    private static readonly Regex PrefixedTypeUse =
+        new(@"[<{]\s*(?:x:Type\s+)?[A-Za-z_]\w*:([A-Za-z_]\w*)", RegexOptions.Compiled);
+
+    /// <summary>An attached property — <c>ctrl:FocusOnLoad.Enabled="True"</c>. The type is named by an
+    /// attribute rather than a tag, which is the other half of how a view uses one of our classes.</summary>
+    private static readonly Regex PrefixedAttachedUse =
+        new(@"[\s{][A-Za-z_]\w*:([A-Za-z_]\w*)\.[A-Za-z_]", RegexOptions.Compiled);
+
+    /// <summary>
+    /// A view's use of a CLR type — <c>&lt;ctrl:ActivityTicker/&gt;</c>, <c>&lt;conv:BoolToVis/&gt;</c>,
+    /// <c>{x:Type vmo:PromptOverlay}</c>.
+    /// <para>
+    /// Without this a control or converter written for XAML has no incoming edge at all: it is constructed by
+    /// the XAML loader, so no C# ever names it. That reads as dead code, and the whole class of "used only
+    /// from a view" was the bulk of what an orphan search first turned up.
+    /// </para>
+    /// Only prefixed names are considered — an unprefixed tag is a framework type (<c>Grid</c>, <c>Border</c>)
+    /// and matching those against our type index would invent edges from a coincidence of naming.
+    /// </summary>
+    private void LinkXamlTypeUses(string rel, Dictionary<string, List<GraphNode>> typesByName)
+    {
+        var full = Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) return;
+
+        foreach (var pattern in new[] { PrefixedTypeUse, PrefixedAttachedUse })
+            foreach (Match m in pattern.Matches(text))
+            {
+                if (!typesByName.TryGetValue(m.Groups[1].Value, out var candidates) || candidates.Count != 1) continue;
+                Edge("file:" + rel, candidates[0].Id, EdgeRelationship.References,
+                     GraphConfidence.Strong, provenance: rel);
+            }
+    }
+
+    private static readonly Regex BindingRef = new(@"\{\s*Binding\s+([^}]+)\}", RegexOptions.Compiled);
+
+    private static readonly Regex DesignInstance =
+        new(@"d:DataContext\s*=\s*""\{\s*d:DesignInstance[^}]*?Type\s*=\s*(?:\{\s*x:Type\s+)?(?:\w+:)?(\w+)", RegexOptions.Compiled);
+
+    // ── Phase D.2 — bindings → the ViewModel member they name ────────────────────────────────────────
+    /// <summary>
+    /// Resolves <c>{Binding Foo}</c> to the ViewModel property it names — the edge that answers "what drives
+    /// this control", which is otherwise a guess from the outside.
+    /// <para>
+    /// The DataContext is a runtime value, so this only resolves it where the file states it: an explicit
+    /// <c>d:DesignInstance</c>, else the single <c>*ViewModel</c> the code-behind is seen to instantiate. It
+    /// runs after <see cref="ResolveReferences"/> because that is what produces those instantiation edges, and
+    /// it skips anything inside a keyed resource — a template carries its own data context, and guessing there
+    /// is what would make the whole layer untrustworthy.
+    /// </para></summary>
+    private void ResolveXamlBindings()
+    {
+        if (_opts.Scope != GraphScope.WholeRepo) return;
+
+        var typesByName = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
+        foreach (var n in _nodes.Values)
+            if (n.Type == NodeType.Type && n.FilePath is { } f && f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                Index(typesByName, n.Label, n);
+
+        foreach (var rel in _nodes.Values
+                     .Where(n => n.Type == NodeType.File && n.FilePath is { } f
+                                 && f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
+                     .Select(n => n.FilePath!)
+                     .ToList())
+        {
+            var full = Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(full) || SnaplinkTargets.ReadText(full) is not { } text) continue;
+            if (!text.Contains("{Binding", StringComparison.Ordinal)) continue;
+
+            var (vm, confidence) = ViewModelFor(rel, text, typesByName);
+            if (vm is null) continue;
+
+            var prefix = vm.Metadata?.GetValueOrDefault("ast") + "/";
+            var properties = _nodes.Values
+                .Where(n => n.Type == NodeType.Member && n.FilePath == vm.FilePath
+                            && n.Metadata?.GetValueOrDefault("ast") is { } a
+                            && a.StartsWith(prefix, StringComparison.Ordinal))
+                .GroupBy(n => n.Label, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            AddGeneratedMvvmNames(vm, prefix, properties);
+            if (properties.Count == 0) continue;
+
+            var anchors = AnchorsOf(rel)
+                .Select(a => (a.Ast, a.Node,
+                              Start: int.TryParse(a.Node.Metadata?.GetValueOrDefault("line"), out var s) ? s : 0,
+                              End: int.TryParse(a.Node.Metadata?.GetValueOrDefault("endLine"), out var e) ? e : int.MaxValue))
+                .Where(a => a.Start > 0)
+                .ToList();
+
+            var lines = text.Replace("\r", "").Split('\n');
+            for (var i = 0; i < lines.Length; i++)
+                foreach (Match m in BindingRef.Matches(lines[i]))
+                {
+                    if (BindingPath(m.Groups[1].Value) is not { } path) continue;
+                    if (!properties.TryGetValue(path, out var property)) continue;
+
+                    var lineNo = i + 1;
+                    var enclosing = anchors.Where(a => lineNo >= a.Start && lineNo <= a.End).ToList();
+                    if (enclosing.Count == 0) continue;
+                    if (enclosing.Any(a => a.Ast.StartsWith("K:", StringComparison.Ordinal))) continue;  // template scope
+
+                    var owner = enclosing.OrderBy(a => a.End - a.Start).First().Node;
+                    Edge(owner.Id, property.Id, EdgeRelationship.BindsTo, confidence, provenance: rel);
+                }
+        }
+    }
+
+    /// <summary>
+    /// Adds the names the MVVM Toolkit generates, pointing at the declaration that produces them:
+    /// <c>[ObservableProperty] private bool _wordWrap</c> → <c>WordWrap</c>, and
+    /// <c>[RelayCommand] private void Save()</c> → <c>SaveCommand</c>.
+    /// <para>
+    /// Without this almost nothing resolves, because those are the names a view actually binds to and they
+    /// exist only in generated source no parser here ever sees — the same shape as the <c>x:Name</c> field.
+    /// The attribute is the evidence, so this is a mapping rather than a naming guess.
+    /// </para></summary>
+    private void AddGeneratedMvvmNames(GraphNode vm, string prefix, Dictionary<string, GraphNode> into)
+    {
+        foreach (var (relPath, attr) in _attributes)
+        {
+            if (relPath != vm.FilePath || !attr.TargetAst.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            if (!_nodes.TryGetValue("code:" + relPath + "#" + attr.TargetAst, out var member)) continue;
+
+            string? generated = attr.AttrName switch
+            {
+                "ObservableProperty" => PascalCase(member.Label.TrimStart('_')),
+                "RelayCommand" => TrimSuffix(member.Label, "Async") + "Command",
+                _ => null,
+            };
+            if (generated is { Length: > 0 }) into[generated] = member;
+        }
+
+        static string PascalCase(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
+        static string TrimSuffix(string s, string suffix) =>
+            s.EndsWith(suffix, StringComparison.Ordinal) && s.Length > suffix.Length ? s[..^suffix.Length] : s;
+    }
+
+    /// <summary>The view's DataContext type, or null when the file does not say. Never inferred from the
+    /// <c>View</c>/<c>ViewModel</c> name convention — a convention is not evidence, and a wrong binding edge
+    /// is worse than none.</summary>
+    private (GraphNode? Vm, double Confidence) ViewModelFor(
+        string rel, string text, Dictionary<string, List<GraphNode>> typesByName)
+    {
+        if (DesignInstance.Match(text) is { Success: true } d
+            && typesByName.TryGetValue(d.Groups[1].Value, out var declared) && declared.Count == 1)
+            return (declared[0], GraphConfidence.Extracted);
+
+        // Else: the single *ViewModel the code-behind is seen to use. Not just `new FooViewModel(...)` — the
+        // usual shape here is `DataContext = _vm;` over an injected field, so any reference the code layer
+        // already resolved out of that file counts. Exactly one, or nothing: two candidates is not an answer.
+        var codeBehind = rel + ".cs";
+        var used = _edges.Values
+            .Where(e => e.ProvenanceFile == codeBehind)
+            .Select(e => _nodes.GetValueOrDefault(e.Target))
+            .Where(n => n is { Type: NodeType.Type }
+                        && n.Label.EndsWith("ViewModel", StringComparison.Ordinal)
+                        && n.FilePath != codeBehind)
+            .DistinctBy(n => n!.Id)
+            .ToList();
+        if (used.Count == 1) return (used[0], GraphConfidence.Strong);
+
+        // Last: the naming convention. Weaker evidence than the file stating its type, and marked as such —
+        // but name resolution is how every other cross-file edge in this graph is worked out, and a DataContext
+        // assigned from an injected field leaves nothing stronger to go on. A unique match only.
+        var stem = Path.GetFileNameWithoutExtension(rel);
+        foreach (var candidate in new[] { stem + "Model", stem + "ViewModel" })
+            if (candidate.EndsWith("ViewModel", StringComparison.Ordinal)
+                && typesByName.TryGetValue(candidate, out var byName) && byName.Count == 1)
+                return (byName[0], GraphConfidence.Reasonable);
+
+        return (null, 0);
+    }
+
+    /// <summary>The first segment of a binding's property path, or null when the binding names something other
+    /// than a plain path on the current DataContext (another element, an ancestor, its own source).</summary>
+    private static string? BindingPath(string inner)
+    {
+        if (inner.Contains("RelativeSource", StringComparison.Ordinal)
+            || inner.Contains("ElementName", StringComparison.Ordinal)
+            || inner.Contains("Source=", StringComparison.Ordinal)) return null;
+
+        var first = inner.Split(',')[0].Trim();
+        if (first.StartsWith("Path=", StringComparison.Ordinal)) first = first[5..].Trim();
+        else if (first.Contains('=', StringComparison.Ordinal)) return null;   // a named option, not a path
+
+        var cut = first.IndexOfAny(['.', '[', '(', '/', ' ']);
+        if (cut >= 0) first = first[..cut];
+        return first.Length > 0 && (char.IsLetter(first[0]) || first[0] == '_') ? first : null;
+    }
+
+    /// <summary>The XAML anchors declared by one file, each with its structure path.</summary>
+    private List<(string Ast, GraphNode Node)> AnchorsOf(string rel) =>
+        [.. _nodes.Values
+            .Where(n => n.Type == NodeType.Type && n.FilePath == rel
+                        && n.Metadata?.GetValueOrDefault("ast") is { Length: > 0 })
+            .Select(n => (Ast: n.Metadata!["ast"], Node: n))];
+
+    /// <summary>Whole-word containment — <c>Root</c> must not match <c>RootGrid</c>.</summary>
+    private static bool ContainsWord(string line, string word)
+    {
+        var i = 0;
+        while ((i = line.IndexOf(word, i, StringComparison.Ordinal)) >= 0)
+        {
+            var before = i == 0 || (!char.IsLetterOrDigit(line[i - 1]) && line[i - 1] != '_');
+            var afterAt = i + word.Length;
+            var after = afterAt >= line.Length || (!char.IsLetterOrDigit(line[afterAt]) && line[afterAt] != '_');
+            if (before && after) return true;
+            i += word.Length;
+        }
+        return false;
     }
 
     /// <summary>A project's <c>ProjectReference</c>/<c>PackageReference</c> — the build dependency graph.</summary>
     private void ExtractCsproj(string rel, string full, string fileId, XDocument doc)
     {
         var dir = Path.GetDirectoryName(full)!;
+
+        // The properties that say what a project *is*. They were already in the XML this pass has open, and
+        // dropping them left the graph unable to answer "which of these are executables" — the one question
+        // a solution's project list most obviously invites. `OutputType` absent means a library, which is the
+        // SDK's own default, so record that rather than leaving the fact missing.
+        string? Property(string name) => doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == name && !string.IsNullOrWhiteSpace(e.Value))?.Value.Trim();
+
+        // Carry the language even though the structured layer usually created this node already: node creation
+        // is first-wins, so whichever call arrives first decides, and a language-less winner makes a parsed
+        // project look unparsed (which is exactly what `graph list --unparsed` keys off).
+        var project = Node(fileId, NodeType.File, Path.GetFileName(rel), file: rel,
+                           language: Path.GetExtension(rel).TrimStart('.').ToLowerInvariant(), source: rel);
+        Meta(project, "output_type", (Property("OutputType") ?? "Library").ToLowerInvariant());
+        if ((Property("TargetFramework") ?? Property("TargetFrameworks")) is { Length: > 0 } tfm)
+            Meta(project, "target_framework", tfm);
+
+        // The SDK is what a project says it *is*, and it is the only such statement some projects make.
+        // A test project may declare nothing but Sdk="MSTest.Sdk/3.6.4" — no package reference, no naming
+        // convention — so inferring "this is a test project" from a dependency works in one repository and
+        // silently fails in the next. Sdk="Microsoft.NET.Sdk.Web", "WixToolset.Sdk" and friends are the same
+        // fact for other project kinds.
+        if (doc.Root?.Attribute("Sdk")?.Value is { Length: > 0 } sdk) Meta(project, "sdk", sdk);
         foreach (var pr in doc.Descendants().Where(e => e.Name.LocalName == "ProjectReference"))
             if (pr.Attribute("Include")?.Value is { Length: > 0 } inc
                 && ToRel(Path.GetFullPath(Path.Combine(dir, inc.Replace('\\', Path.DirectorySeparatorChar)))) is { } target)
@@ -528,20 +968,28 @@ public sealed class GraphBuilder
             else if (n.Type == NodeType.Type) Index(typesByName, n.Label, n);
         }
 
+        // Two passes, because a mention must never restate something already said more precisely: a member that
+        // constructs Foo also mentions Foo in the `new` itself, and `instantiates` is the truer edge.
+        var linked = new HashSet<(string Source, string Target)>();
         foreach (var (relPath, r) in _rawRefs)
         {
+            if (r.Kind == RawRefKind.Mention) continue;
             var sourceId = "code:" + relPath + "#" + r.FromAst;
             if (!_nodes.ContainsKey(sourceId)) continue;   // enclosing member isn't in the graph
 
             if (r.Kind == RawRefKind.Call)
             {
                 // An unresolved call is a built-in / library method — skip it rather than guess or explode the graph.
-                if (ResolveOne(membersByName, r.Name, relPath) is { } hit)
+                if (ResolveCall(membersByName, r.Name, relPath) is { } hit)
+                {
                     Edge(sourceId, hit.Node.Id, EdgeRelationship.Calls, hit.Confidence, provenance: relPath);
+                    linked.Add((sourceId, hit.Node.Id));
+                }
             }
-            else if (ResolveOne(typesByName, r.Name, relPath) is { } hit)   // New → instantiates
+            else if (ResolveMention(typesByName, r.Name, relPath) is { } hit)   // New → instantiates
             {
                 Edge(sourceId, hit.Node.Id, EdgeRelationship.Instantiates, hit.Confidence, provenance: relPath);
+                linked.Add((sourceId, hit.Node.Id));
             }
             else
             {
@@ -551,7 +999,98 @@ public sealed class GraphBuilder
             }
         }
 
+        ResolveMentions(typesByName, linked);
         ResolveHyperEdges(membersByName, typesByName);
+    }
+
+    /// <summary>
+    /// A named-but-not-invoked type becomes a <c>references</c> edge. Unlike <c>new X</c>, an unresolved mention
+    /// is <b>dropped rather than made external</b>: nearly every type a member names is a framework one, so
+    /// stubbing them would bury the repo's own graph under <c>external:Task</c> and friends without answering
+    /// anything. A mention is therefore only ever evidence about a type this repo actually declares.
+    /// </summary>
+    private void ResolveMentions(Dictionary<string, List<GraphNode>> typesByName, HashSet<(string, string)> linked)
+    {
+        foreach (var (relPath, r) in _rawRefs)
+        {
+            if (r.Kind != RawRefKind.Mention) continue;
+            var sourceId = "code:" + relPath + "#" + r.FromAst;
+            if (!_nodes.ContainsKey(sourceId)) continue;
+            if (ResolveMention(typesByName, r.Name, relPath) is not { } hit) continue;
+            if (OwningTypeId(sourceId) == hit.Node.Id) continue;   // a member naming its own type says nothing
+            if (!linked.Add((sourceId, hit.Node.Id))) continue;
+            Edge(sourceId, hit.Node.Id, EdgeRelationship.References, hit.Confidence, provenance: relPath);
+        }
+    }
+
+    /// <summary>
+    /// Resolves a called name, refusing the matches the language itself would refuse. A bare method name is
+    /// the most collision-prone thing in the graph — every <c>.Where(…)</c>, <c>.Trim()</c> and
+    /// <c>.StartsWith(…)</c> in the repository is a call to the BCL, and name-only matching happily bound all
+    /// of them to whatever local declaration shared the name: one private helper called <c>Where</c> was
+    /// collecting 488 callers, and <c>EndpointRole.Return</c> — a const string — was collecting 128.
+    ///
+    /// <list type="number">
+    /// <item><b>Only a method can be called.</b> A field, a property or an enum member sharing the name is
+    /// not a call target, whatever the text says.</item>
+    /// <item><b>A private member is invisible from another file.</b> Now checkable, because visibility is
+    /// recorded on the node.</item>
+    /// <item><b>A call does not cross languages</b>, for the same reason a mention does not.</item>
+    /// </list>
+    /// Nothing here invents an edge; each rule only declines one the compiler would have declined.
+    /// </summary>
+    private (GraphNode Node, double Confidence)? ResolveCall(
+        Dictionary<string, List<GraphNode>> index, string name, string relPath)
+    {
+        // Rejecting AFTER the normal resolve, never narrowing before it. Narrowing first looks tidier and is
+        // a trap: dropping a candidate can leave one survivor where there were two, turning a name the
+        // resolver used to abandon as ambiguous into a confident wrong edge. Filtering first made a LINQ
+        // `Select` bind to one ViewModel's method 909 times. This shape can only ever remove an edge.
+        if (ResolveOne(index, name, relPath) is not { } hit) return null;
+
+        var node = hit.Node;
+        if (node.FilePath == relPath) return hit;   // same file: the compiler's scope, and ours
+
+        if (node.Language is not null && node.Language != TreeSitterLanguages.ForFile(relPath)) return null;
+        if (node.Metadata?.GetValueOrDefault("kind") is { } kind and not ("method" or "constructor")) return null;
+        if (node.Metadata?.GetValueOrDefault("visibility") == "private") return null;
+        return hit;
+    }
+
+    /// <summary>
+    /// Resolves a bare type name (a mention, or the type in a `new`) written in <paramref name="relPath"/>,
+    /// applying two rules the general
+    /// resolver cannot. Both exist because a bare type identifier has nothing to
+    /// anchor it, so a common name will otherwise land on whatever single declaration happens to share it.
+    ///
+    /// <list type="number">
+    /// <item><b>A nested type is not addressable by its simple name from another file.</b> C# requires
+    /// <c>Outer.Inner</c>. Without this, one <c>ProtoValue.List</c> record swallowed every <c>List&lt;T&gt;</c>
+    /// in the repository — 1,422 edges to a type none of them had ever heard of.</item>
+    /// <item><b>A mention does not cross languages.</b> A C# file naming <c>Color</c> cannot mean a type
+    /// declared in a TypeScript fixture, however unique that name happens to be in the graph.</item>
+    /// </list>
+    /// </summary>
+    private (GraphNode Node, double Confidence)? ResolveMention(
+        Dictionary<string, List<GraphNode>> index, string name, string relPath)
+    {
+        // Reject after resolving, never narrow before it — see ResolveCall for why that distinction matters.
+        if (ResolveOne(index, name, relPath) is not { } hit) return null;
+
+        var node = hit.Node;
+        if (node.FilePath == relPath) return hit;
+
+        if (node.Language is not null && node.Language != TreeSitterLanguages.ForFile(relPath)) return null;
+        if (node.Metadata?.GetValueOrDefault("ast") is { } ast && ast.Contains('/')) return null;
+        return hit;
+    }
+
+    /// <summary>The type a code node belongs to — <c>code:F.cs#T:A/M:B</c> → <c>code:F.cs#T:A</c>, or null when
+    /// the node is already a type.</summary>
+    private static string? OwningTypeId(string id)
+    {
+        var cut = id.LastIndexOf('/');
+        return cut > 0 && id.IndexOf('#') is var hash && hash > 0 && cut > hash ? id[..cut] : null;
     }
 
     // ── Phase D.2 — n-ary hyperedges: signature (member→return,params), annotated (target→attr), calls (caller→callee,args) ──
@@ -721,19 +1260,29 @@ public sealed class GraphBuilder
     }
 
     private void AddCodeNode(string id, string type, string label, string relPath, string? lang, string kind,
-                             int line, int endLine, string ast)
+                             int line, int endLine, string ast, OutlineVisibility visibility)
     {
         var n = Node(id, type, label, file: relPath, language: lang, source: relPath);
         Meta(n, "kind", kind.ToLowerInvariant());
         Meta(n, "line", line.ToString());
         if (endLine > 0) Meta(n, "endLine", endLine.ToString());
         Meta(n, "ast", ast);
+        Meta(n, "visibility", visibility.ToString().ToLowerInvariant());
     }
 
     private GraphNode Node(string id, string type, string label, string? file = null, string? language = null,
                            string? source = null, double confidence = GraphConfidence.Extracted)
     {
-        if (_nodes.TryGetValue(id, out var existing)) return existing;
+        if (_nodes.TryGetValue(id, out var existing))
+        {
+            // First-wins on identity, but a later caller may know something the first did not. A snaplink
+            // creates a file node before anything has read the file, so the .csproj a feature links to was
+            // arriving language-less and staying that way — reading as "nothing parsed this" long after the
+            // structured layer had in fact parsed it. Filling a blank is not overwriting a fact.
+            if (string.IsNullOrEmpty(existing.Language) && !string.IsNullOrEmpty(language)) existing.Language = language;
+            if (string.IsNullOrEmpty(existing.FilePath) && !string.IsNullOrEmpty(file)) existing.FilePath = file;
+            return existing;
+        }
         var n = new GraphNode
         {
             Id = id,

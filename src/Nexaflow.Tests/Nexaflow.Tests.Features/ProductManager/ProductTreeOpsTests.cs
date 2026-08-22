@@ -396,6 +396,51 @@ public class ProductTreeOpsTests
         Assert.AreEqual(0, s.Nodes["n"].Concerns!.Single().Snaplinks!.Count);
     }
 
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void SetSnaplink_ClearsAFieldWithoutDisturbingTheRest()
+    {
+        // The case this exists for: a .xaml that turns out to be a ResourceDictionary declares no class, so
+        // the class must go while the doc (and the link's position) stay.
+        var s = WithLinks(new Snaplink { Type = "code", Doc = "Theme.xaml", Class = "Theme", Status = Status.Done });
+
+        Assert.IsTrue(ProductTreeOps.SetSnaplink(s, "n", 0, "tests", clear: ["class"]));
+
+        var link = Links(s).Single();
+        Assert.IsNull(link.Class);
+        Assert.AreEqual("Theme.xaml", link.Doc, "clearing one field must not disturb the others");
+        Assert.AreEqual(Status.Done, link.Status);
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void SetSnaplink_AssignsFieldsInPlace()
+    {
+        var s = WithLinks(new Snaplink { Type = "code", Doc = "View.xaml", Class = "Old" },
+                          new Snaplink { Type = "code", Doc = "Other.cs", Class = "Other" });
+
+        Assert.IsTrue(ProductTreeOps.SetSnaplink(s, "n", 0, "tests",
+            set: l => { l.Class = "New"; l.Ast = "N:Root"; }));
+
+        var links = Links(s);
+        Assert.AreEqual("New", links[0].Class);
+        Assert.AreEqual("N:Root", links[0].Ast);
+        Assert.AreEqual("Other", links[1].Class, "the neighbouring link is untouched");
+    }
+
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void SetSnaplink_RefusesAnIndexOrFieldItCannotHonour()
+    {
+        var s = WithLinks(new Snaplink { Type = "code", Doc = "A.cs", Class = "A" });
+
+        Assert.IsFalse(ProductTreeOps.SetSnaplink(s, "n", 9, "tests", clear: ["class"]), "index out of range");
+        Assert.IsFalse(ProductTreeOps.SetSnaplink(s, "n", 0, "nope", clear: ["class"]), "no such concern");
+        Assert.IsFalse(ProductTreeOps.SetSnaplink(s, "missing", 0, "tests", clear: ["class"]), "no such node");
+        Assert.IsFalse(ProductTreeOps.SetSnaplink(s, "n", 0, "tests", clear: ["nonsense"]), "unknown field name");
+        Assert.AreEqual("A", Links(s).Single().Class, "a refused edit leaves the link alone");
+    }
+
     /// <summary>Three links in one file, one per method. An index would name whichever happens to sit at
     /// that position; the filter names the link itself, which is the only handle that survives a reorder.</summary>
     [TestMethod]

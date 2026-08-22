@@ -44,6 +44,11 @@ public sealed record OutlineType(string Name, int Line, OutlineKind Kind, string
     /// <summary>The type's parent class(es) and implemented interfaces, for drawing inheritance edges.</summary>
     public IReadOnlyList<BaseRef> Bases { get; init; } = [];
 
+    /// <summary>The type's declared access level. Defaults to public because most languages here have no
+    /// meaningful type-level modifier; the C# extractor sets it from the real modifiers, defaulting the way
+    /// the language does (a top-level type is internal, a nested one private).</summary>
+    public OutlineVisibility Visibility { get; init; } = OutlineVisibility.Public;
+
     /// <summary>1-based line the type ends on, or 0 when the extractor didn't record one. See
     /// <see cref="OutlineMember.EndLine"/>.</summary>
     public int EndLine { get; init; }
@@ -69,6 +74,20 @@ public sealed record CodeOutline(
 
     /// <summary>Embedded-language regions (HTML's script/style, ERB's Ruby, …), each a linked sub-graph.</summary>
     public IReadOnlyList<EmbeddedOutline> Embedded { get; init; } = [];
+
+    /// <summary>
+    /// The parser could not make a tree of this file at all — its <b>root</b> came back as an error node, so
+    /// the declarations below are whatever survived recovery rather than what the file contains.
+    /// <para>
+    /// This exists because the failure is otherwise invisible and indistinguishable from an empty file. A
+    /// grammar that predated one C# feature turned a single slice pattern into a root-level error, and a
+    /// 1,900-line file with ninety methods silently contributed <i>one</i> type to the knowledge graph for
+    /// months. Nothing was wrong-looking anywhere: no exception, no warning, just absence. A caller that
+    /// cares about completeness — an indexer, a guard test — must be able to tell "nothing here" from
+    /// "nothing readable here", which is the whole point of surfacing it.
+    /// </para>
+    /// </summary>
+    public bool ParseFailed { get; init; }
 
     public bool HasContent =>
         Imports.Count > 0 || Types.Count > 0 || TopLevel.Count > 0 || Embedded.Count > 0;

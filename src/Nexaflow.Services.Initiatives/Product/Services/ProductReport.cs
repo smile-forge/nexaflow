@@ -142,7 +142,7 @@ public static class ProductReport
     public static string Validate(IntegrityReport report)
     {
         var scanned = $"scanned {report.ScannedSnaplinks} snaplink(s) across {report.ScannedNodes} node(s)";
-        if (report.IsClean) return $"Snaplinks OK — {scanned}.";
+        if (report.IsClean) return $"Snaplinks OK — {scanned}.{Advisories(report)}";
 
         var sb = new StringBuilder();
         foreach (var i in report.Issues)
@@ -158,7 +158,28 @@ public static class ProductReport
 
         sb.Append($"{string.Join(", ", byFamily)} across "
                 + $"{report.Issues.Select(i => i.NodeId).Distinct().Count()} node(s) — {scanned}.");
+        sb.Append(Advisories(report));
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// The non-gating tail of the report. Kept visually and textually apart from the issues above it, and
+    /// never counted into them: an advisory must never read as something that failed the build, or the
+    /// distinction that lets it exist at all stops meaning anything.
+    /// </summary>
+    private static string Advisories(IntegrityReport report)
+    {
+        if (report.Advisories.Count == 0) return string.Empty;
+
+        var sb = new StringBuilder();
+        sb.AppendLine().AppendLine();
+        sb.AppendLine($"{report.AdvisoryCount} advisory (non-gating) — an ast target that no longer resolves:");
+        foreach (var a in report.Advisories)
+        {
+            sb.AppendLine($"  {a.NodeId} [{a.Concern ?? "node"}] #{a.Index}  ast \"{a.Current}\" does not resolve in {a.Doc}");
+            sb.AppendLine($"      {(a.Suggestion is { Length: > 0 } s ? $"did you mean {s}?  " : "")}{a.Command}");
+        }
+        return sb.ToString().TrimEnd();
     }
 
     /// <summary>The noun for an issue kind, so the summary tally reads as what actually has to be fixed.</summary>

@@ -18,6 +18,12 @@ public sealed class IntegrityReport
     /// <summary>Broken links, ordered by node then concern then index so the report diffs cleanly.</summary>
     public List<IntegrityIssue> Issues { get; set; } = [];
 
+    /// <summary>Non-gating suggestions — a link whose file and class are sound but whose finer
+    /// <c>ast</c> target is not. Deliberately excluded from <see cref="IsClean"/>: an advisory must never
+    /// fail a release build. See <see cref="SnaplinkAdvisory"/>.</summary>
+    public List<SnaplinkAdvisory> Advisories { get; set; } = [];
+
     [JsonIgnore] public bool IsClean => Issues.Count == 0;
     [JsonIgnore] public int IssueCount => Issues.Count;
+    [JsonIgnore] public int AdvisoryCount => Advisories.Count;
 }

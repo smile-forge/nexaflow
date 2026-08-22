@@ -400,7 +400,16 @@ carries **no** matching `[CoversNode]` for the leaf is drift. This keeps the two
 (a)–(e) keep the tree *self*-consistent. These two instead assert the tree/tests still match the **real code**
 — which is where drift actually happens (a control or tool added and the tree/tests never updated).
 
-**(f) UI AutomationId guard — presence + coverage.** Two source scans over the feature `Views/*.xaml`
+**(f) UI AutomationId guard — presence + coverage.**
+
+> **Build it on the graph, not on a second scanner.** `.xaml` is parsed now (the `xml` grammar, from
+> `external/tree-sitter-xml`), and every `AutomationProperties.AutomationId` in the repo is already a node —
+> `code:<view>.xaml#A:<id>` — carrying its file and line. The index this guard needs therefore exists: query it
+> with `nfi graph search ".xaml#A:"` rather than re-walking `Views/*.xaml` with `XDocument`. That also drops the
+> "XAML-as-XML can't see controls built in code-behind" caveat below to a narrower one, since the graph *does*
+> see the code-behind and its `handles`/`references` edges back to the element.
+
+Two source scans over the feature `Views/*.xaml`
 (RepoRoot + `XDocument`; no tree needed, so runs in full CI):
 - every command-bound `Button`/`ToggleButton` outside a Style/Template carries an
   `AutomationProperties.AutomationId` — a UI test can only reach a control by its id;

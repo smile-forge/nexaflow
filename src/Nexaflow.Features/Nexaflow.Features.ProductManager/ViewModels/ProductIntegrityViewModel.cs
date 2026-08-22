@@ -10,6 +10,7 @@ using Nexaflow.Features.ProductManager.ClientTools;
 using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Syntax;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -139,12 +140,18 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         foreach (var advisory in advisories)
             Issues.Add(new CoverageAdvisoryItem(advisory));
 
+        // Stale ast targets ride the same non-gating channel. They come off the scan rather than a reconcile,
+        // so they are only here once a scan has run — which is also when they are true.
+        foreach (var advisory in _report.Advisories)
+            Issues.Add(new SnaplinkAdvisoryItem(advisory));
+
         IssueCount = Issues.Count;
         HasIssues  = IssueCount > 0;
         SummaryLine = _report.ScannedSnaplinks == 0 && advisories.Count == 0
             ? "No scan yet."
             : $"{brokenCount} broken"
               + (advisories.Count > 0 ? $" · {advisories.Count} coverage suggestion{(advisories.Count == 1 ? "" : "s")}" : "")
+              + (_report.Advisories.Count > 0 ? $" · {_report.Advisories.Count} stale ast" : "")
               + $" · scanned {_report.ScannedSnaplinks} snaplinks across {_report.ScannedNodes} nodes";
         IssuesView.Refresh();
         SelectedIssue = Issues.Count == 0 ? null : Issues[Math.Min(wasAt, Issues.Count - 1)];
@@ -218,9 +225,13 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
                 AvailableTargets.Add(new TargetChoice(m.Signature, 0, Method: m.Name));
         }
 
+        // Two different empties, and they call for different things from the reader: a file nothing can parse
+        // can only ever take a whole-file link, whereas a parsed file that declares nothing is a file to look at.
         TargetsHeader = AvailableTargets.Count > 0
             ? $"{AvailableTargets.Count} targets in this file"
-            : "No named targets here — this file has no tree-sitter grammar, so a whole-file link is the only option.";
+            : SelectedIssue is IntegrityIssueItem { Doc: { Length: > 0 } doc } && TreeSitterLanguages.ForFile(doc) is null
+                ? $"No named targets — nothing parses {Path.GetExtension(doc)}, so a whole-file link is the only option."
+                : "No named targets — this file declares nothing to point at.";
         UpdateTargetFlags();
     }
 
@@ -358,6 +369,34 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
             : $"Linked {item.TestDisplay} to '{node.Title}'.");
     }
 
+    /// <summary>
+    /// Acts on a stale <c>ast</c>: re-points it when the scan found the path it meant, else clears the field.
+    /// Clearing is a real fix rather than a dodge — the link keeps its file and class, and a value that
+    /// resolves to nothing was never navigating anywhere.
+    /// </summary>
+    [RelayCommand]
+    private void FixAst(SnaplinkAdvisoryItem? item)
+    {
+        item ??= SelectedIssue as SnaplinkAdvisoryItem;
+        if (item is null || !_state.Nodes.TryGetValue(item.Advisory.NodeId, out var node)) return;
+
+        var list = IntegrityBinder.LinkList(node, item.Advisory.Concern);
+        if (list is null || item.Advisory.Index < 0 || item.Advisory.Index >= list.Count) return;
+
+        var link = list[item.Advisory.Index];
+        if (link.Ast != item.Advisory.Current) return;   // the tree moved under the report — leave it for the rescan
+
+        link.Ast = item.HasSuggestion ? item.Advisory.Suggestion : null;
+        _store.SaveTree(_state.Nodes);
+
+        _report.Advisories.Remove(item.Advisory);
+        _store.SaveIntegrity(_report);
+        LoadStateAndSavedReport();
+        _shell.ShowNotification(item.HasSuggestion
+            ? $"Re-pointed to {item.Advisory.Suggestion}."
+            : "Cleared the ast — the link keeps its file and class.");
+    }
+
     // ── Repair ───────────────────────────────────────────────────────────────
 
     /// <summary>Writes the edited target back to the live link, saves, and re-checks just that link.</summary>
@@ -369,19 +408,31 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         row.WriteBack();
         _store.SaveTree(_state.Nodes);
 
-        var (kind, detail) = SnaplinkValidator.CheckLink(row.Live!, ProductRoot);
-        if (detail is null) { Resolved(row, "Snaplink fixed."); return; }
+        var check = SnaplinkValidator.CheckLink(row.Live!, ProductRoot);
+        switch (check.Verdict)
+        {
+            case LinkVerdict.Sound:
+                Resolved(row, "Snaplink fixed.");
+                return;
+
+            // Nothing was established. The row still leaves the list — it is no longer *provably* broken, which
+            // is the only thing the report claims — but saying "fixed" here would be reporting a check that
+            // never ran, and the user has no other way to tell the two apart.
+            case LinkVerdict.Unverifiable:
+                Resolved(row, $"Saved. The target can't be checked, so this isn't confirmed — {Unverifiable(row.Live!)}.");
+                return;
+        }
 
         // Still broken. Carry the edit into the stored report too: saving the tree fires the file watch, which
         // re-binds every row by comparing the reported link against the live one. Leave the report holding the
         // pre-edit target and that comparison now fails — the row would silently go read-only.
         row.Issue.Link   = row.Live!;
-        row.Issue.Kind   = kind;
-        row.Issue.Detail = detail;
+        row.Issue.Kind   = check.Kind;
+        row.Issue.Detail = check.Detail!;
         _store.SaveIntegrity(_report);
 
-        row.SetDiagnosis(kind, detail);
-        _shell.ShowNotification("Still broken: " + detail);
+        row.SetDiagnosis(check.Kind, check.Detail!);
+        _shell.ShowNotification("Still broken: " + check.Detail);
     }
 
     /// <summary>Drops the broken link entirely.</summary>
@@ -416,6 +467,12 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     /// Drops a repaired row. Indices of the remaining reported issues on the same node may now be stale, so
     /// their rows are re-bound (a drifted row simply becomes read-only until the next full scan).
     /// </summary>
+    /// <summary>Why a link could not be checked, in the terms the user can act on.</summary>
+    private static string Unverifiable(Snaplink link) =>
+        link.Doc is { Length: > 0 } doc && TreeSitterLanguages.ForFile(doc) is null
+            ? $"nothing parses {Path.GetExtension(doc)}"
+            : "the file could not be read";
+
     private void Resolved(IntegrityIssueItem row, string message)
     {
         _report.Issues.Remove(row.Issue);

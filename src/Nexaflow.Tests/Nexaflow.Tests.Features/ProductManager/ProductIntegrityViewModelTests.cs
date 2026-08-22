@@ -214,4 +214,66 @@ public class ProductIntegrityViewModelTests
         Assert.AreEqual(0, vm.IssueCount);
         Assert.IsFalse(vm.HasIssues);
     }
+
+    // ── stale ast: a suggestion, not breakage ────────────────────────────────
+
+    private const string ViewXaml = """
+        <UserControl x:Class="Demo.View" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+          <Button x:Name="MicButton" />
+        </UserControl>
+        """;
+
+    [TestMethod]
+    [CoversNode("integrity-ast-advisories")]
+    public void StaleAst_IsAnAdvisoryRow_AndRePointsInOneClick()
+    {
+        WriteFile("src/View.xaml", ViewXaml);
+        SaveTree(new Snaplink { Type = "code", Doc = "src/View.xaml", Ast = "Mic button" });
+
+        var vm = Open();
+        var row = vm.Issues.OfType<SnaplinkAdvisoryItem>().Single();
+        Assert.IsTrue(row.IsAdvisory, "a stale ast must never read as a broken link");
+        Assert.IsTrue(row.HasSuggestion);
+
+        vm.FixAstCommand.Execute(row);
+
+        Assert.AreEqual("N:MicButton", _store.Load().Nodes["n"].Snaplinks!.Single().Ast);
+        Assert.AreEqual(0, vm.Issues.OfType<SnaplinkAdvisoryItem>().Count(), "the row is gone once acted on");
+    }
+
+    [TestMethod]
+    [CoversNode("integrity-ast-advisories")]
+    public void StaleAst_WithNothingToPointAt_IsCleared()
+    {
+        WriteFile("src/View.xaml", ViewXaml);
+        SaveTree(new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "View", Ast = "ROW 4 - AI BAR" });
+
+        var vm = Open();
+        var row = vm.Issues.OfType<SnaplinkAdvisoryItem>().Single();
+        Assert.IsFalse(row.HasSuggestion);
+
+        vm.FixAstCommand.Execute(row);
+
+        var link = _store.Load().Nodes["n"].Snaplinks!.Single();
+        Assert.IsNull(link.Ast, "a value resolving to nothing was never navigating anywhere");
+        Assert.AreEqual("View", link.Class, "the rest of the link is untouched");
+    }
+
+    [TestMethod]
+    [CoversNode("integrity-issues")]
+    public void ApplyingAnEditToAnUncheckableTarget_DoesNotClaimItIsFixed()
+    {
+        // The false green this replaces: "sound" and "nothing could be checked" arrived at the page as the
+        // same value, so re-pointing at a file nothing parses was reported as a confirmed fix.
+        WriteFile("src/notes.txt", "no structure in here");
+        SaveTree(new Snaplink { Type = "code", Doc = "src/Gone.cs", Class = "Widget" });
+
+        var vm = Open();
+        var row = (IntegrityIssueItem)vm.SelectedIssue!;
+        row.Doc = "src/notes.txt";
+        vm.ApplyCommand.Execute(null);
+
+        StringAssert.Contains(_shell.Notifications.LastOrDefault() ?? "", "isn't confirmed");
+        Assert.IsFalse((_shell.Notifications.LastOrDefault() ?? "").Contains("fixed"), "nothing was verified, so nothing may claim to be");
+    }
 }

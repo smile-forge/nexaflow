@@ -14,11 +14,6 @@ using System.Windows;
 
 namespace Nexaflow.Features.Logs.ViewModels;
 
-public sealed record EncodingOption(string Name, Encoding Encoding)
-{
-    public override string ToString() => Name;
-}
-
 public sealed partial class LogViewModel : ObservableObject, IDisposable, IPageViewModel
 {
     // ── File ──────────────────────────────────────────────────────────────────

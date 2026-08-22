@@ -41,6 +41,7 @@ internal static class Program
             "set-concern" => SetConcern(args[1..]),
             "remove-concern" => RemoveConcern(args[1..]),
             "add-snaplink"=> AddSnaplink(args[1..]),
+            "set-snaplink" => SetSnaplink(args[1..]),
             "remove-snaplink" => RemoveSnaplink(args[1..]),
             "set-node"    => SetNode(args[1..]),
             "move"        => Move(args[1..]),
@@ -65,7 +66,7 @@ internal static class Program
               nfi find       <term> [<root>] [--json]
               nfi query      [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--json]
               nfi describe   <node-id>[,<node-id>...] [<root>] [--json] [--code]
-              nfi tree       <node-id> [<root>] [--depth <n>] [--full] [--json]
+              nfi tree       [<node-id>] [<root>] [--depth <n>] [--full] [--json]
               nfi diff       [<root>] [--from <version>]
               nfi remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
               nfi remap      --from-git <rev-range> [<root>] [--dry-run]
@@ -76,6 +77,7 @@ internal static class Program
               nfi remove-concern <node-id> <tag> [<root>]
               nfi add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
                                                 [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
+              nfi set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] [--clear <f,f>]
               nfi remove-snaplink <node-id> [<root>] [--concern <tag>]
                                                 [--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]
               nfi set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
@@ -132,6 +134,9 @@ internal static class Program
             add-snaplink Attaches a snaplink to the node — or, with --concern <tag>, to that concern's link.
                        --type picks the shape: code (--doc/--class/--method), markdown (--doc/--title-path),
                        node (--target = another node id), url (--url). --status is optional.
+            set-snaplink Edits one existing snaplink in place, by --index (see: describe <node-id>).
+                       --clear <fields> unsets them (class,method,ast,doc,target,title-path,status) - the one
+                       edit remove+add cannot make without losing the link's other fields and its position.
             remove-snaplink Drops snaplinks from the node — or, with --concern <tag>, from that concern's link.
                        Name the link by what it IS: --type/--doc/--class/--method/--target, every one given
                        having to agree (--doc alone drops every link into that file, adding --method narrows
@@ -305,6 +310,9 @@ internal static class Program
             switch (args[0])
             {
                 case "stats":                 return GraphStats(args[1..]);
+                case "orphans":               return GraphOrphans(args[1..]);
+                case "paths" or "path":       return GraphPaths(args[1..]);
+                case "rank":                  return GraphRank(args[1..]);
                 case "node":                  return GraphNode(args[1..]);
                 case "search":                return GraphSearch(args[1..]);
                 case "list":                  return GraphList(args[1..]);
@@ -387,7 +395,9 @@ internal static class Program
               graph [<root>] [--no-incremental] [--product-anchored] [--main|--code-root <dir>] [--json]   (re)build the graph
               graph stats  [<root>]                                             counts + type/edge/community breakdown
               graph search <term> [<root>] [--type <t>] [--limit N]             nodes whose id/label matches <term>
-              graph list   [<root>] [--type <t>] [--community N] [--file <f>] [--limit N]   bulk list with filters
+              graph list   [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N]   bulk list with filters
+              graph paths  <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]   routes between two nodes
+              graph rank   [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]   most-depended-on nodes
               graph node   <id> [<root>] [--limit N]                            one node + ALL its edges/hyperedges
               graph walk   <id> [<root>] [--hops N] [--types a,b] [--limit N]   BFS neighbourhood out to N hops
               graph context <id> [<root>] [--lines N] [--limit N]               ONE-SHOT: node + source + neighbours + owning feature
@@ -433,6 +443,58 @@ internal static class Program
     // is a shell over that library, not a second implementation of it. GraphQuery.BlockEnd records what the
     // copies had quietly diverged into, and CliHasNoPrivateGraphTwinsTests keeps them from coming back.
 
+    /// <summary>Routes between two nodes - the question `walk` cannot answer. See GraphQuery.Paths.</summary>
+    private static int GraphPaths(string[] args)
+    {
+        if (!TryRead(Specs.GraphPaths, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryIntOpt(a, "--hops", 6, out var hops)) return Error;
+        if (!TryIntOpt(a, "--limit", 10, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
+
+        var from = a[0];
+        var to = a[1];
+        if (!g.Nodes.Any(n => n.Id == from)) return Usage($"graph paths: no node '{from}' (try: graph search)");
+        if (!g.Nodes.Any(n => n.Id == to)) return Usage($"graph paths: no node '{to}' (try: graph search)");
+
+        var undirected = a.Has("--undirected");
+        Console.WriteLine(GraphReport.Paths(GraphQuery.Paths(g, from, to, hops, limit, undirected), from, to, hops, undirected));
+        return Clean;
+    }
+
+    /// <summary>Nodes ordered by fan-in or fan-out - "which components are central", read rather than eyeballed.</summary>
+    private static int GraphRank(string[] args)
+    {
+        if (!TryRead(Specs.GraphRank, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryIntOpt(a, "--limit", 25, out var limit)) return Error;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
+
+        var by = a.Value("--by") ?? "fanin";
+        if (by is not ("fanin" or "fanout"))
+            return Usage($"graph rank: --by must be 'fanin' or 'fanout' (got '{by}')");
+
+        var type = a.Value("--type");
+        var under = a.Value("--under");
+        Console.WriteLine(GraphReport.Rank(GraphQuery.Rank(g, by == "fanin", type, under, limit), by == "fanin", under));
+        return Clean;
+    }
+
+    /// <summary>Declarations nothing appears to reach. A lead to look at, not a verdict - see GraphQuery.Orphans.</summary>
+    private static int GraphOrphans(string[] args)
+    {
+        if (!TryRead(Specs.GraphOrphans, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
+
+        var type = a.Value("--type") ?? NodeType.Type;
+        if (type is not (NodeType.Type or NodeType.Member))
+            return Usage($"graph orphans: --type must be 'type' or 'member' (got '{type}')");
+
+        if (!TryIntOpt(a, "--limit", 200, out var limit)) return Error;
+        var orphans = GraphQuery.Orphans(g, type, a.Value("--under") ?? "src/", a.Has("--all"), limit);
+
+        Console.WriteLine(GraphReport.Orphans(orphans, type, a.Has("--all")));
+        return Clean;
+    }
+
     private static int GraphStats(string[] args)
     {
         if (!TryRead(Specs.GraphStats, args, out _, out var root, out var parseCode)) return parseCode;
@@ -468,21 +530,28 @@ internal static class Program
             if (!int.TryParse(cs, out var c)) return VerbUsage($"--community must be a number (got '{cs}')");
             comm = c;
         }
+        // --unparsed: a file node with no language is one nothing could read - it is in the graph as a name
+        // and nothing more. Answering "what is not understood here" used to mean leaving the graph entirely.
+        var unparsed = a.Has("--unparsed");
         var hits = g.Nodes.Where(n =>
                 (type is null || n.Type == type) &&
                 (comm is null || n.Community == comm) &&
+                (!unparsed || (n.Type == NodeType.File && string.IsNullOrEmpty(n.Language))) &&
                 (file is null || (n.FilePath?.Contains(file, StringComparison.OrdinalIgnoreCase) ?? false)))
             .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
 
         foreach (var n in hits.Take(limit)) Console.WriteLine(GraphReport.NodeLine(n));
         Console.WriteLine($"{hits.Count} node(s)" + (hits.Count > limit ? $" — showing {limit} (raise --limit or add a filter)" : "") + ".");
+        if (unparsed)
+            Console.WriteLine("These have no grammar and no structured extractor, so they are located but not "
+                            + "understood - no types, no members, no edges. Extensions, not files, are what to fix.");
         return Clean;
     }
 
     private static int GraphNode(string[] args)
     {
         if (!TryRead(Specs.GraphNode, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
@@ -496,7 +565,7 @@ internal static class Program
     private static int GraphWalk(string[] args)
     {
         if (!TryRead(Specs.GraphWalk, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
         if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
@@ -514,7 +583,7 @@ internal static class Program
     private static int GraphCode(string[] args)
     {
         if (!TryRead(Specs.GraphCode, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
 
         // A code:<file>#<ast> id fetches that AST node's block; a file:<path> id (or a bare path) fetches the file.
         string rel; string? ast = null;
@@ -594,7 +663,7 @@ internal static class Program
     private static int GraphContext(string[] args)
     {
         if (!TryRead(Specs.GraphContext, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 6, out var near)) return Error;
         if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
@@ -814,7 +883,7 @@ internal static class Program
     private static int Tree(string[] args)
     {
         if (!TryRead(Specs.Tree, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
 
         int? maxDepth = null;
         if (a.Value("--depth") is { } depthS)
@@ -826,8 +895,31 @@ internal static class Program
 
         if (!TryLoad(root, out var state, out var code)) return code;
 
+        // No node id: outline every root. On a tree that has none this prints nothing and says so, which is
+        // the honest answer for a repo whose .product/ holds only a graph.
+        if (string.IsNullOrEmpty(id))
+        {
+            var roots = ProductAggregator.Roots(state).ToList();
+            if (roots.Count == 0)
+            {
+                Console.WriteLine($"No product tree under {root} — the graph is there, but nothing describes what it is for.");
+                Console.WriteLine("next: nfi graph stats | nfi graph search <term> | nfi add-node <parent-id> \"<title>\"");
+                return Clean;
+            }
+            foreach (var r in roots)
+                if (ProductQuery.Outline(state, r, maxDepth) is { } rootRows)
+                    Console.WriteLine(ProductReport.Outline(rootRows, a.Has("--full")));
+            return Clean;
+        }
+
         var rows = ProductQuery.Outline(state, id, maxDepth);
-        if (rows is null) { Console.Error.WriteLine($"error: no node '{id}' (try: find)."); return Error; }
+        if (rows is null)
+        {
+            // Name the tree that was searched. Without it, running from the wrong directory produces a true
+            // but useless sentence about a node that does exist — somewhere else.
+            Console.Error.WriteLine($"error: no node '{id}' in the tree under {root} (try: find).");
+            return Error;
+        }
 
         if (a.Has("--json"))
         {
@@ -847,8 +939,14 @@ internal static class Program
     /// </summary>
     private static string[] FileRootsFor(string productRoot)
     {
+        // Same distinction as GraphCodeRoot: the caller's tree is only a better place to look when it is a
+        // worktree OF this product root. Pointed at another repository, preferring the caller's tree would
+        // resolve that repo's snaplinks against this one's files and quietly validate the wrong source.
         var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
-        return caller is { Length: > 0 } ? [caller, productRoot] : [productRoot];
+        if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return [productRoot];
+        return TryFindMainCheckout(caller, out var callerMain) && PathsEqual(callerMain, productRoot)
+            ? [caller, productRoot]
+            : [productRoot];
     }
 
     /// <summary>The git working-tree root enclosing <paramref name="dir"/> — the directory that holds a <c>.git</c>
@@ -873,7 +971,17 @@ internal static class Program
         if (a.Has("--main")) return null;
         if (a.Value("--code-root") is { Length: > 0 } explicitRoot) return Path.GetFullPath(explicitRoot);
         var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
-        return caller is { Length: > 0 } && !PathsEqual(caller, productRoot) ? caller : null;
+        if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
+
+        // "The caller's tree differs from the product root" describes two completely different situations, and
+        // only one of them means "graph the branch I am on". The other is `nfi graph <some-other-repo>` run
+        // from here, where the caller's tree is not a worktree of that repo at all — and taking it silently
+        // graphed THIS repository into the other one's .product/, complete with a note explaining the wrong
+        // thing it had just done. The test that separates them is whether the caller is a linked worktree
+        // whose main checkout IS this product root.
+        return TryFindMainCheckout(caller, out var callerMain) && PathsEqual(callerMain, productRoot)
+            ? caller
+            : null;
     }
 
     // ── describe --code: resolve every code snaplink to the actual source, so "what backs this node" is
@@ -1290,7 +1398,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplyMove(ProductState state, VerbArgs a)
     {
-        var id = a[0]; var newParentId = a[1];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty; var newParentId = a[1];
         if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
         if (!state.Nodes.ContainsKey(newParentId)) return (false, $"no parent node '{newParentId}'");
         if (id == newParentId) return (false, "a node can't be its own parent");
@@ -1308,7 +1416,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplyRemove(ProductState state, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
         var recursive = a.Has("--recursive");
         if (node.Children.Count > 0 && !recursive)
@@ -1337,8 +1445,11 @@ internal static class Program
             "remap --from-git <rev-range> [<root>] [--dry-run]");
         public static readonly VerbSpec Describe = new("describe", 1, None, ["--json", "--code"],
             "describe <node-id>[,<node-id>...] [<root>] [--json] [--code]");
+        // The node id is optional: "show me the tree" is a complete request, and defaulting to the roots is
+        // also what makes `nfi tree <some-repo>` mean the obvious thing instead of searching this repo for a
+        // node named after a directory.
         public static readonly VerbSpec Tree = new("tree", 1, ["--depth"], ["--full", "--json"],
-            "tree <node-id> [<root>] [--depth <n>] [--full] [--json]");
+            "tree [<node-id>] [<root>] [--depth <n>] [--full] [--json]", MinPositionals: 0);
         public static readonly VerbSpec Diff = new("diff", 0, ["--from"], None,
             "diff [<root>] [--from <version>]");
         // remap is a mutation too: a move usually breaks several paths at once, and batch is the only way
@@ -1368,6 +1479,10 @@ internal static class Program
             ["--concern", "--index", "--type", "--doc", "--class", "--method", "--target"], None,
             "remove-snaplink <node-id> [<root>] [--concern <tag>] "
             + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]");
+        public static readonly VerbSpec SetSnaplink = new("set-snaplink", 1,
+            ["--index", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--status", "--clear"], None,
+            "set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] "
+            + "[--doc <p>] [--class <c>] [--method <m>] [--ast <a>] [--target <t>] [--status <s>] [--clear <f,f>]");
         public static readonly VerbSpec SetNode = new("set-node", 1, ["--title", "--desc", "--note"], None,
             "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]");
         public static readonly VerbSpec AddNode = new("add-node", 2, ["--id", "--desc", "--status"], None,
@@ -1387,11 +1502,20 @@ internal static class Program
             ["--json", "--product-anchored", "--no-incremental", "--main"],
             "graph [<root>] [--no-incremental] [--product-anchored] [--main | --code-root <dir>] [--json]");
         public static readonly VerbSpec GraphStats = new("graph stats", 0, None, None, "graph stats [<root>]");
+        public static readonly VerbSpec GraphOrphans = new("graph orphans", 0,
+            ["--type", "--limit", "--under"], ["--all"],
+            "graph orphans [<root>] [--type type|member] [--under <path>] [--all] [--limit N]");
         public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], None,
             "graph search <term> [<root>] [--type <t>] [--limit N]");
         public static readonly VerbSpec GraphList = new("graph list", 0,
-            ["--type", "--community", "--file", "--limit"], None,
-            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--limit N]");
+            ["--type", "--community", "--file", "--limit"], ["--unparsed"],
+            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N]");
+        public static readonly VerbSpec GraphPaths = new("graph paths", 2,
+            ["--hops", "--limit"], ["--undirected"],
+            "graph paths <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]");
+        public static readonly VerbSpec GraphRank = new("graph rank", 0,
+            ["--by", "--type", "--under", "--limit"], None,
+            "graph rank [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]");
         public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], None,
             "graph node <id> [<root>] [--limit N]");
         public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], None,
@@ -1438,12 +1562,46 @@ internal static class Program
             code = VerbUsage(error);
             return false;
         }
+
+        // A directory where an id belongs is a misplaced <root>, and saying so beats the alternative. Left
+        // alone, `nfi tree <some-repo>` reads the path as a node id, resolves <root> from the CURRENT
+        // directory, searches a DIFFERENT repository's tree, and reports "no node '<some-repo>'" — an answer
+        // that is true, useless, and about the wrong repository. One rule at the single parse chokepoint, so
+        // every verb behaves the same rather than `tree` growing a special case.
+        //
+        // The test is `Directory.Exists`, not "looks like a path": real ids contain slashes all the time
+        // (code:src/Foo.cs#T:Bar), and none of them names a directory on disk.
+        for (var i = 0; i < parsed.Positionals.Count; i++)
+        {
+            if (!Directory.Exists(parsed.Positionals[i])) continue;
+
+            var fixedArgs = spec.TakesRoot && parsed.Root is null
+                ? $"  did you mean:  nfi {spec.Verb} <{Slot(spec, i)}> {parsed.Positionals[i]}"
+                : $"  <{Slot(spec, i)}> takes an id, not a path — see: nfi {spec.Verb}";
+            Console.Error.WriteLine($"error: {spec.Verb}: '{parsed.Positionals[i]}' is a directory, not a <{Slot(spec, i)}>.");
+            Console.Error.WriteLine($"  usage: {spec.Usage}");
+            Console.Error.WriteLine(fixedArgs);
+            code = Error;
+            return false;
+        }
+
         root = ResolveProductRoot(parsed.Root ?? ".");
         code = Clean;
         return true;
     }
 
-    // ── typed tree mutations (set-status / set-concern / add-snaplink / set-node / doctor) ──
+    /// <summary>The name a verb's usage line gives its i-th positional, so the error can point at the actual
+    /// slot ("node-id", "from-id") instead of saying "argument 1".</summary>
+    private static string Slot(VerbSpec spec, int index)
+    {
+        var names = Regex.Matches(spec.Usage, @"<([a-z][a-z0-9-]*)>")
+                         .Select(m => m.Groups[1].Value)
+                         .Where(n => n != "root")
+                         .ToList();
+        return index < names.Count ? names[index] : "argument";
+    }
+
+    // ── typed tree mutations (set-status / set-concern / add-snaplink / set-snaplink / set-node / doctor) ──
     // All go through the typed model + ProductStore.SaveTree (the canonical serializer), so a hand-edit's
     // structural hazards (a stray string concat in children[], a malformed concern) simply can't happen.
 
@@ -1519,11 +1677,54 @@ internal static class Program
             : (false, $"'{a[0]}' has no '{a[1]}' concern to remove");
     }
 
+    private static int SetSnaplink(string[] args) => RunOne(Specs.SetSnaplink, args, ApplySetSnaplink);
+
+    private static (bool Ok, string Message) ApplySetSnaplink(ProductState s, VerbArgs a)
+    {
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
+        if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
+        if (a.Value("--index") is not { } raw) return (false, "set-snaplink needs --index <n> (see: describe " + id + ")");
+        if (!int.TryParse(raw, out var index)) return (false, $"--index must be a number (got '{raw}')");
+
+        Status? status = null;
+        if (a.Value("--status") is { } st)
+        {
+            if (!TryParseStatus(st, out var sv)) return (false, $"unknown --status '{st}'");
+            status = sv;
+        }
+
+        var clear = a.Value("--clear") is { Length: > 0 } c
+            ? c.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            : [];
+        var touched = clear.Length > 0 || status is not null;
+
+        var concern = a.Value("--concern");
+        var ok = ProductTreeOps.SetSnaplink(s, id, index, concern, link =>
+        {
+            foreach (var (opt, assign) in new (string, Action<string>)[]
+                     {
+                         ("--doc",    v => link.Doc = v),
+                         ("--class",  v => link.Class = v),
+                         ("--method", v => link.Method = v),
+                         ("--ast",    v => link.Ast = v),
+                         ("--target", v => link.Target = v),
+                     })
+                if (a.Value(opt) is { } v) { assign(v); touched = true; }
+            if (status is not null) link.Status = status;
+        }, clear);
+
+        if (!touched) return (false, "nothing to change - pass a field (--doc/--class/--method/--ast/--target/--status) or --clear <f,f>");
+        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
+        return ok
+            ? (true, $"Updated snaplink #{index} on {where}.")
+            : (false, $"no snaplink #{index} on {where} (or an unknown --clear field)");
+    }
+
     private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink);
 
     private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
 
         int? index = null;
@@ -1564,7 +1765,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplyAddSnaplink(ProductState s, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
 
         var type = a.Value("--type") ?? "code";
@@ -1610,7 +1811,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplySetNode(ProductState s, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
         if (a.Value("--title") is null && a.Value("--desc") is null && a.Value("--note") is null)
             return (false, "set-node needs at least one of --title / --desc / --note");

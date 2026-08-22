@@ -86,6 +86,45 @@ public static class GraphTools
                 [], ToolSafety.SafeOperation,
                 (_, _) => Task.FromResult(Stats(productRoot))),
 
+            new DelegateClientTool("graph_orphans",
+                "Declarations nothing appears to reach - no call, construction, inheritance, test or snaplink "
+                + "points at them. A starting point for dead-code hunting, NOT proof: edges are name-resolved, "
+                + "the graph records calls and constructions rather than every mention of a type, and anything "
+                + "reached only at runtime (reflection, DI, a serializer) leaves no edge. Each hit that has a "
+                + "known innocent explanation says so. Verify before deleting anything.",
+                [new ClientToolParameter("type", "'type' (default, least noisy) or 'member'.", Required: false),
+                 new ClientToolParameter("under", "Path prefix to search; defaults to 'src/' so a third-party "
+                                                + "submodule's unused half is not reported. '' searches all.", Required: false),
+                 new ClientToolParameter("all", "Also list hits that have a known explanation.", Required: false, Type: "boolean"),
+                 new ClientToolParameter("limit", "Maximum rows (default 200).", Required: false, Type: "number")],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Orphans(productRoot, a))),
+
+            new DelegateClientTool("graph_paths",
+                "Routes between two specific nodes - what 'walk' cannot answer, because a walk returns a ball "
+                + "around one node rather than the ways two connect. Directed by default, which reads as 'what "
+                + "does this reach'; undirected asks the looser 'how are these related at all'. Only shortest "
+                + "routes are returned, and each hop names the relationship, so a path reads as an explanation.",
+                [new ClientToolParameter("from", "Node id to start from (see graph_search)."),
+                 new ClientToolParameter("to", "Node id to reach."),
+                 new ClientToolParameter("hops", "Maximum path length (default 6).", Required: false, Type: "number"),
+                 new ClientToolParameter("undirected", "Ignore edge direction.", Required: false, Type: "boolean"),
+                 new ClientToolParameter("limit", "Maximum routes (default 10).", Required: false, Type: "number")],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Paths(productRoot, a))),
+
+            new DelegateClientTool("graph_rank",
+                "The most-depended-on nodes: fan-in is how much of the repo points at something, fan-out how "
+                + "much it reaches. Turns 'which components are central' from an eyeball judgement into a list. "
+                + "Containment is never counted - it would rank a type by how many members it declares, which "
+                + "measures size rather than importance.",
+                [new ClientToolParameter("by", "'fanin' (default) or 'fanout'.", Required: false),
+                 new ClientToolParameter("type", "Restrict to a node type: product, file, type, member, external.", Required: false),
+                 new ClientToolParameter("under", "Path prefix to restrict to, e.g. 'src/'.", Required: false),
+                 new ClientToolParameter("limit", "Maximum rows (default 25).", Required: false, Type: "number")],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(Rank(productRoot, a))),
+
             new DelegateClientTool("graph_build",
                 "Rebuild graph.json from the product tree and the current source. Incremental - only files "
                 + "that changed are re-parsed - but it still walks the repo, so it is the one graph tool that "
@@ -172,6 +211,52 @@ public static class GraphTools
         var block = GraphQuery.ReadSource(node, Reader(root), Int(a, "lines", 200));
         return ToolResult.Ok(block is null ? "no source" : $"{node.Label} source",
                              GraphReport.Source(node, block));
+    }
+
+    private static ToolResult Orphans(string root, JsonObject a)
+    {
+        if (!TryLoad(root, out var g, out var error)) return error;
+
+        var type = Blank(Str(a, "type")) ?? NodeType.Type;
+        if (type is not (NodeType.Type or NodeType.Member))
+            return ToolResult.Error($"'type' must be 'type' or 'member' (got '{type}').");
+
+        var under = Str(a, "under") ?? "src/";
+        var all = Str(a, "all") is { } flag && bool.TryParse(flag, out var b) && b;
+
+        var orphans = GraphQuery.Orphans(g, type, under, all, Int(a, "limit", 200));
+        return ToolResult.Ok($"{orphans.Count} unreached {type}(s)", GraphReport.Orphans(orphans, type, all));
+    }
+
+    private static ToolResult Paths(string root, JsonObject a)
+    {
+        if (!TryLoad(root, out var g, out var error)) return error;
+
+        var from = Str(a, "from");
+        var to = Str(a, "to");
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            return ToolResult.Error("Provide both 'from' and 'to' node ids (see graph_search).");
+        if (!g.Nodes.Any(n => n.Id == from)) return ToolResult.Error($"No node '{from}'. Try graph_search.");
+        if (!g.Nodes.Any(n => n.Id == to)) return ToolResult.Error($"No node '{to}'. Try graph_search.");
+
+        var hops = Int(a, "hops", 6);
+        var undirected = Str(a, "undirected") is { } flag && bool.TryParse(flag, out var b) && b;
+        var paths = GraphQuery.Paths(g, from!, to!, hops, Int(a, "limit", 10), undirected);
+        return ToolResult.Ok($"{paths.Count} path(s)", GraphReport.Paths(paths, from!, to!, hops, undirected));
+    }
+
+    private static ToolResult Rank(string root, JsonObject a)
+    {
+        if (!TryLoad(root, out var g, out var error)) return error;
+
+        var by = Blank(Str(a, "by")) ?? "fanin";
+        if (by is not ("fanin" or "fanout"))
+            return ToolResult.Error($"'by' must be 'fanin' or 'fanout' (got '{by}').");
+
+        var under = Str(a, "under");
+        var ranked = GraphQuery.Rank(g, by == "fanin", Blank(Str(a, "type")), under, Int(a, "limit", 25));
+        return ToolResult.Ok($"top {ranked.Count} by fan-{(by == "fanin" ? "in" : "out")}",
+                             GraphReport.Rank(ranked, by == "fanin", under));
     }
 
     private static ToolResult Stats(string root)

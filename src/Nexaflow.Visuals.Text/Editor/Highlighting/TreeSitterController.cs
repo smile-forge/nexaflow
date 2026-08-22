@@ -17,6 +17,7 @@ internal sealed class TreeSitterController : IDisposable
     private readonly TextEditor _editor;
     private readonly CodeHighlighter _highlighter;
     private readonly TreeSitterColorizer _colorizer = new();
+    private readonly ColorSwatchRenderer _swatches = new();
     private readonly FoldingManager _foldingManager;
     private readonly DispatcherTimer _debounce;
     private bool _disposed;
@@ -27,6 +28,7 @@ internal sealed class TreeSitterController : IDisposable
         _highlighter = highlighter;
 
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
+        _editor.TextArea.TextView.BackgroundRenderers.Add(_swatches);
         _foldingManager = FoldingManager.Install(_editor.TextArea); // adds the fold margin + [-]/[+] markers
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _debounce.Tick += (_, _) => { _debounce.Stop(); Reparse(); };
@@ -46,7 +48,9 @@ internal sealed class TreeSitterController : IDisposable
         if (_disposed) return;
 
         var text = _editor.Document.Text; // single snapshot keeps colour + fold offsets consistent
-        _colorizer.SetSpans(_highlighter.Highlight(text));
+        var spans = _highlighter.Highlight(text);
+        _colorizer.SetSpans(spans);
+        _swatches.SetSpans(text, _highlighter.GrammarId, spans);   // same spans, so they can never disagree
 
         var foldings = _highlighter.GetFolds(text)
             .Distinct()
@@ -66,6 +70,7 @@ internal sealed class TreeSitterController : IDisposable
         _editor.Document.TextChanged -= OnTextChanged;
         _debounce.Stop();
         _editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
+        _editor.TextArea.TextView.BackgroundRenderers.Remove(_swatches);
         FoldingManager.Uninstall(_foldingManager);
         _highlighter.Dispose();
     }

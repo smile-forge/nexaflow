@@ -183,11 +183,103 @@ public class SnaplinkValidatorTests
     [TestMethod]
     public void ClassInFileWithNoTreeSitterGrammar_IsUnverifiable_NotBroken()
     {
-        // .xaml has no bundled grammar, so its structure cannot be resolved. Reporting it would fail every
-        // release build on links the product tree legitimately carries (e.g. TabularView.xaml::TabularView).
-        WriteFile("src/View.xaml", "<UserControl x:Class=\"View\" />");
-        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "AnythingAtAll" }));
+        // A .txt has no grammar, so its structure cannot be resolved at all. Reporting it would invent
+        // breakage, which fails a release build on a link that may be perfectly sound.
+        WriteFile("src/notes.txt", "AnythingAtAll is not a class in here.");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/notes.txt", Class = "AnythingAtAll" }));
         Assert.IsTrue(report.IsClean, "a file with no grammar must be treated as unverifiable, not broken");
+    }
+
+    // ── XAML is verifiable now that the xml grammar is built from source ─────
+
+    [TestMethod]
+    public void XamlClass_ResolvesThroughXClass()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" />");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "View" }));
+        Assert.IsTrue(report.IsClean, "x:Class names the code-behind partial and must satisfy a class link");
+    }
+
+    [TestMethod]
+    public void XamlNamedElementAndHandler_AreVerifiable()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"SendButton\" Click=\"OnSendClick\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(
+            new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "SendButton" },
+            new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "SendButton", Method = "OnSendClick" }));
+        Assert.IsTrue(report.IsClean, report.Issues.FirstOrDefault()?.Detail ?? "");
+    }
+
+    // ── ast: checked at last, but only ever as a suggestion ──────────────────
+
+    [TestMethod]
+    public void UnresolvedAst_IsAdvisory_NeverGating()
+    {
+        // The whole point of the advisory channel: `ast` has never been validated, so it holds prose. Failing
+        // a release build on that would punish links whose real target is sound.
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"MicButton\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Ast = "Mic button" }));
+
+        Assert.IsTrue(report.IsClean, "an unresolved ast must never fail the build");
+        Assert.AreEqual(0, report.IssueCount);
+        var advisory = report.Advisories.Single();
+        Assert.AreEqual(SnaplinkAdvisoryKind.UnresolvedAst, advisory.Kind);
+        Assert.AreEqual("Mic button", advisory.Current);
+        Assert.AreEqual("N:MicButton", advisory.Suggestion, "the name buried in the prose is the part that is real");
+        StringAssert.Contains(advisory.Command, "--ast \"N:MicButton\"");
+    }
+
+    [TestMethod]
+    public void ResolvedAst_RaisesNothing()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"MicButton\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Ast = "N:MicButton" }));
+
+        Assert.IsTrue(report.IsClean);
+        Assert.AreEqual(0, report.Advisories.Count);
+    }
+
+    [TestMethod]
+    public void UnresolvableAst_WithNothingToSuggest_OffersToClearIt()
+    {
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" />");
+        var report = Validate(TreeWith(
+            new Snaplink { Type = "code", Doc = "src/View.xaml", Ast = "ROW 4 - AI INTERACTION BAR" }));
+
+        var advisory = report.Advisories.Single();
+        Assert.IsNull(advisory.Suggestion, "a guess dressed up as a fix is worse than no suggestion");
+        StringAssert.Contains(advisory.Command, "--clear ast");
+    }
+
+    [TestMethod]
+    public void AstInAFileWithNoGrammar_StaysUnverifiable()
+    {
+        WriteFile("src/notes.txt", "nothing structural in here");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/notes.txt", Ast = "N:Whatever" }));
+        Assert.AreEqual(0, report.Advisories.Count, "no outline means nothing can be proven either way");
+    }
+
+    [TestMethod]
+    public void XamlElementThatIsGone_IsReported()
+    {
+        // The whole point of giving XAML a grammar: a renamed or deleted element stops being invisible.
+        WriteFile("src/View.xaml",
+            "<UserControl x:Class=\"Ns.View\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+            "  <Button x:Name=\"SendButton\" />\n" +
+            "</UserControl>");
+        var report = Validate(TreeWith(new Snaplink { Type = "code", Doc = "src/View.xaml", Class = "OldButton" }));
+        Assert.AreEqual(IntegrityKind.MissingClass, report.Issues.Single().Kind);
     }
 
     [TestMethod]
@@ -235,12 +327,40 @@ public class SnaplinkValidatorTests
     // ── single-link recheck (what the Integrity page's "Apply fix" uses) ─────
 
     [TestMethod]
-    public void CheckLink_OnASoundLink_ReportsNoDetail()
+    public void CheckLink_OnASoundLink_ReportsSound()
     {
         WriteFile("src/Widget.cs", Csharp);
-        var (_, detail) = SnaplinkValidator.CheckLink(
+        var check = SnaplinkValidator.CheckLink(
             new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Spin" }, _root);
-        Assert.IsNull(detail);
+        Assert.AreEqual(LinkVerdict.Sound, check.Verdict);
+        Assert.IsNull(check.Detail);
+    }
+
+    [TestMethod]
+    public void CheckLink_SeparatesSoundFromUnverifiable()
+    {
+        // The Integrity page tells the user their edit worked off the back of this. "Nothing could be checked"
+        // must not arrive looking like "checked, and it is fine".
+        WriteFile("src/Widget.cs", Csharp);
+        WriteFile("src/notes.txt", "no structure in here");
+
+        var sound = SnaplinkValidator.CheckLink(
+            new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget" }, _root);
+        var unverifiable = SnaplinkValidator.CheckLink(
+            new Snaplink { Type = "code", Doc = "src/notes.txt", Class = "Widget" }, _root);
+
+        Assert.AreEqual(LinkVerdict.Sound, sound.Verdict);
+        Assert.AreEqual(LinkVerdict.Unverifiable, unverifiable.Verdict);
+        Assert.IsNull(unverifiable.Detail, "still not reported as broken - nothing was proven");
+    }
+
+    [TestMethod]
+    public void CheckLink_OnAWholeFileLink_IsSound_NotUnverifiable()
+    {
+        // Existence was the entire claim, so it really was checked - even for a file nothing can parse.
+        WriteFile("src/notes.txt", "anything");
+        var check = SnaplinkValidator.CheckLink(new Snaplink { Type = "code", Doc = "src/notes.txt" }, _root);
+        Assert.AreEqual(LinkVerdict.Sound, check.Verdict);
     }
 
     [TestMethod]
@@ -250,10 +370,11 @@ public class SnaplinkValidatorTests
         var link = new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Wobble" };
 
         var fromScan = Validate(TreeWith(link)).Issues.Single();
-        var (kind, detail) = SnaplinkValidator.CheckLink(link, _root);
+        var check = SnaplinkValidator.CheckLink(link, _root);
 
-        Assert.AreEqual(fromScan.Kind, kind);
-        Assert.AreEqual(fromScan.Detail, detail);
+        Assert.AreEqual(LinkVerdict.Broken, check.Verdict);
+        Assert.AreEqual(fromScan.Kind, check.Kind);
+        Assert.AreEqual(fromScan.Detail, check.Detail);
     }
 
     [TestMethod]
@@ -296,8 +417,9 @@ public class SnaplinkValidatorTests
     {
         // The tree-less single-link path can't know which node ids exist, so a node link is deferred to the
         // next full scan rather than falsely failed — same conservatism as a no-grammar code file.
-        var (_, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root);
-        Assert.IsNull(detail);
+        var check = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root);
+        Assert.IsNull(check.Detail);
+        Assert.AreEqual(LinkVerdict.Unverifiable, check.Verdict, "deferred, not confirmed good");
     }
 
     [TestMethod]
@@ -306,7 +428,7 @@ public class SnaplinkValidatorTests
         var ids = new HashSet<string>(StringComparer.Ordinal) { "n", "visuals-text" };
         Assert.IsNull(SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "visuals-text" }, _root, ids).Detail);
 
-        var (kind, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root, ids);
+        var (_, kind, detail) = SnaplinkValidator.CheckLink(new Snaplink { Type = "node", Target = "ghost-node" }, _root, ids);
         Assert.AreEqual(IntegrityKind.MissingNode, kind);
         Assert.IsNotNull(detail);
     }

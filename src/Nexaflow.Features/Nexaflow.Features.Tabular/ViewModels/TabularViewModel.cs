@@ -886,5 +886,3 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         _source?.Dispose();
     }
 }
-
-public sealed record BreadcrumbStep(string Label, string FullPath, bool IsFile = false);

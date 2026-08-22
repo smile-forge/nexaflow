@@ -5,10 +5,24 @@ work with Nexaflow's third-party source forks correctly — both **building Nexa
 **posting clean atomic PRs upstream** — without asking for a more detailed prompt. Read the whole file
 before touching anything under `external/`.
 
-Nexaflow consumes two third-party libraries **from source**, each via a fork the `smile-forge` org
-controls, wired in with `ProjectReference` (never `PackageReference`). This lets Nexaflow build against
-our version while keeping upstream sync and PRs working. **Never vendor/copy this source into the tree —
-submodules only.**
+Nexaflow consumes four third-party dependencies **from source**, each via a fork the `smile-forge` org
+controls. Three are .NET libraries wired in with `ProjectReference` (never `PackageReference`); the fourth
+(**tree-sitter-xml**) is a **native C grammar** and is the documented exception to that rule — there is no
+`.csproj` to reference, so it is *compiled* by an MSBuild target instead (see **Native grammar submodules**
+below). This lets Nexaflow build against our version while keeping upstream sync and PRs working.
+**Never vendor/copy this source into the tree — submodules only.**
+
+**tree-sitter-dotnet-bindings is both kinds at once**, and worth understanding before touching it: its
+`src/TreeSitter.csproj` is a normal `ProjectReference`, while the tree-sitter **runtime and every grammar**
+are nested submodules of C source that *we* compile. It replaced the `TreeSitter.DotNet` NuGet package
+because the package's ~30 prebuilt natives freeze at whatever its own submodules pointed at when it was
+published — and they had gone stale enough to be wrong. Its C# grammar predated collection expressions and
+slice patterns, so `= []` and `[.. var rest]` were parse errors; one slice pattern cost
+`src/Nexaflow.Services.Initiatives.Cli/Program.cs` its **entire** parse (root `ERROR`, no type nodes),
+making a 1,900-line file with ~90 methods invisible to the knowledge graph and the outline pane, with no
+exception or warning anywhere. Seven of the fourteen grammars Nexaflow registers were behind upstream.
+Upstream has been quiet for about a year and has no other maintainers, so treat our `nexaflow` branch as
+the long-term home rather than a staging area for PRs that may never be reviewed.
 
 ---
 
@@ -39,18 +53,36 @@ submodules only.**
 `<repo>` below = the Nexaflow checkout root you're working in (the main checkout **or** a worktree —
 submodule working trees are per-worktree; `.gitmodules` and the pinned commit are shared via git).
 
-| | **xaml-math** (aka "wpf-math") | **DiscUtils** |
-|---|---|---|
-| Submodule path | `external/xaml-math` | `external/DiscUtils` |
-| `origin` (committed, our fork) | `https://github.com/smile-forge/xaml-math.git` | `https://github.com/smile-forge/DiscUtils.git` |
-| `upstream` (original) | `https://github.com/ForNeVeR/xaml-math.git` | `https://github.com/LTRData/DiscUtils.git` |
-| **Upstream default branch** | **`master`** | **`LTRData.DiscUtils-initial`** ⚠ not `master`/`main` |
-| Tracked integration branch | `nexaflow` | `nexaflow` |
-| In-flight feature branches | `feat/matrix-delimiter-environments` (LaTeX matrix delimiter env work) | *(none yet)* |
-| Nexaflow consumer project | `src/Nexaflow.Visuals.Text/Nexaflow.Visuals.Text.csproj` | `src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Nexaflow.Features.VirtualDisk.csproj` |
-| Wired project(s) | `external/xaml-math/src/WpfMath/WpfMath.csproj` (replaced the `WpfMath` NuGet). `XamlMath.Shared` comes in **transitively** — don't add it explicitly. | `Library/DiscUtils.Core`, `Library/DiscUtils.Containers`, `Library/DiscUtils.FileSystems` (Containers/FileSystems each pull the format libs). |
-| Do **NOT** reference | `AvaloniaMath*`, `*.ApiTest*`, `*.Example`, `Tool.TTFMetrics` | Test/Utilities projects; individual format libs (use the `Containers`/`FileSystems` meta-projects) |
-| Notes | `ForNeVeR/wpf-math` **redirects to `xaml-math`** (renamed). WpfMath is one project inside a multi-project repo. Multi-targets `net462;net8.0-windows` → consumers resolve `net8.0-windows`. Repo ships its own `Directory.Build.props` + CPM `Directory.Packages.props`. | Default branch is unusual — **base feature branches off `LTRData.DiscUtils-initial`** unless the upstream PR guide says otherwise. Library projects multi-target incl. `net10.0`. `SignAssembly=false` (the `SigningKey.snk` isn't needed). `.gitmodules` sets **`ignore = untracked`** (see gotchas). |
+| | **xaml-math** (aka "wpf-math") | **DiscUtils** | **tree-sitter-xml** |
+|---|---|---|---|
+| Submodule path | `external/xaml-math` | `external/DiscUtils` | `external/tree-sitter-xml` |
+| `origin` (committed, our fork) | `https://github.com/smile-forge/xaml-math.git` | `https://github.com/smile-forge/DiscUtils.git` | `https://github.com/smile-forge/tree-sitter-xml.git` |
+| `upstream` (original) | `https://github.com/ForNeVeR/xaml-math.git` | `https://github.com/LTRData/DiscUtils.git` | `https://github.com/tree-sitter-grammars/tree-sitter-xml.git` |
+| **Upstream default branch** | **`master`** | **`LTRData.DiscUtils-initial`** ⚠ not `master`/`main` | **`master`** |
+| Tracked integration branch | `nexaflow` | `nexaflow` | `nexaflow` |
+| In-flight feature branches | `feat/matrix-delimiter-environments` (LaTeX matrix delimiter env work) | *(none yet)* | *(none yet)* |
+| Nexaflow consumer project | `src/Nexaflow.Visuals.Text/Nexaflow.Visuals.Text.csproj` | `src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Nexaflow.Features.VirtualDisk.csproj` | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` |
+| Wired project(s) | `external/xaml-math/src/WpfMath/WpfMath.csproj` (replaced the `WpfMath` NuGet). `XamlMath.Shared` comes in **transitively** — don't add it explicitly. | `Library/DiscUtils.Core`, `Library/DiscUtils.Containers`, `Library/DiscUtils.FileSystems` (Containers/FileSystems each pull the format libs). | **None — no `ProjectReference`.** The `BuildTreeSitterXml` target in `Nexaflow.Syntax.csproj` compiles `xml/src/{parser,scanner}.c` via `tools/build-tree-sitter-xml.ps1`. |
+| Do **NOT** reference | `AvaloniaMath*`, `*.ApiTest*`, `*.Example`, `Tool.TTFMetrics` | Test/Utilities projects; individual format libs (use the `Containers`/`FileSystems` meta-projects) | The `dtd/` grammar (we only build `xml/`); the Rust/Node/Swift/Python bindings |
+| Notes | `ForNeVeR/wpf-math` **redirects to `xaml-math`** (renamed). WpfMath is one project inside a multi-project repo. Multi-targets `net462;net8.0-windows` → consumers resolve `net8.0-windows`. Repo ships its own `Directory.Build.props` + CPM `Directory.Packages.props`. | Default branch is unusual — **base feature branches off `LTRData.DiscUtils-initial`** unless the upstream PR guide says otherwise. Library projects multi-target incl. `net10.0`. `SignAssembly=false` (the `SigningKey.snk` isn't needed). `.gitmodules` sets **`ignore = untracked`** (see gotchas). | Supplies the `xml` grammar for `.xaml`/`.xml`/`.xsl` (TreeSitter.DotNet bundles ~30 natives but no XML one). MIT. Sources are self-contained — `xml/src/tree_sitter/*.h` are vendored, and `scanner.c` includes `../../common/scanner.h`, so the `xml/` + `common/` layout must be preserved. Needs the **MSVC C toolchain**. Objects go to `src/Nexaflow.Syntax/obj/native/`, never into the submodule — so this one needs **no** `ignore = untracked`. |
+
+…and the fourth, kept in its own table because its wiring is a hybrid the columns above can't express
+(a `ProjectReference` **plus** nested C submodules we compile):
+
+| | **tree-sitter-dotnet-bindings** |
+|---|---|
+| Submodule path | `external/tree-sitter-dotnet-bindings` |
+| `origin` (committed, our fork) | `https://github.com/smile-forge/tree-sitter-dotnet-bindings.git` |
+| `upstream` (original) | `https://github.com/mariusgreuel/tree-sitter-dotnet-bindings.git` |
+| **Upstream default branch** | **`main`** |
+| Tracked integration branch | `nexaflow` |
+| In-flight feature branches | *(none — see the note on upstream being dormant)* |
+| Nexaflow consumer project | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` |
+| Wired project(s) | `external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj` (the managed bindings; **replaced the `TreeSitter.DotNet` PackageReference**). The natives are **not** built by that project — see below. |
+| Do **NOT** reference | `tests/`, `examples/`. Don't build the repo's `tree-sitter-native/*.vcxproj`: they'd need all 29 grammar submodules and produce languages Nexaflow never registers. |
+| Nested submodules | **29 grammars + the tree-sitter runtime**, under `tree-sitter-native/`. Only the ones in `tools/tree-sitter-grammars.props` (plus the runtime) are initialised — `tools/ensure-submodules.ps1` reads that manifest. They're shallow (`--depth 1`); the pin still resolves because it's a commit on a branch the remote advertises. |
+| Our commits on `nexaflow` | (1) the grammar/runtime pin bumps; (2) an **empty `Directory.Build.props` + `.targets`** at the repo root. The second is integration-only and must never be upstreamed: the repo has none of its own, so without it MSBuild's walk-up would reach Nexaflow's root and silently apply our `Platforms=x64` and `NoWarn` to upstream's projects. |
+| Notes | The reason this exists at all is in the intro: the package's prebuilt grammars go stale and one of them silently deleted a whole file from the graph. **Grammar submodules point at their own upstreams** (`tree-sitter/tree-sitter-*`), not at `smile-forge` forks — we bump pins, we don't patch grammar source. If a grammar ever *does* need patching, fork that one repo then. Needs the **MSVC C toolchain**. |
 
 To read the *current* pinned commits and tracked branch at any time:
 
@@ -200,6 +232,54 @@ git -C <repo> commit -m "Add <repo> source submodule, tracking nexaflow"
 
 ## Wiring rules (consuming the source in Nexaflow)
 
+### Native grammar submodules (the `ProjectReference` exception)
+
+`tree-sitter-xml` is a **C** grammar, not a .NET library — there is no `.csproj`, so rule "`ProjectReference`,
+never `PackageReference`" cannot apply. It is instead **compiled from source on build**. Everything else about
+the submodule convention (org fork, `upstream` remote, `nexaflow` integration branch, pin-by-commit, atomic
+`feat/*` branches for upstream PRs) is unchanged.
+
+- **Who builds it:** the `BuildTreeSitterNatives` target in `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj`,
+  which shells out to `tools/build-tree-sitter-natives.ps1`. That one script builds **everything native**:
+  the tree-sitter runtime (`lib/src/lib.c`, exporting `ts_*` via the fork's `tree-sitter.def`) and every
+  grammar in `tools/tree-sitter-grammars.props`. One `vcvars64` session for the whole batch, because
+  starting it costs more than most of the compiles; ~16s cold, nothing when warm (each artefact is
+  timestamp-checked against its own sources).
+- **`tools/tree-sitter-grammars.props` is the single source of truth for the set** — the csproj imports it
+  for the `Content` items, the build script reads it to know what to compile, and `ensure-submodules.ps1`
+  reads it to know which nested submodules a fresh worktree needs. Adding a language is one row.
+- **Object files go to a folder per artefact** (`obj/native/int/<name>/`). Not cosmetic: every grammar
+  compiles a file called `parser.c`, so a shared `/Fo` directory would have them overwrite each other's
+  `parser.obj`.
+- **`/O1`, not `/O2`.** These are generated table-driven parsers and some are enormous — the C# grammar's
+  `parser.c` is 31 MB — where `/O2` costs minutes for no measurable parse-time gain.
+- **Where the output goes:** `src/Nexaflow.Syntax/obj/native/tree-sitter*.dll`, flowed to every consuming
+  project's **output root** by `Content` items carrying `TargetPath` + `CopyToOutputDirectory="PreserveNewest"`
+  (`GetCopyToOutputDirectoryItems` recurses through `ProjectReference`s, so it reaches the app two hops out via
+  `Syntax -> Visuals.Text -> Core`). Note the app's real `OutDir` is the RID subfolder
+  `bin/x64/Debug/<tfm>/win-x64/` - not the `<tfm>` folder above it.
+- **The output root is required, and for two different reasons.** A *grammar* is resolved by id through the
+  bindings' own loader, which probes `AppContext.BaseDirectory` **before** `runtimes/<rid>/native/` — that
+  ordering is what let a hand-built grammar override a packaged one while the NuGet package was still in
+  play. The *runtime* is different: it is a plain `[DllImport("tree-sitter")]` with no custom resolver, so
+  it goes through .NET's default probing and a packaged `deps.json` asset would have won. Overriding the
+  runtime was therefore impossible without dropping the package — which is the concrete reason the
+  `PackageReference` had to go rather than merely being tidier.
+- **Never write build output into the submodule.** Object files go to `obj/native/`, which is why this
+  submodule needs no `ignore = untracked` (contrast DiscUtils).
+- **Prerequisite:** the MSVC C toolchain (VS "Desktop development with C++", component
+  `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`, or Build Tools). The script fails with an explicit
+  install instruction if it is missing.
+- **Adding another grammar** later: add one row to `tools/tree-sitter-grammars.props` (id + `SourceDir`,
+  plus `Root` only if it lives outside the bindings submodule, as `xml` does). The build script, the
+  `Content` items and the submodule bootstrap all follow from that row. A brand-new *submodule* still needs
+  a sentinel path in `Directory.Build.targets`' `EnsureSubmodulesInitialized` condition.
+- **A stale grammar has no natural alarm**, which is why `GrammarParseHealthTests` asserts that every `.cs`
+  and `.xaml` file under `src/` parses, and names the C# features this repo actually relies on. Before that
+  guard existed, a grammar too old for the language silently produced *absence* — and absence reads as a
+  fact about the code, not about the parser. `CodeOutline.ParseFailed` is what makes it assertable.
+
+
 - **`ProjectReference`, never `PackageReference`** for these deps. Match how Nexaflow references its own
   projects: a plain relative-path include, e.g.
   `<ProjectReference Include="..\..\external\xaml-math\src\WpfMath\WpfMath.csproj" />`
@@ -210,6 +290,9 @@ git -C <repo> commit -m "Add <repo> source submodule, tracking nexaflow"
   MSBuild walk-up finds theirs and stops before Nexaflow's root, so they don't inherit Nexaflow's `x64`
   (they build AnyCPU managed IL, which the x64 host consumes fine). Nexaflow has no `Directory.Packages.props`,
   so there's no CPM collision.
+- **A new submodule ⇒ add a sentinel path** to the `EnsureSubmodulesInitialized` condition in
+  `Directory.Build.targets` (a file that only exists once the submodule is checked out), or a fresh
+  worktree won't self-populate it.
 - **New `src/**` project ⇒ add it to `Nexaflow.slnx`** (guard: `SolutionMembershipTests`). Submodule
   projects under `external/` are **exempt** — they build transitively via ProjectReference and must NOT be
   added to the solution.

@@ -200,6 +200,41 @@ public static class ProductTreeOps
         return n;
     }
 
+    /// <summary>
+    /// Edits one existing snaplink in place: <paramref name="set"/> assigns fields, <paramref name="clear"/>
+    /// names fields to unset. Returns false if the node, concern, or index isn't there.
+    /// <para>
+    /// Clearing is the half <see cref="Remove"/>-then-<see cref="AddSnaplink"/> cannot do without losing the
+    /// link's other fields and its position, and it is what a link needs when a target stops having the
+    /// structure it names — a <c>.xaml</c> that turns out to be a ResourceDictionary declares no class, so the
+    /// honest link is the file alone rather than a class that cannot exist.
+    /// </para></summary>
+    public static bool SetSnaplink(ProductState s, string id, int index, string? concernTag,
+                                   Action<Snaplink>? set = null, IEnumerable<string>? clear = null)
+    {
+        if (!s.Nodes.TryGetValue(id, out var node)) return false;
+        var list = concernTag is null
+            ? node.Snaplinks
+            : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
+        if (list is null || index < 0 || index >= list.Count) return false;
+
+        var link = list[index];
+        set?.Invoke(link);
+        foreach (var field in clear ?? [])
+            switch (field.Trim().ToLowerInvariant())
+            {
+                case "class":      link.Class = null; break;
+                case "method":     link.Method = null; break;
+                case "ast":        link.Ast = null; break;
+                case "doc":        link.Doc = null; break;
+                case "target":     link.Target = null; break;
+                case "title-path": link.TitlePath = null; break;
+                case "status":     link.Status = null; break;
+                default: return false;
+            }
+        return true;
+    }
+
     /// <summary>Why a <see cref="Rename"/> was refused — so the caller can word the error.</summary>
     public enum RenameError { None, NoSuchNode, IdTaken, IdInvalid }
 

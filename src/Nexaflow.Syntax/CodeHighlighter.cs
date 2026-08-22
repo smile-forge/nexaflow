@@ -20,6 +20,10 @@ namespace Nexaflow.Syntax;
 public sealed class CodeHighlighter : IDisposable
 {
     private readonly string _grammarId;
+
+    /// <summary>The grammar this highlighter reads, for callers whose behaviour is language-specific (an
+    /// 8-digit hex colour means <c>#AARRGGBB</c> in XAML and <c>#RRGGBBAA</c> in CSS).</summary>
+    public string GrammarId => _grammarId;
     private readonly Language _language;
     private readonly Parser _parser;
     private readonly Query _query;
@@ -41,6 +45,7 @@ public sealed class CodeHighlighter : IDisposable
     private static readonly Dictionary<string, string> NativeAlias = new()
     {
         ["jinja"] = "html",   // markup parses as html; python injected into {{ }}/{% %}
+        ["xaml"]  = "xml",    // XAML is XML; the id stays distinct so the outline can read WPF meaning
     };
 
     private CodeHighlighter(string grammarId, Language language, Parser parser, Query query)
@@ -102,6 +107,10 @@ public sealed class CodeHighlighter : IDisposable
             if (length > 0)
                 spans.Add(new HighlightSpan(node.StartIndex + offset, length, capture.Name));
         }
+
+        // XAML asks for one thing the grammar cannot give: an attribute value is a single token to XML, but
+        // {StaticResource Foo} has structure a reader relies on. Appended here so the finer spans win.
+        if (_grammarId == "xaml") XamlHighlighting.AddValueSpans(tree.RootNode, text, offset, spans);
 
         // Embedded spans appended after the outer spans ⇒ last-wins gives them priority.
         ForEachInjection(text, tree.RootNode, offset, budget,
@@ -313,7 +322,7 @@ public sealed class CodeHighlighter : IDisposable
         {
             if (inj.GroupKey is null) continue;
             if (inj.Start < 0 || inj.End <= inj.Start || inj.End > textLength) continue;
-            var key = inj.TargetGrammarId + " " + inj.GroupKey;
+            var key = inj.TargetGrammarId + "\0" + inj.GroupKey;
             if (!byKey.TryGetValue(key, out var g)) { g = (inj.TargetGrammarId, new List<InjectionRange>()); byKey[key] = g; order.Add(key); }
             g.Ranges.Add(inj);
         }

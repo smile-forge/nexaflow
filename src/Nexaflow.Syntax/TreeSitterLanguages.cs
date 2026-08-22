@@ -24,6 +24,7 @@ public static class TreeSitterLanguages
         Register("json",       ".json");
         Register("rust",       ".rs");
         Register("cpp",        ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".ipp");
+        Register("c",          ".c", ".h");
         Register("java",       ".java");
 
         // Markup / templating languages — also the hosts for embedded-language injection (a <script> in
@@ -34,8 +35,16 @@ public static class TreeSitterLanguages
         Register("razor",             ".razor", ".cshtml");
         Register("php",               ".php", ".phtml");
         Register("jinja",             ".j2", ".jinja", ".jinja2");   // html + python {{ }}/{% %}
+        // XML family. XAML *is* XML, so both ids resolve to the one native xml grammar we build from
+        // external/tree-sitter-xml (see CodeHighlighter.NativeAlias). They stay separate ids so the
+        // structure extractor can read WPF meaning - x:Class/x:Name/x:Key, event handlers - out of .xaml
+        // while a plain .xml gets a generic element outline.
+        Register("xaml", ".xaml");
+        // The build and the installer are XML too, and were the last unread part of how this app ships:
+        // .wxs/.wxl author the MSI, .props/.targets carry logic every project inherits. (.wixproj already
+        // reads through the csproj path — it is a project file with PropertyGroups like any other.)
+        Register("xml",  ".xml", ".xsl", ".xslt", ".wxs", ".wxl", ".props", ".targets", ".manifest");
         // .ipynb is owned by the Notebook feature (its own viewer), not the code editor.
-        // xml/xaml/xsl stay on AvalonEdit's built-in .xshd (no bundled tree-sitter xml grammar).
     }
 
     /// <summary>Registers a tree-sitter grammar for a set of extensions.</summary>

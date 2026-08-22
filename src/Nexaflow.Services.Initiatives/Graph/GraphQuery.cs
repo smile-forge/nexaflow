@@ -473,4 +473,362 @@ public static class GraphQuery
         }
         return Math.Min(lines.Length - 1, start + maxLines);
     }
+
+    // ── Orphans ───────────────────────────────────────────────────────────────
+
+    /// <summary>A declaration nothing appears to reach, and the reason that might be fine anyway.</summary>
+    /// <param name="Excuse">
+    /// Null when the node looks genuinely unreached. Otherwise why the graph cannot see the caller — a test the
+    /// runner invokes by reflection, an interface member called through the interface, an entry point. These
+    /// are reported separately rather than hidden, because "unreached, but here is why" is a different claim
+    /// from "unreached".
+    /// </param>
+    public sealed record Orphan(GraphNode Node, string? Excuse);
+
+    /// <summary>
+    /// Declarations with no incoming reference of any kind — nothing calls, constructs, extends, implements,
+    /// tests, documents, binds to or snaplinks them.
+    ///
+    /// <para>
+    /// <c>contains</c> is ignored on purpose: every member is contained by its type and every type by its file,
+    /// so counting structure would mean nothing is ever an orphan. What is counted is a *use*.
+    /// </para>
+    /// <para>
+    /// This is a lead, not a verdict, and the honest reasons it can be wrong are worth stating: edges are
+    /// name-resolved, so a call the resolver could not place leaves its target looking unused; and anything
+    /// reached purely at runtime — reflection by string, a DI container, a serializer reading properties — is
+    /// invisible here by construction. Treat a hit as "worth looking at", which is exactly what nothing at all
+    /// could tell you before.
+    /// </para>
+    /// </summary>
+    /// <param name="type">Restrict to a node type; defaults to <c>type</c>, which is far and away the least noisy.</param>
+    /// <param name="under">
+    /// Path prefix to restrict to. Defaults to <c>src/</c> for a reason worth keeping: a submodule under
+    /// <c>external/</c> is a whole third-party library, and the parts of it this repo does not call are not
+    /// findings — left in, they were every single hit. Pass an empty string to search everything.
+    /// </param>
+    /// <param name="includeExcused">Also return the nodes that have a reason (tests, interface members, entry points).</param>
+    public static IReadOnlyList<Orphan> Orphans(KnowledgeGraph g, string? type = NodeType.Type,
+                                                string? under = "src/",
+                                                bool includeExcused = false, int limit = 200)
+    {
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+            if (e.Relationship != EdgeRelationship.Contains)
+                used.Add(e.Target);
+
+        // A hyperedge is a use too: an argument to a call, a parameter or return in a signature, an attribute.
+        foreach (var h in g.HyperEdges)
+            foreach (var p in h.Endpoints)
+                if (p.Role != EndpointRole.Target && p.Role != EndpointRole.Member)
+                    used.Add(p.Node);
+
+        // A type whose member is reached is reached. Without this every static utility class is an orphan:
+        // `RepoFiles.EnumerateSource(...)` is an edge to the *method*, and nothing ever names the class.
+        foreach (var id in used.ToList())
+            if (OwningTypeId(id) is { } owner)
+                used.Add(owner);
+
+        var index = Index(g);
+        var attributes = AttributesByNode(g);
+        var inherited = InheritedMemberNames(g, index);
+
+        // A resource key defined in more than one dictionary — a light and a dark theme both declaring
+        // AccentBrush. A {StaticResource} reference resolves to one of them, so the others look unreferenced
+        // when the truth is that merge order picks the winner at runtime.
+        var duplicateKeys = g.Nodes
+            .Where(n => n.Type == NodeType.Type
+                        && n.Metadata?.GetValueOrDefault("ast") is { } a && a.StartsWith("K:", StringComparison.Ordinal))
+            .GroupBy(n => n.Label, StringComparer.Ordinal)
+            .Where(gr => gr.Count() > 1 && gr.Any(n => used.Contains(n.Id)))
+            .Select(gr => gr.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // Two declarations sharing a simple name — Core and Visuals.Common both declaring
+        // InverseBoolToVisibilityConverter. Edges are name-resolved, so a reference that could mean either is
+        // dropped rather than guessed: neither declaration collects the edge, and neither is evidence of death.
+        var ambiguous = g.Nodes
+            .Where(n => n.FilePath is not null && n.Type is NodeType.Type or NodeType.Member)
+            .GroupBy(n => n.Type + " " + n.Label, StringComparer.Ordinal)
+            .Where(gr => gr.Count() > 1)
+            .Select(gr => gr.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // A type that implements a contract this repo declares. Nothing names an IPageRegistration, an
+        // IThemeContribution or an IElevatedOperation: the shell scans assemblies for them at startup, so the
+        // only edge that could exist is the one the graph cannot see. Narrow on purpose — the base has to be a
+        // declaration in this repo, so implementing a framework interface excuses nothing.
+        var contractual = g.Edges
+            .Where(e => e.Relationship is EdgeRelationship.Implements or EdgeRelationship.Extends
+                        && index.TryGetValue(e.Target, out var t) && t.FilePath is not null)
+            .Select(e => e.Source)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var found = new List<Orphan>();
+        foreach (var n in g.Nodes)
+        {
+            if (n.FilePath is null) continue;                       // product/external nodes have no declaration
+            if (under is { Length: > 0 } prefix
+                && !n.FilePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            if (type is not null && n.Type != type) continue;
+            if (n.Type is not (NodeType.Type or NodeType.Member)) continue;
+            if (used.Contains(n.Id)) continue;
+
+            var excuse = Excuse(n, attributes, inherited, duplicateKeys, ambiguous, contractual);
+            if (excuse is not null && !includeExcused) continue;
+            found.Add(new Orphan(n, excuse));
+            if (found.Count >= limit) break;
+        }
+        return found;
+    }
+
+    /// <summary>Why an apparently-unreached declaration may be reached anyway, or null if nothing excuses it.</summary>
+    private static string? Excuse(GraphNode n,
+                                  IReadOnlyDictionary<string, HashSet<string>> attributes,
+                                  IReadOnlyDictionary<string, HashSet<string>> inherited,
+                                  IReadOnlySet<string> duplicateKeys,
+                                  IReadOnlySet<string> ambiguous,
+                                  IReadOnlySet<string> contractual)
+    {
+        // A source file in a language the relation extractor does not read — the syntax-highlighting corpus is
+        // .js/.py/.rb/.ts. No edge to it can exist, so its absence means nothing at all.
+        if (n.FilePath is { } path && !path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                                   && !path.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
+            return "a language whose references the extractor does not read yet";
+
+        if (duplicateKeys.Contains(n.Label))
+            return "another dictionary defines this key and is referenced; merge order decides at runtime";
+
+        if (ambiguous.Contains(n.Type + " " + n.Label))
+            return "another declaration shares this name; a name-resolved reference cannot be attributed to either";
+
+        if (contractual.Contains(n.Id))
+            return "implements a contract this repo declares; the shell finds those by scanning assemblies";
+
+        // A XAML anchor is reached in ways nothing here records yet: a UI journey finds an AutomationId by
+        // string, and ElementName / TargetName reference an x:Name from inside the XAML itself. Until those
+        // are edges, an unreferenced anchor is not evidence of anything.
+        if (n.FilePath?.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase) == true)
+            return "a XAML anchor - a UI test's string id and an ElementName binding are not edges yet";
+
+        if (attributes.TryGetValue(n.Id, out var attrs))
+        {
+            foreach (var a in attrs)
+                if (a.EndsWith("TestMethod", StringComparison.Ordinal)
+                    || a.EndsWith("TestClass", StringComparison.Ordinal)
+                    || a.EndsWith("TestInitialize", StringComparison.Ordinal)
+                    || a.EndsWith("TestCleanup", StringComparison.Ordinal)
+                    || a.EndsWith("AssemblyInitialize", StringComparison.Ordinal)
+                    || a.EndsWith("ClassInitialize", StringComparison.Ordinal))
+                    return "a test, run by reflection";
+
+            foreach (var a in attrs)
+                if (a.EndsWith("RelayCommand", StringComparison.Ordinal)
+                    || a.EndsWith("ObservableProperty", StringComparison.Ordinal))
+                    return "generates a public member the view may bind";
+        }
+
+        if (n.Type == NodeType.Member && n.Label == "Main") return "an entry point";
+
+        // Declared on a base or interface: the call goes through that, not through this declaration.
+        var owner = OwningTypeId(n.Id);
+        if (owner is not null && inherited.TryGetValue(owner, out var names) && names.Contains(n.Label))
+            return "declared on a base type or interface";
+
+        return null;
+    }
+
+    /// <summary>Attribute names per annotated node, from the <c>annotated</c> hyperedges.</summary>
+    private static Dictionary<string, HashSet<string>> AttributesByNode(KnowledgeGraph g)
+    {
+        var map = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var h in g.HyperEdges)
+        {
+            if (h.Relationship != HyperRelationship.Annotated) continue;
+            var target = h.Endpoints.FirstOrDefault(p => p.Role == EndpointRole.Target)?.Node;
+            var attr = h.Endpoints.FirstOrDefault(p => p.Role == EndpointRole.Attr)?.Node;
+            if (target is null || attr is null) continue;
+            if (!map.TryGetValue(target, out var set)) map[target] = set = new HashSet<string>(StringComparer.Ordinal);
+            set.Add(attr);
+        }
+        return map;
+    }
+
+    /// <summary>For each type, the member names its bases and interfaces declare — the ones a call reaches indirectly.</summary>
+    private static Dictionary<string, HashSet<string>> InheritedMemberNames(
+        KnowledgeGraph g, IReadOnlyDictionary<string, GraphNode> index)
+    {
+        var membersOf = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+        {
+            if (e.Relationship != EdgeRelationship.Contains) continue;
+            if (!index.TryGetValue(e.Target, out var target) || target.Type != NodeType.Member) continue;
+            if (!membersOf.TryGetValue(e.Source, out var list)) membersOf[e.Source] = list = [];
+            list.Add(target.Label);
+        }
+
+        var map = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+        {
+            if (e.Relationship is not (EdgeRelationship.Extends or EdgeRelationship.Implements)) continue;
+            if (!membersOf.TryGetValue(e.Target, out var names)) continue;
+            if (!map.TryGetValue(e.Source, out var set)) map[e.Source] = set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var name in names) set.Add(name);
+        }
+        return map;
+    }
+
+    /// <summary>The type node id owning a member id — <c>code:F.cs#T:A/M:B</c> → <c>code:F.cs#T:A</c>.</summary>
+    private static string? OwningTypeId(string memberId)
+    {
+        var cut = memberId.LastIndexOf('/');
+        return cut > 0 ? memberId[..cut] : null;
+    }
+
+    // ── Paths ─────────────────────────────────────────────────────────────────
+
+    /// <summary>One hop along a path: the relationship taken and the node arrived at.</summary>
+    public sealed record PathStep(string Relationship, GraphNode Node);
+
+    /// <summary>A route between two nodes — the start, then every hop taken to reach the end.</summary>
+    public sealed record GraphPath(GraphNode From, IReadOnlyList<PathStep> Steps)
+    {
+        public int Hops => Steps.Count;
+    }
+
+    /// <summary>
+    /// Routes from one node to another — the question <c>walk</c> could never answer, because a walk returns
+    /// a ball around a single node rather than the ways two nodes connect.
+    ///
+    /// <para>
+    /// <b>Directed by default</b>, which is the useful reading: "what does this entry point reach" follows
+    /// edges the way the code does. <paramref name="undirected"/> answers the looser "how are these two
+    /// related at all".
+    /// </para>
+    /// <para>
+    /// <b>Containment is never dropped</b> — it is real structure, and in the product tree it is the whole
+    /// backbone: a feature contains its UI, which contains a panel. What is meaningless is not the edge but
+    /// one <i>traversal shape</i>: walking <i>up</i> a container and straight back <i>down</i> into a sibling.
+    /// That move makes every pair of declarations in a file two hops apart via the file, which would drown
+    /// every real answer. So undirected search forbids exactly that — a descent immediately after an ascent —
+    /// and keeps containment available everywhere else. (Snaplink edges are deliberately kept too: a
+    /// <c>tests</c> or <c>documents</c> link is how a path crosses from the product tree into code, which is
+    /// usually the most useful hop in the whole route.)
+    /// </para>
+    /// <para>
+    /// Only <b>shortest</b> paths are returned. Enumerating every route between two nodes in a graph this
+    /// dense is exponential and unreadable; the shortest ones are the ones that explain the relationship.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<GraphPath> Paths(KnowledgeGraph g, string fromId, string toId,
+                                                 int maxHops = 6, int limit = 10, bool undirected = false)
+    {
+        var index = Index(g);
+        if (!index.TryGetValue(fromId, out var from) || !index.ContainsKey(toId)) return [];
+        if (fromId == toId) return [new GraphPath(from, [])];
+
+        var next = new Dictionary<string, List<(string To, string Rel, bool Ascending)>>(StringComparer.Ordinal);
+        void Link(string a, string b, string rel, bool ascending)
+        {
+            if (!next.TryGetValue(a, out var list)) next[a] = list = [];
+            list.Add((b, rel, ascending));
+        }
+        foreach (var e in g.Edges)
+        {
+            Link(e.Source, e.Target, e.Relationship, ascending: false);
+            if (undirected) Link(e.Target, e.Source, e.Relationship, ascending: true);
+        }
+
+        // Up-then-down through a container is the one move that means nothing, so it is the one move barred.
+        // The state carries whether the last hop climbed a containment edge; a descent is refused from there.
+        bool Barred(bool climbed, string rel, bool ascending) =>
+            climbed && !ascending && rel == EdgeRelationship.Contains;
+
+        // Distance from the start, capped — then walk forward taking only hops that close the gap, which
+        // yields exactly the shortest routes without enumerating the whole graph.
+        var dist = new Dictionary<(string Node, bool Climbed), int> { [(fromId, false)] = 0 };
+        var queue = new Queue<(string Node, bool Climbed)>();
+        queue.Enqueue((fromId, false));
+        while (queue.Count > 0)
+        {
+            var state = queue.Dequeue();
+            var d = dist[state];
+            if (d >= maxHops || state.Node == toId) continue;
+            if (!next.TryGetValue(state.Node, out var outgoing)) continue;
+            foreach (var (to, rel, ascending) in outgoing)
+            {
+                if (Barred(state.Climbed, rel, ascending)) continue;
+                var step = (to, ascending && rel == EdgeRelationship.Contains);
+                if (!dist.ContainsKey(step)) { dist[step] = d + 1; queue.Enqueue(step); }
+            }
+        }
+
+        var target = dist.Where(kv => kv.Key.Node == toId).Select(kv => kv.Value).DefaultIfEmpty(-1).Min();
+        if (target < 0) return [];
+
+        var found = new List<GraphPath>();
+        var steps = new List<PathStep>();
+        void Walk(string current, bool climbed, int depth)
+        {
+            if (found.Count >= limit) return;
+            if (current == toId) { found.Add(new GraphPath(from, [.. steps])); return; }
+            if (!next.TryGetValue(current, out var outgoing)) return;
+
+            foreach (var (to, rel, ascending) in outgoing.OrderBy(x => x.To, StringComparer.Ordinal))
+            {
+                if (Barred(climbed, rel, ascending)) continue;
+                var nextClimbed = ascending && rel == EdgeRelationship.Contains;
+                if (!dist.TryGetValue((to, nextClimbed), out var d) || d != depth + 1 || d > target) continue;
+                if (!index.TryGetValue(to, out var node)) continue;
+                steps.Add(new PathStep(ascending ? rel + " (up)" : rel, node));
+                Walk(to, nextClimbed, d);
+                steps.RemoveAt(steps.Count - 1);
+                if (found.Count >= limit) return;
+            }
+        }
+        Walk(fromId, false, 0);
+        return found;
+    }
+
+    // ── Fan-in / fan-out ──────────────────────────────────────────────────────
+
+    /// <summary>A node with how many edges point at it and how many it sends out.</summary>
+    public sealed record Ranking(GraphNode Node, int FanIn, int FanOut);
+
+    /// <summary>
+    /// Nodes ordered by how much of the graph points at them (fan-in) or how much they reach (fan-out) — the
+    /// difference between "which components are central" being eyeballed from community sizes and being read
+    /// off a list.
+    ///
+    /// <para>
+    /// <c>contains</c> never counts. It is pure structure: counting it would rank types by how many members
+    /// they declare and files by how many types they hold, which measures size, not centrality — and the
+    /// biggest class would win every time regardless of whether anything uses it.
+    /// </para>
+    /// </summary>
+    /// <param name="type">Restrict to a node type; null for all.</param>
+    /// <param name="under">Path prefix to restrict to — defaults to everything, unlike orphans, because a
+    /// heavily-used third-party type is a legitimate answer to "what is central here".</param>
+    public static IReadOnlyList<Ranking> Rank(KnowledgeGraph g, bool byFanIn = true, string? type = null,
+                                              string? under = null, int limit = 25)
+    {
+        var fanIn = new Dictionary<string, int>(StringComparer.Ordinal);
+        var fanOut = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var e in g.Edges)
+        {
+            if (e.Relationship == EdgeRelationship.Contains) continue;
+            fanIn[e.Target] = fanIn.GetValueOrDefault(e.Target) + 1;
+            fanOut[e.Source] = fanOut.GetValueOrDefault(e.Source) + 1;
+        }
+
+        return [.. g.Nodes
+            .Where(n => type is null || n.Type == type)
+            .Where(n => under is not { Length: > 0 } prefix
+                        || (n.FilePath?.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ?? false))
+            .Select(n => new Ranking(n, fanIn.GetValueOrDefault(n.Id), fanOut.GetValueOrDefault(n.Id)))
+            .Where(r => (byFanIn ? r.FanIn : r.FanOut) > 0)
+            .OrderByDescending(r => byFanIn ? r.FanIn : r.FanOut)
+            .ThenBy(r => r.Node.Id, StringComparer.Ordinal)
+            .Take(limit)];
+    }
 }

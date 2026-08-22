@@ -21,9 +21,11 @@ public static class IntegrityBinder
             : node.Concerns?.FirstOrDefault(c => c.Tag == concern)?.Snaplinks;
 
     /// <summary>Two links point at the same thing (status is deliberately ignored).</summary>
+    // Ast is part of the identity: two links on one node that differ only by their element target are two
+    // different links, and without it the binder would hand back whichever came first and edit the wrong one.
     public static bool SameTarget(Snaplink a, Snaplink b) =>
         a.Type == b.Type && a.Doc == b.Doc && a.Class == b.Class && a.Method == b.Method && a.Target == b.Target
-        && SamePath(a.TitlePath, b.TitlePath);
+        && a.Ast == b.Ast && SamePath(a.TitlePath, b.TitlePath);
 
     private static bool SamePath(List<string>? a, List<string>? b) =>
         (a is null or { Count: 0 } && b is null or { Count: 0 }) || (a is not null && b is not null && a.SequenceEqual(b));

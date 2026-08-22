@@ -28,9 +28,16 @@ src/
                                     Base64Codec + stream-codec/archive contracts (IStreamCodec/IArchiveHandler/IArchiveEncryptor),
                                     VirtualFileSystem (archive-as-folder), TextLineIndex/TextTransforms, FileChangeWatcher, FileSplitter
   Nexaflow.IO.Terminal/             PTY host (pseudo-console service, terminal screen, job objects)
-  Nexaflow.Syntax/                  tree-sitter syntax engine (highlighting, outline, structure extraction) —
-                                    used by Code, Notebook, ProductManager, Visuals.Text. Owns TreeSitterLanguages
-                                    (extension→grammar), so headless callers resolve a grammar without WPF
+  Nexaflow.Syntax/                  syntax engine (highlighting, outline, structure extraction) — used by Code,
+                                    Notebook, ProductManager, Visuals.Text. Owns TreeSitterLanguages
+                                    (extension→grammar), so headless callers resolve a grammar without WPF.
+                                    The tree-sitter runtime AND every grammar are compiled from pinned
+                                    submodules (external/tree-sitter-dotnet-bindings + tree-sitter-xml) —
+                                    NOT the TreeSitter.DotNet package, whose prebuilt natives go stale (its
+                                    C# grammar predated `= []` and `[.. var rest]`, which cost a whole file
+                                    its parse). One row per language in tools/tree-sitter-grammars.props;
+                                    `.xaml` parses with the xml grammar under its own id so the extractor
+                                    can read WPF meaning (x:Class/x:Name/x:Key/handlers)
   Nexaflow.Services.Initiatives/    WPF-free backend for the "initiatives" domain — Product today, Projects later:
                                     model, ProductStore, ProductAggregator/TreeOps, SnaplinkValidator. Never
                                     reference WPF/Core/Features.* from here
@@ -61,7 +68,7 @@ $nfi = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe"   #
 & $nfi find <term>                # nodes matching id/title/description
 & $nfi describe <node-id>         # path, concerns, code/test/doc snaplinks
 & $nfi describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
-& $nfi tree <node-id> [--full]    # the WHOLE subtree as an outline — "show me this entire feature" (--full = +snaplinks/about)
+& $nfi tree [<node-id>] [--full]  # the WHOLE subtree as an outline — "show me this entire feature" (no id = every root; --full = +snaplinks/about)
 & $nfi lint --under <node-id>     # does this feature follow the modelling rules? (advisory; see docs/feature-tree-and-tests.md)
 & $nfi diff                       # what changed in the tree since the last release snapshot (nodes added/removed, status, concerns)
 ```
@@ -151,7 +158,15 @@ dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate .   # exi
 The **installer build runs the same check and fails on any broken link** (`nexaflowSetup.wixproj` →
 `ValidateSnaplinks`), so `NexaflowSetup.slnx` is the release gate; a plain `dotnet build Nexaflow.slnx` never runs
 it. Results persist to the gitignored `.product/integrity.json` (derived — safe to delete). A file whose extension
-has no tree-sitter grammar (`.xaml`) is treated as **unverifiable, not broken** — never make the validator guess.
+has no tree-sitter grammar (`.txt`) is treated as **unverifiable, not broken** — never make the validator guess.
+**`.xaml` is verifiable now** (the `xml` grammar is built from `external/tree-sitter-xml`): a link may name an
+`x:Class`, an `x:Name`, an `x:Key`, an `AutomationProperties.AutomationId` or an event handler, and a rename
+breaks it loudly instead of rotting.
+
+A second, **non-gating** channel sits beside the issues: a link whose file and class are sound but whose finer
+`ast` target no longer resolves is an **advisory**, printed with the `nfi set-snaplink` command that fixes it.
+`ast` had never been validated by anything, so it holds prose as often as a path — failing a release build on
+that would punish links whose real target is fine. Advisories never affect the exit code.
 
 **The tree is forward-looking** — the plan of what *should* be in place for the **next release**, not a snapshot
 of what shipped (that's the label-aligned [docs/product](docs/product) export). So **update it as you build** — flip
@@ -205,7 +220,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 - A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection at startup (each registration exposes a `static string StaticPageKind`).
 - **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
 - **Features never elevate directly.** No `Process.Start` with `runas` in a feature — route admin actions through `IShellServices.RunElevatedAsync` (a DTO in `Elevation.Contracts` + an `IElevatedOperation` in the PrivilegeBridge). See [docs/Architecture.md → Elevation](docs/Architecture.md#elevation--privilege-bridge).
-- **Third-party source deps are git submodules under `external/`, consumed via `ProjectReference` from the smile-forge fork — never `PackageReference`, never vendored/copied.** `origin` = the org fork, `upstream` = the original; a per-repo `nexaflow` integration branch is what's pinned, and upstream PRs come only from atomic `feat/*` branches. **Before touching anything under `external/`, adding/bumping a submodule, or wiring one of these deps, read the runbook [docs/externals.md](docs/externals.md)** (also pointed to by `external/README.md`). Remember the cwd is pinned → use `git -C external/<name> …` for every submodule git op.
+- **Third-party source deps are git submodules under `external/`, consumed via `ProjectReference` from the smile-forge fork — never `PackageReference`, never vendored/copied.** The one exception is a **native grammar**: C has no `.csproj` to reference, so an MSBuild target compiles it instead — same fork/branch/pin convention, different wiring (see *Native grammar submodules* in the runbook). That covers `external/tree-sitter-xml` and the nested grammar/runtime submodules inside `external/tree-sitter-dotnet-bindings`, whose own `src/TreeSitter.csproj` **is** a normal `ProjectReference` (it replaced the `TreeSitter.DotNet` package — the package's frozen natives were silently wrong). `origin` = the org fork, `upstream` = the original; a per-repo `nexaflow` integration branch is what's pinned, and upstream PRs come only from atomic `feat/*` branches. **Before touching anything under `external/`, adding/bumping a submodule, or wiring one of these deps, read the runbook [docs/externals.md](docs/externals.md)** (also pointed to by `external/README.md`). Remember the cwd is pinned → use `git -C external/<name> …` for every submodule git op.
 
 The reference and dispatcher rules are **mechanically enforced**: `Nexaflow.Tests.Features.Architecture/Architecture/ArchitectureRulesTests` + `Nexaflow.Tests.Providers/ArchitectureRulesTests` fail on a violation, and `FeatureTouchPointTests` names any missed add-a-feature wiring step (Core/tests ProjectReference, filemap entry).
 

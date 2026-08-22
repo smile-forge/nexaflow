@@ -97,3 +97,30 @@ public sealed class IntegrityIssue
     [JsonIgnore]
     public string Scope => Concern ?? "node";
 }
+
+/// <summary>
+/// What a check could actually establish about one link. The third case is the point: the validator only
+/// reports what it can <em>prove</em> broken, so "no problem found" and "nothing could be checked" arrive at
+/// the same place — and telling a user their link is fixed when neither was established is a lie the UI told
+/// for as long as the two were the same value.
+/// </summary>
+public enum LinkVerdict
+{
+    /// <summary>Checked, and the target is really there.</summary>
+    Sound,
+
+    /// <summary>Checked, and it is not. This is what gates a release build.</summary>
+    Broken,
+
+    /// <summary>Nothing could be established either way — no grammar for the file, a file too big or
+    /// unreadable, or a <c>node</c> link checked with no tree in scope.</summary>
+    Unverifiable,
+}
+
+/// <summary>The outcome of checking one link: the verdict, plus the failure when there is one.</summary>
+public readonly record struct LinkCheck(LinkVerdict Verdict, IntegrityKind Kind, string? Detail)
+{
+    public static LinkCheck Sound() => new(LinkVerdict.Sound, default, null);
+    public static LinkCheck Unverifiable() => new(LinkVerdict.Unverifiable, default, null);
+    public static LinkCheck Broken(IntegrityKind kind, string detail) => new(LinkVerdict.Broken, kind, detail);
+}
