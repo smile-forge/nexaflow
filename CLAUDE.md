@@ -68,7 +68,7 @@ $nfi = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe"   #
 & $nfi find <term>                # nodes matching id/title/description
 & $nfi describe <node-id>         # path, concerns, code/test/doc snaplinks
 & $nfi describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
-& $nfi tree <node-id> [--full]    # the WHOLE subtree as an outline — "show me this entire feature" (--full = +snaplinks/about)
+& $nfi tree [<node-id>] [--full]  # the WHOLE subtree as an outline — "show me this entire feature" (no id = every root; --full = +snaplinks/about)
 & $nfi lint --under <node-id>     # does this feature follow the modelling rules? (advisory; see docs/feature-tree-and-tests.md)
 & $nfi diff                       # what changed in the tree since the last release snapshot (nodes added/removed, status, concerns)
 ```

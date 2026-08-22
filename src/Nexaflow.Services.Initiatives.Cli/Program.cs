@@ -66,7 +66,7 @@ internal static class Program
               nfi find       <term> [<root>] [--json]
               nfi query      [<root>] [--under <id>] [--concern <tag>] [--status <s>] [--leaf|--panel] [--json]
               nfi describe   <node-id>[,<node-id>...] [<root>] [--json] [--code]
-              nfi tree       <node-id> [<root>] [--depth <n>] [--full] [--json]
+              nfi tree       [<node-id>] [<root>] [--depth <n>] [--full] [--json]
               nfi diff       [<root>] [--from <version>]
               nfi remap      <old-path> <new-path> [<root>] [--class <name>] [--method <name>]
               nfi remap      --from-git <rev-range> [<root>] [--dry-run]
@@ -551,7 +551,7 @@ internal static class Program
     private static int GraphNode(string[] args)
     {
         if (!TryRead(Specs.GraphNode, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
@@ -565,7 +565,7 @@ internal static class Program
     private static int GraphWalk(string[] args)
     {
         if (!TryRead(Specs.GraphWalk, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
         if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
@@ -583,7 +583,7 @@ internal static class Program
     private static int GraphCode(string[] args)
     {
         if (!TryRead(Specs.GraphCode, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
 
         // A code:<file>#<ast> id fetches that AST node's block; a file:<path> id (or a bare path) fetches the file.
         string rel; string? ast = null;
@@ -663,7 +663,7 @@ internal static class Program
     private static int GraphContext(string[] args)
     {
         if (!TryRead(Specs.GraphContext, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 6, out var near)) return Error;
         if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
@@ -883,7 +883,7 @@ internal static class Program
     private static int Tree(string[] args)
     {
         if (!TryRead(Specs.Tree, args, out var a, out var root, out var parseCode)) return parseCode;
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
 
         int? maxDepth = null;
         if (a.Value("--depth") is { } depthS)
@@ -895,8 +895,31 @@ internal static class Program
 
         if (!TryLoad(root, out var state, out var code)) return code;
 
+        // No node id: outline every root. On a tree that has none this prints nothing and says so, which is
+        // the honest answer for a repo whose .product/ holds only a graph.
+        if (string.IsNullOrEmpty(id))
+        {
+            var roots = ProductAggregator.Roots(state).ToList();
+            if (roots.Count == 0)
+            {
+                Console.WriteLine($"No product tree under {root} — the graph is there, but nothing describes what it is for.");
+                Console.WriteLine("next: nfi graph stats | nfi graph search <term> | nfi add-node <parent-id> \"<title>\"");
+                return Clean;
+            }
+            foreach (var r in roots)
+                if (ProductQuery.Outline(state, r, maxDepth) is { } rootRows)
+                    Console.WriteLine(ProductReport.Outline(rootRows, a.Has("--full")));
+            return Clean;
+        }
+
         var rows = ProductQuery.Outline(state, id, maxDepth);
-        if (rows is null) { Console.Error.WriteLine($"error: no node '{id}' (try: find)."); return Error; }
+        if (rows is null)
+        {
+            // Name the tree that was searched. Without it, running from the wrong directory produces a true
+            // but useless sentence about a node that does exist — somewhere else.
+            Console.Error.WriteLine($"error: no node '{id}' in the tree under {root} (try: find).");
+            return Error;
+        }
 
         if (a.Has("--json"))
         {
@@ -1375,7 +1398,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplyMove(ProductState state, VerbArgs a)
     {
-        var id = a[0]; var newParentId = a[1];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty; var newParentId = a[1];
         if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
         if (!state.Nodes.ContainsKey(newParentId)) return (false, $"no parent node '{newParentId}'");
         if (id == newParentId) return (false, "a node can't be its own parent");
@@ -1393,7 +1416,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplyRemove(ProductState state, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!state.Nodes.TryGetValue(id, out var node)) return (false, $"no node '{id}'");
         var recursive = a.Has("--recursive");
         if (node.Children.Count > 0 && !recursive)
@@ -1422,8 +1445,11 @@ internal static class Program
             "remap --from-git <rev-range> [<root>] [--dry-run]");
         public static readonly VerbSpec Describe = new("describe", 1, None, ["--json", "--code"],
             "describe <node-id>[,<node-id>...] [<root>] [--json] [--code]");
+        // The node id is optional: "show me the tree" is a complete request, and defaulting to the roots is
+        // also what makes `nfi tree <some-repo>` mean the obvious thing instead of searching this repo for a
+        // node named after a directory.
         public static readonly VerbSpec Tree = new("tree", 1, ["--depth"], ["--full", "--json"],
-            "tree <node-id> [<root>] [--depth <n>] [--full] [--json]");
+            "tree [<node-id>] [<root>] [--depth <n>] [--full] [--json]", MinPositionals: 0);
         public static readonly VerbSpec Diff = new("diff", 0, ["--from"], None,
             "diff [<root>] [--from <version>]");
         // remap is a mutation too: a move usually breaks several paths at once, and batch is the only way
@@ -1536,9 +1562,43 @@ internal static class Program
             code = VerbUsage(error);
             return false;
         }
+
+        // A directory where an id belongs is a misplaced <root>, and saying so beats the alternative. Left
+        // alone, `nfi tree <some-repo>` reads the path as a node id, resolves <root> from the CURRENT
+        // directory, searches a DIFFERENT repository's tree, and reports "no node '<some-repo>'" — an answer
+        // that is true, useless, and about the wrong repository. One rule at the single parse chokepoint, so
+        // every verb behaves the same rather than `tree` growing a special case.
+        //
+        // The test is `Directory.Exists`, not "looks like a path": real ids contain slashes all the time
+        // (code:src/Foo.cs#T:Bar), and none of them names a directory on disk.
+        for (var i = 0; i < parsed.Positionals.Count; i++)
+        {
+            if (!Directory.Exists(parsed.Positionals[i])) continue;
+
+            var fixedArgs = spec.TakesRoot && parsed.Root is null
+                ? $"  did you mean:  nfi {spec.Verb} <{Slot(spec, i)}> {parsed.Positionals[i]}"
+                : $"  <{Slot(spec, i)}> takes an id, not a path — see: nfi {spec.Verb}";
+            Console.Error.WriteLine($"error: {spec.Verb}: '{parsed.Positionals[i]}' is a directory, not a <{Slot(spec, i)}>.");
+            Console.Error.WriteLine($"  usage: {spec.Usage}");
+            Console.Error.WriteLine(fixedArgs);
+            code = Error;
+            return false;
+        }
+
         root = ResolveProductRoot(parsed.Root ?? ".");
         code = Clean;
         return true;
+    }
+
+    /// <summary>The name a verb's usage line gives its i-th positional, so the error can point at the actual
+    /// slot ("node-id", "from-id") instead of saying "argument 1".</summary>
+    private static string Slot(VerbSpec spec, int index)
+    {
+        var names = Regex.Matches(spec.Usage, @"<([a-z][a-z0-9-]*)>")
+                         .Select(m => m.Groups[1].Value)
+                         .Where(n => n != "root")
+                         .ToList();
+        return index < names.Count ? names[index] : "argument";
     }
 
     // ── typed tree mutations (set-status / set-concern / add-snaplink / set-snaplink / set-node / doctor) ──
@@ -1621,7 +1681,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplySetSnaplink(ProductState s, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
         if (a.Value("--index") is not { } raw) return (false, "set-snaplink needs --index <n> (see: describe " + id + ")");
         if (!int.TryParse(raw, out var index)) return (false, $"--index must be a number (got '{raw}')");
@@ -1664,7 +1724,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
 
         int? index = null;
@@ -1705,7 +1765,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplyAddSnaplink(ProductState s, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
 
         var type = a.Value("--type") ?? "code";
@@ -1751,7 +1811,7 @@ internal static class Program
 
     private static (bool Ok, string Message) ApplySetNode(ProductState s, VerbArgs a)
     {
-        var id = a[0];
+        var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!s.Nodes.ContainsKey(id)) return (false, $"no node '{id}' (try: find)");
         if (a.Value("--title") is null && a.Value("--desc") is null && a.Value("--note") is null)
             return (false, "set-node needs at least one of --title / --desc / --note");

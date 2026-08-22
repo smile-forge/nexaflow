@@ -17,8 +17,14 @@ internal sealed record VerbSpec(
     string[] ValueFlags,
     string[] Switches,
     string Usage,
-    bool TakesRoot = true)
+    bool TakesRoot = true,
+    int MinPositionals = -1)
 {
+    /// <summary>How many of <see cref="Positionals"/> must actually be supplied. Defaults to all of them —
+    /// an optional positional is the exception, for a verb whose request is complete without it
+    /// (<c>tree</c> with no node id means the whole tree).</summary>
+    public int Required => MinPositionals < 0 ? Positionals : MinPositionals;
+
     /// <summary>The same spec as it applies inside a batch script — no trailing <c>&lt;root&gt;</c>.</summary>
     public VerbSpec InBatch => this with { TakesRoot = false };
 }
@@ -109,10 +115,23 @@ internal sealed class VerbArgs
         }
 
         var allowed = spec.Positionals + (spec.TakesRoot ? 1 : 0);
-        if (positionals.Count < spec.Positionals)
+        if (positionals.Count < spec.Required)
         {
             error = Fail(spec, positionals.Count == 0 ? "missing arguments" : "not enough arguments");
             return false;
+        }
+
+        // With an optional positional, a lone directory is the <root>, not the id: `nfi tree D:\SomeRepo`
+        // means "that repo's tree", and reading it as a node id would search THIS repo and report the path
+        // as a missing node. Only an existing directory moves, so a real id — which never names one — is
+        // untouched, and the surplus/unknown-argument strictness elsewhere is unchanged.
+        if (spec.TakesRoot && positionals.Count > 0 && positionals.Count <= spec.Positionals
+            && positionals.Count - 1 >= spec.Required            // moving it must not empty a REQUIRED slot
+            && Directory.Exists(positionals[^1]))
+        {
+            var root = positionals[^1];
+            positionals[^1] = string.Empty;                       // the optional slot goes unsupplied
+            positionals.Add(root);
         }
         if (positionals.Count > allowed)
         {
