@@ -899,6 +899,13 @@ public sealed class GraphBuilder
         Meta(project, "output_type", (Property("OutputType") ?? "Library").ToLowerInvariant());
         if ((Property("TargetFramework") ?? Property("TargetFrameworks")) is { Length: > 0 } tfm)
             Meta(project, "target_framework", tfm);
+
+        // The SDK is what a project says it *is*, and it is the only such statement some projects make.
+        // A test project may declare nothing but Sdk="MSTest.Sdk/3.6.4" — no package reference, no naming
+        // convention — so inferring "this is a test project" from a dependency works in one repository and
+        // silently fails in the next. Sdk="Microsoft.NET.Sdk.Web", "WixToolset.Sdk" and friends are the same
+        // fact for other project kinds.
+        if (doc.Root?.Attribute("Sdk")?.Value is { Length: > 0 } sdk) Meta(project, "sdk", sdk);
         foreach (var pr in doc.Descendants().Where(e => e.Name.LocalName == "ProjectReference"))
             if (pr.Attribute("Include")?.Value is { Length: > 0 } inc
                 && ToRel(Path.GetFullPath(Path.Combine(dir, inc.Replace('\\', Path.DirectorySeparatorChar)))) is { } target)

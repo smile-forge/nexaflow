@@ -916,8 +916,14 @@ internal static class Program
     /// </summary>
     private static string[] FileRootsFor(string productRoot)
     {
+        // Same distinction as GraphCodeRoot: the caller's tree is only a better place to look when it is a
+        // worktree OF this product root. Pointed at another repository, preferring the caller's tree would
+        // resolve that repo's snaplinks against this one's files and quietly validate the wrong source.
         var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
-        return caller is { Length: > 0 } ? [caller, productRoot] : [productRoot];
+        if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return [productRoot];
+        return TryFindMainCheckout(caller, out var callerMain) && PathsEqual(callerMain, productRoot)
+            ? [caller, productRoot]
+            : [productRoot];
     }
 
     /// <summary>The git working-tree root enclosing <paramref name="dir"/> — the directory that holds a <c>.git</c>
@@ -942,7 +948,17 @@ internal static class Program
         if (a.Has("--main")) return null;
         if (a.Value("--code-root") is { Length: > 0 } explicitRoot) return Path.GetFullPath(explicitRoot);
         var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
-        return caller is { Length: > 0 } && !PathsEqual(caller, productRoot) ? caller : null;
+        if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
+
+        // "The caller's tree differs from the product root" describes two completely different situations, and
+        // only one of them means "graph the branch I am on". The other is `nfi graph <some-other-repo>` run
+        // from here, where the caller's tree is not a worktree of that repo at all — and taking it silently
+        // graphed THIS repository into the other one's .product/, complete with a note explaining the wrong
+        // thing it had just done. The test that separates them is whether the caller is a linked worktree
+        // whose main checkout IS this product root.
+        return TryFindMainCheckout(caller, out var callerMain) && PathsEqual(callerMain, productRoot)
+            ? caller
+            : null;
     }
 
     // ── describe --code: resolve every code snaplink to the actual source, so "what backs this node" is

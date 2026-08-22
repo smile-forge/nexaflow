@@ -205,6 +205,8 @@ public class GraphBuilderTests
             + "<TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
         File.WriteAllText(Path.Combine(root, "Lib.csproj"),
             "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(root, "Tests.csproj"),
+            "<Project Sdk=\"MSTest.Sdk/3.6.4\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
 
         var state = new ProductState
         {
@@ -226,6 +228,11 @@ public class GraphBuilderTests
 
             Assert.AreEqual("winexe", Meta("file:App.csproj", "output_type"));
             Assert.AreEqual("net10.0", Meta("file:App.csproj", "target_framework"));
+            Assert.AreEqual("Microsoft.NET.Sdk", Meta("file:App.csproj", "sdk"));
+            // Some projects declare what they are ONLY through the SDK — a test project can carry
+            // Sdk="MSTest.Sdk" and no package reference at all, so inferring test-ness from a dependency
+            // works in one repository and silently fails in the next.
+            Assert.AreEqual("MSTest.Sdk/3.6.4", Meta("file:Tests.csproj", "sdk"));
             // Absent OutputType means a library — the SDK's own default, recorded rather than left missing.
             Assert.AreEqual("library", Meta("file:Lib.csproj", "output_type"));
         }
