@@ -152,7 +152,8 @@ internal sealed class MarkdownSamples : ISampleSet
 
         Constructs that arrange sub-expressions: fractions, roots, big operators, integrals,
         auto-sized delimiters, **matrices** (all delimiter variants), the aligned and gathered
-        environments, style switches, stacked annotations, frames and phantoms. See the
+        environments, style switches, stacked annotations, frames, phantoms, horizontal braces and
+        stacked limits. See the
         [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
         supported, with engine gaps flagged as *Not supported*.
 
@@ -317,7 +318,27 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \smash{\frac{a}{b}} \;\; a\mathllap{/}b \;\; a\mathrlap{/}b \;\; a\mathclap{/}b $$
 
-        *Not supported:* `\begin{array}` · `\overbrace` · `\underbrace` · `\substack`
+        ## Horizontal braces
+
+        `\overbrace{…}` and `\underbrace{…}` stretch a brace to the width of what they span. Both are
+        operators, so the script that follows is set beyond the brace rather than beside it — `^` labels
+        an `\overbrace`, `_` labels an `\underbrace`:
+
+        $$ \overbrace{a + b + c}^{\text{three terms}} + \underbrace{d + e}_{\text{two more}} $$
+
+        $$ \underbrace{\overbrace{a_1 + \cdots + a_n}^{n} + b}_{\text{everything}} $$
+
+        A brace needs no label:
+
+        $$ \overbrace{x + y} \;\; \underbrace{x + y} $$
+
+        ## Stacked limits
+
+        `\substack{… \\ …}` stacks several conditions into one limit of a big operator:
+
+        $$ \sum_{\substack{0 < i < m \\ 0 < j < n}} P(i, j) \quad \prod_{\substack{p \text{ prime} \\ p \mid n}} p $$
+
+        *Not supported:* `\begin{array}`
         """;
 
     private const string LatexMathFonts =
@@ -374,13 +395,8 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y \;\; x\quad y \;\; x\qquad y \;\; x~y \;\; x\ y \;\; x\hspace{12pt}y $$
 
-        ## Not supported — decorations
-
-        These otherwise-standard constructs currently fall back to source rather than rendering:
-
-        `\overbrace` · `\underbrace` · `\substack`
-
-        The phantoms and the stacked annotations moved the other way and now render — see the
+        The decorations that used to be listed here as unsupported — `\overbrace`, `\underbrace`,
+        `\substack`, the phantoms and the stacked annotations — all render now; they live in the
         [structures reference](latex-math-structures.md).
         """;
 
