@@ -1,0 +1,209 @@
+# amsmath constructs, grouped by the section of the user guide that introduces them.
+# section | name | sample markup | caveat
+#
+# A blank sample means the construct is document-level - numbering, page breaks, cross
+# references - and has no meaning in a standalone formula, so it is not counted either way.
+# A caveat records something that renders but is not faithful: the survey can only see whether
+# a formula comes out, not whether it came out right, so anything known to be approximate has
+# to be written down here.
+Single equations|equation|x = y
+Single equations|equation*|x = y
+Split equations without alignment|multline|a + b + c \\ + d + e
+Split equations without alignment|multline*|a + b \\ + c
+Split equations with alignment|split|a &= b \\ &= c
+Equation groups without alignment|gather|a = b \\ c = d
+Equation groups without alignment|gather*|a = b \\ c = d
+Equation groups with mutual alignment|align|a &= b \\ c &= d
+Equation groups with mutual alignment|align*|a &= b \\ c &= d
+Equation groups with mutual alignment|flalign|a &= b \\ c &= d
+Equation groups with mutual alignment|flalign*|a &= b \\ c &= d
+Equation groups with mutual alignment|alignat|a &= b & c &= d
+Equation groups with mutual alignment|alignat*|a &= b & c &= d
+Equation groups with mutual alignment|xalignat|a &= b & c &= d
+Equation groups with mutual alignment|xxalignat|a &= b & c &= d
+Alignment building blocks|aligned|a &= b \\ c &= d
+Alignment building blocks|alignedat|a &= b & c &= d
+Alignment building blocks|gathered|a = b \\ c = d
+Interrupting a display|\intertext|
+Interrupting a display|\shortintertext|
+Adjusting tag placement|\raisetag|
+Vertical spacing and page breaks|\allowdisplaybreaks|
+Vertical spacing and page breaks|\displaybreak|
+Vertical spacing and page breaks|\shoveleft|
+Vertical spacing and page breaks|\shoveright|
+Vertical spacing and page breaks|\multlinegap|
+Equation numbering|\tag|
+Equation numbering|\tag*|
+Equation numbering|\notag|
+Equation numbering|\eqref|
+Equation numbering|\numberwithin|
+Equation numbering|subequations|
+Matrices|matrix|a & b \\ c & d
+Matrices|pmatrix|a & b \\ c & d
+Matrices|bmatrix|a & b \\ c & d
+Matrices|Bmatrix|a & b \\ c & d
+Matrices|vmatrix|a & b \\ c & d
+Matrices|Vmatrix|a & b \\ c & d
+Matrices|smallmatrix|a & b \\ c & d
+Matrices|cases|a & x > 0 \\ b & x < 0
+Matrices|array|{cc} a & b \\ c & d
+Matrices|\hdotsfor|\begin{pmatrix} a & b \\ \hdotsfor{2} \end{pmatrix}
+Math spacing commands|\quad|a \quad b
+Math spacing commands|\qquad|a \qquad b
+Math spacing commands|\thinspace|a \thinspace b
+Math spacing commands|\medspace|a \medspace b
+Math spacing commands|\thickspace|a \thickspace b
+Math spacing commands|\negthinspace|a \negthinspace b
+Math spacing commands|\negmedspace|a \negmedspace b
+Math spacing commands|\negthickspace|a \negthickspace b
+Math spacing commands|\mspace|a \mspace{18mu} b
+Dots|\dots|a \dots b
+Dots|\dotsb|a \dotsb b
+Dots|\dotsc|a \dotsc b
+Dots|\dotsi|a \dotsi b
+Dots|\dotsm|a \dotsm b
+Dots|\dotso|a \dotso b
+Dots|\cdots|a \cdots b
+Dots|\ldots|a \ldots b
+Dots|\vdots|\vdots
+Dots|\ddots|\ddots
+Nonbreaking dashes|\nobreakdash|
+Accents in math|\hat|\hat{a}
+Accents in math|\dot|\dot{a}
+Accents in math|\ddot|\ddot{a}
+Accents in math|\dddot|\dddot{a}
+Accents in math|\ddddot|\ddddot{a}
+Accents in math|\accentedsymbol|
+Accents in math|\sphat|a\sphat
+Accents in math|\sptilde|a\sptilde
+Roots|\sqrt|\sqrt{x}
+Roots|\sqrt[n]|\sqrt[3]{x}
+Roots|\leftroot|\sqrt[\leftroot{2}\beta]{k}
+Roots|\uproot|\sqrt[\uproot{2}\beta]{k}
+Boxed formulas|\boxed|\boxed{x}
+Boxed formulas|\fbox|\fbox{x}
+Over and under arrows|\overrightarrow|\overrightarrow{AB}
+Over and under arrows|\overleftarrow|\overleftarrow{AB}
+Over and under arrows|\overleftrightarrow|\overleftrightarrow{AB}
+Over and under arrows|\underrightarrow|\underrightarrow{AB}
+Over and under arrows|\underleftarrow|\underleftarrow{AB}
+Over and under arrows|\underleftrightarrow|\underleftrightarrow{AB}
+Extensible arrows|\xleftarrow|\xleftarrow{f}
+Extensible arrows|\xrightarrow|\xrightarrow{f}
+Extensible arrows|\xleftarrow[under]|\xleftarrow[g]{f}
+Extensible arrows|\xrightarrow[under]|\xrightarrow[g]{f}
+Affixing symbols to other symbols|\overset|\overset{a}{b}
+Affixing symbols to other symbols|\underset|\underset{a}{b}
+Affixing symbols to other symbols|\overunderset|\overunderset{a}{b}{c}
+Affixing symbols to other symbols|\stackrel|\stackrel{f}{\rightarrow}
+Affixing symbols to other symbols|\sideset|\sideset{_a^b}{_c^d}\sum
+Fractions and related|\frac|\frac{a}{b}
+Fractions and related|\dfrac|\dfrac{a}{b}
+Fractions and related|\tfrac|\tfrac{a}{b}
+Fractions and related|\binom|\binom{n}{k}
+Fractions and related|\dbinom|\dbinom{n}{k}
+Fractions and related|\tbinom|\tbinom{n}{k}
+Fractions and related|\genfrac|\genfrac{(}{)}{0pt}{}{n}{k}
+Fractions and related|\fracwithdelims|\fracwithdelims(){1}{2}
+Fractions and related|\over|a \over b
+Fractions and related|\atop|a \atop b
+Continued fractions|\cfrac|\cfrac{1}{2+\cfrac{1}{3}}
+Continued fractions|\cfrac[l]|\cfrac[l]{1}{2}
+Smash options|\vphantom|x^{\vphantom{2}}
+Smash options|\smash|\smash{\frac{a}{b}}
+Smash options|\smash[t]|\smash[t]{y}|the optional argument is not read - "[t]" is typeset
+Smash options|\smash[b]|\smash[b]{y}|the optional argument is not read - "[b]" is typeset
+Delimiters|\left \right|\left( \frac{a}{b} \right)
+Delimiters|\bigl \bigr|\bigl( x \bigr)
+Delimiters|\Bigl \Bigr|\Bigl( x \Bigr)
+Delimiters|\biggl \biggr|\biggl( x \biggr)
+Delimiters|\Biggl \Biggr|\Biggl( x \Biggr)
+Delimiters|\big \Big \bigg \Bigg|\big( \Big( \bigg( \Bigg(
+Delimiters|\lvert \rvert|\lvert x \rvert
+Delimiters|\lVert \rVert|\lVert x \rVert
+Delimiters|\langle \rangle|\langle x \rangle
+Delimiters|\DeclarePairedDelimiter|
+Defining new operator names|\operatorname|\operatorname{argmax}
+Defining new operator names|\operatorname*|\operatorname*{argmax}_{x}
+Defining new operator names|\DeclareMathOperator|
+Defining new operator names|\injlim|\injlim
+Defining new operator names|\projlim|\projlim
+Defining new operator names|\varinjlim|\varinjlim
+Defining new operator names|\varprojlim|\varprojlim
+Defining new operator names|\varliminf|\varliminf
+Defining new operator names|\varlimsup|\varlimsup
+mod and its relatives|\mod|a \mod b
+mod and its relatives|\bmod|a \bmod b
+mod and its relatives|\pmod|a \pmod{n}
+mod and its relatives|\pod|a \pod{n}
+Multiline subscripts and superscripts|\substack|\sum_{\substack{a \\ b}} x
+Multiline subscripts and superscripts|subarray|\sum_{\begin{subarray}{l} a \\ b \end{subarray}} x
+Placement of subscripts and limits|\limits|\sum\limits_{i} x
+Placement of subscripts and limits|\nolimits|\sum\nolimits_{i} x
+Placement of subscripts and limits|\displaylimits|\sum\displaylimits_{i} x
+Multiple integral signs|\iint|\iint
+Multiple integral signs|\iiint|\iiint
+Multiple integral signs|\iiiint|\iiiint
+Multiple integral signs|\idotsint|\idotsint
+Math font commands|\text|\text{a b}
+Math font commands|\textrm|\textrm{ab}
+Math font commands|\mbox|\mbox{a b}
+Math font commands|\mathrm|\mathrm{ab}
+Math font commands|\mathit|\mathit{ab}
+Math font commands|\mathbf|\mathbf{ab}
+Math font commands|\mathsf|\mathsf{ab}
+Math font commands|\mathtt|\mathtt{ab}
+Math font commands|\mathcal|\mathcal{AB}
+Math font commands|\mathbb|\mathbb{AB}
+Math font commands|\mathfrak|\mathfrak{ab}
+Math font commands|\mathscr|\mathscr{AB}
+Math font commands|\displaystyle|\displaystyle x
+Math font commands|\textstyle|\textstyle x
+Math font commands|\scriptstyle|\scriptstyle x
+Math font commands|\scriptscriptstyle|\scriptscriptstyle x
+Bold math symbols|\boldsymbol|\boldsymbol{\alpha}
+Bold math symbols|\pmb|\pmb{\alpha}
+Italic Greek letters|\varGamma|\varGamma
+Italic Greek letters|\varDelta|\varDelta
+Italic Greek letters|\varTheta|\varTheta
+Italic Greek letters|\varLambda|\varLambda
+Italic Greek letters|\varXi|\varXi
+Italic Greek letters|\varPi|\varPi
+Italic Greek letters|\varSigma|\varSigma
+Italic Greek letters|\varUpsilon|\varUpsilon
+Italic Greek letters|\varPhi|\varPhi
+Italic Greek letters|\varPsi|\varPsi
+Italic Greek letters|\varOmega|\varOmega
+Log-like operators|\sin|\sin x
+Log-like operators|\cos|\cos x
+Log-like operators|\tan|\tan x
+Log-like operators|\cot|\cot x
+Log-like operators|\sec|\sec x
+Log-like operators|\csc|\csc x
+Log-like operators|\sinh|\sinh x
+Log-like operators|\cosh|\cosh x
+Log-like operators|\tanh|\tanh x
+Log-like operators|\coth|\coth x
+Log-like operators|\arcsin|\arcsin x
+Log-like operators|\arccos|\arccos x
+Log-like operators|\arctan|\arctan x
+Log-like operators|\exp|\exp x
+Log-like operators|\ln|\ln x
+Log-like operators|\lg|\lg x
+Log-like operators|\log|\log x
+Log-like operators|\deg|\deg f
+Log-like operators|\det|\det A
+Log-like operators|\dim|\dim V
+Log-like operators|\gcd|\gcd(a,b)
+Log-like operators|\hom|\hom(A,B)
+Log-like operators|\ker|\ker T
+Log-like operators|\max|\max_i a_i
+Log-like operators|\min|\min_i a_i
+Log-like operators|\sup|\sup S
+Log-like operators|\inf|\inf S
+Log-like operators|\arg|\arg z
+Log-like operators|\Pr|\Pr(X)
+Log-like operators|\lim|\lim_{x \to 0} f
+Log-like operators|\liminf|\liminf_n a_n
+Log-like operators|\limsup|\limsup_n a_n
+Commutative diagrams|CD|A @>f>> B
