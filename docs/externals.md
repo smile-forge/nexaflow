@@ -293,9 +293,20 @@ the submodule convention (org fork, `upstream` remote, `nexaflow` integration br
 - **A new submodule ⇒ add a sentinel path** to the `EnsureSubmodulesInitialized` condition in
   `Directory.Build.targets` (a file that only exists once the submodule is checked out), or a fresh
   worktree won't self-populate it.
-- **New `src/**` project ⇒ add it to `Nexaflow.slnx`** (guard: `SolutionMembershipTests`). Submodule
-  projects under `external/` are **exempt** — they build transitively via ProjectReference and must NOT be
-  added to the solution.
+- **New `src/**` project ⇒ add it to `Nexaflow.slnx`** (guard: `SolutionMembershipTests`).
+- **A submodule project that `src/` references goes in the solution too**, under the `/External/` folder.
+  This reverses earlier advice that they were exempt because ProjectReference builds them transitively.
+  That is true of `dotnet build` and **not** of Visual Studio: VS restores the projects the solution *lists*,
+  so a ProjectReference into an unlisted one fails with **NU1105 "unable to find project information"** and
+  the solution will not build. It looked like a tree-sitter problem when that submodule arrived; it was not.
+  Delete `external/xaml-math/src/WpfMath/obj` and the identical failure appears for a submodule that has
+  been here for months — the older ones only ever worked because their `obj/` was warm. Verified by removing
+  every `external/**/obj` and building `Nexaflow.slnx` with VS's own MSBuild.
+  - The cost is small and worth knowing: a *listed* project builds **all** its target frameworks, where a
+    ProjectReference builds only the one the consumer resolves. WpfMath multi-targets `net462;net8.0-windows`,
+    so listing it adds a `net462` build nothing here consumes — a few seconds on a warm solution build.
+  - A **separate solution** for the externals does not solve this: `Nexaflow.slnx` would still not list
+    them, which is exactly the state that produces NU1105.
 - A new consuming feature needs the full add-feature wiring (Core + Tests `ProjectReference`, a test class,
   slnx membership, product-tree node) or the architecture guards go red. See `.claude/skills/add-feature`.
 

@@ -254,4 +254,34 @@
   <Project Path="src/Nexaflow.Visuals.Web/Nexaflow.Visuals.Web.csproj">
     <Platform Project="x64" />
   </Project>
+  <!--
+    The submodule projects src/ references, listed for the IDE's sake.
+
+    `dotnet build` follows a ProjectReference into external/ and compiles it transitively, so CI and the
+    command line never needed these. Visual Studio does not: its solution restore covers the projects the
+    solution LISTS, and a ProjectReference to one it has never restored fails with NU1105 "unable to find
+    project information". The three older submodules only appeared to work because their obj/ had been warm
+    for months - delete it and they fail identically, so this was a latent cold-clone bug rather than
+    anything specific to tree-sitter.
+
+    They build AnyCPU (each carries its own Directory.Build.props, so none inherits this repo's x64 pin),
+    hence the explicit AnyCPU mapping against the x64 solution platform.
+  -->
+  <Folder Name="/External/">
+    <Project Path="external/DiscUtils/Library/DiscUtils.Containers/DiscUtils.Containers.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Core/DiscUtils.Core.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.FileSystems/DiscUtils.FileSystems.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/xaml-math/src/WpfMath/WpfMath.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+  </Folder>
 </Solution>
