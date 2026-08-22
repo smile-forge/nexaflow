@@ -61,9 +61,9 @@ internal sealed class MarkdownSamples : ISampleSet
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
         called out under each section as *Not supported*. When a formula does fail, the app shows
         its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\operatorname`:
+        deliberately uses the unsupported `\genfrac`:
 
-        $$ \operatorname{argmax}_{x} f(x) $$
+        $$ \genfrac{(}{)}{0pt}{}{n}{k} $$
 
         ## Spacing
 
@@ -321,6 +321,23 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \smash{\frac{a}{b}} \;\; a\mathllap{/}b \;\; a\mathrlap{/}b \;\; a\mathclap{/}b $$
 
+        ## Arrays
+
+        `array` is the only environment taking an argument: a column preamble, where `l`, `c` and `r`
+        give each column its own alignment — something no other matrix environment offers — and `|`
+        asks for a rule at that boundary. `\hline` rules between rows.
+
+        $$ \begin{array}{lcr} \text{left} & \text{centre} & \text{right} \\ a & bb & ccc \end{array} $$
+
+        Which is how an augmented matrix is set:
+
+        $$ \left[\begin{array}{cc|c} 1 & 0 & 3 \\ 0 & 1 & 4 \end{array}\right] $$
+
+        $$ \begin{array}{|c|c|} \hline x & f(x) \\ \hline 0 & 1 \\ 1 & e \\ \hline \end{array} $$
+
+        A preamble asking for something the engine cannot draw — `p{2cm}`, `@{…}` — is an error rather
+        than a grid quietly missing it.
+
         ## Horizontal braces
 
         `\overbrace{…}` and `\underbrace{…}` stretch a brace to the width of what they span. Both are
@@ -340,8 +357,6 @@ internal sealed class MarkdownSamples : ISampleSet
         `\substack{… \\ …}` stacks several conditions into one limit of a big operator:
 
         $$ \sum_{\substack{0 < i < m \\ 0 < j < n}} P(i, j) \quad \prod_{\substack{p \text{ prime} \\ p \mid n}} p $$
-
-        *Not supported:* `\begin{array}`
         """;
 
     private const string LatexMathFonts =
@@ -393,7 +408,17 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \textbf{bold text} \;\; \textsf{sans text} \;\; \texttt{mono text} \;\; \textsc{small caps} $$
 
-        *Not supported:* `\mbox` · `\operatorname`
+        `\mbox{…}` is the same thing under another name:
+
+        $$ n > 0 \;\; \mbox{for every n in the set} $$
+
+        ## Named operators
+
+        `\operatorname{…}` sets a name upright *and* types it as an operator, so it takes operator
+        spacing and a following script becomes its limit rather than a subscript hanging off the last
+        letter. The starred form puts that limit underneath in display style:
+
+        $$ \operatorname{Tr}(A) = \sum_i a_{ii} \qquad \operatorname*{argmax}_{\theta} L(\theta) $$
 
         ## Colour
 
