@@ -348,37 +348,36 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # LaTeX math — fonts, text & styling
 
-        Math alphabets, embedded text, colour, spacing and cancellation. See the
-        [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
-        supported, with engine gaps flagged as *Not supported*.
+        Math alphabets, embedded text, colour, spacing and cancellation. Thirteen Computer Modern,
+        AMS and Euler faces are bundled, so every alphabet command sets its own typeface rather than
+        falling back to roman. See the [symbols reference](latex-math-symbols.md) for the reading
+        convention; each `$$` block is supported, with engine gaps flagged as *Not supported*.
 
         ## Math alphabets
 
-        $$ \mathrm{Abc} \;\; \mathit{Abc} $$
+        Every math alphabet has its own face:
 
-        Four alphabets are real, each from its own face. `\mathcal` is the symbol font's calligraphic
-        capitals and `\mathscr` is Ralph Smith's Formal Script — two different alphabets, not two names
-        for one:
+        $$ \mathrm{Hamburg} \;\; \mathit{Hamburg} \;\; \mathbf{Hamburg} $$
+
+        $$ \mathsf{Hamburg} \;\; \mathtt{Hamburg} \;\; \mathfrak{Hamburg} $$
+
+        The two script alphabets are genuinely different — `\mathcal` is the symbol font's calligraphic
+        capitals, `\mathscr` is Ralph Smith's Formal Script:
 
         $$ \mathcal{ABCDEFG} \qquad \mathscr{ABCDEFG} $$
 
-        `\mathbb` is blackboard bold, from the AMS `msbm` font. Both it and `\mathscr` are capitals-only,
-        since neither face carries lowercase or digits:
+        `\mathbb` is blackboard bold, from the AMS `msbm` font. It and `\mathscr` are the only
+        capitals-only alphabets — neither face carries lowercase or digits, so those fall back:
 
         $$ \mathbb{N} \subset \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C} $$
-
-        The remaining alphabets **parse**, but no bold, sans-serif, monospace or Fraktur face ships with
-        the engine, so each falls back to upright roman:
-
-        $$ \mathbf{Abc} \;\; \mathsf{Abc} \;\; \mathtt{Abc} \;\; \mathfrak{g} $$
 
         *Not supported:* `\boldsymbol`
 
         ## Text inside math
 
         `\text` and the `\text*` family treat their argument as text rather than maths, so the spaces
-        inside survive. The same face caveat as above applies: only `\textrm` and `\textit` get the face
-        they ask for, and `\textsc` sets small letters as full capitals.
+        inside survive — and each gets the face it asks for, `\textit` the *text* italic rather than the
+        maths one, `\textsc` real small capitals rather than full-height ones:
 
         $$ x + y = z \;\; \text{(a labelled equation)} \;\; \textrm{roman text} \;\; \textit{italic text} $$
 
