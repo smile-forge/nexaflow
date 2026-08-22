@@ -23,6 +23,7 @@
     the bindings repo carries no XML grammar.
   -->
   <ItemGroup>
+    <TreeSitterGrammar Include="c"                 SourceDir="src" />
     <TreeSitterGrammar Include="c-sharp"           SourceDir="src" />
     <TreeSitterGrammar Include="javascript"        SourceDir="src" />
     <TreeSitterGrammar Include="typescript"        SourceDir="typescript/src" />

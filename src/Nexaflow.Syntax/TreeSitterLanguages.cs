@@ -24,6 +24,7 @@ public static class TreeSitterLanguages
         Register("json",       ".json");
         Register("rust",       ".rs");
         Register("cpp",        ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".ipp");
+        Register("c",          ".c", ".h");
         Register("java",       ".java");
 
         // Markup / templating languages — also the hosts for embedded-language injection (a <script> in
@@ -39,7 +40,10 @@ public static class TreeSitterLanguages
         // structure extractor can read WPF meaning - x:Class/x:Name/x:Key, event handlers - out of .xaml
         // while a plain .xml gets a generic element outline.
         Register("xaml", ".xaml");
-        Register("xml",  ".xml", ".xsl", ".xslt");
+        // The build and the installer are XML too, and were the last unread part of how this app ships:
+        // .wxs/.wxl author the MSI, .props/.targets carry logic every project inherits. (.wixproj already
+        // reads through the csproj path — it is a project file with PropertyGroups like any other.)
+        Register("xml",  ".xml", ".xsl", ".xslt", ".wxs", ".wxl", ".props", ".targets", ".manifest");
         // .ipynb is owned by the Notebook feature (its own viewer), not the code editor.
     }
 

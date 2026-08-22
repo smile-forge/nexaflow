@@ -294,7 +294,16 @@ public sealed class GraphBuilder
     private FileContribution GetContribution(string rel, string full)
     {
         var text = SnaplinkTargets.ReadText(full);
-        if (text is null) return new FileContribution { Nodes = { BareFileNode(rel) } };
+        if (text is null)
+        {
+            // Absent, binary, or past the read cap. Say which of those it is rather than leaving a node that
+            // is silently emptier than its neighbours: a 31 MB generated parser table and a corrupt file look
+            // identical here otherwise, and only one of them is a problem.
+            var bare = BareFileNode(rel);
+            (bare.Metadata ??= new())["unread"] = RepoFiles.IsGenerated(full) ? "generated" : "too-large-or-binary";
+            if (RepoFiles.IsGenerated(full)) bare.Metadata["generated"] = "true";
+            return new FileContribution { Nodes = { bare } };
+        }
 
         var hash = Hashing.Md5(text);
         if (_cache.Files.TryGetValue(rel, out var cached) && cached.Hash == hash) return cached;
@@ -359,6 +368,17 @@ public sealed class GraphBuilder
         // exists to prevent. The text is already in hand here for the hash and the outline, so it is free.
         (fileNode.Metadata ??= new())["lines"] = (text.AsSpan().Count('\n') + 1).ToString();
 
+        // A generated file is located, sized and labelled, and then left alone. Expanding one is all cost:
+        // a tree-sitter parser.c would contribute thousands of table entries nobody will ever query, and the
+        // hand-written scanner.c beside it stays fully parsed because the test is the file, not the language.
+        if (RepoFiles.IsGenerated(full))
+        {
+            fileNode.Metadata["generated"] = "true";
+            c.Nodes = [.. nodes.Values];
+            c.Edges = [.. edges.Values];
+            return c;
+        }
+
         var outline = OutlineFor(rel, full, text);
         if (outline is not null)
         {
@@ -407,7 +427,7 @@ public sealed class GraphBuilder
     /// stay pristine), and the unresolved bases + raw relation sites for the global resolution passes.</summary>
     private void ApplyContribution(string rel, FileContribution c)
     {
-        foreach (var n in c.Nodes) _nodes.TryAdd(n.Id, n);
+        foreach (var n in c.Nodes) Merge(n);
         foreach (var e in c.Edges) Edge(e.Source, e.Target, e.Relationship, e.Confidence, e.ProvenanceFile);
         foreach (var b in c.Bases) _bases.Add((b.TypeId, b.Name, b.IsInterface, rel));
         foreach (var r in c.Refs) _rawRefs.Add((rel, r));
@@ -415,6 +435,33 @@ public sealed class GraphBuilder
         foreach (var a in c.Attributes) _attributes.Add((rel, a));
         foreach (var cc in c.Calls) _calls.Add((rel, cc));
         foreach (var fr in c.FileRefs) _fileRefs.Add((rel, fr));
+    }
+
+    /// <summary>
+    /// Adds a parsed node, or folds it into the one already there.
+    /// <para>
+    /// The order layers run in is not the order of knowledge. A snaplink creates <c>file:Foo.cs</c> before
+    /// anything has read Foo.cs, so a plain <c>TryAdd</c> here discarded the code layer's version of that
+    /// node — the one that actually knows the language, the line count and the structure. The symptom was
+    /// silent and selective: a file was fully parsed, its types and members were all present, and only the
+    /// *file* node looked like nothing had ever read it. Whether a file happened to be a snaplink target
+    /// decided whether it carried its own facts.
+    /// </para>
+    /// <para>Blanks are filled and unseen metadata keys added; a value already present is never overwritten,
+    /// so the merge stays order-independent and the build stays deterministic.</para>
+    /// </summary>
+    private void Merge(GraphNode incoming)
+    {
+        if (!_nodes.TryGetValue(incoming.Id, out var existing)) { _nodes[incoming.Id] = incoming; return; }
+
+        if (string.IsNullOrEmpty(existing.Language)) existing.Language = incoming.Language;
+        if (string.IsNullOrEmpty(existing.FilePath)) existing.FilePath = incoming.FilePath;
+        if (string.IsNullOrEmpty(existing.Source)) existing.Source = incoming.Source;
+        if (incoming.Metadata is null) return;
+
+        existing.Metadata ??= new();
+        foreach (var (key, value) in incoming.Metadata)
+            if (!existing.Metadata.ContainsKey(key)) existing.Metadata[key] = value;
     }
 
     // ── Phase C.3 — bare nodes for every other repo file (docs / config / images / resources) ──

@@ -130,6 +130,9 @@ public sealed class CodeStructureExtractor
         "java"       => BuildJava(root, baseDir),
         "php"        => BuildPhp(root, baseDir),
         "cpp"        => BuildCpp(root, baseDir),
+        // C reuses the C++ walk: it matches node kinds by name, and the kinds C lacks (class_specifier) are
+        // simply never seen. struct/union/enum/typedef and function definitions are shaped the same.
+        "c"          => BuildCpp(root, baseDir),
         "rust"       => BuildRust(root, baseDir),
         "razor"      => BuildRazor(root, baseDir),
         "xaml"       => BuildXaml(root, baseDir),

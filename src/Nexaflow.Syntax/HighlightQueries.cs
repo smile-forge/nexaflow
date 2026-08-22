@@ -217,6 +217,32 @@ public static class HighlightQueries
             ] @keyword
             """,
 
+        // C is its own grammar rather than an alias of cpp. Aliasing would have been two lines, but a query
+        // naming a node kind the target grammar lacks fails to compile — and `class_specifier`, `namespace_
+        // identifier` and `access_specifier` below exist only in C++. A query that fails to compile makes
+        // CodeHighlighter.TryCreate return null, which is silent and means no parse at all.
+        ["c"] =
+            """
+            (comment) @comment
+            (identifier) @variable
+            (type_identifier) @type
+            (primitive_type) @type
+            (sized_type_specifier) @type
+            (field_identifier) @variable
+            (number_literal) @number
+            (string_literal) @string
+            (char_literal) @string
+            (system_lib_string) @string
+            (preproc_directive) @keyword
+            (function_declarator declarator: (identifier) @function)
+            (call_expression function: (identifier) @function)
+            [
+              "struct" "union" "enum" "typedef" "return" "sizeof"
+              "if" "else" "for" "while" "do" "switch" "case" "default" "break" "continue" "goto"
+              "const" "static" "extern" "inline" "volatile"
+            ] @keyword
+            """,
+
         ["cpp"] =
             """
             (comment) @comment
