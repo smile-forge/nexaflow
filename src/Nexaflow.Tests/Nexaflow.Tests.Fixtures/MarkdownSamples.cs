@@ -61,9 +61,9 @@ internal sealed class MarkdownSamples : ISampleSet
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
         called out under each section as *Not supported*. When a formula does fail, the app shows
         its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\boldsymbol`:
+        deliberately uses the unsupported `\operatorname`:
 
-        $$ \boldsymbol{\alpha} + \beta $$
+        $$ \operatorname{argmax}_{x} f(x) $$
 
         ## Spacing
 
@@ -371,7 +371,17 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \mathbb{N} \subset \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C} $$
 
-        *Not supported:* `\boldsymbol`
+        ## Bold symbols
+
+        `\boldsymbol{…}` (or `\bm`) is not an alphabet: it takes each character from the bold companion
+        of whatever font it would otherwise come from, so it reaches Greek letters and symbols, which an
+        alphabet command cannot:
+
+        $$ \boldsymbol{\alpha} + \boldsymbol{\beta} = \boldsymbol{\gamma} \qquad \boldsymbol{\nabla} \times \boldsymbol{F} \qquad \bm{\Sigma}\bm{x} = \bm{\lambda} $$
+
+        A character whose font has no bold companion — an AMS symbol, say — is left as it is:
+
+        $$ \boldsymbol{A \subsetneq B} $$
 
         ## Text inside math
 
