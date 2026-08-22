@@ -107,18 +107,19 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ a \nless b \;\; a \ngtr b \;\; a \nleq b \;\; a \ngeq b \;\; a \nprec b \;\; a \nsucc b \;\; a \nsim b \;\; a \ncong b \;\; a \nmid b \;\; a \nparallel b \;\; a \nvdash b \;\; A \nsubseteq B \;\; A \nsupseteq B \;\; a \nrightarrow b \;\; a \nleftrightarrow b $$
 
-        These overlay the base relation with the zero-width `\not`.
+        Each of those is a single glyph from the AMS `msbm` font, not an overlay.
 
-        *Not supported (need the AMS `msbm` font):* `\subsetneq` · `\supsetneq` · `\lneqq` · `\gneqq` · `\varsubsetneq` · `\lnsim`
+        The strict negations, where "not equal" is part of the symbol rather than a slash through it:
+
+        $$ A \subsetneq B \;\; A \supsetneq B \;\; A \varsubsetneq B \;\; a \lneqq b \;\; a \gneqq b \;\; a \lvertneqq b \;\; a \gvertneqq b \;\; a \lnsim b \;\; a \gnapprox b \;\; a \precnsim b \;\; a \succnapprox b $$
 
         ## Set theory and logic
 
         $$ a \in A \;\; a \notin A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \varnothing \;\; \forall x \;\; \exists y \;\; \nexists z \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q \;\; p \implies q \;\; p \impliedby q \;\; p \iff q $$
 
-        `\mathbb{R}` parses, but the AMS `msbm` font is not bundled, so it is set in upright roman rather
-        than blackboard bold — see the [fonts reference](latex-math-fonts.md).
+        Blackboard bold and the Hebrew letters come from the same AMS `msbm` font:
 
-        *Not supported (need the AMS `msbm` font):* Hebrew `\beth` / `\gimel` / `\daleth`
+        $$ \mathbb{N} \subset \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C} \qquad \aleph \;\; \beth \;\; \gimel \;\; \daleth $$
 
         ## Arrows
 
@@ -143,7 +144,9 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \infty \;\; \partial \;\; \nabla \;\; \aleph \;\; \hbar \;\; \ell \;\; \Re \;\; \Im \;\; \wp \;\; \angle \;\; \triangle \;\; \top \;\; \bot \;\; \surd \;\; \flat \;\; \sharp \;\; \natural \;\; \dagger \;\; \ddagger \;\; \S \;\; \P \;\; \clubsuit \;\; \diamondsuit \;\; \heartsuit \;\; \spadesuit $$
 
-        *Not supported (need the AMS `msbm` font):* `\mho` · `\hslash` · `\Bbbk` · `\eth`
+        And from the AMS `msbm` font:
+
+        $$ \mho \;\; \hslash \;\; \Bbbk \;\; \eth \;\; \Finv \;\; \Game \;\; \digamma \;\; \varkappa \;\; \diagup \;\; \diagdown \;\; \circledR $$
         """;
 
     private const string LatexMathStructures =
@@ -353,14 +356,18 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \mathrm{Abc} \;\; \mathit{Abc} \;\; \mathcal{ABC} \;\; \mathscr{ABC} $$
 
-        The remaining alphabets **parse**, but only three faces ship with the engine (Computer Modern
-        roman, math italic and the symbol font), so there is no bold, sans-serif, monospace,
-        blackboard-bold or Fraktur face to set them in — each falls back to upright roman:
+        `\mathbb` is real blackboard bold, from the AMS `msbm` font — capitals only, since that font
+        carries no blackboard lowercase or digits:
 
-        $$ \mathbb{R} \;\; \mathbf{Abc} \;\; \mathsf{Abc} \;\; \mathtt{Abc} \;\; \mathfrak{g} $$
+        $$ \mathbb{N} \subset \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C} $$
 
-        So `\mathbb{R}` reads as *R*, not ℝ. `\mathscr` is the exception: it is genuinely the
-        calligraphic alphabet, the same one `\mathcal` uses.
+        The remaining alphabets **parse**, but no bold, sans-serif, monospace or Fraktur face ships with
+        the engine, so each falls back to upright roman:
+
+        $$ \mathbf{Abc} \;\; \mathsf{Abc} \;\; \mathtt{Abc} \;\; \mathfrak{g} $$
+
+        `\mathscr` is the other exception: it is genuinely the calligraphic alphabet, the same one
+        `\mathcal` uses.
 
         *Not supported:* `\boldsymbol`
 
@@ -404,19 +411,19 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # LaTeX math — AMS symbols (amssymb)
 
-        A coverage map of the AMS `amssymb` symbol set: **167 of 224** symbols render with the bundled
-        fonts. Each `$$` block below uses only symbols the engine **supports**, so it typesets; the symbols it
-        does **not** support are listed after each group as *Not supported*. (In the app an unsupported formula
-        falls back to showing its raw `$$ … $$` source, so nothing here is silently wrong.)
+        A coverage map of the AMS `amssymb` symbol set: **all 224** symbols render. Both AMS symbol fonts
+        are bundled — `msam` (symbols A) and `msbm` (symbols B) — so what used to be listed here as
+        *Not supported* is now just a set of glyphs.
 
-        Almost every gap is a **missing font**, not a layout limitation: the dedicated AMS glyphs live in the
-        `msbm` font (blackboard-bold, Hebrew letters, the "negation-with-its-own-glyph" relations such as
-        `\subsetneq`/`\lneqq`) and a handful of `msam` glyphs (`\ltimes`, `\lessdot`, `\dashrightarrow`, …)
-        that the bundled `jlm_msam10` re-encoding omits. Bundling those fonts is the way to close the gap.
+        Every gap this page once had was a **missing font**, not a layout limitation. `msbm` carries
+        blackboard bold, the Hebrew letters, and the relations where "not equal" is drawn into the symbol
+        rather than slashed through it (`\subsetneq`, `\lneqq`, …); a few `msam` glyphs were present all
+        along but unmapped. The negated relations are real glyphs now rather than a base relation with a
+        zero-width `\not` laid over it.
 
         See the [symbols reference](latex-math-symbols.md) for the core LaTeX symbols and the reading convention.
 
-        ## Relations — 56 of 66 render
+        ## Relations — 66 of 66 render
 
         $$ \leqq \;\; \leqslant \;\; \eqslantless \;\; \lesssim \;\; \lessapprox \;\; \lll \;\; \lessgtr \;\; \lesseqgtr \;\; \lesseqqgtr \;\; \doteqdot \;\; \risingdotseq \;\; \fallingdotseq \;\; \backsim $$
 
@@ -428,17 +435,17 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \blacktriangleleft \;\; \therefore \;\; \blacktriangleright \;\; \because $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\approxeq` · `\lessdot` · `\precapprox` · `\gtrdot` · `\thicksim` · `\thickapprox` · `\succapprox` · `\shortmid` · `\shortparallel` · `\backepsilon`
+        $$ \approxeq \;\; \lessdot \;\; \precapprox \;\; \gtrdot \;\; \thicksim \;\; \thickapprox \;\; \succapprox \;\; \shortmid \;\; \shortparallel \;\; \backepsilon \;\; \eqsim $$
 
-        ## Binary operators — 19 of 23 render
+        ## Binary operators — 23 of 23 render
 
         $$ \dotplus \;\; \Cap \;\; \Cup \;\; \barwedge \;\; \veebar \;\; \doublebarwedge \;\; \boxminus \;\; \boxtimes \;\; \boxdot \;\; \boxplus \;\; \leftthreetimes \;\; \rightthreetimes \;\; \curlywedge $$
 
         $$ \curlyvee \;\; \circleddash \;\; \circledast \;\; \circledcirc \;\; \centerdot \;\; \intercal $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\smallsetminus` · `\divideontimes` · `\ltimes` · `\rtimes`
+        $$ \smallsetminus \;\; \divideontimes \;\; \ltimes \;\; \rtimes $$
 
-        ## Arrows — 28 of 32 render
+        ## Arrows — 32 of 32 render
 
         $$ \leftleftarrows \;\; \leftrightarrows \;\; \Lleftarrow \;\; \twoheadleftarrow \;\; \leftarrowtail \;\; \looparrowleft \;\; \leftrightharpoons \;\; \circlearrowleft \;\; \Lsh \;\; \upuparrows \;\; \upharpoonleft \;\; \downharpoonleft \;\; \multimap $$
 
@@ -446,9 +453,9 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \Rrightarrow \;\; \leadsto $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\dashrightarrow` · `\dashleftarrow` · `\curvearrowleft` · `\curvearrowright`
+        $$ \dashrightarrow \;\; \dashleftarrow \;\; \curvearrowleft \;\; \curvearrowright $$
 
-        ## Negated relations — 31 of 56 render
+        ## Negated relations — 56 of 56 render
 
         $$ \nless \;\; \nleq \;\; \nleqslant \;\; \nleqq \;\; \nprec \;\; \npreceq \;\; \nsim \;\; \nmid \;\; \nvdash \;\; \nVdash \;\; \ntriangleleft \;\; \ntrianglelefteq \;\; \nsubseteq $$
 
@@ -456,9 +463,13 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \nrightarrow \;\; \nLeftarrow \;\; \nRightarrow \;\; \nleftrightarrow \;\; \nLeftrightarrow $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\lneq` · `\lneqq` · `\lvertneqq` · `\lnsim` · `\lnapprox` · `\precnsim` · `\precnapprox` · `\nshortmid` · `\subsetneq` · `\varsubsetneq` · `\subsetneqq` · `\varsubsetneqq` · `\gneq` · `\gneqq` · `\gvertneqq` · `\gnsim` · `\gnapprox` · `\succnsim` · `\succnapprox` · `\nshortparallel` · `\nVDash` · `\supsetneq` · `\varsupsetneq` · `\supsetneqq` · `\varsupsetneqq`
+        The strict negations, where the inequality is drawn into the glyph:
 
-        ## Miscellaneous & letters — 27 of 41 render
+        $$ \lneq \;\; \lneqq \;\; \lvertneqq \;\; \lnsim \;\; \lnapprox \;\; \precnsim \;\; \precnapprox \;\; \precneqq \;\; \nshortmid \;\; \subsetneq \;\; \varsubsetneq \;\; \subsetneqq \;\; \varsubsetneqq $$
+
+        $$ \gneq \;\; \gneqq \;\; \gvertneqq \;\; \gnsim \;\; \gnapprox \;\; \succnsim \;\; \succnapprox \;\; \succneqq \;\; \nshortparallel \;\; \nVDash \;\; \supsetneq \;\; \varsupsetneq \;\; \supsetneqq \;\; \varsupsetneqq $$
+
+        ## Miscellaneous & letters — 41 of 41 render
 
         $$ \hbar \;\; \vartriangle \;\; \triangledown \;\; \square \;\; \lozenge \;\; \circledS \;\; \angle \;\; \measuredangle \;\; \sphericalangle \;\; \nexists \;\; \backprime \;\; \varnothing \;\; \blacktriangle $$
 
@@ -466,7 +477,14 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \Diamond $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\hslash` · `\mho` · `\Finv` · `\Game` · `\Bbbk` · `\eth` · `\diagup` · `\diagdown` · `\digamma` · `\varkappa` · `\beth` · `\gimel` · `\daleth` · `\circledR`
+        $$ \hslash \;\; \mho \;\; \Finv \;\; \Game \;\; \Bbbk \;\; \eth \;\; \diagup \;\; \diagdown \;\; \digamma \;\; \varkappa \;\; \beth \;\; \gimel \;\; \daleth \;\; \circledR $$
+
+        ## Blackboard bold
+
+        `\mathbb` is the `msbm` alphabet. It is capitals-only, as the font carries no blackboard
+        lowercase or digits:
+
+        $$ \mathbb{ABCDEFGHIJKLMNOPQRSTUVWXYZ} $$
 
         ## Synonyms for existing symbols — 6 of 6 render
 
