@@ -88,7 +88,7 @@ public class MarkdownSampleRenderTests
     [TestMethod]
     public void LatexMathSamplesTypeset() => UiThread.Run(() =>
     {
-        const string deliberatelyUnsupported = @"\genfrac";
+        const string deliberatelyUnsupported = @"\sideset";
 
         var files = TestSampleData.Files("markdown")
             .Where(p => Path.GetFileName(p).StartsWith("latex-math-", StringComparison.Ordinal))

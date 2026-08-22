@@ -61,9 +61,9 @@ internal sealed class MarkdownSamples : ISampleSet
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
         called out under each section as *Not supported*. When a formula does fail, the app shows
         its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\genfrac`:
+        deliberately uses the unsupported `\sideset`:
 
-        $$ \genfrac{(}{)}{0pt}{}{n}{k} $$
+        $$ \sideset{_a^b}{_c^d}\sum $$
 
         ## Spacing
 
@@ -200,6 +200,17 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ x_{\binom{n}{k}} \;\; x_{\dbinom{n}{k}} \;\; x_{\tbinom{n}{k}} $$
 
+        ## The general fraction
+
+        `\genfrac{left}{right}{thickness}{style}{numerator}{denominator}` is the one every fraction
+        above is spelled with: a pair of delimiters, the thickness of the rule, and the style to set
+        it in. An empty argument takes the default — no delimiter, the usual rule, the surrounding
+        style — and a thickness of `0pt` draws no rule at all, which is what makes `\binom`:
+
+        $$ \genfrac{}{}{}{}{a}{b} \;\; \genfrac{(}{)}{0pt}{}{n}{k} \;\; \genfrac{[}{]}{1pt}{}{a}{b} \;\; \genfrac{\{}{\}}{0pt}{1}{a}{b} $$
+
+        The style argument is a digit: `0` display, `1` text, `2` script, `3` scriptscript.
+
         ## Roots
 
         $$ \sqrt{2} \;\; \sqrt{x^2 + y^2} \;\; \sqrt[3]{x} \;\; \sqrt[n]{a} $$
@@ -252,6 +263,24 @@ internal sealed class MarkdownSamples : ISampleSet
         they space as the delimiters they stand for rather than as ordinary symbols:
 
         $$ \lvert x \rvert \;\; \lVert v \rVert \;\; \left\lvert \frac{a}{b} \right\rvert $$
+
+        ## Delimiters at a size you choose
+
+        `\left`/`\right` grow a delimiter to fit what it encloses. `\big`, `\Big`, `\bigg` and
+        `\Bigg` instead give it one of four set sizes, for when the fit is not the point — nesting,
+        say, where each level should be visibly larger than the one inside it:
+
+        $$ ( \;\; \big( \;\; \Big( \;\; \bigg( \;\; \Bigg( $$
+
+        $$ \Bigl( \bigl( a + b \bigr) \cdot c \Bigr)^n $$
+
+        Each has `l`, `r` and `m` spellings that say what the delimiter *is* — an opening, a closing,
+        or a divider — which is what decides the space around it:
+
+        $$ \bigl[ x \bigr] \quad \{\, x \bigm| x > 0 \,\} $$
+
+        The four sizes are absolute lengths in LaTeX rather than multiples of the current one, so a
+        `\Big(` inside a subscript is the same delimiter it is outside one.
 
         ## Matrices
 

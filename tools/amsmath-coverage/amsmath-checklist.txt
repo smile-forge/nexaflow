@@ -102,7 +102,7 @@ Fractions and related|\dfrac|\dfrac{a}{b}
 Fractions and related|\tfrac|\tfrac{a}{b}
 Fractions and related|\binom|\binom{n}{k}
 Fractions and related|\dbinom|\dbinom{n}{k}
-Fractions and related|\tbinom|\tbinom{n}{k}|draws as \dbinom: the two styles differ only in delimiter growth, and delimiters here are sized from the content
+Fractions and related|\tbinom|\tbinom{n}{k}
 Fractions and related|\genfrac|\genfrac{(}{)}{0pt}{}{n}{k}
 Fractions and related|\fracwithdelims|\fracwithdelims(){1}{2}
 Fractions and related|\over|a \over b
