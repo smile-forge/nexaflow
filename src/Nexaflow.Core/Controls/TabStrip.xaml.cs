@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using Nexaflow.Core.Converters;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 
@@ -264,8 +265,13 @@ public partial class TabStrip : UserControl
         var icon  = new TextBlock { FontSize = 13, Margin = new Thickness(0, 0, 6, 0) };
         icon.SetBinding(TextBlock.TextProperty, new Binding(nameof(Page.Icon)));
 
+        // Shortened for the strip; the full name goes on the border below so hovering anywhere on the tab
+        // reveals it, not just the few pixels of text. Both bind the Page's real Title, so a rename flows
+        // through and nothing downstream (quick-open, ribbon pinning, session capture, AI context) ever sees
+        // the shortened form.
         var label = new TextBlock { FontSize = 12 };
-        label.SetBinding(TextBlock.TextProperty, new Binding(nameof(Page.Title)));
+        label.SetBinding(TextBlock.TextProperty,
+            new Binding(nameof(Page.Title)) { Converter = new TabTitleConverter() });
 
         var closeBtn = new TextBlock
         {
@@ -290,6 +296,11 @@ public partial class TabStrip : UserControl
             DataContext = tab,
             Style       = (Style)FindResource("TabItemBorderStyle")
         };
+        // Null when nothing was hidden, which is how WPF is told to show no tooltip at all — one repeating
+        // the label the user can already read is noise.
+        border.SetBinding(ToolTipProperty,
+            new Binding(nameof(Page.Title)) { Converter = new TabTitleTooltipConverter() });
+
         AutomationProperties.SetAutomationId(border, $"TabItem_{tab.PageKind}");
         AutomationProperties.SetAutomationId(closeBtn, $"CloseTab_{tab.PageKind}");
 

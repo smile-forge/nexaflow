@@ -23,12 +23,26 @@ public static class FileBreadcrumbs
     /// </summary>
     public const string FileSystemPageKind = "FileSystem";
 
+    /// <summary>
+    /// What to title a tab showing <paramref name="directory"/>: the folder's own name, or the whole path when
+    /// it has no name of its own (a drive root such as <c>C:\</c>).
+    /// <para>
+    /// One rule in one place because the <c>label</c> page param is optional, so anything that opens a
+    /// file-explorer tab without one — a ribbon button, a restored session, a tab rebuilt after an options
+    /// save — needs the same answer. Deriving it per call site is how a tab ends up titled "Files".
+    /// </para>
+    /// </summary>
+    public static string DirectoryLabel(string directory)
+    {
+        if (string.IsNullOrEmpty(directory)) return string.Empty;
+        var leaf = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return string.IsNullOrEmpty(leaf) ? directory : leaf;
+    }
+
     /// <summary>A clickable crumb that opens (or focuses) a file-explorer tab rooted at <paramref name="directory"/>.
     /// Its label is the full directory path; the opened tab is titled with the folder's own name.</summary>
-    public static BreadcrumbSegment ForDirectory(string directory)
-    {
-        var leaf = Path.GetFileName(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        return new BreadcrumbSegment
+    public static BreadcrumbSegment ForDirectory(string directory) =>
+        new()
         {
             Label            = directory,
             TargetPageKind   = FileSystemPageKind,
@@ -36,10 +50,9 @@ public static class FileBreadcrumbs
             {
                 ["mode"]  = "path",
                 ["path"]  = directory,
-                ["label"] = string.IsNullOrEmpty(leaf) ? directory : leaf,
+                ["label"] = DirectoryLabel(directory),
             },
         };
-    }
 
     /// <summary>
     /// Replaces <paramref name="page"/>'s breadcrumbs with "[parent dir] › [leaf]" for a single file. The
