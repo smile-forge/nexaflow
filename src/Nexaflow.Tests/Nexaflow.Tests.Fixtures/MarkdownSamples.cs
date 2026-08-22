@@ -95,6 +95,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ A \; B \; E \; Z \; H \; I \; K \; M \; N \; O \; P \; T \; X $$
 
+        The uppercase forms are upright. amsmath's `\var…` spellings give the italic ones:
+
+        $$ \varGamma \; \varDelta \; \varTheta \; \varLambda \; \varXi \; \varPi \; \varSigma \; \varUpsilon \; \varPhi \; \varPsi \; \varOmega $$
+
         ## Binary operators
 
         $$ a + b \;\; a - b \;\; a \times b \;\; a \div b \;\; a \cdot b \;\; a \pm b \;\; a \mp b \;\; a \ast b \;\; a \star b \;\; a \circ b \;\; a \bullet b \;\; a \oplus b \;\; a \otimes b \;\; a \odot b \;\; a \setminus b $$
@@ -131,11 +135,21 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Accents
 
-        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \mathring{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} \;\; \overrightarrow{AB} \;\; \overleftarrow{AB} $$
+        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \mathring{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} $$
+
+        The stretchy arrow accents draw to the width of what they mark, above it or below it:
+
+        $$ \overrightarrow{AB} \;\; \overleftarrow{AB} \;\; \overleftrightarrow{AB} \;\; \underrightarrow{AB} \;\; \underleftarrow{AB} \;\; \underleftrightarrow{AB} $$
 
         ## Dots and ellipses
 
         $$ a_1 + a_2 + \cdots + a_n \;\; 1, 2, \ldots, n \;\; 1, 2, \dots, n \;\; \vdots \;\; \ddots $$
+
+        amsmath names its dots for what they sit among rather than for their shape — `\dotsb` between
+        binary operators, `\dotsc` with commas, `\dotsi` with integrals, `\dotsm` between factors,
+        `\dotso` for anything else — and each resolves to the right one of the two:
+
+        $$ a + \dotsb + z \;\; 1, \dotsc, n \;\; \int \dotsi \int \;\; a \dotsm z \;\; x \dotso $$
 
         `\vdots` and `\ddots` are most at home inside a matrix — see the
         [structures reference](latex-math-structures.md).
@@ -181,6 +195,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \binom{n}{k} = \frac{n!}{k!\,(n-k)!} $$
 
+        `\dbinom` and `\tbinom` keep their size where a plain `\binom` would shrink with the style:
+
+        $$ x_{\binom{n}{k}} \;\; x_{\dbinom{n}{k}} \;\; x_{\tbinom{n}{k}} $$
+
         ## Roots
 
         $$ \sqrt{2} \;\; \sqrt{x^2 + y^2} \;\; \sqrt[3]{x} \;\; \sqrt[n]{a} $$
@@ -211,6 +229,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \lim_{x \to \infty} \frac{1}{x} = 0 \;\; \limsup_{n} a_n \;\; \liminf_{n} a_n \;\; \sup S \;\; \inf S \;\; \max_i a_i \;\; \min_i a_i $$
 
+        The amsmath limits, including the ones that wear a decoration:
+
+        $$ \injlim_{n} A_n \quad \projlim_{n} A_n \quad \varinjlim_{n} A_n \quad \varprojlim_{n} A_n \quad \varliminf_{n} a_n \quad \varlimsup_{n} a_n $$
+
         Algebra and miscellaneous:
 
         $$ \arg z \;\; \det A \;\; \dim V \;\; \gcd(a,b) \;\; \ker T \;\; \hom(A, B) \;\; \deg f \;\; \Pr(X) $$
@@ -224,6 +246,11 @@ internal sealed class MarkdownSamples : ISampleSet
         $$ \left( \frac{a}{b} \right) \;\; \left[ \frac{a}{b} \right] \;\; \left\{ \frac{a}{b} \right\} \;\; \left| \frac{a}{b} \right| \;\; \left\| \frac{a}{b} \right\| \;\; \left\langle \frac{a}{b} \right\rangle $$
 
         $$ \left. \frac{dy}{dx} \right|_{x=0} \;\; \left\lfloor x \right\rfloor \;\; \left\lceil x \right\rceil $$
+
+        `\lvert`/`\rvert` and `\lVert`/`\rVert` are the same bars typed as opening and closing, so
+        they space as the delimiters they stand for rather than as ordinary symbols:
+
+        $$ \lvert x \rvert \;\; \lVert v \rVert \;\; \left\lvert \frac{a}{b} \right\rvert $$
 
         ## Matrices
 
@@ -388,7 +415,7 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Bold symbols
 
-        `\boldsymbol{…}` (or `\bm`) is not an alphabet: it takes each character from the bold companion
+        `\boldsymbol{…}` (or `\bm`, or amsmath's `\pmb`) is not an alphabet: it takes each character from the bold companion
         of whatever font it would otherwise come from, so it reaches Greek letters and symbols, which an
         alphabet command cannot:
 
@@ -397,6 +424,8 @@ internal sealed class MarkdownSamples : ISampleSet
         A character whose font has no bold companion — an AMS symbol, say — is left as it is:
 
         $$ \boldsymbol{A \subsetneq B} $$
+
+        $$ \pmb{\theta} = \bm{\theta} = \boldsymbol{\theta} $$
 
         ## Text inside math
 
