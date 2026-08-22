@@ -354,10 +354,16 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## Math alphabets
 
-        $$ \mathrm{Abc} \;\; \mathit{Abc} \;\; \mathcal{ABC} \;\; \mathscr{ABC} $$
+        $$ \mathrm{Abc} \;\; \mathit{Abc} $$
 
-        `\mathbb` is real blackboard bold, from the AMS `msbm` font — capitals only, since that font
-        carries no blackboard lowercase or digits:
+        Four alphabets are real, each from its own face. `\mathcal` is the symbol font's calligraphic
+        capitals and `\mathscr` is Ralph Smith's Formal Script — two different alphabets, not two names
+        for one:
+
+        $$ \mathcal{ABCDEFG} \qquad \mathscr{ABCDEFG} $$
+
+        `\mathbb` is blackboard bold, from the AMS `msbm` font. Both it and `\mathscr` are capitals-only,
+        since neither face carries lowercase or digits:
 
         $$ \mathbb{N} \subset \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C} $$
 
@@ -365,9 +371,6 @@ internal sealed class MarkdownSamples : ISampleSet
         the engine, so each falls back to upright roman:
 
         $$ \mathbf{Abc} \;\; \mathsf{Abc} \;\; \mathtt{Abc} \;\; \mathfrak{g} $$
-
-        `\mathscr` is the other exception: it is genuinely the calligraphic alphabet, the same one
-        `\mathcal` uses.
 
         *Not supported:* `\boldsymbol`
 
