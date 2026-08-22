@@ -20,7 +20,7 @@ Each line comes out as one of:
 | `OK` | renders |
 | `~~` | renders, but the checklist records a caveat — see below |
 | `NO` | the engine rejects it, with the message it gave |
-| `--` | document-level: numbering, page breaks, cross references. No meaning in a standalone formula, so not counted either way |
+| `--` | nothing a formula can invoke at all - a length register rather than a command - so not counted either way |
 
 ## Caveats
 
@@ -32,6 +32,11 @@ formula "renders" while being wrong.
 
 If you find another case like that, add the caveat to the checklist rather than leaving a
 misleading `OK`.
+
+The document-level commands - `\tag`, `\label`, `\intertext`, `\DeclareMathOperator` and the rest -
+are all caveated, because they are read and dropped: there is no page here to number or break. Their
+samples have to sit beside real maths the way they would in a document, since a formula that renders
+to nothing is reported as broken, which for these would be the wrong answer.
 
 ## Keeping the checklist honest
 

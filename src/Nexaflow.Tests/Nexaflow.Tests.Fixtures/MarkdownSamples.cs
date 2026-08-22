@@ -169,8 +169,9 @@ internal sealed class MarkdownSamples : ISampleSet
 
         Constructs that arrange sub-expressions: fractions, roots, big operators, integrals,
         auto-sized delimiters, **matrices** (all delimiter variants), the aligned and gathered
-        environments, style switches, stacked annotations, frames, phantoms, horizontal braces and
-        stacked limits. See the
+        environments, style switches, where an operator's limits go, stacked annotations, frames,
+        phantoms, horizontal braces and stacked limits — and what a formula quietly drops from the
+        paper it was lifted out of. See the
         [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
         supported, with engine gaps flagged as *Not supported*.
 
@@ -294,6 +295,12 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \left( \begin{smallmatrix} a & b \\ c & d \end{smallmatrix} \right) $$
 
+        `\hdotsfor{n}` fills n columns with dots, standing in for a row of entries left unwritten. It
+        is the one cell that takes its width from the columns instead of giving them one, and
+        `\hdotsfor[s]{n}` spreads the dots out by a factor of s:
+
+        $$ \begin{pmatrix} a_{11} & a_{12} & a_{13} \\ \hdotsfor{3} \\ a_{n1} & a_{n2} & a_{n3} \end{pmatrix} \;\; \begin{pmatrix} b_{11} & b_{12} \\ \hdotsfor[2]{2} \end{pmatrix} $$
+
         ## Piecewise definitions (cases)
 
         Both the `\cases{ … }` command and the `cases` environment:
@@ -312,6 +319,13 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \begin{gather} a^2 + b^2 = c^2 \\ e^{i\pi} + 1 = 0 \end{gather} $$
 
+        `multline`, `flalign`, `alignat` — with the column count it insists on — and their starred
+        forms are each taken as their nearest relative here: `gather` for the first, `align` for the
+        rest. What they add in a paper is flushing to the page margins, and a formula in a markdown
+        document has no margins to be flush with.
+
+        $$ \begin{alignat}{2} a &= b + c &\quad d &= e \\ f &= g &\quad h &= i \end{alignat} $$
+
         ## Style switches
 
         `\displaystyle`, `\textstyle`, `\scriptstyle` and `\scriptscriptstyle` are switches: each applies
@@ -321,6 +335,17 @@ internal sealed class MarkdownSamples : ISampleSet
         $$ \textstyle\sum_{i=1}^{n} i \quad \displaystyle\sum_{i=1}^{n} i $$
 
         $$ {\scriptstyle a + b} \quad {\scriptscriptstyle a + b} \quad a + b $$
+
+        ## Where an operator's limits go
+
+        The style decides whether an operator's scripts are stacked above and below it or set beside
+        it. `\limits` and `\nolimits` override that decision for the operator they follow, and
+        `\displaylimits` asks for the style's own answer back:
+
+        $$ \textstyle\sum\limits_{i=1}^{n} i \quad \displaystyle\sum\nolimits_{i=1}^{n} i \quad \prod\limits_{k} a_k $$
+
+        They only follow an operator. Anywhere else `\limits` stays an unknown command, rather than
+        being swallowed and leaving a formula that looks like it was understood.
 
         ## Stacked annotations
 
@@ -384,6 +409,20 @@ internal sealed class MarkdownSamples : ISampleSet
         `\substack{… \\ …}` stacks several conditions into one limit of a big operator:
 
         $$ \sum_{\substack{0 < i < m \\ 0 < j < n}} P(i, j) \quad \prod_{\substack{p \text{ prime} \\ p \mid n}} p $$
+
+        ## What a paper carries that a formula does not
+
+        Numbering, cross references and page breaks belong to a document, not to a formula. So
+        `equation`, `equation*` and `subequations` are nothing more than their contents, and `\tag`,
+        `\notag`, `\label`, `\eqref`, `\numberwithin`, `\raisetag`, `\intertext`, `\shortintertext`,
+        `\allowdisplaybreaks`, `\displaybreak`, `\nobreakdash`, `\DeclareMathOperator`,
+        `\DeclarePairedDelimiter` and `\accentedsymbol` are read and dropped. `\shoveleft` and
+        `\shoveright` keep their contents and drop only the shove.
+
+        A formula lifted straight out of a paper therefore renders, instead of failing over a number
+        it could never have carried:
+
+        $$ \begin{equation} \label{eq:euler} e^{i\pi} + 1 = 0 \tag{4.2} \end{equation} $$
         """;
 
     private const string LatexMathFonts =

@@ -8,36 +8,36 @@
 # to be written down here.
 Single equations|equation|x = y
 Single equations|equation*|x = y
-Split equations without alignment|multline|a + b + c \\ + d + e
-Split equations without alignment|multline*|a + b \\ + c
+Split equations without alignment|multline|a + b + c \\ + d + e|set as \gather - every line centred, rather than the first flush left and the last flush right
+Split equations without alignment|multline*|a + b \\ + c|as \multline
 Split equations with alignment|split|a &= b \\ &= c
 Equation groups without alignment|gather|a = b \\ c = d
 Equation groups without alignment|gather*|a = b \\ c = d
 Equation groups with mutual alignment|align|a &= b \\ c &= d
 Equation groups with mutual alignment|align*|a &= b \\ c &= d
-Equation groups with mutual alignment|flalign|a &= b \\ c &= d
-Equation groups with mutual alignment|flalign*|a &= b \\ c &= d
-Equation groups with mutual alignment|alignat|a &= b & c &= d
-Equation groups with mutual alignment|alignat*|a &= b & c &= d
-Equation groups with mutual alignment|xalignat|a &= b & c &= d
-Equation groups with mutual alignment|xxalignat|a &= b & c &= d
+Equation groups with mutual alignment|flalign|a &= b \\ c &= d|set as \align - there are no margins for the columns to spread out to
+Equation groups with mutual alignment|flalign*|a &= b \\ c &= d|as \flalign
+Equation groups with mutual alignment|alignat|{2} a &= b & c &= d|set as \align - the column count is read and dropped, so the pairs take the usual spacing rather than none
+Equation groups with mutual alignment|alignat*|{2} a &= b & c &= d|as \alignat
+Equation groups with mutual alignment|xalignat|{2} a &= b & c &= d|as \alignat
+Equation groups with mutual alignment|xxalignat|{2} a &= b & c &= d|as \alignat
 Alignment building blocks|aligned|a &= b \\ c &= d
-Alignment building blocks|alignedat|a &= b & c &= d
+Alignment building blocks|alignedat|{2} a &= b & c &= d|as \alignat
 Alignment building blocks|gathered|a = b \\ c = d
-Interrupting a display|\intertext|
-Interrupting a display|\shortintertext|
-Adjusting tag placement|\raisetag|
-Vertical spacing and page breaks|\allowdisplaybreaks|
-Vertical spacing and page breaks|\displaybreak|
-Vertical spacing and page breaks|\shoveleft|
-Vertical spacing and page breaks|\shoveright|
+Interrupting a display|\intertext|\begin{aligned} a &= b \\ \intertext{and hence} c &= d \end{aligned}|dropped - there are no lines of a display to interrupt
+Interrupting a display|\shortintertext|\begin{aligned} a &= b \\ \shortintertext{so} c &= d \end{aligned}|as \intertext
+Adjusting tag placement|\raisetag|x = y \raisetag{-6pt}|dropped - there is no tag to move
+Vertical spacing and page breaks|\allowdisplaybreaks|\allowdisplaybreaks x = y|dropped - there are no pages to break across
+Vertical spacing and page breaks|\displaybreak|x = y \displaybreak[0]|dropped - there are no pages to break across
+Vertical spacing and page breaks|\shoveleft|\begin{multline} \shoveleft{a + b} \\ c \end{multline}|the contents are kept and the flush-to-margin dropped - there are no margins
+Vertical spacing and page breaks|\shoveright|\begin{multline} a \\ \shoveright{b + c} \end{multline}|as \shoveleft
 Vertical spacing and page breaks|\multlinegap|
-Equation numbering|\tag|
-Equation numbering|\tag*|
-Equation numbering|\notag|
-Equation numbering|\eqref|
-Equation numbering|\numberwithin|
-Equation numbering|subequations|
+Equation numbering|\tag|x = y \tag{1}|dropped - a standalone formula carries no number
+Equation numbering|\tag*|x = y \tag*{\dagger}|as \tag
+Equation numbering|\notag|x = y \notag|dropped - a standalone formula carries no number
+Equation numbering|\eqref|x = \eqref{eq:one}|dropped - there is nothing numbered to refer to
+Equation numbering|\numberwithin|\numberwithin{equation}{section} x = y|dropped - a standalone formula carries no number
+Equation numbering|subequations|\begin{equation} a = b \end{equation}
 Matrices|matrix|a & b \\ c & d
 Matrices|pmatrix|a & b \\ c & d
 Matrices|bmatrix|a & b \\ c & d
@@ -67,13 +67,13 @@ Dots|\cdots|a \cdots b
 Dots|\ldots|a \ldots b
 Dots|\vdots|\vdots
 Dots|\ddots|\ddots
-Nonbreaking dashes|\nobreakdash|
+Nonbreaking dashes|\nobreakdash|a\nobreakdash-b|dropped - there is no line breaking to prevent
 Accents in math|\hat|\hat{a}
 Accents in math|\dot|\dot{a}
 Accents in math|\ddot|\ddot{a}
 Accents in math|\dddot|\dddot{a}
 Accents in math|\ddddot|\ddddot{a}
-Accents in math|\accentedsymbol|
+Accents in math|\accentedsymbol|\accentedsymbol{\dotB}{\dot{B}} x = y|dropped - a formula cannot declare a symbol for a later formula to use
 Accents in math|\sphat|a\sphat
 Accents in math|\sptilde|a\sptilde
 Roots|\sqrt|\sqrt{x}
@@ -122,10 +122,10 @@ Delimiters|\big \Big \bigg \Bigg|\big( \Big( \bigg( \Bigg(
 Delimiters|\lvert \rvert|\lvert x \rvert
 Delimiters|\lVert \rVert|\lVert x \rVert
 Delimiters|\langle \rangle|\langle x \rangle
-Delimiters|\DeclarePairedDelimiter|
+Delimiters|\DeclarePairedDelimiter|\DeclarePairedDelimiter{\abs}{\lvert}{\rvert} x = y|dropped - a formula cannot declare a delimiter for a later formula to use
 Defining new operator names|\operatorname|\operatorname{argmax}
 Defining new operator names|\operatorname*|\operatorname*{argmax}_{x}
-Defining new operator names|\DeclareMathOperator|
+Defining new operator names|\DeclareMathOperator|\DeclareMathOperator{\argmax}{arg\,max} x = y|dropped - a formula cannot declare an operator for a later formula to use; \operatorname is the standalone spelling
 Defining new operator names|\injlim|\injlim
 Defining new operator names|\projlim|\projlim
 Defining new operator names|\varinjlim|\varinjlim

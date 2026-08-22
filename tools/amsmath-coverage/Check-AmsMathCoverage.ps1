@@ -132,7 +132,8 @@ if ($Json) {
     Write-Host ''
     Write-Host ("{0} of {1} testable constructs render fully, {2} with a caveat (~~), {3} not at all." -f
         $ok, ($ok + $partial + $bad), $partial, $bad)
-    Write-Host ("{0} more are document-level (--) and have no meaning in a standalone formula." -f $na)
+    $naWord = if ($na -eq 1) { 'construct is' } else { 'constructs are' }
+    Write-Host ("{0} further {1} document-level (--), with no meaning in a standalone formula." -f $na, $naWord)
 }
 
 # ── checklist freshness ──────────────────────────────────────────────────────────
