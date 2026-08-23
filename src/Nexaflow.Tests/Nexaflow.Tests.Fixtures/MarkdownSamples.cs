@@ -5,10 +5,11 @@ namespace Nexaflow.Tests.Fixtures;
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
 /// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey,
 /// ER, Venn, architecture, swimlanes, Cynefin), plus an <c>extensions.md</c> exercising the non-diagram
-/// Markdig extensions (emphasis extras, abbreviations, alert blocks) and three <c>latex-math-*.md</c>
-/// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters,
-/// fonts/styling) — a supported construct typesets, an unsupported one falls back to its raw source, so
-/// the docs double as a live map of engine support. Two <c>music-*.md</c> references exercise the
+/// Markdig extensions (emphasis extras, abbreviations, alert blocks) and four <c>latex-math-*.md</c>
+/// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters
+/// and environments, fonts/styling, AMS symbols) — a supported construct typesets, an unsupported one
+/// falls back to its raw source, so the docs double as a live map of engine support, which
+/// <c>MarkdownSampleRenderTests.LatexMathSamplesTypeset</c> holds them to. Two <c>music-*.md</c> references exercise the
 /// musical-notation engraver (<c>#%abc … #%</c> and <c>#%lilypond … #%</c> blocks → sheet music). Each
 /// document showcases several variations, so the fixtures double as a human-readable reference. The
 /// <c>mermaid-*</c> naming marks the diagram docs.
@@ -60,10 +61,9 @@ internal sealed class MarkdownSamples : ISampleSet
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
         called out under each section as *Not supported*. When a formula does fail, the app shows
         its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\mathbb` (blackboard bold needs the AMS `msbm` font,
-        which is not bundled):
+        deliberately uses the unsupported `\sideset`:
 
-        $$ \mathbb{R} \quad \text{blackboard R} $$
+        $$ \sideset{_a^b}{_c^d}\sum $$
 
         ## Spacing
 
@@ -95,6 +95,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ A \; B \; E \; Z \; H \; I \; K \; M \; N \; O \; P \; T \; X $$
 
+        The uppercase forms are upright. amsmath's `\var…` spellings give the italic ones:
+
+        $$ \varGamma \; \varDelta \; \varTheta \; \varLambda \; \varXi \; \varPi \; \varSigma \; \varUpsilon \; \varPhi \; \varPsi \; \varOmega $$
+
         ## Binary operators
 
         $$ a + b \;\; a - b \;\; a \times b \;\; a \div b \;\; a \cdot b \;\; a \pm b \;\; a \mp b \;\; a \ast b \;\; a \star b \;\; a \circ b \;\; a \bullet b \;\; a \oplus b \;\; a \otimes b \;\; a \odot b \;\; a \setminus b $$
@@ -107,27 +111,45 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ a \nless b \;\; a \ngtr b \;\; a \nleq b \;\; a \ngeq b \;\; a \nprec b \;\; a \nsucc b \;\; a \nsim b \;\; a \ncong b \;\; a \nmid b \;\; a \nparallel b \;\; a \nvdash b \;\; A \nsubseteq B \;\; A \nsupseteq B \;\; a \nrightarrow b \;\; a \nleftrightarrow b $$
 
-        These overlay the base relation with the zero-width `\not`.
+        Each of those is a single glyph from the AMS `msbm` font, not an overlay.
 
-        *Not supported (need the AMS `msbm` font):* `\subsetneq` · `\supsetneq` · `\lneqq` · `\gneqq` · `\varsubsetneq` · `\lnsim`
+        The strict negations, where "not equal" is part of the symbol rather than a slash through it:
+
+        $$ A \subsetneq B \;\; A \supsetneq B \;\; A \varsubsetneq B \;\; a \lneqq b \;\; a \gneqq b \;\; a \lvertneqq b \;\; a \gvertneqq b \;\; a \lnsim b \;\; a \gnapprox b \;\; a \precnsim b \;\; a \succnapprox b $$
 
         ## Set theory and logic
 
-        $$ a \in A \;\; a \notin A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \varnothing \;\; \forall x \;\; \exists y \;\; \nexists z \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q \;\; p \implies q \;\; p \iff q $$
+        $$ a \in A \;\; a \notin A \;\; a \ni A \;\; A \subset B \;\; A \subseteq B \;\; A \supset B \;\; A \supseteq B \;\; \emptyset \;\; \varnothing \;\; \forall x \;\; \exists y \;\; \nexists z \;\; \neg p \;\; p \land q \;\; p \lor q \;\; p \to q \;\; p \implies q \;\; p \impliedby q \;\; p \iff q $$
 
-        *Not supported (need the AMS `msbm` font):* blackboard bold `\mathbb{R}` · Hebrew `\beth` / `\gimel` / `\daleth`
+        Blackboard bold and the Hebrew letters come from the same AMS `msbm` font:
+
+        $$ \mathbb{N} \subset \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C} \qquad \aleph \;\; \beth \;\; \gimel \;\; \daleth $$
 
         ## Arrows
 
-        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \mapsto b \;\; a \longrightarrow b \;\; a \longleftarrow b \;\; a \hookrightarrow b \;\; a \Longrightarrow b \;\; a \Longleftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
+        $$ a \to b \;\; a \gets b \;\; a \rightarrow b \;\; a \leftarrow b \;\; a \Rightarrow b \;\; a \Leftarrow b \;\; a \leftrightarrow b \;\; a \Leftrightarrow b \;\; a \mapsto b \;\; a \longrightarrow b \;\; a \longleftarrow b \;\; a \hookrightarrow b \;\; a \Longrightarrow b \;\; a \Longleftarrow b \;\; a \Longleftrightarrow b \;\; a \uparrow b \;\; a \downarrow b \;\; a \rightharpoonup b $$
+
+        Arrows that stretch to fit a label written over (and optionally under) them:
+
+        $$ A \xrightarrow{f} B \;\; B \xleftarrow{g} C \;\; A \xrightarrow[\cong]{\varphi} B \;\; A \xleftrightarrow{h} B \;\; A \xRightarrow{p} B \;\; A \xLeftarrow{q} B \;\; a \xmapsto{\iota} b $$
 
         ## Accents
 
-        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \mathring{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} \;\; \overrightarrow{AB} \;\; \overleftarrow{AB} $$
+        $$ \hat{a} \;\; \bar{a} \;\; \vec{a} \;\; \dot{a} \;\; \ddot{a} \;\; \tilde{a} \;\; \acute{a} \;\; \grave{a} \;\; \check{a} \;\; \breve{a} \;\; \mathring{a} \;\; \widehat{abc} \;\; \widetilde{abc} \;\; \overline{abc} \;\; \underline{abc} $$
+
+        The stretchy arrow accents draw to the width of what they mark, above it or below it:
+
+        $$ \overrightarrow{AB} \;\; \overleftarrow{AB} \;\; \overleftrightarrow{AB} \;\; \underrightarrow{AB} \;\; \underleftarrow{AB} \;\; \underleftrightarrow{AB} $$
 
         ## Dots and ellipses
 
         $$ a_1 + a_2 + \cdots + a_n \;\; 1, 2, \ldots, n \;\; 1, 2, \dots, n \;\; \vdots \;\; \ddots $$
+
+        amsmath names its dots for what they sit among rather than for their shape — `\dotsb` between
+        binary operators, `\dotsc` with commas, `\dotsi` with integrals, `\dotsm` between factors,
+        `\dotso` for anything else — and each resolves to the right one of the two:
+
+        $$ a + \dotsb + z \;\; 1, \dotsc, n \;\; \int \dotsi \int \;\; a \dotsm z \;\; x \dotso $$
 
         `\vdots` and `\ddots` are most at home inside a matrix — see the
         [structures reference](latex-math-structures.md).
@@ -136,7 +158,9 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \infty \;\; \partial \;\; \nabla \;\; \aleph \;\; \hbar \;\; \ell \;\; \Re \;\; \Im \;\; \wp \;\; \angle \;\; \triangle \;\; \top \;\; \bot \;\; \surd \;\; \flat \;\; \sharp \;\; \natural \;\; \dagger \;\; \ddagger \;\; \S \;\; \P \;\; \clubsuit \;\; \diamondsuit \;\; \heartsuit \;\; \spadesuit $$
 
-        *Not supported (need the AMS `msbm` font):* `\mho` · `\hslash` · `\Bbbk` · `\eth`
+        And from the AMS `msbm` font:
+
+        $$ \mho \;\; \hslash \;\; \Bbbk \;\; \eth \;\; \Finv \;\; \Game \;\; \digamma \;\; \varkappa \;\; \diagup \;\; \diagdown \;\; \circledR $$
         """;
 
     private const string LatexMathStructures =
@@ -144,7 +168,10 @@ internal sealed class MarkdownSamples : ISampleSet
         # LaTeX math — structures
 
         Constructs that arrange sub-expressions: fractions, roots, big operators, integrals,
-        auto-sized delimiters, and **matrices** (all delimiter variants). See the
+        auto-sized delimiters, **matrices** (all delimiter variants), the aligned and gathered
+        environments, style switches, where an operator's limits go, stacked annotations, frames,
+        phantoms, horizontal braces and stacked limits — and what a formula quietly drops from the
+        paper it was lifted out of. See the
         [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
         supported, with engine gaps flagged as *Not supported*.
 
@@ -168,6 +195,21 @@ internal sealed class MarkdownSamples : ISampleSet
         ## Binomial coefficients
 
         $$ \binom{n}{k} = \frac{n!}{k!\,(n-k)!} $$
+
+        `\dbinom` and `\tbinom` keep their size where a plain `\binom` would shrink with the style:
+
+        $$ x_{\binom{n}{k}} \;\; x_{\dbinom{n}{k}} \;\; x_{\tbinom{n}{k}} $$
+
+        ## The general fraction
+
+        `\genfrac{left}{right}{thickness}{style}{numerator}{denominator}` is the one every fraction
+        above is spelled with: a pair of delimiters, the thickness of the rule, and the style to set
+        it in. An empty argument takes the default — no delimiter, the usual rule, the surrounding
+        style — and a thickness of `0pt` draws no rule at all, which is what makes `\binom`:
+
+        $$ \genfrac{}{}{}{}{a}{b} \;\; \genfrac{(}{)}{0pt}{}{n}{k} \;\; \genfrac{[}{]}{1pt}{}{a}{b} \;\; \genfrac{\{}{\}}{0pt}{1}{a}{b} $$
+
+        The style argument is a digit: `0` display, `1` text, `2` script, `3` scriptscript.
 
         ## Roots
 
@@ -199,6 +241,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \lim_{x \to \infty} \frac{1}{x} = 0 \;\; \limsup_{n} a_n \;\; \liminf_{n} a_n \;\; \sup S \;\; \inf S \;\; \max_i a_i \;\; \min_i a_i $$
 
+        The amsmath limits, including the ones that wear a decoration:
+
+        $$ \injlim_{n} A_n \quad \projlim_{n} A_n \quad \varinjlim_{n} A_n \quad \varprojlim_{n} A_n \quad \varliminf_{n} a_n \quad \varlimsup_{n} a_n $$
+
         Algebra and miscellaneous:
 
         $$ \arg z \;\; \det A \;\; \dim V \;\; \gcd(a,b) \;\; \ker T \;\; \hom(A, B) \;\; \deg f \;\; \Pr(X) $$
@@ -213,14 +259,37 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \left. \frac{dy}{dx} \right|_{x=0} \;\; \left\lfloor x \right\rfloor \;\; \left\lceil x \right\rceil $$
 
+        `\lvert`/`\rvert` and `\lVert`/`\rVert` are the same bars typed as opening and closing, so
+        they space as the delimiters they stand for rather than as ordinary symbols:
+
+        $$ \lvert x \rvert \;\; \lVert v \rVert \;\; \left\lvert \frac{a}{b} \right\rvert $$
+
+        ## Delimiters at a size you choose
+
+        `\left`/`\right` grow a delimiter to fit what it encloses. `\big`, `\Big`, `\bigg` and
+        `\Bigg` instead give it one of four set sizes, for when the fit is not the point — nesting,
+        say, where each level should be visibly larger than the one inside it:
+
+        $$ ( \;\; \big( \;\; \Big( \;\; \bigg( \;\; \Bigg( $$
+
+        $$ \Bigl( \bigl( a + b \bigr) \cdot c \Bigr)^n $$
+
+        Each has `l`, `r` and `m` spellings that say what the delimiter *is* — an opening, a closing,
+        or a divider — which is what decides the space around it:
+
+        $$ \bigl[ x \bigr] \quad \{\, x \bigm| x > 0 \,\} $$
+
+        The four sizes are absolute lengths in LaTeX rather than multiples of the current one, so a
+        `\Big(` inside a subscript is the same delimiter it is outside one.
+
         ## Matrices
 
         The matrix environments differ only in the delimiters that surround them. Each works both
         as a command (`\bmatrix{ … }`) and as an environment (`\begin{bmatrix} … \end{bmatrix}`).
 
-        No delimiters — the `\matrix` command (the `\begin{matrix}` environment is **not** supported):
+        No delimiters — `matrix`:
 
-        $$ \matrix{ a & b \\ c & d } $$
+        $$ \matrix{ a & b \\ c & d } \;\; \begin{matrix} a & b \\ c & d \end{matrix} $$
 
         Parentheses — `pmatrix`:
 
@@ -251,45 +320,210 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \begin{bmatrix} a_{11} & \cdots & a_{1n} \\ \vdots & \ddots & \vdots \\ a_{m1} & \cdots & a_{mn} \end{bmatrix} $$
 
+        `smallmatrix` is the same layout set in script size, so it fits on a text line:
+
+        $$ \left( \begin{smallmatrix} a & b \\ c & d \end{smallmatrix} \right) $$
+
+        `\hdotsfor{n}` fills n columns with dots, standing in for a row of entries left unwritten. It
+        is the one cell that takes its width from the columns instead of giving them one, and
+        `\hdotsfor[s]{n}` spreads the dots out by a factor of s:
+
+        $$ \begin{pmatrix} a_{11} & a_{12} & a_{13} \\ \hdotsfor{3} \\ a_{n1} & a_{n2} & a_{n3} \end{pmatrix} \;\; \begin{pmatrix} b_{11} & b_{12} \\ \hdotsfor[2]{2} \end{pmatrix} $$
+
         ## Piecewise definitions (cases)
 
-        The `\cases{ … }` command is supported (the `\begin{cases}` environment is **not**):
+        Both the `\cases{ … }` command and the `cases` environment:
 
-        $$ f(x) = \cases{ 1 & x > 0 \\ 0 & x = 0 \\ -1 & x < 0 } $$
+        $$ f(x) = \cases{ 1 & x > 0 \\ 0 & x = 0 \\ -1 & x < 0 } \;\; g(x) = \begin{cases} 1 & x > 0 \\ 0 & x \leq 0 \end{cases} $$
 
-        ## Aligned equations
+        ## Aligned and gathered equations
+
+        `align` (and `aligned`, `split`, and the starred `align*`) line the rows up on `&`:
 
         $$ \begin{align} (a+b)^2 &= a^2 + 2ab + b^2 \\ (a-b)^2 &= a^2 - 2ab + b^2 \end{align} $$
 
-        *Not supported:* `\begin{matrix}` · `\begin{cases}` · `\begin{array}` · `\begin{aligned}` · `\begin{gather}` · `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\substack`
+        $$ \begin{aligned} x &= y + 1 \\ y &= z - 1 \end{aligned} $$
+
+        `gather` (and `gathered`, `gather*`) centres each row instead:
+
+        $$ \begin{gather} a^2 + b^2 = c^2 \\ e^{i\pi} + 1 = 0 \end{gather} $$
+
+        `multline`, `flalign`, `alignat` — with the column count it insists on — and their starred
+        forms are each taken as their nearest relative here: `gather` for the first, `align` for the
+        rest. What they add in a paper is flushing to the page margins, and a formula in a markdown
+        document has no margins to be flush with.
+
+        $$ \begin{alignat}{2} a &= b + c &\quad d &= e \\ f &= g &\quad h &= i \end{alignat} $$
+
+        ## Style switches
+
+        `\displaystyle`, `\textstyle`, `\scriptstyle` and `\scriptscriptstyle` are switches: each applies
+        from where it appears to the end of its group. `\displaystyle` is what moves the limits of a big
+        operator above and below it, even inline:
+
+        $$ \textstyle\sum_{i=1}^{n} i \quad \displaystyle\sum_{i=1}^{n} i $$
+
+        $$ {\scriptstyle a + b} \quad {\scriptscriptstyle a + b} \quad a + b $$
+
+        ## Where an operator's limits go
+
+        The style decides whether an operator's scripts are stacked above and below it or set beside
+        it. `\limits` and `\nolimits` override that decision for the operator they follow, and
+        `\displaylimits` asks for the style's own answer back:
+
+        $$ \textstyle\sum\limits_{i=1}^{n} i \quad \displaystyle\sum\nolimits_{i=1}^{n} i \quad \prod\limits_{k} a_k $$
+
+        They only follow an operator. Anywhere else `\limits` stays an unknown command, rather than
+        being swallowed and leaving a formula that looks like it was understood.
+
+        ## Stacked annotations
+
+        `\overset{…}{…}` and `\underset{…}{…}` set an annotation in script size above or below a base;
+        `\stackrel` does the same but is typed as a relation, so it spaces like the arrow it sits on:
+
+        $$ \overset{\text{def}}{=} \;\; \underset{n \to \infty}{\lim} a_n \;\; A \stackrel{f}{\rightarrow} B $$
+
+        ## Framed formulas
+
+        `\boxed{…}` (also spelled `\fbox{…}`) draws a rectangle around its content:
+
+        $$ \boxed{e^{i\pi} + 1 = 0} \;\; \boxed{\frac{a}{b}} $$
+
+        ## Ink without extent, extent without ink
+
+        `\phantom` measures its argument and prints nothing, so it reserves space; `\hphantom` and
+        `\vphantom` keep only the width or only the height. The two fractions below line up because the
+        second reserves the width of the first's numerator:
+
+        $$ \frac{a + b}{c} \;\; \frac{\phantom{a + b}}{c} \;\; \frac{\hphantom{a+b}}{c} \;\; x^{\vphantom{2}} $$
+
+        `\smash` is the inverse — it prints without claiming any height — and `\mathllap` / `\mathrlap` /
+        `\mathclap` print without claiming any width, so the content overlaps its neighbours:
+
+        $$ \smash{\frac{a}{b}} \;\; a\mathllap{/}b \;\; a\mathrlap{/}b \;\; a\mathclap{/}b $$
+
+        ## Arrays
+
+        `array` is the only environment taking an argument: a column preamble, where `l`, `c` and `r`
+        give each column its own alignment — something no other matrix environment offers — and `|`
+        asks for a rule at that boundary. `\hline` rules between rows.
+
+        $$ \begin{array}{lcr} \text{left} & \text{centre} & \text{right} \\ a & bb & ccc \end{array} $$
+
+        Which is how an augmented matrix is set:
+
+        $$ \left[\begin{array}{cc|c} 1 & 0 & 3 \\ 0 & 1 & 4 \end{array}\right] $$
+
+        $$ \begin{array}{|c|c|} \hline x & f(x) \\ \hline 0 & 1 \\ 1 & e \\ \hline \end{array} $$
+
+        A preamble asking for something the engine cannot draw — `p{2cm}`, `@{…}` — is an error rather
+        than a grid quietly missing it.
+
+        ## Horizontal braces
+
+        `\overbrace{…}` and `\underbrace{…}` stretch a brace to the width of what they span. Both are
+        operators, so the script that follows is set beyond the brace rather than beside it — `^` labels
+        an `\overbrace`, `_` labels an `\underbrace`:
+
+        $$ \overbrace{a + b + c}^{\text{three terms}} + \underbrace{d + e}_{\text{two more}} $$
+
+        $$ \underbrace{\overbrace{a_1 + \cdots + a_n}^{n} + b}_{\text{everything}} $$
+
+        A brace needs no label:
+
+        $$ \overbrace{x + y} \;\; \underbrace{x + y} $$
+
+        ## Stacked limits
+
+        `\substack{… \\ …}` stacks several conditions into one limit of a big operator:
+
+        $$ \sum_{\substack{0 < i < m \\ 0 < j < n}} P(i, j) \quad \prod_{\substack{p \text{ prime} \\ p \mid n}} p $$
+
+        ## What a paper carries that a formula does not
+
+        Numbering, cross references and page breaks belong to a document, not to a formula. So
+        `equation`, `equation*` and `subequations` are nothing more than their contents, and `\tag`,
+        `\notag`, `\label`, `\eqref`, `\numberwithin`, `\raisetag`, `\intertext`, `\shortintertext`,
+        `\allowdisplaybreaks`, `\displaybreak`, `\nobreakdash`, `\DeclareMathOperator`,
+        `\DeclarePairedDelimiter` and `\accentedsymbol` are read and dropped. `\shoveleft` and
+        `\shoveright` keep their contents and drop only the shove.
+
+        A formula lifted straight out of a paper therefore renders, instead of failing over a number
+        it could never have carried:
+
+        $$ \begin{equation} \label{eq:euler} e^{i\pi} + 1 = 0 \tag{4.2} \end{equation} $$
         """;
 
     private const string LatexMathFonts =
         """
         # LaTeX math — fonts, text & styling
 
-        Math alphabets, embedded text, colour, spacing and cancellation. See the
-        [symbols reference](latex-math-symbols.md) for the reading convention; each `$$` block is
-        supported, with engine gaps flagged as *Not supported*.
+        Math alphabets, embedded text, colour, spacing and cancellation. Thirteen Computer Modern,
+        AMS and Euler faces are bundled, so every alphabet command sets its own typeface rather than
+        falling back to roman. See the [symbols reference](latex-math-symbols.md) for the reading
+        convention; each `$$` block is supported, with engine gaps flagged as *Not supported*.
 
         ## Math alphabets
 
-        $$ \mathrm{Abc} \;\; \mathit{Abc} \;\; \mathcal{ABC} $$
+        Every math alphabet has its own face:
 
-        *Not supported:* `\mathbb` · `\mathbf` · `\mathsf` · `\mathtt` · `\mathfrak` · `\boldsymbol`
-        (so no blackboard-bold ℝ/ℂ/ℤ, bold, sans, or Fraktur yet).
+        $$ \mathrm{Hamburg} \;\; \mathit{Hamburg} \;\; \mathbf{Hamburg} $$
+
+        $$ \mathsf{Hamburg} \;\; \mathtt{Hamburg} \;\; \mathfrak{Hamburg} $$
+
+        The two script alphabets are genuinely different — `\mathcal` is the symbol font's calligraphic
+        capitals, `\mathscr` is Ralph Smith's Formal Script:
+
+        $$ \mathcal{ABCDEFG} \qquad \mathscr{ABCDEFG} $$
+
+        `\mathbb` is blackboard bold, from the AMS `msbm` font. It and `\mathscr` are the only
+        capitals-only alphabets — neither face carries lowercase or digits, so those fall back:
+
+        $$ \mathbb{N} \subset \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C} $$
+
+        ## Bold symbols
+
+        `\boldsymbol{…}` (or `\bm`, or amsmath's `\pmb`) is not an alphabet: it takes each character from the bold companion
+        of whatever font it would otherwise come from, so it reaches Greek letters and symbols, which an
+        alphabet command cannot:
+
+        $$ \boldsymbol{\alpha} + \boldsymbol{\beta} = \boldsymbol{\gamma} \qquad \boldsymbol{\nabla} \times \boldsymbol{F} \qquad \bm{\Sigma}\bm{x} = \bm{\lambda} $$
+
+        A character whose font has no bold companion — an AMS symbol, say — is left as it is:
+
+        $$ \boldsymbol{A \subsetneq B} $$
+
+        $$ \pmb{\theta} = \bm{\theta} = \boldsymbol{\theta} $$
 
         ## Text inside math
 
-        $$ x + y = z \;\; \text{(a labelled equation)} $$
+        `\text` and the `\text*` family treat their argument as text rather than maths, so the spaces
+        inside survive — and each gets the face it asks for, `\textit` the *text* italic rather than the
+        maths one, `\textsc` real small capitals rather than full-height ones:
 
-        *Not supported:* `\textrm` · `\mbox` · `\operatorname`
+        $$ x + y = z \;\; \text{(a labelled equation)} \;\; \textrm{roman text} \;\; \textit{italic text} $$
+
+        $$ \textbf{bold text} \;\; \textsf{sans text} \;\; \texttt{mono text} \;\; \textsc{small caps} $$
+
+        `\mbox{…}` is the same thing under another name:
+
+        $$ n > 0 \;\; \mbox{for every n in the set} $$
+
+        ## Named operators
+
+        `\operatorname{…}` sets a name upright *and* types it as an operator, so it takes operator
+        spacing and a following script becomes its limit rather than a subscript hanging off the last
+        letter. The starred form puts that limit underneath in display style:
+
+        $$ \operatorname{Tr}(A) = \sum_i a_{ii} \qquad \operatorname*{argmax}_{\theta} L(\theta) $$
 
         ## Colour
 
         $$ \color{red}{a^2} + \color{blue}{b^2} = \color{green}{c^2} $$
 
-        *Not supported:* `\textcolor`
+        `\textcolor` is accepted as a spelling of the same two-argument command:
+
+        $$ \textcolor{red}{a^2} + \textcolor{blue}{b^2} = \textcolor{green}{c^2} $$
 
         ## Cancellation
 
@@ -302,30 +536,28 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ x\,y \;\; x\!y \;\; x\:y \;\; x\;y \;\; x\quad y \;\; x\qquad y \;\; x~y \;\; x\ y \;\; x\hspace{12pt}y $$
 
-        ## Not supported — decorations & phantoms
-
-        These otherwise-standard constructs currently fall back to source rather than rendering:
-
-        `\overbrace` · `\underbrace` · `\overset` · `\underset` · `\stackrel` · `\substack` · `\phantom` · `\hphantom` · `\vphantom`
+        The decorations that used to be listed here as unsupported — `\overbrace`, `\underbrace`,
+        `\substack`, the phantoms and the stacked annotations — all render now; they live in the
+        [structures reference](latex-math-structures.md).
         """;
 
     private const string LatexMathAmssymb =
         """
         # LaTeX math — AMS symbols (amssymb)
 
-        A coverage map of the AMS `amssymb` symbol set: **167 of 224** symbols render with the bundled
-        fonts. Each `$$` block below uses only symbols the engine **supports**, so it typesets; the symbols it
-        does **not** support are listed after each group as *Not supported*. (In the app an unsupported formula
-        falls back to showing its raw `$$ … $$` source, so nothing here is silently wrong.)
+        A coverage map of the AMS `amssymb` symbol set: **all 224** symbols render. Both AMS symbol fonts
+        are bundled — `msam` (symbols A) and `msbm` (symbols B) — so what used to be listed here as
+        *Not supported* is now just a set of glyphs.
 
-        Almost every gap is a **missing font**, not a layout limitation: the dedicated AMS glyphs live in the
-        `msbm` font (blackboard-bold, Hebrew letters, the "negation-with-its-own-glyph" relations such as
-        `\subsetneq`/`\lneqq`) and a handful of `msam` glyphs (`\ltimes`, `\lessdot`, `\dashrightarrow`, …)
-        that the bundled `jlm_msam10` re-encoding omits. Bundling those fonts is the way to close the gap.
+        Every gap this page once had was a **missing font**, not a layout limitation. `msbm` carries
+        blackboard bold, the Hebrew letters, and the relations where "not equal" is drawn into the symbol
+        rather than slashed through it (`\subsetneq`, `\lneqq`, …); a few `msam` glyphs were present all
+        along but unmapped. The negated relations are real glyphs now rather than a base relation with a
+        zero-width `\not` laid over it.
 
         See the [symbols reference](latex-math-symbols.md) for the core LaTeX symbols and the reading convention.
 
-        ## Relations — 56 of 66 render
+        ## Relations — 66 of 66 render
 
         $$ \leqq \;\; \leqslant \;\; \eqslantless \;\; \lesssim \;\; \lessapprox \;\; \lll \;\; \lessgtr \;\; \lesseqgtr \;\; \lesseqqgtr \;\; \doteqdot \;\; \risingdotseq \;\; \fallingdotseq \;\; \backsim $$
 
@@ -337,17 +569,17 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \blacktriangleleft \;\; \therefore \;\; \blacktriangleright \;\; \because $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\approxeq` · `\lessdot` · `\precapprox` · `\gtrdot` · `\thicksim` · `\thickapprox` · `\succapprox` · `\shortmid` · `\shortparallel` · `\backepsilon`
+        $$ \approxeq \;\; \lessdot \;\; \precapprox \;\; \gtrdot \;\; \thicksim \;\; \thickapprox \;\; \succapprox \;\; \shortmid \;\; \shortparallel \;\; \backepsilon \;\; \eqsim $$
 
-        ## Binary operators — 19 of 23 render
+        ## Binary operators — 23 of 23 render
 
         $$ \dotplus \;\; \Cap \;\; \Cup \;\; \barwedge \;\; \veebar \;\; \doublebarwedge \;\; \boxminus \;\; \boxtimes \;\; \boxdot \;\; \boxplus \;\; \leftthreetimes \;\; \rightthreetimes \;\; \curlywedge $$
 
         $$ \curlyvee \;\; \circleddash \;\; \circledast \;\; \circledcirc \;\; \centerdot \;\; \intercal $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\smallsetminus` · `\divideontimes` · `\ltimes` · `\rtimes`
+        $$ \smallsetminus \;\; \divideontimes \;\; \ltimes \;\; \rtimes $$
 
-        ## Arrows — 28 of 32 render
+        ## Arrows — 32 of 32 render
 
         $$ \leftleftarrows \;\; \leftrightarrows \;\; \Lleftarrow \;\; \twoheadleftarrow \;\; \leftarrowtail \;\; \looparrowleft \;\; \leftrightharpoons \;\; \circlearrowleft \;\; \Lsh \;\; \upuparrows \;\; \upharpoonleft \;\; \downharpoonleft \;\; \multimap $$
 
@@ -355,9 +587,9 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \Rrightarrow \;\; \leadsto $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\dashrightarrow` · `\dashleftarrow` · `\curvearrowleft` · `\curvearrowright`
+        $$ \dashrightarrow \;\; \dashleftarrow \;\; \curvearrowleft \;\; \curvearrowright $$
 
-        ## Negated relations — 31 of 56 render
+        ## Negated relations — 56 of 56 render
 
         $$ \nless \;\; \nleq \;\; \nleqslant \;\; \nleqq \;\; \nprec \;\; \npreceq \;\; \nsim \;\; \nmid \;\; \nvdash \;\; \nVdash \;\; \ntriangleleft \;\; \ntrianglelefteq \;\; \nsubseteq $$
 
@@ -365,9 +597,13 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \nrightarrow \;\; \nLeftarrow \;\; \nRightarrow \;\; \nleftrightarrow \;\; \nLeftrightarrow $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\lneq` · `\lneqq` · `\lvertneqq` · `\lnsim` · `\lnapprox` · `\precnsim` · `\precnapprox` · `\nshortmid` · `\subsetneq` · `\varsubsetneq` · `\subsetneqq` · `\varsubsetneqq` · `\gneq` · `\gneqq` · `\gvertneqq` · `\gnsim` · `\gnapprox` · `\succnsim` · `\succnapprox` · `\nshortparallel` · `\nVDash` · `\supsetneq` · `\varsupsetneq` · `\supsetneqq` · `\varsupsetneqq`
+        The strict negations, where the inequality is drawn into the glyph:
 
-        ## Miscellaneous & letters — 27 of 41 render
+        $$ \lneq \;\; \lneqq \;\; \lvertneqq \;\; \lnsim \;\; \lnapprox \;\; \precnsim \;\; \precnapprox \;\; \precneqq \;\; \nshortmid \;\; \subsetneq \;\; \varsubsetneq \;\; \subsetneqq \;\; \varsubsetneqq $$
+
+        $$ \gneq \;\; \gneqq \;\; \gvertneqq \;\; \gnsim \;\; \gnapprox \;\; \succnsim \;\; \succnapprox \;\; \succneqq \;\; \nshortparallel \;\; \nVDash \;\; \supsetneq \;\; \varsupsetneq \;\; \supsetneqq \;\; \varsupsetneqq $$
+
+        ## Miscellaneous & letters — 41 of 41 render
 
         $$ \hbar \;\; \vartriangle \;\; \triangledown \;\; \square \;\; \lozenge \;\; \circledS \;\; \angle \;\; \measuredangle \;\; \sphericalangle \;\; \nexists \;\; \backprime \;\; \varnothing \;\; \blacktriangle $$
 
@@ -375,7 +611,14 @@ internal sealed class MarkdownSamples : ISampleSet
 
         $$ \Diamond $$
 
-        *Not supported (glyph absent from the bundled fonts):* `\hslash` · `\mho` · `\Finv` · `\Game` · `\Bbbk` · `\eth` · `\diagup` · `\diagdown` · `\digamma` · `\varkappa` · `\beth` · `\gimel` · `\daleth` · `\circledR`
+        $$ \hslash \;\; \mho \;\; \Finv \;\; \Game \;\; \Bbbk \;\; \eth \;\; \diagup \;\; \diagdown \;\; \digamma \;\; \varkappa \;\; \beth \;\; \gimel \;\; \daleth \;\; \circledR $$
+
+        ## Blackboard bold
+
+        `\mathbb` is the `msbm` alphabet. It is capitals-only, as the font carries no blackboard
+        lowercase or digits:
+
+        $$ \mathbb{ABCDEFGHIJKLMNOPQRSTUVWXYZ} $$
 
         ## Synonyms for existing symbols — 6 of 6 render
 
