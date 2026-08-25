@@ -60,6 +60,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.ProductManager\Nexaflow.Features.ProductManager.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Projects\Nexaflow.Features.Projects.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Solver\Nexaflow.Features.Solver.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />
   </ItemGroup>
 

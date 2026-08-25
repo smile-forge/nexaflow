@@ -43,6 +43,23 @@ public sealed class MarkdownRenderContext
     public double MaxDiagramHeight { get; init; }
 
     /// <summary>
+    /// Where a rendered sub-block — a formula, a score, a diagram — sits across the column.
+    /// <para>
+    /// Centred is right for a document, where set-piece content is something the prose steps around.
+    /// It is wrong for a pane whose whole content <em>is</em> that sub-block: then it is an input
+    /// field, and what is in a field starts where every other field's content starts. One setting for
+    /// all of them rather than one per kind, because it is a fact about the surface, not about what
+    /// happens to be on it — a formula and a score in the same pane centring differently would be a
+    /// bug however each was reached.
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// Null leaves each kind where it normally sits — a formula centred, a diagram filling the column —
+    /// which is what a document wants. Setting it overrides the lot.
+    /// </remarks>
+    public System.Windows.HorizontalAlignment? SubblockAlignment { get; init; }
+
+    /// <summary>
     /// Where each diagram's expansion, selection and pan/zoom are kept between renders. Null means
     /// they are not kept — fine for a surface that renders once, wrong for one whose host re-emits
     /// the markdown to answer an expand.

@@ -5,8 +5,8 @@ work with Nexaflow's third-party source forks correctly — both **building Nexa
 **posting clean atomic PRs upstream** — without asking for a more detailed prompt. Read the whole file
 before touching anything under `external/`.
 
-Nexaflow consumes four third-party dependencies **from source**, each via a fork the `smile-forge` org
-controls. Three are .NET libraries wired in with `ProjectReference` (never `PackageReference`); the fourth
+Nexaflow consumes five third-party dependencies **from source**, each via a fork the `smile-forge` org
+controls. Four are .NET libraries wired in with `ProjectReference` (never `PackageReference`); the odd one out
 (**tree-sitter-xml**) is a **native C grammar** and is the documented exception to that rule — there is no
 `.csproj` to reference, so it is *compiled* by an MSBuild target instead (see **Native grammar submodules**
 below). This lets Nexaflow build against our version while keeping upstream sync and PRs working.
@@ -60,11 +60,11 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | `upstream` (original) | `https://github.com/ForNeVeR/xaml-math.git` | `https://github.com/LTRData/DiscUtils.git` | `https://github.com/tree-sitter-grammars/tree-sitter-xml.git` |
 | **Upstream default branch** | **`master`** | **`LTRData.DiscUtils-initial`** ⚠ not `master`/`main` | **`master`** |
 | Tracked integration branch | `nexaflow` | `nexaflow` | `nexaflow` |
-| In-flight feature branches | `feat/matrix-delimiter-environments` (LaTeX matrix delimiter env work) | *(none yet)* | *(none yet)* |
+| In-flight feature branches | `feat/matrix-delimiter-environments` (LaTeX matrix delimiter env work) · `feat/source-span-lengths` (four sites passed an absolute position where `SourceSpan` wants a length) · `feat/predefined-formula-source` (re-source `\sin`/`\lim`/`\iiiint` onto the command that invoked them) · `feat/command-source-attribution` (commands and rows point at the input) · `feat/script-span-frames` (`AttachScripts` mixed indices-into-`value` with offsets-into-the-input; a scripts atom named its scripts but drew its base; an accent's span was taken before its argument was read) — all merged into `nexaflow`, **not yet pushed**; they underpin editable LaTeX, which maps rendered output back to source | *(none yet)* | *(none yet)* |
 | Nexaflow consumer project | `src/Nexaflow.Visuals.Text/Nexaflow.Visuals.Text.csproj` | `src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Nexaflow.Features.VirtualDisk.csproj` | `src/Nexaflow.Syntax/Nexaflow.Syntax.csproj` |
 | Wired project(s) | `external/xaml-math/src/WpfMath/WpfMath.csproj` (replaced the `WpfMath` NuGet). `XamlMath.Shared` comes in **transitively** — don't add it explicitly. | `Library/DiscUtils.Core`, `Library/DiscUtils.Containers`, `Library/DiscUtils.FileSystems` (Containers/FileSystems each pull the format libs). | **None — no `ProjectReference`.** The `BuildTreeSitterXml` target in `Nexaflow.Syntax.csproj` compiles `xml/src/{parser,scanner}.c` via `tools/build-tree-sitter-xml.ps1`. |
 | Do **NOT** reference | `AvaloniaMath*`, `*.ApiTest*`, `*.Example`, `Tool.TTFMetrics` | Test/Utilities projects; individual format libs (use the `Containers`/`FileSystems` meta-projects) | The `dtd/` grammar (we only build `xml/`); the Rust/Node/Swift/Python bindings |
-| Notes | `ForNeVeR/wpf-math` **redirects to `xaml-math`** (renamed). WpfMath is one project inside a multi-project repo. Multi-targets `net462;net8.0-windows` → consumers resolve `net8.0-windows`. Repo ships its own `Directory.Build.props` + CPM `Directory.Packages.props`. | Default branch is unusual — **base feature branches off `LTRData.DiscUtils-initial`** unless the upstream PR guide says otherwise. Library projects multi-target incl. `net10.0`. `SignAssembly=false` (the `SigningKey.snk` isn't needed). `.gitmodules` sets **`ignore = untracked`** (see gotchas). | Supplies the `xml` grammar for `.xaml`/`.xml`/`.xsl` (TreeSitter.DotNet bundles ~30 natives but no XML one). MIT. Sources are self-contained — `xml/src/tree_sitter/*.h` are vendored, and `scanner.c` includes `../../common/scanner.h`, so the `xml/` + `common/` layout must be preserved. Needs the **MSVC C toolchain**. Objects go to `src/Nexaflow.Syntax/obj/native/`, never into the submodule — so this one needs **no** `ignore = untracked`. |
+| Notes | `ForNeVeR/wpf-math` **redirects to `xaml-math`** (renamed). WpfMath is one project inside a multi-project repo. Multi-targets `net462;net8.0-windows` → consumers resolve `net8.0-windows`. Repo ships its own `Directory.Build.props` + CPM `Directory.Packages.props`. **New work branches off `nexaflow`, not `upstream/master`** — upstream has not merged the PRs sent so far and our branch is far ahead, so basing on the pristine default only buys conflicts (see recipe 2).<br><br>**This one is a real fork now, and targets `net10.0` only.** `XamlMath.Shared` → `net10.0`, `WpfMath` → `net10.0-windows`; `net462` and `netstandard2.0` are gone from both. They pinned the whole repo to **C# 11** (a tax paid on every change — `Math.Clamp` and collection expressions each had to be worked around), and, worse, made `Nullable` conditional on netstandard2.1-compatibility, so the shared project built with reference-type nullability **off** on .NET Framework: half of what the annotations claimed was never checked. It is unconditional now. Upstream is dormant on substance — every commit for months is Renovate or a CI action bump, and `git log upstream/master --not nexaflow` has *no* non-bot commit we lack — so staying multi-target bought nothing in return. **The Avalonia projects are deliberately left in place** (we simply don't build them): deleting them would balloon any future upstream diff for no gain. Two branch prefixes now: `feat/*` for anything portable enough to offer upstream one day (the content lives in `.cs` files a TFM change never touches, so it still cherry-picks cleanly), and **`fork/*` for changes that are ours alone** and are not going anywhere.<br><br>**Why its `SourceSpan`s are so often wrong, and how to change one safely.** WpfMath renders a corpus almost perfectly while carrying spans that are plainly incorrect, which reads like a paradox and is not: spans are a **write-only channel** in this engine. Grep says a span's `Start`/`Length`/`End` is read in exactly five places, all inside `TexFormulaParser`, and *none* in `Boxes/`, `Atoms/` or any renderer — geometry comes from font metrics and TeX rules alone. So nothing compensates for a bad span and nothing ever noticed one. We are its first real consumer (editable LaTeX maps rendered output back to source), which is why five separate span bugs have surfaced here and none upstream. Two recurring shapes: **an index into the `value` being parsed used as an offset into the whole input** (invisible at the top level, where `value.Start == 0`, wrong for every nested construct), and **a span stamped before the construct's argument has been read** (so it names the command and draws the argument too). When changing one, prove the picture did not move rather than assuming: render a corpus to bitmaps and compare pixel hashes before and after — all five fixes so far are byte-identical. | Default branch is unusual — **base feature branches off `LTRData.DiscUtils-initial`** unless the upstream PR guide says otherwise. Library projects multi-target incl. `net10.0`. `SignAssembly=false` (the `SigningKey.snk` isn't needed). `.gitmodules` sets **`ignore = untracked`** (see gotchas). | Supplies the `xml` grammar for `.xaml`/`.xml`/`.xsl` (TreeSitter.DotNet bundles ~30 natives but no XML one). MIT. Sources are self-contained — `xml/src/tree_sitter/*.h` are vendored, and `scanner.c` includes `../../common/scanner.h`, so the `xml/` + `common/` layout must be preserved. Needs the **MSVC C toolchain**. Objects go to `src/Nexaflow.Syntax/obj/native/`, never into the submodule — so this one needs **no** `ignore = untracked`. |
 
 …and the fourth, kept in its own table because its wiring is a hybrid the columns above can't express
 (a `ProjectReference` **plus** nested C submodules we compile):
@@ -83,6 +83,21 @@ submodule working trees are per-worktree; `.gitmodules` and the pinned commit ar
 | Nested submodules | **29 grammars + the tree-sitter runtime**, under `tree-sitter-native/`. Only the ones in `tools/tree-sitter-grammars.props` (plus the runtime) are initialised — `tools/ensure-submodules.ps1` reads that manifest. They're shallow (`--depth 1`); the pin still resolves because it's a commit on a branch the remote advertises. |
 | Our commits on `nexaflow` | (1) the grammar/runtime pin bumps; (2) an **empty `Directory.Build.props` + `.targets`** at the repo root. The second is integration-only and must never be upstreamed: the repo has none of its own, so without it MSBuild's walk-up would reach Nexaflow's root and silently apply our `Platforms=x64` and `NoWarn` to upstream's projects. |
 | Notes | The reason this exists at all is in the intro: the package's prebuilt grammars go stale and one of them silently deleted a whole file from the graph. **Grammar submodules point at their own upstreams** (`tree-sitter/tree-sitter-*`), not at `smile-forge` forks — we bump pins, we don't patch grammar source. If a grammar ever *does* need patching, fork that one repo then. Needs the **MSVC C toolchain**. |
+
+…and the fifth, which is here for a reason worth stating plainly — **not** because we patch it:
+
+| | **AngouriMath** |
+|---|---|
+| Submodule path | `external/AngouriMath` |
+| `origin` (committed, our fork) | `https://github.com/smile-forge/AngouriMath.git` |
+| `upstream` (original) | `https://github.com/asc-community/AngouriMath.git` |
+| **Upstream default branch** | **`master`** |
+| Tracked integration branch | `nexaflow` |
+| In-flight feature branches | *(none — `nexaflow` is a plain `upstream/master` commit)* |
+| Nexaflow consumer project | `src/Nexaflow.Features/Nexaflow.Features.Solver/Nexaflow.Features.Solver.csproj` |
+| Wired project(s) | `external/AngouriMath/Sources/AngouriMath/AngouriMath.csproj` — the C# kernel. Its two analyzer projects (`Sources/Analyzers/Analyzers`, `Sources/Analyzers/RuleRegistryGenerator`) come in as `OutputItemType="Analyzer"` references and **must be listed in `Nexaflow.slnx`** or VS restore fails with NU1105. |
+| Do **NOT** reference | `Sources/Tests`, `Sources/Samples`, `Sources/Terminal`, `Sources/Utils`, `Sources/Wrappers` (the F# and Jupyter wrappers). |
+| Notes | **Why a submodule rather than the NuGet package**: the Solver needs `MathS.Polynomials.Factor` (the `factor` chip) and `DerivationPath.OfSimplifying` (the local step-by-step chip), and *both landed after the 2.3.0 release* — 2.3.0 keeps polynomial factorisation `internal`, so from the package the capability is unreachable. So the pin is a commit on upstream `master`, not a tag, and we carry **no** patch. Keep it that way: if a future need does require one, it goes on an atomic `feat/*` branch merged into `nexaflow`, per recipe 2. Multi-targets `netstandard2.0;net8.0;net10.0` → consumers resolve `net10.0`. `Sources/Directory.Build.props` exists, so MSBuild's walk-up stops inside the submodule and this repo's `Platforms=x64` never leaks in — unlike tree-sitter-dotnet-bindings, this one needs no empty-props shim. Builds with `TreatWarningsAsErrors`; if a Roslyn bump ever breaks that, relax it on `nexaflow` as an integration-only commit. |
 
 To read the *current* pinned commits and tracked branch at any time:
 
@@ -143,11 +158,20 @@ Nothing special — the pinned commit is already checked out. Just build (see **
 submodule folder is empty, run recipe 0.
 
 ### 2. Make a change I intend to upstream (THE core PR flow)
-Example: change xaml-math (`upstream/master`). For DiscUtils swap `master` → `LTRData.DiscUtils-initial`.
+
+> **xaml-math is now an exception — branch off `nexaflow`, not `upstream/master`.** Upstream has not
+> taken the PRs sent so far, and `nexaflow` is ~57 commits ahead. Branching off the pristine default
+> buys PR-cleanliness nobody is spending, and costs a merge conflict every time our branch has already
+> touched the same region — which it now usually has. Base on `nexaflow`, keep the commit atomic, and
+> rebase onto `upstream/master` *if and when* a PR is actually wanted. The flow below still stands for
+> the other submodules, and for xaml-math the day upstream starts merging again.
+
+Example: change DiscUtils. For xaml-math see the note above; swap `master` → the row's upstream default.
 ```bash
 SM=<repo>/external/xaml-math
 git -C "$SM" fetch upstream
 git -C "$SM" switch -c feat/<topic> upstream/master     # atomic branch off the pristine default
+#   …or, for xaml-math: git -C "$SM" switch -c feat/<topic> nexaflow
 # …edit files under $SM, keeping the diff minimal and PR-clean…
 git -C "$SM" add -A
 git -C "$SM" commit -m "<focused message>"

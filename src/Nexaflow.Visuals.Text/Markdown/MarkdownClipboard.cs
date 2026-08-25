@@ -50,6 +50,23 @@ public static class MarkdownClipboard
         }
         catch { /* fall through to plain text */ }
 
+        return ReadPlainText(data);
+    }
+
+    /// <summary>
+    /// The clipboard's plain text, ignoring its richer flavours.
+    /// <para>
+    /// For a surface whose content is source rather than prose — a formula — this is the only honest
+    /// reading. Converting the HTML flavour to markdown is meaningful for text and destructive for
+    /// code: it is where a copied <c>\[\sqrt{x^2+1}\]</c> arrives wearing typographic quotes the page
+    /// never had, because something in the markup was styled as a quotation. What was copied is what
+    /// should be typed.
+    /// </para>
+    /// </summary>
+    public static string? ReadPlainText(IDataObject? data)
+    {
+        if (data is null) return null;
+
         if (data.GetDataPresent(DataFormats.UnicodeText))
             return data.GetData(DataFormats.UnicodeText) as string;
         if (data.GetDataPresent(DataFormats.Text))

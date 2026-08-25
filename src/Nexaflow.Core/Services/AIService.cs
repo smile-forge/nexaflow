@@ -279,6 +279,19 @@ public sealed class AIService : IAIService
         return response?.RawText;
     }
 
+    public async Task<string?> RunProblemSolvingAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
+    {
+        // Falling back to Analysis rather than returning null keeps the Solver working out of the
+        // box: Problem Solving is a new column in the ability grid, so on an existing workspace it
+        // is unassigned until someone chooses to point it somewhere better.
+        var provider = GetProvider(AiAbility.ProblemSolving) ?? GetProvider(AiAbility.Analysis);
+        if (provider is null) return null;
+
+        var response = await provider.CompleteAsync(
+            [new(LlmRole.System, systemPrompt), new(LlmRole.User, userPrompt)], ct);
+        return response?.RawText;
+    }
+
     // ── Client-side agent loop ───────────────────────────────────────────────
 
     /// <summary>Generous hard ceiling on automated tool turns — a final backstop. Real loops are caught

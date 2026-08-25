@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown;
 /// <c>--filter "TestCategory=UI"</c>.</para>
 /// </summary>
 [TestClass]
-[TestCategory("UI")]
+[TestCategory("Desktop")]
 [DoNotParallelize]   // each case spins an off-screen Window; concurrent WPF layout makes the counts flaky
 [NoCoverage("exercises the shared rendered-search helper across surfaces, not one product node")]
 public class RenderedMarkdownSearchTests

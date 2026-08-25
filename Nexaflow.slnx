@@ -102,6 +102,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Nexaflow.Features.Scratchpad.csproj" Id="6bb477f1-beea-4167-88fc-68bc0ff640be">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Solver/Nexaflow.Features.Solver.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Nexaflow.Features.SystemInfo.csproj" Id="d67eea32-4436-40b5-bef2-51157aefe8b4">
       <Platform Project="x64" />
     </Project>
@@ -278,6 +281,15 @@
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/AngouriMath/Sources/AngouriMath/AngouriMath.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/AngouriMath/Sources/Analyzers/Analyzers/Analyzers.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/AngouriMath/Sources/Analyzers/RuleRegistryGenerator/RuleRegistryGenerator.csproj">
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="external/xaml-math/src/WpfMath/WpfMath.csproj">

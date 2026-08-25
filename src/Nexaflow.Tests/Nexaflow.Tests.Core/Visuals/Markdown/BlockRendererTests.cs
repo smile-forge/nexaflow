@@ -1,5 +1,6 @@
 using Markdig.Syntax;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -91,12 +92,26 @@ public class BlockRendererTests
     });
 
     [TestMethod]
-    public void MathBlock_RendersFormulaControlOrFallbackBorder() => UiThread.Run(() =>
+    public void MathBlock_TypesetsWhatItCanReadAndMarksWhatItCannot() => UiThread.Run(() =>
     {
-        const string src = "$$\n\\not_a_command{\n$$\n";
-        var mb = Parse(src).OfType<Markdig.Extensions.Mathematics.MathBlock>().Single();
-        var fe = BlockRenderer.Render(mb, src);
-        Assert.IsTrue(fe is Border || fe is WpfMath.Controls.FormulaControl);
+        const string good = "$$\n\\frac{x^2}{2}\n$$\n";
+        var typeset = BlockRenderer.Render(
+            Parse(good).OfType<Markdig.Extensions.Mathematics.MathBlock>().Single(), good);
+        Assert.IsInstanceOfType(typeset, typeof(FormulaElement));
+
+        // Trouble in a formula does not cost it its typesetting. Maths under a caret is invalid most
+        // of the time — every command is unreadable until its last letter is typed — so a formula that
+        // turned into a box of source as you wrote it would spend most of its life as a box of source.
+        // The parser recovers instead: what it understood is set, what it could not is shown as the
+        // characters written, and a wave goes under those.
+        const string bad = "$$\n\\not_a_command{\n$$\n";
+        var recovered = BlockRenderer.Render(
+            Parse(bad).OfType<Markdig.Extensions.Mathematics.MathBlock>().Single(), bad);
+
+        var formula = recovered as FormulaElement;
+        Assert.IsNotNull(formula, "an unreadable formula is still a formula, still editable in place");
+        Assert.AreNotEqual(0, formula.Diagnostics.Count,
+            "and it says which part of it could not be read, or nothing would mark the trouble");
     });
 
     // ── CommonMark base spec: block-level features ────────────────────────

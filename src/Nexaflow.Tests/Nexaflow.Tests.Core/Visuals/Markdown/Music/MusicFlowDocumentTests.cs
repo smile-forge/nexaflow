@@ -15,7 +15,8 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown.Music;
 /// RichTextBox walks that text on every caret move, selection and focus change.
 /// </summary>
 [TestClass]
-[TestCategory("UI")]
+[TestCategory("Desktop")]
+[DoNotParallelize]   // spins an off-screen Window; concurrent WPF layout and focus make it flaky
 [CoversNode("music-block")]
 public class MusicFlowDocumentTests
 {
