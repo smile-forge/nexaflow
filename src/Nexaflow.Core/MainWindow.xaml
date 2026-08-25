@@ -99,6 +99,7 @@
                     <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                     <!-- The editable value lives on ShellViewModel.PromptValue (read by ConfirmShellPrompt). -->
                     <TextBox ctrl:FocusOnLoad.Enabled="True"
+                             AutomationProperties.AutomationId="ShellPromptBox"
                              Text="{Binding DataContext.PromptValue, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}"
                              Padding="8,6" Margin="0,0,0,18" FontSize="13"
                              Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
@@ -110,6 +111,7 @@
                     </TextBox>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Cancel" Command="{Binding CancelCommand}"
+                                AutomationProperties.AutomationId="ShellPromptCancel"
                                 Width="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
@@ -130,6 +132,7 @@
                             </Button.Template>
                         </Button>
                         <Button Content="OK" Command="{Binding ConfirmCommand}"
+                                AutomationProperties.AutomationId="ShellPromptOk"
                                 Width="90" Height="32" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource AccentBrush}" Foreground="White"
                                 BorderThickness="0" FontWeight="SemiBold">

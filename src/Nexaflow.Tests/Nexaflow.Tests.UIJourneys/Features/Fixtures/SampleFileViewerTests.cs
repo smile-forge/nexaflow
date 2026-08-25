@@ -147,16 +147,4 @@ public class SampleFileViewerTests : FileSystemUiTestBase
         return WaitForGone(viewerId, 8);
     }
 
-    /// <summary>Polls until no on-screen element carries <paramref name="automationId"/> (the tab closed).</summary>
-    private bool WaitForGone(string automationId, int seconds)
-    {
-        var sw = Stopwatch.StartNew();
-        while (sw.Elapsed < TimeSpan.FromSeconds(seconds))
-        {
-            var el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
-            if (el is null || el.IsOffscreen) return true;
-            System.Threading.Thread.Sleep(120);
-        }
-        return false;
-    }
 }

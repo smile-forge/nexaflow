@@ -60,6 +60,25 @@ public abstract class FileSystemUiTestBase : UITestBase
         return null;
     }
 
+    /// <summary>
+    /// True once no on-screen element carries <paramref name="automationId"/> — for asserting that a
+    /// modal actually went away. Only meaningful for ids on real controls (which have automation peers);
+    /// on a Border or a panel this would "pass" by finding nothing either way.
+    /// </summary>
+    protected bool WaitForGone(string automationId, int seconds = 4)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < TimeSpan.FromSeconds(seconds))
+        {
+            AutomationElement? el = null;
+            try { el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)); }
+            catch { /* tree churned — retry */ }
+            if (el is null || el.IsOffscreen) return true;
+            System.Threading.Thread.Sleep(120);
+        }
+        return false;
+    }
+
     protected static bool WaitForFs(Func<bool> condition, int seconds = 5)
     {
         var sw = Stopwatch.StartNew();

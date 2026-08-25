@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -774,6 +775,10 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             Background      = Brushes.Transparent,
             BorderThickness = new Thickness(0),
         };
+
+        // The label lives in the code-built template below, not in Header, so the item would otherwise
+        // reach automation (and a screen reader) unnamed.
+        AutomationProperties.SetName(item, displayName);
 
         // Build the ControlTemplate entirely in code so there is no icon-presenter
         // column at all — just a Border containing a horizontal StackPanel.
