@@ -11,8 +11,8 @@ namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 
 /// <summary>
 /// The one UI journey for the file browser: the tab loads, the create overlay makes each kind of thing it
-/// offers, and a template defined in Options turns up in that overlay and produces a file with the right
-/// content.
+/// offers, renaming a file can be started and then cancelled without touching it, and a template defined in
+/// Options turns up in that overlay and produces a file with the right content.
 /// <para>
 /// This was three classes and seven test methods, each launching its own Nexaflow to assert one or two
 /// things about the same view. The launches were the runtime. Running them in sequence against one app also
@@ -101,6 +101,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
     [CoversNode("win-file-system-ui")]
     [CoversNode("winfs-create")]
     [CoversNode("winfs-create-template")]
+    [CoversNode("winfs-act-rename")]
     public void FileSystem_Controls_RespondInOnePass()
     {
         // ── The tab loads with its primary elements ──────────────────────────────────────
@@ -164,6 +165,50 @@ public class FileSystemJourneyTests : UiJourneyTestBase
             }
 
             DismissCreateOverlay();   // nothing was created, and the next flow needs the overlay closed
+        }
+
+        // ── Rename: cancelling the prompt leaves the file alone and the page usable ──────
+        // The reported bug: starting a rename and changing your mind. Cancel has to close the
+        // prompt, leave the name on disk untouched, and leave a second rename possible.
+        var row = WaitForName("existing.txt", 8);
+        Check("The seeded file is listed", () => row is not null);
+        if (row is not null)
+        {
+            row.Click();                    // select → the strip lists this file's actions
+            Wait.UntilInputIsProcessed();
+            System.Threading.Thread.Sleep(200);
+
+            CheckInvoke("Rename action", "Rename", 6);
+
+            var box = CheckPresent("Rename prompt", "ShellPromptBox", 5);
+            Check("The rename prompt is seeded with the current name",
+                  () => box?.AsTextBox().Text == "existing.txt");
+
+            if (box is not null)
+            {
+                box.AsTextBox().Text = "changed-my-mind.txt";   // typed, then thought better of it
+                Wait.UntilInputIsProcessed();
+            }
+
+            CheckInvoke("Rename prompt Cancel", "ShellPromptCancel", 5);
+
+            Check("Cancel closes the rename prompt",
+                  () => WaitForGone("ShellPromptBox", 4));
+            Check("Cancel renames nothing", () =>
+                File.Exists(Path.Combine(_folder, "existing.txt")) &&
+                !File.Exists(Path.Combine(_folder, "changed-my-mind.txt")));
+
+            // …and the page is still live: the same rename runs again, this time to completion.
+            CheckInvoke("Rename action after a cancel", "Rename", 6);
+            var box2 = CheckPresent("Rename prompt reopens after a cancel", "ShellPromptBox", 5);
+            if (box2 is not null)
+            {
+                box2.AsTextBox().Text = "renamed.txt";
+                Wait.UntilInputIsProcessed();
+                CheckInvoke("Rename prompt OK", "ShellPromptOk", 5);
+                Check("Confirming the prompt renames the file",
+                      () => WaitForFs(() => File.Exists(Path.Combine(_folder, "renamed.txt"))));
+            }
         }
 
         // ── A template defined in Options reaches the create overlay ─────────────────────
