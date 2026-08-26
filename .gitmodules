@@ -15,3 +15,7 @@
 	path = external/tree-sitter-dotnet-bindings
 	url = https://github.com/smile-forge/tree-sitter-dotnet-bindings.git
 	branch = nexaflow
+[submodule "external/AngouriMath"]
+	path = external/AngouriMath
+	url = https://github.com/smile-forge/AngouriMath.git
+	branch = nexaflow

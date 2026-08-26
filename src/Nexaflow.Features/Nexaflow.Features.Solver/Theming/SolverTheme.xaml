@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ════ Solver key + chip tokens ════
+         Shipped as an IThemeContribution so they merge BELOW the active theme: every theme gets a
+         usable keypad for free, and any theme may retune a key by name without Core and the feature
+         referencing each other.
+
+         These are deliberately thin. A calculator key is a surface with a border and a glyph, and
+         the shell already has tokens for all three — so the defaults here are alpha washes that sit
+         on whatever SurfaceBrush the theme provides rather than fixed colours that would fight it.
+         Only the per-category tints are genuinely new, and they exist so the four kinds of key
+         (digit, operator, function, constant) are told apart at a glance rather than read. -->
+
+    <!-- Key faces. Digits are the plain surface; the rest are washes over it. -->
+    <SolidColorBrush x:Key="Solver.Key.Bg"          Color="#14FFFFFF"/>
+    <SolidColorBrush x:Key="Solver.Key.HoverBg"     Color="#28FFFFFF"/>
+    <SolidColorBrush x:Key="Solver.Key.PressedBg"   Color="#3CFFFFFF"/>
+    <SolidColorBrush x:Key="Solver.Key.Border"      Color="#22FFFFFF"/>
+
+    <!-- Per-kind tints, so the pad reads as a keypad rather than a wall of identical buttons. -->
+    <SolidColorBrush x:Key="Solver.Key.Digit"       Color="#1EFFFFFF"/>
+    <SolidColorBrush x:Key="Solver.Key.Operator"    Color="#2E4F8EF7"/>
+    <SolidColorBrush x:Key="Solver.Key.Function"    Color="#2E1DD1A1"/>
+    <SolidColorBrush x:Key="Solver.Key.Constant"    Color="#2EA060FF"/>
+    <SolidColorBrush x:Key="Solver.Key.Action"      Color="#2EFF6B6B"/>
+
+    <!-- Chip strip. -->
+    <SolidColorBrush x:Key="Solver.Chip.Bg"         Color="#1E4F8EF7"/>
+    <SolidColorBrush x:Key="Solver.Chip.HoverBg"    Color="#3C4F8EF7"/>
+    <SolidColorBrush x:Key="Solver.Chip.Border"     Color="#5A4F8EF7"/>
+
+    <!-- Result cells. -->
+    <SolidColorBrush x:Key="Solver.Result.Bg"       Color="#0EFFFFFF"/>
+    <SolidColorBrush x:Key="Solver.Result.Border"   Color="#1EFFFFFF"/>
+
+</ResourceDictionary>

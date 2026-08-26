@@ -14,7 +14,8 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown;
 /// Run with --filter "TestCategory=UI".
 /// </summary>
 [TestClass]
-[TestCategory("UI")]
+[TestCategory("Desktop")]
+[DoNotParallelize]   // spins an off-screen Window; concurrent WPF layout and focus make it flaky
 [CoversNode("markdown-block-undo")]
 public class InlineMarkdownEditorUndoTests
 {

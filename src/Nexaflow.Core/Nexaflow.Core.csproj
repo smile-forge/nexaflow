@@ -96,6 +96,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Svg\Nexaflow.Features.Svg.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Projects\Nexaflow.Features.Projects.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Scratchpad\Nexaflow.Features.Scratchpad.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Solver\Nexaflow.Features.Solver.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Text\Nexaflow.Features.Text.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Video\Nexaflow.Features.Video.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Web\Nexaflow.Features.Web.csproj" />

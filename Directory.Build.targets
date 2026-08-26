@@ -15,6 +15,7 @@
           Condition="'$(NexaflowSkipSubmoduleInit)' != 'true'
                      And ( !Exists('$(MSBuildThisFileDirectory)external\DiscUtils\Library\DiscUtils.Core\DiscUtils.Core.csproj')
                            Or !Exists('$(MSBuildThisFileDirectory)external\xaml-math\src\WpfMath\WpfMath.csproj')
+                           Or !Exists('$(MSBuildThisFileDirectory)external\AngouriMath\Sources\AngouriMath\AngouriMath.csproj')
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-xml\xml\src\parser.c')
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\src\TreeSitter.csproj')
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\tree-sitter-native\tree-sitter\lib\src\lib.c') )">

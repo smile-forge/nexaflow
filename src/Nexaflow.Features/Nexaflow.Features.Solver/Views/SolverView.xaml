@@ -1,0 +1,527 @@
+<UserControl x:Class="Nexaflow.Features.Solver.Views.SolverView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:local="clr-namespace:Nexaflow.Features.Solver.Views"
+             AutomationProperties.AutomationId="SolverView"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <vcv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <local:PaletteKeyBrushConverter x:Key="KeyBrush"/>
+        <local:AllTrueToVisibilityConverter x:Key="AllTrueToVis"/>
+
+        <!-- The definition band's height. The palette needs five rows of keys and the editor wants
+             about six lines; pinning both to one value is what stops the band jumping when the
+             palette is folded away. -->
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="BandHeight">210</sys:Double>
+
+        <!-- A palette key. Eight of these to a row; the face colour comes from the key's kind so
+             digits, operators and functions are told apart without being read. -->
+        <Style x:Key="PaletteKeyButton" TargetType="Button">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Face"
+                                Background="{Binding Kind, Converter={StaticResource KeyBrush}}"
+                                BorderBrush="{StaticResource Solver.Key.Border}"
+                                BorderThickness="1" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Face" Property="Background" Value="{StaticResource Solver.Key.HoverBg}"/>
+                                <Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Face" Property="Background" Value="{StaticResource Solver.Key.PressedBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The palette's fold handle. A hairline chevron rather than a button: it sits in the
+             band permanently, so a full toolbar button competes with the keys it controls. -->
+        <Style x:Key="PaletteFoldChevron" TargetType="ToggleButton">
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Hit" Background="Transparent">
+                            <TextBlock x:Name="Glyph" Text="&#x00BB;"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="Glyph" Property="Text" Value="&#x00AB;"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One step of the navigator's trail. Quiet until you point at it — the trail is mostly
+             there to be read, and a row of buttons under the ring would compete with it. The step
+             you are already on is inert rather than styled differently, so the trail does not
+             advertise a click that would do nothing. -->
+        <Style x:Key="BreadcrumbStep" TargetType="Button">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                    <Setter Property="IsHitTestVisible" Value="False"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A solver's offer. Reads as a pill so the strip is obviously a set of actions. -->
+        <Style x:Key="SolverChipButton" TargetType="Button">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Pill"
+                                Background="{StaticResource Solver.Chip.Bg}"
+                                BorderBrush="{StaticResource Solver.Chip.Border}"
+                                BorderThickness="1" CornerRadius="14" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Pill" Property="Background" Value="{StaticResource Solver.Chip.HoverBg}"/>
+                                <Setter TargetName="Pill" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Result body ──────────────────────────────────────────────────
+             Two templates, swapped by IsBusy, rather than one markdown view whose text arrives
+             later. That is not cosmetic: a SelectableMarkdownView created empty (and collapsed)
+             and filled afterwards builds its document against a host that has already been laid
+             out, and a display-maths block then measures at zero width and is clipped away to
+             nothing. Instantiating the view only once the answer exists reproduces the ordering
+             that works everywhere else in the app — a document built before its first layout. -->
+        <DataTemplate x:Key="ResultBusyTemplate">
+            <TextBlock Text="Working…" FontSize="12" FontStyle="Italic"
+                       Foreground="{StaticResource TextMutedBrush}"/>
+        </DataTemplate>
+
+        <DataTemplate x:Key="ResultReadyTemplate">
+            <md:SelectableMarkdownView Markdown="{Binding Markdown}"
+                                       AutomationProperties.AutomationId="Solver_ResultBody"/>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- problem area -->
+            <RowDefinition Height="*"/>      <!-- result area -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════ PROBLEM AREA ══════════════ -->
+        <Border Grid.Row="0" Margin="14,14,14,0" Padding="10"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>   <!-- rail | define | palette -->
+                    <RowDefinition Height="Auto"/>   <!-- chip strip -->
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Height="{StaticResource BandHeight}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>   <!-- mode rail -->
+                        <ColumnDefinition Width="*"/>      <!-- define area -->
+                        <ColumnDefinition Width="Auto"/>   <!-- fold chevron -->
+                        <ColumnDefinition Width="Auto"/>   <!-- palette -->
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Mode rail. The tab items carry no content of their own: the define area and
+                         palette sit beside the rail as siblings, so there is exactly one editor
+                         rather than one per tab. Width is pinned so the empty content host cannot
+                         claim any of the row. -->
+                    <vc:VerticalTabControl x:Name="ModeRail" Grid.Column="0" Width="74" RailWidth="74"
+                                           VerticalAlignment="Top"
+                                           SelectionChanged="OnModeRailSelectionChanged">
+                        <vc:VerticalTabItem Header="Calc"  Tag="Calc"
+                                            AutomationProperties.AutomationId="Solver_Mode_Calc"/>
+                        <vc:VerticalTabItem Header="Latex" Tag="Latex"
+                                            AutomationProperties.AutomationId="Solver_Mode_Latex"/>
+                        <vc:VerticalTabItem Header="Text"  Tag="Text"
+                                            AutomationProperties.AutomationId="Solver_Mode_Text"/>
+                    </vc:VerticalTabControl>
+
+                    <!-- Define area. Fixed height so folding the palette never resizes the band. -->
+                    <Border Grid.Column="1" Margin="10,0,10,0"
+                            Background="{StaticResource Surface2Brush}"
+                            BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="6">
+                        <Grid>
+                            <!-- Calc: a plain field, because the palette drives it and a formula
+                                 here is one line of arithmetic rather than a document. -->
+                            <TextBox x:Name="CalcInput"
+                                     AutomationProperties.AutomationId="Solver_CalcInput"
+                                     Visibility="{Binding IsCalcMode, Converter={StaticResource BoolToVis}}"
+                                     Text="{Binding CalcText, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="Transparent" BorderThickness="0"
+                                     Foreground="{StaticResource TextBrush}"
+                                     CaretBrush="{StaticResource TextBrush}"
+                                     FontFamily="Cascadia Mono, Consolas, monospace" FontSize="16"
+                                     Padding="10,8" AcceptsReturn="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     VerticalContentAlignment="Top"/>
+
+                            <!-- Latex and Text: the same editor in its two shapes - and one instance
+                                 of it each, not one instance shown twice.
+
+                                 Single-formula is what the editor is, not something it is currently
+                                 doing: it decides how the text splits into blocks, what the caret
+                                 belongs to and what the undo history means. Flipping it on a live
+                                 editor asks it to reinterpret a document it is in the middle of, and
+                                 switching tabs then had to swap the text underneath it - which an
+                                 editor holding the keyboard refuses (rebuilding mid-word would
+                                 destroy what is being typed), so a switch made with the caret in the
+                                 editor left the wrong tab's text on screen. Two editors have nothing
+                                 to swap: each keeps its own text, caret, scroll position and undo
+                                 history for as long as the tab is open, and the visibility binding
+                                 only decides which one you can see.
+
+                                 Latex holds one formula and owns the $$ itself, so what you type is
+                                 always inside a formula and typesets as you type, and no fence is
+                                 ever typed or seen. Text is a full markdown document - blocks,
+                                 headings, diagrams and maths of its own. -->
+                            <md:InlineMarkdownEditor x:Name="LatexInput"
+                                                     AutomationProperties.AutomationId="Solver_LatexInput"
+                                                     Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
+                                                     Markdown="{Binding LatexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     SingleFormula="True"
+                                                     EditAsSource="{Binding ShowsSource}"
+                                                     ContentPadding="10,8"
+                                                     Placeholder="Type a formula…"/>
+
+                            <!-- Named for the prose it holds rather than for its tab: an x:Name of
+                                 TextInput would hide UIElement.TextInput on the generated class. -->
+                            <md:InlineMarkdownEditor x:Name="ProseInput"
+                                                     AutomationProperties.AutomationId="Solver_TextInput"
+                                                     Visibility="{Binding IsTextMode, Converter={StaticResource BoolToVis}}"
+                                                     Markdown="{Binding TextText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     EditAsSource="{Binding ShowsSource}"
+                                                     ContentPadding="10,8"
+                                                     Placeholder="Describe the problem…"/>
+
+                            <!-- Source toggle, then Clear. The calculator has a C key, but the Latex
+                                 and Text tabs are driven from the keyboard and had no way to empty the
+                                 field at all. -->
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        Margin="0,4,6,0" Panel.ZIndex="3"
+                                        Visibility="{Binding IsMarkdownMode, Converter={StaticResource BoolToVis}}">
+                                <ToggleButton AutomationProperties.AutomationId="Solver_SourceToggle"
+                                              Style="{StaticResource TbToggle}"
+                                              Content="&lt;/&gt;"
+                                              ToolTip="Type the source instead of the rendered form"
+                                              Margin="0,0,4,0"
+                                              IsChecked="{Binding ShowsSource, Mode=TwoWay}"/>
+
+                                <Button AutomationProperties.AutomationId="Solver_ClearDefinition"
+                                        Command="{Binding ClearDefinitionCommand}"
+                                        Style="{StaticResource IconButton}"
+                                        Content="&#x2715;" ToolTip="Clear the definition"
+                                        Visibility="{Binding HasText, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+
+                            <!-- Calc has no placeholder of its own, so it gets one here. -->
+                            <TextBlock Text="Type something to solve."
+                                       IsHitTestVisible="False"
+                                       Margin="12,10,0,0" FontSize="13"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Top" HorizontalAlignment="Left">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCalcMode}" Value="True"/>
+                                                    <Condition Binding="{Binding IsEmpty}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+
+                    <!-- Palette. The whole column collapses when folded, so the define area really
+                         does take the space back. -->
+                    <Grid Grid.Column="3" Visibility="{Binding IsPaletteOpen, Converter={StaticResource BoolToVis}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>   <!-- recently used -->
+                                <ColumnDefinition Width="Auto"/>   <!-- navigator -->
+                                <ColumnDefinition Width="Auto"/>   <!-- calculator keypad -->
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Recently used. A vertical WrapPanel with a fixed height, so five fill
+                                 the first column and a sixth starts a second one; with nothing used
+                                 yet the ItemsControl has no items and takes no width at all. -->
+                            <ItemsControl Grid.Column="0" ItemsSource="{Binding RecentKeys}"
+                                          VerticalAlignment="Center" Margin="0,0,6,0">
+                                <ItemsControl.Visibility>
+                                    <MultiBinding Converter="{StaticResource AllTrueToVis}" Mode="OneWay">
+                                        <Binding Path="IsLatexMode"/>
+                                        <Binding Path="HasRecentKeys"/>
+                                    </MultiBinding>
+                                </ItemsControl.Visibility>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Vertical" Height="180"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource PaletteKeyButton}" Width="38"
+                                                Content="{Binding Label}"
+                                                ToolTip="{Binding Tooltip}"
+                                                Command="{Binding DataContext.PressKeyCommand,
+                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Wider than it is tall, and sized in width alone: the height is
+                                 whatever the band leaves, so width is the only dimension there is
+                                 to spend on making a tile wide enough for a whole word. -->
+                            <local:OctagonNavigator x:Name="SymbolNavigator" Grid.Column="1"
+                                                    Width="320" Margin="0,0,8,0"
+                                                    Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
+                                                    StrokeBrush="{StaticResource SurfaceBrush}"
+                                                    CentreFill="{StaticResource Surface2Brush}"
+                                                    CentreForeground="{StaticResource TextBrush}"/>
+
+                            <!-- The calculator keypad, for Calc and Text. LaTeX has no grid: its
+                                 symbols are the navigator's last ring, which is what keeps the
+                                 palette narrow enough to leave the definition area room. -->
+                            <ItemsControl Grid.Column="2" ItemsSource="{Binding PaletteKeys}"
+                                          VerticalAlignment="Center"
+                                          Visibility="{Binding IsLatexMode, Converter={StaticResource InvBoolVis}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="8"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource PaletteKeyButton}"
+                                                MinWidth="42"
+                                                Content="{Binding Label}"
+                                                ToolTip="{Binding Tooltip}"
+                                                Command="{Binding DataContext.PressKeyCommand,
+                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+
+                        <!-- Breadcrumb under the navigator, because the navigator shows one ring at
+                             a time and the path is the only thing that says where that ring is. Each
+                             step is a way back to that level: the centre only goes up one at a time,
+                             so a read-only trail would make returning to the top a click per level. -->
+                        <ItemsControl Grid.Row="2" ItemsSource="{Binding LatexCrumbs}"
+                                      Margin="0,4,0,0" HorizontalAlignment="Center"
+                                      Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="{Binding Label}"
+                                                Style="{StaticResource BreadcrumbStep}"
+                                                Command="{Binding DataContext.NavigateToCrumbCommand,
+                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding Depth}"/>
+                                        <TextBlock Text="&#x203A;" FontSize="11" Margin="4,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Visibility="{Binding IsCurrent, Converter={StaticResource InvBoolVis}}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+
+                    <!-- Fold handle. Its own column, full height and centred, so it never lands on
+                         top of the keys the way an overlaid corner button did. -->
+                    <ToggleButton Grid.Column="2"
+                                  AutomationProperties.AutomationId="Solver_TogglePalette"
+                                  IsChecked="{Binding IsPaletteOpen, Mode=TwoWay}"
+                                  Style="{StaticResource PaletteFoldChevron}"
+                                  ToolTip="Show or hide the palette"/>
+                </Grid>
+
+                <!-- Chip strip -->
+                <Grid Grid.Row="1" Margin="0,10,0,0">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Chips}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource SolverChipButton}"
+                                            Command="{Binding RunCommand}"
+                                            ToolTip="{Binding Description}"
+                                            AutomationProperties.AutomationId="{Binding AutomationId}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Glyph}" Margin="0,0,5,0"
+                                                       Foreground="{StaticResource AccentBrush}"
+                                                       Visibility="{Binding ShowGlyph, Converter={StaticResource BoolToVis}}"/>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <TextBlock Text="Nothing recognises this yet — keep typing."
+                               FontSize="12" Foreground="{StaticResource TextMutedBrush}"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding HasNoChips, Converter={StaticResource BoolToVis}}"/>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ══════════════ RESULT AREA ══════════════ -->
+        <Grid Grid.Row="1" Margin="14,10,14,14">
+            <!-- HorizontalScrollBarVisibility MUST be Disabled, and must be stated: the app's
+                 implicit ScrollViewer style sets it to Hidden, and Hidden still ENABLES horizontal
+                 scrolling - it only hides the bar. An enabled horizontal scroller measures its
+                 content with infinite width, and a FlowDocument measured at infinite width falls
+                 back to its minimum page width, so every result renders one character per line and
+                 a display-maths block is clipped to nothing. Consumers that bound their own width
+                 (AIChat's MaxWidth="720" bubble) never notice. -->
+            <ScrollViewer x:Name="ResultScroller"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                <ItemsControl x:Name="ResultList" ItemsSource="{Binding Results}"
+                              AutomationProperties.AutomationId="Solver_Results">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,8" Padding="12"
+                                    Background="{StaticResource Surface2Brush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="6">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <Button Style="{StaticResource IconButton}" Content="⎘"
+                                                    ToolTip="Copy this answer"
+                                                    Command="{Binding CopyCommand}"/>
+                                            <Button Style="{StaticResource IconButton}" Content="↥"
+                                                    ToolTip="Use this answer as the definition"
+                                                    Command="{Binding UseAsDefinitionCommand}"/>
+                                            <Button Style="{StaticResource IconButton}" Content="✕"
+                                                    ToolTip="Remove this result"
+                                                    Command="{Binding RemoveCommand}"/>
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Background="{StaticResource AccentSubtleBrush}"
+                                                    CornerRadius="3" Padding="6,1" Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding ChipLabel}" FontSize="11"
+                                                           Foreground="{StaticResource AccentBrush}"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding Definition}" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis" MaxWidth="620"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <ContentControl Grid.Row="1" Content="{Binding}"
+                                                    HorizontalContentAlignment="Stretch">
+                                        <ContentControl.Style>
+                                            <Style TargetType="ContentControl">
+                                                <Setter Property="ContentTemplate" Value="{StaticResource ResultBusyTemplate}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsBusy}" Value="False">
+                                                        <Setter Property="ContentTemplate" Value="{StaticResource ResultReadyTemplate}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ContentControl.Style>
+                                    </ContentControl>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock Text="Pick a chip above and the answer appears here."
+                       FontSize="13" Foreground="{StaticResource TextMutedBrush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Visibility="{Binding HasResults, Converter={StaticResource InvBoolVis}}"/>
+        </Grid>
+    </Grid>
+</UserControl>

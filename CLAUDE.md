@@ -278,7 +278,7 @@ Test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full 
 | Project | Covers |
 |---------|--------|
 | `Nexaflow.Tests.UIJourneys` | **Every test that launches the app** and drives the real mouse — `Core\` for the shell, `Features\<Feature>\` for the rest. References **only** `Tests.Fixtures`: a journey knows the app as a running process, never as an assembly. Fixtures it can't click into being are built by the suite that owns that format, into `test-samples/ui/`; a missing one is *inconclusive*, not a failure. **So run the other suites first.** |
-| `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*`. References Core. Its remaining `TestCategory("UI")` tests render WPF off-screen — they need a desktop session but launch nothing. |
+| `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*`. References Core. Its `TestCategory("UI")` tests render WPF off-screen — an STA thread, no window; its `TestCategory("Desktop")` ones show a real window and so must also be `[DoNotParallelize]`. |
 | `Nexaflow.Tests.Features` | The shell-adjacent features — AI chat, console, network, OneDrive, Product/Projects, scratchpad, This PC, web — plus the feature-agnostic search plumbing. References the feature projects, **not** Core. |
 | `Nexaflow.Tests.Features.Viewers` | Every viewer/editor/player (Audio…Video) and the sample-file corpus. |
 | `Nexaflow.Tests.Features.WindowsOS` | The Windows-integration features: file system, registry, search index, installed apps, processes, system info. |
@@ -309,9 +309,20 @@ src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.1
 ```
 
 They ask once before taking the machine (`NEXAFLOW_UITESTS_NOPROMPT=1` skips it), and `UiTestGate` holds a
-machine-wide semaphore so only one app instance runs at a time even if another test host is live. The
-remaining `TestCategory=UI` tests in `Tests.Core` render WPF off-screen: they need a desktop session but
-launch nothing.
+machine-wide semaphore so only one app instance runs at a time even if another test host is live.
+
+`Tests.Core`'s own WPF tests split by **what they need, not what they touch**, because the two behave
+completely differently under a parallel run:
+
+| Category | Needs | Parallel-safe |
+|---|---|---|
+| `TestCategory("UI")` | an STA thread; constructs and renders WPF off-screen, opens no window | yes |
+| `TestCategory("Desktop")` | an interactive session; **shows a real window and takes focus** | **no** — must carry `[DoNotParallelize]` |
+
+Focus is machine-wide, so two window-showing tests running at once take it from each other mid-assertion.
+That surfaces as a *different* test failing on each run, which reads like a real bug and is not one.
+`DesktopTestCategoryGuardTests` enforces both halves — anything whose source shows a window must declare
+`Desktop` and must not run in parallel — so the trap cannot be re-entered by forgetting an attribute.
 
 A feature's tests go in the suite matching its **subject** — a viewer in `.Viewers`, a Windows integration in `.WindowsOS`, anything shell-adjacent in `.Features`. Namespaces are the same in all of them (`Nexaflow.Tests.Features.<Folder>`), so only the project a file belongs to changed.
 

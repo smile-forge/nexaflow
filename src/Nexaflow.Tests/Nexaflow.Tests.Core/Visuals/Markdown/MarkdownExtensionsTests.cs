@@ -294,7 +294,8 @@ public class MarkdownExtensionsTests
     public void InlineMath_RendersFormulaOrFallback() => UiThread.Run(() =>
     {
         var tb         = (TextBlock)BlockRenderer.Render(Parse("value $x^2$ end\n")[0]);
-        bool hasFormula = tb.Inlines.OfType<InlineUIContainer>().Any(c => c.Child is WpfMath.Controls.FormulaControl);
+        bool hasFormula = tb.Inlines.OfType<InlineUIContainer>()
+            .Any(c => c.Child is Nexaflow.Visuals.Text.Markdown.Latex.FormulaElement);
         bool hasFallback = InlineText(tb.Inlines).Contains("x^2");
         Assert.IsTrue(hasFormula || hasFallback, "inline math should render a formula or a LaTeX fallback");
     });

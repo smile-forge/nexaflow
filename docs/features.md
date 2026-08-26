@@ -284,6 +284,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |
 | ProductManager | `path` (folder holding/initialising `.product/`) |
 | Projects | *(none)* |
+| Solver | *(none)* — the page is a fresh surface every time, which is why pinning the tab does not pin the definition or the results |
 | ProjectDetail | `folder` |
 | VirtualDisk | `path` (a disk image — vhd/vhdx/vdi/vmdk/dmg/img/iso — opened via "As Disk") |
 | Executable | `path` (a Portable Executable — exe/dll/sys — opened via "Inspect") |

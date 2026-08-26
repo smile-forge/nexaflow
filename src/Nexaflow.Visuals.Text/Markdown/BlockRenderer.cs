@@ -12,7 +12,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
-using WpfMath.Controls;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 using MdBlock        = Markdig.Syntax.Block;
 using MdFigure       = Markdig.Extensions.Figures.Figure;
 using MdFigureCaption= Markdig.Extensions.Figures.FigureCaption;
@@ -68,12 +68,12 @@ public static class BlockRenderer
                 QuoteBlock         qb  => RenderBlockQuote(qb, ctx),
                 ListBlock          lb  => RenderList(lb, ctx),
                 // MathBlock extends FencedCodeBlock — must match first
-                MathBlock          mb  => RenderMathBlock(mb, rawMarkdown, ctx),
+                MathBlock          mb  => Aligned(RenderMathBlock(mb, rawMarkdown, ctx), ctx),
                 // Musical notation (#%abc … #% / #%lilypond … #%) → sheet music
-                Music.MusicBlock   mus => Music.MusicRenderer.Render(mus, ctx),
+                Music.MusicBlock   mus => Aligned(Music.MusicRenderer.Render(mus, ctx), ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
-                                       => DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown),
+                                       => Aligned(DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown),
                                               new DiagramRenderOptions
                                               {
                                                   Palette           = p,
@@ -85,7 +85,7 @@ public static class BlockRenderer
                                                   ZoomOnWheel       = ctx.DiagramZoomOnWheel,
                                                   MaxHeight         = ctx.MaxDiagramHeight,
                                                   ViewState         = ctx.DiagramStates?.Next(),
-                                              }),
+                                              }), ctx),
                 FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString(), ctx),
                 CodeBlock          cb  => RenderCode(cb.Lines.ToString(), ctx),
                 MdTable            t   => RenderTable(t, ctx),
@@ -512,6 +512,18 @@ public static class BlockRenderer
 
     // ── Math block ($$ ... $$) ────────────────────────────────────────────
 
+    /// <summary>
+    /// Places a rendered sub-block across the column — see
+    /// <see cref="MarkdownRenderContext.SubblockAlignment"/>. Applied here rather than inside each
+    /// renderer so a formula, a score and a diagram on one surface cannot disagree about where they
+    /// sit; each keeps its own default when the surface has no opinion.
+    /// </summary>
+    private static FrameworkElement Aligned(FrameworkElement element, MarkdownRenderContext ctx)
+    {
+        if (ctx.SubblockAlignment is { } alignment) element.HorizontalAlignment = alignment;
+        return element;
+    }
+
     private static FrameworkElement RenderMathBlock(MathBlock mb, string rawMarkdown, MarkdownRenderContext ctx)
     {
         var p = ctx.Palette;
@@ -525,32 +537,37 @@ public static class BlockRenderer
             int first = 1;
             int last  = raw.Length - 1;
             while (last > first && raw[last].Trim() is "" or "$$") last--;
-            latex = (last >= first)
-                ? string.Join('\n', raw[first..(last + 1)]).Trim()
-                : string.Empty;
+            // Not trimmed. The space after a control word is what tells LaTeX where the name stopped,
+            // so trimming one off the end quietly turns "\alpha " into "\alpha" — and the next thing
+            // typed into it into "\alphax". The fence lines are already excluded by the slice; what is
+            // left is what was written, and TeX ignores the whitespace that does not mean anything.
+            latex = (last >= first) ? string.Join('\n', raw[first..(last + 1)]) : string.Empty;
         }
         else
         {
             latex = mb.Lines.ToString().Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(latex))
+        // An empty block is built too: an empty maths block is an empty formula, which is what a caret
+        // goes into and a first character is typed at. Refusing it would make "start writing a formula"
+        // the one thing the editor could not do.
+        try
         {
-            try
+            var formula = new FormulaElement(latex, p, BaseFontSize * 1.5)
             {
-                var formula = new FormulaControl
-                {
-                    Formula             = latex,
-                    Scale               = BaseFontSize * 1.5,
-                    Foreground          = p.Text,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin              = new Thickness(0, 8, 0, 8)
-                };
-                if (!formula.HasError)
-                    return formula;
-            }
-            catch { }
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin              = new Thickness(0, 8, 0, 8)
+            };
+
+            // A formula with something wrong in it still typesets. Editable maths is invalid most of
+            // the time — every command is unreadable until its last letter is typed — so "it does not
+            // parse" cannot mean "show the source in a box": the parser recovers, draws what it could
+            // read, shows the rest as the characters actually written, and waves under them. Even
+            // when none of it could be laid out the element is still the better answer, because it
+            // shows that same source and stays something the caret can go into and repair.
+            return formula;
         }
+        catch { }
 
         // Fallback: show the LaTeX source in a clearly styled block so the user
         // can see what formula was written even when WpfMath cannot render it.
@@ -715,11 +732,12 @@ public static class BlockRenderer
                 var miLatex = mi.Content.ToString();
                 try
                 {
-                    var ctrl = new FormulaControl
+                    // Carry where the LaTeX sits in the block's source (delimiters excluded), so an
+                    // editing host can splice a change back into the sentence it came from.
+                    var ctrl = new FormulaElement(miLatex, p, BaseFontSize, inline: true)
                     {
-                        Formula    = miLatex,
-                        Scale      = BaseFontSize,
-                        Foreground = p.Text
+                        SourceStart  = mi.Content.Start,
+                        SourceLength = mi.Content.Length,
                     };
                     if (!ctrl.HasError)
                     {

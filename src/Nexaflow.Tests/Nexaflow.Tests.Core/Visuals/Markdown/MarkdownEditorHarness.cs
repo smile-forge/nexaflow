@@ -18,11 +18,33 @@ internal static class MarkdownEditorHarness
     private static readonly FieldInfo RtbField =
         typeof(InlineMarkdownEditor).GetField("_rtb", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    /// <summary>
+    /// Runs whatever the editor has queued. A paste and a drop both finish on the dispatcher rather than
+    /// in the handler that started them — the paste because it fires inside the RichTextBox's change
+    /// block, where rebuilding the document throws — so nothing has happened yet when the call returns.
+    /// Waiting at a <em>lower</em> priority than the work is what makes this a wait rather than a race.
+    /// </summary>
+    public static void Pump() =>
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+            () => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+
     /// <summary>Shows an editor loaded with <paramref name="markdown"/>, runs <paramref name="test"/>, closes it.</summary>
-    public static void Run(string markdown, Action<InlineMarkdownEditor, RichTextBox> test)
+    /// <param name="configure">
+    /// Applied before the text is loaded, for the properties that change what the document even is —
+    /// <see cref="InlineMarkdownEditor.SingleFormula"/> decides whether the text is fenced as maths, so
+    /// setting it afterwards would mean loading the text once as the wrong thing.
+    /// </param>
+    public static void Run(string markdown, Action<InlineMarkdownEditor, RichTextBox> test,
+                           Action<InlineMarkdownEditor>? configure = null)
     {
         var editor = new InlineMarkdownEditor { EditOnDoubleClick = true, Width = 600, Height = 400 };
-        var window = new Window { Width = 640, Height = 480, Content = editor,
+        configure?.Invoke(editor);
+        // Shown but never activated. The editor has to be in a shown window for its render pass to
+        // build the document, but taking the foreground as well means the suite snatches focus from
+        // whoever is using the machine — and then loses it back the moment they click anything, which
+        // reads as a different test failing on every run. Off-screen and unactivated, the render pass
+        // still runs and nothing outside the test is disturbed.
+        var window = new Window { Width = 640, Height = 480, Content = editor, ShowActivated = false,
                                   WindowStartupLocation = WindowStartupLocation.Manual, Left = -2000, Top = -2000 };
         try
         {
@@ -55,6 +77,31 @@ internal static class MarkdownEditorHarness
     {
         foreach (var ch in text) RaiseTextInput(rtb, ch.ToString());
     }
+
+    /// <summary>
+    /// Presses <paramref name="key"/> on <paramref name="rtb"/>. A real
+    /// <see cref="Keyboard.PreviewKeyDownEvent"/>, because Space and Enter are decided in the editor's
+    /// key handler and never reach it as typed text.
+    /// </summary>
+    /// <remarks>
+    /// Unmodified presses only. <see cref="Keyboard.Modifiers"/> is computed from the real keyboard's
+    /// state, not carried on the event, so a synthetic Shift or Ctrl cannot be pressed from in here —
+    /// anything that turns on a modifier belongs in a UI journey, where the keys are real.
+    /// </remarks>
+    public static void RaiseKey(RichTextBox rtb, Key key)
+    {
+        var source = PresentationSource.FromVisual(rtb)
+                     ?? throw new InvalidOperationException("the editor must be in a shown window");
+
+        rtb.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, key)
+        {
+            RoutedEvent = Keyboard.PreviewKeyDownEvent,
+        });
+    }
+
+    /// <summary>The editor's own <see cref="RichTextBox"/> — the surface events are raised on.</summary>
+    public static RichTextBox RichTextBoxOf(InlineMarkdownEditor editor) =>
+        (RichTextBox)RtbField.GetValue(editor)!;
 
     /// <summary>Places the caret <paramref name="textOffset"/> text characters into
     /// <paramref name="para"/>, counting Run text only (skipping element edges).</summary>

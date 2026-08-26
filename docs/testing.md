@@ -66,8 +66,14 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 ### Categories
 
 - **Unit / non-UI** — fast, headless, no desktop. The default for CI.
+- **`TestCategory("Desktop")`** *(`Tests.Core`)* — **shows a real window and takes focus.** Focus is a
+  single machine-wide resource, so these must also carry **`[DoNotParallelize]`**: run two at once and
+  they take it from each other mid-assertion, which surfaces as a *different* test failing on each run
+  rather than as anything resembling a real bug. `DesktopTestCategoryGuardTests` enforces this — a class
+  whose source shows a window must declare the category and opt out of parallelism.
 - **`TestCategory("UI")`** — needs an interactive desktop session; skip in headless/CI with
-  `--filter "TestCategory!=UI"`. Two kinds, and the split is the point:
+  `--filter "TestCategory!=UI"`. In `Tests.Core` this now means only *renders WPF off-screen* — an STA
+  thread, no window, safe to parallelise. Elsewhere, two kinds, and the split is the point:
   - **`Nexaflow.Tests.UIJourneys`** drives the real `Nexaflow.exe` via FlaUI. Each test launches a fresh
     app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp dir), so it neither
     depends on nor pollutes the developer's real `%APPDATA%` config. See `UITestBase`.

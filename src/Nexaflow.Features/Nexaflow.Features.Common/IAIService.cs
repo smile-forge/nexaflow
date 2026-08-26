@@ -101,6 +101,19 @@ namespace Nexaflow.Features.Common
         Task<string?> RunAnalysisAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
 
         /// <summary>
+        /// Runs a one-shot completion on the model assigned to the Problem Solving ability and
+        /// returns its raw text. Falls back to the Analysis model when Problem Solving has not been
+        /// assigned, and returns null when neither is configured.
+        /// <para>
+        /// Separate from <see cref="RunAnalysisAsync"/> because the work is different in kind:
+        /// showing the working for an integral rewards a reasoning model, where summarising a
+        /// transcript does not. Having its own ability lets that be chosen per workspace instead of
+        /// being tied to whatever Analysis happens to point at.
+        /// </para>
+        /// </summary>
+        Task<string?> RunProblemSolvingAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
+
+        /// <summary>
         /// Persists an arbitrary JSON artifact (e.g. a conversation analysis) beside the
         /// conversation's transcript as <c>{name}.json</c>. Never throws on IO failure.
         /// </summary>
