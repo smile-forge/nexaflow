@@ -190,10 +190,20 @@ public static class TexParser
 
         private TexNode Command(Until until)
         {
-            var name = this.Take();
-            var children = new List<TexNode> { TexNode.Leaf(TexKind.Token, name.Text, TexRole.Name) };
+            var name = this.Take().Text;
 
-            if (TexCommands.Lookup(name.Text) is not { } command)
+            // A starred command is one command, not a command and a times sign — but only where the
+            // table says a starred form exists. Absorbing every asterisk after every control word would
+            // quietly take the multiplication out of `\alpha * \beta`.
+            if (!this.Done
+                && this.Peek.Kind == TexTokenKind.Character
+                && this.Peek.Text == "*"
+                && TexCommands.Lookup(name + "*") is not null)
+                name += this.Take().Text;
+
+            var children = new List<TexNode> { TexNode.Leaf(TexKind.Token, name, TexRole.Name) };
+
+            if (TexCommands.Lookup(name) is not { } command)
                 return TexNode.Branch(TexKind.Command, children);
 
             if (command.Option is { } option) this.Optional(children, option, until);

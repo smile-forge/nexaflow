@@ -36,6 +36,10 @@ public static class TexCommands
     public static TexCommand? Lookup(string name) =>
         Known.TryGetValue(name, out var command) ? command : null;
 
+    /// <summary>Every command the table knows, so that what it claims can be checked against what the
+    /// parser does with it.</summary>
+    public static IEnumerable<TexCommand> All => Known.Values;
+
     /// <summary>How this environment's body should be read. Unknown ones are a plain run.</summary>
     public static TexEnvironment Environment(string name) =>
         Environments.TryGetValue(name, out var found) ? found : new TexEnvironment(name, Grid: false);
@@ -55,15 +59,16 @@ public static class TexCommands
         // ── Two things, one above the other ─────────────────────────────────
         string[] overUnder = [TexRole.Numerator, TexRole.Denominator];
         All([@"\frac", @"\dfrac", @"\tfrac", @"\nicefrac", @"\sfrac"], overUnder);
-        All([@"\binom", @"\dbinom", @"\tbinom", @"\brace", @"\brack"], overUnder);
+        All([@"\binom", @"\dbinom", @"\tbinom"], overUnder);
 
         // \cfrac takes [l] or [r] to say which way the numerator leans.
         Add(@"\cfrac", overUnder, TexRole.Option);
 
-        // \atop and \over are infix — a & b written either side of them, not after. Left with no
-        // arguments on purpose: reading them properly means rewriting the run they sit in, which is a
-        // shape this parser does not have yet, and giving them arguments they do not take would be
-        // worse than admitting it.
+        // \atop, \over, \brace and \brack are infix — a and b are written either side of them, not
+        // after. Left with no arguments on purpose: reading them properly means rewriting the run they
+        // sit in, which is a shape this parser does not have yet, and giving them arguments they do not
+        // take would be worse than admitting it. (\brace and \brack were in the list above until the
+        // corpus survey showed them coming up an argument short 8 times in 10.)
 
         // ── Roots ───────────────────────────────────────────────────────────
         Add(@"\sqrt", [TexRole.Radicand], TexRole.Degree);
@@ -76,6 +81,15 @@ public static class TexCommands
              @"\dddot", @"\acute", @"\grave", @"\check", @"\breve", @"\mathring"], one);
         All([@"\overrightarrow", @"\overleftarrow", @"\overleftrightarrow",
              @"\underrightarrow", @"\underleftarrow", @"\underleftrightarrow"], one);
+
+        // \not slashes whatever comes next, braced or not: \not\in and \not{=} are both written.
+        Add(@"\not", one);
+
+        // \substack{a \\ b} — the stack under a big operator's limit.
+        Add(@"\substack", one);
+
+        // MathJax's box, which says how to draw the frame before what to put in it.
+        Add(@"\bbox", one, TexRole.Option);
 
         // ── Fonts and text ──────────────────────────────────────────────────
         All([@"\mathrm", @"\mathbf", @"\mathit", @"\mathsf", @"\mathtt", @"\mathcal", @"\mathbb",
