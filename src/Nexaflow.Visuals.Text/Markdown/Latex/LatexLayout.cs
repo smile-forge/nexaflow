@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using System.Windows.Media;
+using Nexaflow.Maths.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
 using WpfMath.Rendering;
@@ -91,6 +92,7 @@ public sealed class LatexLayout
             var union = Extent(root);
             var offset = new Vector(-union.X, -union.Y);
             Settle(root, offset);
+            Attribute(root, latex);
 
             var trouble = formula.Diagnostics
                 .Select(d => new Diagnostic(
@@ -104,6 +106,31 @@ public sealed class LatexLayout
         {
             // Every parse failure is the same answer to the caller: there is no formula to map.
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Tells every piece of the picture which part of the parse tree it was drawn from.
+    ///
+    /// <para>
+    /// Once, here, rather than searched for on each of the thousands of questions an editing session
+    /// asks. It is also the seam. The boxes were built by a parser of the typesetter's own, so the only
+    /// thing the two readings share is the stretch of source each piece was named for, and matching on
+    /// that needs rules — a braced argument's box covers the space inside the braces, a table cell's
+    /// stops at the ink. Build the boxes from this tree instead and every piece arrives already knowing:
+    /// this method becomes an assignment, and the rules go with it.
+    /// </para>
+    /// </summary>
+    private static void Attribute(LayoutNode root, string latex)
+    {
+        var reading = TexReading.Of(latex);
+
+        foreach (var node in root.SelfAndDescendants())
+        {
+            if (node is not LatexNode piece || piece.SourceLength <= 0) continue;
+
+            var standing = reading.Standing(piece.SourceStart, piece.SourceLength);
+            piece.Part = standing.Count == 0 ? null : standing[^1];
         }
     }
 

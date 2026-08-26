@@ -160,18 +160,6 @@ public sealed class LatexTree
     /// </summary>
     public LatexGrid? GridAt(int offset) => GridFrom(offset);
 
-    private TexNode? _parsed;
-
-    /// <summary>
-    /// The formula read as a parse tree — where the separators are nodes sitting where they were
-    /// written, rather than characters to be counted.
-    /// <para>
-    /// Read once and kept, because the tree cannot go stale: this object is a reading of one string, and
-    /// changed source is a different <see cref="LatexTree"/>.
-    /// </para>
-    /// </summary>
-    private TexNode Parsed => _parsed ??= TexParser.Parse(Latex);
-
     /// <summary>
     /// The table around <paramref name="offset"/>, as the grid the editor works from.
     /// <para>
@@ -184,7 +172,7 @@ public sealed class LatexTree
     /// </summary>
     private LatexGrid? GridFrom(int offset)
     {
-        if (TexGrid.At(Parsed, offset) is not { } grid) return null;
+        if (TexGrid.At(Reading.Root.Node, offset) is not { } grid) return null;
 
         var cells = grid.Cells
             .Select(cell => (cell.Row, cell.Column, cell.Start, cell.Length))
@@ -929,6 +917,11 @@ public sealed class LatexTree
     private TexPart? Innermost(ILayoutNode node)
     {
         if (node.SourceLength <= 0) return null;
+
+        // Typeset pieces were told when the formula was laid out. Anything else is a tree built by hand
+        // — the query tests do that, and one day so will a caller with no desktop to typeset on — so it
+        // is worked out here instead.
+        if (node is LatexNode piece) return piece.Part;
 
         var standing = Reading.Standing(node.SourceStart, node.SourceLength);
         return standing.Count == 0 ? null : standing[^1];

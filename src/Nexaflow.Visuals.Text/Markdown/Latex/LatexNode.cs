@@ -30,15 +30,30 @@ internal sealed class LatexNode : LayoutNode
     }
 
     /// <summary>
-    /// The parse-tree node this piece was laid out from — the link back that says what it <em>is</em>
+    /// The typesetter's own reading of what this piece was laid out from. Kept because the geometry of a
+    /// matrix's cells is still matched up through it, and for nothing else.
+    /// <para>
+    /// It is a typesetting tree: built to decide box sizes, so it drops braces and spacing, and a style
+    /// atom names no parts at all. What a piece <em>is</em> comes from <see cref="Part"/>.
+    /// </para>
+    /// </summary>
+    public XamlMath.IFormulaNode? Formula { get; set; }
+
+    /// <summary>
+    /// The part of the parse tree this piece was drawn from — the link back that says what it <em>is</em>
     /// rather than merely where it came from.
     /// <para>
     /// Several pieces share one: a fraction's box and its bar are one construct drawn in parts. What a
     /// piece is <em>to</em> the thing holding it lives on the parse tree, not here, which is why this is a
     /// reference and not a copy of anything — the layout tree stays about layout.
     /// </para>
+    /// <para>
+    /// Set once, when the formula is typeset. Today it is worked out by matching the stretch of source
+    /// the box was named for, because the boxes were built by a parser of the typesetter's own; when they
+    /// are built from this tree instead, each box will arrive already knowing and the matching goes.
+    /// </para>
     /// </summary>
-    public XamlMath.IFormulaNode? Formula { get; set; }
+    public Nexaflow.Maths.Latex.TexPart? Part { get; set; }
 
     /// <summary>What this piece drew, in the order it drew it.</summary>
     public IReadOnlyList<LatexMark> Marks => _marks;
