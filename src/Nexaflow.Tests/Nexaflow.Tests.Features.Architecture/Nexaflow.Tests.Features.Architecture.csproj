@@ -45,6 +45,8 @@
          Tests.Features\ProductManager\; without this reference they would drop out of the
          [CoversNode] guard the moment they left the Nexaflow.Tests.Features* glob. -->
     <ProjectReference Include="..\Nexaflow.Tests.Initiatives\Nexaflow.Tests.Initiatives.csproj" />
+    <!-- The maths suite (Nexaflow.Maths: the LaTeX parse tree), here for the same reason. -->
+    <ProjectReference Include="..\Nexaflow.Tests.Maths\Nexaflow.Tests.Maths.csproj" />
 
     <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
