@@ -47,10 +47,55 @@ public partial class Page : ObservableObject
     /// <summary>Cached content instance (created on first activation).</summary>
     public UserControl? Content { get; private set; }
 
+    /// <summary>
+    /// Set when <see cref="ContentFactory"/> threw, and null while the page is fine. The shell renders its
+    /// own explanatory surface for a page in this state — see Core's <c>PageLoadErrorView</c>.
+    /// <para>
+    /// A feature's view constructor is the last unguarded step of opening a tab, and it is a rich place to
+    /// fail: XAML parsing, a missing native dependency behind a hosted control, a bad path reaching a
+    /// <see cref="Uri"/>. Left to propagate it escapes through tab activation to the app-level dispatcher
+    /// handler, which can only say "something went wrong" — the failure loses the one piece of context
+    /// (which page, and why) that would let anyone act on it. Capturing it here keeps it attached to the
+    /// page it belongs to.
+    /// </para>
+    /// </summary>
+    public Exception? LoadException { get; private set; }
+
+    /// <summary>
+    /// Builds the page's content on first use and caches it. Never throws: a failing factory is recorded on
+    /// <see cref="LoadException"/> and an empty placeholder is returned, so one broken page cannot take
+    /// down the tab activation that opened it. The failure is not retried — a second call returns the same
+    /// placeholder rather than re-running a factory that has already proven it throws.
+    /// </summary>
     public UserControl GetOrCreateContent()
     {
-        Content ??= ContentFactory?.Invoke() ?? new UserControl();
+        if (Content is not null) return Content;
+
+        try
+        {
+            Content = ContentFactory?.Invoke() ?? new UserControl();
+        }
+        catch (Exception ex)
+        {
+            LoadException = ex;
+            Content       = new UserControl();
+        }
         return Content;
+    }
+
+    /// <summary>
+    /// Swaps in content the shell built on the page's behalf, and caches it like any other content.
+    /// <para>
+    /// Exists for exactly one case: a page whose <see cref="LoadException"/> is set needs a replacement
+    /// surface explaining the failure, and only the shell can build one (it is the side that knows how to
+    /// render, and <c>Features.Common</c> cannot reference Core). The page still owns the caching, so
+    /// switching tabs away and back doesn't rebuild it.
+    /// </para>
+    /// </summary>
+    public UserControl ReplaceContent(UserControl replacement)
+    {
+        Content = replacement;
+        return replacement;
     }
 
     /// <summary>Raised when the page is permanently closed (not merely deactivated).</summary>

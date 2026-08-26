@@ -70,6 +70,9 @@ internal sealed class IntegrityShellStub : IShellServices
     public void PinToRibbon(string format, object payload) => throw new NotSupportedException();
     public bool HandleObject(object obj) => throw new NotSupportedException();
     public IEnumerable<Type> DiscoverImplementations<TInterface>() => throw new NotSupportedException();
+
+    public Nexaflow.Features.Common.Dependencies.ExternalDependencyStatus GetDependencyStatus(string id)
+        => Nexaflow.Features.Common.Dependencies.ExternalDependencyStatus.Unknown();
     public Nexaflow.Features.Common.Search.IFileTextExtractor? GetFileTextExtractor(string path) => null;
     public Task<ElevatedResult> RunElevatedAsync(ElevatedRequest request, CancellationToken ct = default) => throw new NotSupportedException();
 }

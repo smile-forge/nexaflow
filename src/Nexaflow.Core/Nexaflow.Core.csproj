@@ -223,4 +223,10 @@
     <Delete Files="$(OutDir)libvlc\win-x64\plugins\codec\libaom_plugin.dll" />
   </Target>
 
+  <ItemGroup>
+    <!-- Lets the Core test suite reach helpers that are deliberately not app-facing API — the external
+         dependency merge, for one, whose dedup/precedence rules need types fed in rather than discovered. -->
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+  </ItemGroup>
+
 </Project>

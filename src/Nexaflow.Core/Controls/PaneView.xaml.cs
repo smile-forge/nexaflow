@@ -182,7 +182,16 @@ public partial class PaneView : UserControl
 
     private void UpdateContent()
     {
-        var content = Pane?.ActivePage?.GetOrCreateContent();
+        var page    = Pane?.ActivePage;
+        var content = page?.GetOrCreateContent();
+
+        // GetOrCreateContent no longer throws — it records the failure and hands back a blank control. A
+        // blank tab is indistinguishable from a feature that drew nothing, so swap in the panel that says
+        // what happened. Cached back onto the page so switching away and back doesn't rebuild it.
+        if (page?.LoadException is { } error)
+            content = page.Content as PageLoadErrorView
+                   ?? page.ReplaceContent(new PageLoadErrorView(page, error));
+
         if (ReferenceEquals(ContentHost.Content, content)) return;
         // A page's content control is cached and shared as it moves between panes/windows; a WPF element
         // can have only one parent. Detach it from a prior host (e.g. the other side of a collapsing

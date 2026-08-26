@@ -105,6 +105,9 @@ public sealed class DefaultFileOpener
 
         if (internalPriority >= shellPriority && bestInternal is not null)
         {
+            // Deliberately unguarded: this class holds no shell handle, so it cannot report anything. The
+            // caller (FileSystemViewModel.OpenFileDefaultAsync) catches and names the file — see the note
+            // there for why a throw must not be allowed to reach the dispatcher.
             bestInternal.PerformAction(filePath);
             return bestInternal.RequiresRefresh;
         }

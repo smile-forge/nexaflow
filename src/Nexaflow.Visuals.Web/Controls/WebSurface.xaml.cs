@@ -2,6 +2,7 @@ using Microsoft.Web.WebView2.Core;
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -143,10 +144,27 @@ public partial class WebSurface : UserControl, IDisposable
         }
     }
 
+    /// <summary>
+    /// True when this exception, or anything it wraps, is the "runtime isn't installed" one. The chain has
+    /// to be walked: WPF surfaces a failure from the WebView2 element through a TargetInvocationException,
+    /// and an awaited init can arrive inside an AggregateException. A flat type test silently downgrades
+    /// those to the generic message and drops the install link — the one thing the user actually needs.
+    /// </summary>
+    internal static bool IsRuntimeMissing(Exception? ex)
+    {
+        for (var e = ex; e is not null; e = e.InnerException)
+        {
+            if (e is WebView2RuntimeNotFoundException) return true;
+            if (e is AggregateException agg
+                && agg.InnerExceptions.Any(IsRuntimeMissing)) return true;
+        }
+        return false;
+    }
+
     private void HandleUnavailable(Exception ex)
     {
         IsAvailable    = false;
-        RuntimeMissing = ex is WebView2RuntimeNotFoundException;
+        RuntimeMissing = IsRuntimeMissing(ex);
         FailureMessage = RuntimeMissing
             ? "The Microsoft Edge WebView2 runtime isn't installed on this PC, so the page can't be shown here."
             : "The embedded browser couldn't be started on this PC.";
