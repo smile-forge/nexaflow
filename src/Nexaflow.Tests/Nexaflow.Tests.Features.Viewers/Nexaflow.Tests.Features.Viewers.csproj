@@ -56,11 +56,9 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SecureZip\Nexaflow.Features.Compressed.SecureZip.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Compressed.SharpCompress\Nexaflow.Features.Compressed.SharpCompress.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dicom\Nexaflow.Features.Dicom.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Dotnet\Nexaflow.Features.Dotnet.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Email\Nexaflow.Features.Email.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Executable\Nexaflow.Features.Executable.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Font\Nexaflow.Features.Font.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
