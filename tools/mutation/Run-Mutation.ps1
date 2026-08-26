@@ -36,6 +36,15 @@
   Kill leftover MSBuild/test-host processes and stop, without running anything. See CLEANING UP below.
 
 .NOTES
+  RUNNING DIRECTORY. Stryker is launched from a TEST PROJECT's own directory, not the repo root. From the
+  root it looks for a solution, finds both Nexaflow.slnx and NexaflowSetup.slnx and refuses to guess.
+  Pinning one with --solution is the trap: it then analyses and builds the WHOLE solution and discovers
+  every test project in it, so a target scoped to 269 tests runs an initial pass over 1936 - including
+  suites that only pass in their own host - and aborts on "initial testrun has more than 50% failing
+  tests". Launched from a test project directory with an explicit -tp list, it takes that list and nothing
+  else. This is also why the test-project lists live in $Targets here rather than in the json configs:
+  Stryker resolves a config's relative paths against the CWD, and absolute ones do not care where it runs.
+
   CLEANING UP. Stryker rebuilds and re-runs per mutant, and it leaks: a sweep leaves dozens of MSBuild
   node-reuse workers and test hosts behind. That is harmless for a WPF-free target, but the 'search' target
   runs three UseWPF suites, and enough orphaned WPF hosts will exhaust the interactive session's desktop
@@ -74,19 +83,38 @@ $ErrorActionPreference = 'Stop'
 # Every path in the config files is repo-root-relative and Stryker resolves them against the CWD, so the
 # script pins the CWD rather than asking the caller to. Run it from tools/mutation, the repo root, or a
 # linked worktree -- it lands in the same place.
-$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
+# Nested Join-Path on purpose: the three-argument form is PowerShell 7 only, and this wants to run
+# under whichever powershell the caller happens to have.
+$RepoRoot = (Resolve-Path (Join-Path (Join-Path $PSScriptRoot '..') '..')).Path
 
+# The suites that exercise each subject. Deliberately here and NOT in the stryker-*.json files: Stryker
+# resolves a config's relative test-project paths against the CWD, and the CWD has to be a test project's
+# own directory (see RUNNING DIRECTORY in .NOTES). Keeping the list here lets the script hand Stryker
+# absolute paths, which resolve the same wherever it is launched from.
 $Targets = [ordered]@{
-    'io-common'   = 'Nexaflow.IO.Common      via Tests.IO           - pure byte/text functions. WPF-free: safe to run locally.'
-    'initiatives' = 'Services.Initiatives    via Tests.Initiatives  - the product tree + the snaplink validator the installer gates on. WPF-free.'
-    'search'      = 'Nexaflow.Search         via 3 Features suites  - query syntax + AQS. USES WPF SUITES: prefer a machine you are not using.'
+    'io-common' = @{
+        Blurb = 'Nexaflow.IO.Common      via Tests.IO           - pure byte/text functions. WPF-free: safe to run locally.'
+        Tests = @('src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj')
+    }
+    'initiatives' = @{
+        Blurb = 'Services.Initiatives    via Tests.Initiatives  - the product tree + the snaplink validator the installer gates on. WPF-free.'
+        Tests = @('src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Nexaflow.Tests.Initiatives.csproj')
+    }
+    'search' = @{
+        Blurb = 'Nexaflow.Search         via 3 Features suites  - query syntax + AQS. USES WPF SUITES: prefer a machine you are not using.'
+        Tests = @(
+            'src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj',
+            'src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Nexaflow.Tests.Features.Viewers.csproj',
+            'src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/Nexaflow.Tests.Features.WindowsOS.csproj'
+        )
+    }
 }
 
 function Write-Targets {
     Write-Host ''
     Write-Host '  Mutation targets' -ForegroundColor Cyan
     Write-Host '  ----------------'
-    foreach ($k in $Targets.Keys) { Write-Host ('  {0,-12} {1}' -f $k, $Targets[$k]) }
+    foreach ($k in $Targets.Keys) { Write-Host ('  {0,-12} {1}' -f $k, $Targets[$k].Blurb) }
     Write-Host ''
     Write-Host '  ./Run-Mutation.ps1 -Target initiatives              full sweep'
     Write-Host '  ./Run-Mutation.ps1 -Target all -Since origin/main   only what this branch changed'
@@ -114,10 +142,8 @@ function Invoke-Cleanup([datetime]$StartedAfter) {
 
 # Stryker copies the mutated assembly into the test project's output and restores it afterwards -- unless a
 # handle is still held, in which case it warns and leaves the mutant there. A rebuild is the fix.
-function Repair-MutatedOutput([string]$ConfigPath) {
-    $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-    foreach ($rel in $cfg.'stryker-config'.'test-projects') {
-        $proj = Join-Path $RepoRoot $rel
+function Repair-MutatedOutput([string[]]$TestProjects) {
+    foreach ($proj in $TestProjects) {
         if (-not (Test-Path $proj)) { continue }
         Write-Host "verifying $(Split-Path $proj -Leaf) is not left holding a mutated assembly..." -ForegroundColor DarkGray
         dotnet build $proj -v q --nologo | Out-Null
@@ -139,11 +165,15 @@ Push-Location $RepoRoot
 try {
     dotnet tool restore
     if ($LASTEXITCODE -ne 0) { throw 'dotnet tool restore failed (see .config/dotnet-tools.json)' }
+}
+finally { Pop-Location }
 
-    $results = @()
+$results = @()
+try {
     foreach ($t in $run) {
-        $config = "tools/mutation/stryker-$t.json"
-        $outDir = "artifacts/mutation/$t"
+        $config  = Join-Path $RepoRoot "tools/mutation/stryker-$t.json"
+        $outDir  = Join-Path $RepoRoot "artifacts/mutation/$t"
+        $tests   = @($Targets[$t].Tests | ForEach-Object { (Resolve-Path (Join-Path $RepoRoot $_)).Path })
 
         if ($t -eq 'search') {
             Write-Host ''
@@ -156,6 +186,7 @@ try {
                  else { [Math]::Max(2, [int]([Environment]::ProcessorCount / 2)) }
 
         $strykerArgs = @('-f', $config, '-O', $outDir, '--concurrency', "$cores")
+        foreach ($tp in $tests) { $strykerArgs += @('--test-project', $tp) }
         if ($Since) { $strykerArgs += "--since:$Since" }
         if ($Break -ge 0) { $strykerArgs += @('--break-at', "$Break") }
 
@@ -163,12 +194,18 @@ try {
         Write-Host "=== $t ===" -ForegroundColor Cyan
         Write-Host "dotnet stryker $($strykerArgs -join ' ')" -ForegroundColor DarkGray
 
-        dotnet stryker @strykerArgs
-        $code = $LASTEXITCODE
+        # Run FROM a test project's own directory. Launched from the repo root Stryker looks for a solution,
+        # finds two .slnx and refuses; pinning one with --solution is worse, because it then analyses and
+        # BUILDS the whole solution and discovers every test project in it - 1936 tests instead of this
+        # target's 269, one of them a Viewers test that fails outside its own suite, and Stryker aborts on
+        # "initial testrun has more than 50% failing tests". From here it takes the -tp list and nothing else.
+        Push-Location (Split-Path $tests[0] -Parent)
+        try { dotnet stryker @strykerArgs; $code = $LASTEXITCODE }
+        finally { Pop-Location }
 
         # The json report is the durable record; the html one is what you actually read.
         $score = $null
-        $json = Join-Path $RepoRoot "$outDir/reports/mutation-report.json"
+        $json = Join-Path $outDir 'reports/mutation-report.json'
         if (Test-Path $json) {
             $report = Get-Content $json -Raw | ConvertFrom-Json
             $all = $report.files.PSObject.Properties.Value.mutants
@@ -180,7 +217,7 @@ try {
             $results += [pscustomobject]@{
                 Target = $t; Score = "$score%"; Killed = $killed; Survived = $survived
                 Uncovered = $nocov; Exit = $code
-                Report = (Join-Path $RepoRoot "$outDir/reports/mutation-report.html")
+                Report = (Join-Path $outDir 'reports/mutation-report.html')
             }
         }
         else {
@@ -189,7 +226,7 @@ try {
             }
         }
 
-        Repair-MutatedOutput (Join-Path $RepoRoot $config)
+        Repair-MutatedOutput $tests
     }
 
     Write-Host ''
@@ -201,7 +238,4 @@ try {
 
     exit ($results | Measure-Object -Property Exit -Maximum).Maximum
 }
-finally {
-    Pop-Location
-    Invoke-Cleanup $startedAt
-}
+finally { Invoke-Cleanup $startedAt }

@@ -265,6 +265,57 @@ public class StructureLinterTests
         Assert.AreEqual(0, findings.Count(f => f.Rule == StructureLinter.Rule.LeafCoveredByTooManyTests));
     }
 
+    // ── Granularity, read from the links ──────────────────────────────────────
+
+    [TestMethod]
+    public void ANodeCarryingTooManySnaplinks_IsFlagged()
+    {
+        var s = WellModelled();
+        var link = () => new Snaplink { Type = "code", Doc = "src/Some/File.cs", Class = "SomeType" };
+        s.Nodes["feat-behaviour"].Snaplinks = [.. Enumerable.Range(0, StructureLinter.MaxSnaplinksPerNode + 1).Select(_ => link())];
+
+        var f = StructureLinter.Lint(s).Single();
+
+        Assert.AreEqual(StructureLinter.Rule.TooManySnaplinks, f.Rule);
+        Assert.AreEqual("feat-behaviour", f.NodeId);
+        StringAssert.Contains(f.Detail, "split it");
+    }
+
+    [TestMethod]
+    public void SnaplinksOnConcerns_CountTowardsTheSameTotal()
+    {
+        // A node can carry the same weight through its concerns as on itself, and splitting the count
+        // between the two places would let either half stay quietly under the line.
+        var s = WellModelled();
+        var link = () => new Snaplink { Type = "code", Doc = "src/Some/File.cs", Class = "SomeType" };
+        var node = s.Nodes["feat-behaviour"];
+        node.Snaplinks = [link(), link()];
+        node.Concerns![0].Snaplinks = [.. Enumerable.Range(0, StructureLinter.MaxSnaplinksPerNode).Select(_ => link())];
+
+        var f = StructureLinter.Lint(s).Single();
+
+        Assert.AreEqual(StructureLinter.Rule.TooManySnaplinks, f.Rule);
+        StringAssert.Contains(f.Detail, $"{StructureLinter.MaxSnaplinksPerNode + 2} snaplinks");
+    }
+
+    [TestMethod]
+    public void ANodeExactlyAtTheSnaplinkLimit_IsLeftAlone()
+    {
+        var s = WellModelled();
+        var link = () => new Snaplink { Type = "code", Doc = "src/Some/File.cs", Class = "SomeType" };
+        var node = s.Nodes["feat-behaviour"];
+
+        // Topped up to exactly the limit, counting the one its 'tests' concern already carries — writing
+        // this as a flat MaxSnaplinksPerNode on the node alone puts the real total one over, which is the
+        // mistake the rule exists to catch and an easy one to make in a test too.
+        var existing = node.Concerns!.Sum(c => c.Snaplinks?.Count ?? 0);
+        Assert.AreEqual(1, existing, "the well-modelled fixture backs its 'tests' concern with one link");
+        node.Snaplinks = [.. Enumerable.Range(0, StructureLinter.MaxSnaplinksPerNode - existing).Select(_ => link())];
+
+        CollectionAssert.AreEqual(Array.Empty<StructureLinter.Rule>(), Rules(s),
+            "the threshold is inclusive, like MaxTestsPerLeaf — the two rules must not disagree about that");
+    }
+
     [TestMethod]
     public void WithNoManifest_TheRuleSitsOut_RatherThanGuessing()
     {

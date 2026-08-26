@@ -270,4 +270,124 @@ public class BlockEndTests
 
         Assert.AreEqual(7, EndLine(src));
     }
+
+    // ── The escape and comment rules, one gap at a time ───────────────────────
+    //
+    // Everything above was written from the two-copies merge. These come from a mutation run: 35 mutants
+    // inside BlockEnd survived the tests above, clustered on exactly the branches that decide when a brace
+    // is not code. Each case below is one that would silently truncate a member in `graph code` and turn a
+    // content `graph grep` into a false "no match" — the failure this class exists to prevent.
+
+    [TestMethod]
+    public void MultiLineBlockComment_StaysAComment_UntilItsCloser()
+    {
+        // Break either half of `ch == '*' && next == '/'` and the comment closes on the wrong character,
+        // so the brace on line 4 ends the member three lines early.
+        var src = string.Join("\n",
+            "public void M()",          // 1
+            "{",                        // 2
+            "    /* opening",           // 3
+            "       } still inside",    // 4
+            "       * not the end",     // 5
+            "     */",                  // 6
+            "    if (x) { }",           // 7
+            "}");                       // 8
+
+        Assert.AreEqual(8, EndLine(src),
+            "a brace inside a block comment is not a brace, and the comment ends only at */");
+    }
+
+    [TestMethod]
+    public void SlashStarInsideALineComment_DoesNotOpenABlockComment()
+    {
+        // The mirror case: `// /*` is a line comment that happens to contain two characters, not the start
+        // of a block comment that swallows the rest of the member.
+        var src = string.Join("\n",
+            "public void M()",
+            "{",
+            "    // /* not opening anything",
+            "    if (x) { }",
+            "}");
+
+        Assert.AreEqual(5, EndLine(src));
+    }
+
+    [TestMethod]
+    public void VerbatimString_DoubledQuoteIsAnEscape_NotTheEnd()
+    {
+        // Read as two separate quotes the string closes and reopens, which leaves the scanner OUTSIDE it
+        // for the brace that follows.
+        var src = string.Join("\n",
+            "public void M()",
+            "{",
+            "    var s = @\"he said \"\"hi\"\" } and left\";",
+            "    if (x) { }",
+            "}");
+
+        Assert.AreEqual(5, EndLine(src),
+            "\"\" inside a verbatim string is one escaped quote — the brace after it is still string content");
+    }
+
+    [TestMethod]
+    public void RegularString_BackslashEscapedQuote_DoesNotEndIt()
+    {
+        var src = string.Join("\n",
+            "public void M()",
+            "{",
+            "    var s = \"he said \\\" } \\\" and left\";",
+            "    if (x) { }",
+            "}");
+
+        Assert.AreEqual(5, EndLine(src));
+    }
+
+    [TestMethod]
+    public void CharLiteralBrace_IsNotABrace()
+    {
+        var src = string.Join("\n",
+            "public void M()",
+            "{",
+            "    var open = '{';",
+            "    var close = '}';",
+            "    var quote = '\\'';",
+            "}");
+
+        Assert.AreEqual(6, EndLine(src),
+            "'{' and '}' are char literals, and an escaped quote inside one must not leave char context");
+    }
+
+    [TestMethod]
+    public void RawStringClosedByALongerRun_StillCloses()
+    {
+        // `run >= rawFence`, not `>`. A three-quote fence closed by four quotes — the first being content —
+        // must still close; with `>` the literal never ends and the member runs to the whole budget.
+        var src = string.Join("\n",
+            "public void M()",          // 1
+            "{",                        // 2
+            "    var s = \"\"\"",       // 3
+            "        text",             // 4
+            "        \"\"\"\";",        // 5  one quote of content, then the closing fence
+            "    if (x) { }",           // 6
+            "}");                       // 7
+
+        Assert.AreEqual(7, EndLine(src));
+    }
+
+    [TestMethod]
+    public void TheScanStopsAtTheCallersBudget_Exactly()
+    {
+        // An off-by-one on `i - start <= maxLines` silently trims the last line off every long member
+        // `graph code` prints, which reads as the source being that shape rather than as truncation.
+        var src = string.Join("\n",
+            "public void M()",      // 1
+            "{",                    // 2
+            "    a();",             // 3
+            "    b();",             // 4
+            "    c();",             // 5
+            "}");                   // 6
+
+        Assert.AreEqual(6, EndLine(src, maxLines: 400), "well inside the budget: the real closing brace");
+        Assert.AreEqual(3, EndLine(src, maxLines: 2),
+            "the budget counts lines PAST the start, so maxLines:2 reaches the third line and no further");
+    }
 }

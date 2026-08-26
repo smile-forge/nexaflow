@@ -48,6 +48,9 @@ public static class StructureLinter
         /// <summary>A leaf that many tests declare they cover is a leaf doing several jobs (§1, §3) — the
         /// tests found the sub-behaviours the tree has not named yet.</summary>
         LeafCoveredByTooManyTests,
+        /// <summary>A node carrying many snaplinks is pointing at more code than one node can be about
+        /// (§1, §4) — the same smell as <see cref="LeafCoveredByTooManyTests"/>, read from the links.</summary>
+        TooManySnaplinks,
     }
 
     /// <summary>
@@ -61,6 +64,24 @@ public static class StructureLinter
     /// </para>
     /// </summary>
     public const int MaxTestsPerLeaf = 12;
+
+    /// <summary>
+    /// How many snaplinks a node may carry — its own plus every concern's — before
+    /// <see cref="Rule.TooManySnaplinks"/> fires.
+    /// <para>
+    /// Deliberately the same number as <see cref="MaxTestsPerLeaf"/>. The right ceiling really depends on how
+    /// much code a feature involves and how user-facing it is, and no constant can know that; what a single
+    /// catch-all buys instead is a reader who only has to hold one number. Where the two rules disagree about
+    /// a node, that is information — a leaf over both is doing several jobs from two directions.
+    /// </para>
+    /// <para>
+    /// For calibration, when this was written the median node carried 2 snaplinks and the mean 2.1 across
+    /// 1,746 nodes; five were over this line and the largest was <c>sequence-diagram</c> at 29. Snaplinks do
+    /// not aggregate the way tests do — a parent does not inherit its children's — so this applies to every
+    /// node, though in practice it is leaves that trip it.
+    /// </para>
+    /// </summary>
+    public const int MaxSnaplinksPerNode = 12;
 
     /// <summary>One convention breach: the node, the rule, and what to do about it.</summary>
     public sealed record Finding(string FeatureId, string NodeId, string Title, Rule Rule, string Detail);
@@ -83,7 +104,66 @@ public static class StructureLinter
         var findings = new List<Finding>();
         foreach (var featureId in FeatureRoots(state, underId))
             LintFeature(state, featureId, coverage, findings);
+
+        // The granularity rules run over EVERYTHING in scope, not just the feature subtree. The rules above
+        // are feature-shaped - a backbone, a panel's theming - and mean nothing outside Features. "This node
+        // is about too much" means the same wherever it sits, and scoping it to features hid the worst case
+        // in the repo: `sequence-diagram`, under Common / Shared, at 29 snaplinks.
+        LintGranularity(state, underId, coverage, findings);
         return findings;
+    }
+
+    /// <summary>
+    /// The two rules that read a node's size rather than its shape. Attributed to the node's top-level
+    /// section so the report still groups.
+    /// </summary>
+    private static void LintGranularity(
+        ProductState state, string? underId, TestCoverageManifest? coverage, List<Finding> findings)
+    {
+        foreach (var id in InScope(state, underId))
+        {
+            var node = state.Nodes[id];
+            void Add(Rule rule, string detail) => findings.Add(new Finding(Section(state, id), id, node.Title, rule, detail));
+
+            // A node's own snaplinks plus its concerns'. Nothing aggregates from children, so a big number
+            // is one node claiming to be about a lot of code rather than a parent summarising.
+            var links = (node.Snaplinks?.Count ?? 0)
+                      + (node.Concerns?.Sum(c => c.Snaplinks?.Count ?? 0) ?? 0);
+            if (links > MaxSnaplinksPerNode)
+                Add(Rule.TooManySnaplinks,
+                    $"{links} snaplinks on one node (over {MaxSnaplinksPerNode}) - it is pointing at more code "
+                    + "than one node can be about; split it and let each child carry its own links (§1, §4)");
+
+            // The same smell read from the tests. Leaves only: a container legitimately accumulates its
+            // children's tests, and flagging one would be flagging the tree for working.
+            if (coverage is null || node.Children.Any(state.Nodes.ContainsKey)) continue;
+            if (!coverage.Coverage.TryGetValue(id, out var refs) || refs.Count <= MaxTestsPerLeaf) continue;
+
+            var files = refs.Select(r => r.File).Where(f => !string.IsNullOrEmpty(f))
+                            .Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            Add(Rule.LeafCoveredByTooManyTests,
+                $"{refs.Count} tests declare this leaf"
+                + (files > 1 ? $", across {files} files" : string.Empty)
+                + $" (over {MaxTestsPerLeaf}) - they are probably covering behaviours that want their own "
+                + "child nodes; `add-node` to name them (§1, §3)");
+        }
+    }
+
+    /// <summary>Every node under <paramref name="underId"/>, or the whole tree when none is given.</summary>
+    private static IEnumerable<string> InScope(ProductState state, string? underId) =>
+        underId is null
+            ? state.Nodes.Keys.Where(state.Nodes.ContainsKey)
+            : Subtree(state, underId);
+
+    /// <summary>The top-level ancestor a node sits under ("Features", "Common / Shared"), for grouping.</summary>
+    private static string Section(ProductState state, string nodeId)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var cur = nodeId;
+        while (seen.Add(cur) && state.Nodes.GetValueOrDefault(cur)?.Parent is { } parent
+                             && state.Nodes.ContainsKey(parent))
+            cur = parent;
+        return cur;
     }
 
     /// <summary>
@@ -180,28 +260,6 @@ public static class StructureLinter
                     "'tests' is shouldnt — add a note saying why and who covers it instead (§3)");
         }
 
-        // Shape, read back from the tests. Every other rule here asks whether the tree says what it should;
-        // this one asks whether the tree is granular enough to be worth saying it about. A leaf that thirty
-        // tests point at is not a leaf — the tests have already enumerated behaviours the tree never named,
-        // so the node's status means "some of these work" and nothing can tell you which.
-        //
-        // Only leaves: a container legitimately accumulates its children's tests, and flagging one would be
-        // flagging the tree for working.
-        if (coverage is not null)
-            foreach (var id in Subtree(state, featureId))
-            {
-                var node = state.Nodes[id];
-                if (node.Children.Any(state.Nodes.ContainsKey)) continue;
-                if (!coverage.Coverage.TryGetValue(id, out var refs) || refs.Count <= MaxTestsPerLeaf) continue;
-
-                var files = refs.Select(r => r.File).Where(f => !string.IsNullOrEmpty(f))
-                                .Distinct(StringComparer.OrdinalIgnoreCase).Count();
-                Add(id, Rule.LeafCoveredByTooManyTests,
-                    $"{refs.Count} tests declare this leaf"
-                    + (files > 1 ? $", across {files} files" : string.Empty)
-                    + $" (over {MaxTestsPerLeaf}) — they are probably covering behaviours that want their own "
-                    + "child nodes; `add-node` to name them (§1, §3)");
-            }
     }
 
     /// <summary>A child of <paramref name="parent"/> whose title matches <paramref name="title"/> or whose id

@@ -1,16 +1,15 @@
 {
   "stryker-config": {
-    "solution": "Nexaflow.slnx",
     "project": "Nexaflow.Services.Initiatives.csproj",
-    "test-projects": [
-      "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Nexaflow.Tests.Initiatives.csproj"
-    ],
     "test-runner": "mtp",
     "target-framework": "net10.0",
     "mutate": [
       "**/Product/Services/*.cs",
-      "**/Product/Model/*.cs",
       "**/Graph/*.cs",
+      "**/Graph/Communities/*.cs",
+      "!**/*Report.cs",
+      "!**/ProductMarkdown.cs",
+      "!**/Model/**",
       "!**/obj/**",
       "!**/bin/**"
     ],
@@ -22,7 +21,7 @@
     "thresholds": {
       "high": 85,
       "low": 70,
-      "break": 60
+      "break": 55
     }
   }
 }

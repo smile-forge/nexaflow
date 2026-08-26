@@ -358,34 +358,50 @@ because there "nothing references that path" is a fair answer to a question.
 - **`AiSurfaceRulesTests`** (`KnownNullScope`): a tool-bearing page must return a distinct
   `GetSecurityContext()`.
 - **`FeatureTouchPointTests`** / architecture rules: add-a-feature wiring, reference/dispatcher rules.
-- **`StructureLinter`** (`nfi lint`, advisory): the §1–§4 conventions, plus `LeafCoveredByTooManyTests` —
-  see *Granularity, read back from the tests* below.
+- **`StructureLinter`** (`nfi lint`, advisory): the §1–§4 conventions, plus the two granularity rules
+  (`LeafCoveredByTooManyTests`, `TooManySnaplinks`) — see *Granularity* below.
 
-### Granularity, read back from the tests
+### Granularity — is the node about one thing?
 
-Every other rule asks whether the tree *says* what it should. This one asks whether the tree is granular
-enough to be worth saying anything about — and it is the only rule whose evidence comes from outside the
-tree.
+Every other rule asks whether the tree *says* what it should. These two ask whether the tree is granular
+enough to be worth saying anything about, and they are the only rules that read a node's **size** rather
+than its shape. They come in a pair because the same node usually trips both, from opposite directions.
 
-When a leaf accumulates far more tests than the one-unit-test-per-behaviour model implies, the tests have
-enumerated behaviours the tree never named. The node's status then means "some of these work" and nothing
-can tell you which; its `tests=done` is a claim about a dozen different things at once. `nfi lint` reports it
-as `LeafCoveredByTooManyTests` when a **leaf** is declared by more than `StructureLinter.MaxTestsPerLeaf`
-(12) tests in the `scan-tests` manifest, naming how many files they are spread across — because two files
-pointing at one leaf is usually two behaviours in a trench coat.
+| Rule | Fires when | Evidence |
+|------|-----------|----------|
+| `LeafCoveredByTooManyTests` | a **leaf** is declared by more than `MaxTestsPerLeaf` (12) tests | the `scan-tests` manifest |
+| `TooManySnaplinks` | **any node** carries more than `MaxSnaplinksPerNode` (12) snaplinks, its own plus its concerns' | the tree itself |
 
-Containers are exempt: a panel accumulating its children's tests is the tree working. And the rule needs the
-manifest, which is derived and gitignored — absent, it simply doesn't run, and every other rule still does.
+When a leaf accumulates far more tests than one-unit-test-per-behaviour implies, the tests have enumerated
+behaviours the tree never named: the node's status then means "some of these work" and nothing can tell you
+which, so `tests=done` is a claim about a dozen things at once. A node carrying a pile of snaplinks is the
+same statement made in code references instead. Both thresholds are 12, deliberately — the honest ceiling
+depends on how much code a feature involves and how user-facing it is, and no constant knows that, so one
+catch-all number the reader can hold beats two tuned ones.
+
+Two scoping rules worth knowing:
+
+- **`LeafCoveredByTooManyTests` skips containers.** A panel accumulating its children's tests is the tree
+  working. Snaplinks do not aggregate that way — a parent never inherits its children's — so
+  `TooManySnaplinks` applies to every node.
+- **Both run over the whole tree, not just `Features`.** The other rules are feature-shaped (a backbone, a
+  panel's theming) and mean nothing outside it. "This node is about too much" means the same anywhere, and
+  scoping it to features hid the worst case in the repo: `sequence-diagram`, under *Common / Shared*, at 29
+  snaplinks.
+
+`LeafCoveredByTooManyTests` needs the manifest, which is derived and gitignored — absent, it simply doesn't
+run and every other rule still does.
 
 ```powershell
-& $nfi scan-tests .          # refresh the manifest first — the rule is silent without it
-& $nfi lint --under product
+& $nfi scan-tests .          # refresh the manifest first — the tests half is silent without it
+& $nfi lint --under common   # any node, not just a feature root
 ```
 
-At the time it was written the whole repo had four leaves over the threshold; `data-model` (75 tests across
-five files) and `integrity-validate` (32 in one) are the clearest cases of a leaf that had quietly become a
-subtree's worth of behaviour. Fixing one means `add-node` for the behaviours the test names already
-describe, then re-pointing the `tests` snaplinks — not deleting tests.
+At the time of writing the repo had 15 findings across the two rules, and three nodes tripped both —
+`sequence-diagram`, `quadrant-graph` and `registry-modify-value` (21 snaplinks, 19 tests). That overlap is
+the signal: a node doing several jobs shows it in its links and in its tests at once. Fixing one means
+`add-node` for the behaviours the test names already describe, then re-pointing the snaplinks — not
+deleting tests.
 
 ### The gap
 The **role-based rules in §2–§4 are conventions, not checks.** Nothing stops a future feature from giving a

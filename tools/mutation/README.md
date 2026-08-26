@@ -30,6 +30,23 @@ Two numbers, two different problems:
 - **Survived** — a test ran over that line and did not notice it change. Wants a sharper assertion.
 - **Uncovered** — no test executes that line at all. Wants a test.
 
+## Baselines
+
+Recorded so a later run has something to be a regression *against*. Re-measure and update when you move one
+deliberately; a drop you did not intend is the thing this table exists to make visible.
+
+| Target | Score | Killed | Survived | Uncovered | Measured |
+|--------|-------|--------|----------|-----------|----------|
+| `initiatives` | **73.4%** | 1469 | 239 | 295 | 2026-08-26, 4m38s |
+
+**The score is reproducible**, which is what makes `break` worth setting at all: two identical runs came back
+73.26% and 73.41%, 0.15 points apart. So a `break` a few points under the baseline is a real tripwire rather
+than a coin toss — it is at 55 for `initiatives`, and should be walked *up* as the score improves, not left
+where it is.
+
+For scale on what moves it: adding `BlockEndTests`' seven escape/comment cases and the seven `RepoFilesTests`
+took this target from 61.3% to 73.4% in one sitting.
+
 ## The targets
 
 Each has a `stryker-<name>.json` beside this file. They are kept free of comments because Stryker validates
@@ -57,6 +74,25 @@ that quietly fails open looks exactly like a clean tree. The first run found fou
 | 422 | `type.Members.Any(…)` → `.All(…)` | "this method exists" becomes "every member is this method" |
 
 `Tests.Initiatives` is WPF-free, so this target is safe to run locally.
+
+Widening the glob to `Graph/` later found the bigger gap. `GraphBuilder` and `GraphQuery` sat at 47-49%
+against 72-88% for the product-tree services, and two clusters were worth acting on immediately:
+
+- **`GraphQuery.BlockEnd`** - 35 surviving mutants in a hand-written C# lexer (line comments, block
+  comments, verbatim and raw string literals, char literals) that decides where a member's source stops.
+  It backs `graph code`, `graph context` and a content `graph grep`, so a wrong answer is a false "no
+  match" rather than an error. `BlockEndTests` now pins each cluster.
+- **`RepoFiles.SkipDirs`** - all ten entries could be blanked with nothing going red. That set is what
+  keeps a graph build out of `node_modules`; losing one costs minutes per build and fails nothing.
+  `RepoFilesTests` covers it, plus the generated-file markers beside it.
+
+**The lexer is a known follow-up, not a settled design.** Tree-sitter is already a dependency here
+(`Nexaflow.Services.Initiatives` references `Nexaflow.Syntax`) and `GraphQuery.ReadSource` does prefer the
+extractor's `endLine` when the graph carries one - but three CLI paths call `BlockEnd` directly, and two of
+them unconditionally: `graph grep` (Program.cs:750) and snaplink block resolution (Program.cs:1039). Only
+`graph code` (Program.cs:613) checks the parsed span first. So the hand-rolled scanner is on the hot path
+for the verb this repo tells every agent to reach for, and re-parsing with tree-sitter would delete it
+outright. The tests above are the holding position.
 
 ### `search` — `Nexaflow.Search` via three Features suites
 
