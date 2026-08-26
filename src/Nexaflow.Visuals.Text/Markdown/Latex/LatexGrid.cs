@@ -51,13 +51,14 @@ public sealed class LatexGrid
     /// <summary>
     /// The matrix as a stretch of source, backslash included — what moving the whole of it moves.
     /// <para>
-    /// A command's parse span begins at its <em>name</em>, so the <c>\</c> that introduces it sits just
-    /// outside. Moving from the span alone would carry <c>begin{pmatrix}…</c> away and leave a lone
-    /// backslash where the matrix had been.
+    /// The span as read, with nothing added back. It used to reach one character further left, because
+    /// the typesetter's span for a command begins at its <em>name</em> and moving from that would have
+    /// carried <c>begin{pmatrix}…</c> away and left a lone backslash behind. The parse tree names the
+    /// whole of what was written, so reaching outside it now would take a character belonging to
+    /// whatever the matrix was written after.
     /// </para>
     /// </summary>
-    public (int Start, int Length) Span =>
-        Start > 0 && Latex[Start - 1] == '\\' ? (Start - 1, Length + 1) : (Start, Length);
+    public (int Start, int Length) Span => (Start, Length);
 
     /// <summary>
     /// The stretch of source the cells occupy, first cell to last - what a rewrite replaces.

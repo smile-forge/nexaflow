@@ -37,6 +37,9 @@
          and the shared formatters. None of these reference Visuals.Text, so there is no cycle. -->
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <!-- The LaTeX parse tree. It is what says a matrix is a table and where each cell is; the
+         typesetter's atoms only say what to draw. See docs/latex-parse-tree.md. -->
+    <ProjectReference Include="..\Nexaflow.Maths\Nexaflow.Maths.csproj" />
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
 

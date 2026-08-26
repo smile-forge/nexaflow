@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Maths.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using XamlMath;
 
@@ -118,30 +119,39 @@ public sealed class LatexTree
     /// makes "move this column", and every table edit after it, a question the tree can answer.
     /// </para>
     /// </summary>
-    public LatexGrid? GridAt(int offset)
+    public LatexGrid? GridAt(int offset) => GridFrom(offset);
+
+    private TexNode? _parsed;
+
+    /// <summary>
+    /// The formula read as a parse tree — where the separators are nodes sitting where they were
+    /// written, rather than characters to be counted.
+    /// <para>
+    /// Read once and kept, because the tree cannot go stale: this object is a reading of one string, and
+    /// changed source is a different <see cref="LatexTree"/>.
+    /// </para>
+    /// </summary>
+    private TexNode Parsed => _parsed ??= TexParser.Parse(Latex);
+
+    /// <summary>
+    /// The table around <paramref name="offset"/>, as the grid the editor works from.
+    /// <para>
+    /// The cells come from the parse tree rather than from the typesetter's atoms, because the
+    /// typesetter's spans begin at a command's <em>name</em>: a cell holding <c>\alpha</c> was named as
+    /// <c>alpha</c>, so every rewrite of a matrix took the backslash off every command in it and handed
+    /// back LaTeX that no longer parsed. Nothing noticed, because every test written for grids until now
+    /// had a single letter in each cell.
+    /// </para>
+    /// </summary>
+    private LatexGrid? GridFrom(int offset)
     {
-        LatexGrid? innermost = null;
+        if (TexGrid.At(Parsed, offset) is not { } grid) return null;
 
-        foreach (var node in Root.SelfAndDescendants())
-        {
-            // The parse node's own span, not the layout node's. A matrix drawn inside its brackets is one
-            // construct drawn in parts, and the layout deliberately takes a name off any piece whose
-            // ancestor already carries it — so the box holding the cells has no span at all. The parse
-            // tree is where a construct's own extent survives that.
-            if (node is not LatexNode { Formula: { Source: { } span } formula }) continue;
-            if (offset < span.Start || offset > span.End) continue;
+        var cells = grid.Cells
+            .Select(cell => (cell.Row, cell.Column, cell.Start, cell.Length))
+            .ToList();
 
-            var cells = formula.Slots
-                .Where(s => s.Row >= 0 && s.Column >= 0 && s.Node.Source is not null)
-                .Select(s => (s.Row, s.Column, s.Node.Source!.Start, s.Node.Source!.Length))
-                .ToList();
-            if (cells.Count == 0) continue;
-
-            if (innermost is not null && span.Length >= innermost.Length) continue;
-            if (LatexGrid.From(Latex, span.Start, span.Length, cells) is { } grid) innermost = grid;
-        }
-
-        return innermost;
+        return LatexGrid.From(Latex, grid.Start, grid.Length, cells);
     }
 
     /// <summary>
@@ -177,10 +187,9 @@ public sealed class LatexTree
 
             if (!reach.Contains(point)) continue;
 
-            var cells = slots
-                .Select(s => (s.Row, s.Column, s.Node.Source!.Start, s.Node.Source!.Length))
-                .ToList();
-            if (LatexGrid.From(Latex, span.Start, span.Length, cells) is not { } grid) continue;
+            // The shape from the parse tree, the boxes from the layout: which cell is which is a fact
+            // about what was written, and where it landed is a fact about how it was drawn.
+            if (GridFrom(span.Start) is not { } grid) continue;
 
             // Each cell's extent on the page, taken from the pieces laid out for its parse node.
             var boxes = new Dictionary<(int, int), Rect>();

@@ -81,16 +81,26 @@ exactly that position.
 
 Each stage stands on its own and leaves the app working.
 
-1. **Tree, parser, printer.** No consumers at all. The only tests are the two invariants, over the
+1. ✅ **Tree, parser, printer.** No consumers at all. The only tests are the two invariants, over the
    construct table the layout tests already keep, and over the corpus.
-2. **Roles and the command table.** Arity and what each argument is called (`numerator`, `degree`,
-   `radicand`, …). Cross-checked against WpfMath's slots over the corpus — where both have an opinion
-   they must agree on the span.
-3. **Grids from the tree.** A matrix's rows and cells read off the environment node. `LatexGrid` is
-   reshaped to build from nodes rather than from `(row, column, start, length)` tuples.
-4. **Swap `LatexTree`'s questions over.** `RoleOf`, `IsComposite`, `IsSequence` and `GridAt` answered
+2. ✅ **Roles and the command table.** Arity and what each argument is called (`numerator`, `degree`,
+   `radicand`, …), held against the typesetter's own reading of the same formula: **the parse tree may
+   see more, and may never see less.** More, because a fraction inside `\displaystyle` is wrapped in a
+   style atom that names no parts at all — style, phantom, lap, cancel and bold atoms all name none, so
+   nothing written inside one is in that tree to be found. Less would mean a construct the table has
+   not been taught. Zero shortfalls over all 238,329 corpus formulas.
+3. ✅ **Grids from the tree.** A matrix's rows and cells read off the environment node, and `GridAt`
+   swapped over to it. This was where the exercise paid for itself: the typesetter's span for a command
+   begins at the command's *name*, so a cell holding `\alpha` was named as `alpha`, and **every rewrite
+   of a matrix took the backslash off every command in it** and handed back LaTeX that no longer
+   parsed. `\begin{matrix} \alpha & \beta \\ \gamma & \delta \end{matrix}` came back from a column move
+   as `\begin{matrix} beta & alpha \\ delta & gamma \end{matrix}`. It had shipped, and nothing caught
+   it, because every grid test written until then had a single letter in each cell.
+4. **Swap `LatexTree`'s remaining questions over.** `RoleOf`, `IsComposite` and `IsSequence` answered
    from the parse tree; the layout tree keeps geometry, which is all it was ever good for. The
-   `IFormulaNode` projection comes off `LatexNode` once nothing asks it anything.
+   `IFormulaNode` projection comes off `LatexNode` once nothing asks it anything. This is what makes a
+   fraction inside `\displaystyle` selectable, draggable and copyable as a fraction — today it is not,
+   because as far as the tree the editor asks is concerned it has no parts.
 5. **Edits become tree operations.** `Write` and `Move` build a new tree and print it. The character
    peeking (`IsBraced`, `IsOneToken`, `EndsWithControlWord`, `Separated`) is deleted rather than
    ported, and the matrix body stops being reformatted, because untouched subtrees are reused as they
