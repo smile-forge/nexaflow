@@ -377,9 +377,10 @@ public static class TexFormulaBuilder
 
         if (Part(part, TexRole.Base, style) is not { } baseAtom) return null;
 
-        // A rule drawn over something, with a script after it. The parser attaches the script to a
-        // different atom than this does, and the two set the script at different heights — visible only
-        // once, in a corpus of a quarter of a million formulas, and wrong is wrong.
+        // A rule drawn over something, carrying a script. Outside a fence the two readings agree exactly;
+        // inside a `\left…\right` they do not, and what differs is one box rather than any measurement —
+        // every number is identical and the pieces land in the same places. See the docs, "still to be
+        // settled": it is a nesting disagreement, not a rendering one.
         if (part.Part(TexRole.Base) is { Kind: TexKind.Command } command
             && command.Node.Part(TexRole.Name)?.Text is @"\overline" or @"\underline")
             return null;

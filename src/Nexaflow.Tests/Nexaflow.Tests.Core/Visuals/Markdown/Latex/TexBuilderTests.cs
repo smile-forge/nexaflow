@@ -216,8 +216,8 @@ public class TexBuilderTests
                                       @"\text{for all}",     // words, not maths: the spaces are the point
                                       "'x",                  // a prime with nothing to be the prime of
                                       @"a~^{b}",             // a script with nothing to be set on
-                                      @"\overline{f}'",      // a mark is a script, so it is the parked
-                                                             // "script on \overline" case as well
+                                      @"\overline{J}^{a}",   // a script on a rule drawn over something,
+                                      @"\overline{f}'",      // marks included: parked, see the docs
                                       @"\mathrm{abc}(x)",    // a row written first in a row
                                       @"\left( a", @"\notacommand{x}",
                                       @"\begin{matrix} a & b",              // never closed

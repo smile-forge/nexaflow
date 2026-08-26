@@ -269,10 +269,28 @@ layout trees, and both renderings beside the corpus's own reference image from t
 | | What differs |
 |---|---|
 | a fence inside a fence | `\left[ \left( a \right)^2 \right]` — the parser puts a scripted fence inside boxes of its own before measuring it, and picks a smaller outer bracket than we do. Ours grows to fit the script. **Ours may well be the better rendering**; it was declined because it differed, not because it was wrong |
-| a script on `\overline` | `\overline{{J}}^{a}` — the script lands at a different height. One formula in 238,329 |
 | `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
 | a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and it is an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |
+| an adorned thing carrying a script, inside a fence | `\left( \overline{{z}}_{+} z_{+} \right)`. Agrees outside a fence and differs inside one, and again every number is identical — one box more on our side. At least ten corpus formulas |
 | a script with nothing to carry it | `~^{\nu}`, and a script written first in a group. TeX sets it on an empty box, so there is a box in the drawing that nothing in the reading stands for. Declined rather than invented |
+
+**Several of these are the same disagreement, and it is not about the picture.** Lifting the `\overline`
+decline to re-check it turned up ten corpus formulas, and in every one *every geometry number is
+identical* — the pieces land in exactly the same places, and what differs is which box holds which.
+Same for the styled row. So the remaining disagreements are about the shape of the box tree, and the
+parser's shape is the one that varies with position: its accumulator adopts the first atom it is handed
+as the row it fills, so the same construct nests or splices depending on what was written before it.
+
+That has a consequence for this test. `Settled` compares every box, so a purely structural difference
+fails it even when the rendering is identical — which is the right gate for *selection*, where the tree
+shape is the answer, and too strict a gate for *"will switching the builder in change what the reader
+sees"*, where only the ink matters. Worth separating the two questions before settling any of these.
+
+**And a decline is never exercised, so it can go stale without anything saying so.** *A script on
+`\overline`* was recorded as one formula in 238,329 that set the script at a different height. It is at
+least ten, the height is not what differs, and it only happens inside a `\left…\right` — outside one the
+two readings agree exactly. Re-check what is parked here when anything it touches changes; lifting a
+decline to look costs one corpus run.
 
 Two entries that stood here have gone, and it is worth saying why, because the same move settled both.
 **What may carry a script** (`x'_{i}` binding its subscript to the prime rather than to the x) and
