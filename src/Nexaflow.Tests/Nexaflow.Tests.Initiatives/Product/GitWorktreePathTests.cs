@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>
 /// Snaplinks and coverage records must name the repo's own copy of a file, never the copy inside a linked git

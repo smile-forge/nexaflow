@@ -34,8 +34,9 @@
 
   <ItemGroup>
     <!-- The argument parser (VerbArgs/VerbSpec) is unit-tested — a CLI that silently drops an option is
-         how a batch edit loses data. -->
-    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+         how a batch edit loses data. Those tests live in Nexaflow.Tests.Initiatives (the WPF-free suite
+         for this backend); Tests.Features.Architecture still reaches in for CliHasNoPrivateGraphTwins. -->
+    <InternalsVisibleTo Include="Nexaflow.Tests.Initiatives" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Features.Architecture" />
   </ItemGroup>
 

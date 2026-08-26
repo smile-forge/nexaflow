@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>
 /// The snaplink integrity check — the same validation the Product tab's "Validate snaplinks" and the

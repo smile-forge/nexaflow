@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Graph;
 
 /// <summary>
 /// Routes between two nodes, and the fan-in/fan-out ranking. The interesting cases are not "does BFS work"

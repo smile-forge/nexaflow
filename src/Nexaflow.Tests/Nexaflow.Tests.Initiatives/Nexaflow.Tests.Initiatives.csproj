@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Nexaflow.Services.Initiatives and its headless CLI — the product tree, the knowledge graph, the
+    snaplink validator, the tree ops behind them.
+
+    These used to live in Nexaflow.Tests.Features\ProductManager\, which meant 265 tests that reference
+    nothing but Initiatives + Fixtures were hosted in a UseWPF project and needed a desktop session to
+    run. They are the same shape as Nexaflow.Tests.IO: the subject is a WPF-free backend library, so the
+    suite is one too. What stayed behind in Tests.Features is the ProductManager *feature* — the
+    view-models, the AI client tools, the graph viewer — which genuinely needs WPF.
+
+    A test belongs here when its subject is Nexaflow.Services.Initiatives(.Cli). One that merely uses it
+    through the feature stays with the feature.
+  -->
+  <PropertyGroup>
+    <!-- Plain net10.0, like the subject: no WPF, no WinRT, no desktop session, no shell. That is the
+         whole point of the split, and ArchitectureRulesTests holds it to it. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.3.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
+         clean checkout (gitignored), where the analyzer degrades to the presence check only. -->
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Coverage\Nexaflow.Analyzers.Coverage.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\..\.product\tree.json')">
+    <AdditionalFiles Include="..\..\..\.product\tree.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The subjects, and the [CoversNode] / [NoCoverage] attributes. Nothing else — no Core, no
+         Features, no Visuals. -->
+    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Services.Initiatives.Cli\Nexaflow.Services.Initiatives.Cli.csproj" />
+    <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

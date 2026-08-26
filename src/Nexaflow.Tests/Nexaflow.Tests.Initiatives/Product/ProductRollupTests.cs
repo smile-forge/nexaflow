@@ -3,7 +3,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>Rolled-up "effective" status shown on a sunburst arc: a leaf folds in its concerns; a parent
 /// derives from its children (and their concerns), ignoring its own stored status. Precedence:

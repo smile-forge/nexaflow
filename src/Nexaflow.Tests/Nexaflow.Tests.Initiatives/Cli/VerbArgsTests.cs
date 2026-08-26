@@ -1,7 +1,7 @@
 using Nexaflow.Services.Initiatives.Cli;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Cli;
 
 /// <summary>
 /// The initiatives CLI's argument parser. It exists because the previous "filter out anything starting with

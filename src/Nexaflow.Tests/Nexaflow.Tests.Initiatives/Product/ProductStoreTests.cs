@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>
 /// Validates the .product/ schema by implementing it: the node-status model, concern-links, snaplinks

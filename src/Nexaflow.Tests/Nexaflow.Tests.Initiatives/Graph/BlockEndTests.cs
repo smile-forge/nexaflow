@@ -2,7 +2,7 @@ using System;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Graph;
 
 /// <summary>
 /// <see cref="GraphQuery.BlockEnd"/> decides where a member's source stops, so it sets what

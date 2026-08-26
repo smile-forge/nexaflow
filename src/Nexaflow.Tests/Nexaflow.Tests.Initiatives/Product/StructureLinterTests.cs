@@ -2,7 +2,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>
 /// The advisory modelling-rule checks behind <c>nfi lint</c> (docs/feature-tree-and-tests.md
@@ -63,6 +63,24 @@ public class StructureLinterTests
 
     private static StructureLinter.Rule[] Rules(ProductState state, string? under = null) =>
         [.. StructureLinter.Lint(state, under).Select(f => f.Rule)];
+
+    /// <summary>A manifest in which <paramref name="nodeId"/> is declared by <paramref name="count"/> tests,
+    /// spread over <paramref name="files"/> files the way a leaf that has outgrown itself usually is.</summary>
+    private static TestCoverageManifest Declaring(string nodeId, int count, int files = 1)
+    {
+        var m = new TestCoverageManifest { Generated = "2026-08-26T00:00:00Z" };
+        m.Coverage[nodeId] =
+        [
+            .. Enumerable.Range(0, count).Select(i => new TestRef
+            {
+                Assembly = "Nexaflow.Tests.Example",
+                File = $"src/Tests/Part{i % Math.Max(files, 1)}Tests.cs",
+                Class = $"Part{i % Math.Max(files, 1)}Tests",
+                Method = $"Behaviour{i}",
+            }),
+        ];
+        return m;
+    }
 
     // ── The anchor: no false positives on a correctly-modelled feature ─────────
 
@@ -212,4 +230,52 @@ public class StructureLinterTests
         {
             Nodes = new Dictionary<string, ProductNode> { ["x"] = new() { Title = "X" } }
         }).Count);
+
+    // ── Leaf granularity, read back from the tests ────────────────────────────
+
+    [TestMethod]
+    public void ALeafThatManyTestsDeclare_IsFlaggedAsUnderModelled()
+    {
+        var findings = StructureLinter.Lint(
+            WellModelled(), null, Declaring("feat-behaviour", StructureLinter.MaxTestsPerLeaf + 1, files: 3));
+
+        var f = findings.Single();
+        Assert.AreEqual(StructureLinter.Rule.LeafCoveredByTooManyTests, f.Rule);
+        Assert.AreEqual("feat-behaviour", f.NodeId);
+        StringAssert.Contains(f.Detail, "across 3 files");
+        StringAssert.Contains(f.Detail, "add-node", "the finding has to say what to do about it");
+    }
+
+    [TestMethod]
+    public void ALeafExactlyAtTheLimit_IsLeftAlone()
+        => CollectionAssert.AreEqual(
+            Array.Empty<StructureLinter.Rule>(),
+            (StructureLinter.Rule[])[.. StructureLinter.Lint(
+                WellModelled(), null, Declaring("feat-behaviour", StructureLinter.MaxTestsPerLeaf)).Select(f => f.Rule)],
+            "the threshold is inclusive — a rule that fires AT the documented limit reads as off-by-one");
+
+    [TestMethod]
+    public void AContainerThatManyTestsDeclare_IsNotFlagged()
+    {
+        // A panel accumulates its children's tests by design. Flagging it would be flagging the tree for
+        // being correctly nested, which is how an advisory earns a reputation for noise.
+        var findings = StructureLinter.Lint(
+            WellModelled(), null, Declaring("feat-panel", StructureLinter.MaxTestsPerLeaf * 4));
+
+        Assert.AreEqual(0, findings.Count(f => f.Rule == StructureLinter.Rule.LeafCoveredByTooManyTests));
+    }
+
+    [TestMethod]
+    public void WithNoManifest_TheRuleSitsOut_RatherThanGuessing()
+    {
+        // The manifest is derived and gitignored, so absent is the normal case on a clean checkout. Every
+        // other rule must still run.
+        CollectionAssert.AreEqual(Array.Empty<StructureLinter.Rule>(), Rules(WellModelled()));
+
+        var s = WellModelled();
+        s.Nodes["feat-behaviour"].Concerns = null;
+        CollectionAssert.AreEqual(
+            new[] { StructureLinter.Rule.LeafMissingTests },
+            (StructureLinter.Rule[])[.. StructureLinter.Lint(s, null, coverage: null).Select(f => f.Rule)]);
+    }
 }

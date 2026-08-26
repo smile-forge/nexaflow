@@ -2,7 +2,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 [TestClass]
 [CoversNode("data-model")]

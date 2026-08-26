@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>The git surface used by Take Snapshot: repo detection, tag checks, and commit-and-tag.</summary>
 [TestClass]

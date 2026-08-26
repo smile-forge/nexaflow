@@ -91,19 +91,97 @@ public class ProductToolParityTests
             Assert.IsTrue(names.Contains(tool), $"CLI verb '{verb}' has no '{tool}' tool");
     }
 
+    /// <summary>
+    /// Every tool the assistant is handed, and whether it asks the user first.
+    /// <para>
+    /// This is one table rather than a list of the interesting ones because the interesting ones were the
+    /// problem. The safety rule used to be asserted in two places — six tools here, six others in
+    /// <c>ProductToolsTests</c> — and between them they named 17 of the 34 tools on offer. Whether a new
+    /// tool prompted before deleting something was, for half the surface, whatever the author happened to
+    /// type. A table plus <see cref="TheSafetyTableNamesEveryToolOnOffer"/> makes the omission the failure.
+    /// </para>
+    /// <para>
+    /// The line the values encode: reading never prompts, and neither does an edit that is trivially
+    /// reversible from the UI (setting a status, adding a snaplink — the tree is in git and the page is
+    /// watching the file). Anything that <em>removes</em> something, or changes the shape of the tree, asks.
+    /// </para>
+    /// </summary>
+    private static readonly (string Tool, ToolSafety Expected)[] SafetyContract =
+    [
+        // ── Product: reads ────────────────────────────────────────────────────
+        ("product_survey",                  ToolSafety.SafeOperation),
+        ("product_zoom",                    ToolSafety.SafeOperation),
+        ("product_needs_attention",         ToolSafety.SafeOperation),
+        ("product_find",                    ToolSafety.SafeOperation),
+        ("product_query",                   ToolSafety.SafeOperation),
+        ("product_tree",                    ToolSafety.SafeOperation),
+        ("product_validate",                ToolSafety.SafeOperation),
+        ("product_lint",                    ToolSafety.SafeOperation),
+
+        // ── Product: additive edits, reversible from the page ─────────────────
+        ("product_set_node_status",         ToolSafety.SafeOperation),
+        ("product_edit_node",               ToolSafety.SafeOperation),
+        ("product_set_concern_status",      ToolSafety.SafeOperation),
+        ("product_add_node_snaplink",       ToolSafety.SafeOperation),
+        ("product_add_concern_snaplink",    ToolSafety.SafeOperation),
+
+        // ── Product: removals and reshaping — must ask ────────────────────────
+        ("product_add_concern",             ToolSafety.RequiresApproval),
+        ("product_remove_concern",          ToolSafety.RequiresApproval),
+        ("product_remove_node_snaplink",    ToolSafety.RequiresApproval),
+        ("product_remove_concern_snaplink", ToolSafety.RequiresApproval),
+        ("product_add_node",                ToolSafety.RequiresApproval),
+        ("product_move_node",               ToolSafety.RequiresApproval),
+        ("product_rename_node",             ToolSafety.RequiresApproval),
+        ("product_remove_node",             ToolSafety.RequiresApproval),
+        ("product_remap_snaplinks",         ToolSafety.RequiresApproval),
+        ("product_doctor",                  ToolSafety.RequiresApproval),
+
+        // ── Graph: reads, plus the one command that writes graph.json ─────────
+        ("graph_search",                    ToolSafety.SafeOperation),
+        ("graph_context",                   ToolSafety.SafeOperation),
+        ("graph_node",                      ToolSafety.SafeOperation),
+        ("graph_walk",                      ToolSafety.SafeOperation),
+        ("graph_grep",                      ToolSafety.SafeOperation),
+        ("graph_code",                      ToolSafety.SafeOperation),
+        ("graph_stats",                     ToolSafety.SafeOperation),
+        ("graph_orphans",                   ToolSafety.SafeOperation),
+        ("graph_paths",                     ToolSafety.SafeOperation),
+        ("graph_rank",                      ToolSafety.SafeOperation),
+        ("graph_build",                     ToolSafety.RequiresApproval),
+    ];
+
     [TestMethod]
-    public void TheStructuralToolsAskFirst_AndTheReadsDoNot()
+    public void EveryToolAsksOrDoesNotAsk_AsTheSafetyContractSays()
     {
-        var tools = ProductTools.ForRoot(_root).ToDictionary(t => t.Name, t => t.Safety);
+        var actual = ProductTools.ForRoot(_root).ToDictionary(t => t.Name, t => t.Safety);
 
-        foreach (var read in new[] { "product_find", "product_query", "product_tree",
-                                     "product_validate", "product_lint", "product_zoom" })
-            Assert.AreEqual(ToolSafety.SafeOperation, tools[read], $"{read} is a pure read");
+        var wrong = SafetyContract
+            .Where(row => actual.TryGetValue(row.Tool, out var s) && s != row.Expected)
+            .Select(row => $"{row.Tool}: expected {row.Expected}, got {actual[row.Tool]}")
+            .ToList();
 
-        foreach (var structural in new[] { "product_add_node", "product_move_node", "product_rename_node",
-                                           "product_remove_node", "product_remap_snaplinks", "product_doctor" })
-            Assert.AreEqual(ToolSafety.RequiresApproval, tools[structural],
-                            $"{structural} changes the shape of the tree — it must ask");
+        Assert.AreEqual(0, wrong.Count,
+            "A tool's prompt behaviour changed. If that was deliberate, move its row — don't edit the "
+            + "expectation to match the code, or the table stops being a decision:\n  " + string.Join("\n  ", wrong));
+    }
+
+    [TestMethod]
+    public void TheSafetyTableNamesEveryToolOnOffer()
+    {
+        // The half that actually bites. A tool added without a row is a tool whose prompt behaviour nobody
+        // decided — and the old pair of partial lists would have passed it in silence.
+        var offered = ProductTools.ForRoot(_root).Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var tabled  = SafetyContract.Select(r => r.Tool).ToHashSet(StringComparer.Ordinal);
+
+        var untabled = offered.Except(tabled).Order().ToList();
+        var stale    = tabled.Except(offered).Order().ToList();
+
+        Assert.AreEqual(0, untabled.Count,
+            "These tools are handed to the assistant with no declared safety expectation. Add a row to "
+            + $"{nameof(SafetyContract)} saying whether each should ask first:\n  " + string.Join("\n  ", untabled));
+        Assert.AreEqual(0, stale.Count,
+            $"{nameof(SafetyContract)} names tools that no longer exist:\n  " + string.Join("\n  ", stale));
     }
 
     // ── Navigate ──────────────────────────────────────────────────────────────

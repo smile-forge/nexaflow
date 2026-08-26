@@ -5,9 +5,9 @@
 
        It compiles against almost nothing — Features.Common and the plugin contracts — but it must SEE
        everything at run time: the rules reflect over every Nexaflow.Features.*.dll and the coverage guards
-       over every Nexaflow.Tests.Features*.dll. Referencing the three suites is what puts both sets in this
-       project's output directory, so the guards keep globbing AppContext.BaseDirectory instead of guessing
-       at sibling bin paths that change with configuration and target framework.
+       over every suite DLL matching FeatureTestSuites.Patterns. Referencing the suites is what puts both
+       sets in this project's output directory, so the guards keep globbing AppContext.BaseDirectory instead
+       of guessing at sibling bin paths that change with configuration and target framework.
 
        That makes this the heaviest project in the repo to build, which is the right trade: it is the one
        nobody edits while working on a feature, and it is what buys the other three suites their independence. -->
@@ -41,6 +41,10 @@
     <ProjectReference Include="..\Nexaflow.Tests.Features\Nexaflow.Tests.Features.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Features.Viewers\Nexaflow.Tests.Features.Viewers.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Features.WindowsOS\Nexaflow.Tests.Features.WindowsOS.csproj" />
+    <!-- The WPF-free backend suite (Services.Initiatives + its CLI). Its 265 tests came out of
+         Tests.Features\ProductManager\; without this reference they would drop out of the
+         [CoversNode] guard the moment they left the Nexaflow.Tests.Features* glob. -->
+    <ProjectReference Include="..\Nexaflow.Tests.Initiatives\Nexaflow.Tests.Initiatives.csproj" />
 
     <ProjectReference Include="..\Nexaflow.Tests.Features.Common\Nexaflow.Tests.Features.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
