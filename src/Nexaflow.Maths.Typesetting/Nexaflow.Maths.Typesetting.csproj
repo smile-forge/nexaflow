@@ -35,6 +35,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The parse tree the boxes are built from. This is the arrow the ingest was for: a reading that
+         keeps every brace and space, and a box that knows which part of it it was set from. -->
+    <ProjectReference Include="..\Nexaflow.Maths\Nexaflow.Maths.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Data\DefaultTexFont.xml" />
     <EmbeddedResource Include="Data\GlueSettings.xml" />
     <EmbeddedResource Include="Data\PredefinedColors.xml" />

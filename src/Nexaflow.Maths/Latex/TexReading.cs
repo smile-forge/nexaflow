@@ -113,6 +113,15 @@ public sealed class TexPart
         }
     }
 
+    /// <summary>The first part with this role, or null.</summary>
+    public TexPart? Part(string role)
+    {
+        foreach (var child in this._children)
+            if (child.Role == role) return child;
+
+        return null;
+    }
+
     /// <summary>This part and everything under it, outermost first.</summary>
     public IEnumerable<TexPart> SelfAndDescendants()
     {

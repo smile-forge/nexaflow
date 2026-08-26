@@ -1150,6 +1150,28 @@ public class TexFormulaParser
         }
     }
 
+    /// <summary>
+    /// One character, as the atom it is set as — which decides how much room is left around it.
+    /// <para>
+    /// The classification is the whole reason <see cref="TexFormulaBuilder"/> asks rather than deciding:
+    /// TeX's spacing comes from what <em>class</em> an atom is, not from the space in the source, and the
+    /// table saying a <c>+</c> is a binary operator and an <c>=</c> is a relation is here. Something
+    /// building a formula out of its own reading knows which characters the writer wrote, and has no
+    /// business knowing how they should be set.
+    /// </para>
+    /// </summary>
+    internal static Atom CharacterOf(char character, SourceSpan source, string? textStyle = null)
+    {
+        if (!IsSymbol(character) || textStyle == TexUtilities.TextStyleName)
+            return new CharAtom(source, character, textStyle);
+
+        var symbolName = symbols.ElementAtOrDefault(character);
+
+        return string.IsNullOrEmpty(symbolName)
+            ? new CharAtom(source, character, textStyle)
+            : SymbolAtom.GetAtom(symbolName, source);
+    }
+
     internal readonly record struct AfterReadingInfo(SourceSpan source, int position);
 
     private static AfterReadingInfo ReadEscapeSequence(SourceSpan value, int position)

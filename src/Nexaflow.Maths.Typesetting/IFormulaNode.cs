@@ -49,4 +49,17 @@ public interface IFormulaNode
 
     /// <summary>What it is made of, in reading order. Empty for anything that is made of nothing.</summary>
     IReadOnlyList<FormulaSlot> Slots { get; }
+
+    /// <summary>
+    /// The part of the parse tree this was built from, when it was built from one — which is to say, by
+    /// <see cref="TexFormulaBuilder"/> rather than by <see cref="TexFormulaParser"/>.
+    ///
+    /// <para>
+    /// A formula read by the parser has none: that reading has no braces and no spacing left in it by the
+    /// time an atom exists, so there is nothing to point at. A formula built from a parse tree has one on
+    /// every atom, and every box that comes out of it therefore knows which part of the source it was set
+    /// from — without anything having to match spans up afterwards.
+    /// </para>
+    /// </summary>
+    Nexaflow.Maths.Latex.TexPart? Origin { get; }
 }

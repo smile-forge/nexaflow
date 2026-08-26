@@ -53,6 +53,11 @@ type private InnerPropertyContractResolver() =
             // in every one of these files. Taking both would put the whole atom tree in each of them
             // twice, for no assurance the first copy does not already give.
             |> Seq.filter(fun p -> not (p.DeclaringType = typeof<XamlMath.TexFormula> && p.Name = "Root"))
+            // Atom.Origin points back at the parse tree a formula was built from. It is null for every
+            // formula the parser read, which is all of them here — so taking it would put a null on every
+            // atom of all 148 files, and a whole parse tree on each one the day a test builds a formula
+            // the other way. What these record is what was built, not where it came from.
+            |> Seq.filter(fun p -> p.Name <> "Origin")
             |> Seq.sortBy(fun p -> p.Name)
             |> Seq.map(fun p -> this.DoCreateProperty(p, memberSerialization))
 

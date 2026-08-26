@@ -14,6 +14,9 @@ internal abstract record Atom(SourceSpan? Source, TexAtomType Type = TexAtomType
     /// </summary>
     public virtual IReadOnlyList<FormulaSlot> Slots => System.Array.Empty<FormulaSlot>();
 
+    /// <inheritdoc/>
+    public Nexaflow.Maths.Latex.TexPart? Origin { get; set; }
+
     /// <summary>A part, or nothing when the construct did not have one — a root without a degree.</summary>
     protected static IReadOnlyList<FormulaSlot> Parts(params (string Role, Atom? Node)[] parts)
     {
