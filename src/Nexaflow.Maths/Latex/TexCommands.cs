@@ -85,6 +85,12 @@ public static class TexCommands
         // \not slashes whatever comes next, braced or not: \not\in and \not{=} are both written.
         Add(@"\not", one);
 
+        // Set in place without taking up room, or without taking up height.
+        All([@"\smash", @"\llap", @"\rlap", @"\mathrlap", @"\mathllap", @"\mathclap"], one);
+
+        // Modular arithmetic: \bmod is a binary operator and takes nothing; the rest take the modulus.
+        All([@"\pmod", @"\pod", @"\mod"], [TexRole.Argument]);
+
         // \substack{a \\ b} — the stack under a big operator's limit.
         Add(@"\substack", one);
 

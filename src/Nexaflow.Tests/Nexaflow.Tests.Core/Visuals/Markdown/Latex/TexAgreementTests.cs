@@ -54,6 +54,9 @@ public class TexAgreementTests
     //             with two cells beside rows of four contributes four. The parse tree holds what was
     //             written; making it rectangular is a question for whoever is moving a column.
     //   under   — the same as over, from the same expansion.
+    //   base    — not the same idea in the two readings at all. The typesetter names "base" on every
+    //             internal wrapper it builds, so a formula of nine fractions has bases in its tree and
+    //             none in this one, where a fraction has a numerator and a denominator and that is all.
 
     [TestMethod]
     public void TheParseTreeSeesEverythingTheTypesetterSees() => UiThread.Run(() =>

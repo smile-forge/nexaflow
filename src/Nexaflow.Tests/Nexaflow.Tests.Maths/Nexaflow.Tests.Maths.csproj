@@ -31,9 +31,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The subject, and the shared construct list + [CoversNode]. Nothing else. -->
+    <!-- The subject, and the shared construct list + [CoversNode]. -->
     <ProjectReference Include="..\..\Nexaflow.Maths\Nexaflow.Maths.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
+    <!-- An oracle, not a dependency of the subject. AngouriMath writes LaTeX and knows exactly what
+         structure it wrote, which makes it a better check on the parse tree than the typesetter — whose
+         own tree is lossy and whose spans are the thing being replaced. WPF-free, like this suite. -->
+    <ProjectReference Include="..\..\..\external\AngouriMath\Sources\AngouriMath\AngouriMath.csproj" />
   </ItemGroup>
 
   <ItemGroup>
