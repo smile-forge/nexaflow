@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\external\xaml-math\src\WpfMath\WpfMath.csproj" />
+    <ProjectReference Include="..\..\src\Nexaflow.Visuals.Maths\Nexaflow.Visuals.Maths.csproj" />
   </ItemGroup>
 
 </Project>

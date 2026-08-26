@@ -200,6 +200,11 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Maths/Nexaflow.Tests.Maths.csproj">
       <Platform Project="x64" />
     </Project>
+    <!-- The typesetting engine's own suite, ingested with it. F#/xunit, and run from its own directory
+         because of the test runner — see the global.json beside it. -->
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Typesetting/Nexaflow.Tests.Typesetting.fsproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Nexaflow.Tests.UIJourneys.csproj">
       <Platform Project="x64" />
     </Project>
@@ -218,6 +223,14 @@
   <!-- The maths domain, WPF-free: the LaTeX parse tree that owns its text. Under both Visuals.Text
        (which renders from it) and Features.Solver (which will solve from it). -->
   <Project Path="src/Nexaflow.Maths/Nexaflow.Maths.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- TeX's typesetting engine and its Computer Modern metrics, ingested from XAML-Math (MIT). The
+       atoms are internal and we build them ourselves now, which is why they live here. -->
+  <Project Path="src/Nexaflow.Maths.Typesetting/Nexaflow.Maths.Typesetting.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="src/Nexaflow.Visuals.Maths/Nexaflow.Visuals.Maths.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- WPF-free Portable Executable reader: headers, imports/exports, resources, entropy,
@@ -301,9 +314,6 @@
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="external/AngouriMath/Sources/Analyzers/RuleRegistryGenerator/RuleRegistryGenerator.csproj">
-      <Platform Project="AnyCPU" />
-    </Project>
-    <Project Path="external/xaml-math/src/WpfMath/WpfMath.csproj">
       <Platform Project="AnyCPU" />
     </Project>
   </Folder>

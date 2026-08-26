@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The typesetting engine's own tests, ingested with it from XAML-Math.
+
+    762 of them, and worth every bit of the awkwardness of keeping an F#/xunit project in a repo that is
+    otherwise C#/MSTest. They pin the shape of what the engine builds for 148 formulas, and they are the
+    only thing that watches the largest and most intricate part of the maths stack. They caught a change
+    of ours the day before this was ingested.
+
+    They earn their keep twice over from here. The engine's own LaTeX parser is on its way out — the
+    boxes will be built from Nexaflow.Maths' parse tree instead — and these approvals are a precise
+    record of what that parser produced for each of those formulas. That makes them the oracle the
+    replacement is measured against, not merely a regression net for code we inherited.
+
+    Run it from its own directory, because of the runner (see global.json beside this file):
+
+        cd src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
+        dotnet test Nexaflow.Tests.Typesetting.fsproj
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <!-- The approval reporter writes files named after the test; deterministic builds rename them. -->
+    <Deterministic>false</Deterministic>
+    <LangVersion>preview</LangVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ApprovalTests" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="Foq" Version="1.8.0" />
+    <PackageReference Include="FSharp.Core.Fluent-4.0" Version="1.0.0.6" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Maths\Nexaflow.Visuals.Maths.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Maths.Typesetting\Nexaflow.Maths.Typesetting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="ApprovalTestUtils.fs" />
+    <Compile Include="Utils.fs" />
+    <Compile Include="BoxTests.fs" />
+    <Compile Include="PredefinedColorParserTests.fs" />
+    <Compile Include="CharBoxTests.fs" />
+    <Compile Include="DefaultTexFontTests.fs" />
+    <Compile Include="EnvironmentTests.fs" />
+    <Compile Include="GeometryHelperTests.fs" />
+    <Compile Include="GeometryElementRendererTests.fs" />
+    <Compile Include="HorizontalBoxTests.fs" />
+    <Compile Include="HorizontalRuleTests.fs" />
+    <Compile Include="OverUnderBoxTests.fs" />
+    <Compile Include="ParserTests.fs" />
+    <Compile Include="ParserExceptionTests.fs" />
+    <Compile Include="AdditionalSymbolsTests.fs" />
+    <Compile Include="AdditionalCommandsTests.fs" />
+    <Compile Include="AmsSymbolFontTests.fs" />
+    <Compile Include="ArrayAndOperatorTests.fs" />
+    <Compile Include="AmsMathGapTests.fs" />
+    <Compile Include="AmsMathDisplayTests.fs" />
+    <Compile Include="PlainTexSwitchTests.fs" />
+    <Compile Include="TeXLayoutRuleTests.fs" />
+    <Compile Include="CorpusGapTests.fs" />
+    <Compile Include="RenderingTests.fs" />
+    <Compile Include="TransformationTests.fs" />
+    <Compile Include="VerticalBoxTests.fs" />
+    <Compile Include="WpfRendererTests.fs" />
+    <Compile Include="WpfBrushTests.fs" />
+    <None Include="TestResults/*.txt" />
+  </ItemGroup>
+
+</Project>

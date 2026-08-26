@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    TeX's typesetting engine: atoms, the box model built from them, and the Computer Modern metrics that
+    decide where every glyph goes.
+
+    Ingested from XAML-Math (MIT; see LICENSE.md beside this file), which we had carried as a submodule
+    and consumed by ProjectReference. That is the repo's rule for third-party source and this is a
+    deliberate exception to it — recorded in docs/externals.md.
+
+    The reason: we are replacing its front end. It does two jobs — read LaTeX, and decide what the
+    reading should be set as — and only the second is one we want. Reading it ourselves means a parse
+    tree that keeps every brace and space, prints back unchanged, and can be edited through; and it means
+    the boxes must be built from THAT tree, so each one knows which part of it it was set from. Every
+    change we made while it was a dependency was reaching past its public surface to do that, and every
+    one cost a two-repo edit and a pin bump. Upstream has been dormant for months — no non-bot commit we
+    lack — so the relationship had stopped paying for itself.
+
+    What was worth taking, and is the whole point of not writing this ourselves:
+      Atoms\ + Boxes\        TeX's box model — script positioning, fraction shifts, radical construction,
+                             delimiter growth, and the inter-atom spacing that comes from atom classes
+      Data\DefaultTexFont    ~198KB of glyph metrics: widths, italic corrections, kerns, and the recipes
+                             for extending a delimiter to fit what it holds
+
+    Namespaces are left as they were, so the ingest is reviewable as a move and nothing else.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>XamlMath</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\DefaultTexFont.xml" />
+    <EmbeddedResource Include="Data\GlueSettings.xml" />
+    <EmbeddedResource Include="Data\PredefinedColors.xml" />
+    <EmbeddedResource Include="Data\PredefinedTexFormulas.xml" />
+    <EmbeddedResource Include="Data\TexFormulaSettings.xml" />
+    <EmbeddedResource Include="Data\TexSymbols.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The atoms are internal, and the point of ingesting this was to be able to build them directly:
+         the WPF half renders them, and Visuals.Text builds them from its own parse tree. -->
+    <InternalsVisibleTo Include="Nexaflow.Visuals.Maths" />
+    <InternalsVisibleTo Include="Nexaflow.Visuals.Text" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Typesetting" />
+  </ItemGroup>
+
+</Project>

@@ -43,11 +43,11 @@
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
 
-    <!-- WpfMath (LaTeX math rendering) built from source: the external/xaml-math submodule (smile-forge fork,
-         nexaflow branch) replaces the WpfMath NuGet so matrix-delimiter environments can be added upstream.
-         Resolves WpfMath's net8.0-windows target; XamlMath.Shared flows in transitively.
-         Fork/PR/pin-bump workflow: docs/externals.md (never swap this back to a PackageReference). -->
-    <ProjectReference Include="..\..\external\xaml-math\src\WpfMath\WpfMath.csproj" />
+    <!-- TeX's typesetting engine, ingested from XAML-Math and now ours: Visuals.Maths for the fonts and
+         the renderer interfaces, Maths.Typesetting for the atoms and the box model beneath it. Ingested
+         rather than referenced because we build the atoms ourselves now, from our own parse tree, and
+         they are internal. See docs/externals.md for the exception that makes to the submodule rule. -->
+    <ProjectReference Include="..\Nexaflow.Visuals.Maths\Nexaflow.Visuals.Maths.csproj" />
   </ItemGroup>
 
 </Project>

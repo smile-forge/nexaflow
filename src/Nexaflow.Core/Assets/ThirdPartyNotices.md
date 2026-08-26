@@ -40,11 +40,19 @@ under the license noted below.
 | [Updatum](https://github.com/sn4k3/Updatum) | MIT |
 | [VideoLAN libVLC](https://www.videolan.org/vlc/libvlc.html) (native, via VideoLAN.LibVLC.Windows) | LGPL-2.1-or-later |
 | [Whisper.net](https://github.com/sandrohanea/whisper.net) | MIT |
-| [WpfMath](https://github.com/ForNeVeR/wpf-math) | MIT |
+| [XAML-Math / WpfMath](https://github.com/ForNeVeR/xaml-math) (vendored — see below) | MIT |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) | MIT |
 
 Full license texts are available at each project's repository linked above.
+
+**XAML-Math is vendored, not referenced.** Its source — TeX's typesetting engine, the Computer Modern
+metrics, and the Computer Modern faces themselves — was copied into this repository and is built as part
+of it, under `src/Nexaflow.Maths.Typesetting` and `src/Nexaflow.Visuals.Maths`, with its own test suite as
+`src/Nexaflow.Tests/Nexaflow.Tests.Typesetting`. Modified: Nexaflow reads LaTeX with its own parser and
+builds the engine's boxes from that reading. The MIT licence and the copyright notices travelled with the
+code; the fonts carry their own licences in `src/Nexaflow.Visuals.Maths/Fonts/LICENSES.md` (OFL-1.1 and
+others), and are redistributed under them.
 
 The syntax-highlighting consistency tests use a reference corpus vendored from
 [bat](https://github.com/sharkdp/bat) (MIT / Apache-2.0) under

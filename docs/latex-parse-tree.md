@@ -108,6 +108,31 @@ Each stage stands on its own and leaves the app working.
 6. **The solver bridge** — later, and out of scope here. Tree to `Entity`, so that what renders is
    what solves.
 
+## The typesetter was ingested
+
+Stage 4 finished with `Attribute` — one method matching each box to the parse-tree part it was drawn from,
+by comparing the stretch of source each was named for. Every rule in it exists because the boxes were built
+by *somebody else's* reading of the same LaTeX, and the only thing the two readings share is offsets.
+
+Build the boxes from this tree and there is nothing to match: each box carries the part it came from. But
+the atoms boxes are built out of are `internal` to the library, so that meant either a public façade
+invented to get around the boundary, or a two-repo edit and a pin bump for every construct. Five such
+changes in, with upstream dormant — no non-bot commit we lacked — the boundary had stopped protecting
+anything.
+
+So XAML-Math is no longer a dependency. Its source is here: `Nexaflow.Maths.Typesetting` (the engine),
+`Nexaflow.Visuals.Maths` (the WPF fonts and renderer), and its own 762 tests as
+`Nexaflow.Tests.Typesetting`. Verbatim, one edit aside — the font resource asks for its own assembly by
+name now rather than the literal `WpfMath` — and the approvals prove it: the only difference in any of the
+148 recorded formulas was that URI. Every geometry number identical.
+
+**What we kept is why this was ingested rather than rewritten.** `Atoms/` and `Boxes/` are TeX's box model
+— script positioning, fraction shifts, radical construction, delimiter growth, and the spacing that comes
+from atom classes — and `Data/DefaultTexFont.xml` is ~198KB of Computer Modern metrics transcribed from
+TeX. What we are removing is the *front* (its LaTeX parser); we had already replaced the *back* (its
+renderer, with a capture that records where every box landed). What is left is the middle, which is the
+part worth having.
+
 ## Considered and not taken
 
 **A tree-sitter LaTeX grammar.** It would fit the existing grammar machinery and round-trips by
