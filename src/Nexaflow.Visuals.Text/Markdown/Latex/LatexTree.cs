@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
@@ -107,6 +107,133 @@ public sealed class LatexTree
 
     /// <summary>Where a caret is allowed to rest, ascending.</summary>
     public IReadOnlyList<int> CaretStops => _stops;
+
+    /// <summary>
+    /// The matrix holding <paramref name="offset"/>, as its cells and the place each one has — or null
+    /// when the offset is not in one. Innermost first, so a matrix inside a matrix answers as the one
+    /// being pointed into.
+    /// <para>
+    /// Read from the parse tree. The parser says which cells a matrix has and which row and column each
+    /// is in; nothing here counts separators or clusters rectangles to find that out again. That is what
+    /// makes "move this column", and every table edit after it, a question the tree can answer.
+    /// </para>
+    /// </summary>
+    public LatexGrid? GridAt(int offset)
+    {
+        LatexGrid? innermost = null;
+
+        foreach (var node in Root.SelfAndDescendants())
+        {
+            // The parse node's own span, not the layout node's. A matrix drawn inside its brackets is one
+            // construct drawn in parts, and the layout deliberately takes a name off any piece whose
+            // ancestor already carries it — so the box holding the cells has no span at all. The parse
+            // tree is where a construct's own extent survives that.
+            if (node is not LatexNode { Formula: { Source: { } span } formula }) continue;
+            if (offset < span.Start || offset > span.End) continue;
+
+            var cells = formula.Slots
+                .Where(s => s.Row >= 0 && s.Column >= 0 && s.Node.Source is not null)
+                .Select(s => (s.Row, s.Column, s.Node.Source!.Start, s.Node.Source!.Length))
+                .ToList();
+            if (cells.Count == 0) continue;
+
+            if (innermost is not null && span.Length >= innermost.Length) continue;
+            if (LatexGrid.From(Latex, span.Start, span.Length, cells) is { } grid) innermost = grid;
+        }
+
+        return innermost;
+    }
+
+    /// <summary>
+    /// Where <paramref name="point"/> falls in a matrix: on a cell, or at a boundary between columns or
+    /// rows — including the margin inside the brackets, past the last column or under the last row.
+    /// <para>
+    /// A boundary cannot be said as an offset, which is why this takes a point. Every position in a
+    /// matrix belongs to some cell as far as the source is concerned; "just to the right of the last
+    /// column, but still inside the brackets" is a fact about where the columns were drawn, and only
+    /// the geometry has it. It is what tells a block dropped there to become new columns rather than to
+    /// land in the cell it happens to be nearest.
+    /// </para>
+    /// </summary>
+    public GridDrop? GridDropAt(Point point)
+    {
+        foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
+        {
+            if (node is not LatexNode { Formula: { Source: { } span } formula }) continue;
+
+            var slots = formula.Slots.Where(s => s.Row >= 0 && s.Column >= 0 && s.Node.Source is not null).ToList();
+            if (slots.Count == 0) continue;
+
+            // How far the matrix reaches, brackets included. The cells' box stops at the cells: the
+            // delimiters are drawn by the fence around them, which is a separate piece of the same
+            // construct — so the margin a reader aims at when offering a column to the matrix belongs to
+            // the fence, not to the box being asked. Anything laid out from the same stretch of source is
+            // that same construct drawn in another part, so its extent counts as this one's.
+            var reach = node.Bounds;
+            foreach (var ancestor in node.Ancestors())
+                if (ancestor is LatexNode { Formula.Source: { } outer }
+                    && outer.Start == span.Start && outer.Length == span.Length)
+                    reach.Union(ancestor.Bounds);
+
+            if (!reach.Contains(point)) continue;
+
+            var cells = slots
+                .Select(s => (s.Row, s.Column, s.Node.Source!.Start, s.Node.Source!.Length))
+                .ToList();
+            if (LatexGrid.From(Latex, span.Start, span.Length, cells) is not { } grid) continue;
+
+            // Each cell's extent on the page, taken from the pieces laid out for its parse node.
+            var boxes = new Dictionary<(int, int), Rect>();
+            foreach (var slot in slots)
+            {
+                var drawn = node.SelfAndDescendants()
+                    .OfType<LatexNode>()
+                    .Where(n => ReferenceEquals(n.Formula, slot.Node) && n.Bounds.Width > 0)
+                    .Select(n => n.Bounds)
+                    .ToList();
+                if (drawn.Count == 0) continue;
+
+                var box = drawn[0];
+                foreach (var rect in drawn.Skip(1)) box.Union(rect);
+                boxes[(slot.Row, slot.Column)] = box;
+            }
+
+            if (boxes.Count == 0) continue;
+            return Land(grid, boxes, point);
+        }
+
+        return null;
+    }
+
+    /// <summary>Reads a point against a grid's drawn cells: on one of them, or between/past columns or rows.</summary>
+    private static GridDrop Land(LatexGrid grid, Dictionary<(int, int), Rect> boxes, Point point)
+    {
+        foreach (var (at, box) in boxes)
+            if (box.Contains(point)) return new GridDrop(grid, at.Item1, at.Item2, null, null);
+
+        double? Edge(int index, bool column, bool far)
+        {
+            var of = boxes.Where(b => (column ? b.Key.Item2 : b.Key.Item1) == index).Select(b => b.Value).ToList();
+            if (of.Count == 0) return null;
+            return column ? (far ? of.Max(r => r.Right) : of.Min(r => r.Left))
+                          : (far ? of.Max(r => r.Bottom) : of.Min(r => r.Top));
+        }
+
+        // How many columns finish before the pointer, and how many rows — which is the index a block
+        // dropped here would be inserted at, counting from either end without a special case.
+        var column = Enumerable.Range(0, grid.ColumnCount).Count(c => Edge(c, column: true, far: true) < point.X);
+        var row = Enumerable.Range(0, grid.RowCount).Count(r => Edge(r, column: false, far: true) < point.Y);
+
+        // Which way the pointer has actually left the cells decides. Past the ends of the columns is a
+        // column; otherwise, past the ends of the rows is a row; a pointer in the gutter between two
+        // columns is a column again, since that is the reading with somewhere to go.
+        var outsideColumns = column == 0 || column == grid.ColumnCount;
+        var outsideRows = row == 0 || row == grid.RowCount;
+
+        return outsideColumns || !outsideRows
+            ? new GridDrop(grid, null, null, column, null)
+            : new GridDrop(grid, null, null, null, row);
+    }
 
     /// <summary>
     /// The holes in this formula, in reading order — the arguments left empty, which the typesetter
@@ -355,7 +482,12 @@ public sealed class LatexTree
     /// dropped on itself has not gone anywhere, and cutting it first would leave nowhere to put it.
     /// </para>
     /// </summary>
-    public LatexWrite? Move(IReadOnlyList<(int Start, int Length)> ranges, int to)
+    /// <param name="at">
+    /// Where the pointer let go, when the caller has it. Only a point can say that a block was dropped
+    /// between two columns of a matrix rather than onto one of its cells, so only with this can a block
+    /// join a matrix as new columns instead of landing in a cell.
+    /// </param>
+    public LatexWrite? Move(IReadOnlyList<(int Start, int Length)> ranges, int to, Point? at = null)
     {
         if (ranges is null) return null;
 
@@ -365,6 +497,20 @@ public sealed class LatexTree
         if (ordered.Count == 0) return null;
         if (ordered.Any(r => to > r.Start && to < r.Start + r.Length)) return null;
 
+        // Cells first. A matrix is the one place where what a move means is not a splice of the source
+        // the selection covers: moving a column has to move the separators too, so the rest shift over
+        // rather than the column's three stretches arriving jammed together at the drop point.
+        if (MoveInGrid(ordered, to, at) is { } inGrid) return inGrid;
+
+        return MoveText(ordered, to);
+    }
+
+    /// <summary>
+    /// A move as a splice of the stretches themselves — what a selection that is not a block of cells
+    /// means, and what moving a whole matrix means too.
+    /// </summary>
+    private LatexWrite? MoveText(List<(int Start, int Length)> ordered, int to)
+    {
         var moved = string.Concat(ordered.Select(r => Latex.Substring(r.Start, r.Length)));
 
         // Cut last first, so removing one stretch never moves the offsets of those still to go — the
@@ -372,21 +518,168 @@ public sealed class LatexTree
         var remainder = Latex;
         foreach (var range in Enumerable.Reverse(ordered)) remainder = remainder.Remove(range.Start, range.Length);
 
-        // Everything cut from in front of the drop shifts it back by that much.
-        var drop = to - ordered.Where(r => r.Start + r.Length <= to).Sum(r => r.Length);
-        drop = Math.Clamp(drop, 0, remainder.Length);
+        var drop = Math.Clamp(Shift(to, ordered), 0, remainder.Length);
 
         // The destination is read off the formula as it stands, which is the one the reader dropped
-        // onto, then shifted into the source the cut left behind.
+        // onto, then shifted into the source the cut left behind. It only means anything if the drop
+        // is still inside it once that is done — a drag can pass over a position whose argument the
+        // cut has since taken apart, and the argument of somewhere else is no argument at all.
         var argument = ArgumentAt(to);
-        var span = argument is null
+        var span = argument is null || to < argument.SourceStart || to > argument.SourceEnd()
             ? ((int Start, int End)?)null
             : (Shift(argument.SourceStart, ordered), Shift(argument.SourceEnd(), ordered));
 
         return Place(remainder, drop, moved, span, argument is not null && IsBraced(argument));
 
-        static int Shift(int offset, List<(int Start, int Length)> cut) =>
-            offset - cut.Where(r => r.Start + r.Length <= offset).Sum(r => r.Length);
+        // An offset in the formula as it stands, read as an offset into what the cut left behind.
+        // A stretch wholly in front of it takes its whole length off; one the offset falls *inside*
+        // takes only the part in front of the offset, because the rest of it is still to come. Left
+        // out, that second case runs an offset backwards past a stretch that straddles it — which is
+        // how dragging a term out of a denominator across the formula ended in a negative substring.
+        static int Shift(int offset, List<(int Start, int Length)> cut)
+        {
+            var shifted = offset;
+            foreach (var r in cut)
+            {
+                if (r.Start + r.Length <= offset) shifted -= r.Length;
+                else if (r.Start < offset) shifted -= offset - r.Start;
+            }
+            return shifted;
+        }
+    }
+
+    /// <summary>
+    /// A move of cells, when that is what it is: a block selected in a matrix, dragged either somewhere
+    /// else in the same matrix or out of it. Null for everything else, leaving the ordinary move to
+    /// splice the source.
+    /// <para>
+    /// Inside the matrix, whole columns and whole rows reorder — the point of the whole exercise, since a
+    /// column moved as three stretches of text arrives as three terms jammed together instead of as a
+    /// column. Anything less than a whole line moves its contents to where it was dropped, as a block
+    /// does on a sheet, and leaves holes behind.
+    /// </para>
+    /// <para>
+    /// Dragged out, the block becomes a matrix of its own of the same kind and the same size, and what it
+    /// came from closes up (a whole column or row) or is left holding holes (a partial block).
+    /// </para>
+    /// </summary>
+    private LatexWrite? MoveInGrid(List<(int Start, int Length)> ranges, int to, Point? at)
+    {
+        if (GridAt(ranges[0].Start) is not { } grid) return null;
+        if (grid.BlockOf(ranges) is not { } block) return null;
+
+        // Not an array. Its columns carry an alignment spec — `\begin{array}{cc|c}` — that would have to
+        // be reordered in step with them, and moving the cells alone would silently realign the table
+        // while looking like it had worked. Left to the ordinary move until the spec moves too.
+        if (grid.Environment is "array") return null;
+
+        // The whole grid selected is the matrix itself being carried, not cells being taken out of it —
+        // so it moves as the stretch of source it is, and what it leaves behind is nothing. Treated as
+        // cells, every one of them was emptied, and the matrix stayed where it was as a blank one: drag a
+        // matrix a little way and you had two, one of them holding a single hole.
+        if (block.Rows == grid.RowCount && block.Columns == grid.ColumnCount)
+            return MoveText([grid.Span], to);
+
+        // Landing in a cell is what "inside the matrix" means — not landing within its span. When the
+        // formula *is* the matrix, which is the ordinary case, every offset in it is within that span,
+        // including the one past the closing brace that dropping to the right of it produces. Asking the
+        // span sent every such drop down the move-within path, where there was no cell to land in, and
+        // the whole thing fell through to splicing the source: the block arrived as its stretches run
+        // together outside the matrix, and the matrix kept its shape with the cells cut out of it.
+        // A boundary, when the caller gave us a pointer to read one from: dropped between two columns of
+        // a matrix — its own or another's — the block joins as columns rather than landing in a cell.
+        if (at is { } point && GridDropAt(point) is { Cell: null } boundary && Joined(grid, block, boundary) is { } joined)
+            return joined;
+
+        return grid.CellAt(to) is { } cell ? MovedWithin(grid, block, cell) : MovedOut(grid, block, to);
+    }
+
+    /// <summary>
+    /// The block put into a matrix as new columns or rows — the merge. Within its own matrix that is a
+    /// reorder, which is the move it already knows; between two, the block leaves one and joins the
+    /// other, so both are rewritten at once.
+    /// </summary>
+    private LatexWrite? Joined(LatexGrid source, GridBlock block, GridDrop drop)
+    {
+        var target = drop.Grid;
+
+        if (target.BodyStart == source.BodyStart)
+        {
+            if (drop.InsertColumn is { } column && source.IsWholeColumns(block))
+                return Settled(source.WithColumnsMoved(block, column));
+            if (drop.InsertRow is { } row && source.IsWholeRows(block))
+                return Settled(source.WithRowsMoved(block, row));
+
+            return null;
+        }
+
+        var contents = source.Contents(block);
+        var move = drop.InsertColumn is { } into ? target.WithColumnsInserted(into, contents)
+                 : drop.InsertRow is { } under ? target.WithRowsInserted(under, contents)
+                 : (GridMove?)null;
+        if (move is not { } joined) return null;
+
+        var left = source.WithBlockTaken(block).Body();
+        var gained = joined.Grid.Body();
+
+        // Two bodies to put back into one formula. The later one first, so the earlier one's offsets are
+        // still the offsets of the formula being written into when its turn comes.
+        var latex = Latex;
+        foreach (var (start, end, body) in new[]
+                 {
+                     (source.BodyStart, source.BodyEnd, left),
+                     (target.BodyStart, target.BodyEnd, gained),
+                 }.OrderByDescending(e => e.Item1))
+            latex = latex[..start] + body + latex[end..];
+
+        // Where the target's cells ended up. Its own rewrite says where each landed within it; the
+        // source's rewrite, if it came first in the formula, has moved the whole of that along.
+        var shift = source.BodyStart < target.BodyStart
+            ? left.Length - (source.BodyEnd - source.BodyStart)
+            : 0;
+        var wrote = joined.Grid.Render().Grid.SpanOf(joined.Landed) ?? (target.BodyStart, 0);
+
+        return Wrote(latex, wrote.Start + shift + wrote.Length, wrote.Length);
+    }
+
+    /// <summary>
+    /// A grid move, settled: the formula it produces, and the moved block marked out in it so a drag can
+    /// keep showing what is being carried. Both come from the grid itself — the rewrite says where every
+    /// cell was put, so nothing has to read the text back to find out.
+    /// </summary>
+    private static LatexWrite Settled(GridMove move)
+    {
+        var (latex, settled) = move.Grid.Render();
+        var wrote = settled.SpanOf(move.Landed) ?? (settled.BodyStart, 0);
+
+        // The existing helper takes where the caret ends up, which is just past what was written.
+        return Wrote(latex, wrote.Start + wrote.Length, wrote.Length);
+    }
+
+    private static LatexWrite? MovedWithin(LatexGrid grid, GridBlock block, (int Row, int Column) cell)
+    {
+        var move = grid.IsWholeColumns(block) ? grid.WithColumnsMoved(block, cell.Column)
+                 : grid.IsWholeRows(block) ? grid.WithRowsMoved(block, cell.Row)
+                 : grid.WithBlockMoved(block, cell.Row, cell.Column);
+
+        return Settled(move);
+    }
+
+    private static LatexWrite? MovedOut(LatexGrid grid, GridBlock block, int to)
+    {
+        var taken = grid.Extracted(block);
+        var (latex, left) = grid.WithBlockTaken(block).Render();
+
+        // The drop was named against the formula as it was. Rewriting the matrix's cells changes the
+        // length of everything from the body onwards, so a drop after it moves by the difference.
+        var shift = (left.BodyEnd - left.BodyStart) - (grid.BodyEnd - grid.BodyStart);
+        var at = Math.Clamp(to <= left.BodyStart ? to : to + shift, 0, latex.Length);
+
+        var separated = Separated(latex, at, taken);
+        return new LatexWrite(
+            latex.Insert(at, separated),
+            at + separated.Length,
+            new LatexRange(at, separated.Length));
     }
 
     /// <summary>
@@ -397,6 +690,12 @@ public sealed class LatexTree
                                     (int Start, int End)? argument, bool braced)
     {
         var written = Separated(source, at, text);
+
+        // An argument that does not hold the position being written to has nothing to say about it, so
+        // it is treated as no argument rather than trusted — this is a private helper with two callers
+        // and a precondition either could get wrong, and getting it wrong reads the source backwards.
+        if (argument is { } bounds && (at < bounds.Start || at > bounds.End || bounds.End > source.Length))
+            argument = null;
 
         // The caret always ends up just past what was written, so where that landed follows from it —
         // including when wrapping the argument shifted the whole lot along by a brace.
@@ -494,9 +793,14 @@ public sealed class LatexTree
             // contained them all: in a two-line align block, backspace un-rendered both equations.
             if (IsSequence(node)) continue;
 
-            // Never the formula as a whole: backspace behind the last symbol would otherwise take
-            // everything the reader had written, which is not what one keystroke should mean.
-            if (node.SourceStart <= 0 && node.SourceEnd() >= Latex.Length) continue;
+            // Deliberately no exception for a node that happens to span the whole formula. There used to
+            // be one — "backspace behind the last symbol must not take everything the reader wrote" —
+            // and it was aimed at a row, which the line above already refuses. What it actually caught
+            // was a formula that *is* one construct: `\frac{1}{1 + \frac{1}{x}}` has a single thing in
+            // it, and skipping that left nothing ending at the caret at all. Backspace then fell through
+            // to deleting a character, which took the closing brace off a construct the reader could not
+            // see the braces of — a keystroke that quietly produced LaTeX that no longer parses. One
+            // construct un-renders whether or not it is the only one.
             if (best is null || node.Ancestors().Count() > best.Ancestors().Count()) best = node;
         }
 

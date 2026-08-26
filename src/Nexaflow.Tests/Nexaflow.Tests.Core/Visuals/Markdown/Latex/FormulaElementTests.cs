@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
@@ -52,8 +52,8 @@ public class FormulaElementTests
         Assert.AreEqual(@"x+\alp", element.Latex);
         Assert.IsFalse(element.HasError,
             "the formula around a command being written must stay typeset, not collapse to source");
-        Assert.AreEqual("x+", element.Layout!.Latex,
-            "and what is typeset is the source minus the part still being written");
+        Assert.AreEqual((2, 4), element.ShownAsWritten,
+            "and the part still being written is shown as the characters typed, in place");
     });
 
     [TestMethod]
@@ -86,7 +86,8 @@ public class FormulaElementTests
         fraction.TakeCaret(13);
         fraction.Backspace();
         Assert.AreEqual(@"y+\frac{a}{b}", fraction.Latex, "nothing cut — it is showing what was written");
-        Assert.AreEqual("y+", fraction.Layout!.Latex, "and only the rest still typesets");
+        Assert.AreEqual((2, 11), fraction.ShownAsWritten, "the fraction itself is what is shown as written");
+        Assert.IsFalse(fraction.HasError, "and the y+ in front of it is still typeset around it");
     });
 
     [TestMethod]
@@ -100,8 +101,28 @@ public class FormulaElementTests
         element.Backspace();
 
         Assert.AreEqual(@"\frac{a}{b} + \frac{c}{d}", element.Latex, "nothing was cut");
-        Assert.AreEqual(@"\frac{a}{b} + ", element.Layout!.Latex,
-            "and the second fraction is showing as what was written instead of as a fraction");
+        Assert.AreEqual((14, 11), element.ShownAsWritten,
+            "and the second fraction is showing as what was written instead of as a fraction — the "
+            + "first one, and the + between them, are untouched");
+    });
+
+    [TestMethod]
+    public void UnRenderingNeverCostsACharacter() => UiThread.Run(() =>
+    {
+        // Reported from the app: backspace at the end of this did drop the construct into source, and
+        // took the closing brace with it — leaving LaTeX that no longer parses. Un-rendering is a change
+        // of what you are looking at, not an edit; it must never remove anything.
+        //
+        // A fraction whose denominator ends in another fraction is what it takes: the construct the
+        // caret stands behind is the outer one, and the piece that ends nearest the caret is the inner.
+        const string latex = @"\frac{1}{1 + \frac{1}{x}}";
+
+        var element = Arranged(latex);
+        element.TakeCaret(latex.Length);
+        element.Backspace();
+
+        Assert.AreEqual(latex, element.Latex, "nothing was cut");
+        Assert.IsNotNull(element.ShownAsWritten, "and something is being shown as written instead");
     });
 
     [TestMethod]

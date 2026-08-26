@@ -75,7 +75,12 @@ public class SolverJourneyTests : UiJourneyTestBase
 
         // ── switching to LaTeX swaps the editor ──────────────────────────────
         CheckDoes("Latex tab switches the editor", "Solver_Mode_Latex",
-            () => WaitForId("Solver_MarkdownInput", 6) is not null);
+            () => WaitForId("Solver_LatexInput", 6) is not null);
+
+        // Each tab has its own editor, so a switch shows the other one rather than re-pointing one at
+        // different text — and the Latex one goes away rather than lingering under the Text tab.
+        CheckDoes("Text tab switches to its own editor", "Solver_Mode_Text",
+            () => WaitForId("Solver_TextInput", 6) is not null);
 
         // ── and back again ───────────────────────────────────────────────────
         CheckDoes("Calc tab switches back", "Solver_Mode_Calc",

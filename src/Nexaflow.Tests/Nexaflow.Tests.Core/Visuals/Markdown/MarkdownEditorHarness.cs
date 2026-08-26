@@ -18,6 +18,16 @@ internal static class MarkdownEditorHarness
     private static readonly FieldInfo RtbField =
         typeof(InlineMarkdownEditor).GetField("_rtb", BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    /// <summary>
+    /// Runs whatever the editor has queued. A paste and a drop both finish on the dispatcher rather than
+    /// in the handler that started them — the paste because it fires inside the RichTextBox's change
+    /// block, where rebuilding the document throws — so nothing has happened yet when the call returns.
+    /// Waiting at a <em>lower</em> priority than the work is what makes this a wait rather than a race.
+    /// </summary>
+    public static void Pump() =>
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+            () => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+
     /// <summary>Shows an editor loaded with <paramref name="markdown"/>, runs <paramref name="test"/>, closes it.</summary>
     /// <param name="configure">
     /// Applied before the text is loaded, for the properties that change what the document even is —

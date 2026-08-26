@@ -189,8 +189,42 @@ public partial class InlineMarkdownEditor
         return trimmed;
     }
 
+    /// <summary>
+    /// A markdown code fence around the whole of it, taken off with any info string.
+    /// <para>
+    /// The same kind of wrapper as <c>$$</c> — it says what the text is, and is not part of it. This is
+    /// how LaTeX arrives from a browser: copy a formula shown as code and the clipboard's HTML flavour
+    /// carries a <c>&lt;pre&gt;</c>, which converts to a fenced block. Left on, the backticks are pasted
+    /// into the formula, and a backtick is an opening quote in TeX — three of them at each end, which
+    /// is precisely what the reader saw.
+    /// </para>
+    /// <para>
+    /// Only a fence that opens the first line and closes the last: backticks anywhere else were typed.
+    /// </para>
+    /// </summary>
+    private static string? Unfenced(string text)
+    {
+        var lines = text.ReplaceLineEndings("\n").Split('\n');
+        if (lines.Length < 2) return null;
+
+        var open = lines[0].TrimEnd();
+        var fence = new string('`', open.Length - open.TrimStart('`').Length);
+        if (fence.Length < 3) return null;
+
+        // The info string is a language name, never code: ```latex is still a fence.
+        if (open[fence.Length..].Trim().Contains('`')) return null;
+
+        var last = lines.Length - 1;
+        while (last > 0 && lines[last].Trim().Length == 0) last--;
+        if (last == 0 || lines[last].Trim() != fence) return null;
+
+        return string.Join("\n", lines[1..last]);
+    }
+
     private static string StripOnce(string text)
     {
+        if (Unfenced(text) is { } unfenced) return unfenced;
+
         (string Open, string Close)[] pairs = [("$$", "$$"), (@"\[", @"\]"), (@"\(", @"\)"), ("$", "$")];
 
         foreach (var (open, close) in pairs)

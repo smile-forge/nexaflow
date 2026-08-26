@@ -95,7 +95,7 @@ public class BracketTests
     {
         // \bra{} is what someone writes on the way to \bra{\psi}, so it gets the same box as every
         // other unwritten argument — visible, aimable, and reported as unfinished.
-        var layout = LatexLayout.Build(@"\bra{}", 16);
+        var layout = LatexLayout.Build(@"\bra{}", 16, placeholders: true);
 
         Assert.IsNotNull(layout);
         Assert.AreEqual(1, layout.Tree.Placeholders.Count, "the bra has a hole in it");

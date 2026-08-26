@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
@@ -36,7 +36,6 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
     private LatexEditState _state;
     private LatexLayout? _layout;
-    private FormattedText? _rawText;
     private DispatcherTimer? _blink;
     private bool _caretVisible = true;
     private int _anchor;
@@ -47,6 +46,10 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// <summary>A term is being carried to a new place; <see cref="_dropAt"/> is where it would land.</summary>
     private bool _moving;
     private int _dropAt;
+
+    /// <summary>Where the pointer is, which says things an offset cannot - that a block is being held
+    /// between two columns of a matrix rather than over one of its cells.</summary>
+    private Point _dropPoint;
 
     /// <summary>
     /// The formula as it would read if the carried term were let go here, typeset for real and drawn
@@ -153,6 +156,17 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// <summary>The selected source, or empty.</summary>
     public string SelectedText => _state.SelectedText;
 
+    /// <summary>
+    /// The stretch being shown as the characters written rather than typeset — a command mid-spelling,
+    /// or a construct un-rendered to be edited — or null when all of it is set as maths.
+    /// <para>
+    /// It is in the formula's own offsets, because the formula it is part of is typeset around it
+    /// rather than without it.
+    /// </para>
+    /// </summary>
+    public (int Start, int Length)? ShownAsWritten =>
+        _state.Raw is { Length: > 0 } zone ? (zone.Start, zone.Length) : null;
+
     // ── What the document around it needs (IEditableBlock) ──────────────────
 
     /// <inheritdoc />
@@ -255,7 +269,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             if (step >= zone.Start && step <= zone.End) { MoveTo(step, extend); return true; }
         }
 
-        var here = _state.ToCommitted(_state.Caret);
+        var here = _state.Caret;
         var next = _layout?.Tree.Step(here, forward);
         if (next is null)
         {
@@ -263,17 +277,17 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             return false;
         }
 
-        MoveTo(_state.FromCommitted(next.Value), extend);
+        MoveTo(next.Value, extend);
         return true;
     }
 
     /// <summary>Moves the caret to the line above or below — across a fraction bar, out of a script.</summary>
     public bool MoveCaretVertically(bool up, bool extend = false)
     {
-        var next = _layout?.Tree.StepVertical(_state.ToCommitted(_state.Caret), up);
+        var next = _layout?.Tree.StepVertical(_state.Caret, up);
         if (next is null) return false;
 
-        MoveTo(_state.FromCommitted(next.Value), extend);
+        MoveTo(next.Value, extend);
         return true;
     }
 
@@ -312,7 +326,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (_layout is null || _state.HasSelection || _state.Raw is not null) return false;
         if (string.IsNullOrWhiteSpace(text)) return false;
 
-        if (_layout.Tree.Write(_state.ToCommitted(_state.Caret), text) is not { } written) return false;
+        if (_layout.Tree.Write(_state.Caret, text) is not { } written) return false;
 
         // The source coming back changed is the tree changed: applying it re-reads, re-lays out and
         // repaints, so one call carries the edit all the way to the picture.
@@ -347,7 +361,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         // From wherever the caret is, wrapping round — the last hole tabs back to the first, because
         // a construct being filled in is a loop until it is finished.
-        var here = _state.ToCommitted(_state.HasSelection ? _state.SelectionStart : _state.Caret);
+        var here = _state.HasSelection ? _state.SelectionStart : _state.Caret;
         var next = forward
             ? boxes.FirstOrDefault(b => b.SourceStart > here, boxes[0])
             : boxes.LastOrDefault(b => b.SourceStart < here, boxes[^1]);
@@ -355,7 +369,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // The caret goes into the hole rather than over it. A hole covers nothing — that is what makes
         // it a hole — so there is nothing to select and nothing to delete first: what gets typed lands
         // inside the braces, and the hole stops being one because the argument is no longer empty.
-        TakeCaret(_state.FromCommitted(next.SourceStart));
+        TakeCaret(next.SourceStart);
         return true;
     }
 
@@ -422,12 +436,12 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (IsReadOnly) return false;
         if (_state is { Caret: 0, SelectionLength: 0 }) return false;
 
-        var here = _state.ToCommitted(_state.Caret);
+        var here = _state.Caret;
         var symbol = _state.HasSelection || _state.Raw is not null ? null : _layout?.Tree.SymbolBefore(here);
 
         if (symbol is { SourceLength: > 1 })
         {
-            var span = (Start: _state.FromCommitted(symbol.SourceStart), Length: symbol.SourceLength);
+            var span = (Start: symbol.SourceStart, Length: symbol.SourceLength);
 
             // A construct goes back to the source it was written as — there is source to go back to. A
             // symbol has nothing hidden behind it, so it is simply taken: an α is one thing on the page
@@ -457,19 +471,13 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     {
         if (length <= 0) { ClearSelection(); return; }
 
-        var (from, snapped) = _layout is null
-            ? (start, length)
-            : Unmap(_layout.Tree.SnapRange(_state.ToCommitted(start), _state.ToCommitted(start + length) - _state.ToCommitted(start)));
+        var (from, snapped) = _layout is null ? (start, length) : _layout.Tree.SnapRange(start, length);
 
         var next = _state.Select(from, snapped);
         if (next.Selection.SequenceEqual(_state.Selection)) return;
         Apply(next, notify: false);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
-
-    private (int Start, int Length) Unmap((int Start, int Length) committed) =>
-        (_state.FromCommitted(committed.Start),
-         _state.FromCommitted(committed.Start + committed.Length) - _state.FromCommitted(committed.Start));
 
     /// <summary>Selects everything — what the host asks for when a selection sweeps straight over it.</summary>
     public void SelectAll() => Select(0, _state.Latex.Length);
@@ -494,7 +502,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (_layout is null) return;
         InteractiveSelection.Own(this);
 
-        _anchor = _state.FromCommitted(_layout.Tree.OffsetAt(pointInElement));
+        _anchor = _layout.Tree.OffsetAt(pointInElement);
         _anchorNode = _layout.Tree.NodeAt(pointInElement);
         _pressedAt = pointInElement;
         _dragging = true;
@@ -528,10 +536,11 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // carried part marked out, so the reader is choosing between finished formulas.
         if (_moving)
         {
-            var drop = _state.FromCommitted(_layout.Tree.OffsetAt(pointInElement));
+            var drop = _layout.Tree.OffsetAt(pointInElement);
             if (drop == _dropAt) return;
 
             _dropAt = drop;
+            _dropPoint = pointInElement;
             BuildPreview();
             HoldCaretVisible();
             InvalidateMeasure();
@@ -551,7 +560,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             return;
         }
 
-        ExtendSelectionTo(_state.FromCommitted(_layout.Tree.OffsetAt(pointInElement)));
+        ExtendSelectionTo(_layout.Tree.OffsetAt(pointInElement));
     }
 
     /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
@@ -559,10 +568,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     {
         if (selection.IsEmpty) { ClearSelection(); return; }
 
-        var ranges = selection.Ranges
-            .Select(Unmap)
-            .Select(r => new LatexRange(r.Start, r.Length))
-            .ToList();
+        var ranges = selection.Ranges.Select(r => new LatexRange(r.Start, r.Length)).ToList();
 
         var next = _state.Select(ranges);
         if (next.Selection.SequenceEqual(_state.Selection)) return;
@@ -606,12 +612,9 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         ClearPreview();
         if (_layout is null) return;
 
-        var ranges = _state.Selection
-            .Select(r => (Start: _state.ToCommitted(r.Start),
-                          Length: _state.ToCommitted(r.End) - _state.ToCommitted(r.Start)))
-            .ToList();
+        var ranges = _state.Selection.Select(r => (r.Start, r.Length)).ToList();
 
-        if (_layout.Tree.Move(ranges, _state.ToCommitted(_dropAt)) is not { } moved) return;
+        if (_layout.Tree.Move(ranges, _dropAt, _dropPoint) is not { } moved) return;
 
         _previewOf = moved;
         _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
@@ -634,8 +637,8 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // source-edit mode: inside a formula, "the word you clicked" is the symbol you clicked.
         var here = _layout.Tree.OffsetAt(pointInElement);
         var atom = _layout.Tree.SymbolBefore(here);
-        if (atom is { SourceLength: > 0 }) Select(_state.FromCommitted(atom.SourceStart), atom.SourceLength);
-        else Select(Math.Max(0, _state.FromCommitted(here) - 1), 1);
+        if (atom is { SourceLength: > 0 }) Select(atom.SourceStart, atom.SourceLength);
+        else Select(Math.Max(0, here - 1), 1);
         return true;
     }
 
@@ -665,7 +668,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
     private void Apply(LatexEditState next, bool notify)
     {
-        var resized = next.Committed != _state.Committed || next.RawText != _state.RawText;
+        var resized = next.Latex != _state.Latex || next.Raw != _state.Raw;
         var moved = next.Caret != _state.Caret;
         var changed = next.Latex != _state.Latex;
 
@@ -678,17 +681,28 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (notify && changed) LatexChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void Rebuild()
-    {
-        _layout = LatexLayout.Build(_state.Committed, _scale, _inline);
-        _rawText = _state.RawText.Length == 0 ? null : Mono(_state.RawText);
-    }
+    /// <summary>
+    /// Typesets the whole formula, with the stretch being written set as the characters that were typed.
+    /// <para>
+    /// One layout over the real source, rather than a layout of the settled part with the raw characters
+    /// painted over it afterwards. Painting over could only ever work while the stretch was the last
+    /// thing in the formula: anywhere else it covered whatever followed, which is what un-rendering a
+    /// fraction in the middle of an expression looked like. Set through the typesetter it takes up room
+    /// like anything else, so the formula flows around it — and every offset the tree reports is an
+    /// offset into the source the reader is editing, with no mapping in between.
+    /// </para>
+    /// </summary>
+    private void Rebuild() => _layout = LatexLayout.Build(
+        _state.Latex, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly);
 
     private int Snap(int offset)
     {
         var clamped = Math.Clamp(offset, 0, _state.Latex.Length);
-        if (_layout is null || _state.Raw is not null) return clamped;
-        return _state.FromCommitted(_layout.Tree.NearestStop(_state.ToCommitted(clamped)));
+        if (_layout is null) return clamped;
+
+        // Inside the stretch being written every character is its own stop, so the caret goes exactly
+        // where it was put; the settled formula snaps to the places a caret may rest.
+        return _state.Raw is { } zone && zone.Holds(clamped) ? clamped : _layout.Tree.NearestStop(clamped);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -704,10 +718,9 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             return new Size(Math.Ceiling(source.WidthIncludingTrailingWhitespace), Math.Ceiling(source.Height));
         }
 
-        // The raw text is drawn over the typeset formula rather than reflowing it, so the element only
-        // has to be wide enough to hold it when it runs off the end.
-        var width = _layout.Size.Width + (_rawText?.WidthIncludingTrailingWhitespace ?? 0);
-        return new Size(Math.Ceiling(width), Math.Ceiling(Math.Max(_layout.Size.Height, _rawText?.Height ?? 0)));
+        // Whatever is being written is set into the formula rather than drawn over it, so the layout's
+        // own size already accounts for it.
+        return new Size(Math.Ceiling(_layout.Size.Width), Math.Ceiling(_layout.Size.Height));
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -737,12 +750,8 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // Every stretch washes itself. A column of a matrix is three of them with the rest of the matrix
         // in between, and washing from the first to the last would highlight the lot.
         foreach (var range in _state.Selection)
-        {
-            var start = _state.ToCommitted(range.Start);
-            var end = _state.ToCommitted(range.End);
-            foreach (var rect in _layout.Tree.RangeRects(start, end - start))
+            foreach (var rect in _layout.Tree.RangeRects(range.Start, range.Length))
                 dc.DrawRectangle(_wash, null, rect);
-        }
 
         _layout.Paint(dc, _palette.Text);
 
@@ -759,21 +768,10 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         }
 
         // While a term is being carried the caret shows where it would land, not where it was picked
-        // up from — that is the one thing the reader needs to see before letting go.
-        var caret = _layout.Tree.CaretRect(_state.ToCommitted(_moving ? _dropAt : _state.Caret));
-
-        if (_rawText is not null && _state.Raw is { } zone)
-        {
-            // The command being written is drawn from where it starts, not backwards from the caret:
-            // it occupies the gap the committed text left, so anchoring it to the caret would slide it
-            // over whatever precedes it.
-            var anchor = _layout.Tree.CaretRect(_state.ToCommitted(zone.Start));
-            dc.DrawText(_rawText, new Point(anchor.X, anchor.Y + (anchor.Height - _rawText.Height) / 2));
-
-            // …and the caret goes wherever it sits within that raw text.
-            var typed = Mono(_state.Latex[zone.Start..Math.Clamp(_state.Caret, zone.Start, zone.End)]);
-            caret = new Rect(anchor.X + typed.WidthIncludingTrailingWhitespace, anchor.Y, 0, anchor.Height);
-        }
+        // up from — that is the one thing the reader needs to see before letting go. Inside a stretch
+        // being written it needs no special case: those characters are in the layout like any others,
+        // so the tree already knows where each of them sits.
+        var caret = _layout.Tree.CaretRect(_moving ? _dropAt : _state.Caret);
 
         if ((!HasCaret && !_moving) || IsReadOnly || !_caretVisible) return;
         DrawCaret(dc, caret.X, caret.Y, caret.Height);

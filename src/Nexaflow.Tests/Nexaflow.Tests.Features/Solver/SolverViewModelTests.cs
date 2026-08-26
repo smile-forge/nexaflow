@@ -122,6 +122,54 @@ public class SolverViewModelTests
 
     [TestMethod]
     [CoversNode("solver-mode-rail")]
+    public void EachTabsTextIsItsOwnProperty()
+    {
+        // Each editor binds to its own buffer and to nothing else, which is what makes a tab switch
+        // cost nothing: there is no text to hand over, so there is no handover to fail. Moving one
+        // buffer in and out of a shared property is how this used to work, and it could not be made to
+        // work — an editor holding the keyboard refuses a document push (rebuilding mid-word would
+        // destroy what is being typed), so switching back to Latex after clicking into Text left the
+        // Latex tab showing Text's content, or nothing at all.
+        var vm = Build();
+
+        vm.Mode = DefinitionMode.Latex;
+        vm.DefinitionText = @"\alpha";
+        vm.Mode = DefinitionMode.Text;
+        vm.DefinitionText = "how many primes below 100?";
+
+        Assert.AreEqual(@"\alpha", vm.LatexText, "each tab's text is readable without switching to it");
+        Assert.AreEqual("how many primes below 100?", vm.TextText);
+        Assert.AreEqual(string.Empty, vm.CalcText);
+
+        Assert.AreEqual(vm.TextText, vm.DefinitionText,
+            "and the definition — what gets solved — is whichever tab is showing");
+
+        vm.Mode = DefinitionMode.Latex;
+        Assert.AreEqual(vm.LatexText, vm.DefinitionText);
+    }
+
+    [TestMethod]
+    [CoversNode("solver-mode-rail")]
+    public void WritingOneTabsTextLeavesTheOthersAlone()
+    {
+        var vm = Build();
+        vm.Mode = DefinitionMode.Latex;
+        vm.LatexText = @"\alpha";
+
+        var announced = new List<string>();
+        vm.PropertyChanged += (_, e) => announced.Add(e.PropertyName ?? string.Empty);
+
+        vm.TextText = "prose";
+
+        CollectionAssert.Contains(announced, nameof(SolverViewModel.TextText));
+        CollectionAssert.DoesNotContain(announced, nameof(SolverViewModel.DefinitionText),
+            "a tab that is not showing has no bearing on what is being solved, so writing to it must "
+            + "not announce a new definition and set the chips running");
+        Assert.AreEqual(@"\alpha", vm.DefinitionText);
+    }
+
+    [TestMethod]
+    [CoversNode("solver-mode-rail")]
     public void TheRailSelectsByName()
     {
         var vm = Build();

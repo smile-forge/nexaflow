@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Solver.Palette;
 using Nexaflow.Features.Solver.ViewModels;
 using Nexaflow.Visuals.Common.Controls;
+using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace Nexaflow.Features.Solver.Views;
@@ -65,6 +66,10 @@ public partial class SolverView : UserControl, IPageView
     /// <inheritdoc/>
     public IPageViewModel ViewModel => _vm;
 
+    /// <summary>The editor the current tab shows, or null on Calc - which has a plain field instead.</summary>
+    private InlineMarkdownEditor? Editor =>
+        _vm.IsLatexMode ? LatexInput : _vm.IsTextMode ? ProseInput : null;
+
     /// <inheritdoc/>
     public void Reinitialize(Dictionary<string, string>? pageParams)
     {
@@ -98,7 +103,7 @@ public partial class SolverView : UserControl, IPageView
         // Whichever field the tab shows takes the keyboard, and the caret follows from that — a
         // formula draws its own the moment the editor is focused, so there is nothing further to ask.
         if (_vm.IsCalcMode) CalcInput.Focus();
-        else if (_vm.IsMarkdownMode && MarkdownInput.IsVisible) MarkdownInput.Focus();
+        else if (Editor is { IsVisible: true } editor) editor.Focus();
 
         // Background, which runs after everything else queued — including whatever the shell does with
         // focus while it is putting a new tab up. At Loaded this ran first and was overruled, which is
@@ -142,22 +147,23 @@ public partial class SolverView : UserControl, IPageView
         if (key.Insert.Length == 0) return;
 
         if (_vm.IsCalcMode) { ApplyToTextBox(CalcInput, key); return; }
+        if (Editor is not { } editor) return;
 
         // A rendered formula has a caret of its own, so a symbol goes where you are looking — inside
         // the exponent you were editing — rather than becoming a new line under the expression.
         if (key.InsertKind == KeyInsert.Wrapping)
         {
-            if (!MarkdownInput.WrapLatexAtCaret(key.Insert, key.Close))
+            if (!editor.WrapLatexAtCaret(key.Insert, key.Close))
                 // The braces are all it takes: an argument left empty becomes a hole when it is parsed,
                 // and the hole draws itself. Nothing is written that the reader did not ask for.
-                MarkdownInput.InsertMarkdownAtCaret(key.Insert + key.Close);
+                editor.InsertMarkdownAtCaret(key.Insert + key.Close);
         }
-        else if (!MarkdownInput.InsertLatexAtCaret(key.Insert, key.CaretBack))
+        else if (!editor.InsertLatexAtCaret(key.Insert, key.CaretBack))
         {
-            MarkdownInput.InsertMarkdownAtCaret(key.Insert);
+            editor.InsertMarkdownAtCaret(key.Insert);
         }
 
-        MarkdownInput.Focus();
+        editor.Focus();
     }
 
     /// <summary>
@@ -222,11 +228,11 @@ public partial class SolverView : UserControl, IPageView
     {
         if (_vm.IsCalcMode) { CalcInput.CaretIndex = CalcInput.Text.Length; return; }
 
-        // The editor refuses a document push while it holds the keyboard, since rebuilding mid-word
-        // would destroy the block being typed into — so a replacement made from a palette key or the
-        // AI has to be handed over once focus is elsewhere. Taking it back afterwards would fight the
-        // user for the caret, so it is left where the replacement put it.
-        if (MarkdownInput.Markdown != text) MarkdownInput.Markdown = text;
+        // Handed over directly rather than left to the binding: a wholesale replacement is exactly the
+        // case a two-way binding cannot express, since the editor is usually the thing that last wrote
+        // the value and the property has not moved as far as the binding is concerned. The caret is
+        // left where the replacement put it — taking it back would fight the user for it.
+        if (Editor is { } editor && editor.Markdown != text) editor.Markdown = text;
     }
 
     /// <summary>

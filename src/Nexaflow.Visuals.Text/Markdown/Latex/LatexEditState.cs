@@ -91,30 +91,11 @@ public sealed record LatexEditState(
     public string RawText =>
         Raw is { } zone && zone.End <= Latex.Length ? Latex[zone.Start..zone.End] : string.Empty;
 
-    /// <summary>The source with the raw stretch taken out — what still typesets while a command is half-typed.</summary>
-    public string Committed =>
-        Raw is { } zone && zone.End <= Latex.Length ? Latex[..zone.Start] + Latex[zone.End..] : Latex;
-
-    /// <summary>
-    /// Maps an offset in <see cref="Latex"/> to the same place in <see cref="Committed"/>, so a caret
-    /// and a selection can be drawn against a layout built from the part that still typesets.
-    /// </summary>
-    public int ToCommitted(int offset)
-    {
-        if (Raw is not { } zone) return offset;
-        if (offset <= zone.Start) return offset;
-        return offset >= zone.End ? offset - zone.Length : zone.Start;
-    }
-
-    /// <summary>
-    /// Maps back the other way, turning an offset the layout reported into one in <see cref="Latex"/> —
-    /// what a click on the typeset part means in the real source.
-    /// </summary>
-    public int FromCommitted(int offset)
-    {
-        if (Raw is not { } zone) return offset;
-        return offset <= zone.Start ? offset : offset + zone.Length;
-    }
+    // There is deliberately no "committed source" here, and no mapping to and from it. The raw stretch
+    // used to be cut out, the rest typeset, and the characters painted back over the gap — which meant
+    // every offset existed twice and had to be translated at each of two dozen call sites, and the
+    // painting covered whatever followed it. The typesetter is told which stretch to set as written
+    // instead, so there is one formula, laid out around it, in one set of offsets: the source's.
 
     // ── Moving and selecting ────────────────────────────────────────────────
 

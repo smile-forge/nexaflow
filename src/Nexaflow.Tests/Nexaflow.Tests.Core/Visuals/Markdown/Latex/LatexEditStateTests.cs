@@ -32,7 +32,6 @@ public class LatexEditStateTests
         Assert.AreEqual(@"\alp", state.Latex);
         Assert.AreEqual(@"\alp", state.RawText,
             "a command being written is shown literally, not put through four failing parses");
-        Assert.AreEqual("", state.Committed, "and the rest of the formula is what still typesets");
     }
 
     [TestMethod]
@@ -171,25 +170,22 @@ public class LatexEditStateTests
         Assert.IsNull(state.Raw);
     }
 
-    // ── The committed view ──────────────────────────────────────────────────
+    // ── What is being written, and where ────────────────────────────────────
 
     [TestMethod]
-    public void TheSurroundingFormulaStaysTypesetWhileACommandIsWritten()
+    public void WhatIsBeingWrittenIsNamedInTheFormulasOwnOffsets()
     {
+        // The zone names a stretch of the source, and the source is the only text there is. There used
+        // to be a second one — the formula minus this stretch — with every offset existing in both and
+        // a translation at each of two dozen call sites. The typesetter is told which stretch to set as
+        // written instead, so the stretch is *in* the formula rather than cut out of it and painted
+        // back over the gap, which is what covered whatever followed it.
         var state = Typed(@"\alp", LatexEditState.For("x+2").MoveCaretTo(2));
 
         Assert.AreEqual(@"x+\alp2", state.Latex);
-        Assert.AreEqual("x+2", state.Committed,
-            "the part that still typesets is the whole formula minus what is being written");
-    }
-
-    [TestMethod]
-    public void OffsetsMapOnToTheCommittedText()
-    {
-        var state = Typed(@"\alp", LatexEditState.For("x+2").MoveCaretTo(2));
-
-        Assert.AreEqual(1, state.ToCommitted(1), "before the zone, nothing moves");
-        Assert.AreEqual(2, state.ToCommitted(4), "inside it, everything collapses to where it starts");
-        Assert.AreEqual(3, state.ToCommitted(7), "after it, offsets shift back by its length");
+        Assert.IsNotNull(state.Raw);
+        Assert.AreEqual(2, state.Raw!.Value.Start, "it starts where the writing started");
+        Assert.AreEqual(6, state.Raw!.Value.End, "and ends after what has been written so far");
+        Assert.AreEqual(@"\alp", state.RawText);
     }
 }

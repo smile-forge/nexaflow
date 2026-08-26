@@ -33,7 +33,12 @@ public static class LatexSyntax
         {
             // Recovering rather than all-or-nothing, so this reports every stretch it could not read
             // instead of only the first — the same reading the renderer works from.
-            var formula = WpfTeXFormulaParser.Instance.ParseWithRecovery(latex);
+            //
+            // Holes asked for, because this is the question "is what has been written finished?" and an
+            // argument left empty is exactly the case where the answer is no. Without them `\frac{}{2}`
+            // reads as perfectly well-formed and a solver is handed a fraction with nothing on top.
+            var formula = WpfTeXFormulaParser.Instance.ParseWithRecovery(
+                latex, textStyle: null, shownAsWritten: null, placeholders: true);
             return formula.Diagnostics
                 .Select(d => new Diagnostic(d.At.Start, d.At.Length, DiagnosticSeverity.Error, d.Message))
                 .ToList();

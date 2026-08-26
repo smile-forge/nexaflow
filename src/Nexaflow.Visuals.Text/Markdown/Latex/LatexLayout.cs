@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
@@ -46,7 +46,23 @@ public sealed class LatexLayout
     /// Typesets <paramref name="latex"/> and records where every piece landed, or returns null when it
     /// will not parse — which the caller shows as source rather than as a formula.
     /// </summary>
-    public static LatexLayout? Build(string latex, double scale, bool inline = false, string systemFont = "Arial")
+    /// <param name="shownAsWritten">
+    /// A stretch to set as the characters written rather than read as maths — the piece being edited,
+    /// which has to be seen exactly as typed while the formula around it stays typeset.
+    /// <para>
+    /// It goes through the typesetter rather than being painted over the top afterwards, which is the
+    /// only way the rest of the formula can be laid out knowing it is there. Painted over, a stretch of
+    /// any length in the middle of a formula simply covered whatever followed it.
+    /// </para>
+    /// </param>
+    /// <param name="placeholders">
+    /// Whether an argument or table cell left empty is given a hole to stand in it. Asked for by a
+    /// surface being written on, where the hole is how the reader sees there is something still to
+    /// write and how they aim at it. Off by default, because a box in the middle of a formula that is
+    /// only being read would simply be wrong, and reading is the commoner case.
+    /// </param>
+    public static LatexLayout? Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
+                                     LatexRawZone? shownAsWritten = null, bool placeholders = false)
     {
         if (string.IsNullOrEmpty(latex)) return null;
 
@@ -55,7 +71,11 @@ public sealed class LatexLayout
             // Recovering rather than all-or-nothing: a formula under a caret is invalid most of the
             // time, and one that vanishes as you type it tells the reader nothing about where the trouble
             // is. What comes back draws everything it understood and shows the rest as written.
-            var formula = WpfTeXFormulaParser.Instance.ParseWithRecovery(latex);
+            var written = shownAsWritten is { } zone && zone.Length > 0
+                ? (zone.Start, zone.Length)
+                : ((int, int)?)null;
+            var formula = WpfTeXFormulaParser.Instance.ParseWithRecovery(
+                latex, textStyle: null, written, placeholders);
             var environment = WpfTeXEnvironment.Create(
                 style: inline ? TexStyle.Text : TexStyle.Display,
                 scale: scale,

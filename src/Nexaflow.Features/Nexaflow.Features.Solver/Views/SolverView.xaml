@@ -202,7 +202,7 @@
                             <TextBox x:Name="CalcInput"
                                      AutomationProperties.AutomationId="Solver_CalcInput"
                                      Visibility="{Binding IsCalcMode, Converter={StaticResource BoolToVis}}"
-                                     Text="{Binding DefinitionText, UpdateSourceTrigger=PropertyChanged}"
+                                     Text="{Binding CalcText, UpdateSourceTrigger=PropertyChanged}"
                                      Background="Transparent" BorderThickness="0"
                                      Foreground="{StaticResource TextBrush}"
                                      CaretBrush="{StaticResource TextBrush}"
@@ -211,20 +211,43 @@
                                      VerticalScrollBarVisibility="Auto"
                                      VerticalContentAlignment="Top"/>
 
-                            <!-- Latex and Text: the shared editor, rendering in place.
-                                 Latex is the same editor told that what it holds is one formula - it
-                                 then owns the $$ itself, so what you type is always inside a formula
-                                 and typesets as you type, and no fence is ever typed or seen. Text
-                                 leaves that off and is a full markdown editor: blocks, headings,
-                                 diagrams and maths of its own. -->
-                            <md:InlineMarkdownEditor x:Name="MarkdownInput"
-                                                     AutomationProperties.AutomationId="Solver_MarkdownInput"
-                                                     Visibility="{Binding IsMarkdownMode, Converter={StaticResource BoolToVis}}"
-                                                     Markdown="{Binding DefinitionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     SingleFormula="{Binding IsSingleFormula}"
+                            <!-- Latex and Text: the same editor in its two shapes - and one instance
+                                 of it each, not one instance shown twice.
+
+                                 Single-formula is what the editor is, not something it is currently
+                                 doing: it decides how the text splits into blocks, what the caret
+                                 belongs to and what the undo history means. Flipping it on a live
+                                 editor asks it to reinterpret a document it is in the middle of, and
+                                 switching tabs then had to swap the text underneath it - which an
+                                 editor holding the keyboard refuses (rebuilding mid-word would
+                                 destroy what is being typed), so a switch made with the caret in the
+                                 editor left the wrong tab's text on screen. Two editors have nothing
+                                 to swap: each keeps its own text, caret, scroll position and undo
+                                 history for as long as the tab is open, and the visibility binding
+                                 only decides which one you can see.
+
+                                 Latex holds one formula and owns the $$ itself, so what you type is
+                                 always inside a formula and typesets as you type, and no fence is
+                                 ever typed or seen. Text is a full markdown document - blocks,
+                                 headings, diagrams and maths of its own. -->
+                            <md:InlineMarkdownEditor x:Name="LatexInput"
+                                                     AutomationProperties.AutomationId="Solver_LatexInput"
+                                                     Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
+                                                     Markdown="{Binding LatexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     SingleFormula="True"
                                                      EditAsSource="{Binding ShowsSource}"
                                                      ContentPadding="10,8"
                                                      Placeholder="Type a formula…"/>
+
+                            <!-- Named for the prose it holds rather than for its tab: an x:Name of
+                                 TextInput would hide UIElement.TextInput on the generated class. -->
+                            <md:InlineMarkdownEditor x:Name="ProseInput"
+                                                     AutomationProperties.AutomationId="Solver_TextInput"
+                                                     Visibility="{Binding IsTextMode, Converter={StaticResource BoolToVis}}"
+                                                     Markdown="{Binding TextText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     EditAsSource="{Binding ShowsSource}"
+                                                     ContentPadding="10,8"
+                                                     Placeholder="Describe the problem…"/>
 
                             <!-- Source toggle, then Clear. The calculator has a C key, but the Latex
                                  and Text tabs are driven from the keyboard and had no way to empty the

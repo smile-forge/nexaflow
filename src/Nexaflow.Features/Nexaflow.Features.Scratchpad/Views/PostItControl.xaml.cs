@@ -53,7 +53,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         // Dropping an image / file / url / text onto a note inserts it as a block at the drop point.
         // The editor handles drops over its own (RichTextBox) area; PostItControl covers the rest of the
         // note (header, grips). Both insert a block rather than letting the drop create a new post-it.
-        Editor.ContentDropped += InsertDropped;
+        Editor.ContentDropped = InsertDropped;
         Editor.ContentPasted   = OnContentPasted;   // same rich-content handling for Ctrl+V / right-click Paste
         AllowDrop = true;
         DragOver += PostIt_DragOver;
@@ -78,7 +78,9 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         e.Handled = true;   // consume so the canvas doesn't also create a new post-it
     }
 
-    private void InsertDropped(IDataObject data, Point editorPoint)
+    /// <summary>Drop hook: claim image / file / URL as a block at the drop point. Returning false when
+    /// there was nothing of ours to insert lets the editor drop the text itself, as a paste would.</summary>
+    private bool InsertDropped(IDataObject data, Point editorPoint)
         => InsertContent(data, md => Editor.InsertMarkdownAt(md, editorPoint));
 
     /// <summary>Paste hook: claim image / file / URL (insert as a block, like a drop); plain text falls

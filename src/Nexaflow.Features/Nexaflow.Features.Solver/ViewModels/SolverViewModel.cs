@@ -28,7 +28,16 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
     private readonly IShellServices _shell;
     private readonly SolverRegistry _registry;
 
-    /// <summary>One text buffer per tab, so switching editors never destroys what is in the other two.</summary>
+    /// <summary>
+    /// One text buffer per tab, so switching editors never destroys what is in the other two.
+    /// <para>
+    /// Each buffer is bound to its own editor and to nothing else, which is what makes the tabs
+    /// independent. Swapping one editor's text on the way past used to be how this worked, and it
+    /// cannot be made to work: an editor that holds the keyboard refuses a document push (rebuilding
+    /// mid-word would destroy what is being typed), so a switch made while the caret was in the
+    /// editor left it showing the tab you had just left.
+    /// </para>
+    /// </summary>
     private readonly Dictionary<DefinitionMode, string> _buffers = new()
     {
         [DefinitionMode.Calc] = string.Empty,
@@ -74,9 +83,63 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
     [ObservableProperty]
     private DefinitionMode _mode;
 
-    /// <summary>The active editor's text. Bound two-way to whichever editor is showing.</summary>
-    [ObservableProperty]
-    private string _definitionText = string.Empty;
+    /// <summary>
+    /// The active editor's text - what gets solved, offered to the chips and shown to the AI.
+    /// <para>
+    /// A view onto whichever tab's buffer is showing rather than a store of its own, so setting it
+    /// (clear, backspace, "use as definition", the AI) writes to the tab it belongs to and every
+    /// downstream reader stays written against one property. The editors themselves bind to their
+    /// own buffer, never to this.
+    /// </para>
+    /// </summary>
+    public string DefinitionText
+    {
+        get => _buffers[Mode];
+        set => Write(Mode, value);
+    }
+
+    /// <summary>The Calc tab's buffer, bound to its field.</summary>
+    public string CalcText
+    {
+        get => _buffers[DefinitionMode.Calc];
+        set => Write(DefinitionMode.Calc, value);
+    }
+
+    /// <summary>The Latex tab's buffer, bound to its editor.</summary>
+    public string LatexText
+    {
+        get => _buffers[DefinitionMode.Latex];
+        set => Write(DefinitionMode.Latex, value);
+    }
+
+    /// <summary>The Text tab's buffer, bound to its editor.</summary>
+    public string TextText
+    {
+        get => _buffers[DefinitionMode.Text];
+        set => Write(DefinitionMode.Text, value);
+    }
+
+    /// <summary>Stores one tab's text, and tells the world only what actually changed - a tab that is
+    /// not showing has no bearing on what is emptied, offered or solved.</summary>
+    private void Write(DefinitionMode mode, string value)
+    {
+        value ??= string.Empty;
+        if (_buffers[mode] == value) return;
+
+        _buffers[mode] = value;
+        OnPropertyChanged(mode switch
+        {
+            DefinitionMode.Calc => nameof(CalcText),
+            DefinitionMode.Latex => nameof(LatexText),
+            _ => nameof(TextText),
+        });
+
+        if (mode != Mode) return;
+        OnPropertyChanged(nameof(DefinitionText));
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(HasText));
+        ScheduleChipRefresh();
+    }
 
     /// <summary>How angles are read. Toggled from the palette.</summary>
     [ObservableProperty]
@@ -479,12 +542,9 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
 
     partial void OnModeChanged(DefinitionMode oldValue, DefinitionMode newValue)
     {
-        _buffers[oldValue] = DefinitionText;
-
-        var restored = _buffers[newValue];
-        SetProperty(ref _definitionText, restored, nameof(DefinitionText));
-        DefinitionReplaced?.Invoke(restored);
-
+        // Nothing is copied and nothing is replaced: each tab's editor is bound to its own buffer and
+        // has been holding it all along. Switching only changes which one is on show.
+        OnPropertyChanged(nameof(DefinitionText));
         OnPropertyChanged(nameof(ModeName));
         OnPropertyChanged(nameof(IsCalcMode));
         OnPropertyChanged(nameof(IsTextMode));
@@ -495,14 +555,6 @@ public sealed partial class SolverViewModel : ObservableObject, IPageViewModel, 
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(HasText));
 
-        ScheduleChipRefresh();
-    }
-
-    partial void OnDefinitionTextChanged(string value)
-    {
-        _buffers[Mode] = value;
-        OnPropertyChanged(nameof(IsEmpty));
-        OnPropertyChanged(nameof(HasText));
         ScheduleChipRefresh();
     }
 

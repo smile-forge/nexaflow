@@ -81,13 +81,13 @@ public class SingleFormulaEditorTests
             // Still being written: shown as the characters typed, because flickering through six
             // failed parses on the way to \alpha tells the reader nothing.
             Assert.AreEqual(@"x + \alpha", formula.Latex);
-            Assert.AreEqual("x + ", formula.Layout?.Tree.Latex, "none of it has typeset yet");
+            Assert.AreEqual((4, 6), formula.ShownAsWritten, "the command is standing as its own letters");
 
             MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Space);
 
             Assert.AreEqual(@"x + \alpha ", formula.Latex, "the space is kept — LaTeX needs it to know "
                 + "where the command's name stopped");
-            Assert.AreEqual(@"x + \alpha ", formula.Layout?.Tree.Latex, "and now the whole of it is set");
+            Assert.IsNull(formula.ShownAsWritten, "and now the whole of it is set as maths");
         });
     }
 
@@ -423,6 +423,72 @@ public class SingleFormulaEditorTests
     }
 
     [TestMethod]
+    public void TextDraggedInFromAnotherWindowLandsAsAFormula()
+    {
+        // Dropping was doing nothing at all. The editor suppresses the RichTextBox's own text drop (it
+        // rejects files and images, and would insert straight into the rendered document) and offered
+        // the drop to the host instead — so on any surface whose host does not handle drops, which is
+        // every one but the scratchpad, the drag simply ended. A drop is a paste that names where it
+        // goes, so it is cleaned the same way and lands the same way.
+        RunInFormula("x + ", (editor, _) =>
+        {
+            var dragged = new System.Windows.DataObject();
+            dragged.SetData(System.Windows.DataFormats.UnicodeText, "```\r\n\\alpha\r\n```");
+
+            editor.DropContent(dragged, new System.Windows.Point(4, 4));
+            MarkdownEditorHarness.Pump();
+
+            Assert.AreEqual(@"x + \alpha", editor.Markdown,
+                "the fence came off on the way in, exactly as it does for a paste");
+            Assert.IsNotNull(editor.FocusedFormula,
+                "and the formula holds the caret, so the next thing typed carries on from the drop");
+        });
+    }
+
+    [TestMethod]
+    public void AHostThatClaimsADropKeepsIt()
+    {
+        // The other half of the contract: a host that handles images and files says so, and the editor
+        // must not then insert the text as well.
+        RunInFormula("x", (editor, _) =>
+        {
+            editor.ContentDropped = (_, _) => true;
+
+            var dragged = new System.Windows.DataObject();
+            dragged.SetData(System.Windows.DataFormats.UnicodeText, "y");
+
+            editor.DropContent(dragged, new System.Windows.Point(4, 4));
+            MarkdownEditorHarness.Pump();
+
+            Assert.AreEqual("x", editor.Markdown, "the host took it");
+        });
+    }
+
+    [TestMethod]
+    public void PastingFromAPageThatShowedTheFormulaAsCodeStripsTheFence()
+    {
+        // Reported from the app, and the whole of why it was visible: a backtick is an opening quote in
+        // TeX, so a fence left on arrives as three quotation marks at each end of the formula.
+        //
+        // It gets there because a browser puts HTML on the clipboard as well as text, and a formula
+        // shown on the page as code converts to a fenced block. A fence is the same kind of wrapper as
+        // $$ — it says what the text is and is not part of it — so it comes off with the rest.
+        Assert.AreEqual(
+            @"S (\omega)=\frac{\alpha g^2}{\omega^5}",
+            InlineMarkdownEditor.AsFormula("```\r\n\\begin{equation} S (\\omega)=\\frac{\\alpha g^2}{\\omega^5} \\end{equation}\r\n```"),
+            "the fence and the environment inside it both come off");
+
+        Assert.AreEqual("x+1", InlineMarkdownEditor.AsFormula("```latex\nx+1\n```"),
+            "an info string is a language name, not code");
+
+        // Backticks that were actually typed stay: only a fence opening the first line and closing the
+        // last is a wrapper, and a formula is not code so nothing else here should touch them.
+        Assert.AreEqual("a ` b", InlineMarkdownEditor.AsFormula("a ` b"));
+        Assert.AreEqual("``` x+1 ```", InlineMarkdownEditor.AsFormula("``` x+1 ```"),
+            "all on one line is not a fenced block");
+    }
+
+    [TestMethod]
     public void PastingStripsWhateverSaidThisIsMaths()
     {
         // LaTeX copied from a paper, a chat or another editor comes wrapped in that place's way of
@@ -489,6 +555,45 @@ public class SingleFormulaEditorTests
             editor.EditAsSource = false;
             Assert.IsNotNull(FormulaIn(editor), "and it typesets again on the way back");
         });
+    }
+
+    [TestMethod]
+    public void TheSourceOnShowCanBeSelected()
+    {
+        // While the formula is typeset the document's selection is worthless — the formula is a single
+        // indivisible position in it, so the only thing the document can say is "all of it", which
+        // washes the whole line behind maths that is already showing what it has picked out. So the
+        // editor clears it.
+        //
+        // Held open as source there is no formula to have an opinion, and the document's selection is
+        // the only selection there is. Clearing it there took the source view's selection away as fast
+        // as it could be made: you could not select, copy or replace a single character of it.
+        RunInFormula(@"\frac{a}{b}", (editor, rtb) =>
+        {
+            editor.EditAsSource = true;
+
+            var start = rtb.Document.ContentStart.GetPositionAtOffset(1) ?? rtb.Document.ContentStart;
+            rtb.Selection.Select(start, rtb.Document.ContentEnd);
+            Assert.IsFalse(rtb.Selection.IsEmpty, "the source can be swept over");
+            StringAssert.Contains(rtb.Selection.Text, @"frac{a}{b}", "and what was swept is what is selected");
+        });
+    }
+
+    [TestMethod]
+    public void TheHiddenTabsEditorTakesTheSourceToggleWithoutBeingOnShow()
+    {
+        // Rendered-or-source is one preference across the tabs, so the toggle reaches the editor behind
+        // the tab you are not looking at as well - which asks it to hold a block open while it has no
+        // layout at all. It has to survive that quietly: the alternative is coming back to a tab that
+        // is rendered when the one you left was not.
+        UiThread.Run(() => MarkdownEditorHarness.Run(@"\frac{a}{b}", (editor, _) =>
+        {
+            editor.EditAsSource = true;
+            editor.EditAsSource = false;
+
+            Assert.AreEqual(@"\frac{a}{b}", editor.Markdown, "and it still holds what it was given");
+        },
+        e => { e.SingleFormula = true; e.Visibility = System.Windows.Visibility.Collapsed; }));
     }
 
     // ── One caret ───────────────────────────────────────────────────────────

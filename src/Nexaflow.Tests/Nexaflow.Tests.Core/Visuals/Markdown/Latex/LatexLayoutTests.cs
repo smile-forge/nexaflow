@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -329,5 +329,62 @@ public class LatexLayoutTests
 
         var sound = layout.Tree.Root.Ink().Where(n => !layout.Tree.IsGuesswork(n)).ToList();
         Assert.AreNotEqual(0, sound.Count, "and the rest of the formula is not");
+    });
+
+    // ── A stretch shown as written ──────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("latex-shown-as-written")]
+    public void AStretchShownAsWrittenTakesUpRoomInTheFormula() => UiThread.Run(() =>
+    {
+        // Un-rendering a construct to edit it shows its source in place, and the formula around it has
+        // to make room. It used to be cut out and the characters painted over the closed-up gap, which
+        // works only while the stretch is the last thing in the formula: anywhere else it covered
+        // whatever followed. Here the fraction is in the middle, and what follows must still be
+        // somewhere else on the page.
+        const string latex = @"x+\frac{a}{b}+y";
+        var zone = new LatexRawZone(latex.IndexOf(@"\frac", StringComparison.Ordinal), latex.LastIndexOf('+'));
+
+        var layout = LatexLayout.Build(latex, Scale, shownAsWritten: zone);
+        Assert.IsNotNull(layout);
+
+        var written = layout.Tree.RangeRects(zone.Start, zone.Length);
+        var after = layout.Tree.RangeRects(zone.End, latex.Length - zone.End);
+        Assert.AreNotEqual(0, written.Count, "the characters being written are in the layout");
+        Assert.AreNotEqual(0, after.Count, "and so is what comes after them");
+
+        // Every character of it stands on its own — which is what makes it *the characters*, rather
+        // than the fraction that same source would typeset as. Without this the rest of the assertion
+        // would hold just as well for a formula that had quietly typeset the lot.
+        var stops = layout.Tree.CaretStops;
+        for (var offset = zone.Start; offset <= zone.End; offset++)
+            Assert.IsTrue(stops.Contains(offset),
+                $"the caret cannot rest at {offset}, so the source there was read rather than shown");
+
+        var edge = written.Max(r => r.Right);
+        Assert.IsTrue(after.All(r => r.Left >= edge - 0.5),
+            $"what follows starts at {after.Min(r => r.Left):0.0}, which is inside characters that run "
+            + $"to {edge:0.0} — the two are drawn on top of each other");
+    });
+
+    [TestMethod]
+    [CoversNode("latex-shown-as-written")]
+    public void ShowingAStretchAsWrittenDoesNotMoveWhatComesBeforeIt() => UiThread.Run(() =>
+    {
+        // The point of un-rendering one construct is that only that construct changes. Every offset is
+        // the source's own either way, so the parts either side keep both their spans and their places.
+        const string latex = @"x+\frac{a}{b}+y";
+        var at = latex.IndexOf(@"\frac", StringComparison.Ordinal);
+
+        var typeset = LatexLayout.Build(latex, Scale);
+        var writing = LatexLayout.Build(latex, Scale, shownAsWritten: new LatexRawZone(at, latex.LastIndexOf('+')));
+        Assert.IsNotNull(typeset);
+        Assert.IsNotNull(writing);
+
+        var before = typeset.Tree.RangeRects(0, at);
+        var stillBefore = writing.Tree.RangeRects(0, at);
+        Assert.AreNotEqual(0, before.Count);
+        Assert.AreEqual(before.Max(r => r.Right), stillBefore.Max(r => r.Right), 0.5,
+            "the x+ in front of it has not moved");
     });
 }
