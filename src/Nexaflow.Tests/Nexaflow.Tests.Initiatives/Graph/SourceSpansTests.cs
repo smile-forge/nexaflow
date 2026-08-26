@@ -267,4 +267,35 @@ public class SourceSpansTests
         var block = SourceSpans.BlockOf(outline, lineCount: 40, astPath: "T:Code", start0: 3, maxLines: 400);
         Assert.AreEqual((3, 7), block, "0-based: line 4 through the line before line 9");
     }
+
+    [TestMethod]
+    public void ADeclarationWithNoEnd_StillStartsWhereTheParseSaysItDoes()
+    {
+        // The start is exact even when the end is not, so it must beat the caller's fallback. Two of the three
+        // call sites pass 0 here, having deliberately left the start to the parse - reading the caller's number
+        // would report every such block as beginning at line 1.
+        var outline = new CodeOutline([], [
+            new OutlineType("Code", 12, OutlineKind.Class, "T:Code", []),                    // no EndLine
+            new OutlineType("Next", 20, OutlineKind.Class, "T:Next", []) { EndLine = 30 },
+        ], []);
+
+        var block = SourceSpans.BlockOf(outline, lineCount: 40, astPath: "T:Code", start0: 0, maxLines: 400);
+        Assert.AreEqual((11, 18), block, "0-based: line 12 through the line before line 20 - not line 1");
+    }
+
+    [TestMethod]
+    public void ADeclarationWithNoEnd_IsBoundedByWhatContainsIt_WhenNothingFollows()
+    {
+        // The last member of a type has no next declaration to stop before, and running to end-of-file would
+        // hand a grep every line after it. The container the parser DID measure is the tighter bound.
+        var outline = new CodeOutline([], [
+            new OutlineType("Host", 2, OutlineKind.Class, "T:Host", [
+                new OutlineMember("Last", 8, OutlineKind.Method, "Last()", "T:Host/M:Last"),   // no EndLine
+            ]) { EndLine = 14 },
+        ], []);
+
+        var block = SourceSpans.BlockOf(outline, lineCount: 60, astPath: "T:Host/M:Last", start0: 0, maxLines: 400);
+        Assert.AreEqual((7, 13), block,
+            "0-based: line 8 through the host type own end, not the end of the file");
+    }
 }

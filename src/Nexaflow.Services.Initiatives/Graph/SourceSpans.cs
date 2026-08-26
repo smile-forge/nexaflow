@@ -62,14 +62,25 @@ public sealed class SourceSpans
     private static (int Start, int End) Locate(FileSpans? file, int lineCount, string? astPath,
                                                int start0, int maxLines)
     {
-        if (file is not null && astPath is { Length: > 0 }
-            && file.ByPath.TryGetValue(astPath, out var span) && span.EndLine > 0)
-            return Clamp(span.Line - 1, span.EndLine - 1, lineCount, maxLines);
+        if (file is not null && astPath is { Length: > 0 } && file.ByPath.TryGetValue(astPath, out var span))
+        {
+            if (span.EndLine > 0) return Clamp(span.Line - 1, span.EndLine - 1, lineCount, maxLines);
 
-        // The path did not resolve (a stale graph against an edited file), or the extractor for this grammar
-        // records no end. The same parse still knows every OTHER declaration, and that is enough: the block
-        // runs to the end of the innermost declaration around this line, or - failing that - stops just before
-        // the next declaration begins. Both are bounded by something the parser actually saw.
+            // The parse placed the declaration but its extractor records no end (Razor's synthetic @code type
+            // is one). Its START is exact, so it replaces whatever the caller guessed - two of the three call
+            // sites pass 0, having left the start to the parse. For the end, take whichever bound comes first:
+            // the next declaration to begin, or the end of whatever contains this one. Neither is always the
+            // tighter of the two - the next declaration wins between siblings, the container wins for the last
+            // member of a type - and both are places the parser actually saw.
+            var at = span.Line - 1;
+            return Clamp(at, Tighter(PrecedingNext(file, at), Enclosing(file, at)) ?? lineCount - 1,
+                         lineCount, maxLines);
+        }
+
+        // Nothing resolved: a stale graph against a file edited since. The recorded line is all there is, and
+        // the same parse still knows every OTHER declaration - so the block runs to the end of the innermost
+        // one around that line, or, failing that, stops just before the next one begins. Enclosing leads here
+        // because the line is presumed to be INSIDE something, and that something is the block being asked for.
         var end = file is null ? null : Enclosing(file, start0) ?? PrecedingNext(file, start0);
         return Clamp(start0, end ?? lineCount - 1, lineCount, maxLines);
     }
@@ -83,6 +94,9 @@ public sealed class SourceSpans
                 && (best is null || endLine - 1 < best)) best = endLine - 1;
         return best;
     }
+
+    /// <summary>Whichever bound stops sooner, when both exist.</summary>
+    private static int? Tighter(int? a, int? b) => a is null ? b : b is null ? a : Math.Min(a.Value, b.Value);
 
     /// <summary>The 0-based line before the next declaration to start after <paramref name="start0"/>.</summary>
     private static int? PrecedingNext(FileSpans file, int start0)
