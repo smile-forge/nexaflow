@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
@@ -440,8 +440,9 @@ internal static class Program
 
     // TypeRank / NodeLine / BlockEnd / BuildAdjacency / Bfs were once declared here as private copies of the
     // GraphQuery and GraphReport originals. They are gone, and call sites use the library directly: this file
-    // is a shell over that library, not a second implementation of it. GraphQuery.BlockEnd records what the
-    // copies had quietly diverged into, and CliHasNoPrivateGraphTwinsTests keeps them from coming back.
+    // is a shell over that library, not a second implementation of it, and CliHasNoPrivateGraphTwinsTests
+    // keeps the copies from coming back. BlockEnd itself is gone from both - where a declaration stops is
+    // SourceSpans' question now, answered by the tree-sitter parse rather than by a second C# lexer.
 
     /// <summary>Routes between two nodes - the question `walk` cannot answer. See GraphQuery.Paths.</summary>
     private static int GraphPaths(string[] args)
@@ -602,15 +603,12 @@ internal static class Program
         int s0, e0;
         if (ast is not null)   // AST block
         {
-            var lang = TreeSitterLanguages.ForFile(rel);
-            var span = lang is null ? null : new CodeStructureExtractor().ResolveSpan(lang, string.Join('\n', lines), ast);
-            if (span is null) { Console.Error.WriteLine($"error: ast path '{ast}' not found in {rel} (regenerate the graph?)."); return Error; }
-            s0 = span.Value.Line - 1;
-            // Both ends come from the parse that just resolved the path. The brace scan is only for a language
-            // whose extractor records no end.
-            e0 = span.Value.EndLine > 0
-                ? Math.Min(span.Value.EndLine - 1, lines.Length - 1)
-                : GraphQuery.BlockEnd(lines, s0, GraphQuery.BlockScanLines);
+            var spans = new SourceSpans();
+            // Resolved separately from the block below so an AST path that no longer exists says so, rather
+            // than silently falling back to whatever declaration happens to surround the graph's stale line.
+            if (spans.Resolve(rel, lines, ast) is null)
+            { Console.Error.WriteLine($"error: ast path '{ast}' not found in {rel} (regenerate the graph?)."); return Error; }
+            (s0, e0) = spans.Block(rel, lines, ast, 0, GraphQuery.BlockScanLines);
         }
         else if (a.Value("--lines") is { } range)   // a slice of a file
         {
@@ -729,7 +727,12 @@ internal static class Program
             var codeNodes = searched.Where(n => n.FilePath is { Length: > 0 } && n.Metadata != null
                                              && n.Metadata.ContainsKey("line") && n.Metadata.ContainsKey("ast"))
                                  .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
+            // A file is read once, regex-tested once as a whole, and parsed at most once. The whole-file test
+            // comes first because it is the cheap half: a file with no matching line anywhere cannot hold a
+            // matching block, so every node in it is dismissed without a parse - and most files match nothing.
             var fileCache = new Dictionary<string, string[]?>(StringComparer.Ordinal);
+            var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
+            var spans = new SourceSpans();
             int scanned = 0, matchedNodes = 0;
             foreach (var n in codeNodes)
             {
@@ -746,8 +749,10 @@ internal static class Program
                 scanned++;
                 if (!fileCache.TryGetValue(n.FilePath!, out var lines)) fileCache[n.FilePath!] = lines = TryReadLines(root, n.FilePath!, a.Has("--main"));
                 if (lines is null || !int.TryParse(n.Metadata!["line"], out var startLine)) continue;
-                var s0 = startLine - 1;
-                var e0 = GraphQuery.BlockEnd(lines, s0, GraphQuery.BlockScanLines);
+                if (!interesting.TryGetValue(n.FilePath!, out var any))
+                    interesting[n.FilePath!] = any = lines.Any(rx.IsMatch);
+                if (!any) continue;
+                var (s0, e0) = spans.Block(n.FilePath!, lines, n.Metadata!["ast"], startLine - 1, GraphQuery.BlockScanLines);
                 var hits = new List<(int Line, string Text)>();
                 for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) if (rx.IsMatch(lines[i])) hits.Add((i + 1, lines[i]));
                 if (hits.Count == 0) continue;
@@ -1029,14 +1034,14 @@ internal static class Program
         {
             var outline = SnaplinkTargets.Outline(full, text, Path.GetDirectoryName(full));
             if (outline is not { HasContent: true }) return (false, $"no tree-sitter structure for {link.Doc} (unverifiable)", []);
-            var line = ResolveMemberLine(outline, link.Class, link.Method);
-            if (line is null)
+            var path = ResolveMemberPath(outline, link.Class, link.Method);
+            if (path is null)
             {
                 var what = link.Class is { Length: > 0 } c ? $"{c}{(link.Method is { Length: > 0 } mm ? "." + mm : "")}" : link.Method;
                 return (false, $"'{what}' not found in {link.Doc}", []);
             }
-            s0 = line.Value - 1;
-            e0 = GraphQuery.BlockEnd(lines, s0, GraphQuery.BlockScanLines);
+            // Both ends off the outline that just located the member - the parse is already paid for.
+            (s0, e0) = SourceSpans.BlockOf(outline, lines.Length, path, 0, GraphQuery.BlockScanLines);
         }
         else   // whole-file link — preview only; the member-scoped blocks are the point of --code
         {
@@ -1053,19 +1058,20 @@ internal static class Program
         return (true, header, body);
     }
 
-    /// <summary>The declaration line of <paramref name="cls"/>.<paramref name="method"/> in an outline (the class
-    /// line when no method; the top-level function when no class), or null if it isn't declared.</summary>
-    private static int? ResolveMemberLine(CodeOutline outline, string? cls, string? method)
+    /// <summary>The AST path of <paramref name="cls"/>.<paramref name="method"/> in an outline (the class itself
+    /// when no method; the top-level function when no class), or null if it isn't declared. A path rather than a
+    /// line because the same outline then yields both ends of its span.</summary>
+    private static string? ResolveMemberPath(CodeOutline outline, string? cls, string? method)
     {
         if (!string.IsNullOrWhiteSpace(cls))
         {
             var type = outline.Types.FirstOrDefault(t => t.Name == cls);
             if (type is null) return null;
-            if (string.IsNullOrWhiteSpace(method)) return type.Line;
+            if (string.IsNullOrWhiteSpace(method)) return type.AstPath;
             return outline.Types.Where(t => t.Name == cls)
-                .SelectMany(t => t.Members).FirstOrDefault(mem => mem.Name == method)?.Line;
+                .SelectMany(t => t.Members).FirstOrDefault(mem => mem.Name == method)?.AstPath;
         }
-        return outline.TopLevel.FirstOrDefault(mem => mem.Name == method)?.Line;
+        return outline.TopLevel.FirstOrDefault(mem => mem.Name == method)?.AstPath;
     }
 
     // ── diff: what changed in the tree since the last committed release snapshot (docs/product/<ver>.json) ──

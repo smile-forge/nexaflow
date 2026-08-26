@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 using Nexaflow.Services.Initiatives.Graph.Model;
 
@@ -21,11 +21,11 @@ public static class GraphQuery
     public delegate string[]? ReadLines(string relativePath);
 
     /// <summary>
-    /// How far <see cref="BlockEnd"/> will scan for a block's closing brace, and therefore how much of a node
-    /// a source read or a content grep can see.
+    /// How far past its start a block may run, and therefore how much of a node a source read or a content
+    /// grep can see.
     /// <para>
-    /// This is a runaway guard, not a budget to economise on: it exists so an unterminated block in a
-    /// malformed file cannot walk the whole file. Sized to this repo - 1,858 own C# files, of which 114 pass
+    /// This is a runaway guard, not a budget to economise on: it exists so a declaration the parser could not
+    /// place cannot walk the whole file. Sized to this repo - 1,858 own C# files, of which 114 pass
     /// 400 lines, 19 pass 1,000 and 4 pass 2,000 - so 2,000 covers all but a handful of files whole, where
     /// the old 400 truncated the top 6%. Cost of the difference: a full-repo content grep over all 47k code
     /// nodes stays near a second either way, because the work is dominated by node count, not block length.
@@ -142,38 +142,25 @@ public static class GraphQuery
 
     /// <summary>The source block a code node points at, budgeted to <paramref name="maxLines"/>.
     /// <para>
-    /// Where the block ends comes from the parser when the graph recorded it (<c>endLine</c> — tree-sitter's
-    /// own end position, captured at build time) and from <see cref="BlockEnd"/> only when it did not: a file
-    /// with no grammar, or a graph built before that metadata existed. Counting braces is the fallback, not
-    /// the mechanism.
+    /// Both ends come from re-parsing the file in hand (<see cref="SourceSpans"/>), not from the
+    /// <c>line</c>/<c>endLine</c> the graph recorded: the graph can be older than the working tree, or built
+    /// from a different branch's checkout, and a stale span silently truncates or overruns. The recorded
+    /// <c>line</c> is the starting point the parse falls back to when the node's AST path no longer resolves.
     /// </para></summary>
-    public static SourceBlock? ReadSource(GraphNode node, ReadLines read, int maxLines)
+    /// <param name="spans">Share one across a batch of nodes so each file is parsed once; null parses per call.</param>
+    public static SourceBlock? ReadSource(GraphNode node, ReadLines read, int maxLines, SourceSpans? spans = null)
     {
         if (node.FilePath is not { Length: > 0 } rel) return null;
         if (node.Metadata?.GetValueOrDefault("line") is not { } lineText
             || !int.TryParse(lineText, out var startLine)) return null;
         if (read(rel) is not { } lines) return null;
 
-        var s0 = Math.Max(0, startLine - 1);
-        var full = ParsedEnd(node, lines, s0) ?? BlockEnd(lines, s0, BlockScanLines);
+        var (s0, full) = (spans ?? new SourceSpans())
+            .Block(rel, lines, node.Metadata.GetValueOrDefault("ast"), Math.Max(0, startLine - 1), BlockScanLines);
         var e0 = Math.Min(full, s0 + maxLines - 1);
         var slice = new List<string>();
         for (var i = s0; i <= e0 && i < lines.Length; i++) slice.Add(lines[i]);
         return new SourceBlock(rel, s0 + 1, e0 + 1, Math.Max(0, full - e0), slice);
-    }
-
-    /// <summary>
-    /// The 0-based last line of a node's block as the PARSER recorded it, or null when the graph has no
-    /// <c>endLine</c> for it. Discarded when it disagrees with the file in hand — the graph can be older than
-    /// the working tree, and a stale end would silently truncate or overrun; the brace scan re-derives it.
-    /// </summary>
-    private static int? ParsedEnd(GraphNode node, string[] lines, int start)
-    {
-        if (node.Metadata?.GetValueOrDefault("endLine") is not { } text
-            || !int.TryParse(text, out var endLine)) return null;
-
-        var e0 = endLine - 1;
-        return e0 >= start && e0 < lines.Length ? e0 : null;
     }
 
     // ── Walk ──────────────────────────────────────────────────────────────────
@@ -308,11 +295,23 @@ public static class GraphQuery
 
         var searched = Scope(g, fromId, hops, scope, out _);
 
+        // Each file is read once, tested once, and parsed at most once. Testing the WHOLE file first is what
+        // keeps that affordable: a file with no matching line anywhere cannot have a matching block, so its
+        // nodes are skipped before anything is parsed - and most files match nothing.
+        var spans = new SourceSpans();
+        var files = new Dictionary<string, string[]?>(StringComparer.Ordinal);
+        var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
+        string[]? Read(string rel) => files.TryGetValue(rel, out var c) ? c : files[rel] = read(rel);
+
         var hits = new List<GrepHit>();
         foreach (var node in searched.Where(n => n.FilePath is { Length: > 0 }))
         {
             if (hits.Count >= limit) break;
-            if (ReadSource(node, read, BlockScanLines) is not { } block) continue;
+            var rel = node.FilePath!;
+            if (!interesting.TryGetValue(rel, out var any))
+                interesting[rel] = any = Read(rel) is { } all && all.Any(regex.IsMatch);
+            if (!any) continue;
+            if (ReadSource(node, Read, BlockScanLines, spans) is not { } block) continue;
             for (var i = 0; i < block.Lines.Count && hits.Count < limit; i++)
                 if (regex.IsMatch(block.Lines[i]))
                     hits.Add(new GrepHit(node, block.StartLine + i, block.Lines[i].Trim()));
@@ -362,116 +361,6 @@ public static class GraphQuery
             foreach (var v in ns) if (!dist.ContainsKey(v)) { dist[v] = dist[u] + 1; q.Enqueue(v); }
         }
         return dist;
-    }
-
-    /// <summary>
-    /// The last line of the brace-delimited block starting at <paramref name="start"/>, so a member's source
-    /// ends where the member does. Tracks strings, chars and comments, because a brace inside any of those
-    /// is not a brace.
-    /// <para>
-    /// This is the ONLY copy. The CLI carried a second one that had quietly diverged in three ways - it
-    /// clamped the no-closing-brace fallback to 40 lines whatever was asked for, it detected <c>@"</c> by
-    /// looking backwards (so a line *starting* with one was missed), and it ended a braceless member at the
-    /// first <c>;</c> rather than a line-final one. The last of those was the better rule and is kept below;
-    /// the other two were bugs. Two implementations meant `nfi graph` and the in-app assistant could answer
-    /// the same question differently, which is exactly what this class exists to prevent.
-    /// </para>
-    /// <para>
-    /// Raw string literals (<c>"""</c>, and any longer fence) are treated as opaque. Read as three ordinary
-    /// quotes they toggle an in-string flag on-off-on, which leaves the scanner inside the literal only while
-    /// its content happens to hold an EVEN number of quotes; one unpaired quote flips the parity and every
-    /// brace after it is counted as code. This repo's test fixtures are full of raw strings containing C#, so
-    /// that is not a theoretical case - see <c>BlockEndTests</c>.
-    /// </para>
-    /// </summary>
-    public static int BlockEnd(string[] lines, int start, int maxLines)
-    {
-        int depth = 0, rawFence = 0;
-        bool opened = false, inBlockComment = false, inString = false, inChar = false, verbatim = false;
-
-        // How many quotes start at this position - the fence length opening or closing a raw literal.
-        static int QuoteRun(string text, int at)
-        {
-            var n = 0;
-            while (at + n < text.Length && text[at + n] == '"') n++;
-            return n;
-        }
-
-        // Whether a brace group closing here also ends the declaration. It does when nothing of substance
-        // follows it: `void M() { }`, `{ get; set; }`, or either with a trailing comment. It does NOT when the
-        // declaration carries on - `{ get; } = new Dictionary<..>` opens an initializer that can run for a
-        // hundred lines, and the member ends at ITS semicolon, not at the accessor list's brace.
-        static bool DeclarationEndsAfter(string text, int at)
-        {
-            var rest = text[Math.Min(at + 1, text.Length)..].TrimStart();
-            return rest.Length == 0 || rest[0] == ';' || rest.StartsWith("//") || rest.StartsWith("/*");
-        }
-
-        for (var i = start; i < lines.Length && i - start <= maxLines; i++)
-        {
-            var line = lines[i];
-            var inLineComment = false;
-            for (var j = 0; j < line.Length; j++)
-            {
-                var ch = line[j];
-                var next = j + 1 < line.Length ? line[j + 1] : '\0';
-
-                // Inside a raw literal nothing counts - not a brace, not a comment marker, not a lone quote.
-                // Only a run at least as long as the opening fence ends it. Checked first, and spanning lines,
-                // because a raw literal is opaque to everything else the scanner knows how to see.
-                if (rawFence > 0)
-                {
-                    if (ch != '"') continue;
-                    var run = QuoteRun(line, j);
-                    if (run >= rawFence) rawFence = 0;
-                    j += run - 1;
-                    continue;
-                }
-
-                if (inLineComment) break;
-                if (inBlockComment) { if (ch == '*' && next == '/') { inBlockComment = false; j++; } continue; }
-                if (inString)
-                {
-                    if (verbatim) { if (ch == '"' && next == '"') j++; else if (ch == '"') inString = false; }
-                    else if (ch == '\\') j++;
-                    else if (ch == '"') inString = false;
-                    continue;
-                }
-                if (inChar) { if (ch == '\\') j++; else if (ch == '\'') inChar = false; continue; }
-
-                switch (ch)
-                {
-                    case '/' when next == '/': inLineComment = true; break;
-                    case '/' when next == '*': inBlockComment = true; j++; break;
-                    case '@' when next == '"': inString = verbatim = true; j++; break;
-                    // Three or more quotes open a raw literal whose fence is that length, so a shorter run
-                    // inside it is content rather than the end. Two quotes are just an empty string.
-                    case '"' when QuoteRun(line, j) >= 3:
-                        rawFence = QuoteRun(line, j);
-                        j += rawFence - 1;
-                        break;
-                    case '"': inString = true; verbatim = false; break;
-                    case '\'': inChar = true; break;
-                    case '{': depth++; opened = true; break;
-                    case '}':
-                        depth--;
-                        if (opened && depth <= 0)
-                        {
-                            if (DeclarationEndsAfter(line, j)) return i;
-                            // The brace group closed but the declaration carries on into an initializer.
-                            // Forget that we ever saw a brace, so the terminating ';' below ends the member.
-                            opened = false;
-                        }
-                        break;
-                    // A braceless member - a field, or an expression-bodied one - ends at its semicolon.
-                    // Testing here rather than on the trimmed line end is what makes a trailing comment
-                    // (`private const int X = 1; // why`) terminate correctly instead of running on to the
-                    // next block's closing brace.
-                    case ';' when !opened && depth == 0: return i;
-                }
-            }
-        }
-        return Math.Min(lines.Length - 1, start + maxLines);
     }
 
     // ── Orphans ───────────────────────────────────────────────────────────────

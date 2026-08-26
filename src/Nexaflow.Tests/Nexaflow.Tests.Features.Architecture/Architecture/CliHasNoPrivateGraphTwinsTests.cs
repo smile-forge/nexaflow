@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -31,7 +31,12 @@ namespace Nexaflow.Tests.Features.Architecture;
 public class CliHasNoPrivateGraphTwinsTests
 {
     /// <summary>Members of the shared graph library that the CLI must call rather than reimplement. Each is a
-    /// pure function whose duplicate would be invisible until it gave a different answer.</summary>
+    /// pure function whose duplicate would be invisible until it gave a different answer.
+    /// <para>
+    /// <c>BlockEnd</c> stays on the list although the library no longer has one: where a declaration stops is
+    /// <c>SourceSpans</c>' question now, answered by the tree-sitter parse. A hand-rolled brace scanner
+    /// reappearing in the CLI under that name is precisely the regression this list exists to catch.
+    /// </para></summary>
     private static readonly string[] SharedGraphMembers =
     [
         "TypeRank", "NodeLine", "BlockEnd", "Adjacency", "BuildAdjacency", "Bfs",
@@ -81,8 +86,9 @@ public class CliHasNoPrivateGraphTwinsTests
         var source = File.ReadAllText(CliProgram());
 
         // The magic 400 this replaced was written out at six call sites across two files; that is how the two
-        // BlockEnd copies came to disagree about it without anyone noticing.
-        var bareLiterals = Regex.Matches(source, @"BlockEnd\([^)]*,\s*\d+\s*\)");
+        // BlockEnd copies came to disagree about it without anyone noticing. The budget moved to SourceSpans
+        // with the block resolution; the way to get it wrong did not.
+        var bareLiterals = Regex.Matches(source, @"Block(Of)?\([^)]*,\s*\d+\s*\)");
         Assert.AreEqual(0, bareLiterals.Count,
             "pass GraphQuery.BlockScanLines, not a literal: " + string.Join(", ", bareLiterals.Select(m => m.Value)));
     }
