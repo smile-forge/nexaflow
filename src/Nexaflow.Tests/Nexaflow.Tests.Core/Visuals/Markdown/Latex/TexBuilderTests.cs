@@ -77,6 +77,26 @@ public class TexBuilderTests
         @"\sum x",
         @"\left( a \right)^{2}",
         @"\left( \frac{a}{b} \right)^{2}",
+
+        // Tables. The rows and cells are nodes of the reading, so the grid is read rather than worked
+        // out from where the cells were drawn — which is the whole reason the table gestures wanted this.
+        @"\begin{matrix} a & b \\ c & d \end{matrix}",
+        @"\begin{pmatrix} a & b \\ c & d \end{pmatrix}",
+        @"\begin{bmatrix} \alpha & \beta \\ \gamma & \delta \end{bmatrix}",
+        @"\begin{Bmatrix} a \end{Bmatrix}",
+        @"\begin{vmatrix} a & b \end{vmatrix}",
+        @"\begin{Vmatrix} a & b \end{Vmatrix}",
+        @"\begin{smallmatrix} a & b \end{smallmatrix}",
+        @"\begin{cases} x & y \\ z & w \end{cases}",
+        @"\begin{pmatrix} \frac{a}{b} & \sqrt{c} \\ x^{2} & \alpha \end{pmatrix}",
+        @"\begin{matrix} a & b \\ c \end{matrix}",              // ragged: squared off with holes
+        @"\begin{matrix} a & \\ & d \end{matrix}",              // cells with nothing written in them
+        @"\begin{matrix} a \\ b \\ \end{matrix}",               // a \\ ends its row; it opens no other
+        @"\begin{align} a &= b \\ c &= d \end{align}",
+        @"\begin{gathered} a \\ b \end{gathered}",
+        @"\begin{array}{cc} a & b \\ c & d \end{array}",
+        @"\begin{array}{c|c} a & b \end{array}",
+        @"\left[ \begin{matrix} a & b \end{matrix} \right]",
     ];
 
     [TestMethod]
@@ -104,6 +124,34 @@ public class TexBuilderTests
     });
 
     [TestMethod]
+    public void NothingItBuildsNamesAPointInTheSource() => UiThread.Run(() =>
+    {
+        // The rule, asserted on what comes out rather than on how it was written. A formula's layout may
+        // never carry an offset: an offset beside a tree is a second copy of a fact the tree already
+        // holds, and the two disagree the moment anything is edited. Where a part is written is the
+        // reading's to say, worked out by a walk when it is asked.
+        //
+        // On every construct, not one, because this is the kind of thing that stays true until one case
+        // quietly threads a span through for convenience.
+        foreach (var latex in Known)
+        {
+            var formula = TexFormulaBuilder.Build(TexReading.Of(latex));
+            Assert.IsNotNull(formula, latex);
+
+            foreach (var atom in Parts(formula.Root!))
+            {
+                Assert.IsNull(atom.Source, $"{atom.GetType().Name} in {latex} names a point in the source");
+
+                // Everything the reader wrote carries the part they wrote it as. The one exception is the
+                // cell nobody wrote — what squares off a short row — and it is an exception because there
+                // is nothing in the reading for it to be, not because it was overlooked.
+                Assert.IsTrue(atom.Origin is not null || atom is XamlMath.Atoms.NullAtom,
+                    $"{atom.GetType().Name} in {latex} was built from nothing");
+            }
+        }
+    });
+
+    [TestMethod]
     public void EveryAtomKnowsWhichPartOfTheSourceItWasBuiltFrom() => UiThread.Run(() =>
     {
         // What none of this is possible without, and what the parser can never provide: an atom that
@@ -111,9 +159,6 @@ public class TexBuilderTests
         var reading = TexReading.Of(@"\frac{a}{b}");
         var formula = TexFormulaBuilder.Build(reading);
         Assert.IsNotNull(formula);
-
-        foreach (var atom in Parts(formula.Root!))
-            Assert.IsNotNull(atom.Origin, $"{atom.GetType().Name} was built from nothing");
 
         // The numerator's atom is the `a` itself — a group holding one thing is that thing, here as in
         // the parser, because a row of one would put every box inside a box. So the part it names is the
@@ -130,9 +175,15 @@ public class TexBuilderTests
     {
         // Half a formula built each way would mix two readings of the same source, which is the thing
         // being got rid of. Declining is what keeps the fallback honest.
-        foreach (var latex in new[] { @"\begin{matrix} a & b \end{matrix}", @"\sqrt[3]{x}",
+        foreach (var latex in new[] { @"\sqrt[3]{x}",
                                       @"\textcolor{red}{a}", @"\mathrm{abc}", "f''",
-                                      @"\left( a", @"\notacommand{x}" })
+                                      @"\left( a", @"\notacommand{x}",
+                                      @"\begin{matrix} a & b",              // never closed
+                                      @"\begin{equation} a \end{equation}", // means nothing here yet
+                                      @"\begin{alignat}{2} a & b \end{alignat}", // its count reads as a cell
+                                      @"\begin{array}{cc} \hline a & b \end{array}",
+                                      @"\begin{array}{@{}c@{}} a \end{array}",  // a preamble it cannot read
+                                      @"\begin{array} a & b \end{array}" })     // and one that is not there
             Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex)), latex);
     });
 

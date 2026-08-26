@@ -43,17 +43,32 @@ internal sealed class ArrayCommandParser : IEnvironmentParser
 
         MakeRectangular(rows);
 
-        var atom = new MatrixAtom(
-            context.EnvironmentSource,
-            rows,
+        return new EnvironmentProcessingResult(
+            Assemble(context.EnvironmentSource, rows, spec, hlines));
+    }
+
+    /// <summary>
+    /// The arrangement, once the cells are built — see
+    /// <see cref="MatrixCommandParser.Assemble"/>, which this is the <c>array</c> half of.
+    /// </summary>
+    internal static Atom Assemble(
+        SourceSpan? source,
+        IEnumerable<IEnumerable<Atom?>> cells,
+        ArrayColumnSpec spec,
+        IReadOnlyCollection<int>? horizontalRules,
+        Nexaflow.Maths.Latex.TexPart? origin = null) =>
+        new MatrixAtom(
+            source,
+            cells,
             MatrixCellAlignment.Center,
             // An array keeps its outer gaps, unlike a matrix: that is the space you see inside the
             // brackets of \left[\begin{array}{cc|c} … \right].
             horizontalPadding: MatrixAtom.DefaultColumnGap,
             columnSpec: spec,
-            horizontalRules: hlines);
-        return new EnvironmentProcessingResult(atom);
-    }
+            horizontalRules: horizontalRules)
+        {
+            Origin = origin,
+        };
 
     private static void MakeRectangular(List<List<Atom>> rowAtoms)
     {

@@ -133,6 +133,37 @@ TeX. What we are removing is the *front* (its LaTeX parser); we had already repl
 renderer, with a capture that records where every box landed). What is left is the middle, which is the
 part worth having.
 
+## The rule: layout never names a point in the source
+
+**The builder never touches the source, and nothing it builds names a point in it.**
+
+The builder is handed a `TexReading` and never the string. There is no offset for it to take, because
+nothing gives it one — every atom's `Source` is left null, and what a thing came from is its `Origin`,
+a parse-tree part. *Where* that part is written is the reading's to answer, worked out by a walk when
+somebody asks.
+
+This is not tidiness. An offset stored beside a tree is a second copy of a fact the tree already holds,
+and the two go out of step the moment anything is edited — which is the whole reason the boxes are being
+built from a parse tree at all. Keeping both would rebuild, one construct at a time, the thing being
+removed.
+
+It cost nothing to adopt: the spans the builder used to thread through were never load-bearing. Every
+formula sets in exactly the same place with all of them null, across the whole corpus. They were being
+carried for the *parser's* sake, because the parser has nothing else to say where a box came from.
+
+`TexBuilderTests.NothingItBuildsNamesAPointInTheSource` asserts it over every construct — on what comes
+out, not on how it was written — and it caught two things on its first run that reading the code had
+not: a `\sum` whose own glyph did not know it was the sum, and a bracketed matrix whose grid knew
+nothing because only the fence round it had been told.
+
+**The other half is not done.** `LatexNode` still carries `SourceStart`/`SourceLength`, and
+`LatexTree`, `FormulaElement` and `LatexLayoutCapture` still work in them — about thirty sites. They
+cannot move yet, because the offsets are what the *parser* path has, and the parser path is still the
+one that runs. Marking them obsolete now would tell every site to use `Part` while `Part` is filled in
+by `Attribute` — the span matching being deleted. The order is: wire the builder in, so `Part` arrives
+from `Origin`; then the marker fires on a real to-do list rather than on code doing the only thing
+available to it.
+
 ## What the builder still declines
 
 `TexFormulaBuilder` is all-or-nothing per formula: anything it does not handle comes back null and that
@@ -147,13 +178,25 @@ Known work, and the coverage number moves when each lands.
 
 | | |
 |---|---|
-| environments | `\begin{matrix}` and the rest — the one that matters most for editing, since grids are what the table gestures act on |
 | `\sqrt[3]{x}` | a root with a degree |
 | styled text | `\mathrm`, `\text`, `{\bf …}` — a text style is a property of the reading, not an atom, so it needs threading rather than a case |
 | `\textcolor`, `\colorbox` | colour, which the parser carries on the formula |
 | primes | `'` and `\prime` gather into a row attached to what they follow |
 | ties | `~`, a space no line may be broken at |
 | unknown commands | anything the table has never heard of |
+| `\hline` | a rule between rows, so it is read off the grid and never off a cell — an `array` holding one falls back whole |
+| counted alignments | `\begin{alignat}{2}` and its family, whose count is written where the reading expects a cell |
+
+**Environments landed**, which was the one that mattered most for editing, since grids are what the
+table gestures act on: every matrix, `cases`, the aligned and gathered blocks, `smallmatrix`, and
+`array` with a preamble of `l`/`c`/`r`/`|`. Rows and cells come off the reading, which knows a table is
+a table, and the arrangement — the column gaps, the brackets, the size — is asked of the engine's own
+table rather than copied, so a padding cannot come to mean two things.
+
+A cell nobody wrote is the one atom the builder makes that carries no part, and deliberately: squaring
+off a short row invents positions so that "the third column" means the same thing in every row, and
+there is nothing in the reading for those to be. A cell written *empty* — the one a trailing `&` leaves
+— does have a part, because the reader wrote the `&` that closed it.
 
 ### Still to be settled
 

@@ -86,21 +86,48 @@ internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
 
     public EnvironmentProcessingResult ProcessEnvironment(EnvironmentContext context)
     {
-        var cellsSource = context.EnvironmentBodySource;
-        var matrixSource = context.EnvironmentSource;
+        var cells = ReadMatrixCells(
+            context.Parser, context.Formula, context.EnvironmentBodySource, context.Environment);
 
-        var cells = ReadMatrixCells(context.Parser, context.Formula, cellsSource, context.Environment);
+        return new EnvironmentProcessingResult(Assemble(context.EnvironmentSource, cells));
+    }
+
+    /// <summary>
+    /// The arrangement, once the cells are built: how they are padded and aligned, what is drawn round
+    /// them, and at what size.
+    /// <para>
+    /// Apart from reading them, because they can arrive already built. <see cref="TexFormulaBuilder"/>
+    /// has a reading of the same source that keeps what this one drops, and it needs this half of the
+    /// job done exactly as it is done here — which it is, by being the same code rather than a copy of
+    /// it that would drift the first time a padding changed.
+    /// </para>
+    /// </summary>
+    /// <param name="origin">
+    /// The <c>\begin</c> all of this was written as, when there is a parse tree behind it. Every atom
+    /// made here gets it: a bracketed matrix comes back as a fence holding a grid, and a small one as a
+    /// style holding that, and they are one construct drawn in parts — as a fraction's box and its bar
+    /// are. Passed in rather than hung on afterwards because a style atom names no parts, so there is no
+    /// walking into one from outside to find what it holds.
+    /// </param>
+    internal Atom Assemble(
+        SourceSpan? source,
+        IEnumerable<IEnumerable<Atom?>> cells,
+        Nexaflow.Maths.Latex.TexPart? origin = null)
+    {
         // A matrix has no outer gap - its brackets sit against its contents - but an aligned block is
         // not bracketed and its columns are its own business, so it keeps what it had.
         var matrix = new MatrixAtom(
-            matrixSource,
+            source,
             cells,
             _cellAlignment,
             _verticalPadding,
             _horizontalPadding,
             suppressOuterPadding: _cellAlignment != MatrixCellAlignment.Aligned,
             rowStrutHeight: _rowStrut ? MatrixAtom.DefaultRowStrutHeight : 0,
-            rowStrutDepth: _rowStrut ? MatrixAtom.DefaultRowStrutDepth : 0);
+            rowStrutDepth: _rowStrut ? MatrixAtom.DefaultRowStrutDepth : 0)
+        {
+            Origin = origin,
+        };
 
         SymbolAtom? GetDelimiter(string? name) =>
             name == null
@@ -113,16 +140,12 @@ internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
 
         var atom = leftDelimiter == null && rightDelimiter == null
             ? (Atom)matrix
-            : new FencedAtom(
-                matrixSource,
-                matrix,
-                leftDelimiter,
-                rightDelimiter);
+            : new FencedAtom(source, matrix, leftDelimiter, rightDelimiter) { Origin = origin };
 
         if (_style is { } style)
-            atom = new StyleAtom(matrixSource, atom, style);
+            atom = new StyleAtom(source, atom, style) { Origin = origin };
 
-        return new EnvironmentProcessingResult(atom);
+        return atom;
     }
 
     private static List<List<Atom>> ReadMatrixCells(
