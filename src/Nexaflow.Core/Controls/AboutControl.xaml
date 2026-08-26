@@ -12,6 +12,8 @@
     <Grid Margin="20,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>  <!-- header -->
+            <RowDefinition Height="Auto"/>  <!-- system components heading -->
+            <RowDefinition Height="Auto"/>  <!-- system components list -->
             <RowDefinition Height="Auto"/>  <!-- notices heading -->
             <RowDefinition Height="*"/>     <!-- scrollable notices -->
             <RowDefinition Height="Auto"/>  <!-- danger zone: reset config -->
@@ -37,8 +39,113 @@
             </TextBlock>
         </StackPanel>
 
+        <!-- System components heading. Starts EXPANDED when something required is missing, so the one
+             case a user opens this page to diagnose is not hidden behind a chevron. -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,18,0,6" HorizontalAlignment="Left">
+            <ToggleButton x:Name="ComponentsToggle"
+                          AutomationProperties.AutomationId="About_ComponentsToggle"
+                          Cursor="Hand" Background="Transparent" BorderThickness="0">
+                <ToggleButton.Template>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <TextBlock x:Name="Chevron" Text="&#x25B8;"
+                                       FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="System components" FontSize="13" FontWeight="Bold"
+                                       Foreground="{StaticResource TextBrush}"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chevron" Property="Text" Value="&#x25BE;"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </ToggleButton.Template>
+            </ToggleButton>
+
+            <!-- Outside the toggle's template on purpose: a name inside a ControlTemplate is not a field on
+                 the control, so the code-behind could not set it there. -->
+            <TextBlock x:Name="ComponentsSummary"
+                       FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextMutedBrush}"/>
+        </StackPanel>
+
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="12,10"
+                Visibility="{Binding IsChecked, ElementName=ComponentsToggle, Converter={StaticResource BoolVis}}">
+            <StackPanel>
+                <TextBlock Margin="0,0,0,8" FontSize="11" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Text="Third-party runtimes and tools Nexaflow features rely on, and whether they were found on this PC."/>
+
+                <ItemsControl x:Name="ComponentsList"
+                              AutomationProperties.AutomationId="About_ComponentsList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Status pip. Brush and glyph are set per-row in code-behind from a
+                                     theme resource — never a literal colour. -->
+                                <TextBlock Grid.Column="0" Text="{Binding Glyph}"
+                                           FontSize="13" Margin="0,0,8,0"
+                                           VerticalAlignment="Top"
+                                           Foreground="{Binding Brush}"/>
+
+                                <StackPanel Grid.Column="1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="12" FontWeight="Bold" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextBrush}"/>
+                                        <TextBlock Text="{Binding StatusLabel}"
+                                                   FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   Foreground="{Binding Brush}"/>
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding Description}"
+                                               FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+
+                                    <TextBlock Text="{Binding Provenance}"
+                                               FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+
+                                    <TextBlock Margin="0,3,0,0" FontSize="11"
+                                               Visibility="{Binding HasInstallLink, Converter={StaticResource BoolVis}}">
+                                        <Hyperlink NavigateUri="{Binding InstallUri}"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   RequestNavigate="OnRequestNavigate">
+                                            <Run Text="{Binding InstallLinkText, Mode=OneWay}"/>
+                                        </Hyperlink>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock x:Name="ComponentsEmptyText"
+                           FontSize="11" TextWrapping="Wrap" Visibility="Collapsed"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+
+                <Button x:Name="RecheckButton"
+                        AutomationProperties.AutomationId="About_Recheck"
+                        Content="Re-check" HorizontalAlignment="Left" Margin="0,6,0,0"
+                        Padding="12,4" Cursor="Hand" BorderThickness="1"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        Background="Transparent"
+                        Foreground="{StaticResource TextBrush}"
+                        Click="OnRecheckClick"/>
+            </StackPanel>
+        </Border>
+
         <!-- Third-party notices heading — toggles the (collapsed-by-default) list -->
-        <ToggleButton x:Name="NoticesToggle" Grid.Row="1"
+        <ToggleButton x:Name="NoticesToggle" Grid.Row="3"
+                      AutomationProperties.AutomationId="About_NoticesToggle"
                       Margin="0,18,0,6" HorizontalAlignment="Left"
                       Cursor="Hand" Background="Transparent" BorderThickness="0">
             <ToggleButton.Template>
@@ -60,7 +167,7 @@
         </ToggleButton>
 
         <!-- Scrollable notices — shown only when the toggle is expanded -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="4"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1" CornerRadius="6"
                 Visibility="{Binding IsChecked, ElementName=NoticesToggle, Converter={StaticResource BoolVis}}">
@@ -71,7 +178,7 @@
         </Border>
 
         <!-- Danger zone: wipe all app-data and restart. Confirmed via the shell overlay. -->
-        <Border Grid.Row="3" Margin="0,16,0,0" Padding="14"
+        <Border Grid.Row="5" Margin="0,16,0,0" Padding="14"
                 BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" CornerRadius="6"
                 Background="{StaticResource DangerSubtleBrush}">
             <StackPanel>

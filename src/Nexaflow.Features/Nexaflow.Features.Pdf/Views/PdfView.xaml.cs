@@ -1,4 +1,6 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.Features.Pdf.Dependencies;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.ViewModels;
 using Nexaflow.Visuals.Web;
@@ -55,6 +57,17 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         // Loaded fires again on a re-parent (tab torn off to another window); the surface leaves a live
         // browser alone, so the user's scroll position survives the move.
         if (Surface.IsReady || !ViewModel.SurfaceAvailable) return;
+
+        // Pre-flight: when the shell already knows the runtime is absent, show the fallback now rather than
+        // starting a browser that cannot start. Only a definite Missing counts — Unknown means the probe
+        // could not decide (or has not run yet), and the right response to that is still to try.
+        if (_shell.GetDependencyStatus(WebView2Dependency.DependencyId).State == ExternalDependencyState.Missing)
+        {
+            ShowRuntimeMissing();
+            _pendingPage = null;
+            await ViewModel.LoadAsync();
+            return;
+        }
 
         if (await Surface.EnsureReadyAsync())
             Surface.NavigateTo(InitialUrl(_pendingPage));
@@ -186,13 +199,26 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
 
     private void HandleSurfaceUnavailable(WebSurfaceUnavailableEventArgs e)
     {
+        if (e.RuntimeMissing) { ShowRuntimeMissing(); return; }
+
         ViewModel.SurfaceAvailable = false;
-        ViewModel.RuntimeMissing   = e.RuntimeMissing;
-        ViewModel.FailureMessage   = e.RuntimeMissing
-            ? "The Microsoft Edge WebView2 runtime isn't installed on this PC, so the document can't be "
-              + "shown here. Its properties and contents are still listed beside this panel."
-            : "The embedded viewer couldn't be started on this PC. The document's properties and contents "
-              + "are still listed beside this panel.";
+        ViewModel.RuntimeMissing   = false;
+        ViewModel.FailureMessage   =
+            "The embedded viewer couldn't be started on this PC. The document's properties and contents "
+            + "are still listed beside this panel.";
+    }
+
+    /// <summary>
+    /// The runtime-missing fallback. Reached two ways — the pre-flight check on load, and a failed browser
+    /// start — so the wording lives in one place and both routes offer the same install link.
+    /// </summary>
+    private void ShowRuntimeMissing()
+    {
+        ViewModel.SurfaceAvailable = false;
+        ViewModel.RuntimeMissing   = true;
+        ViewModel.FailureMessage   =
+            "The Microsoft Edge WebView2 runtime isn't installed on this PC, so the document can't be "
+            + "shown here. Its properties and contents are still listed beside this panel.";
     }
 
     private void OpenExternal_Click(object sender, RoutedEventArgs e)

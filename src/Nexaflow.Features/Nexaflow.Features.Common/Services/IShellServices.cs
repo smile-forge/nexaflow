@@ -286,6 +286,23 @@ public interface IShellServices
     IEnumerable<Type> DiscoverImplementations<TInterface>();
 
     /// <summary>
+    /// What the shell last found for the third-party component <paramref name="id"/> — one of the ids some
+    /// feature declares via <see cref="Dependencies.IExternalDependency"/>.
+    /// <para>
+    /// For pre-flighting: a feature about to use an external runtime can ask first and say something precise
+    /// ("the Edge WebView2 runtime isn't installed") instead of letting the attempt fail somewhere less
+    /// legible. Reads a cached probe, so it is cheap and safe to call on the UI thread.
+    /// </para>
+    /// <para>
+    /// <b>Treat <see cref="Dependencies.ExternalDependencyState.Unknown"/> as "go ahead and try".</b> It is
+    /// the answer for an unrecognised id, for a probe that threw, and for the window before the first probe
+    /// finishes — never as evidence the component is absent. Only
+    /// <see cref="Dependencies.ExternalDependencyState.Missing"/> means that.
+    /// </para>
+    /// </summary>
+    Dependencies.ExternalDependencyStatus GetDependencyStatus(string id);
+
+    /// <summary>
     /// The feature-provided extractor that understands <paramref name="path"/>'s format, or null when none
     /// claims it — the caller then reads the file as plain text.
     /// <para>

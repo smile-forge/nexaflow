@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Tests.Fixtures;
@@ -120,4 +121,43 @@ public class WebSurfaceTests
         Assert.IsFalse(surface.NavigateTo("https://example.invalid"));
         Assert.IsNull(await surface.CapturePngAsync(1200, CancellationToken.None));
     });
+
+    // ── Runtime-missing classification ────────────────────────────────────
+    //
+    // This is what decides whether the host offers "Install the Microsoft Edge WebView2 runtime" or the
+    // generic "couldn't be started". Getting it wrong is silent: the fallback panel still appears, just
+    // without the one link that fixes the machine. It went untested while the check was a flat type test.
+
+    [TestMethod]
+    public void RuntimeMissing_IsRecognised_WhenThrownDirectly()
+    {
+        Assert.IsTrue(WebSurface.IsRuntimeMissing(WebSurfaceTestHooks.NewRuntimeNotFound()));
+    }
+
+    [TestMethod]
+    public void RuntimeMissing_IsRecognised_ThroughAWrapper()
+    {
+        // WPF and the async machinery both re-wrap what the WebView2 element throws, so the real exception
+        // routinely arrives one or two levels down rather than on top.
+        Assert.IsTrue(WebSurface.IsRuntimeMissing(
+            new TargetInvocationException(WebSurfaceTestHooks.NewRuntimeNotFound())));
+
+        Assert.IsTrue(WebSurface.IsRuntimeMissing(
+            new AggregateException(WebSurfaceTestHooks.NewRuntimeNotFound())));
+
+        Assert.IsTrue(WebSurface.IsRuntimeMissing(
+            new InvalidOperationException("start failed",
+                new TargetInvocationException(WebSurfaceTestHooks.NewRuntimeNotFound()))));
+    }
+
+    [TestMethod]
+    public void RuntimeMissing_IsFalse_ForAnUnrelatedFailure()
+    {
+        // A read-only user-data folder, a blocked process — real failures that are NOT "go and install it",
+        // and offering the download link for them would send the user somewhere that cannot help.
+        Assert.IsFalse(WebSurface.IsRuntimeMissing(null));
+        Assert.IsFalse(WebSurface.IsRuntimeMissing(new UnauthorizedAccessException()));
+        Assert.IsFalse(WebSurface.IsRuntimeMissing(
+            new AggregateException(new InvalidOperationException())));
+    }
 }

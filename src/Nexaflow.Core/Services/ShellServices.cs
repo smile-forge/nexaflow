@@ -1076,6 +1076,11 @@ public sealed class ShellServices : IShellServices
     public IEnumerable<Type> DiscoverImplementations<TInterface>()
         => FeatureCatalog.Instance.TypesImplementing<TInterface>();
 
+    // Cached probe, not a fresh one: features call this on the UI thread just before using a component, and
+    // the registry owns both the probing and the "not probed yet" answer.
+    public Nexaflow.Features.Common.Dependencies.ExternalDependencyStatus GetDependencyStatus(string id)
+        => ExternalDependencyRegistry.Instance.StatusOf(id);
+
     // Selection lives here rather than in the caller so the shell — which owns the instances' lifetime —
     // also owns deciding which one applies. Instances are cached per (type, workspace) and ctor-injected with
     // this workspace's shell/ai/configs, the same path as feature tab creation, and are released by
