@@ -97,6 +97,26 @@ public class TexBuilderTests
         @"\begin{array}{cc} a & b \\ c & d \end{array}",
         @"\begin{array}{c|c} a & b \end{array}",
         @"\left[ \begin{matrix} a & b \end{matrix} \right]",
+
+        @"\sqrt[3]{x}",
+        @"\sqrt[n]{x+1}",
+
+        // A style is a property of the letters, not an atom round them.
+        @"\mathrm{abc}",
+        @"A\mathrm{abc}B",              // a style nests here; written first in a row it is parked
+        @"\mathbf{x} + \mathit{y}",
+        @"\frac{\mathrm{d}y}{\mathrm{d}x}",
+        @"\mathcal{L}^{2}",
+
+        // Read out of the run rather than off a token: the reading keeps `'` a `'`.
+        "f'",
+        "f''",
+        "f'''",
+        @"\alpha'",
+        @"\frac{f'}{g'}",
+        @"\prime",           // the symbol, which is a different thing entirely
+
+        "a~b",               // a tie
     ];
 
     [TestMethod]
@@ -175,8 +195,12 @@ public class TexBuilderTests
     {
         // Half a formula built each way would mix two readings of the same source, which is the thing
         // being got rid of. Declining is what keeps the fallback honest.
-        foreach (var latex in new[] { @"\sqrt[3]{x}",
-                                      @"\textcolor{red}{a}", @"\mathrm{abc}", "f''",
+        foreach (var latex in new[] { @"\textcolor{red}{a}",
+                                      @"\text{for all}",     // words, not maths: the spaces are the point
+                                      "'x",                  // a prime with nothing to be the prime of
+                                      @"x'_{i}",             // a prime and a written script on one base
+                                      @"a~^{b}",             // a script written after a tie
+                                      @"\mathrm{abc}(x)",    // a row written first in a row
                                       @"\left( a", @"\notacommand{x}",
                                       @"\begin{matrix} a & b",              // never closed
                                       @"\begin{equation} a \end{equation}", // means nothing here yet

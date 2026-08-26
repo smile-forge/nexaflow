@@ -50,7 +50,7 @@ public static class TexFormulaBuilder
     {
         System.ArgumentNullException.ThrowIfNull(reading);
 
-        var root = Run(reading.Root.Parts, reading.Root);
+        var root = Run(reading.Root.Parts, reading.Root, null);
 
         return root is null ? null : new TexFormula { RootAtom = root };
     }
@@ -60,17 +60,17 @@ public static class TexFormulaBuilder
 
     // ── One part ────────────────────────────────────────────────────────────
 
-    private static Atom? Of(TexPart part) =>
+    private static Atom? Of(TexPart part, string? style) =>
         part.Kind switch
         {
-            TexKind.Char => Character(part),
-            TexKind.Sequence => Run(part.Parts, part),
-            TexKind.Group when Written(part) => Group(part),
-            TexKind.Group => Run(part.Parts, part),
-            TexKind.Script => Script(part),
-            TexKind.Command => Command(part),
-            TexKind.Fence => Fence(part),
-            TexKind.Environment => Environment(part),
+            TexKind.Char => Character(part, style),
+            TexKind.Sequence => Run(part.Parts, part, style),
+            TexKind.Group when Written(part) => Group(part, style),
+            TexKind.Group => Run(part.Parts, part, style),
+            TexKind.Script => Script(part, style),
+            TexKind.Command => Command(part, style),
+            TexKind.Fence => Fence(part, style),
+            TexKind.Environment => Environment(part, style),
             _ => null,
         };
 
@@ -84,7 +84,7 @@ public static class TexFormulaBuilder
     /// changed in one place would otherwise set a matrix two ways.
     /// </para>
     /// </summary>
-    private static Atom? Environment(TexPart part)
+    private static Atom? Environment(TexPart part, string? style)
     {
         if (part.Part(TexRole.Begin) is not { } begin) return null;
 
@@ -92,7 +92,7 @@ public static class TexFormulaBuilder
         // is no atom to agree with.
         if (part.Part(TexRole.End) is null) return null;
 
-        if (!StandardCommands.Environments.TryGetValue(TexParser.NameOf(begin.Node), out var written))
+        if (!StandardCommands.Environments.TryGetValue(TexParser.NameOf(begin.Node), out var arrangement))
             return null;
 
         // Every piece of it has to be one this knows. A block is begun, optionally shaped, and then made
@@ -101,9 +101,9 @@ public static class TexFormulaBuilder
             if (child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option or TexRole.Row))
                 return null;
 
-        if (Cells(part) is not { } cells) return null;
+        if (Cells(part, style) is not { } cells) return null;
 
-        return written switch
+        return arrangement switch
         {
             // The part goes in rather than being hung on what comes back. A bracketed matrix is several
             // atoms — the fence, the grid, sometimes a style — one construct drawn in parts, as a
@@ -111,7 +111,7 @@ public static class TexFormulaBuilder
             // outermost alone would leave the grid itself knowing nothing, and there is no reaching in
             // from outside to fix that: a style atom names no parts, so a walk stops at it.
             MatrixCommandParser matrix => matrix.Assemble(null, cells, part),
-            ArrayCommandParser => Array(part, cells),
+            ArrayCommandParser => Array(part, cells, style),
 
             // \begin{equation} and the counted alignments — \begin{alignat}{2} and its family, whose
             // count is written where this reading expects a cell.
@@ -136,7 +136,7 @@ public static class TexFormulaBuilder
     /// than in them, so they are a thing to read off the grid and never off a cell.
     /// </para>
     /// </summary>
-    private static Atom? Array(TexPart part, List<List<Atom?>> cells)
+    private static Atom? Array(TexPart part, List<List<Atom?>> cells, string? style)
     {
         if (part.Part(TexRole.Option) is not { } option) return null;
 
@@ -175,7 +175,7 @@ public static class TexFormulaBuilder
     /// anything in it, and they carry no part precisely because inventing one would say otherwise.
     /// </para>
     /// </summary>
-    private static List<List<Atom?>>? Cells(TexPart environment)
+    private static List<List<Atom?>>? Cells(TexPart environment, string? style)
     {
         var rows = new List<List<Atom?>>();
 
@@ -189,7 +189,7 @@ public static class TexFormulaBuilder
             {
                 if (cell.Role != TexRole.Cell) continue;
 
-                var built = Built(cell.Parts);
+                var built = Built(cell.Parts, style);
                 if (built is null) return null;
 
                 cells.Add(built.Count switch
@@ -218,7 +218,7 @@ public static class TexFormulaBuilder
     /// Something between delimiters that grow to hold it. The delimiters are drawn by the fence rather
     /// than being things inside it, which is why they are named here and not built.
     /// </summary>
-    private static Atom? Fence(TexPart part)
+    private static Atom? Fence(TexPart part, string? style)
     {
         if (part.Part(TexRole.Body) is not { } body) return null;
 
@@ -228,7 +228,7 @@ public static class TexFormulaBuilder
         // corpus had left was this, and a bracket one size out is not something to guess at.
         if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence)) return null;
 
-        if (Of(body) is not { } inside) return null;
+        if (Of(body, style) is not { } inside) return null;
 
         // An unclosed fence is something half-typed, and the parser has no atom for it. Left to fall
         // back rather than closed on the writer's behalf.
@@ -264,24 +264,21 @@ public static class TexFormulaBuilder
             : TexFormulaParser.DelimiterOf(text.TrimStart('\\'), null);
     }
 
-    /// <summary>
-    /// Characters the parser does something of its own with, and this does not do yet. Declined rather
-    /// than built plainly, because built plainly they would be set in the wrong place.
-    /// <list type="bullet">
-    ///   <item><c>'</c> — gathers into a row of primes attached to whatever it follows.</item>
-    ///   <item><c>~</c> — a tie: a space that a line may not be broken at.</item>
-    /// </list>
-    /// </summary>
-    private const string Peculiar = "'~";
-
-    private static Atom? Character(TexPart part)
+    private static Atom? Character(TexPart part, string? style)
     {
         if (part.Node.Text.Length != 1) return null;
 
         var character = part.Node.Text[0];
-        if (Peculiar.Contains(character)) return null;
 
-        return Tag(TexFormulaParser.CharacterOf(character, null), part);
+        // A prime is never built here: it is not a thing standing in the row but a mark on whatever it
+        // follows, which is a fact about the run and so is read one level up, in Built.
+        if (character == '\'') return null;
+
+        // A tie is an inter-word space that a line may not be broken at. Written as a character and not
+        // one: nothing is drawn, and the spacing TeX would give a symbol of its class does not apply.
+        if (character == '~') return Tag(new SpaceAtom(null), part);
+
+        return Tag(TexFormulaParser.CharacterOf(character, null, style), part);
     }
 
     /// <summary>
@@ -309,9 +306,9 @@ public static class TexFormulaBuilder
     /// and moves the spacing of every formula written with them.
     /// </para>
     /// </summary>
-    private static Atom? Group(TexPart part)
+    private static Atom? Group(TexPart part, string? style)
     {
-        if (Run(part.Parts, part) is not { } inner) return null;
+        if (Run(part.Parts, part, style) is not { } inner) return null;
 
         return Tag(
             new TypedAtom(null, inner, TexAtomType.Ordinary, TexAtomType.Ordinary),
@@ -322,28 +319,81 @@ public static class TexFormulaBuilder
     /// Several things in a row. One thing on its own is that thing: a row of one would add a level the
     /// typesetter's own reading does not have, and every box would sit inside a box.
     /// </summary>
-    private static Atom? Run(IEnumerable<TexPart> parts, TexPart whole)
+    private static Atom? Run(IEnumerable<TexPart> parts, TexPart whole, string? style)
     {
-        var built = Built(parts);
+        var built = Built(parts, style);
         if (built is null || built.Count == 0) return null;
 
         return built.Count == 1 ? built[0] : Rowed(built, whole);
     }
 
-    private static List<Atom>? Built(IEnumerable<TexPart> parts)
+    /// <summary>
+    /// A run of parts, built.
+    /// <para>
+    /// Where reading a <em>sequence</em> happens, and it has to happen somewhere. The reading keeps every
+    /// token uncompounded so that it can be written back out exactly as typed — a <c>'</c> is a <c>'</c>
+    /// and nothing else — so working out that <c>f''</c> is an f wearing two marks is the job of whatever
+    /// is turning the reading into something else. This is that, for the drawing of it; a reader of the
+    /// same run for its <em>meaning</em> has the same job to do and will likely share the pattern.
+    /// </para>
+    /// </summary>
+    private static List<Atom>? Built(IEnumerable<TexPart> parts, string? style)
     {
         var built = new List<Atom>();
+        var run = parts.ToList();
 
-        foreach (var part in parts)
+        for (var at = 0; at < run.Count; at++)
         {
-            var atom = Of(part);
+            if (IsPrime(run[at]))
+            {
+                if (built.Count == 0) return null;   // nothing there for it to be the prime of
+
+                // All of them at once: `f''` is one superscript holding two marks, and that is what sets
+                // them level with each other rather than one above the next.
+                var marks = new RowAtom(null);
+                var basis = built[^1];
+
+                for (; at < run.Count && IsPrime(run[at]); at++)
+                    marks = marks.Add(Tag(SymbolAtom.GetAtom("prime", null), run[at]));
+
+                at--;
+
+                // Both wearing the base's part, and both understating it: they cover the base *and* its
+                // marks, and there is no node in the reading covering that — a run of siblings is not a
+                // thing the reading names, by design. So they name what the construct is about, and each
+                // mark still names the `'` it was written as. See the docs, "still to be settled".
+                marks.Origin = basis.Origin;
+                built[^1] = new ScriptsAtom(null, basis, null, marks) { Origin = basis.Origin };
+                continue;
+            }
+
+            var atom = Of(run[at], style);
             if (atom is null) return null;
 
             built.Add(atom);
         }
 
+        // A row written first in a row, with anything after it — `\mathrm{vol}(10)`, where the style's
+        // three letters are a row of their own. The parser splices it into the row it is starting rather
+        // than nesting it, because the first atom it is handed becomes the row it accumulates into; put
+        // anything before it and `A \mathrm{vol}(10)` nests, exactly as this does. Both set identically.
+        // So it is an artefact of that reading's accumulator and not a rule, and this declines rather
+        // than reproducing it — see the docs, "still to be settled".
+        if (built.Count > 1 && built[0] is RowAtom) return null;
+
         return built;
     }
+
+    /// <summary>
+    /// Whether this was written as a prime mark — which means an apostrophe and not <c>\prime</c>.
+    /// <para>
+    /// They are not the same thing and TeX does not treat them as one: <c>\prime</c> is an ordinary
+    /// symbol, drawn full size on the baseline, which is why one writes <c>f^\prime</c> to get what
+    /// <c>f'</c> gives directly.
+    /// </para>
+    /// </summary>
+    private static bool IsPrime(TexPart part) =>
+        part.Kind == TexKind.Char && part.Node.Text == "'";
 
     private static Atom Rowed(List<Atom> built, TexPart whole)
     {
@@ -353,9 +403,15 @@ public static class TexFormulaBuilder
         return Tag(row, whole);
     }
 
-    private static Atom? Script(TexPart part)
+    private static Atom? Script(TexPart part, string? style)
     {
-        if (Part(part, TexRole.Base) is not { } baseAtom) return null;
+        if (Part(part, TexRole.Base, style) is not { } baseAtom) return null;
+
+        // `~^{\nu}` — a script written after a tie. Nothing can be set on a space, so the parser gives
+        // the script an empty base and leaves the tie standing beside it, where this reading has made
+        // the tie the base. A question about what may carry a script, which is the same question
+        // `x'_{i}` asks: see the docs, "still to be settled".
+        if (part.Part(TexRole.Base) is { Kind: TexKind.Char } tie && tie.Node.Text == "~") return null;
 
         // A rule drawn over something, with a script after it. The parser attaches the script to a
         // different atom than this does, and the two set the script at different heights — visible only
@@ -364,8 +420,8 @@ public static class TexFormulaBuilder
             && command.Node.Part(TexRole.Name)?.Text is @"\overline" or @"\underline")
             return null;
 
-        var superscript = Part(part, TexRole.Superscript);
-        var subscript = Part(part, TexRole.Subscript);
+        var superscript = Part(part, TexRole.Superscript, style);
+        var subscript = Part(part, TexRole.Subscript, style);
 
         // A script with nothing written in it is not something this builds — the parser has a
         // placeholder for that and the two would not agree.
@@ -382,7 +438,7 @@ public static class TexFormulaBuilder
         return Tag(new ScriptsAtom(null, baseAtom, subscript, superscript), part);
     }
 
-    private static Atom? Command(TexPart part)
+    private static Atom? Command(TexPart part, string? style)
     {
         if (part.Node.Part(TexRole.Name)?.Text is not { } name) return null;
 
@@ -390,33 +446,57 @@ public static class TexFormulaBuilder
         {
             case @"\frac":
             {
-                if (Part(part, TexRole.Numerator) is not { } numerator) return null;
-                if (Part(part, TexRole.Denominator) is not { } denominator) return null;
+                if (Part(part, TexRole.Numerator, style) is not { } numerator) return null;
+                if (Part(part, TexRole.Denominator, style) is not { } denominator) return null;
 
                 return Tag(new FractionAtom(null, numerator, denominator, true), part);
             }
 
             case @"\sqrt":
             {
-                if (part.Part(TexRole.Degree) is not null) return null;   // not yet
-                if (Part(part, TexRole.Radicand) is not { } radicand) return null;
+                if (Part(part, TexRole.Radicand, style) is not { } radicand) return null;
 
-                return Tag(new Radical(null, radicand), part);
+                // A degree, where one was written. Setting it small and tucking it over the sign is the
+                // radical's own business; here it is another argument like any other.
+                var asked = part.Part(TexRole.Degree);
+                var degree = asked is null ? null : Part(part, TexRole.Degree, style);
+                if (asked is not null && degree is null) return null;
+
+                return Tag(new Radical(null, radicand, degree), part);
             }
 
             case @"\overline":
             {
-                if (Part(part, TexRole.Base) is not { } inner) return null;
+                if (Part(part, TexRole.Base, style) is not { } inner) return null;
 
                 return Tag(new OverlinedAtom(null, inner), part);
             }
 
             case @"\underline":
             {
-                if (Part(part, TexRole.Base) is not { } inner) return null;
+                if (Part(part, TexRole.Base, style) is not { } inner) return null;
 
                 return Tag(new UnderlinedAtom(null, inner), part);
             }
+        }
+
+        // A style is not an atom. \mathrm{abc} sets three roman letters and wraps them in nothing at all,
+        // because which alphabet a letter is drawn from is a property of the letter. So it is carried
+        // down the build rather than built: the argument is made under the new style, and what comes back
+        // is what the command stands for.
+        if (TexFormulaParser.TextStyleOf(name[1..]) is { } restyled)
+        {
+            // \text and its family read their contents as words and not as maths — every character as
+            // written, spaces and all — and the spaces are exactly what this reading drops on the way to
+            // an atom. A different job, not a harder one; not done here yet.
+            if (TexFormulaParser.IsRawTextStyle(name[1..])) return null;
+
+            if (part.Part(TexRole.Base) is not { } styled) return null;
+            if (Of(styled, restyled) is not { } inner) return null;
+
+            // The whole \mathrm{abc}, not the {abc}: the command and its argument are one construct and
+            // the parser names it that way too. What was braced is still in the reading, under this.
+            return Tag(inner, part);
         }
 
         // Every accent at once, rather than a case each. What makes \vec an accent is that the symbol
@@ -424,7 +504,7 @@ public static class TexFormulaBuilder
         // both of us together.
         if (part.Part(TexRole.Base) is { } accented && Accent(name) is { } accent)
         {
-            if (Of(accented) is not { } inner) return null;
+            if (Of(accented, style) is not { } inner) return null;
 
             return Tag(new AccentedAtom(null, inner, accent.Name), part);
         }
@@ -433,10 +513,7 @@ public static class TexFormulaBuilder
         // know is exactly the case that must fall back rather than be guessed at.
         if (part.Parts.Any()) return null;
 
-        // \prime is gathered into a row of primes by the parser, the same as an apostrophe.
-        if (name == @"\prime") return null;
-
-        return Symbol(name[1..], part);
+        return Symbol(name[1..], part, style);
     }
 
     /// <summary>The accent this command names, or null when it names none.</summary>
@@ -453,7 +530,7 @@ public static class TexFormulaBuilder
         }
     }
 
-    private static Atom? Symbol(string name, TexPart part)
+    private static Atom? Symbol(string name, TexPart part, string? style)
     {
         try
         {
@@ -479,10 +556,10 @@ public static class TexFormulaBuilder
     // ── Bookkeeping ─────────────────────────────────────────────────────────
 
     /// <summary>The one part with this role, built — or null when it is absent or not buildable.</summary>
-    private static Atom? Part(TexPart whole, string role)
+    private static Atom? Part(TexPart whole, string role, string? style)
     {
         foreach (var part in whole.Children)
-            if (part.Role == role) return Of(part);
+            if (part.Role == role) return Of(part, style);
 
         return null;
     }

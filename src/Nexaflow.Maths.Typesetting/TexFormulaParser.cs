@@ -1151,16 +1151,6 @@ public class TexFormulaParser
     }
 
     /// <summary>
-    /// One character, as the atom it is set as — which decides how much room is left around it.
-    /// <para>
-    /// The classification is the whole reason <see cref="TexFormulaBuilder"/> asks rather than deciding:
-    /// TeX's spacing comes from what <em>class</em> an atom is, not from the space in the source, and the
-    /// table saying a <c>+</c> is a binary operator and an <c>=</c> is a relation is here. Something
-    /// building a formula out of its own reading knows which characters the writer wrote, and has no
-    /// business knowing how they should be set.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// A big operator, set the way this operator is set: <c>\sum</c> and <c>\prod</c> stack their limits
     /// in display style, an integral never does whatever the style, and that is why <c>\int_0^\infty</c>
     /// reads the way it does in every published paper.
@@ -1202,7 +1192,32 @@ public class TexFormulaParser
         }
     }
 
-    internal static Atom CharacterOf(char character, SourceSpan source, string? textStyle = null)
+    /// <summary>
+    /// The style this command sets its contents in — <c>mathrm</c>, <c>mathbf</c> — or null when it sets
+    /// none. Which commands those are is read from the settings file rather than listed, so a build that
+    /// learns a new one teaches every reader of LaTeX here at once.
+    /// </summary>
+    internal static string? TextStyleOf(string command) =>
+        textStyles.Contains(command) ? command : null;
+
+    /// <summary>
+    /// Whether the contents are read as words rather than as maths — <c>\text</c>, <c>\mbox</c> and the
+    /// <c>\text…</c> family. Every character in one is set as written, spaces included, so what is inside
+    /// is not a formula and is not parsed as one.
+    /// </summary>
+    internal static bool IsRawTextStyle(string command) => rawTextStyles.Contains(command);
+
+    /// <summary>
+    /// One character, as the atom it is set as — which decides how much room is left around it.
+    /// <para>
+    /// The classification is the whole reason <see cref="TexFormulaBuilder"/> asks rather than deciding:
+    /// TeX's spacing comes from what <em>class</em> an atom is, not from the space in the source, and the
+    /// table saying a <c>+</c> is a binary operator and an <c>=</c> is a relation is here. Something
+    /// building a formula out of its own reading knows which characters the writer wrote, and has no
+    /// business knowing how they should be set.
+    /// </para>
+    /// </summary>
+    internal static Atom CharacterOf(char character, SourceSpan? source, string? textStyle = null)
     {
         if (!IsSymbol(character) || textStyle == TexUtilities.TextStyleName)
             return new CharAtom(source, character, textStyle);

@@ -178,11 +178,10 @@ Known work, and the coverage number moves when each lands.
 
 | | |
 |---|---|
-| `\sqrt[3]{x}` | a root with a degree |
-| styled text | `\mathrm`, `\text`, `{\bf …}` — a text style is a property of the reading, not an atom, so it needs threading rather than a case |
+| `\text`, `\mbox`, `\textbf` … | words rather than maths: every character as written, *spaces included*, and the spaces are exactly what this reading drops on the way to an atom. A different job, not a harder one |
+| `{\bf …}` | a style set by a switch rather than by an argument, so it runs to the end of the group holding it |
 | `\textcolor`, `\colorbox` | colour, which the parser carries on the formula |
-| primes | `'` and `\prime` gather into a row attached to what they follow |
-| ties | `~`, a space no line may be broken at |
+| a prime **and** a written script | `x'_{i}` — see below; the run has to be read across a `Script` node's boundary |
 | unknown commands | anything the table has never heard of |
 | `\hline` | a rule between rows, so it is read off the grid and never off a cell — an `array` holding one falls back whole |
 | counted alignments | `\begin{alignat}{2}` and its family, whose count is written where the reading expects a cell |
@@ -198,6 +197,42 @@ off a short row invents positions so that "the third column" means the same thin
 there is nothing in the reading for those to be. A cell written *empty* — the one a trailing `&` leaves
 — does have a part, because the reader wrote the `&` that closed it.
 
+**A style is not an atom.** `\mathrm{abc}` sets three roman letters and wraps them in nothing, because
+which alphabet a letter is drawn from is a property of the letter. So the style is carried down the
+build and reaches the characters; it is not a case in the switch. That is the shape every future
+*context* takes — a size, a colour, a cramped script — and it is a third kind of thing beside the two
+trees: not a fact about the reading and not a fact about the drawing, but about the descent between
+them.
+
+## Reading a run
+
+**The reading keeps every token uncompounded, and composing them is the builder's job.** A `'` is a
+`'` — never quietly re-parented into a superscript — because the reading has to be writable back out
+exactly as typed, and a token with a compounded interpretation cannot be. So `f''` is three siblings in
+the reading, and working out that it is an f wearing two marks happens where a *sequence* is read.
+
+That is `Built`, and it is deliberately the same place for everything of this shape. The eventual
+expression-tree builder has the identical job on the identical run — `a + b` is three siblings there
+too, and it has to come out as a `+` with two operands — so these are likely to become shared patterns
+even though what the two build is unrelated.
+
+It brings one thing with it that has no answer yet, in *Still to be settled* below: a construct read
+out of a run stands for several nodes, and `Origin` names one.
+
+**One forward pass is enough — but some constructs cannot be resolved until enough has been read.**
+The distinction matters, because the second half sounds like an argument for a merging pass over the
+tokens and is not one. What `x'_{i}` and `~^{\nu}` show is a single missing rule: **what may carry a
+script.** Our reader gives a script whatever node happens to precede it; TeX's answer is that a script
+binds to the preceding *atom*, and neither a tie nor a prime is one — a tie is a space, and a prime is
+already a mark on something else. `Scripted` refuses `Space` and `Comment` as bases for exactly this
+reason and simply does not know about those two. So the rule is applied where it already lives, in the
+pass we already have, and a second pass would move sequence-reading into the parser — where the rule
+above says it does not belong, and where it would then be resolved in two places.
+
+The one thing genuinely shaped like a first pass is **raw text**: the contents of `\text{…}` are not
+maths and must not be lexed as maths at all. That is a lexer mode switch, not a lookahead, and it is
+what still stands between the builder and the `\text` family.
+
 ### Still to be settled
 
 Cases where our reading and the parser's disagree about the picture and **it is not yet established
@@ -210,6 +245,17 @@ layout trees, and both renderings beside the corpus's own reference image from t
 | a fence inside a fence | `\left[ \left( a \right)^2 \right]` — the parser puts a scripted fence inside boxes of its own before measuring it, and picks a smaller outer bracket than we do. Ours grows to fit the script. **Ours may well be the better rendering**; it was declined because it differed, not because it was wrong |
 | a script on `\overline` | `\overline{{J}}^{a}` — the script lands at a different height. One formula in 238,329 |
 | `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
+| a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and it is an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |
+| what can carry a script | `x'_{i}` and `~^{\nu}`. A `_` binds to the `x`, not to the prime standing before it, and nothing at all can be set on a tie — the parser gives that script an empty base. Our reading gives the script whatever node happens to precede it. One missing rule, not two bugs: see below |
+
+And one that is not a disagreement with anything, but a gap the sequence reading opened:
+
+**What a construct read out of a run points back at.** `Origin` is one `TexPart`, and the atom that
+draws `f''` stands for three siblings — there is no node covering them, by design, because the reading
+does not compound tokens. Today that atom carries the base's part, which understates it: each mark
+still names the `'` it was written as, and the thing holding them names the `f`. The alternative is for
+`Origin` to be able to name a *run* — a parent plus a stretch of its children — which is the same shape
+the expression tree will need the moment it reads `a + b` as a `+`. Worth settling once, for both.
 
 ## Considered and not taken
 
