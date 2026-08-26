@@ -446,7 +446,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             // A construct goes back to the source it was written as — there is source to go back to. A
             // symbol has nothing hidden behind it, so it is simply taken: an α is one thing on the page
             // however many letters spelled it, and backspace over one thing removes it.
-            Apply(LatexTree.IsComposite(symbol) ? _state.Backspace(span) : _state.Remove(span.Start, span.Length),
+            Apply(_layout!.Tree.IsComposite(symbol) ? _state.Backspace(span) : _state.Remove(span.Start, span.Length),
                   notify: true);
             return true;
         }

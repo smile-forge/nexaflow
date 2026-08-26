@@ -101,28 +101,40 @@ public class TexReadingTests
     }
 
     [TestMethod]
-    public void TheArgumentOfAConstructIsFoundFromWhereItWasDrawn()
+    public void WhatIsWrittenThereWinsOverWhatWrapsIt()
     {
-        // What the editor has to be able to do: it knows a stretch of source, because that is what the
-        // layout gives it, and needs the part that stretch is the whole of. For `{a}` the typesetter's
-        // box covers the a; the part that is the numerator is `{a}`.
-        var reading = TexReading.Of(@"\frac{a}{b}");
+        // The same stretch of `\frac{a}{b}` is both the letter a and the whole contents of the
+        // numerator. Asking what is written there has to answer the letter — otherwise backspace over
+        // an a would take back a fraction's worth of argument.
+        var standing = TexReading.Of(@"\frac{a}{b}").Standing(6, 1);
 
-        var numerator = reading.Wrapping(6, 1);
-        Assert.IsNotNull(numerator);
-        Assert.AreEqual(TexRole.Numerator, numerator.Role);
-        Assert.AreEqual("{a}", numerator.Node.Print());
+        Assert.AreEqual(1, standing.Count);
+        Assert.AreEqual("a", standing[0].Node.Print());
+        Assert.AreEqual(TexKind.Char, standing[0].Kind);
     }
 
     [TestMethod]
-    public void AndWhenTheArgumentIsSeveralThingsInBraces()
+    public void AndWhenNothingIsWrittenExactlyThereTheWrapperAnswers()
     {
-        var reading = TexReading.Of(@"\frac{a+b}{c}");
+        // A typesetter's box for the numerator of `\frac{a+b}{c}` covers `a+b` — three things here, and
+        // no single part. The group is what that box is a picture of, so it is what comes back.
+        var standing = TexReading.Of(@"\frac{a+b}{c}").Standing(6, 3);
 
-        var numerator = reading.Wrapping(6, 3);
-        Assert.IsNotNull(numerator);
-        Assert.AreEqual(TexRole.Numerator, numerator.Role);
-        Assert.AreEqual("{a+b}", numerator.Node.Print());
+        Assert.AreEqual(1, standing.Count);
+        Assert.AreEqual("{a+b}", standing[0].Node.Print());
+        Assert.AreEqual(TexRole.Numerator, standing[0].Role);
+    }
+
+    [TestMethod]
+    public void ACellAnswersForItsContentsToo()
+    {
+        // Cells wrap what is written in them the same way braces do: the ampersand belongs to the table,
+        // not to either of the cells it stands between.
+        const string latex = @"\begin{matrix} a + b & c \end{matrix}";
+        var standing = TexReading.Of(latex).Standing(latex.IndexOf("a + b", StringComparison.Ordinal), 5);
+
+        Assert.AreEqual(1, standing.Count);
+        Assert.AreEqual(TexRole.Cell, standing[0].Role);
     }
 
     [TestMethod]

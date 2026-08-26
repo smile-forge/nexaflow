@@ -68,15 +68,48 @@ public sealed class TexPart
     {
         get
         {
-            if (this.Kind != TexKind.Group || this._children.Count == 0) return this.Span;
+            if (!this.IsWrapper || this._children.Count == 0) return this.Span;
 
             var from = this.Start;
             var to = this.End;
 
             if (this._children[0].Role == TexRole.Open) from = this._children[0].End;
-            if (this._children[^1].Role == TexRole.Close) to = this._children[^1].Start;
+            if (this._children[^1].Role is TexRole.Close or TexRole.Separator) to = this._children[^1].Start;
 
             return from <= to ? (from, to - from) : this.Span;
+        }
+    }
+
+    /// <summary>
+    /// Whether this stands for what is written in it rather than for itself: a braced group, a cell of a
+    /// table. Its punctuation — the braces, the <c>&amp;</c> — belongs to whatever holds it, so pointing
+    /// at what is inside is pointing at this.
+    /// </summary>
+    public bool IsWrapper => this.Kind is TexKind.Group or TexKind.Cell;
+
+    /// <summary>
+    /// <see cref="Contents"/> with the space around it trimmed off — where the ink starts and stops.
+    /// <para>
+    /// Both are needed, because a typesetter is inconsistent about which it names, and reasonably so: a
+    /// braced argument's box covers everything between the braces, spaces and all, while a table cell's
+    /// covers what was written in it and not the room left either side of the ampersand.
+    /// </para>
+    /// </summary>
+    public (int Start, int Length) Written
+    {
+        get
+        {
+            var inside = this._children
+                .Where(child => child.Role is not (TexRole.Open or TexRole.Close or TexRole.Separator))
+                .ToList();
+
+            var first = 0;
+            while (first < inside.Count && inside[first].Kind == TexKind.Space) first++;
+
+            var last = inside.Count - 1;
+            while (last >= first && inside[last].Kind == TexKind.Space) last--;
+
+            return first > last ? this.Contents : (inside[first].Start, inside[last].End - inside[first].Start);
         }
     }
 
@@ -98,12 +131,14 @@ public sealed class TexPart
 
     /// <summary>
     /// The parts that mean something to this one — everything but the punctuation that makes it what it
-    /// is. A command's <c>\name</c>, a group's braces and a row's <c>\\</c> are machinery: they are in
-    /// the tree so it can be written back out, not because anything is written <em>in</em> them.
+    /// is, and the space between them. A command's <c>\name</c>, a group's braces and a row's <c>\\</c>
+    /// are machinery: they are in the tree so it can be written back out, not because anything is
+    /// written <em>in</em> them.
     /// </summary>
     public IEnumerable<TexPart> Parts =>
-        this._children.Where(child => child.Role is not (TexRole.Name or TexRole.Open or TexRole.Close
-                                                         or TexRole.Separator or TexRole.Trivia));
+        this._children.Where(child => child.Kind is not (TexKind.Space or TexKind.Comment)
+                                      && child.Role is not (TexRole.Name or TexRole.Open or TexRole.Close
+                                                            or TexRole.Separator or TexRole.Trivia));
 
     public override string ToString() => $"{this.Kind}[{this.Role}] @{this.Start}+{this.Length}";
 }
@@ -149,20 +184,38 @@ public sealed class TexReading
     }
 
     /// <summary>
-    /// The part written at that span, or the braced group whose contents are written there — the second
-    /// because a typesetter's box for an argument covers what is inside the braces, and this has to be
-    /// findable from that.
+    /// What stands for exactly this stretch of source: the parts written there, outermost first — or,
+    /// when nothing is written exactly there, the braced group whose contents these are.
+    ///
+    /// <para>
+    /// The seam between the two readings of a formula, and the fallback is the whole of it. A typesetter
+    /// drops braces as soon as it has understood them, so its box for the numerator of
+    /// <c>\frac{a+b}{c}</c> covers <c>a+b</c> — three things here, and no single part. The group is what
+    /// that box is a picture of.
+    /// </para>
+    /// <para>
+    /// Only when nothing matches exactly, which is what keeps the two apart where both could answer: in
+    /// <c>\frac{a}{b}</c> the same stretch is both the letter a and the contents of the numerator, and
+    /// asking what is written there has to answer the letter.
+    /// </para>
     /// </summary>
-    public TexPart? Wrapping(int start, int length)
+    public IReadOnlyList<TexPart> Standing(int start, int length)
     {
-        TexPart? innermost = null;
+        var exact = new List<TexPart>();
+        TexPart? wrapping = null;
 
         foreach (var part in this.Root.SelfAndDescendants())
         {
-            if (part.Start == start && part.Length == length) innermost = part;
-            else if (part.Kind == TexKind.Group && part.Contents == (start, length)) return part;
+            if (part.Start == start && part.Length == length) { exact.Add(part); continue; }
+
+            if (wrapping is null
+                && part.IsWrapper
+                && (part.Contents == (start, length) || part.Written == (start, length)))
+                wrapping = part;
         }
 
-        return innermost;
+        if (exact.Count > 0) return exact;
+
+        return wrapping is null ? [] : [wrapping];
     }
 }

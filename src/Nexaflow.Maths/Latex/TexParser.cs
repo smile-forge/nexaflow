@@ -286,7 +286,11 @@ public static class TexParser
         {
             var children = new List<TexNode> { this.Command(until).As(TexRole.Open) };
 
-            children.AddRange(this.Run(until | Until.Right));
+            // What is between the delimiters is one thing — the fence's contents — rather than however
+            // many things happen to be written there. Unlike a brace, a delimiter is drawn and carries
+            // meaning, so a fence is a construct with a part, not a run with punctuation at each end.
+            // Everything that turns on that distinction then reads it off the roles.
+            children.Add(TexNode.Branch(TexKind.Sequence, this.Run(until | Until.Right), TexRole.Body));
 
             if (!this.Done && this.Peek.Is(@"\right"))
                 children.Add(this.Command(until).As(TexRole.Close));

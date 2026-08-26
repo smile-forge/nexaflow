@@ -40,6 +40,19 @@ public class LatexRoleTests
         return (layout.Tree, node);
     }
 
+    /// <summary>Any piece of the layout drawn from this stretch of source, ink or a box holding it.</summary>
+    private static (LatexTree Tree, ILayoutNode Node) Drawn(string latex, string text)
+    {
+        var layout = LatexLayout.Build(latex, Scale);
+        Assert.IsNotNull(layout, latex);
+
+        var node = layout.Tree.Root.SelfAndDescendants()
+            .FirstOrDefault(n => n.SourceLength > 0
+                                 && latex.Substring(n.SourceStart, n.SourceLength) == text);
+        Assert.IsNotNull(node, $"nothing was drawn from \"{text}\" in {latex}");
+        return (layout.Tree, node);
+    }
+
     [TestMethod]
     public void ARootsDegreeKnowsItIsADegree() => UiThread.Run(() =>
     {
@@ -120,5 +133,52 @@ public class LatexRoleTests
             Assert.IsNull(layout.Tree.RoleOf(piece),
                 $"\"{layout.Tree.Latex.Substring(piece.SourceStart, piece.SourceLength)}\" was shown, not read, "
                 + "so it plays no part in anything");
+    });
+
+    // ── Inside a styled group ───────────────────────────────────────────────
+
+    [TestMethod]
+    public void APartInsideAStyledGroupStillKnowsWhatItIs() => UiThread.Run(() =>
+    {
+        // The reason this had to come off the typesetter's atoms. \displaystyle builds a style atom, and
+        // a style atom names no parts at all — nor does \mathrm, nor {\bf …}, nor \phantom, nor \cancel.
+        // So everything written inside one had no role, which meant it could not be selected, dragged or
+        // copied as what it was: the numerator of a fraction someone had written in display style was,
+        // as far as the editor could tell, not the numerator of anything.
+        // Not \phantom, which is the same kind of atom and draws nothing at all — there is no piece of
+        // layout to ask, which is the right answer for something invisible.
+        foreach (var latex in new[] { @"{\displaystyle \frac{a}{b}}", @"\mathrm{\frac{a}{b}}",
+                                      @"{\bf \frac{a}{b}}", @"\cancel{\frac{a}{b}}" })
+        {
+            var (tree, numerator) = Piece(latex, "a");
+
+            var role = tree.RoleOf(numerator);
+            Assert.IsNotNull(role, $"the a in {latex} belongs to something");
+            Assert.AreEqual("numerator", role.Value.Role, latex);
+        }
+    });
+
+    [TestMethod]
+    public void AndSoDoesOneWrittenWithSpaceAroundIt() => UiThread.Run(() =>
+    {
+        // Braces are the writer's way of saying "all of this is one argument", and how much room they
+        // left inside them is not part of the saying. Not an ink node: what was drawn for the numerator
+        // is a box holding three glyphs, and it is named for everything between the braces, spaces and
+        // all — which is exactly what the group is.
+        var (tree, numerator) = Drawn(@"\frac{ a + b }{c}", " a + b ");
+
+        var role = tree.RoleOf(numerator);
+        Assert.IsNotNull(role);
+        Assert.AreEqual("numerator", role.Value.Role);
+    });
+
+    [TestMethod]
+    public void ACellKnowsItIsACell() => UiThread.Run(() =>
+    {
+        var (tree, cell) = Piece(@"\begin{matrix} a & b \\ c & d \end{matrix}", "b");
+
+        var role = tree.RoleOf(cell);
+        Assert.IsNotNull(role, "the b is in a cell");
+        Assert.AreEqual("cell", role.Value.Role);
     });
 }
