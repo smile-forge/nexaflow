@@ -127,6 +127,8 @@ The product-folder skill has fast-query recipes for deeper questions; the per-re
 the roadmap of analyzers/validators to lock it down — is in
 [docs/feature-tree-and-tests.md](docs/feature-tree-and-tests.md) (the Text Viewer is the worked reference).
 
+**Every git-reading verb runs git where *you* stand, not where the tree lives.** `remap --from-git` resolves its repository from the caller's working tree — from a linked worktree the product root is the MAIN checkout, whose `HEAD` has never seen your commits, so a range ending at `HEAD` came back empty and the verb rewrote nothing while reporting success. Note the blind spot that hid it: `validate` falls back to the product root when your working tree lacks a file (deliberately — it is what stops a worktree flagging every not-yet-merged path), so a file you have **moved away** still resolves in the main checkout and the tree reads clean while its links are stale. After a rename or move, run `remap --from-git <base>..HEAD --dry-run` — do not infer from a clean `validate` that nothing needs remapping.
+
 Every verb's arguments are **strict** — an unknown option, a missing option value or a surplus positional is a
 hard error naming that verb's usage, never silently ignored (`batch` parses each line the same way and is
 all-or-nothing). And `validate` resolves a snaplink's file against **your working tree first**, so from a

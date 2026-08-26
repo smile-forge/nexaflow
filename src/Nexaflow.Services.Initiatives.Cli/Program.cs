@@ -965,6 +965,22 @@ internal static class Program
     }
 
     /// <summary>
+    /// The repository a git-reading verb should run in: the <b>caller's</b> working tree, falling back to the
+    /// product root's.
+    /// <para>
+    /// The two differ exactly when you are standing in a linked worktree, and there the product root is the
+    /// MAIN checkout — whose HEAD does not know your commits. Handing it a range ending at <c>HEAD</c> is not
+    /// an error there, just empty, so <c>remap --from-git</c> used to report "git recorded no renames" and
+    /// rewrite nothing on the very branch that had done the renaming. Silence is the one failure mode a remap
+    /// tool must not have, and <c>validate</c> could not catch it afterwards: it resolves a snaplink against
+    /// the product root when the working tree misses it, so the moved-away paths still resolved in the main
+    /// checkout and the tree looked clean while every one of those links was stale.
+    /// </para>
+    /// </summary>
+    internal static string GitRepoFor(string callerDir, string productRoot) =>
+        WorkingTreeRootOf(callerDir) ?? WorkingTreeRootOf(productRoot) ?? productRoot;
+
+    /// <summary>
     /// The directory <c>graph build</c> reads source from: <c>--main</c> forces the product (main-checkout) copy;
     /// <c>--code-root &lt;path&gt;</c> overrides explicitly; otherwise the caller's own working tree when it differs
     /// from the product root — so building from a linked worktree graphs the branch you're on. Null means "the
@@ -1194,7 +1210,7 @@ internal static class Program
         var range = a.Value("--from-git");
         if (string.IsNullOrWhiteSpace(range)) return Usage("--from-git needs a revision range, e.g. v1.4.0..HEAD");
 
-        var repo = WorkingTreeRootOf(root) ?? root;
+        var repo = GitRepoFor(Directory.GetCurrentDirectory(), root);
         var log = RunGit(repo, "log", "--diff-filter=R", "--name-status", "--format=", "-M", range!);
         if (log is null)
         {
