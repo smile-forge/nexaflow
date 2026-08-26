@@ -26,12 +26,11 @@ public sealed class ShowAudioAction : IFileAction, ICacheable
     public bool   CanPerformAction      => true;
     public bool   OpensViewer           => true;
 
-    public bool PerformAction(string filePath)
-    {
-        // A single file opens on its own — no folder queue (use "Play folder" for that).
-        Open([filePath], 0);
-        return true;
-    }
+    // A single file opens on its own — no folder queue (use "Play folder" for that). It routes through the
+    // selection overload so the two cannot disagree: the file browser picks the overload from how many files
+    // are selected, so filtering one and not the other queued a text file from the file list and refused the
+    // very same file as a one-item selection.
+    public bool PerformAction(string filePath) => PerformAction([filePath]);
 
     public bool PerformAction(IEnumerable<string> filePaths)
     {

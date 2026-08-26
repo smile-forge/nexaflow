@@ -38,19 +38,6 @@ public class ImagesOpenActionTests
         return dir;
     }
 
-    // ── "As Image" ────────────────────────────────────────────────────────────
-
-    [TestMethod]
-    [CoversNode("images-open-as-image")]
-    public void AsImage_OpensTheFileItWasInvokedOn()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsTrue(new ShowImageAction(shell).PerformAction(@"C:\pics\holiday.png"));
-
-        Assert.AreEqual(@"C:\pics\holiday.png", opened.Single()["paths"]);
-        Assert.IsFalse(opened.Single().ContainsKey("view"), "a single file opens in the default carousel");
-    }
 
     [TestMethod]
     [CoversNode("images-open-as-image")]

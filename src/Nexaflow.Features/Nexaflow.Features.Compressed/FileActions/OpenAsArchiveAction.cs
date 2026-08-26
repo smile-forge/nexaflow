@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Nexaflow.Features.Common;
 
 namespace Nexaflow.Features.Compressed.FileActions;
@@ -26,9 +27,12 @@ public sealed class OpenAsArchiveAction(IShellServices shell) : IFileAction, ICa
         return true;
     }
 
+    // SupportsMultipleFiles is false, so a selection opens the first archive and nothing else — this used to
+    // open a tab per file (contradicting the flag the file browser reads) and to return true for an empty
+    // selection, flashing the action strip's success tick over nothing.
     public bool PerformAction(IEnumerable<string> filePaths)
     {
-        foreach (var path in filePaths) PerformAction(path);
-        return true;
+        var first = filePaths.FirstOrDefault();
+        return first is not null && PerformAction(first);
     }
 }

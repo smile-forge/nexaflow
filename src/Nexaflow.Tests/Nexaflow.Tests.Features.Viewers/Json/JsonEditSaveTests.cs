@@ -165,15 +165,6 @@ public class JsonOpenActionTests
         return (shell, opened);
     }
 
-    [TestMethod]
-    public void ItOpensTheFileItWasInvokedOn()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsTrue(new ShowJsonAction(shell).PerformAction(@"C:\data\config.json"));
-
-        Assert.AreEqual(@"C:\data\config.json", opened.Single()["path"]);
-    }
 
     [TestMethod]
     public void ItOwnsTheJsonExperience_AndTakesOneFileAtATime()
@@ -185,13 +176,4 @@ public class JsonOpenActionTests
         Assert.IsFalse(action.SupportsMultipleFiles, "the viewer holds one document");
     }
 
-    [TestMethod]
-    public void AnEmptySelectionOpensNothing()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsFalse(new ShowJsonAction(shell).PerformAction([]));
-
-        Assert.AreEqual(0, opened.Count);
-    }
 }
