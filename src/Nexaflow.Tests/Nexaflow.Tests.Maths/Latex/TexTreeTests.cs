@@ -65,6 +65,47 @@ public class TexTreeTests
     }
 
     [TestMethod]
+    public void APrimeBelongsToWhatItIsWrittenOn()
+    {
+        // `f''` is one thing, not three standing beside each other — one thing to select, to drag and to
+        // delete. And the marks stay marks: naming them `superscript` would be saying what they draw as,
+        // which is a reading and not a fact about what was written.
+        var script = Only("f''");
+
+        Assert.AreEqual(TexKind.Script, script.Kind);
+        Assert.AreEqual("f", script.Part(TexRole.Base)?.Print());
+        Assert.AreEqual(2, script.Children.Count(child => child.Role == TexRole.Mark));
+        Assert.AreEqual("f''", script.Print());
+    }
+
+    [TestMethod]
+    public void AScriptAfterAPrimeLandsOnWhatThePrimeIsOn()
+    {
+        // The reason the marks belong to the base rather than wrapping it. Written as a prime standing
+        // between the x and the `_`, the subscript would otherwise be read as the prime's — and `x''_{i}`
+        // would draw the i under a prime instead of under the x.
+        var script = Only("x''_{i}");
+
+        Assert.AreEqual(TexKind.Script, script.Kind);
+        Assert.AreEqual("x", script.Part(TexRole.Base)?.Print());
+        Assert.AreEqual(2, script.Children.Count(child => child.Role == TexRole.Mark));
+        Assert.AreEqual("{i}", script.Part(TexRole.Subscript)?.Print());
+    }
+
+    [TestMethod]
+    public void NothingIsWrittenOnATie()
+    {
+        // A script attaches to the atom before it, and a tie is a space written as a character. So the
+        // `^{b}` of `a~^{b}` starts a base of its own and the tie stands where it was written.
+        var run = TexParser.Parse("a~^{b}");
+
+        Assert.AreEqual(3, run.Children.Count);
+        Assert.AreEqual("~", run.Children[1].Print());
+        Assert.AreEqual(TexKind.Script, run.Children[2].Kind);
+        Assert.IsNull(run.Children[2].Part(TexRole.Base));
+    }
+
+    [TestMethod]
     public void ASpaceBeforeAScriptBelongsToTheScript()
     {
         // `x ^2` is x-to-the-2 with a space in the middle of the writing of it. The space is inside the

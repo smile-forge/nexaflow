@@ -164,6 +164,21 @@ by `Attribute` — the span matching being deleted. The order is: wire the build
 from `Origin`; then the marker fires on a real to-do list rather than on code doing the only thing
 available to it.
 
+## What the corpus cannot tell you
+
+The 238,329-formula corpus is the oracle for almost everything here, and it is worth knowing where it
+is silent, because a coverage number that does not move is easy to read as "nothing changed" when it
+means "nothing was tested".
+
+**It contains no apostrophes at all.** Primes are written `^{\prime}` in it — 22,653 formulas — and
+never as `'`. So the whole of the mark handling, in the reader and in the builder, is invisible to it:
+teaching the builder primes moved the number by exactly zero. Ties, by contrast, are in 21,478 of them
+and genuinely covered.
+
+Where the corpus is silent the hand-written list in `TexBuilderTests` is the *only* place the two
+readings are held against each other, so for a construct it cannot reach that list has to be more than
+a couple of shapes — braced both ways, inside a fraction, a root, a fence and a table.
+
 ## What the builder still declines
 
 `TexFormulaBuilder` is all-or-nothing per formula: anything it does not handle comes back null and that
@@ -181,7 +196,6 @@ Known work, and the coverage number moves when each lands.
 | `\text`, `\mbox`, `\textbf` … | words rather than maths: every character as written, *spaces included*, and the spaces are exactly what this reading drops on the way to an atom. A different job, not a harder one |
 | `{\bf …}` | a style set by a switch rather than by an argument, so it runs to the end of the group holding it |
 | `\textcolor`, `\colorbox` | colour, which the parser carries on the formula |
-| a prime **and** a written script | `x'_{i}` — see below; the run has to be read across a `Script` node's boundary |
 | unknown commands | anything the table has never heard of |
 | `\hline` | a rule between rows, so it is read off the grid and never off a cell — an `array` holding one falls back whole |
 | counted alignments | `\begin{alignat}{2}` and its family, whose count is written where the reading expects a cell |
@@ -204,34 +218,46 @@ build and reaches the characters; it is not a case in the switch. That is the sh
 trees: not a fact about the reading and not a fact about the drawing, but about the descent between
 them.
 
-## Reading a run
+## Where the tree nests, and where it does not
 
-**The reading keeps every token uncompounded, and composing them is the builder's job.** A `'` is a
-`'` — never quietly re-parented into a superscript — because the reading has to be writable back out
-exactly as typed, and a token with a compounded interpretation cannot be. So `f''` is three siblings in
-the reading, and working out that it is an f wearing two marks happens where a *sequence* is read.
+**The tree nests where the *writing* says it nests.** `\frac{a}{b}` is a construct with a numerator and
+a denominator, because the braces are in the source saying where each one stops; reading them is
+copying. `a+b` stays three things standing beside each other, because nothing in the writing groups
+them — making `+` the root needs precedence, and precedence is knowledge about mathematics rather than
+about the text. That is the seam between this tree and the expression tree.
 
-That is `Built`, and it is deliberately the same place for everything of this shape. The eventual
-expression-tree builder has the identical job on the identical run — `a + b` is three siblings there
-too, and it has to come out as a `+` with two operands — so these are likely to become shared patterns
-even though what the two build is unrelated.
+Adjacency is written down too, which is why scripts and marks are on the nesting side: TeX binds `_` to
+the atom before it, and `x^2_3` is one x carrying both. So is `x''_{i}` — the primes and the subscript
+are all on the x, and a node per attachment would nest them and land the subscript on the prime.
 
-It brings one thing with it that has no answer yet, in *Still to be settled* below: a construct read
-out of a run stands for several nodes, and `Origin` names one.
+**There is one definition of atomic, and it belongs to the tree.** The layout tree powers selection,
+and what it points at has to *be* a selectable thing: a unit scattered across siblings is not one. So
+`f''` is one node. Both builders then group upward from these atoms; neither redefines them — the
+expression tree wants bigger units (`a+b` is one node there) and gets them by grouping, not by
+re-cutting.
 
-**One forward pass is enough — but some constructs cannot be resolved until enough has been read.**
-The distinction matters, because the second half sounds like an argument for a merging pass over the
-tokens and is not one. What `x'_{i}` and `~^{\nu}` show is a single missing rule: **what may carry a
-script.** Our reader gives a script whatever node happens to precede it; TeX's answer is that a script
-binds to the preceding *atom*, and neither a tie nor a prime is one — a tie is a space, and a prime is
-already a mark on something else. `Scripted` refuses `Space` and `Comment` as bases for exactly this
-reason and simply does not know about those two. So the rule is applied where it already lives, in the
-pass we already have, and a second pass would move sequence-reading into the parser — where the rule
-above says it does not belong, and where it would then be resolved in two places.
+**Grouping is not interpreting**, which is what keeps this consistent with the rule that a token never
+carries a compounded interpretation. Making `f''` one node says *this is one thing to select*. It does
+not say that `'` means a superscript prime rather than a derivative, a transpose or a minute of arc.
+The children stay `f`, `'`, `'`; every token is still itself; the round trip is untouched. What the
+mark *draws as* is the layout builder's answer, and what it *means* is the expression tree's.
+
+Its role is named `mark` for exactly that reason — where it sits, not what it draws.
+
+**One forward pass is enough, though some constructs cannot be resolved until enough has been read.**
+The second half sounds like an argument for a merging pass and is not one: `x^2_3` reads as a
+superscript until the `_` arrives, and `Script` handles it by peeking at what follows and re-parenting
+the item it was just handed — one pass, no second walk. Marks joined the same loop, and a tie joined
+the rule that already refused `Space` and `Comment` as bases: a script attaches to the atom before it,
+and a tie is a space written as a character.
 
 The one thing genuinely shaped like a first pass is **raw text**: the contents of `\text{…}` are not
 maths and must not be lexed as maths at all. That is a lexer mode switch, not a lookahead, and it is
 what still stands between the builder and the `\text` family.
+
+**What the builder still reads as a run** is only what the writing left as a run — a row of things
+side by side. It does not compose: `a+b` comes out as three atoms in a row, because deciding otherwise
+is the other tree's job.
 
 ### Still to be settled
 
@@ -246,16 +272,14 @@ layout trees, and both renderings beside the corpus's own reference image from t
 | a script on `\overline` | `\overline{{J}}^{a}` — the script lands at a different height. One formula in 238,329 |
 | `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
 | a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and it is an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |
-| what can carry a script | `x'_{i}` and `~^{\nu}`. A `_` binds to the `x`, not to the prime standing before it, and nothing at all can be set on a tie — the parser gives that script an empty base. Our reading gives the script whatever node happens to precede it. One missing rule, not two bugs: see below |
+| a script with nothing to carry it | `~^{\nu}`, and a script written first in a group. TeX sets it on an empty box, so there is a box in the drawing that nothing in the reading stands for. Declined rather than invented |
 
-And one that is not a disagreement with anything, but a gap the sequence reading opened:
-
-**What a construct read out of a run points back at.** `Origin` is one `TexPart`, and the atom that
-draws `f''` stands for three siblings — there is no node covering them, by design, because the reading
-does not compound tokens. Today that atom carries the base's part, which understates it: each mark
-still names the `'` it was written as, and the thing holding them names the `f`. The alternative is for
-`Origin` to be able to name a *run* — a parent plus a stretch of its children — which is the same shape
-the expression tree will need the moment it reads `a + b` as a `+`. Worth settling once, for both.
+Two entries that stood here have gone, and it is worth saying why, because the same move settled both.
+**What may carry a script** (`x'_{i}` binding its subscript to the prime rather than to the x) and
+**what a construct read out of a run points back at** (`f''` being three siblings that no node covered,
+so `Origin` had nothing true to name) were the same problem seen twice. Making the run one node —
+`Script` with `mark` children — fixed the binding and made `Origin` name one node again. The second
+question, whether `Origin` should be able to name a *run*, simply stopped being asked.
 
 ## Considered and not taken
 

@@ -330,44 +330,20 @@ public static class TexFormulaBuilder
     /// <summary>
     /// A run of parts, built.
     /// <para>
-    /// Where reading a <em>sequence</em> happens, and it has to happen somewhere. The reading keeps every
-    /// token uncompounded so that it can be written back out exactly as typed — a <c>'</c> is a <c>'</c>
-    /// and nothing else — so working out that <c>f''</c> is an f wearing two marks is the job of whatever
-    /// is turning the reading into something else. This is that, for the drawing of it; a reader of the
-    /// same run for its <em>meaning</em> has the same job to do and will likely share the pattern.
+    /// A run and not a tree, deliberately: <c>a+b</c> is three things standing beside each other and
+    /// nothing here groups them, because grouping them needs precedence and precedence is knowledge
+    /// about mathematics rather than about what was written. What the <em>writing</em> groups — braces,
+    /// arguments, a script binding to the atom before it — the reading has already grouped, and this
+    /// finds it as one part.
     /// </para>
     /// </summary>
     private static List<Atom>? Built(IEnumerable<TexPart> parts, string? style)
     {
         var built = new List<Atom>();
-        var run = parts.ToList();
 
-        for (var at = 0; at < run.Count; at++)
+        foreach (var part in parts)
         {
-            if (IsPrime(run[at]))
-            {
-                if (built.Count == 0) return null;   // nothing there for it to be the prime of
-
-                // All of them at once: `f''` is one superscript holding two marks, and that is what sets
-                // them level with each other rather than one above the next.
-                var marks = new RowAtom(null);
-                var basis = built[^1];
-
-                for (; at < run.Count && IsPrime(run[at]); at++)
-                    marks = marks.Add(Tag(SymbolAtom.GetAtom("prime", null), run[at]));
-
-                at--;
-
-                // Both wearing the base's part, and both understating it: they cover the base *and* its
-                // marks, and there is no node in the reading covering that — a run of siblings is not a
-                // thing the reading names, by design. So they name what the construct is about, and each
-                // mark still names the `'` it was written as. See the docs, "still to be settled".
-                marks.Origin = basis.Origin;
-                built[^1] = new ScriptsAtom(null, basis, null, marks) { Origin = basis.Origin };
-                continue;
-            }
-
-            var atom = Of(run[at], style);
+            var atom = Of(part, style);
             if (atom is null) return null;
 
             built.Add(atom);
@@ -384,17 +360,6 @@ public static class TexFormulaBuilder
         return built;
     }
 
-    /// <summary>
-    /// Whether this was written as a prime mark — which means an apostrophe and not <c>\prime</c>.
-    /// <para>
-    /// They are not the same thing and TeX does not treat them as one: <c>\prime</c> is an ordinary
-    /// symbol, drawn full size on the baseline, which is why one writes <c>f^\prime</c> to get what
-    /// <c>f'</c> gives directly.
-    /// </para>
-    /// </summary>
-    private static bool IsPrime(TexPart part) =>
-        part.Kind == TexKind.Char && part.Node.Text == "'";
-
     private static Atom Rowed(List<Atom> built, TexPart whole)
     {
         var row = new RowAtom(null);
@@ -405,13 +370,12 @@ public static class TexFormulaBuilder
 
     private static Atom? Script(TexPart part, string? style)
     {
-        if (Part(part, TexRole.Base, style) is not { } baseAtom) return null;
+        // A script written where there is nothing to set it on — after a tie, or first in a group. TeX
+        // sets it on an empty box, so there is a box in the drawing that nothing in the reading stands
+        // for; declined rather than invented.
+        if (part.Part(TexRole.Base) is null) return null;
 
-        // `~^{\nu}` — a script written after a tie. Nothing can be set on a space, so the parser gives
-        // the script an empty base and leaves the tie standing beside it, where this reading has made
-        // the tie the base. A question about what may carry a script, which is the same question
-        // `x'_{i}` asks: see the docs, "still to be settled".
-        if (part.Part(TexRole.Base) is { Kind: TexKind.Char } tie && tie.Node.Text == "~") return null;
+        if (Part(part, TexRole.Base, style) is not { } baseAtom) return null;
 
         // A rule drawn over something, with a script after it. The parser attaches the script to a
         // different atom than this does, and the two set the script at different heights — visible only
@@ -420,6 +384,22 @@ public static class TexFormulaBuilder
             && command.Node.Part(TexRole.Name)?.Text is @"\overline" or @"\underline")
             return null;
 
+        // The marks first, and separately, because they do not merge with what was written after them:
+        // `x''_{i}` sets the primes as a superscript on the x and then sets the subscript on the whole
+        // of that. All the marks make one superscript, which is what puts them level with each other.
+        var marks = part.Children.Where(child => child.Role == TexRole.Mark).ToList();
+
+        if (marks.Count > 0)
+        {
+            var row = new RowAtom(null);
+            foreach (var mark in marks) row = row.Add(Tag(SymbolAtom.GetAtom("prime", null), mark));
+
+            // Both name the whole of it, which is now a thing the reading names: `f''` is one node, so
+            // there is no longer a run here for an atom to stand for and nothing to understate.
+            row.Origin = part;
+            baseAtom = new ScriptsAtom(null, baseAtom, null, row) { Origin = part };
+        }
+
         var superscript = Part(part, TexRole.Superscript, style);
         var subscript = Part(part, TexRole.Subscript, style);
 
@@ -427,6 +407,9 @@ public static class TexFormulaBuilder
         // placeholder for that and the two would not agree.
         if (part.Part(TexRole.Superscript) is not null && superscript is null) return null;
         if (part.Part(TexRole.Subscript) is not null && subscript is null) return null;
+
+        // Marks and nothing else — `f''`. What was built for them is the whole of it already.
+        if (superscript is null && subscript is null) return marks.Count > 0 ? baseAtom : null;
 
         // Scripts on a big operator are its limits, not scripts. TeX stacks a sum's above and below it
         // and sets an integral's beside it, and it is a different atom that knows the difference.

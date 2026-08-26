@@ -125,41 +125,80 @@ public static class TexParser
 
         // ── Scripts ─────────────────────────────────────────────────────────
 
-        /// <summary>Whatever was just read, with any scripts written after it attached to it.</summary>
+        /// <summary>
+        /// Whatever was just read, with whatever was written onto it: its scripts, and its marks.
+        /// <para>
+        /// This is where a unit stops being one token. <c>f'</c> is one thing to select and to move, and
+        /// <c>x''_{i}</c> is one thing whose subscript is on the <c>x</c> — neither is decidable until
+        /// what follows has been read, which is why it is decided here, once what follows is known, and
+        /// not by anything downstream working it out again from a run of siblings.
+        /// </para>
+        /// </summary>
         private TexNode Scripted(TexNode node, Until until)
         {
-            // Space is not something a script can be attached to, however closely it happens to precede
-            // one. The space in `x ^2` belongs to the script that swallows it, not the other way round.
-            if (node.Kind is TexKind.Space or TexKind.Comment) return node;
+            if (!Carries(node)) return node;
 
-            return this.NextIsScript() ? this.Script(node, until) : node;
+            return this.NextIsMark() || this.NextIsScript() ? this.Script(node, until) : node;
         }
 
-        private bool NextIsScript()
+        /// <summary>
+        /// Whether what is written after this would be set <em>on</em> it.
+        /// <para>
+        /// A script attaches to the atom before it, and not everything written before one is an atom.
+        /// Space is not — the space in <c>x ^2</c> belongs to the script that swallows it, not the other
+        /// way round — and neither is a tie, which is a space written as a character. Nothing is set on
+        /// those: what follows starts on a base of its own, which is what <c>~^{\nu}</c> means.
+        /// </para>
+        /// </summary>
+        private static bool Carries(TexNode node) =>
+            node.Kind is not (TexKind.Space or TexKind.Comment)
+            && node.Text is not ("~" or "'");   // nor a mark, which is written onto something itself
+
+        private bool NextIsScript() => Next() is { } token
+                                       && token.Kind is TexTokenKind.Superscript or TexTokenKind.Subscript;
+
+        /// <summary>Whether a mark follows — an apostrophe, which is written onto what precedes it.</summary>
+        private bool NextIsMark() => Next() is { } token
+                                     && token.Kind == TexTokenKind.Character && token.Text == "'";
+
+        /// <summary>The next token that is not trivia, without taking it.</summary>
+        private TexToken? Next()
         {
             var at = _at;
             while (at < tokens.Count && tokens[at].IsTrivia) at++;
 
-            return at < tokens.Count
-                   && tokens[at].Kind is TexTokenKind.Superscript or TexTokenKind.Subscript;
+            return at < tokens.Count ? tokens[at] : null;
         }
 
         /// <summary>
-        /// A base and its scripts, as one thing. Both of <c>x^2_i</c> belong to the same x, so they are
-        /// gathered here rather than left as a script wrapping a script.
+        /// A base and everything written onto it, as one thing. Both of <c>x^2_i</c> belong to the same
+        /// x, so they are gathered here rather than left as a script wrapping a script — and so do the
+        /// primes of <c>x''_{i}</c>, which is the same rule and the reason the subscript lands on the x
+        /// rather than on the prime standing immediately before it.
         /// </summary>
         private TexNode Script(TexNode? baseNode, Until until)
         {
             var children = new List<TexNode>();
             if (baseNode is not null) children.Add(baseNode.As(TexRole.Base));
 
-            while (this.NextIsScript())
+            while (true)
             {
+                if (this.NextIsMark())
+                {
+                    this.Trivia(children);
+                    children.Add(TexNode.Leaf(TexKind.Char, this.Take().Text, TexRole.Mark));
+                    continue;
+                }
+
+                if (!this.NextIsScript()) break;
+
                 this.Trivia(children);
 
-                var mark = this.Take();
-                children.Add(TexNode.Leaf(TexKind.Token, mark.Text, TexRole.Name));
-                var role = mark.Kind == TexTokenKind.Superscript ? TexRole.Superscript : TexRole.Subscript;
+                var written = this.Take();
+                children.Add(TexNode.Leaf(TexKind.Token, written.Text, TexRole.Name));
+                var role = written.Kind == TexTokenKind.Superscript
+                    ? TexRole.Superscript
+                    : TexRole.Subscript;
 
                 this.Trivia(children);
                 if (this.Argument(until) is { } argument) children.Add(argument.As(role));

@@ -108,12 +108,29 @@ public class TexBuilderTests
         @"\frac{\mathrm{d}y}{\mathrm{d}x}",
         @"\mathcal{L}^{2}",
 
-        // Read out of the run rather than off a token: the reading keeps `'` a `'`.
+        // Marks. These carry more weight than the rest of this list, because the corpus cannot check
+        // them at all: it holds 22,653 formulas writing a prime as `^{\prime}` and not one written as
+        // `'`. So this is the only place the two readings are held against each other for a mark, and
+        // it is deliberately more than a couple of shapes.
         "f'",
         "f''",
         "f'''",
         @"\alpha'",
         @"\frac{f'}{g'}",
+        @"x'_{i}",                      // the subscript lands on the x, not on the prime before it
+        @"x''_{i}",
+        @"x'''_{i}",
+        @"y'^{2}",
+        @"y'^{2}_{n}",
+        "f'(x)",
+        "f'g'",
+        "{f'}",                         // braced, so the mark is inside a group of its own
+        "{f}'",                         // and braced the other way, so the group is what wears it
+        @"\sqrt{f'}",
+        @"\sum f'",
+        @"\left( f' \right)",
+        @"\frac{\alpha''}{\beta'}",
+        @"\begin{matrix} f' & g'' \end{matrix}",
         @"\prime",           // the symbol, which is a different thing entirely
 
         "a~b",               // a tie
@@ -198,8 +215,9 @@ public class TexBuilderTests
         foreach (var latex in new[] { @"\textcolor{red}{a}",
                                       @"\text{for all}",     // words, not maths: the spaces are the point
                                       "'x",                  // a prime with nothing to be the prime of
-                                      @"x'_{i}",             // a prime and a written script on one base
-                                      @"a~^{b}",             // a script written after a tie
+                                      @"a~^{b}",             // a script with nothing to be set on
+                                      @"\overline{f}'",      // a mark is a script, so it is the parked
+                                                             // "script on \overline" case as well
                                       @"\mathrm{abc}(x)",    // a row written first in a row
                                       @"\left( a", @"\notacommand{x}",
                                       @"\begin{matrix} a & b",              // never closed

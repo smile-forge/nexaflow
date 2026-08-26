@@ -23,6 +23,18 @@ public static class TexRole
 
     public const string Superscript = "superscript";
     public const string Subscript = "subscript";
+
+    /// <summary>
+    /// A mark written after what it marks, and belonging to it: the <c>'</c> of <c>f'</c>.
+    /// <para>
+    /// Named for where it sits and not for what it draws, deliberately. A prime is set as a superscript,
+    /// and it also means a derivative, a transpose, a minute of arc or a second copy of a thing —
+    /// readings that belong to whoever is reading, not to the tree. What the tree is saying is only that
+    /// this was written onto the <see cref="Base"/> beside it and is part of the same thing, which is
+    /// what makes <c>f'</c> one unit to select and lets a script written after it land on the <c>f</c>.
+    /// </para>
+    /// </summary>
+    public const string Mark = "mark";
     public const string Numerator = "numerator";
     public const string Denominator = "denominator";
 

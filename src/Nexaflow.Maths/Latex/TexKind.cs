@@ -26,7 +26,16 @@ public enum TexKind
     /// <summary>One cell of a row, up to and including its <c>&amp;</c>.</summary>
     Cell,
 
-    /// <summary>Something with a superscript, a subscript, or both.</summary>
+    /// <summary>
+    /// A base and everything written onto it: its superscript, its subscript, and its marks.
+    /// <para>
+    /// One node because it is one thing — one atom to select, to move and to delete. Both scripts of
+    /// <c>x^2_3</c> are on the same x, and so are both primes and the subscript of <c>x''_{i}</c>; a
+    /// node per attachment would nest them, and then a subscript would land on the prime standing
+    /// immediately before it rather than on the x. Which is why <c>f''</c> is one of these despite
+    /// having no script written on it at all: what makes it this kind is that something was attached.
+    /// </para>
+    /// </summary>
     Script,
 
     /// <summary>A <c>\left</c>…<c>\right</c> pair and what is between them.</summary>
