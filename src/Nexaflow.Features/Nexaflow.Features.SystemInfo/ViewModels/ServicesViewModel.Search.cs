@@ -76,8 +76,13 @@ public sealed partial class ServicesViewModel : ISearchable
 
         return _shell.RunOnUiAsync(() =>
         {
+            // Decline rather than pin to nothing. The agent composes these ids freely, so ones this list
+            // does not hold DO arrive; filtering first and reporting success afterwards leaves the user
+            // looking at an empty list that the assistant has just told them is their search result.
             var kept = Services.Count(r => names.Contains(r.Name));
-            ApplyFilter(null, names, $"{names.Count} selected", kept);
+            if (kept == 0) return Task.FromResult(false);
+
+            ApplyFilter(null, names, $"{kept} selected", kept);
             return Task.FromResult(true);
         });
     }

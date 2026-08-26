@@ -87,8 +87,11 @@ public sealed partial class EnvironmentVariablesViewModel : ISearchable
 
         return _shell.RunOnUiAsync(() =>
         {
+            // See ServicesViewModel: narrowing to nothing and then claiming success is the failure mode.
             var kept = Variables.Count(r => names.Contains(r.Name));
-            ApplyFilter(null, names, $"{names.Count} selected", kept);
+            if (kept == 0) return Task.FromResult(false);
+
+            ApplyFilter(null, names, $"{kept} selected", kept);
             return Task.FromResult(true);
         });
     }

@@ -102,6 +102,27 @@ public abstract class SearchableConformanceTests
         Assert.IsTrue(outcome.Failed, "a malformed pattern must be reported, not silently matched as zero");
         Assert.IsFalse(string.IsNullOrWhiteSpace(outcome.Message));
     });
+
+    /// <summary>An id no page can be holding. Overridable only for a page whose ids are constrained enough
+    /// that a GUID could never reach <c>ShowResultsAsync</c> at all (an integer index, say).</summary>
+    protected virtual SearchHit UnknownHit => new(Guid.NewGuid().ToString(), "not on this page");
+
+    [TestMethod]
+    public void ShowResults_WithAnIdThisPageNeverGave_Declines() => WithPage(async page =>
+    {
+        // The agent passes back ids it got from SearchAsync, but it composes them freely — filtering by
+        // meaning, carrying them across a reload, mixing two searches. So an id this page does not hold WILL
+        // arrive, and the only two honest answers are "narrowed to these" or "I can't". Returning true having
+        // matched nothing tells the user their view was filtered when it wasn't; emptying the view is worse,
+        // because it reads as "your search found nothing".
+        //
+        // Ten pages asserted this by hand and seventeen did not. It needs nothing but ISearchable, so it
+        // belongs here rather than being rewritten per page and forgotten on the majority.
+        var narrowed = await page.ShowResultsAsync([UnknownHit], default);
+
+        Assert.IsFalse(narrowed,
+            "the agent needs to know it must describe the matches instead — see ShowResultsAsync's contract");
+    });
 }
 
 /// <summary>
@@ -174,6 +195,20 @@ public abstract class SearchableContentConformanceTests : SearchableConformanceT
 
     /// <summary>Page state that a non-displaying search must not disturb, as a comparable string.</summary>
     protected abstract string Snapshot(ISearchable page);
+
+    [TestMethod]
+    public void ShowResults_ThatDeclines_LeavesTheViewExactlyAsItWas() => WithPage(async page =>
+    {
+        // The other half of ShowResults_WithAnIdThisPageNeverGave_Declines, and the half that actually
+        // costs a user something: a page that filters to the unknown id first and only then discovers it
+        // matched nothing has already blanked the view by the time it returns false.
+        var before   = Snapshot(page);
+        var narrowed = await page.ShowResultsAsync([UnknownHit], default);
+
+        Assert.IsFalse(narrowed);
+        Assert.AreEqual(before, Snapshot(page),
+            "declining must be a no-op — narrowing to nothing and then reporting failure still empties the view");
+    });
 
     [TestMethod]
     public void ShowResults_ThatClaimsSuccess_ActuallyChangesTheView() => WithPage(async page =>

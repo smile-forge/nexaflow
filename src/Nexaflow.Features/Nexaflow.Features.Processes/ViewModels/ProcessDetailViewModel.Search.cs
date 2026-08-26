@@ -122,7 +122,13 @@ public sealed partial class ProcessDetailViewModel : ISearchable
             if (section is not (Sections.Threads or Sections.Modules or Sections.Handles))
                 return Task.FromResult(false);
 
-            Apply(section, request: null, pinned: ids, $"{ids.Count} selected", ids.Count);
+            // Count what this section actually holds before pinning. Two things were wrong with taking
+            // ids.Count on trust: ids the list does not have pinned it to an empty view while returning
+            // true, and the chip read "5 selected" over three rows whenever the agent's set was stale.
+            var kept = RowsIn(section).Count(ids.Contains);
+            if (kept == 0) return Task.FromResult(false);
+
+            Apply(section, request: null, pinned: ids, $"{kept} selected", kept);
             return Task.FromResult(true);
         });
     }
@@ -145,6 +151,15 @@ public sealed partial class ProcessDetailViewModel : ISearchable
                                    .ToList(),
 
         _ => [],
+    };
+
+    /// <summary>The ids currently in a section, in the same key space <see cref="MatchesIn"/> hands out.</summary>
+    private IEnumerable<string> RowsIn(string section) => section switch
+    {
+        Sections.Threads => Threads.Select(ThreadId),
+        Sections.Modules => Modules.Select(ModuleId),
+        Sections.Handles => Handles.Select(HandleId),
+        _                => [],
     };
 
     // Ids are the same keys ProcessDetailViewModel.Reconcile uses, so a hit survives a refresh tick

@@ -26,6 +26,11 @@ public class ProcessesSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A well-formed pid this list does not hold — a process that has since exited, as far as the
+    /// agent is concerned. The conformance default is a GUID, which never survives the int.TryParse this
+    /// page does first, so it would exercise the parse and never the lookup.</summary>
+    protected override SearchHit UnknownHit => new("999999", "not on this page");
+
     private static IShellServices RunningShell()
     {
         var shell = Substitute.For<IShellServices>();

@@ -29,6 +29,9 @@ public class AiChatSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A conversation id that was never saved.</summary>
+    protected override SearchHit UnknownHit => new("nowhere", "not on this page");
+
     private const string ByTitle   = "by-title";     // the term is in its title, active today
     private const string ByMessage = "by-message";   // the term is in a message — and it is a YEAR old
     private const string Quiet     = "quiet";
@@ -172,15 +175,4 @@ public class AiChatSearchableTests : SearchableContentConformanceTests
         Assert.AreEqual(1, vm.SearchMatchCount);
     });
 
-    [TestMethod]
-    public void ShowResults_WithIdsThatAreNotSaved_Declines() => WithPage(async page =>
-    {
-        var vm = (AiChatViewModel)page;
-        var before = Listed(vm);
-
-        var narrowed = await vm.ShowResultsAsync([new SearchHit("nowhere", "nowhere")], default);
-
-        Assert.IsFalse(narrowed, "the agent needs to know it must describe the matches instead");
-        CollectionAssert.AreEqual(before, Listed(vm));
-    });
 }

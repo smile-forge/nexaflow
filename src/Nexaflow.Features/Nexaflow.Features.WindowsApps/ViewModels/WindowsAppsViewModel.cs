@@ -323,8 +323,13 @@ public sealed partial class WindowsAppsViewModel : ObservableObject, IPageViewMo
         var names = hits.Select(h => h.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (names.Count == 0) return Task.FromResult(false);
 
+        // Decline rather than pin to nothing: see ServicesViewModel.ShowResultsAsync. Returning true here
+        // told the agent it had narrowed the list when it had in fact emptied it.
+        var kept = Apps.Count(a => names.Contains(a.Name));
+        if (kept == 0) return Task.FromResult(false);
+
         _suppressFilterReset = true;
-        FilterText     = $"{names.Count} selected";
+        FilterText     = $"{kept} selected";
         _filterRequest = null;
         _pinnedNames   = names;
         _suppressFilterReset = false;

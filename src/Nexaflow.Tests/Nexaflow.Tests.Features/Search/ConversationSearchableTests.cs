@@ -30,6 +30,10 @@ public class ConversationSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A message position past the end of this thread. The conformance default is a GUID, which this page
+    /// can reject on shape alone — that would prove nothing about the position lookup.</summary>
+    protected override SearchHit UnknownHit => new("99", "not on this page");
+
     private IAIService _ai = null!;
     private IShellServices _shell = null!;
 
@@ -199,17 +203,6 @@ public class ConversationSearchableTests : SearchableContentConformanceTests
         Assert.IsTrue(marked);
         CollectionAssert.AreEqual(new[] { 1 }, Marked(vm));
         Assert.AreEqual(1, vm.ScrollToTimelineIndex);
-    });
-
-    [TestMethod]
-    public void ShowResults_WithPositionsThatAreNotMessages_Declines() => WithPage(async page =>
-    {
-        var vm = (ConversationViewModel)page;
-
-        var marked = await vm.ShowResultsAsync([new SearchHit("99", "nowhere")], default);
-
-        Assert.IsFalse(marked, "the agent needs to know it must describe the matches instead");
-        Assert.AreEqual(0, Marked(vm).Length);
     });
 
     [TestMethod]
