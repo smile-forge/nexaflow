@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Syntax;
 using Nexaflow.Tests.Fixtures;
@@ -297,5 +297,94 @@ public class SourceSpansTests
         var block = SourceSpans.BlockOf(outline, lineCount: 60, astPath: "T:Host/M:Last", start0: 0, maxLines: 400);
         Assert.AreEqual((7, 13), block,
             "0-based: line 8 through the host type own end, not the end of the file");
+    }
+
+    [TestMethod]
+    public void ADeclarationWithNoEnd_TakesTheNEXTDeclaration_NotTheLastInTheFile()
+    {
+        // The bound is the next declaration to begin, which only means anything if the declarations are
+        // consulted in line order. Two candidates follow this one, so reading them in the wrong order stops
+        // at the wrong one - and quietly hands a grep every line in between.
+        var outline = new CodeOutline([], [
+            new OutlineType("Here", 5, OutlineKind.Class, "T:Here", []),                     // no EndLine
+            new OutlineType("Next", 10, OutlineKind.Class, "T:Next", []) { EndLine = 18 },
+            new OutlineType("Last", 20, OutlineKind.Class, "T:Last", []) { EndLine = 30 },
+        ], []);
+
+        var block = SourceSpans.BlockOf(outline, lineCount: 40, astPath: "T:Here", start0: 0, maxLines: 400);
+        Assert.AreEqual((4, 8), block, "0-based: stops before line 10, not before line 20");
+    }
+
+    [TestMethod]
+    public void ADeclarationWithNoEnd_TakesWhicheverBoundStopsSooner()
+    {
+        // Both bounds exist here and they disagree: the next sibling begins at 12, the containing type runs to
+        // 30. The sibling is the honest end of this member; the container would swallow all of them.
+        var outline = new CodeOutline([], [
+            new OutlineType("Host", 2, OutlineKind.Class, "T:Host", [
+                new OutlineMember("NoEnd", 8, OutlineKind.Method, "NoEnd()", "T:Host/M:NoEnd"),
+                new OutlineMember("After", 12, OutlineKind.Method, "After()", "T:Host/M:After") { EndLine = 20 },
+            ]) { EndLine = 30 },
+        ], []);
+
+        var block = SourceSpans.BlockOf(outline, lineCount: 40, astPath: "T:Host/M:NoEnd", start0: 0, maxLines: 400);
+        Assert.AreEqual((7, 10), block, "0-based: line 8 to just before line 12 - not the type end at line 30");
+    }
+
+    [TestMethod]
+    public void AStaleLineOnADeclarationsOwnFirstLine_StillCountsAsInsideIt()
+    {
+        // The commonest stale-graph case: the recorded line is exactly where the (now renamed) member began.
+        // A containment test that excluded its own first line would fall out to the enclosing type and report
+        // the whole class as the block.
+        var src = InClass(
+            "    public void M()",   // 3
+            "    {",                 // 4
+            "        Inner();",      // 5
+            "    }");                // 6
+
+        Assert.AreEqual((3, 6), Span(src, "T:C/M:Gone", start0: 2),
+            "the method, not the class that contains it");
+    }
+
+    [TestMethod]
+    public void NoOutlineAtAll_IsTheWholeFileWithinBudget_NotACrash()
+    {
+        // BlockOf takes a nullable outline because its caller resolves one that can be null. Nothing may
+        // dereference it.
+        var block = SourceSpans.BlockOf(null, lineCount: 12, astPath: "T:Whatever", start0: 3, maxLines: 400);
+        Assert.AreEqual((3, 11), block);
+    }
+
+    [TestMethod]
+    public void AStaleLineOnATypesOwnLine_GivesTheWholeType_NotItsHeader()
+    {
+        // Which fallback leads matters here and nowhere else. Containment says "the line is inside the type,
+        // so the type is the block"; stopping before the next declaration would answer with the two lines
+        // above the first member. For a type node the whole type is the point.
+        var src = InClass(
+            "    public void M()",           // 3
+            "    {",                         // 4
+            "    }",                         // 5
+            "    public void After() { }");  // 6
+
+        Assert.AreEqual((1, 7), Span(src, "T:Gone", start0: 0),
+            "the class through its closing brace, not just its header");
+    }
+
+    [TestMethod]
+    public void AStaleLineOnADeclarationsLastLine_IsStillInsideIt()
+    {
+        // The other end of the same containment test. A member whose closing brace is the recorded line has
+        // to still count as containing it, or the answer falls out to the enclosing class - the same
+        // over-wide block, arrived at from the opposite direction.
+        var src = InClass(
+            "    public void M()",           // 3
+            "    {",                         // 4
+            "    }",                         // 5
+            "    public void After() { }");  // 6
+
+        Assert.AreEqual((5, 5), Span(src, "T:C/M:Gone", start0: 4),
+            "the method it closes, not the class around it");
     }
 }

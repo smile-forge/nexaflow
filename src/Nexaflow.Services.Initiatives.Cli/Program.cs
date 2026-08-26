@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
