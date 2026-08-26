@@ -1,0 +1,28 @@
+{
+  "stryker-config": {
+    "solution": "Nexaflow.slnx",
+    "project": "Nexaflow.Search.csproj",
+    "test-projects": [
+      "src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj",
+      "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Nexaflow.Tests.Features.Viewers.csproj",
+      "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/Nexaflow.Tests.Features.WindowsOS.csproj"
+    ],
+    "test-runner": "mtp",
+    "target-framework": "net10.0",
+    "mutate": [
+      "**/*.cs",
+      "!**/obj/**",
+      "!**/bin/**"
+    ],
+    "reporters": [
+      "progress",
+      "html",
+      "json"
+    ],
+    "thresholds": {
+      "high": 85,
+      "low": 70,
+      "break": 55
+    }
+  }
+}
