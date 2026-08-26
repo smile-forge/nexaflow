@@ -1160,6 +1160,48 @@ public class TexFormulaParser
     /// business knowing how they should be set.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// A big operator, set the way this operator is set: <c>\sum</c> and <c>\prod</c> stack their limits
+    /// in display style, an integral never does whatever the style, and that is why <c>\int_0^\infty</c>
+    /// reads the way it does in every published paper.
+    /// <para>
+    /// Which operators are which is a fact about TeX, and it lives here. <see cref="TexFormulaBuilder"/>
+    /// asks rather than deciding, for the same reason it asks about a character's class.
+    /// </para>
+    /// </summary>
+    internal static BigOperatorAtom BigOperatorOf(SymbolAtom symbol, SourceSpan? source) =>
+        new(source, symbol, null, null, sideLimitOperators.Contains(symbol.Name) ? false : (bool?)null);
+
+    /// <summary>The delimiter this character stands for, or null when it stands for none.</summary>
+    internal static SymbolAtom? DelimiterOf(char character, SourceSpan? source)
+    {
+        // `.` is how a fence is written with one end left open — \left. \right) — so no delimiter is
+        // the right answer rather than a failure.
+        if (character == '.') return null;
+
+        try
+        {
+            return GetDelimiterSymbol(GetDelimeterMapping(character), source);
+        }
+        catch (DelimiterMappingNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The delimiter this command names, or null when it names none.</summary>
+    internal static SymbolAtom? DelimiterOf(string name, SourceSpan? source)
+    {
+        try
+        {
+            return GetDelimiterSymbol(name, source);
+        }
+        catch (SymbolNotFoundException)
+        {
+            return null;
+        }
+    }
+
     internal static Atom CharacterOf(char character, SourceSpan source, string? textStyle = null)
     {
         if (!IsSymbol(character) || textStyle == TexUtilities.TextStyleName)

@@ -133,6 +133,41 @@ TeX. What we are removing is the *front* (its LaTeX parser); we had already repl
 renderer, with a capture that records where every box landed). What is left is the middle, which is the
 part worth having.
 
+## What the builder still declines
+
+`TexFormulaBuilder` is all-or-nothing per formula: anything it does not handle comes back null and that
+formula goes through the engine's own parser instead, which is the path everything takes today. So a
+decline costs coverage and nothing else — **nothing renders differently because of one.**
+
+There are two kinds, and they should not be confused.
+
+### Not written yet
+
+Known work, and the coverage number moves when each lands.
+
+| | |
+|---|---|
+| environments | `\begin{matrix}` and the rest — the one that matters most for editing, since grids are what the table gestures act on |
+| `\sqrt[3]{x}` | a root with a degree |
+| styled text | `\mathrm`, `\text`, `{\bf …}` — a text style is a property of the reading, not an atom, so it needs threading rather than a case |
+| `\textcolor`, `\colorbox` | colour, which the parser carries on the formula |
+| primes | `'` and `\prime` gather into a row attached to what they follow |
+| ties | `~`, a space no line may be broken at |
+| unknown commands | anything the table has never heard of |
+
+### Still to be settled
+
+Cases where our reading and the parser's disagree about the picture and **it is not yet established
+which is right**. These are not bugs to fix by matching — the parser is a reference, not a
+specification, and it is the thing being replaced. Each needs looking at properly: the parse tree, both
+layout trees, and both renderings beside the corpus's own reference image from the published paper.
+
+| | What differs |
+|---|---|
+| a fence inside a fence | `\left[ \left( a \right)^2 \right]` — the parser puts a scripted fence inside boxes of its own before measuring it, and picks a smaller outer bracket than we do. Ours grows to fit the script. **Ours may well be the better rendering**; it was declined because it differed, not because it was wrong |
+| a script on `\overline` | `\overline{{J}}^{a}` — the script lands at a different height. One formula in 238,329 |
+| `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
+
 ## Considered and not taken
 
 **A tree-sitter LaTeX grammar.** It would fit the existing grammar machinery and round-trips by

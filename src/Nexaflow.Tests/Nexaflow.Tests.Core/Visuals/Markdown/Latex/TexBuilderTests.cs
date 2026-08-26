@@ -64,6 +64,19 @@ public class TexBuilderTests
         @"\frac{\sqrt{a}}{b}",
         "2x^{2} + 3",
         @"\alpha^{\beta}",
+        @"\left( a \right)",
+        @"\left[ \frac{a}{b} \right]",
+        @"\left\{ x \right\}",
+        @"\overline{x}",
+        @"\underline{x+1}",
+        @"\vec{a}",
+        @"\dot{q}^{2}",
+        @"\tilde{X}(t)",
+        @"\sum_{i=0}^{n} i",
+        @"\int_{0}^{1} x",
+        @"\sum x",
+        @"\left( a \right)^{2}",
+        @"\left( \frac{a}{b} \right)^{2}",
     ];
 
     [TestMethod]
@@ -117,8 +130,9 @@ public class TexBuilderTests
     {
         // Half a formula built each way would mix two readings of the same source, which is the thing
         // being got rid of. Declining is what keeps the fallback honest.
-        foreach (var latex in new[] { @"\left( a \right)", @"\begin{matrix} a & b \end{matrix}",
-                                      @"\overline{x}", @"\sqrt[3]{x}", @"\textcolor{red}{a}" })
+        foreach (var latex in new[] { @"\begin{matrix} a & b \end{matrix}", @"\sqrt[3]{x}",
+                                      @"\textcolor{red}{a}", @"\mathrm{abc}", "f''",
+                                      @"\left( a", @"\notacommand{x}" })
             Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex)), latex);
     });
 
