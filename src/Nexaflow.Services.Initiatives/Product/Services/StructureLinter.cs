@@ -45,7 +45,22 @@ public static class StructureLinter
         ShouldntWithoutNote,
         /// <summary>The UI node carries the feature's one journey test (§3, §4).</summary>
         UiMissingJourney,
+        /// <summary>A leaf that many tests declare they cover is a leaf doing several jobs (§1, §3) — the
+        /// tests found the sub-behaviours the tree has not named yet.</summary>
+        LeafCoveredByTooManyTests,
     }
+
+    /// <summary>
+    /// How many declared tests a leaf may attract before <see cref="Rule.LeafCoveredByTooManyTests"/> fires.
+    /// <para>
+    /// The model is one unit test per leaf behaviour, so a handful is normal and a dozen is not. The number
+    /// is deliberately generous: this is a prompt to look at a node, and a rule that cries at seven would be
+    /// turned off. For calibration, when this rule was written the whole repo had four leaves above it —
+    /// <c>data-model</c> at 75 tests across five files and <c>integrity-validate</c> at 32 in one being the
+    /// clearest cases of a leaf that had quietly become a subtree's worth of behaviour.
+    /// </para>
+    /// </summary>
+    public const int MaxTestsPerLeaf = 12;
 
     /// <summary>One convention breach: the node, the rule, and what to do about it.</summary>
     public sealed record Finding(string FeatureId, string NodeId, string Title, Rule Rule, string Detail);
@@ -58,11 +73,16 @@ public static class StructureLinter
     /// Lints every feature, or — with <paramref name="underId"/> — just that node's subtree (a feature root,
     /// or the whole tree from any ancestor). Findings are ordered by feature then tree position.
     /// </summary>
-    public static IReadOnlyList<Finding> Lint(ProductState state, string? underId = null)
+    /// <param name="coverage">The <c>scan-tests</c> manifest, when one has been generated. Only
+    /// <see cref="Rule.LeafCoveredByTooManyTests"/> uses it; without it that rule simply doesn't run, which is
+    /// why it is optional rather than a second entry point — a caller with no manifest still gets every other
+    /// rule, and a caller that has one gets the extra check for free.</param>
+    public static IReadOnlyList<Finding> Lint(
+        ProductState state, string? underId = null, TestCoverageManifest? coverage = null)
     {
         var findings = new List<Finding>();
         foreach (var featureId in FeatureRoots(state, underId))
-            LintFeature(state, featureId, findings);
+            LintFeature(state, featureId, coverage, findings);
         return findings;
     }
 
@@ -90,7 +110,8 @@ public static class StructureLinter
         return false;
     }
 
-    private static void LintFeature(ProductState state, string featureId, List<Finding> findings)
+    private static void LintFeature(
+        ProductState state, string featureId, TestCoverageManifest? coverage, List<Finding> findings)
     {
         var feature = state.Nodes[featureId];
         void Add(string nodeId, Rule rule, string detail) =>
@@ -158,6 +179,29 @@ public static class StructureLinter
                 Add(id, Rule.ShouldntWithoutNote,
                     "'tests' is shouldnt — add a note saying why and who covers it instead (§3)");
         }
+
+        // Shape, read back from the tests. Every other rule here asks whether the tree says what it should;
+        // this one asks whether the tree is granular enough to be worth saying it about. A leaf that thirty
+        // tests point at is not a leaf — the tests have already enumerated behaviours the tree never named,
+        // so the node's status means "some of these work" and nothing can tell you which.
+        //
+        // Only leaves: a container legitimately accumulates its children's tests, and flagging one would be
+        // flagging the tree for working.
+        if (coverage is not null)
+            foreach (var id in Subtree(state, featureId))
+            {
+                var node = state.Nodes[id];
+                if (node.Children.Any(state.Nodes.ContainsKey)) continue;
+                if (!coverage.Coverage.TryGetValue(id, out var refs) || refs.Count <= MaxTestsPerLeaf) continue;
+
+                var files = refs.Select(r => r.File).Where(f => !string.IsNullOrEmpty(f))
+                                .Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                Add(id, Rule.LeafCoveredByTooManyTests,
+                    $"{refs.Count} tests declare this leaf"
+                    + (files > 1 ? $", across {files} files" : string.Empty)
+                    + $" (over {MaxTestsPerLeaf}) — they are probably covering behaviours that want their own "
+                    + "child nodes; `add-node` to name them (§1, §3)");
+            }
     }
 
     /// <summary>A child of <paramref name="parent"/> whose title matches <paramref name="title"/> or whose id

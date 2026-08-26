@@ -1927,7 +1927,9 @@ internal static class Program
         var under = a.Value("--under");
         if (under is { Length: > 0 } && !state.Nodes.ContainsKey(under)) return VerbUsage($"no node '{under}' (try: find)");
 
-        var findings = StructureLinter.Lint(state, under);
+        // The coverage manifest is derived and gitignored, so it is often absent; LoadTestCoverage then
+        // returns null and the leaf-granularity rule quietly sits out rather than the verb failing.
+        var findings = StructureLinter.Lint(state, under, new ProductStore(root).LoadTestCoverage());
         if (a.Has("--json"))
         {
             Console.WriteLine(JsonSerializer.Serialize(findings, ProductJson.Options));

@@ -358,6 +358,34 @@ because there "nothing references that path" is a fair answer to a question.
 - **`AiSurfaceRulesTests`** (`KnownNullScope`): a tool-bearing page must return a distinct
   `GetSecurityContext()`.
 - **`FeatureTouchPointTests`** / architecture rules: add-a-feature wiring, reference/dispatcher rules.
+- **`StructureLinter`** (`nfi lint`, advisory): the §1–§4 conventions, plus `LeafCoveredByTooManyTests` —
+  see *Granularity, read back from the tests* below.
+
+### Granularity, read back from the tests
+
+Every other rule asks whether the tree *says* what it should. This one asks whether the tree is granular
+enough to be worth saying anything about — and it is the only rule whose evidence comes from outside the
+tree.
+
+When a leaf accumulates far more tests than the one-unit-test-per-behaviour model implies, the tests have
+enumerated behaviours the tree never named. The node's status then means "some of these work" and nothing
+can tell you which; its `tests=done` is a claim about a dozen different things at once. `nfi lint` reports it
+as `LeafCoveredByTooManyTests` when a **leaf** is declared by more than `StructureLinter.MaxTestsPerLeaf`
+(12) tests in the `scan-tests` manifest, naming how many files they are spread across — because two files
+pointing at one leaf is usually two behaviours in a trench coat.
+
+Containers are exempt: a panel accumulating its children's tests is the tree working. And the rule needs the
+manifest, which is derived and gitignored — absent, it simply doesn't run, and every other rule still does.
+
+```powershell
+& $nfi scan-tests .          # refresh the manifest first — the rule is silent without it
+& $nfi lint --under product
+```
+
+At the time it was written the whole repo had four leaves over the threshold; `data-model` (75 tests across
+five files) and `integrity-validate` (32 in one) are the clearest cases of a leaf that had quietly become a
+subtree's worth of behaviour. Fixing one means `add-node` for the behaviours the test names already
+describe, then re-pointing the `tests` snaplinks — not deleting tests.
 
 ### The gap
 The **role-based rules in §2–§4 are conventions, not checks.** Nothing stops a future feature from giving a
