@@ -45,11 +45,16 @@ took this target from 61.3% to 73.4% in one sitting.
 ### Read the score as a band, not a number
 
 This file used to say the score was reproducible to 0.15 points, on the evidence of two runs that came back
-73.26% and 73.41%. Three later runs over near-identical code came back **75.0%, 76.1% and 78.1%**, and the
-movement was not where the edits were: between the last two, the only change was two tests in `SourceSpans`,
-yet `GraphQuery` gained 12 kills and `SnaplinkValidator` and `StructureLinter` — untouched — moved several
-points each. The mutant population itself differed run to run (1254 vs 1026 `CompileError`), so the runs are
-not strictly comparable mutant-for-mutant.
+73.26% and 73.41%. Three later runs came back **75.0%, 76.1% and 78.1%**, and the movement was not where the
+edits were: between the last two, the only change was two tests covering `SourceSpans`, which killed 2
+mutants there — while `GraphQuery` gained 12 kills, `GraphBuilder` 16 and `SnaplinkValidator` 15, none of
+which those tests touch.
+
+The mutant *population* is identical run to run — 4138 created, 1253 `CompileError`, 1678 tested, all three
+times — so this is verdict-level movement on a fixed set, not a different set. Why has not been chased down.
+The cheap experiment, if someone wants it, is two sweeps of the same commit diffed per mutant id (the json
+report carries them): same-verdict means the added tests really did it, flipped verdicts on untouched files
+means run-to-run noise, most likely from test-host contention under `-Concurrency`.
 
 So: treat a single number as a **band of a few points**, compare a file against itself rather than the
 target total, and do not read a 1-2 point move as a result. `break` at 55 is still a sane tripwire — it is
