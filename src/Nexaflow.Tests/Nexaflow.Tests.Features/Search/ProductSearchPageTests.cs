@@ -31,6 +31,10 @@ public class ProductSearchPageTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A well-formed node id that is not among these results — so the decline comes from the lookup, not
+    /// from the id failing to parse.</summary>
+    protected override SearchHit UnknownHit => new("product:nowhere", "not on this page");
+
     private GraphFixture _fix = null!;
     private IShellServices _shell = null!;
 
@@ -229,15 +233,4 @@ public class ProductSearchPageTests : SearchableContentConformanceTests
             vm.Results.Select(r => r.NodeId).ToArray());
     });
 
-    [TestMethod]
-    public void ShowResults_WithIdsNotOnThePage_Declines() => RunUnpumped(async () =>
-    {
-        var vm = await BuildAsync();
-        var before = vm.Results.Count;
-
-        var narrowed = await vm.ShowResultsAsync([new SearchHit("product:nowhere", "nowhere")], default);
-
-        Assert.IsFalse(narrowed);
-        Assert.AreEqual(before, vm.Results.Count);
-    });
 }

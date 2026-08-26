@@ -1,0 +1,22 @@
+{
+  "stryker-config": {
+    "project": "Nexaflow.IO.Common.csproj",
+    "test-runner": "mtp",
+    "target-framework": "net10.0",
+    "mutate": [
+      "**/*.cs",
+      "!**/obj/**",
+      "!**/bin/**"
+    ],
+    "reporters": [
+      "progress",
+      "html",
+      "json"
+    ],
+    "thresholds": {
+      "high": 85,
+      "low": 70,
+      "break": 60
+    }
+  }
+}

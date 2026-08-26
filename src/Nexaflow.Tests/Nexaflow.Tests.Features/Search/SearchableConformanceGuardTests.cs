@@ -56,6 +56,24 @@ public class SearchableConformanceGuardTests
         }
     }
 
+    /// <summary>
+    /// Says yes to any id it is handed. The failure this hides is quiet in exactly the way the others are:
+    /// the agent reports "I've filtered your view to the three that matter" and the view still shows
+    /// everything — or, if the page filtered first, shows nothing at all.
+    /// </summary>
+    private sealed class NarrowsToAnything : ISearchable
+    {
+        public string SearchTargetDescription => "a fake page for testing the conformance suite";
+
+        public Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
+            => Task.FromResult(request.Matches(Content)
+                ? SearchOutcome.Found([new SearchHit("0", "line 1", Content)])
+                : SearchOutcome.None());
+
+        public Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)
+            => Task.FromResult(true);   // never checks whether it actually holds these ids
+    }
+
     // Deliberately NOT [TestClass]: this derives the conformance suite so the guard can *invoke* its
     // assertions against a deliberately-broken page and check they fail. Marking it would have MSTest
     // discover and run it as a real suite, which is the opposite of the point.
@@ -85,11 +103,17 @@ public class SearchableConformanceGuardTests
             () => new Probe(new IgnoresMatchCase()).MatchCase_IsHonoured());
 
     [TestMethod]
+    public void Suite_CatchesAPageThatClaimsToNarrowToIdsItDoesNotHold()
+        => Assert.ThrowsExactly<AssertFailedException>(
+            () => new Probe(new NarrowsToAnything()).ShowResults_WithAnIdThisPageNeverGave_Declines());
+
+    [TestMethod]
     public void Suite_PassesACorrectImplementation()
     {
         // The counterpart: the same assertions must not fire on a page that behaves.
         var probe = new Probe(new IgnoresMatchCase());
         probe.RegexSearch_ActuallyCompilesThePattern();   // this fake does honour IsRegex
         probe.LiteralSearch_FindsSeededContent();
+        probe.ShowResults_WithAnIdThisPageNeverGave_Declines();   // and it inherits the interface default
     }
 }

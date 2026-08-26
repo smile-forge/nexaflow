@@ -282,15 +282,17 @@ Test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full 
 | `Nexaflow.Tests.Features` | The shell-adjacent features — AI chat, console, network, OneDrive, Product/Projects, scratchpad, This PC, web — plus the feature-agnostic search plumbing. References the feature projects, **not** Core. |
 | `Nexaflow.Tests.Features.Viewers` | Every viewer/editor/player (Audio…Video) and the sample-file corpus. |
 | `Nexaflow.Tests.Features.WindowsOS` | The Windows-integration features: file system, registry, search index, installed apps, processes, system info. |
-| `Nexaflow.Tests.Features.Architecture` | The whole-repo guards. References the three suites for their **output** — the rules reflect over every feature and test assembly. |
+| `Nexaflow.Tests.Features.Architecture` | The whole-repo guards. References the other suites for their **output** — the rules reflect over every feature and test assembly. A new suite must be added to `FeatureTestSuites.Patterns` or it silently drops out of the `[CoversNode]` guard. |
 | `Nexaflow.Tests.Features.Common` | **Not a test project** — shared support for the suites above: `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` conformance contract. No feature reference. (The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures`, which both its consumers reference.) |
 | `Nexaflow.Tests.IO` | `Nexaflow.IO.*` — the WPF-free IO leaves. References the IO projects and **nothing else**: no Core, no Features, no Visuals, so it needs neither a desktop session nor a shell. |
+| `Nexaflow.Tests.Initiatives` | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser. Same shape as `Tests.IO`: plain `net10.0`, references the backend and `Tests.Fixtures` and nothing else, so it needs no desktop session. What stayed in `.Features` is the ProductManager *feature* (view-models, AI client tools, graph viewer). |
 | `Nexaflow.Tests.Providers` | Provider clients. |
 | `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Referenced by every test project. |
 
 A test belongs in `Tests.IO` when its **subject** is an IO library. One that merely *uses* one — `Text`
 reading through `EncodingDetector`, `Compressed` through the VFS — stays with its feature: a test follows
 what it is about, not what it imports.
+The same rule owns `Tests.Initiatives`: its subject is the WPF-free backend, so the suite is WPF-free too.
 
 After any change touching `Nexaflow.Core`, run the unit tests before committing:
 

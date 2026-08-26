@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>
 /// The read-only tree lookups behind the CLI's <c>find</c> / <c>describe</c> — the "where is feature X, and

@@ -453,3 +453,8 @@ tools/graph-cli/
 # Derived: the latex-corpus survey's report and the images it references (tools/latex-corpus).
 .corpus-report/
 .corpus-sample/
+
+# Mutation testing (Stryker.NET). `tools/mutation/Run-Mutation.ps1` writes under artifacts/ (already
+# ignored above); this catches a bare `dotnet stryker` run, which defaults to StrykerOutput/ next to the
+# test project it was launched from.
+StrykerOutput/

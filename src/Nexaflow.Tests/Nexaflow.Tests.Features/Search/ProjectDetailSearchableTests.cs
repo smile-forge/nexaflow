@@ -176,18 +176,6 @@ public class ProjectDetailSearchableTests : SearchableContentConformanceTests
     });
 
     [TestMethod]
-    public void ShowResults_WithIdsThisBacklogDoesNotHold_Declines() => WithPage(async page =>
-    {
-        var vm = (ProjectDetailViewModel)page;
-
-        var narrowed = await vm.ShowResultsAsync(
-            [new SearchHit(Guid.NewGuid().ToString(), "elsewhere")], default);
-
-        Assert.IsFalse(narrowed, "the agent needs to know it must describe the matches instead");
-        Assert.AreEqual(3, Visible(vm).Length);
-    });
-
-    [TestMethod]
     public void AnEmptyBacklog_SaysSo_RatherThanReportingNoMatches() => RunUnpumped(async () =>
     {
         var empty = "blank";

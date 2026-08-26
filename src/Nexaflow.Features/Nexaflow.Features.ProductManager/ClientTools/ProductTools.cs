@@ -294,11 +294,13 @@ public static class ProductTools
 
     private static ToolResult Lint(string root, JsonObject a)
     {
-        var state = new ProductStore(root).Load();
+        var store = new ProductStore(root);
+        var state = store.Load();
         var under = Blank(Str(a, "under") ?? string.Empty);
         if (under is not null && !state.Nodes.ContainsKey(under)) return NoNode(under);
 
-        var findings = StructureLinter.Lint(state, under);
+        // Absent manifest (never scanned, or a clean checkout) just means one fewer rule runs.
+        var findings = StructureLinter.Lint(state, under, store.LoadTestCoverage());
         return ToolResult.Ok(findings.Count == 0 ? "follows the modelling rules" : $"{findings.Count} finding(s)",
                              ProductReport.Lint(findings, under));
     }

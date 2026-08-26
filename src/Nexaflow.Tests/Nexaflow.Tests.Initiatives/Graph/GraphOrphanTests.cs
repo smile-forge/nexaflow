@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Graph;
 
 /// <summary>
 /// Finding declarations nothing reaches. The bar here is the opposite of the snaplink validator's: this one

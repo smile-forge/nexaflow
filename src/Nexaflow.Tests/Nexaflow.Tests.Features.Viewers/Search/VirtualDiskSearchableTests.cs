@@ -38,6 +38,9 @@ public class VirtualDiskSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A well-formed entry path that is not on this image — the decline must come from the lookup.</summary>
+    protected override SearchHit UnknownHit => new("not/in/here.txt", "not on this page");
+
     // Per-instance: MSTest runs test methods in parallel on separate instances.
     private string _dir = "";
     private string _vhd = "";
@@ -203,18 +206,6 @@ public class VirtualDiskSearchableTests : SearchableContentConformanceTests
         Assert.AreEqual(1, vm.SearchMatchCount);
         CollectionAssert.AreEqual(new[] { "docs", DeepHit }, Rows(vm),
             "the one entry the agent kept, still under the folder that says where it is");
-    });
-
-    [TestMethod]
-    public void ShowResults_WithIdsThisPageNeverGave_DeclinesRatherThanEmptyingTheTree() => WithPage(async page =>
-    {
-        var vm = (VirtualDiskViewModel)page;
-        var before = Rows(vm);
-
-        var narrowed = await vm.ShowResultsAsync([new SearchHit("not/in/here.txt", "here.txt")], default);
-
-        Assert.IsFalse(narrowed, "the agent needs to know it must describe the matches instead");
-        CollectionAssert.AreEqual(before, Rows(vm));
     });
 
     [TestMethod]

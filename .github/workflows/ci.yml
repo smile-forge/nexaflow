@@ -54,6 +54,7 @@ jobs:
         run: |
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj -c Release --no-restore
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj -c Release --no-restore
+          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Nexaflow.Tests.Initiatives.csproj -c Release --no-restore
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj -c Release --no-restore
           dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj -c Release --no-restore
 
@@ -62,13 +63,15 @@ jobs:
       # service — they assert against whatever that machine happens to have indexed, so they prove our COM
       # usage on a developer box but would be a coin toss on a runner. See docs/testing.md.
       # The MSTest/MTP test exes take --filter directly.
-      # Tests.Providers and Tests.IO target plain net10.0-windows (no WinRT), hence the per-project TFM map.
+      # Tests.Providers and Tests.IO target plain net10.0-windows (no WinRT) and Tests.Initiatives is plain
+      # net10.0 (its subject is the WPF-free backend), hence the per-project TFM map.
       - name: Run unit tests (non-UI)
         shell: pwsh
         run: |
           $tests = [ordered]@{
             'Nexaflow.Tests.Core'      = 'net10.0-windows10.0.19041.0'
             'Nexaflow.Tests.Features'  = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Initiatives' = 'net10.0'
             'Nexaflow.Tests.IO'        = 'net10.0-windows'
             'Nexaflow.Tests.Providers' = 'net10.0-windows'
           }

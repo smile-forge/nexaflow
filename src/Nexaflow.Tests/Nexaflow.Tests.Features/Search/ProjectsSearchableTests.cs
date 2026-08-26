@@ -28,6 +28,9 @@ public class ProjectsSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A folder name this bucket does not hold.</summary>
+    protected override SearchHit UnknownHit => new("not-here", "not on this page");
+
     private const string ByName = "alpha42-importer";   // matches on its name / folder
     private const string ByDesc = "invoices";           // matches on its description only
     private const string Quiet  = "ledger";
@@ -173,17 +176,6 @@ public class ProjectsSearchableTests : SearchableContentConformanceTests
 
         Assert.IsTrue(narrowed);
         CollectionAssert.AreEqual(new[] { ByDesc }, Visible(vm));
-    });
-
-    [TestMethod]
-    public void ShowResults_WithFoldersThisBucketDoesNotHold_Declines() => WithPage(async page =>
-    {
-        var vm = (ProjectsViewModel)page;
-
-        var narrowed = await vm.ShowResultsAsync([new SearchHit("not-here", "not-here")], default);
-
-        Assert.IsFalse(narrowed, "the agent needs to know it must describe the matches instead");
-        Assert.AreEqual(3, Visible(vm).Length);
     });
 
     [TestMethod]

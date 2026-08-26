@@ -4,7 +4,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Cli;
 
 /// <summary>
 /// One batch instruction, dispatched the way a script line is. Batch is the only transactional way to edit

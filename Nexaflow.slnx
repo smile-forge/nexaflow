@@ -191,6 +191,9 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/Nexaflow.Tests.Fixtures.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Nexaflow.Tests.Initiatives.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj">
       <Platform Project="x64" />
     </Project>

@@ -2,7 +2,7 @@ using System.IO;
 using Nexaflow.Services.Initiatives.Cli;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Cli;
 
 /// <summary>
 /// What happens when a directory turns up where an id belongs — the mistake `nfi tree D:\SomeRepo` makes.

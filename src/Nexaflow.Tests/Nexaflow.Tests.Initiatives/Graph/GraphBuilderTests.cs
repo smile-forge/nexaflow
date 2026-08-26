@@ -10,7 +10,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Graph;
 
 /// <summary>
 /// The structural graph build: product containment + snaplink links into code + file→type→member containment +

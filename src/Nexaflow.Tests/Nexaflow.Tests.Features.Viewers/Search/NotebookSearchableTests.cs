@@ -27,6 +27,9 @@ public class NotebookSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A cell index past the end of this notebook. A GUID would be rejected on shape and prove nothing.</summary>
+    protected override SearchHit UnknownHit => new("99", "not on this page");
+
     // Per-instance: MSTest runs test methods in parallel on separate instances.
     private string _dir = "";
     private string _path = "";
@@ -192,14 +195,4 @@ public class NotebookSearchableTests : SearchableContentConformanceTests
         Assert.AreEqual(2, vm.Cells[2].SearchSpans.Count, "…and it is still painted where it matched");
     });
 
-    [TestMethod]
-    public void ShowResults_WithCellsThisNotebookDoesNotHave_Declines() => WithPage(async page =>
-    {
-        var vm = (NotebookViewModel)page;
-
-        var marked = await vm.ShowResultsAsync([new SearchHit("99", "Cell 99")], default);
-
-        Assert.IsFalse(marked, "the agent needs to know it must describe the matches instead");
-        Assert.IsFalse(vm.Cells.Any(c => c.IsSearchHit));
-    });
 }

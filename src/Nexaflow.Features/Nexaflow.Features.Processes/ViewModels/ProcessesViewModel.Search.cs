@@ -65,7 +65,13 @@ public sealed partial class ProcessesViewModel : ISearchable
 
         return _shell.RunOnUiAsync(() =>
         {
-            ApplyFilter(request: null, pinned: pids, $"{pids.Count} selected");
+            // Same rule as the other list pages. This one looked correct only because a malformed id fails
+            // the TryParse above; a well-formed pid that has since exited got the empty-list-plus-success
+            // treatment like everywhere else.
+            var kept = _rowsByPid.Keys.Count(pids.Contains);
+            if (kept == 0) return Task.FromResult(false);
+
+            ApplyFilter(request: null, pinned: pids, $"{kept} selected");
             return Task.FromResult(true);
         });
     }

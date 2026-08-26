@@ -9,7 +9,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Graph;
 
 /// <summary>
 /// The incremental build cache: an unchanged file is served from its cached contribution (never re-parsed), yet the

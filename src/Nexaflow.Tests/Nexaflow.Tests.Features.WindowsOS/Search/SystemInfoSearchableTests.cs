@@ -29,6 +29,9 @@ public class SystemInfoSearchableTests : SearchableContentConformanceTests
     protected override string LiteralTermInContent => "alpha42";
     protected override string RegexOnlyPattern     => @"alpha\d+";
 
+    /// <summary>A well-formed section/fact path this page does not report.</summary>
+    protected override SearchHit UnknownHit => new("Nowhere/Nothing", "not on this page");
+
     private const string HitByValue = "Name";            // Operating System / Name
     private const string HitByLabel = "alpha42 chipset"; // Hardware / alpha42 chipset
 
@@ -144,17 +147,6 @@ public class SystemInfoSearchableTests : SearchableContentConformanceTests
         Assert.IsTrue(marked);
         CollectionAssert.AreEqual(new[] { HitByLabel }, Marked(vm));
         Assert.AreEqual(1, vm.SearchMatchCount);
-    });
-
-    [TestMethod]
-    public void ShowResults_WithIdsThisPageNeverGave_Declines() => WithPage(async page =>
-    {
-        var vm = (SystemInfoViewModel)page;
-
-        var marked = await vm.ShowResultsAsync([new SearchHit("Nowhere/Nothing", "Nothing")], default);
-
-        Assert.IsFalse(marked, "the agent needs to know it must describe the matches instead");
-        Assert.AreEqual(0, Marked(vm).Length);
     });
 
     [TestMethod]

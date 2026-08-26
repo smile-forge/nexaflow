@@ -5,7 +5,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Features.ProductManager;
+namespace Nexaflow.Tests.Initiatives.Product;
 
 /// <summary>Pure tree restructuring (promote / demote / re-parent) and its guards.</summary>
 [TestClass]

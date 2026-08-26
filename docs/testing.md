@@ -14,9 +14,10 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the three suites above (for their **output**, not their API) |
+| `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the suites above **and** `Tests.Initiatives` (for their **output**, not their API) |
 | `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` conformance contract. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
+| `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
@@ -36,9 +37,11 @@ knowing:
   split exists to remove. Each file follows its feature; only the feature-agnostic ones (query syntax,
   term parsing, the conformance guard) stayed behind.
 - **`Architecture` is the heaviest project on purpose.** Its guards reflect over every
-  `Nexaflow.Features.*.dll` *and* every `Nexaflow.Tests.Features*.dll`, so it references the three suites
-  to bring both sets into its output directory rather than guessing at sibling `bin` paths that shift with
-  configuration and target framework. It is also the project nobody edits while working on a feature.
+  `Nexaflow.Features.*.dll` *and* every suite DLL matching `FeatureTestSuites.Patterns`, so it references
+  the suites to bring both sets into its output directory rather than guessing at sibling `bin` paths that
+  shift with configuration and target framework. It is also the project nobody edits while working on a
+  feature. **A new suite must be added to `Patterns`** — that is the one place the discovery is spelled out,
+  and a suite missing from it silently drops out of the `[CoversNode]` guard.
 
 Namespaces did **not** change: a test in `Viewers` is still `Nexaflow.Tests.Features.Audio`. That keeps the
 folder→feature convention `CoverageGuardTests` enforces readable across all four assemblies, and meant no
@@ -49,6 +52,18 @@ IO library goes in `Tests.IO`; one that merely reaches through an IO library on 
 `Text` opening a file via `EncodingDetector`, `Compressed` browsing through the VFS — stays with the
 feature. The rule is worth stating because the second kind is far more common, and moving those would drag
 the whole feature graph back into a project whose value is that it has none of it.
+
+**The same rule put `Tests.Initiatives` where it is.** Its 265 tests used to sit in
+`Tests.Features\ProductManager\`, where they were hosted in a `UseWPF` project and needed a desktop session
+— despite referencing nothing but `Services.Initiatives`, its CLI and `Tests.Fixtures`. Their subject is a
+WPF-free backend library, exactly like `Tests.IO`'s, so the suite is one too: plain `net10.0`, no shell, no
+desktop. What stayed behind in `Tests.Features` is the ProductManager *feature* — the view-models, the AI
+client tools, the graph viewer — which genuinely needs WPF. A test belongs in `Tests.Initiatives` when its
+subject is `Nexaflow.Services.Initiatives(.Cli)`; one that reaches it through the feature stays with the
+feature.
+
+That split also made the `initiatives` mutation target cheap and safe to run — see
+[Mutation testing](#mutation-testing-strykernet).
 
 ## Running
 
@@ -289,6 +304,75 @@ config root (`ConfigManager.BaseDir`), so a test run is fully isolated from the 
 When you add a **new viewer**, give its root `UserControl` a stable
 `AutomationProperties.AutomationId="…View"`, map its extension(s) to the viewer's experience id in
 `default-filemap.json`, and add the `(subDir, "ViewId")` pair to `SampleFileViewerTests.ViewerBySet`.
+
+## Mutation testing (Stryker.NET)
+
+Every check above asks "does the code do what the test expects?". Mutation testing asks the inverse, which
+nothing else here can: **if this line were wrong, would any test notice?** Stryker rewrites one operator,
+literal or branch at a time (`>` → `>=`, `&&` → `||`, a string to `""`, a block to empty), reruns the tests
+that cover that line, and records whether they went red. A mutant nothing kills is a line the suite is
+watching but not actually guarding.
+
+**It is an occasional review tool, run by hand.** Deliberately not wired into `dotnet build`, the
+architecture guards, `ci.yml`, or the `NexaflowSetup.slnx` release gate — those are seconds-scale pass/fail
+checks and a sweep here is minutes, for an answer that barely moves between one commit and the next. Run it
+when you are thinking about a subsystem's test quality: read the survivors, decide, move on.
+
+```powershell
+cd tools/mutation
+./Run-Mutation.ps1                                    # what the targets are
+./Run-Mutation.ps1 -Target initiatives                # a full sweep of one
+./Run-Mutation.ps1 -Target all -Since origin/main     # only what this branch changed
+./Run-Mutation.ps1 -Cleanup                           # after an interrupted run — see below
+```
+
+Stryker itself is pinned in `.config/dotnet-tools.json` (`rollForward: false`); the script restores it.
+Reports land in `artifacts/mutation/<target>/reports/` (gitignored) — read the HTML one.
+
+| Target | Mutates | Tested by | Why it is on the list |
+|--------|---------|-----------|-----------------------|
+| `io-common` | `Nexaflow.IO.Common` | `Tests.IO` | The cleanest 1:1 in the repo, every subject a pure function over bytes or text. WPF-free end to end. Start here. |
+| `initiatives` | `Services.Initiatives` | `Tests.Initiatives` | `SnaplinkValidator` + `ProductTreeOps` + `ProductStore` + the graph builder — the release gate and the edits behind it. WPF-free. |
+| `search` | `Nexaflow.Search` | `Tests.Features`, `.Viewers`, `.WindowsOS` | Query syntax and AQS evaluation feeding 27 `ISearchable` surfaces. The one target that runs WPF suites. |
+
+### Where it earns its keep
+
+**Validators and parsers whose failure mode is silence.** Every one of `SnaplinkValidator`'s 32 tests hands
+it something broken and checks that it complains, so none of them can detect a change that makes it *stop*
+complaining — and it gates the installer build (`nexaflowSetup.wixproj` → `ValidateSnaplinks`). A validator
+that quietly fails open looks exactly like a clean tree. The first run of that target found four such
+mutants alive: `&&` → `||` on a null guard, a dropped `!`, `Concat` → `Except` on the candidate set, and
+`Any` → `All` on a member lookup.
+
+Contrast the search target's first run, which is the reassuring case: of the mutants planted in code the
+tests actually execute, **all 163 were killed**. Where a test ran, it noticed.
+
+### Four things that will bite you
+
+- **Use `--test-runner mtp`.** Every suite sets `EnableMSTestRunner` + `OutputType=Exe`, i.e.
+  Microsoft.Testing.Platform. Stryker still defaults to the VSTest runner, which cannot see these tests and
+  dies inside `VsTestHelper` with an unrelated `ArgumentNullException` about `path3`. The configs set it; a
+  hand-rolled `dotnet stryker` invocation must too. MTP support is marked preview in Stryker 4.16.
+- **A shared leaf needs every suite that exercises it.** `Nexaflow.Search` mutated against `Tests.Features`
+  alone reports `SearchQueryScorer` as 99 mutants with zero coverage — its tests are in `.WindowsOS`. Check
+  `nfi graph node <type-id>` for the real consumer set before adding a target.
+- **It leaks processes, and on a WPF suite that costs you the session.** A sweep leaves dozens of MSBuild
+  node-reuse workers and test hosts behind. Harmless for a WPF-free target; for `search`, enough orphaned WPF
+  hosts exhaust the interactive session's desktop heap, and the symptom does not look like a resource
+  problem — unrelated WPF tests start failing with `Win32Exception: Not enough memory resources` out of
+  `HwndWrapper..ctor` while the machine has tens of GB free, and it does not clear until you sign out.
+  `Run-Mutation.ps1` cleans up after every sweep and `-Cleanup` does it standalone, but prefer a machine you
+  are not using for that target.
+- **A run can leave a mutated assembly behind.** If a handle is held at the end Stryker warns
+  `Failed to restore output assembly … Mutated assembly is still in place` and the mutant stays in the test
+  project's `bin`. The script rebuilds afterwards to undo it; a hand-rolled run must too.
+
+### What is deliberately not mutated
+
+Feature ViewModels and anything WPF. Most of their mutable surface is binding glue and property plumbing,
+their tests need a pumped UI context, Stryker's project analysis already fails on several `net10.0-windows`
+feature projects, and the desktop-heap hazard above is worst there. Mutation testing here is a tool for
+**leaf logic**, not for the shell.
 
 ## Where things are
 

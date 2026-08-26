@@ -188,17 +188,6 @@ public class ScratchpadSearchableTests : SearchableContentConformanceTests
     });
 
     [TestMethod]
-    public void ShowResults_WithIdsNotOnThisBoard_Declines() => WithPage(async page =>
-    {
-        var vm = (ScratchpadViewModel)page;
-
-        var narrowed = await vm.ShowResultsAsync([new SearchHit(Guid.NewGuid().ToString(), "elsewhere")], default);
-
-        Assert.IsFalse(narrowed, "the agent needs to know it must describe the matches instead");
-        Assert.AreEqual(3, Visible(vm).Length);
-    });
-
-    [TestMethod]
     public void AnEmptyBoard_SaysSo_RatherThanReportingNoMatches() => RunUnpumped(async () =>
     {
         var vm = new ScratchpadViewModel(_config, _store, RunningShell());
