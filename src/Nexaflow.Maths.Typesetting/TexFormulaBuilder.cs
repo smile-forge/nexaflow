@@ -247,19 +247,11 @@ public static class TexFormulaBuilder
         // \right)` into a single atom; ours keeps it a group holding one thing, which is what it was
         // written as and what a substitution has to be able to reach. Reviewed 2026-08-27.
 
-        // And a script on something a command *built*, between delimiters — `\left( \frac{f}{g}_{i}
-        // \right)`, or the same with an `\overline`. Written anywhere else the two readings agree
-        // exactly; written here they do not, which is the same measuring difference as the line above
-        // rather than a second problem: what is between delimiters is boxed before the delimiters are
-        // grown to fit it, and the two readings box it differently.
-        //
-        // On a command *with arguments*, and that qualifier is worth twelve thousand formulas. A scripted
-        // `\sum` is a scripted command too, and `\left( \sum_{i} \right)` agrees perfectly — a symbol
-        // wearing a script is not the shape that differs. See the docs, "still to be settled".
-        if (DeclineUnsettled && body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Script
-                                                   && inner.Part(TexRole.Base) is { Kind: TexKind.Command } built
-                                                   && built.Parts.Any()))
-            return null;
+        // A script on something a command built, between delimiters, was declined here and is not any
+        // more: reviewed, and ours is the one to keep. Identical renderings again. The parser follows
+        // TeX's rule that what comes after modifies what came before and flattens the two together;
+        // that is right for setting type and wrong for selecting, where the thing scripted and the
+        // script are separate things a reader points at. Reviewed 2026-08-27.
 
         if (Of(body, style, knowledge) is not { } inside) return null;
 
@@ -272,7 +264,6 @@ public static class TexFormulaBuilder
         // and naming it Vert instead does not agree with the parser either. Every norm in the corpus is
         // written with it, so it is worth getting right rather than guessing at: see docs, "still to be
         // settled".
-        if (DeclineUnsettled && (Names(open) == @"\|" || Names(close) == @"\|")) return null;
 
         return Tag(
             new FencedAtom(null, inside, Delimiter(open), Delimiter(close)),
@@ -291,10 +282,16 @@ public static class TexFormulaBuilder
         var text = written.Node.Print();
 
         // A character stands for a delimiter through TeX's own table — `(` is not the symbol named "(".
-        // A command names one directly, without its backslash.
-        var symbol = text.Length == 1
-            ? TexFormulaParser.DelimiterOf(text[0], null)
-            : TexFormulaParser.DelimiterOf(text.TrimStart('\\'), null);
+        // A command names one directly, without its backslash — except this one, which names itself
+        // after nothing: `\|` is TeX's spelling of `\Vert`, the double bar every norm is written with,
+        // and stripping its backslash asks for a symbol called `|` that no table has. Which is why the
+        // bars were simply missing rather than drawn wrongly.
+        var symbol = text switch
+        {
+            @"\|" => TexFormulaParser.DelimiterOf("Vert", null),
+            { Length: 1 } => TexFormulaParser.DelimiterOf(text[0], null),
+            _ => TexFormulaParser.DelimiterOf(text.TrimStart('\\'), null),
+        };
 
         // The whole `\right]` it was written as, and not merely the bracket. A delimiter is a piece the
         // reader points at, and pointing at one has to mean the pair — a bracket without its partner
@@ -431,13 +428,11 @@ public static class TexFormulaBuilder
             built.Add(atom);
         }
 
-        // A row written first in a row, with anything after it — `\mathrm{vol}(10)`, where the style's
-        // three letters are a row of their own. The parser splices it into the row it is starting rather
-        // than nesting it, because the first atom it is handed becomes the row it accumulates into; put
-        // anything before it and `A \mathrm{vol}(10)` nests, exactly as this does. Both set identically.
-        // So it is an artefact of that reading's accumulator and not a rule, and this declines rather
-        // than reproducing it — see the docs, "still to be settled".
-        if (DeclineUnsettled && built.Count > 1 && built[0] is RowAtom) return null;
+        // A row written first in a row — `\mathrm{vol}(10)` — was declined here and is not any more:
+        // reviewed, and ours is the one to keep. The parser splices such a row into the row it is
+        // starting, but only when it is written first; put anything before it and it nests, exactly as
+        // this does. Both set identically. Ours respects the grouping the writer wrote and the parser's
+        // depends on where the group happens to sit. Reviewed 2026-08-27.
 
         return built;
     }
@@ -467,9 +462,10 @@ public static class TexFormulaBuilder
 
     private static Atom? Script(TexPart part, string? style, TexFormulaParser knowledge)
     {
-        // A script written where there is nothing to set it on — after a tie, or first in a group. TeX
-        // sets it on an empty box, so there is a box in the drawing that nothing in the reading stands
-        // for; declined rather than invented.
+        // A script with no base at all — one written with nothing before it that could carry it and
+        // nothing after it either. The reading gives what follows to it where there is anything to give;
+        // where there is not, the parser sets it on an empty box, and a box that nothing in the reading
+        // stands for is not a thing to invent.
         if (part.Part(TexRole.Base) is null) return null;
 
         if (Part(part, TexRole.Base, style, knowledge) is not { } baseAtom) return null;
@@ -565,6 +561,11 @@ public static class TexFormulaBuilder
             if (TexFormulaParser.IsRawTextStyle(name[1..])) return null;
 
             if (part.Part(TexRole.Base) is not { } styled) return null;
+
+            // A tie inside a style — `\mathrm { \quad ~ }`. Two formulas in the corpus, and the two
+            // readings space it differently; not looked at yet, so not guessed at.
+            if (styled.SelfAndDescendants().Any(inner => inner.Node.Text == "~")) return null;
+
             if (Of(styled, restyled, knowledge) is not { } inner) return null;
 
             // The whole \mathrm{abc}, not the {abc}: the command and its argument are one construct and

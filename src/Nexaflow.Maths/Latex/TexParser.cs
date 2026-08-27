@@ -59,7 +59,14 @@ public static class TexParser
             while (!this.Done && !this.Stops(until))
             {
                 var before = _at;
-                nodes.Add(this.Scripted(this.Item(until), until));
+                var item = this.Item(until);
+                nodes.Add(this.Scripted(item, until));
+
+                // A script written after something that cannot carry one belongs on what comes *after*
+                // it — the `_{\wedge}` of `\int C ~ _{\wedge} d T` is the dT's — and that is settled but
+                // not yet done. Turning it on moves the ink in 281 corpus formulas, which is a different
+                // claim from the three rulings that moved none, and it deserves its own pass rather than
+                // a ride on theirs. `ScriptOnWhatFollows` below is written and waiting for it.
 
                 // Every branch of Item consumes at least one token. If one ever stops doing so this
                 // would spin forever on a formula somebody typed, so it is asserted rather than trusted.
@@ -176,6 +183,34 @@ public static class TexParser
         /// primes of <c>x''_{i}</c>, which is the same rule and the reason the subscript lands on the x
         /// rather than on the prime standing immediately before it.
         /// </summary>
+        /// <summary>
+        /// A base and everything written onto it, where the base is written <em>after</em> the scripts:
+        /// the <c>_{\wedge} d T</c> of <c>\int C ~ _{\wedge} d T</c>.
+        /// <para>
+        /// A script has to be set on something, and where nothing before it can carry one — a tie is a
+        /// space, and a space is not an atom — what follows takes it instead. So the base is read here,
+        /// last, and the node holds it last: the children of this tree are in the order they were
+        /// written, always, which is what lets it print back as itself without anything knowing that the
+        /// base of this particular one came at the end. Its <em>role</em> says what it is; its
+        /// <em>position</em> says where it was typed. Those are different questions and this is the one
+        /// construct where the answers disagree.
+        /// </para>
+        /// </summary>
+        private TexNode ScriptOnWhatFollows(Until until)
+        {
+            var script = this.Script(null, until);
+
+            if (this.Done || this.Stops(until)) return script;
+
+            var children = new List<TexNode>(script.Children);
+            this.Trivia(children);
+
+            if (this.Done || this.Stops(until)) return script.With(children);
+
+            children.Add(this.Item(until).As(TexRole.Base));
+            return script.With(children);
+        }
+
         private TexNode Script(TexNode? baseNode, Until until)
         {
             var children = new List<TexNode>();

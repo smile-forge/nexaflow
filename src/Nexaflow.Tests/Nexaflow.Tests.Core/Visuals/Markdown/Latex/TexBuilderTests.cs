@@ -254,13 +254,7 @@ public class TexBuilderTests
         foreach (var latex in new[] { @"\textcolor{red}{a}",
                                       @"\text{for all}",     // words, not maths: the spaces are the point
                                       "'x",                  // a prime with nothing to be the prime of
-                                      @"a~^{b}",             // a script with nothing to be set on
-                                      // A script on a construct, between delimiters. Written anywhere
-                                      // else these agree exactly; parked, see the docs.
-                                      @"\left( \frac{f}{g}_{i} \right)",
-                                      @"\left( \overline{z}_{+} \right)",
-                                      @"\left( \overline{f}' \right)",
-                                      @"\mathrm{abc}(x)",    // a row written first in a row
+                                      @"^{2}",               // a script with nothing at all before it
                                       @"\left( a", @"\notacommand{x}",
                                       @"\begin{matrix} a & b",              // never closed
                                       @"\begin{equation} a \end{equation}", // means nothing here yet
@@ -318,7 +312,11 @@ public class TexBuilderTests
             // A difference that has been looked at and decided in our favour is not a failure. The
             // parser is a reference and not a specification, so "differs from it" was never the same as
             // "wrong" — it is just the only signal available until somebody looks.
-            if (Decided(TexReading.Of(formula.Latex)) is { } why)
+            var why = Drawn(theirs, formula.Latex) == Drawn(ours, formula.Latex)
+                ? "the same picture, a different tree — ours keeps what the writer grouped"
+                : Decided(TexReading.Of(formula.Latex), ours);
+
+            if (why is not null)
             {
                 lock (deliberate)
                     deliberate[why] = deliberate.TryGetValue(why, out var n) ? n + 1 : 1;
@@ -370,21 +368,89 @@ public class TexBuilderTests
     /// answers exactly.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// What the reader actually sees: every box that draws something, and where. Containers left out.
+    /// <para>
+    /// This is the line every ruling so far has fallen on. A difference in the <em>box tree</em> — the
+    /// parser collapsing a group ours keeps, splicing a row ours nests — moves no ink at all, and three
+    /// times running the answer has been that ours is the one to keep, because a tree is what selection
+    /// and substitution work on. A difference in <em>this</em> is a different thing entirely: it is a
+    /// formula that would look wrong to somebody reading it.
+    /// </para>
+    /// <para>
+    /// So the gate asks both. Same ink and a different tree is a structural choice, counted and named.
+    /// Different ink is a disagreement about the picture, and fails until somebody looks at it.
+    /// </para>
+    /// </summary>
+    private static string Drawn(TexFormula formula, string latex)
+    {
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, latex);
+        _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
+        formula.RenderTo(capture, _setting, 0, 0);
+        capture.FinishRendering();
+
+        var text = new StringBuilder();
+
+        foreach (var node in capture.Root!.SelfAndDescendants())
+            if (node.Children.Count == 0)
+                text.Append(node.Kind).Append(' ')
+                    .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
+                    .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))
+                    .Append('\n');
+
+        return text.ToString();
+    }
+
+    private static string? Decided(TexReading reading, TexFormula ours)
+    {
+        // Reviewed 2026-08-27. Identical renderings; the parser splices a row written first into the row
+        // it is starting, but only there — put anything before it and it nests, as ours always does.
+        // Ours respects the grouping that was written; the parser's depends on where the group sits.
+        //
+        // Asked of what was built rather than of the reading, because that is where the shape is. "The
+        // first thing in this run came out a row" is not a question about what was typed: `\mathrm{Tr}`
+        // and `{\frac{a}{b}}` are written nothing alike and are the same case here.
+        if (ours.RootAtom is XamlMath.Atoms.RowAtom { Elements: { Count: > 1 } elements }
+            && elements[0] is XamlMath.Atoms.RowAtom)
+            return "a row written first in a row — ours respects the grouping either way";
+
+        return Decided(reading);
+    }
+
     private static string? Decided(TexReading reading)
     {
         foreach (var part in reading.Root.SelfAndDescendants())
         {
+            if (part.Kind != TexKind.Fence || part.Part(TexRole.Body) is not { } body) continue;
+
+            // Reviewed 2026-08-27, and the one ruling so far that moves ink. `\left\|` drew no bar at
+            // all on our side — `\|` strips to a symbol called `|` that no table has — which was simply
+            // wrong. It is TeX's own spelling of `\Vert`, so that is what it asks for now, and the two
+            // readings differ about the glyph rather than about the structure.
+            if (Names(part, TexRole.Open) == @"\|" || Names(part, TexRole.Close) == @"\|")
+                return @"\left\| — ours draws the double bar it names; the parser draws otherwise";
+
             // Reviewed 2026-08-27. Identical renderings; the parser collapses a script inside the inner
             // fence into one atom where ours keeps the group it was written as, which is what a
             // substitution has to be able to reach.
-            if (part.Kind == TexKind.Fence
-                && part.Part(TexRole.Body) is { } body
-                && body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence))
+            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence))
                 return "a fence inside a fence — ours keeps the groups the parser collapses";
+
+            // Reviewed 2026-08-27. Identical renderings; the parser follows TeX's rule that what comes
+            // after modifies what came before and flattens the two, which is right for setting type and
+            // wrong for selecting — the thing scripted and the script are separate things to point at.
+            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Script
+                                                       && inner.Part(TexRole.Base) is { Kind: TexKind.Command } built
+                                                       && built.Parts.Any()))
+                return "a script on a construct, inside a fence — ours keeps the two apart";
         }
 
         return null;
     }
+
+    /// <summary>What a fence's <c>\left</c> or <c>\right</c> was written with, as written.</summary>
+    private static string Names(TexPart fence, string role) =>
+        fence.Part(role)?.Part(TexRole.Argument)?.Node.Print() ?? string.Empty;
 
     /// <summary>
     /// Where a formula's every piece ends up on the page — what both readings have to agree about.

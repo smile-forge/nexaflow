@@ -372,9 +372,20 @@ from a defect and a difference somebody *has* examined is not one at all. They a
 reading rather than on the text: "a fence whose body holds a fence" is the shape that was ruled on;
 "contains two `\left`" is a search that would also catch things nobody looked at.
 
+**The gate asks two questions, not one, and that is what four rulings taught it.** Every ruling but one
+came back "identical rendering, ours is the better structure" — so the sweep compares the *ink* (the
+boxes that draw something, and where) separately from the *tree*. Same ink and a different tree is a
+structural choice: counted, named, not a failure. Different ink is a disagreement about the picture and
+fails until somebody looks. That one distinction took 959 unexplained differences down to 40, and it
+needs no per-shape predicate to do it — the earlier list of shapes was a suppression file waiting to
+happen.
+
 | | Why ours |
 |---|---|
-| a fence inside a fence | 1,327 formulas. Identical renderings — every number the same. The parser collapses the `^{4}` of `\left( \left( \tfrac12 \right)^{4}, 0^{4} \right)` into a single atom; ours keeps the group holding one thing, which is what was written and what a substitution has to be able to reach. *Reviewed 2026-08-27* |
+| a fence inside a fence | The parser collapses the `^{4}` of `\left( \left( \tfrac12 \right)^{4}, 0^{4} \right)` into one atom; ours keeps the group holding one thing, which is what was written and what a substitution has to reach. *Reviewed 2026-08-27* |
+| a script on a construct, inside a fence | The parser follows TeX's rule that what comes after modifies what came before, and flattens the two together. Right for setting type, wrong for selecting: the thing scripted and the script are separate things a reader points at. *Reviewed 2026-08-27* |
+| a row written first in a row | The parser splices such a row into the row it is starting, but only where it is written first — put anything before it and it nests, as ours always does. Ours respects the grouping that was written; the parser's depends on where the group happens to sit. *Reviewed 2026-08-27* |
+| `\left\|` | **The one ruling that moves ink.** Ours drew no bar at all: `\|` strips to a symbol called `\|` that no table has, so the norm bars were simply missing. It is TeX's own spelling of `\Vert`, and that is what it asks for now. *Reviewed 2026-08-27* |
 
 ### Still to be settled
 
