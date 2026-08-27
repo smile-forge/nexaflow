@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Threading;
 using Nexaflow.Maths.Latex;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -133,14 +135,51 @@ public class TexBuilderTests
         @"\begin{matrix} f' & g'' \end{matrix}",
         @"\prime",           // the symbol, which is a different thing entirely
 
+        // A script on a construct. These agree everywhere except between delimiters, which is where the
+        // decline now sits — it used to sit here, and cost every one of these its coverage for nothing.
+        @"\overline{J}^{a}",
+        @"\overline{{J}}^{a}",
+        @"\underline{x}^{2}",
+        @"\overline{f}'",
+        @"\frac{f}{g}_{i}",
+        @"\frac{f}{g}_{i} h",
+
         "a~b",               // a tie
+
+        // Space that was asked for rather than typed. TeX's own spacing comes from atom classes and is
+        // not written down; these are, so they build like any other command.
+        @"a\,b",
+        @"a\;b",
+        @"a\!b",
+        @"a\:b",
+        @"a\quad b",
+        @"a\qquad b",
+
+        // Switches, which take the rest of the group they stand in rather than an argument. So the
+        // scope is a fact about the run, and nothing says where it ends except the closing brace.
+        @"{\cal L}",
+        @"{\cal L M}",
+        @"A {\cal L} B",
+        @"{\bf x} + y",
+        @"{\it a}",
+        @"\displaystyle \sum_{i=0}^{n} i",
+        @"{\displaystyle \frac{a}{b}}",
+        @"\textstyle \frac{a}{b}",
+        @"\frac{{\cal A}}{{\cal B}}",
+        @"\begin{matrix} {\bf a} & b \end{matrix}",
+
+        // A symbol wearing a script, between delimiters. What is declined there is a script on something
+        // a command *built*, and the difference between the two is worth twelve thousand formulas.
+        @"\left( \sum_{i} \right)",
+        @"\left( \int_{0}^{1} x \right)",
+        @"\left( \alpha^{2} \right)",
     ];
 
     [TestMethod]
     public void EverythingItClaimsToKnowItCanBuild() => UiThread.Run(() =>
     {
         foreach (var latex in Known)
-            Assert.IsNotNull(TexFormulaBuilder.Build(TexReading.Of(latex)), latex);
+            Assert.IsNotNull(TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance), latex);
     });
 
     [TestMethod]
@@ -153,7 +192,7 @@ public class TexBuilderTests
         // because that is what the reader sees and what every position in the editor is measured in.
         foreach (var latex in Known)
         {
-            var ours = TexFormulaBuilder.Build(TexReading.Of(latex));
+            var ours = TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance);
             Assert.IsNotNull(ours, latex);
 
             Assert.AreEqual(Settled(WpfTeXFormulaParser.Instance.Parse(latex), latex), Settled(ours, latex), latex);
@@ -172,7 +211,7 @@ public class TexBuilderTests
         // quietly threads a span through for convenience.
         foreach (var latex in Known)
         {
-            var formula = TexFormulaBuilder.Build(TexReading.Of(latex));
+            var formula = TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance);
             Assert.IsNotNull(formula, latex);
 
             foreach (var atom in Parts(formula.Root!))
@@ -194,7 +233,7 @@ public class TexBuilderTests
         // What none of this is possible without, and what the parser can never provide: an atom that
         // came from a reading which still knows where every brace was.
         var reading = TexReading.Of(@"\frac{a}{b}");
-        var formula = TexFormulaBuilder.Build(reading);
+        var formula = TexFormulaBuilder.Build(reading, WpfTeXFormulaParser.Instance);
         Assert.IsNotNull(formula);
 
         // The numerator's atom is the `a` itself — a group holding one thing is that thing, here as in
@@ -216,8 +255,11 @@ public class TexBuilderTests
                                       @"\text{for all}",     // words, not maths: the spaces are the point
                                       "'x",                  // a prime with nothing to be the prime of
                                       @"a~^{b}",             // a script with nothing to be set on
-                                      @"\overline{J}^{a}",   // a script on a rule drawn over something,
-                                      @"\overline{f}'",      // marks included: parked, see the docs
+                                      // A script on a construct, between delimiters. Written anywhere
+                                      // else these agree exactly; parked, see the docs.
+                                      @"\left( \frac{f}{g}_{i} \right)",
+                                      @"\left( \overline{z}_{+} \right)",
+                                      @"\left( \overline{f}' \right)",
                                       @"\mathrm{abc}(x)",    // a row written first in a row
                                       @"\left( a", @"\notacommand{x}",
                                       @"\begin{matrix} a & b",              // never closed
@@ -226,7 +268,7 @@ public class TexBuilderTests
                                       @"\begin{array}{cc} \hline a & b \end{array}",
                                       @"\begin{array}{@{}c@{}} a \end{array}",  // a preamble it cannot read
                                       @"\begin{array} a & b \end{array}" })     // and one that is not there
-            Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex)), latex);
+            Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance), latex);
     });
 
     [TestMethod]
@@ -240,36 +282,53 @@ public class TexBuilderTests
             ? Math.Max(s, 1)
             : 1;
 
+        // Read first, measured after. Every formula is a self-contained piece of work — read it, build it
+        // both ways, compare where the pieces landed, forget all of it — so the only reason this ran on
+        // one thread was that it was written that way, and a quarter of a million of them is worth the
+        // other thirty-one.
+        var formulas = new List<(int Line, string Latex)>();
         var line = 0;
-        var seen = 0;
+
+        foreach (var raw in File.ReadLines(corpus))
+        {
+            var at = line++;
+            if (at % stride != 0) continue;
+
+            var latex = raw.Trim();
+            if (latex.Length > 0) formulas.Add((at + 1, latex));
+        }
+
+        var seen = formulas.Count;
         var built = 0;
         var wrong = new List<string>();
 
-        UiThread.Run(() =>
+        UiThread.Across(formulas, formula =>
         {
-            foreach (var raw in File.ReadLines(corpus))
-            {
-                if (line++ % stride != 0) continue;
+            if (TexFormulaBuilder.Build(TexReading.Of(formula.Latex), WpfTeXFormulaParser.Instance)
+                is not { } ours) return;
 
-                var latex = raw.Trim();
-                if (latex.Length == 0) continue;
+            Interlocked.Increment(ref built);
 
-                seen++;
-                if (TexFormulaBuilder.Build(TexReading.Of(latex)) is not { } ours) continue;
+            TexFormula? theirs;
+            try { theirs = WpfTeXFormulaParser.Instance.Parse(formula.Latex); } catch { return; }
 
-                built++;
+            if (Settled(theirs, formula.Latex) == Settled(ours, formula.Latex)) return;
 
-                TexFormula? theirs = null;
-                try { theirs = WpfTeXFormulaParser.Instance.Parse(latex); } catch { continue; }
-
-                if (Settled(theirs, latex) != Settled(ours, latex) && wrong.Count < 10)
-                    wrong.Add($"line {line}: {latex}");
-            }
+            lock (wrong) wrong.Add($"line {formula.Line}: {formula.Latex}");
         });
+
+        // Every one of them, written down beside the coverage, because an assertion message is truncated
+        // and ten formulas out of a quarter of a million only tell you what they have in common if you
+        // can see all ten.
+        wrong.Sort(StringComparer.Ordinal);
+        File.WriteAllLines(
+            Path.Combine(Path.GetDirectoryName(corpus)!, "tex-builder-disagreements.txt"), wrong);
 
         Assert.IsTrue(seen > 1000, $"only {seen} formula(s) in {corpus}");
         Assert.AreEqual(0, wrong.Count,
-            $"built {built} of {seen}, and these disagree:\n" + string.Join("\n", wrong));
+            $"built {built} of {seen}; {wrong.Count} disagree, all of them written to "
+            + "tex-builder-disagreements.txt beside the corpus. The first few:\n"
+            + string.Join("\n", wrong.Take(5)));
 
         // Written down rather than asserted. How much of the corpus the builder reaches is a number to
         // watch go up as constructs are taught to it, not a bar to clear — a floor here would either sit
@@ -288,10 +347,28 @@ public class TexBuilderTests
     /// over font metrics, so they are the same on any machine, where rasterising is not.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The fonts and style a formula is set in, made once per thread.
+    /// <para>
+    /// <see cref="WpfTeXEnvironment.Create"/> walks every font family installed on the machine to find
+    /// the one <c>\text</c> would use, and builds the Computer Modern metrics beside it. Doing that per
+    /// formula put a quarter of a million trips through WPF's process-wide font cache, which is locked —
+    /// so measuring the corpus on thirty-two threads used four of them and took longer than one did.
+    /// </para>
+    /// <para>
+    /// Per thread rather than shared, because what it holds is WPF's and belongs to the thread that made
+    /// it.
+    /// </para>
+    /// </summary>
+    [ThreadStatic]
+    private static XamlMath.TexEnvironment? _setting;
+
     private static string Settled(TexFormula formula, string latex)
     {
+        _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
+
         var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, latex);
-        formula.RenderTo(capture, WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale), 0, 0);
+        formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
         Assert.IsNotNull(capture.Root, $"nothing was drawn for {latex}");

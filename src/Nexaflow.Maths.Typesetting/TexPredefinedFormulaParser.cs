@@ -107,18 +107,36 @@ internal sealed class TexPredefinedFormulaParser
         }
     }
 
+    /// <summary>
+    /// One at a time, because the parsers it drives are shared and hold the answer on themselves:
+    /// <see cref="ReturnParser"/> puts what it parsed in a field and this reads it back out. Two callers
+    /// expanding <c>\quad</c> at the same moment take each other's, and what comes back is another
+    /// formula's — silently, and only sometimes.
+    /// <para>
+    /// A lock rather than a rewrite because expanding a macro is rare and cheap beside everything else,
+    /// and because the parsers being stateful is the shape this engine came in. What is <em>not</em>
+    /// acceptable is leaving it racy: it made a sweep of the corpus report a different answer each run,
+    /// which is worse than a slow one.
+    /// </para>
+    /// </summary>
+    private readonly object _expanding = new();
+
     private TexFormula? ParseFormula(SourceSpan source, XElement formulaElement, Dictionary<string, Func<SourceSpan, TexFormula?>> allFormulas)
     {
-        var context = new PredefinedFormulaContext();
-        foreach (var element in formulaElement.Elements())
+        lock (_expanding)
         {
-            if (!actionParsers.TryGetValue(element.Name.ToString(), out var parser))
-                continue;
-            parser.Parse(source, element, context, allFormulas);
-            if (parser is ReturnParser returnParser)
-                return returnParser.Result;
+            var context = new PredefinedFormulaContext();
+            foreach (var element in formulaElement.Elements())
+            {
+                if (!actionParsers.TryGetValue(element.Name.ToString(), out var parser))
+                    continue;
+                parser.Parse(source, element, context, allFormulas);
+                if (parser is ReturnParser returnParser)
+                    return returnParser.Result;
+            }
+
+            return null;
         }
-        return null;
     }
 
     private record MethodInvocationParser(TexPredefinedFormulaParser Parent, IBrushFactory BrushFactory) : IActionParser

@@ -164,7 +164,30 @@ by `Attribute` — the span matching being deleted. The order is: wire the build
 from `Origin`; then the marker fires on a real to-do list rather than on code doing the only thing
 available to it.
 
-## What the corpus cannot tell you
+## The sweep is the inner loop, so it runs in forty seconds
+
+Measuring a quarter of a million formulas took nine minutes, which is long enough that you stop doing
+it and start guessing instead. Two things were wrong, and neither was the amount of work:
+
+- **`WpfTeXEnvironment.Create` walks every font family installed on the machine**, to find the one
+  `\text` would use, and builds the Computer Modern metrics beside it. `Settled` called it per formula.
+  It is now made once per thread.
+- **Every formula is self-contained** — read it, build it both ways, compare where the pieces landed,
+  forget all of it — so the only reason it ran on one thread was that it was written that way.
+  `UiThread.Across` runs it on as many STA threads as there are processors.
+
+Nine minutes to forty seconds, and the whole loop with it.
+
+**And then the corpus caught something better than a coverage number.** Running on thirty-two threads,
+two identical sweeps reported 46 disagreements and 53, and even the count of formulas *built* moved:
+the answer depended on the run. The cause was in the engine, not in the parallelism —
+`TexPredefinedFormulaParser` drives shared, stateful parsers and reads the answer back off a field, so
+two threads expanding `\quad` at the same moment take each other's. It had been latent since the
+ingest and was only reachable once the builder started expanding macros at all.
+
+Every one of those 46-to-62 "disagreements" was that race. With it fixed the sweep reports the same
+number three runs running, and none of them disagree. **A flaky gate is worse than a slow one**: it had
+begun to look like a real defect in the switch handling, and two rounds went into chasing it.
 
 The 238,329-formula corpus is the oracle for almost everything here, and it is worth knowing where it
 is silent, because a coverage number that does not move is easy to read as "nothing changed" when it
@@ -194,7 +217,6 @@ Known work, and the coverage number moves when each lands.
 | | |
 |---|---|
 | `\text`, `\mbox`, `\textbf` … | words rather than maths: every character as written, *spaces included*, and the spaces are exactly what this reading drops on the way to an atom. A different job, not a harder one |
-| `{\bf …}` | a style set by a switch rather than by an argument, so it runs to the end of the group holding it |
 | `\textcolor`, `\colorbox` | colour, which the parser carries on the formula |
 | unknown commands | anything the table has never heard of |
 | `\hline` | a rule between rows, so it is read off the grid and never off a cell — an `array` holding one falls back whole |
@@ -210,6 +232,20 @@ A cell nobody wrote is the one atom the builder makes that carries no part, and 
 off a short row invents positions so that "the third column" means the same thing in every row, and
 there is nothing in the reading for those to be. A cell written *empty* — the one a trailing `&` leaves
 — does have a part, because the reader wrote the `&` that closed it.
+
+**Space that was typed is not built; space that was asked for is.** The gaps TeX puts between symbols
+come from atom classes, so `a+b` and `a + b` are set identically and the spaces in the reading produce
+no atom. `\,`, `\;`, `\:`, `\!`, `\quad` and `\qquad` are the writer overriding that, so they do. They
+turned out to be **macros rather than commands** — `\quad` is a formula in `PredefinedTexFormulas.xml`,
+so the symbol table never sees it — and they are 20% of the corpus on their own: `\,` alone is in
+48,431 formulas. That one gap was worth twenty-one points of coverage, and the builder's own comment
+had been claiming it was handled.
+
+**A switch takes the rest of the group it stands in, not an argument.** `{\cal L M}` sets both letters,
+and nothing says where the scope ends except the closing brace — so it is read where the rest of the
+run is, and it produces no atom of its own: an alphabet switch reaches the letters, a size switch wraps
+them. Its *scope* is one thing even so, and splicing that back into the row it stands in sets
+`c \bf{1} .` differently from `\bf{1}` alone.
 
 **A style is not an atom.** `\mathrm{abc}` sets three roman letters and wraps them in nothing, because
 which alphabet a letter is drawn from is a property of the letter. So the style is carried down the
@@ -255,6 +291,46 @@ The one thing genuinely shaped like a first pass is **raw text**: the contents o
 maths and must not be lexed as maths at all. That is a lexer mode switch, not a lookahead, and it is
 what still stands between the builder and the `\text` family.
 
+### An adornment is a node, and fusing it is the selection layer's call
+
+`\overline` is a prefix that takes the next thing, braced or not: `\overline f`, `\overline{f}` and
+`\overline\alpha` all read as a command with a `base`, differing only in what the base *is*. The
+temptation is to make the adornment a *property* of what it adorns instead, so that `\overline{w}` is
+one adorned `w` — and for a single letter that is exactly how it behaves to a reader. Deleting the `w`
+should take the bar with it; nobody wants to delete twice.
+
+But the adornment stays a node, for two reasons:
+
+- **A property cannot own text.** `\overline` is nine characters, plus whether braces were written,
+  plus the spacing in `\overline  f`. Storing all that in a property rebuilds the node with less
+  structure and breaks the rule that every leaf's text is in the source where the tree puts it. Here,
+  anything that owns text is a node.
+- **Fusing at parse time is a decision that cannot be revisited without re-parsing**, and it cannot be
+  made uniformly anyway: `\overline{w}` and `\overline w` are the same picture and different writing,
+  so a tree-level rule gives one picture two editing behaviours.
+
+The behaviour belongs a layer up. **The selection layer decides granularity**: an adornment whose base
+is a single atom is entered as one unit — one click takes the whole thing, one delete removes it — and
+one whose base is a written group is enterable, because a group is a region the writer made. Same tree,
+one rule, and it can change without anything being re-read. That is stage 5 work, not the builder's.
+
+**But which constructs fuse is declared, not worked out.** It takes two facts, and only one of them is
+in the tree:
+
+- *is this an adornment?* — `\overline`, `\vec`, `\hat`, `\tilde` yes; `\frac`, `\sqrt` no. A fact about
+  the command, so it belongs in `TexCommands` beside its arity and its role names.
+- *is its base a bare atom or a written group?* — a fact about this instance, already in the tree.
+
+Shape alone cannot answer it: `\frac12` has a bare-atom argument too, and there you want to enter it
+and change the numerator. And a node kind cannot answer it either — a wrapper marking "this is a unit"
+would print as nothing, so every walk would gain an empty rung, and it still would not know which of
+`\overline{w}` and `\frac12` it should be wrapping.
+
+**The same declaration is what the solver needs**, which is the argument for the table rather than
+anywhere else: `\overline{w}` means one symbol *w̄*, not an operation applied to `w`. Selection asking
+"is this one thing to select" and the expression tree asking "is this one symbol" are the same question
+about `\overline`, and it should be answered once. Nothing reads it yet, so it is not there yet.
+
 **What the builder still reads as a run** is only what the writing left as a run — a row of things
 side by side. It does not compose: `a+b` comes out as three atoms in a row, because deciding otherwise
 is the other tree's job.
@@ -266,38 +342,39 @@ which is right**. These are not bugs to fix by matching — the parser is a refe
 specification, and it is the thing being replaced. Each needs looking at properly: the parse tree, both
 layout trees, and both renderings beside the corpus's own reference image from the published paper.
 
+**Almost everything left here is a fence, which is itself the finding.** Three separate-looking
+disagreements turned out to be three shapes of one: what is written between `\left` and `\right` is
+boxed before the delimiters are grown to fit it, and the two readings box it differently. Outside a
+fence nothing disagrees any more. So when this is picked up, **treat the old parser's `\left`/`\right`
+handling as the suspect** rather than ours.
+
 | | What differs |
 |---|---|
 | a fence inside a fence | `\left[ \left( a \right)^2 \right]` — the parser puts a scripted fence inside boxes of its own before measuring it, and picks a smaller outer bracket than we do. Ours grows to fit the script. **Ours may well be the better rendering**; it was declined because it differed, not because it was wrong |
+| a script on a construct, inside a fence | `\left( \frac{f}{g}_{i} \right)`, and the same with an `\overline`. Written anywhere else the two agree exactly. This decline used to sit on `\overline` itself, where it was both too narrow — it never caught `\frac` — and too broad, costing every unfenced `\overline{J}^{a}` its coverage for nothing |
 | `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
-| a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and it is an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |
-| an adorned thing carrying a script, inside a fence | `\left( \overline{{z}}_{+} z_{+} \right)`. Agrees outside a fence and differs inside one, and again every number is identical — one box more on our side. At least ten corpus formulas |
+| a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |
 | a script with nothing to carry it | `~^{\nu}`, and a script written first in a group. TeX sets it on an empty box, so there is a box in the drawing that nothing in the reading stands for. Declined rather than invented |
 
-**Several of these are the same disagreement, and it is not about the picture.** Lifting the `\overline`
-decline to re-check it turned up ten corpus formulas, and in every one *every geometry number is
-identical* — the pieces land in exactly the same places, and what differs is which box holds which.
-Same for the styled row. So the remaining disagreements are about the shape of the box tree, and the
-parser's shape is the one that varies with position: its accumulator adopts the first atom it is handed
-as the row it fills, so the same construct nests or splices depending on what was written before it.
+**Most of these are not about the picture.** In the `\overline` family every geometry number was
+identical — the pieces land in exactly the same places and only the box holding them differs — and the
+styled row is the same. Which has a consequence for the test: `Settled` compares every box, so a purely
+structural difference fails it even when the rendering is identical. That is the right gate for
+*selection*, where the tree shape **is** the answer, and too strict for *"will switching the builder in
+change what the reader sees"*, where only the ink matters. Worth separating the two questions before
+settling any of these.
 
-That has a consequence for this test. `Settled` compares every box, so a purely structural difference
-fails it even when the rendering is identical — which is the right gate for *selection*, where the tree
-shape is the answer, and too strict a gate for *"will switching the builder in change what the reader
-sees"*, where only the ink matters. Worth separating the two questions before settling any of these.
+**A decline is never exercised, so it goes stale without anything saying so.** *A script on `\overline`*
+sat here recorded as one formula in 238,329 that set the script at a different height. It was at least
+ten, the height was not what differed, and it only ever happened inside a fence — so the decline was
+costing every unfenced `\overline{J}^{a}` its coverage to no purpose. Re-check what is parked here
+whenever something it touches changes; lifting a decline to look costs one corpus run.
 
-**And a decline is never exercised, so it can go stale without anything saying so.** *A script on
-`\overline`* was recorded as one formula in 238,329 that set the script at a different height. It is at
-least ten, the height is not what differs, and it only happens inside a `\left…\right` — outside one the
-two readings agree exactly. Re-check what is parked here when anything it touches changes; lifting a
-decline to look costs one corpus run.
-
-Two entries that stood here have gone, and it is worth saying why, because the same move settled both.
-**What may carry a script** (`x'_{i}` binding its subscript to the prime rather than to the x) and
-**what a construct read out of a run points back at** (`f''` being three siblings that no node covered,
-so `Origin` had nothing true to name) were the same problem seen twice. Making the run one node —
-`Script` with `mark` children — fixed the binding and made `Origin` name one node again. The second
-question, whether `Origin` should be able to name a *run*, simply stopped being asked.
+**Two entries have gone, and the same move settled both.** *What may carry a script* (`x'_{i}` binding
+its subscript to the prime rather than to the x) and *what a construct read out of a run points back at*
+(`f''` being three siblings that no node covered, so `Origin` had nothing true to name) were one problem
+seen twice. Making the run one node — `Script` with `mark` children — fixed the binding and gave
+`Origin` something to name. Whether `Origin` should be able to name a *run* simply stopped being asked.
 
 ## Considered and not taken
 

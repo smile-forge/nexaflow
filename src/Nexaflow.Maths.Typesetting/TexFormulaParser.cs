@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using XamlMath.Atoms;
@@ -1190,6 +1191,43 @@ public class TexFormulaParser
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// The atom this command is shorthand for, when it is shorthand for exactly one — <c>\,</c> and the
+    /// rest of TeX's written-down spaces.
+    /// <para>
+    /// These are macros, not commands: <c>\quad</c> is defined as a formula in
+    /// <c>PredefinedTexFormulas.xml</c> and parsed from that definition. Which means the atoms it comes
+    /// back as carry offsets into text nobody wrote — the definition's, not the reader's. Where the
+    /// expansion is a single atom that is fixable and fixed here. Where it is several, as <c>\sin</c> is
+    /// three letters, there is no reaching them, so those are left alone and
+    /// <see cref="TexFormulaBuilder"/> declines them.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// What each command expanded to, worked out once. <c>\,</c> is in a fifth of the formulas anyone
+    /// writes and always means the same thing, so re-reading its definition for every one of them is
+    /// work done a hundred thousand times to get the same answer.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, Atom?> _expansions = new();
+
+    internal Atom? SingleAtomExpansionOf(string command)
+    {
+        var expansion = _expansions.GetOrAdd(command, name =>
+        {
+            if (!predefinedFormulas.TryGetValue(name, out var factory)) return null;
+
+            // The definition text stands in for the source, because the source is not this method's to
+            // have and nothing that comes out of here keeps it anyway.
+            var root = factory(new SourceSpan(name, name, 0, name.Length))?.RootAtom;
+
+            return root is null || root.Slots.Count > 0 ? null : root;
+        });
+
+        // A copy each time, never the one in the table: what comes back has a part hung on it by whoever
+        // asked, and two formulas asking for the same space must not end up sharing one atom.
+        return expansion is null ? null : expansion with { Source = null };
     }
 
     /// <summary>

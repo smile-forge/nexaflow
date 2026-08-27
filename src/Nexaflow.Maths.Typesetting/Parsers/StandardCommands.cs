@@ -299,6 +299,9 @@ internal static class StandardCommands
 
         private readonly TexStyle? _style;
 
+        /// <summary>What it switches to, or null where it changes nothing — see <see cref="Unchanged"/>.</summary>
+        internal TexStyle? Style => _style;
+
         private StyleCommand(TexStyle? style)
         {
             _style = style;
@@ -805,6 +808,9 @@ internal static class StandardCommands
 
         private readonly string _textStyle;
 
+        /// <summary>What it switches to, for a reader that does its own building.</summary>
+        internal string TextStyle => _textStyle;
+
         private FontSwitchCommand(string textStyle)
         {
             _textStyle = textStyle;
@@ -1221,6 +1227,34 @@ internal static class StandardCommands
             ["shoveright"] = TransparentCommand.Instance,
             ["begin"] = new ProcessEnvironmentCommand()
         };
+
+    /// <summary>
+    /// What this command switches, when it is a switch rather than a command — <c>\cal</c>, <c>\bf</c>,
+    /// <c>\displaystyle</c> and their kin.
+    /// <para>
+    /// The distinction is not decoration. A command takes an argument; a switch takes <em>the rest of the
+    /// group it stands in</em>, so <c>{\cal L}</c> and <c>{\cal L M}</c> differ in what is affected and
+    /// nothing in either says where the scope ends except the closing brace. Anything building a formula
+    /// out of its own reading has to know which it is holding, and this is where that is written down.
+    /// </para>
+    /// </summary>
+    /// <param name="textStyle">The alphabet it switches to, or null.</param>
+    /// <param name="style">The size it switches to, or null — including for a switch that changes neither.</param>
+    /// <returns>Whether it is a switch at all.</returns>
+    internal static bool IsSwitch(string command, out string? textStyle, out TexStyle? style)
+    {
+        textStyle = null;
+        style = null;
+
+        if (!Dictionary.TryGetValue(command, out var parser)) return false;
+
+        switch (parser)
+        {
+            case FontSwitchCommand font: textStyle = font.TextStyle; return true;
+            case StyleCommand sized: style = sized.Style; return true;
+            default: return false;
+        }
+    }
 
     internal static readonly IReadOnlyDictionary<string, IEnvironmentParser> Environments =
         new Dictionary<string, IEnvironmentParser>
