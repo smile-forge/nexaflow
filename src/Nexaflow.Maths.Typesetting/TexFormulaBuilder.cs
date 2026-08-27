@@ -632,6 +632,38 @@ public static class TexFormulaBuilder
             // here rather than looked up because nothing defines it: unlike `\,` and `\quad`, which are
             // macros with a definition, this one is a case in the reader. It is the single most written
             // thing the builder did not know, by a factor of ten.
+            // \not — a zero-width slash drawn over whatever comes next, so `\not=` is ≠ and `\not\in` is
+            // ∉. The symbol table calls it a relation and the engine sets it as one atom beside another;
+            // ours keeps the two under one node, because what the reader made is a single sign — one
+            // thing to select, and one thing to a calculation that has to know it means "not equal".
+            // Neighbours on the page either way, so nothing moves.
+            case @"\not":
+            {
+                if (part.Part(TexRole.Base) is not { } slashed) return null;
+
+                // Slashing something that starts with a space — `\not \! \partial`, `\not{\!\Pi}`. Ours
+                // takes the space as the thing slashed, which makes the pair an ordinary atom where
+                // `\not=` stays a relation, and the gaps either side follow the class. The engine sets
+                // `\not` alone and lets the space fall where it lands. 251 formulas, unexamined.
+                // Only where what is slashed is a plain sign. Braces (`\not{k}`), a script (`\not k_{1}`)
+                // or a space (`\not \! \partial`) each make the pair an ordinary atom where `\not=` stays
+                // a relation, and TeX's gaps come from that class — so what is spaced against what
+                // changes. Written as what *is* allowed rather than as a list of what is not, because
+                // three rounds of naming the exceptions each turned up another one.
+                if (!PlainSign(slashed)) return null;
+
+                // And not where a script is written on the pair. `\not k_{1}` reads here as the slashed
+                // k wearing the subscript, and in the engine as `\not` on a k that already wears it — a
+                // question about what the script is *on*, which is the same one the assembled commands
+                // raise above and belongs with them. Three formulas.
+                if (part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
+
+                if (Part(part, TexRole.Base, style, knowledge) is not { } negated) return null;
+                if (Symbol("not", part, style, knowledge) is not { } slash) return null;
+
+                return Tag(new RowAtom(null).Add(slash).Add(negated), part);
+            }
+
             case @"\ ":
             case @"\nbsp":
                 return part.Parts.Any() ? null : Tag(new SpaceAtom(null), part);
@@ -814,6 +846,17 @@ public static class TexFormulaBuilder
     /// takes width away rather than adding it. A plain <c>\,</c> or <c>\quad</c> beside a prefix is not
     /// one — those agree, and declining them cost two hundred formulas for the sake of seventeen.
     /// </summary>
+    /// <summary>
+    /// Whether this is a plain sign — one character, or one command naming a symbol and nothing else.
+    /// Not a group, not something wearing a script, and not a space of any width.
+    /// </summary>
+    private static bool PlainSign(ITexPart part) =>
+        part.Kind == TexKind.Char
+        || (part.Kind == TexKind.Command
+            && !part.Parts.Any()
+            && part.Part(TexRole.Name)?.Text is { } named
+            && named is not (@"\!" or @"\," or @"\:" or @"\;" or @"\ " or @"\quad" or @"\qquad"));
+
     private static bool Discarded(ITexPart part) =>
         part.Kind == TexKind.Command
         && part.Part(TexRole.Name)?.Text is { } name
