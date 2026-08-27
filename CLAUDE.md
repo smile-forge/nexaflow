@@ -93,6 +93,71 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
 
+**The graph edits too, and structurally — `graph edit <op> <node-id>`.** Addressing a change by *what it is*
+rather than by which lines it currently occupies:
+
+```powershell
+& $nfi graph edit replace    <node-id> --file new-method.cs        # whole declaration (keeps its doc comment)
+& $nfi graph edit signature  <node-id> --text 'public long Add(int a, int b)'   # body stays byte-for-byte
+& $nfi graph edit body       <node-id> --stdin                     # signature stays byte-for-byte
+& $nfi graph edit rename     <node-id> --to NewName
+& $nfi graph edit delete     <node-id>                             # takes its doc/attributes with it
+& $nfi graph edit append     <type-id> --text-escaped 'public int Zero() => 0;'   # into a type's body
+& $nfi graph edit insert-before|insert-after|doc <node-id> --file …
+& $nfi graph edit substitute <node-id> --find 'old();' --text 'new();'   # find/replace INSIDE one declaration
+& $nfi graph edit import     <file-or-node-id> --text 'using System.Linq;'   # where the file keeps its imports
+```
+
+**Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
+in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale
+graph can never overwrite whatever now occupies those lines), and re-parses the result — an edit that would
+break the file is refused, not written. `signature` and `body` each prove the other half is unchanged
+afterwards rather than assuming it. `substitute` is the safe form of a stream edit: literal unless `--regex`,
+bounded to the one declaration so a common identifier can't be rewritten across the file, and refused unless
+it matches exactly once (`--all` to override, and it reports how many it touched). **`--find` does not need
+matching indentation** — an exact match wins, and failing that the fragment is matched line-by-line ignoring
+leading whitespace, so a snippet pasted as you read it or written flush-left is found either way. When it
+isn't there at all, the refusal names the declaration that *does* contain it, with its node id.
+
+There is deliberately **no line-addressed edit inside a body**: line numbers are the failure mode this design
+removes, and a `substitute` whose search text you extend by a line either side is both unambiguous and
+self-verifying.
+
+**Several edits to one file in a row** are safe — each re-resolves against the file as it then is, so line
+drift is a non-issue, and a path invalidated by an earlier edit (a rename, a delete) is *refused*, not
+guessed at. The one exception is **overloads**: the `#N` in `T:C/M:Add#1` is that overload's *position* among
+its same-named siblings, so deleting or inserting one renumbers the rest, and a later edit reusing an earlier
+listing would aim at a different method while the name check still passes. Such an edit says so in its notes
+(`… renumbers the others`). After one, either re-list, or pin the next edit with `--expect` — that is the only
+guard that still refuses when the path itself has come to mean something else.
+
+You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
+flush-left with `\n` and it lands correctly indented with the file's own endings and encoding. Text comes from
+`--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
+path — alone), `--file`, or `--stdin`; `--find`/`--find-escaped` mirror that pair. `--dry-run` prints the hunk
+and writes nothing; `--expect S` refuses unless the block still contains `S`, pinning the edit to what you
+read. Rebuild the graph afterwards so its record matches.
+
+`import` is file-level (it takes a `file:` id, or any code node in that file) and lands where the file already
+keeps its imports — under the last one, or below a licence header when there are none. Reaching that through
+`insert-before` on the first declaration was possible and wrong: with a file-scoped namespace it put the
+`using` *underneath* the `namespace`, which compiles and reads as a mistake.
+
+The engine is `StructuralEdit` in **`Nexaflow.Syntax`** — source text in, source text out, no graph and no
+file IO. `GraphEdit` (in `Services.Initiatives`) is only the adapter that turns a node id into a file, an AST
+path and the name to verify against. Three surfaces drive it:
+
+| Surface | How a declaration is addressed |
+|---|---|
+| `nfi graph edit` | a graph node id |
+| `graph_edit` client tool (assistant) | a graph node id |
+| `list_declarations` + `edit_declaration` (any editor tab) | an `ast_path` from the open buffer — no graph needed |
+
+The editor tools live on `FileTextEditorViewModel`, so every tab built on the shared editor base (Code,
+Notebook, …) gets them. They apply the edit as a **minimal splice** rather than reassigning the document, so
+it is one undo step and the caret and scroll position survive. Prefer `edit_declaration` over the older
+`set_editor_text` / `replace_all`, which respectively restate the whole file and match across all of it.
+
 **Searching for a code *pattern* is a graph query too** — not just "where is X". A defect signature ("a path
 compared with a bare `StartsWith`"), an idiom sweep, a "does anything still do Y" — all of it is
 `graph grep … --mode content`, which reports each hit as file:line **plus the owning type/member and feature**.

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Nexaflow.Services.Initiatives.Graph;
@@ -320,6 +321,7 @@ internal static class Program
                 case "context" or "ctx":      return GraphContext(args[1..]);
                 case "grep":                  return GraphGrep(args[1..]);
                 case "code" or "cat":         return GraphCode(args[1..]);
+                case "edit":                  return GraphEditVerb(args[1..]);
                 case "build":                 return GraphBuild(args[1..]);
                 case "help" or "-h" or "--help": return GraphUsage();
             }
@@ -404,6 +406,22 @@ internal static class Program
               graph grep <pat> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N]
                                                                                 regex the graph (index=graph text; content=nodes' source)
               graph code   <id> [<root>] [--lines A-B]                          code:<file>#<ast> → its block; file:<relpath> → the file
+              graph edit <op> <id> [<root>] [--text T | --text-escaped T | --file F | --stdin] [--to NAME]
+                         [--expect S] [--with-trivia] [--dry-run]               structural edit, verified against the parse
+
+            edit ops: replace | delete | signature | body | rename --to <name> | insert-before | insert-after
+                      | append (into a type's body) | doc | substitute --find S (a find/replace that CANNOT
+                      leave the declaration — literal unless --regex, refuses unless it matches exactly once
+                      unless --all; the safe form of `sed -i` on one member)
+            editing: the graph names the declaration; the parse of the file IN HAND says where it is. The edit
+                  is refused unless the AST path still resolves AND the parser agrees the declaration there is
+                  still the one the graph labelled — so a stale graph cannot overwrite whatever now occupies
+                  those lines. The result is re-parsed before writing, and an edit that would break the file is
+                  refused. `signature` keeps the body byte-for-byte and `body` keeps the signature; both are
+                  checked afterwards, not assumed. Line endings, indentation and BOMs are the tool's problem:
+                  write the replacement flush-left with \n and it lands indented, with the file's own endings.
+                  --dry-run prints the hunk and writes nothing. --expect S refuses unless the block still
+                  contains S, for a caller pinning an edit to what it read.
 
             node types: product | file | type | member | external
             edge rels:  contains extends implements imports calls references instantiates tests documents view_of depends_on
@@ -623,6 +641,127 @@ internal static class Program
         for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++)
             Console.WriteLine($"{i + 1,5}  {lines[i]}");
         return Clean;
+    }
+
+    /// <summary>
+    /// Structural editing: <c>graph edit &lt;op&gt; &lt;node-id&gt;</c>. The graph names the declaration; the
+    /// parse of the file in hand says where it is and whether it is still the declaration the graph
+    /// describes. See <see cref="GraphEdit"/> for what is verified before anything is written.
+    /// </summary>
+    private static int GraphEditVerb(string[] args)
+    {
+        if (!TryRead(Specs.GraphEdit, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoadGraph(root, out var graph, out var loadCode)) return loadCode;
+
+        var op = a[0] switch
+        {
+            "replace"       => StructuralEdit.Op.Replace,
+            "delete"        => StructuralEdit.Op.Delete,
+            "signature"     => StructuralEdit.Op.Signature,
+            "body"          => StructuralEdit.Op.Body,
+            "rename"        => StructuralEdit.Op.Rename,
+            "insert-before" => StructuralEdit.Op.InsertBefore,
+            "insert-after"  => StructuralEdit.Op.InsertAfter,
+            "append"        => StructuralEdit.Op.Append,
+            "doc"           => StructuralEdit.Op.Doc,
+            "substitute" or "sub"  => StructuralEdit.Op.Substitute,
+            "import" or "using"    => StructuralEdit.Op.Import,
+            _               => (StructuralEdit.Op?)null,
+        };
+        if (op is null)
+            return VerbUsage($"unknown edit op '{a[0]}' — expected replace | delete | signature | body | "
+                           + "rename | insert-before | insert-after | append | doc | substitute | import");
+
+        if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
+
+        if (a.Value("--find") is not null && a.Value("--find-escaped") is not null)
+            return VerbUsage("give either --find or --find-escaped, not both");
+
+        var main = a.Has("--main");
+        var find = a.Value("--find")
+                ?? (a.Value("--find-escaped") is { } escaped ? SourceText.Unescape(escaped) : null);
+
+        var options = new StructuralEdit.Options(a.Has("--with-trivia"), a.Value("--expect"),
+                                                 find, a.Has("--regex"), a.Has("--all"));
+        var result  = GraphEdit.Plan(graph, a[1], op.Value, text, rel => ReadRaw(root, rel, main)?.Text,
+                                     options, a.Value("--to"));
+
+        if (!result.Ok) { Console.Error.WriteLine($"error: {result.Message}"); return Error; }
+
+        foreach (var change in result.Changes) PrintHunk(change);
+        foreach (var note in result.Notes) Console.Error.WriteLine($"note: {note}");
+
+        if (a.Has("--dry-run"))
+        {
+            Console.WriteLine($"dry run — {result.Message}; nothing written.");
+            return Clean;
+        }
+
+        foreach (var change in result.Changes)
+        {
+            // Re-resolved rather than remembered, so the write lands on the branch the read came from.
+            var full = CodeFilePath(root, change.RelativePath, main);
+            var raw  = full is null ? null : SourceFile.Read(full);
+            if (full is null || raw is null)
+            {
+                Console.Error.WriteLine($"error: {change.RelativePath} vanished between planning and writing.");
+                return Error;
+            }
+
+            if (SourceFile.WriteIfUnchanged(full, change.OriginalText, change.NewText, raw.Value.Encoding) is { } refused)
+            {
+                Console.Error.WriteLine($"error: {refused}");
+                return Error;
+            }
+        }
+
+        Console.WriteLine($"{result.Message}. Rebuild the graph (graph build) so its record matches.");
+        return Clean;
+    }
+
+    /// <summary>
+    /// The replacement text, from whichever source was given. Four sources rather than one because the shell
+    /// is the awkward part of this: <c>--file</c> and <c>--stdin</c> pass code through untouched,
+    /// <c>--text</c> is literal, and <c>--text-escaped</c> exists for the caller who can only send one line
+    /// and needs <c>\n</c> to mean something.
+    /// </summary>
+    private static bool TryEditText(VerbArgs a, out string? text, out string? error)
+    {
+        text = null;
+        error = null;
+
+        string?[] sources = [a.Value("--text"), a.Value("--text-escaped"), a.Value("--file"),
+                             a.Has("--stdin") ? "" : null];
+        if (sources.Count(s => s is not null) > 1)
+        {
+            error = "give exactly one of --text, --text-escaped, --file or --stdin";
+            return false;
+        }
+
+        if (a.Value("--text") is { } literal)          text = literal;
+        else if (a.Value("--text-escaped") is { } esc)  text = SourceText.Unescape(esc);
+        else if (a.Value("--file") is { } path)
+        {
+            if (!File.Exists(path)) { error = $"no such file: {path}"; return false; }
+            text = File.ReadAllText(path);
+        }
+        else if (a.Has("--stdin")) text = Console.In.ReadToEnd();
+
+        return true;
+    }
+
+    /// <summary>A file's raw text plus the encoding to write it back with, resolved the same worktree-first
+    /// way every other graph read is. See <see cref="SourceFile"/>.</summary>
+    private static (string Text, Encoding Encoding)? ReadRaw(string productRoot, string rel, bool main) =>
+        CodeFilePath(productRoot, rel, main) is { } full ? SourceFile.Read(full) : null;
+
+    /// <summary>The changed lines, the way a diff shows them — enough to see what an edit did without
+    /// re-reading the file.</summary>
+    private static void PrintHunk(GraphEdit.FileChange change)
+    {
+        Console.WriteLine($"--- {change.RelativePath}:{change.Hunk.Line}");
+        foreach (var line in change.Hunk.Removed) Console.WriteLine($"- {line}");
+        foreach (var line in change.Hunk.Added)   Console.WriteLine($"+ {line}");
     }
 
     private static bool TryRange(string s, out int a, out int b)
@@ -1594,6 +1733,12 @@ internal static class Program
             "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main]");
         public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main"],
             "graph code <id> [<root>] [--lines A-B] [--main]");
+        public static readonly VerbSpec GraphEdit = new("graph edit", 2,
+            ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped"],
+            ["--stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main"],
+            "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
+          + "[--to NAME] [--find S | --find-escaped S] [--regex] [--all] [--expect S] [--with-trivia] "
+          + "[--dry-run] [--main]");
     }
 
     /// <summary>
