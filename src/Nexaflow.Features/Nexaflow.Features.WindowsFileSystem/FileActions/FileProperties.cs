@@ -53,9 +53,13 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             catch { return path; }
         }
 
+        // SupportsMultipleFiles is false, so the action strip never offers this on a multi-selection — but
+        // the ribbon-pin path invokes a pinned action directly, and this threw NotImplementedException there.
+        // Show the first file's properties, the same defensive answer RenameFile and ExecuteFile give.
         public bool PerformAction(IEnumerable<string> filePaths)
         {
-            throw new NotImplementedException();
+            foreach (var p in filePaths) return PerformAction(p);
+            return false;
         }
     }
 }

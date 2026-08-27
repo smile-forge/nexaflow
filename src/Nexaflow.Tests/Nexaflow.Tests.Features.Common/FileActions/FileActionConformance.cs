@@ -4,9 +4,58 @@ using NSubstitute;
 namespace Nexaflow.Tests.Features.FileActions;
 
 /// <summary>
-/// Contract every viewer-opening <see cref="IFileAction"/> must satisfy, whatever it opens. Derive a
-/// concrete <c>[TestClass]</c> per action and the inherited tests run against it — so a new viewer action
-/// cannot ship without being held to the same rules.
+/// The rule every <see cref="IFileAction"/> obeys, whatever it does: <b>an empty selection is refused</b>.
+/// <para>
+/// It is the one invocation that is safe to make of any action — delete, clipboard, mount, launch — because
+/// there is nothing to act on, and it is the one the shell can actually produce: the action strip filters by
+/// <c>CanPerformAction</c> and <c>SupportsMultipleFiles</c>, but the ribbon-pin path invokes a pinned action
+/// directly with whatever is selected, including nothing.
+/// </para>
+/// <para>
+/// Returning <c>true</c> having done nothing flashes the action strip's success tick over a no-op. Worse,
+/// three actions did reach their side effect first: <c>CopyFiles</c> and <c>CutFiles</c> put an empty
+/// file-drop list on the clipboard, which <em>replaces</em> whatever the user had copied, and
+/// <c>FileProperties</c> threw <c>NotImplementedException</c>.
+/// </para>
+/// <para>
+/// Only this rule lives in the base, because it is the only one that can be asserted without letting the
+/// action run. Anything needing a real invocation belongs in a tier that knows the action is safe to invoke
+/// — <see cref="ViewerActionConformanceTests"/> is that tier for the actions that merely open a tab.
+/// </para>
+/// </summary>
+public abstract class FileActionConformanceTests
+{
+    /// <summary>The action under test. Must not be invoked by the factory itself.</summary>
+    protected abstract IFileAction CreateAction();
+
+    [TestMethod]
+    public void AnEmptySelection_IsRefused_WithoutReachingASideEffect()
+    {
+        var action = CreateAction();
+
+        // If this throws, the action reached past the guard: the assertion is that nothing happens at all.
+        var acted = action.PerformAction([]);
+
+        Assert.IsFalse(acted,
+            $"'{action.DisplayName}' reported success on an empty selection — the action strip flashes its "
+            + "success tick on true, and the ribbon-pin path can invoke a pinned action with nothing selected");
+    }
+
+    [TestMethod]
+    public void AnEmptySelection_IsRefused_ByTheForceOverloadToo()
+    {
+        // force skips confirmation prompts, not the "is there anything to do" question — and it is the
+        // overload a pinned destructive action reaches.
+        var action = CreateAction();
+
+        Assert.IsFalse(action.PerformAction([], force: true),
+            $"'{action.DisplayName}' skipped its empty-selection guard when forced");
+    }
+}
+
+/// <summary>
+/// Adds the rules that need the action actually invoked, for the actions where that is free of consequence:
+/// the ones whose whole job is to open a tab through <see cref="IShellServices.OpenTab"/>.
 /// <para>
 /// The rule these exist to enforce: <c>PerformAction(p)</c> and <c>PerformAction([p])</c> are the same user
 /// intent. The file browser picks the overload from how many files are selected, not from what the user
@@ -20,10 +69,13 @@ namespace Nexaflow.Tests.Features.FileActions;
 /// <em>invoke</em> the action, which is the half that had drifted.
 /// </para>
 /// </summary>
-public abstract class ViewerActionConformanceTests
+public abstract class ViewerActionConformanceTests : FileActionConformanceTests
 {
     /// <summary>The action under test, wired to the recording shell the base supplies.</summary>
     protected abstract IFileAction CreateAction(IShellServices shell);
+
+    /// <summary>A viewer action is safe to build against a bare substitute — it only calls OpenTab.</summary>
+    protected sealed override IFileAction CreateAction() => CreateAction(Substitute.For<IShellServices>());
 
     /// <summary>The <c>PageKind</c> this action's tab is registered under.</summary>
     protected abstract string ExpectedPageKind { get; }
@@ -93,12 +145,13 @@ public abstract class ViewerActionConformanceTests
     }
 
     [TestMethod]
-    public void AnEmptySelection_OpensNothing_AndSaysSo()
+    public void AnEmptySelection_OpensNoTab()
     {
+        // The return value is the base's rule; this is the other half of it for a viewer — a tab opened on
+        // nothing would be an empty page the user has to close.
         var (action, tabs) = Arrange();
+        action.PerformAction([]);
 
-        Assert.IsFalse(action.PerformAction([]),
-            "returning true on an empty selection flashes the action strip's success tick over nothing");
         Assert.AreEqual(0, tabs.Count);
     }
 
