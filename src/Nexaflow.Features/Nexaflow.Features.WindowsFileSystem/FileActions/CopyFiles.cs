@@ -38,7 +38,13 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool PerformAction(IEnumerable<string> filePaths)
         {
-            NativeMethods.ClipboardCopyFiles(Services.ShellPath.Realize(filePaths));
+            // Nothing selected must not reach the clipboard: an empty file-drop list REPLACES whatever the
+            // user had copied, so "copy" on an empty selection silently threw away their clipboard and
+            // reported success. The ribbon path can invoke this with no selection.
+            var paths = Services.ShellPath.Realize(filePaths).ToList();
+            if (paths.Count == 0) return false;
+
+            NativeMethods.ClipboardCopyFiles(paths);
             return true;
         }
     }

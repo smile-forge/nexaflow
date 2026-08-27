@@ -700,8 +700,19 @@ internal static class Program
         // and reported "0 matches" — indistinguishable from "not present", and the reason this verb was
         // easier to abandon than to narrow. Scanning is cheap (files are read once and cached); it is output
         // that needs a bound, so the cap is now a runaway guard rather than the working limit.
+        //
+        // That split was right and the implementation did not honour it: hitting --limit `break`ed the scan
+        // loop, so the "output bound" silently ended discovery too and the total was whatever had been found
+        // by then. A whole-repo sweep for SupportsMultipleFiles reported 40 matching nodes; there were 122,
+        // and the two consumers that decide whether a multi-selection may run an action were both past the
+        // fortieth. "Nothing reads this flag" is the conclusion that reads out of that, and it is wrong.
+        // --limit now trims printing only; the scan runs on and the total is the true one.
+        //
+        // The cap defaulted to 50,000 against 64,230 code nodes, so the runaway guard had quietly become a
+        // truncation of the ordinary case. An uncapped sweep is ~3s. A guard that fires on the normal path
+        // is not a guard, so the default is now unbounded and --scan-cap is opt-in.
         if (!TryIntOpt(a, "--limit", mode == "content" ? 40 : 200, out var limit)) return Error;
-        if (!TryIntOpt(a, "--scan-cap", 50_000, out var scanCap)) return Error;
+        if (!TryIntOpt(a, "--scan-cap", int.MaxValue, out var scanCap)) return Error;
 
         if (!TryLoadGraph(root, out var g, out var code)) return code;
 
@@ -733,35 +744,34 @@ internal static class Program
             var fileCache = new Dictionary<string, string[]?>(StringComparer.Ordinal);
             var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
             var spans = new SourceSpans();
-            int scanned = 0, matchedNodes = 0;
-            foreach (var n in codeNodes)
+            List<(int Line, string Text)> HitsIn(GraphNode n)
             {
-                if (matchedNodes >= limit)
-                {
-                    Console.WriteLine($"… stopped after {limit} matching node(s) — raise --limit to see more.");
-                    break;
-                }
-                if (scanned >= scanCap)
-                {
-                    Console.WriteLine($"… content-scan cap {scanCap} hit ({codeNodes.Count} code nodes in scope) — narrow --from/--hops/--scope owned/--type or raise --scan-cap.");
-                    break;
-                }
-                scanned++;
+                var none = new List<(int, string)>();
                 if (!fileCache.TryGetValue(n.FilePath!, out var lines)) fileCache[n.FilePath!] = lines = TryReadLines(root, n.FilePath!, a.Has("--main"));
-                if (lines is null || !int.TryParse(n.Metadata!["line"], out var startLine)) continue;
+                if (lines is null || !int.TryParse(n.Metadata!["line"], out var startLine)) return none;
                 if (!interesting.TryGetValue(n.FilePath!, out var any))
                     interesting[n.FilePath!] = any = lines.Any(rx.IsMatch);
-                if (!any) continue;
+                if (!any) return none;
                 var (s0, e0) = spans.Block(n.FilePath!, lines, n.Metadata!["ast"], startLine - 1, GraphQuery.BlockScanLines);
                 var hits = new List<(int Line, string Text)>();
                 for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) if (rx.IsMatch(lines[i])) hits.Add((i + 1, lines[i]));
-                if (hits.Count == 0) continue;
-                matchedNodes++;
+                return hits;
+            }
+
+            var tally = ScanContent(codeNodes, limit, scanCap, HitsIn, (n, hits) =>
+            {
                 Console.WriteLine(GraphReport.NodeLine(n));
                 foreach (var (line, text) in hits.Take(6)) Console.WriteLine($"      {line,5}: {text.Trim()}");
                 if (hits.Count > 6) Console.WriteLine($"      … +{hits.Count - 6} more matching line(s)");
-            }
-            Console.WriteLine($"{matchedNodes} code node(s) with source matches (scanned {scanned}).");
+            });
+
+            // Say plainly when the answer is partial. "Raise --limit to see more" reads as pagination, and a
+            // sweep asking "does anything still do X" is then answered by a number that is not the answer.
+            if (tally.Capped)
+                Console.WriteLine($"… INCOMPLETE: --scan-cap {scanCap} stopped the scan at {tally.Scanned} of "
+                                  + $"{codeNodes.Count} code nodes. Absence from this list is not absence from the repo.");
+            var shown = tally.Matched > tally.Reported ? $" — showing {tally.Reported}, raise --limit for the rest" : "";
+            Console.WriteLine($"{tally.Matched} code node(s) with source matches (scanned {tally.Scanned}){shown}.");
         }
         else
         {
@@ -772,6 +782,41 @@ internal static class Program
             Console.WriteLine($"{hits.Count} node(s) whose graph text matches /{pattern}/" + (hits.Count > limit ? $" — showing {limit}" : "") + ".");
         }
         return Clean;
+    }
+
+    /// <summary>
+    /// Walks <paramref name="codeNodes"/>, emitting at most <paramref name="limit"/> of the matches but
+    /// counting every one of them.
+    /// <para>
+    /// The distinction is the whole point. <c>--limit</c> bounds output; <c>--scan-cap</c> bounds work. When
+    /// the two were one loop condition, reaching the output limit ended the search, so the reported total was
+    /// "however many turned up before we stopped looking" while reading exactly like a total. A sweep for
+    /// <c>SupportsMultipleFiles</c> answered 40; it is 124, and the two call sites that decide whether a
+    /// multi-selection may run a file action were both past the fortieth.
+    /// </para>
+    /// </summary>
+    internal static (int Matched, int Reported, int Scanned, bool Capped) ScanContent(
+        IReadOnlyList<GraphNode> codeNodes,
+        int limit,
+        int scanCap,
+        Func<GraphNode, List<(int Line, string Text)>> hitsIn,
+        Action<GraphNode, List<(int Line, string Text)>> emit)
+    {
+        int scanned = 0, matched = 0, reported = 0;
+        foreach (var n in codeNodes)
+        {
+            if (scanned >= scanCap) return (matched, reported, scanned, true);
+            scanned++;
+
+            var hits = hitsIn(n);
+            if (hits.Count == 0) continue;
+
+            matched++;
+            if (reported >= limit) continue;   // keep counting; only the printing is bounded
+            reported++;
+            emit(n, hits);
+        }
+        return (matched, reported, scanned, false);
     }
 
     // ── find / describe: the "where is feature X, and its code/tests/docs" index ──

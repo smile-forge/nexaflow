@@ -38,7 +38,12 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
 
         public bool PerformAction(IEnumerable<string> filePaths)
         {
-            NativeMethods.ClipboardCutFiles(Services.ShellPath.Realize(filePaths));
+            // See CopyFiles: an empty file-drop list replaces the user's clipboard, so an empty selection
+            // must stop before the clipboard rather than clearing it and reporting success.
+            var paths = Services.ShellPath.Realize(filePaths).ToList();
+            if (paths.Count == 0) return false;
+
+            NativeMethods.ClipboardCutFiles(paths);
             return true;
         }
     }

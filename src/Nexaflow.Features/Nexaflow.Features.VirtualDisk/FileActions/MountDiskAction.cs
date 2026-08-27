@@ -28,9 +28,11 @@ public sealed class MountDiskAction(IShellServices shell) : IFileAction, ICachea
         return true;
     }
 
+    // SupportsMultipleFiles is false, so a selection mounts the first image and nothing else — this used to
+    // mount every one of them, and to return true for an empty selection having mounted nothing at all.
     public bool PerformAction(IEnumerable<string> filePaths)
     {
-        foreach (var path in filePaths) PerformAction(path);
-        return true;
+        var first = filePaths.FirstOrDefault();
+        return first is not null && PerformAction(first);
     }
 }
