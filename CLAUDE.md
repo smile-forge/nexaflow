@@ -93,6 +93,40 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
 
+**The graph edits too, and structurally — `graph edit <op> <node-id>`.** Addressing a change by *what it is*
+rather than by which lines it currently occupies:
+
+```powershell
+& $nfi graph edit replace    <node-id> --file new-method.cs        # whole declaration (keeps its doc comment)
+& $nfi graph edit signature  <node-id> --text 'public long Add(int a, int b)'   # body stays byte-for-byte
+& $nfi graph edit body       <node-id> --stdin                     # signature stays byte-for-byte
+& $nfi graph edit rename     <node-id> --to NewName
+& $nfi graph edit delete     <node-id>                             # takes its doc/attributes with it
+& $nfi graph edit append     <type-id> --text-escaped 'public int Zero() => 0;'   # into a type's body
+& $nfi graph edit insert-before|insert-after|doc <node-id> --file …
+& $nfi graph edit substitute <node-id> --find 'old();' --text 'new();'   # find/replace INSIDE one declaration
+```
+
+**Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
+in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale
+graph can never overwrite whatever now occupies those lines), and re-parses the result — an edit that would
+break the file is refused, not written. `signature` and `body` each prove the other half is unchanged
+afterwards rather than assuming it. `substitute` is the safe form of a stream edit: literal unless `--regex`,
+bounded to the one declaration so a common identifier can't be rewritten across the file, and refused unless
+it matches exactly once (`--all` to override).
+
+You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
+flush-left with `\n` and it lands correctly indented with the file's own endings and encoding. Text comes from
+`--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
+path — alone), `--file`, or `--stdin`; `--find`/`--find-escaped` mirror that pair. `--dry-run` prints the hunk
+and writes nothing; `--expect S` refuses unless the block still contains `S`, pinning the edit to what you
+read. Rebuild the graph afterwards so its record matches.
+
+The engine is `StructuralEdit` in **`Nexaflow.Syntax`** — source text in, source text out, no graph and no
+file IO — so the Code/Notebook editors can drive the same operations on the buffer in front of them.
+`GraphEdit` (in `Services.Initiatives`) is only the adapter that turns a node id into a file, an AST path and
+the name to verify against. Both are also exposed to the in-app assistant as the `graph_edit` client tool.
+
 **Searching for a code *pattern* is a graph query too** — not just "where is X". A defect signature ("a path
 compared with a bare `StartsWith`"), an idiom sweep, a "does anything still do Y" — all of it is
 `graph grep … --mode content`, which reports each hit as file:line **plus the owning type/member and feature**.
