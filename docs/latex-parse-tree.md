@@ -407,7 +407,36 @@ handling as the suspect** rather than ours.
 | a script on a construct, inside a fence | `\left( \frac{f}{g}_{i} \right)`, and the same with an `\overline`. Written anywhere else the two agree exactly. This decline used to sit on `\overline` itself, where it was both too narrow — it never caught `\frac` — and too broad, costing every unfenced `\overline{J}^{a}` its coverage for nothing |
 | `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
 | a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |
-| a script with nothing to carry it | `~^{\nu}`, and a script written first in a group. TeX sets it on an empty box, so there is a box in the drawing that nothing in the reading stands for. Declined rather than invented |
+### Prefix scripts
+
+**Settled 2026-08-27, and bigger than the case that raised it.** A script written where nothing before
+it can carry one belongs to what comes *after*: the `_{\wedge}` of `\int C ~ _{\wedge} d T` is the
+`dT`'s. That looked like an oddity of ties until the general case: **prefix sub- and superscripts are
+ordinary notation in chemistry** — `{}^{14}_{6}\mathrm{C}` — and this parser is meant to serve more
+than one reader of maths. So it is not a tie special-case; it is a general rule with a tie as one
+occasion for it.
+
+Three parts, and the middle one is what the first attempt got wrong:
+
+1. **The parser decides while it builds**, from whether the token in hand can take a script at all. That
+   knowledge already exists as `Carries` — a space cannot, a tie cannot, a mark cannot — and this is the
+   other half of the same question, so it belongs in the same place rather than in a second pass.
+2. **The reading nests it, and the children stay in written order.** `Script[ name '_', subscript,
+   base ]`, with the base last because that is where it was typed. The round trip needs no flag saying
+   "this one comes first": a node's *role* says what it is and its *position* says where it was
+   written, and this is the one construct where those two answers differ. Verified across all 238,329.
+3. **The builder must lay a prefix out in front.** This is where the first attempt moved ink in 281
+   formulas: the reading said prefix and the builder still made `ScriptsAtom(base, sub, sup)`, which
+   sets the scripts *after* the base. TeX writes a prefix as an empty box wearing the scripts followed
+   by the real base — `{}^{14}_{6}` then the `C` — so that is two atoms in a row, not one wearing two.
+
+**The reading half is done and on.** `{}^{14}_{6}\mathrm{C}` parses as one thing with its scripts in
+front, round-tripping across all 238,329, which is what chemistry needs and what an editor has to hold.
+
+**The drawing half is written and declined.** Building the prefix in front took the disagreement from
+281 formulas to 17, which is the measure of how much of it was the layout rather than the parse. The
+seventeen are all a prefix with a tie or another space beside it, and they are unexamined — so they are
+not built. `Scripts` in the builder is the piece that puts them in front when they are.
 
 **Most of these are not about the picture.** In the `\overline` family every geometry number was
 identical — the pieces land in exactly the same places and only the box holding them differs — and the

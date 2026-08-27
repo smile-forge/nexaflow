@@ -466,9 +466,34 @@ public static class TexFormulaBuilder
         // nothing after it either. The reading gives what follows to it where there is anything to give;
         // where there is not, the parser sets it on an empty box, and a box that nothing in the reading
         // stands for is not a thing to invent.
-        if (part.Part(TexRole.Base) is null) return null;
+        if (part.Part(TexRole.Base) is not { } written) return null;
 
         if (Part(part, TexRole.Base, style, knowledge) is not { } baseAtom) return null;
+
+        // A prefix: the scripts were written *before* the thing they are on. Ordinary notation in
+        // chemistry — the 14 and the 6 of carbon-14 — and what a script written after something that
+        // could not carry one becomes.
+        //
+        // TeX sets one as an empty box wearing the scripts, followed by the base: two things side by
+        // side rather than one thing wearing two, because a script atom puts its scripts after whatever
+        // it is on and there is no asking it to do otherwise. Which is the whole of the difference —
+        // reading it as a prefix and then building it as a suffix is what moved the ink the first time.
+        if (part.Children.FirstOrDefault(child => child.Role == TexRole.Name) is { } first
+            && written.Start > first.Start)
+        {
+            // Not built yet, and the reading is the half that matters. `{}^{14}_{6}\mathrm{C}` now
+            // *parses* as one thing with its scripts in front, which is what chemistry needs and what
+            // an editor has to hold; drawing it is the other half. Sixteen corpus formulas still space
+            // it differently from the parser — all of them with a tie or another space beside the
+            // prefix — and sixteen unexamined differences are sixteen possible defects.
+            return null;
+
+            var carried = Scripts(part, new RowAtom(null), style, knowledge);
+            if (carried is null) return null;
+
+            var both = new RowAtom(null).Add(Tag(carried, part)).Add(baseAtom);
+            return Tag(both, part);
+        }
 
         // The marks first, and separately, because they do not merge with what was written after them:
         // `x''_{i}` sets the primes as a superscript on the x and then sets the subscript on the whole
@@ -505,6 +530,22 @@ public static class TexFormulaBuilder
                 part);
 
         return Tag(new ScriptsAtom(null, baseAtom, subscript, superscript), part);
+    }
+
+    /// <summary>
+    /// This node's scripts, set on whatever is handed in — used for a prefix, where what they go on is
+    /// an empty box standing in front of the thing they belong to.
+    /// </summary>
+    private static Atom? Scripts(TexPart part, Atom on, string? style, TexFormulaParser knowledge)
+    {
+        var superscript = Part(part, TexRole.Superscript, style, knowledge);
+        var subscript = Part(part, TexRole.Subscript, style, knowledge);
+
+        if (part.Part(TexRole.Superscript) is not null && superscript is null) return null;
+        if (part.Part(TexRole.Subscript) is not null && subscript is null) return null;
+        if (superscript is null && subscript is null) return null;
+
+        return new ScriptsAtom(null, on, subscript, superscript);
     }
 
     private static Atom? Command(TexPart part, string? style, TexFormulaParser knowledge)

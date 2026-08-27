@@ -62,11 +62,13 @@ public static class TexParser
                 var item = this.Item(until);
                 nodes.Add(this.Scripted(item, until));
 
-                // A script written after something that cannot carry one belongs on what comes *after*
-                // it — the `_{\wedge}` of `\int C ~ _{\wedge} d T` is the dT's — and that is settled but
-                // not yet done. Turning it on moves the ink in 281 corpus formulas, which is a different
-                // claim from the three rulings that moved none, and it deserves its own pass rather than
-                // a ride on theirs. `ScriptOnWhatFollows` below is written and waiting for it.
+                // A script written after something that cannot carry one is a *prefix* on what comes
+                // after it — the `_{\wedge}` of `\int C ~ _{\wedge} d T` is the dT's, and the 14 and 6
+                // of carbon-14 are the C's. Something has to be there and be unable to take it: a tie,
+                // a space, a mark. A script with nothing at all before it, first inside a group, is a
+                // different case and keeps its empty base.
+                if (!Carries(item) && !this.Done && !this.Stops(until) && this.NextIsScript())
+                    nodes.Add(this.ScriptOnWhatFollows(until));
 
                 // Every branch of Item consumes at least one token. If one ever stops doing so this
                 // would spin forever on a formula somebody typed, so it is asserted rather than trusted.
