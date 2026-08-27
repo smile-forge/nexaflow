@@ -148,8 +148,10 @@ public static class GraphTools
                  new ClientToolParameter("find",
                      "For 'substitute': the text to find, searched only INSIDE this declaration so it cannot "
                    + "run away across the file. Literal unless find_is_regex, and refused unless it matches "
-                   + "exactly once - use this instead of rewriting a whole method to change one line.",
-                     Required: false),
+                   + "exactly once - use this instead of rewriting a whole method to change one line. "
+                   + "Indentation need not match: paste the fragment as you read it, or flush-left, and it "
+                   + "will still be found. If it is not there, the refusal names the declaration that does "
+                   + "contain it.", Required: false),
                  new ClientToolParameter("find_is_regex",
                      "Treat 'find' as a regular expression. Off by default, because a '(' or '.' in a code "
                    + "fragment matching something unintended is the hazard this avoids.",

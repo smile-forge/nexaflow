@@ -219,6 +219,8 @@ public static class StructuralEdit
         var newline = shape.Newline;
         var indent  = IndentAt(source, anchor.Start);
 
+        var notes = new List<string>();
+
         var edit = op switch
         {
             Op.Replace      => Replace(source, anchor, text, indent, newline, o.WithTrivia),
@@ -230,7 +232,7 @@ public static class StructuralEdit
             Op.InsertAfter  => InsertAfter(source, anchor, text, indent, newline),
             Op.Append       => Append(source, anchor, text, indent, newline, shape),
             Op.Doc          => Doc(source, anchor, text, indent, newline),
-            Op.Substitute   => Substitute(source, anchor, text, o),
+            Op.Substitute   => Substitute(grammarId, source, anchor, text, o, newline, notes),
             Op.Import       => (null, "An import belongs to the file, not to a declaration — call AddImport."),
             _               => (Text: (string?)null, Error: $"Unsupported operation {op}."),
         };
@@ -242,7 +244,6 @@ public static class StructuralEdit
             is { } problem)
             return Result.Fail(problem);
 
-        var notes = new List<string>();
         if (op is Op.Replace or Op.Substitute && extractor.ResolveSpan(grammarId, updated, astPath) is null)
             notes.Add($"'{astPath}' no longer resolves after the edit — the declaration was renamed or "
                     + "restructured, so anything holding that path will need to re-resolve it.");
@@ -381,42 +382,151 @@ public static class StructuralEdit
     /// identifier cannot be rewritten across the file; an unexpected number of matches is refused rather
     /// than applied; and the result still has to parse.
     /// </summary>
-    private static (string? Text, string? Error) Substitute(string src, DeclarationAnchor a, string? replacement,
-                                                            Options o)
+    private static (string? Text, string? Error) Substitute(string grammarId, string src, DeclarationAnchor a,
+                                                            string? replacement, Options o, string newline,
+                                                            List<string> notes)
     {
         if (o.Find is not { Length: > 0 } find) return (null, "Text to find is required for a substitution.");
         if (replacement is null) return (null, "Replacement text is required (use an empty string to delete).");
 
         var body = src[a.Start..a.End];
 
-        string edited;
-        int count;
         if (o.FindIsRegex)
         {
             Regex regex;
             try { regex = new Regex(find, RegexOptions.None, TimeSpan.FromSeconds(2)); }
             catch (ArgumentException ex) { return (null, $"'{find}' is not a valid regular expression: {ex.Message}"); }
 
-            count  = regex.Matches(body).Count;
-            edited = count == 0 ? body
-                   : o.AllOccurrences ? regex.Replace(body, replacement)
-                   : regex.Replace(body, replacement, 1);
+            var matches = regex.Matches(body).Count;
+            if (matches == 0) return (null, NotFound(grammarId, src, a, find));
+            if (matches > 1 && !o.AllOccurrences) return (null, Ambiguous(find, matches));
+            if (matches > 1) notes.Add($"replaced {matches} occurrences");
+
+            var replaced = o.AllOccurrences ? regex.Replace(body, replacement) : regex.Replace(body, replacement, 1);
+            return (src[..a.Start] + replaced + src[a.End..], null);
         }
-        else
+
+        // Exact first, so a caller who reproduced the text byte-for-byte gets exactly what it asked for, at
+        // character granularity.
+        var exact = Occurrences(body, find);
+        if (exact > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact));
+        if (exact > 0)
         {
-            count = Occurrences(body, find);
-            edited = count == 0 ? body
-                   : o.AllOccurrences ? body.Replace(find, replacement, StringComparison.Ordinal)
-                   : ReplaceFirst(body, find, replacement);
+            if (exact > 1) notes.Add($"replaced {exact} occurrences");
+            var replaced = o.AllOccurrences
+                ? body.Replace(find, replacement, StringComparison.Ordinal)
+                : ReplaceFirst(body, find, replacement);
+            return (src[..a.Start] + replaced + src[a.End..], null);
         }
 
-        if (count == 0)
-            return (null, $"{Quote(find)} does not occur in this declaration, so nothing was changed.");
-        if (count > 1 && !o.AllOccurrences)
-            return (null, $"{Quote(find)} occurs {count} times in this declaration. Make the search text "
-                        + "unique, or ask for all occurrences explicitly.");
+        // Then ignoring indentation. Everywhere else this tool promises the caller does not handle
+        // whitespace — text written flush-left lands indented — and then `find` demanded it byte-for-byte.
+        // A fragment copied out of a listing has whatever indentation it had there, or none, and failing on
+        // that is a papercut with no upside. Exact still wins, so nothing that used to work changes.
+        var loose = LooseMatches(body, find);
+        if (loose.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, loose.Count));
+        if (loose.Count == 0) return (null, NotFound(grammarId, src, a, find));
 
+        notes.Add(loose.Count == 1
+            ? "matched ignoring indentation"
+            : $"replaced {loose.Count} occurrences, matched ignoring indentation");
+
+        // Back to front, so an earlier match's offsets are still valid after a later one is replaced.
+        var edited = body;
+        foreach (var (start, end) in loose.AsEnumerable().Reverse())
+        {
+            var indent = SourceText.IndentOf(edited[start..]);
+            edited = edited[..start] + Block(replacement, indent, newline) + edited[end..];
+        }
         return (src[..a.Start] + edited + src[a.End..], null);
+    }
+
+    /// <summary>
+    /// Whole-line ranges within <paramref name="body"/> whose content matches <paramref name="find"/> once
+    /// each line's own indentation is set aside. Line-granular by nature: what is being matched is lines,
+    /// so what is replaced is lines.
+    /// </summary>
+    private static List<(int Start, int End)> LooseMatches(string body, string find)
+    {
+        var pattern = SourceText.BlockOf(find).Select(l => l.Trim()).ToList();
+        var found   = new List<(int, int)>();
+        if (pattern.Count == 0) return found;
+
+        var lines = LineSpans(body);
+        for (var i = 0; i + pattern.Count <= lines.Count; i++)
+        {
+            var matched = true;
+            for (var k = 0; k < pattern.Count && matched; k++)
+                matched = body[lines[i + k].Start..lines[i + k].End].Trim() == pattern[k];
+
+            if (!matched) continue;
+            found.Add((lines[i].Start, lines[i + pattern.Count - 1].End));
+            i += pattern.Count - 1;                       // matches never overlap
+        }
+        return found;
+    }
+
+    /// <summary>Each line's [start, end) offsets, the end stopping before the newline.</summary>
+    private static List<(int Start, int End)> LineSpans(string text)
+    {
+        var spans = new List<(int, int)>();
+        var start = 0;
+        for (var i = 0; i <= text.Length; i++)
+        {
+            if (i != text.Length && text[i] != '\n') continue;
+            var end = i > start && text[i - 1] == '\r' ? i - 1 : i;
+            spans.Add((start, end));
+            start = i + 1;
+        }
+        return spans;
+    }
+
+    private static string Ambiguous(string find, int count) =>
+        $"{Quote(find)} occurs {count} times in this declaration. Make the search text unique — extending it "
+      + "with the line above or below is usually enough — or ask for all occurrences explicitly.";
+
+    /// <summary>
+    /// Why the search found nothing, and where to look instead. Naming the declaration that <i>does</i>
+    /// contain the text turns "not found" from a dead end into the next call: the usual cause is having the
+    /// right fragment and the wrong declaration.
+    /// </summary>
+    private static string NotFound(string grammarId, string src, DeclarationAnchor a, string find)
+    {
+        var probe = SourceText.BlockOf(find).FirstOrDefault()?.Trim();
+        if (probe is { Length: > 0 })
+        {
+            // The tightest declaration containing it, not the first: every member is also inside its type,
+            // and being told the text is "in Widget" when it is in Widget.Reset is not an answer.
+            var elsewhere = Declarations(grammarId, src)
+                .Where(d => d.Line > 0 && d.EndLine >= d.Line)
+                .Select(d => (Decl: d, From: OffsetOfLine(src, d.Line), To: OffsetOfLine(src, d.EndLine + 1)))
+                .Where(x => !(x.From >= a.Start && x.To <= a.End))          // not the one we just searched
+                .Where(x => src[x.From..x.To].Contains(probe, StringComparison.Ordinal))
+                .OrderBy(x => x.To - x.From)
+                .Select(x => x.Decl)
+                .FirstOrDefault();
+
+            if (elsewhere is not null)
+                return $"{Quote(find)} does not occur in this declaration, so nothing was changed. It does "
+                     + $"occur in '{elsewhere.Name}' ({elsewhere.AstPath}, line {elsewhere.Line}) — edit that "
+                     + "one instead.";
+        }
+
+        return $"{Quote(find)} does not occur in this declaration, so nothing was changed. Indentation is "
+             + "ignored when matching, so the difference is in the text itself — re-read the declaration.";
+    }
+
+    /// <summary>The offset the 1-based <paramref name="line"/> starts at, clamped to the end of the text.</summary>
+    private static int OffsetOfLine(string src, int line)
+    {
+        var at = 0;
+        for (var n = 1; n < line && at < src.Length; n++)
+        {
+            var next = src.IndexOf('\n', at);
+            if (next < 0) return src.Length;
+            at = next + 1;
+        }
+        return Math.Min(at, src.Length);
     }
 
     // ── Verification ────────────────────────────────────────────────────────

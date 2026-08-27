@@ -114,7 +114,14 @@ graph can never overwrite whatever now occupies those lines), and re-parses the 
 break the file is refused, not written. `signature` and `body` each prove the other half is unchanged
 afterwards rather than assuming it. `substitute` is the safe form of a stream edit: literal unless `--regex`,
 bounded to the one declaration so a common identifier can't be rewritten across the file, and refused unless
-it matches exactly once (`--all` to override).
+it matches exactly once (`--all` to override, and it reports how many it touched). **`--find` does not need
+matching indentation** — an exact match wins, and failing that the fragment is matched line-by-line ignoring
+leading whitespace, so a snippet pasted as you read it or written flush-left is found either way. When it
+isn't there at all, the refusal names the declaration that *does* contain it, with its node id.
+
+There is deliberately **no line-addressed edit inside a body**: line numbers are the failure mode this design
+removes, and a `substitute` whose search text you extend by a line either side is both unambiguous and
+self-verifying.
 
 You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
 flush-left with `\n` and it lands correctly indented with the file's own endings and encoding. Text comes from

@@ -210,6 +210,151 @@ public class StructuralEditTests
             $"it belongs directly under the {existing} import(s) already there, not at line {added + 1}");
     }
 
+    // ── Substitute: finding text you copied from somewhere else ─────────────
+
+    private const string Guarded = """
+        public class W
+        {
+            public void Add(int n)
+            {
+                if (n < 0)
+                {
+                    throw new System.ArgumentOutOfRangeException(nameof(n));
+                }
+
+                _count += n;
+            }
+
+            public void Reset()
+            {
+                _count = 0;
+            }
+
+            private int _count;
+        }
+        """;
+
+    private static StructuralEdit.Result Sub(string src, string path, string find, string replace,
+                                             bool all = false) =>
+        StructuralEdit.Apply("c-sharp", src, path, StructuralEdit.Op.Substitute, replace,
+                             new StructuralEdit.Options(Find: find, AllOccurrences: all));
+
+    /// <summary>
+    /// Everywhere else this tool promises the caller does not handle whitespace — text written flush-left
+    /// lands indented. <c>find</c> demanded it byte-for-byte, which made a fragment copied out of a listing
+    /// fail for a reason that has nothing to do with the code.
+    /// </summary>
+    [TestMethod]
+    public void Substitute_FindsAMultiLineFragmentWrittenFlushLeft()
+    {
+        var result = Sub(Guarded, "T:W/M:Add",
+            "if (n < 0)\n{\n    throw new System.ArgumentOutOfRangeException(nameof(n));\n}",
+            "if (n < 0) throw new System.ArgumentOutOfRangeException(nameof(n));");
+
+        Assert.IsTrue(result.Ok, result.Message);
+        AssertLine(result.NewText!, "        if (n < 0) throw new System.ArgumentOutOfRangeException(nameof(n));");
+        CollectionAssert.Contains(result.Notes.ToList(), "matched ignoring indentation",
+            "the caller should be told the match was not literal");
+    }
+
+    [TestMethod]
+    public void Substitute_FindsAFragmentCopiedAtTheWrongDepth()
+    {
+        var result = Sub(Guarded, "T:W/M:Add",
+            "  if (n < 0)\n  {\n      throw new System.ArgumentOutOfRangeException(nameof(n));\n  }",
+            "if (n < 0) return;");
+
+        Assert.IsTrue(result.Ok, result.Message);
+        AssertLine(result.NewText!, "        if (n < 0) return;");
+    }
+
+    /// <summary>Exact still wins, so nothing that worked before behaves differently — and a literal match
+    /// stays character-granular rather than becoming line-granular.</summary>
+    [TestMethod]
+    public void Substitute_PrefersAnExactMatch_AndSaysNothingAboutIndentation()
+    {
+        var result = Sub(Guarded, "T:W/M:Add", "        _count += n;", "        _count += n * 2;");
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.AreEqual(0, result.Notes.Count, "a byte-for-byte match needs no explanation");
+        AssertLine(result.NewText!, "        _count += n * 2;");
+    }
+
+    [TestMethod]
+    public void Substitute_StillRefusesAnAmbiguousLooseMatch()
+    {
+        const string twice = """
+            public class W
+            {
+                public void M(bool b)
+                {
+                    if (b)
+                    {
+                        Log();
+                    }
+
+                    if (b)
+                    {
+                        Log();
+                    }
+                }
+            }
+            """;
+
+        // Flush-left, so it cannot match literally — the two candidates are found only by ignoring indentation.
+        var result = Sub(twice, "T:W/M:M", "if (b)\n{\n    Log();\n}", "if (b) Log();");
+
+        Assert.IsFalse(result.Ok, "ignoring indentation must not also mean guessing which one was meant");
+        StringAssert.Contains(result.Message, "occurs 2 times");
+    }
+
+    /// <summary>
+    /// The usual cause of a miss is the right fragment and the wrong declaration, so saying which one holds
+    /// it turns a dead end into the next call.
+    /// </summary>
+    [TestMethod]
+    public void Substitute_WhenTextIsInAnotherDeclaration_NamesTheInnermostOne()
+    {
+        var result = Sub(Guarded, "T:W/M:Add", "_count = 0;", "_count = 1;");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "'Reset'");
+        StringAssert.Contains(result.Message, "T:W/M:Reset");
+        Assert.IsFalse(result.Message.Contains("'W'"),
+            "every member is also inside its type; naming the type is not an answer");
+    }
+
+    [TestMethod]
+    public void Substitute_WhenTextIsNowhere_SaysIndentationIsNotTheProblem()
+    {
+        var result = Sub(Guarded, "T:W/M:Add", "_total += n;", "x");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "Indentation is ignored");
+    }
+
+    [TestMethod]
+    public void Substitute_ReportsHowManyItReplaced()
+    {
+        const string thrice = """
+            public class W
+            {
+                public void M()
+                {
+                    Log();
+                    Log();
+                    Log();
+                }
+            }
+            """;
+
+        var result = Sub(thrice, "T:W/M:M", "Log();", "Trace();", all: true);
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("3 occurrences")),
+            "'replace all' should say how many it touched, not just that it worked");
+    }
+
     // ── The splice an editor applies ────────────────────────────────────────
 
     /// <summary>

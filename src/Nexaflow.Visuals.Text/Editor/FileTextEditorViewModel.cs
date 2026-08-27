@@ -466,7 +466,9 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 new ClientToolParameter("find",
                     "For 'substitute': the text to find, searched only INSIDE this declaration. Literal "
                   + "unless find_is_regex, and refused unless it matches exactly once — use it to change one "
-                  + "line without restating the whole method.", Required: false),
+                  + "line without restating the whole method. Indentation need not match: paste the fragment "
+                  + "as you read it, or flush-left, and it will still be found. If it is not there, the "
+                  + "refusal names the declaration that does contain it.", Required: false),
                 new ClientToolParameter("find_is_regex", "Treat 'find' as a regular expression.", Required: false, Type: "boolean"),
                 new ClientToolParameter("all_occurrences", "Allow 'find' to match more than once.", Required: false, Type: "boolean"),
                 new ClientToolParameter("with_trivia", "For 'replace', also replace the doc comment above it.", Required: false, Type: "boolean"),
