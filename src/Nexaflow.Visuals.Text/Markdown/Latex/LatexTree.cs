@@ -192,13 +192,30 @@ public sealed class LatexTree
     /// land in the cell it happens to be nearest.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Where in the source this piece of the typesetting tree was written — from the part it was built
+    /// from where there is one, and from the span its parser gave it otherwise.
+    /// <para>
+    /// Both readings answer the same question and only one of them stores the answer. A formula built
+    /// from the parse tree carries the part and no span at all, deliberately: an offset kept beside a
+    /// tree is a second copy of what the tree already holds, and the two part company as soon as
+    /// anything is edited. So this asks rather than reads, and the second arm goes when the parser does.
+    /// </para>
+    /// </summary>
+    private static (int Start, int Length)? Written(XamlMath.IFormulaNode? formula) =>
+        formula?.Origin is { } part ? (part.Start, part.Length)
+        : formula?.Source is { } span ? (span.Start, span.Length)
+        : null;
+
     public GridDrop? GridDropAt(Point point)
     {
         foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
         {
-            if (node is not LatexNode { Formula: { Source: { } span } formula }) continue;
+            if (node is not LatexNode { Formula: { } formula } || Written(formula) is not { } span) continue;
 
-            var slots = formula.Slots.Where(s => s.Row >= 0 && s.Column >= 0 && s.Node.Source is not null).ToList();
+            var slots = formula.Slots
+                .Where(s => s.Row >= 0 && s.Column >= 0 && Written(s.Node) is not null)
+                .ToList();
             if (slots.Count == 0) continue;
 
             // How far the matrix reaches, brackets included. The cells' box stops at the cells: the
@@ -208,8 +225,7 @@ public sealed class LatexTree
             // that same construct drawn in another part, so its extent counts as this one's.
             var reach = node.Bounds;
             foreach (var ancestor in node.Ancestors())
-                if (ancestor is LatexNode { Formula.Source: { } outer }
-                    && outer.Start == span.Start && outer.Length == span.Length)
+                if (ancestor is LatexNode { Formula: { } outer } && Written(outer) == span)
                     reach.Union(ancestor.Bounds);
 
             if (!reach.Contains(point)) continue;

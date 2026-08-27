@@ -276,9 +276,19 @@ public static class TexFormulaBuilder
 
         // A character stands for a delimiter through TeX's own table — `(` is not the symbol named "(".
         // A command names one directly, without its backslash.
-        return text.Length == 1
+        var symbol = text.Length == 1
             ? TexFormulaParser.DelimiterOf(text[0], null)
             : TexFormulaParser.DelimiterOf(text.TrimStart('\\'), null);
+
+        // The whole `\right]` it was written as, and not merely the bracket. A delimiter is a piece the
+        // reader points at, and pointing at one has to mean the pair — a bracket without its partner
+        // parses as nothing at all. Tagged here rather than by the caller because a fence's delimiters
+        // are not parts of it in the sense `Slots` means: they are drawn by the fence rather than being
+        // things inside it, so a walk of the formula's parts goes straight past them. Which is exactly
+        // how they came to be carrying no part at all for a while, with every test still green.
+        if (symbol is not null) symbol.Origin = fence;
+
+        return symbol;
     }
 
     private static Atom? Character(TexPart part, string? style, TexFormulaParser knowledge)

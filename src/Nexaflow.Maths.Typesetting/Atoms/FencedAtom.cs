@@ -52,6 +52,11 @@ internal sealed record FencedAtom : Atom
         {
             var leftDelimeterBox = DelimiterFactory.CreateBox(this.LeftDelimeter.Name, minHeight, environment);
             leftDelimeterBox.Source = this.LeftDelimeter.Source;
+
+            // And which atom drew it. Every other box gets this in Atom.CreateBox; a delimiter is built
+            // by hand here, from a name and a height, so it has to be said. Without it a bracket knows
+            // nothing about what it came from — pointable only for as long as an offset was enough.
+            leftDelimeterBox.Node ??= this.LeftDelimeter;
             CentreBox(leftDelimeterBox, axis);
             resultBox.Add(leftDelimeterBox);
         }
@@ -72,6 +77,7 @@ internal sealed record FencedAtom : Atom
         {
             var rightDelimeterBox = DelimiterFactory.CreateBox(this.RightDelimeter.Name, minHeight, environment);
             rightDelimeterBox.Source = this.RightDelimeter.Source;
+            rightDelimeterBox.Node ??= this.RightDelimeter;
             CentreBox(rightDelimeterBox, axis);
             resultBox.Add(rightDelimeterBox);
         }

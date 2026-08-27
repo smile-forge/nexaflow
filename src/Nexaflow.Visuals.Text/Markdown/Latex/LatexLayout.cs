@@ -75,7 +75,20 @@ public sealed class LatexLayout
             var written = shownAsWritten is { } zone && zone.Length > 0
                 ? (zone.Start, zone.Length)
                 : ((int, int)?)null;
-            var formula = WpfTeXFormulaParser.Instance.ParseWithRecovery(
+            // Our own reading first, where it can manage the whole formula. It hangs the parse-tree part
+            // on every atom it makes, so what comes back out of the typesetter already knows what it is
+            // and `Attribute` has nothing to work out.
+            //
+            // Not when a stretch is being shown as written, and not when empty arguments want holes:
+            // both are the recovering parser's, and a formula half-built each way would mix two readings
+            // of the same source. It declines whatever it does not know, so the fallback is the rule
+            // rather than the exception — today for about three formulas in ten.
+            var reading = TexReading.Of(latex);
+            var built = written is null && !placeholders
+                ? XamlMath.TexFormulaBuilder.Build(reading, WpfTeXFormulaParser.Instance)
+                : null;
+
+            var formula = built ?? WpfTeXFormulaParser.Instance.ParseWithRecovery(
                 latex, textStyle: null, written, placeholders);
             var environment = WpfTeXEnvironment.Create(
                 style: inline ? TexStyle.Text : TexStyle.Display,
@@ -92,7 +105,9 @@ public sealed class LatexLayout
             var union = Extent(root);
             var offset = new Vector(-union.X, -union.Y);
             Settle(root, offset);
-            Attribute(root, latex);
+
+            if (built is not null) Own(root);
+            else Attribute(root, latex);
 
             var trouble = formula.Diagnostics
                 .Select(d => new Diagnostic(
@@ -110,7 +125,25 @@ public sealed class LatexLayout
     }
 
     /// <summary>
-    /// Tells every piece of the picture which part of the parse tree it was drawn from.
+    /// The same thing <see cref="Attribute"/> does, for a formula built from the reading — where it is
+    /// a hand-over rather than a search, because every box came out of an atom that already knew.
+    /// <para>
+    /// This is what the exercise was for. <see cref="Attribute"/> exists only because the boxes were
+    /// built by somebody else's reading of the same LaTeX, so the one thing the two shared was offsets
+    /// and matching on them needed rules. Here there is nothing to match: the whole of it is a walk and
+    /// an assignment, and it is right by construction rather than by rule.
+    /// </para>
+    /// </summary>
+    private static void Own(LayoutNode root)
+    {
+        foreach (var node in root.SelfAndDescendants())
+            if (node is LatexNode piece)
+                piece.Part = piece.Formula?.Origin;
+    }
+
+    /// <summary>
+    /// Tells every piece of the picture which part of the parse tree it was drawn from — for a formula
+    /// the typesetter's own parser read, which is the path a formula takes when this one cannot build it.
     ///
     /// <para>
     /// Once, here, rather than searched for on each of the thousands of questions an editing session

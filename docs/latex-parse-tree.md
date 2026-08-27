@@ -96,7 +96,7 @@ Each stage stands on its own and leaves the app working.
    parsed. `\begin{matrix} \alpha & \beta \\ \gamma & \delta \end{matrix}` came back from a column move
    as `\begin{matrix} beta & alpha \\ delta & gamma \end{matrix}`. It had shipped, and nothing caught
    it, because every grid test written until then had a single letter in each cell.
-4. **Swap `LatexTree`'s remaining questions over.** `RoleOf`, `IsComposite` and `IsSequence` answered
+4. 🔄 **Swap `LatexTree`'s remaining questions over.** `RoleOf`, `IsComposite` and `IsSequence` answered
    from the parse tree; the layout tree keeps geometry, which is all it was ever good for. The
    `IFormulaNode` projection comes off `LatexNode` once nothing asks it anything. This is what makes a
    fraction inside `\displaystyle` selectable, draggable and copyable as a fraction — today it is not,
@@ -202,10 +202,38 @@ Where the corpus is silent the hand-written list in `TexBuilderTests` is the *on
 readings are held against each other, so for a construct it cannot reach that list has to be more than
 a couple of shapes — braced both ways, inside a fraction, a root, a fence and a table.
 
+## It is wired in
+
+`LatexLayout.Build` tries the builder first and falls back to the recovering parser — which it still
+needs, for a stretch being shown as written and for the holes an empty argument gets, both of which are
+that parser's and neither of which the builder does. Seven formulas in ten now come out of our own
+reading, and `Attribute` never runs for them: `Own` hands each piece the part its atom already carried,
+which is what all of this was for. `Attribute` stays for the other three in ten and goes when they do.
+
+Three things had to move for it, and each was the rule showing where it was not yet obeyed:
+
+- **`LatexLayoutCapture.SourceOf` asks the atom's part** before falling back to the span. It names the
+  span the way the other reading named it — a braced argument's contents, a cell's ink — because
+  everything downstream still works in offsets and was written against that convention. Handing over
+  the honest span instead re-braced an argument that was already braced. The shim goes when the editor
+  asks the part.
+- **`LatexTree.GridDropAt` read `Formula.Source`** — an offset, on an atom that deliberately has none —
+  so every grid gesture silently stopped working. It asks `Origin` first now.
+- **`FencedAtom` never gave its delimiter boxes their atom.** Every other box gets one in
+  `Atom.CreateBox`; a delimiter is built by hand from a name and a height, so a bracket knew nothing
+  about what it came from. Invisible for as long as an offset was enough, and it cost `\right]` its
+  selectability the moment one was not.
+
+**And `TypesettingUnchangedTests` hashed the spans along with the geometry**, so a change of *naming*
+read as "the typesetting moved" — the one thing that guard exists to say. It hashes where the pieces
+landed and nothing else now; what each piece is named from is checked by every selection and caret test
+there is. Only three of its thirteen constructs are built by the builder at all, and for those three
+the geometry is identical, which is how the re-baselining was justified rather than assumed.
+
 ## What the builder still declines
 
 `TexFormulaBuilder` is all-or-nothing per formula: anything it does not handle comes back null and that
-formula goes through the engine's own parser instead, which is the path everything takes today. So a
+formula goes through the engine's own parser instead, which is the path three formulas in ten take. So a
 decline costs coverage and nothing else — **nothing renders differently because of one.**
 
 There are two kinds, and they should not be confused.

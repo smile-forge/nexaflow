@@ -23,7 +23,7 @@ namespace Nexaflow.Tests.Core.Visuals.Markdown.Latex;
 /// </para>
 /// <para>
 /// What matters here is where things land. So this hashes the <em>geometry</em>: every piece of the
-/// layout, what it was drawn from, and the rectangle it occupies. Any change to a fraction's shift, a
+/// layout and the rectangle it occupies. Any change to a fraction's shift, a
 /// script's position, the growth of a delimiter or a single glyph's width moves a hash and this fails
 /// with the formula that moved.
 /// </para>
@@ -49,19 +49,19 @@ public class TypesettingUnchangedTests
     /// <summary>The shape of each construct formula's layout, as it has been set since the engine was ingested.</summary>
     private static readonly Dictionary<string, string> Settled = new(StringComparer.Ordinal)
     {
-        ["fractions and binomials"] = "1C1C8EF04E8AB6F0",
-        ["roots, bars and boxes"] = "19590174145125A1",
-        ["scripts, primes and big operators"] = "F4DCCC3E66FE35FE",
-        ["accents and arrows"] = "3542C09C74C54D4D",
-        ["fences and delimiters"] = "7F9DE42101D0AE78",
-        ["matrices and environments"] = "7768C22F121BB5A9",
-        ["aligned and gathered blocks"] = "0A1C3A5EBCD41D43",
-        ["stacked and gathered"] = "8ECEA82579436184",
-        ["text styles and fonts"] = "6F56D776D9B7AFB6",
-        ["spacing, dots and modular arithmetic"] = "F2E148340CFDB5A9",
-        ["colour, phantoms and overlap"] = "5C35839D9F1D6437",
-        ["styles and sizes"] = "C1E2BD1BFDD30C70",
-        ["greek, relations and symbols"] = "751EDD424A26DB49",
+        ["fractions and binomials"] = "093C8B671663EC23",
+        ["roots, bars and boxes"] = "1B5987CEEF3F4B4D",
+        ["scripts, primes and big operators"] = "16B46332D2DCEDC7",
+        ["accents and arrows"] = "BB786D2EE93EE6C5",
+        ["fences and delimiters"] = "3CDEE57B6DB62DBD",
+        ["matrices and environments"] = "5D10C08247631C88",
+        ["aligned and gathered blocks"] = "05D2446EFFA9FD4F",
+        ["stacked and gathered"] = "8FFDDCED224E1EBA",
+        ["text styles and fonts"] = "26D26A2A43BAEA3C",
+        ["spacing, dots and modular arithmetic"] = "B569C2F93B07F9F3",
+        ["colour, phantoms and overlap"] = "2E801F2B5D97DD23",
+        ["styles and sizes"] = "EDE1860CA4A4B90C",
+        ["greek, relations and symbols"] = "5055B9A7A962A131",
     };
 
     [TestMethod]
@@ -90,7 +90,17 @@ public class TypesettingUnchangedTests
             + "and paste these in:\n" + string.Join("\n", moved));
     });
 
-    /// <summary>Everything the layout decided, as one string: what each piece is, where it came from, and where it went.</summary>
+    /// <summary>
+    /// Where every piece of the layout went, as one string: what each piece is and the rectangle it
+    /// occupies.
+    /// <para>
+    /// Where each piece was <em>named from</em> is deliberately not in here, though it used to be. The
+    /// two are different claims and only one of them is this test's: a reading that names a construct
+    /// differently has not moved anything on the page, and mixing them made a change of naming read as
+    /// "the typesetting moved" — which is the one thing this exists to say. What each piece is named
+    /// from is checked by the tests that use it, which is every selection and caret test there is.
+    /// </para>
+    /// </summary>
     private static string Shape(LatexLayout layout)
     {
         var text = new StringBuilder();
@@ -98,7 +108,6 @@ public class TypesettingUnchangedTests
 
         foreach (var node in layout.Tree.Root.SelfAndDescendants())
             text.Append(node.Kind).Append(' ')
-                .Append(node.SourceStart).Append('+').Append(node.SourceLength).Append(' ')
                 .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
                 .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))
                 .Append('\n');
