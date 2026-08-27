@@ -508,12 +508,16 @@ public static class TexFormulaBuilder
         // name child, and "after nothing" is not "first".
         if (Order(part, TexRole.Name) is var name and >= 0 && Order(part, TexRole.Base) > name)
         {
-            // Not built yet, and the reading is the half that matters. `{}^{14}_{6}\mathrm{C}` now
-            // *parses* as one thing with its scripts in front, which is what chemistry needs and what
-            // an editor has to hold; drawing it is the other half. Sixteen corpus formulas still space
-            // it differently from the parser — all of them with a tie or another space beside the
-            // prefix — and sixteen unexamined differences are sixteen possible defects.
-            return null;
+            // A space standing beside a prefix, which the two readings space differently. Seventeen
+            // formulas in the corpus and every one of them is one of these two shapes: a tie in front of
+            // the prefix (`F_{\rho} ~ ^{\nu}`), or a space between the prefix and what it is on
+            // (`{^5 \! \vec P}`). Unexamined, so declined.
+            //
+            // The whole of prefix drawing is 228 formulas in a quarter of a million, so this costs 211 of
+            // them to hold back 17 — worth writing down, because the number reads like an argument for
+            // building all of them and is not one: what a corpus of printed physics happens to contain is
+            // not what a chemist will type, and the rule is the same rule either way.
+            if (Spaced(part)) return null;
 
             var carried = Scripts(part, new RowAtom(null), style, knowledge);
             if (carried is null) return null;
@@ -735,6 +739,36 @@ public static class TexFormulaBuilder
 
         return null;
     }
+
+    /// <summary>
+    /// Whether a space stands beside this prefix — in front of it, or between it and what it is on.
+    /// <para>
+    /// Both count as the same shape because both are the same question: whether the gap the writer asked
+    /// for belongs before the empty box carrying the scripts or after it. TeX answers one way and this
+    /// reading has not been shown to, so neither is guessed at.
+    /// </para>
+    /// </summary>
+    private static bool Spaced(ITexPart part)
+    {
+        if (part.Part(TexRole.Base) is { } on && Spacing(on)) return true;
+
+        if (part.Parent is not { } whole) return false;
+
+        for (var at = 1; at < whole.Children.Count; at++)
+            if (ReferenceEquals(whole.Children[at], part)) return Spacing(whole.Children[at - 1]);
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether this part is a gap of the kind that is unsettled beside a prefix: a tie, or a space that
+    /// takes width away rather than adding it. A plain <c>\,</c> or <c>\quad</c> beside a prefix is not
+    /// one — those agree, and declining them cost two hundred formulas for the sake of seventeen.
+    /// </summary>
+    private static bool Spacing(ITexPart part) =>
+        part.Kind == TexKind.Space
+        || part.Text == "~"
+        || (part.Kind == TexKind.Command && part.Part(TexRole.Name)?.Text is @"\!" or @"\ ");
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
     private static int Order(ITexPart whole, string role)

@@ -385,7 +385,31 @@ happen.
 | a fence inside a fence | The parser collapses the `^{4}` of `\left( \left( \tfrac12 \right)^{4}, 0^{4} \right)` into one atom; ours keeps the group holding one thing, which is what was written and what a substitution has to reach. *Reviewed 2026-08-27* |
 | a script on a construct, inside a fence | The parser follows TeX's rule that what comes after modifies what came before, and flattens the two together. Right for setting type, wrong for selecting: the thing scripted and the script are separate things a reader points at. *Reviewed 2026-08-27* |
 | a row written first in a row | The parser splices such a row into the row it is starting, but only where it is written first — put anything before it and it nests, as ours always does. Ours respects the grouping that was written; the parser's depends on where the group happens to sit. *Reviewed 2026-08-27* |
-| `\left\|` | **The one ruling that moves ink.** Ours drew no bar at all: `\|` strips to a symbol called `\|` that no table has, so the norm bars were simply missing. It is TeX's own spelling of `\Vert`, and that is what it asks for now. *Reviewed 2026-08-27* |
+| `\left\|` | **The one ruling that moves ink.** Ours drew no bar at all: `\|` strips to a symbol called `\|` that no table has, so the norm bars were simply missing. It is TeX's own spelling of `\Vert`, and that is what it asks for now. The ruling is about the *token* and not the fence — `\biggl\|` is the same finding, which is why the gate matches `\|` wherever it is written. *Reviewed 2026-08-27* |
+| an empty group | `{}` is how a physicist writes somewhere for the next index to attach to, so `T^{\alpha}{}_{\alpha}` sets the two side by side instead of stacking them. The parser drops it and keeps nothing; ours keeps a box of no width, because the reader wrote it and a caret has to be able to sit in it. Nothing on the page differs — both draw nothing — but only one of the two can be pointed at. 5,840 formulas. *Ruled 2026-08-27* |
+| a macro's expansion | `\cdots` is three dots and `\hbar` an h with a bar; the reader wrote one token, so ours keeps the assembly under a node of its own where the parser splices the pieces into the row around them. Which matters past drawing — a calculation reading `\hbar` wants the constant, not three boxes |
+
+### What the declines are made of, counted
+
+The sweep now tallies every command a reading names against whether that formula built — so a command the
+builder has never learnt shows up as a column of declines with nothing beside it, and the next thing to
+teach it is the top of `tex-builder-gaps.txt` rather than whichever gap came to mind. It also lists the
+declines that name **no** unlearnt command at all, which is the half a command tally cannot see: an empty
+group, a preamble it cannot read, a script it will not place have no name to be counted under.
+
+That measurement immediately contradicted the guesses beneath it. `\text` and `\mbox` — top of the
+old list — barely appear in this corpus, which writes `\mathrm`. What did appear:
+
+| | Formulas | What it was |
+|---|---|---|
+| `\ ` | 23,336 | the control space. A case in the reader rather than a macro, so the expansion lookup never found it |
+| `\cdots` `\ldots` `\dots` `\hbar` `\neq` `\longrightarrow` `\mapsto` | ~18,000 | macros whose expansion is more than one atom, declined wholesale |
+| `\big` … `\Biggm` | ~10,000 | already read with its delimiter; only lacked somewhere to build |
+| `{}` | 5,840 | the empty group, invisible to a command tally because it names none |
+| a tie inside `\mathrm` | thousands | **a decline of ours**, describing two formulas and catching all of these |
+
+**Coverage went 74.7% → 95.4% on those five**, and none of them was the thing that had been written down as
+next.
 
 ### Still to be settled
 
@@ -396,17 +420,19 @@ layout trees, and both renderings beside the corpus's own reference image from t
 
 The first of these has been decided and moved above; what follows is what has not.
 
-**Almost everything left here is a fence, which is itself the finding.** Three separate-looking
-disagreements turned out to be three shapes of one: what is written between `\left` and `\right` is
-boxed before the delimiters are grown to fit it, and the two readings box it differently. Outside a
-fence nothing disagrees any more. So when this is picked up, **treat the old parser's `\left`/`\right`
-handling as the suspect** rather than ours.
+Three of the four that used to sit here have been ruled on and moved up. What is left is two shapes, both
+small, both genuinely unexamined:
 
-| | What differs |
-|---|---|
-| a script on a construct, inside a fence | `\left( \frac{f}{g}_{i} \right)`, and the same with an `\overline`. Written anywhere else the two agree exactly. This decline used to sit on `\overline` itself, where it was both too narrow — it never caught `\frac` — and too broad, costing every unfenced `\overline{J}^{a}` its coverage for nothing |
-| `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
-| a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |
+| | Formulas | What differs |
+|---|---|---|
+| a space beside a prefix script | 17 | A tie in front of a prefix (`F_{\rho} ~ ^{\nu}`), or a space between the prefix and what it is on (`{^5 \! \vec P}`). The question is whether the gap the writer asked for belongs before the empty box carrying the scripts or after it |
+| a tie beside an asked-for space, inside a style | 2 | `\mathrm{\quad ~}`. What the old *"a tie inside a style"* decline was really about |
+
+**And one question about the reading rather than the drawing.** A script written *first* in a run —
+`^{(4)}R_{\mu}`, and a whole family of tensor notation — gets no base at all today, because the rule that
+gives a prefix what follows it fires only after something that *could not* carry a script, and at the
+start of a run there is nothing at all. Whether "nothing before it" should count as "cannot carry it" is
+a question about `TexParser`, not about the builder, and changing it moves the round trip.
 ### Prefix scripts
 
 **Settled 2026-08-27, and bigger than the case that raised it.** A script written where nothing before
@@ -433,10 +459,16 @@ Three parts, and the middle one is what the first attempt got wrong:
 **The reading half is done and on.** `{}^{14}_{6}\mathrm{C}` parses as one thing with its scripts in
 front, round-tripping across all 238,329, which is what chemistry needs and what an editor has to hold.
 
-**The drawing half is written and declined.** Building the prefix in front took the disagreement from
-281 formulas to 17, which is the measure of how much of it was the layout rather than the parse. The
-seventeen are all a prefix with a tie or another space beside it, and they are unexamined — so they are
-not built. `Scripts` in the builder is the piece that puts them in front when they are.
+**The drawing half is written, and gated to nothing — which turned out to be the interesting part.**
+Building the prefix in front took the disagreement from 281 formulas to 17, so the layout was indeed the
+cause of the moved ink. But the branch is now unreachable in practice, and that is not a defect: the
+reading only nests a prefix after something that *could not* carry a script, which in practice is always
+a space or a tie — and a space beside a prefix is the one shape still parked. Whole cost: 211 formulas.
+
+**Because the way a prefix is actually written does not use the branch at all.** `{}^{14}_{6}\mathrm{C}`
+is an *empty group wearing ordinary suffix scripts*, followed by the base — `{}` carries a script like
+anything else. That is TeX's own construction, it is why the empty group had to land first, and it means
+carbon-14 was already right the moment `{}` built.
 
 **Most of these are not about the picture.** In the `\overline` family every geometry number was
 identical — the pieces land in exactly the same places and only the box holding them differs — and the

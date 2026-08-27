@@ -153,6 +153,16 @@ public class TexBuilderTests
         // half the physics in the corpus is written with.
         "{}",
         @"T^{\alpha}{}_{\alpha}",
+
+        // Prefix scripts, drawn in front. Chemistry writes carbon-14 this way and physics writes a
+        // tensor index this way; both are an empty box wearing the scripts followed by the real base.
+        // Carbon-14, and how a prefix is actually written. Not the builder's prefix branch at all: `{}`
+        // carries a script like anything else, so these are ordinary suffix scripts on an empty box
+        // followed by the base — which is TeX's own construction and why the empty group had to come
+        // first. The branch is for a prefix the reading nests, and every one of those follows a space
+        // and is parked, so it is presently gated to nothing.
+        @"{}^{14}_{6}\mathrm{C}",
+        @"{}^{3}He",
         @"A^{a}{}_{\mu} X_{a}",
         @"\int_{}^{} x",
         @"R_{ab} = R_{acb}{}^{c}",
