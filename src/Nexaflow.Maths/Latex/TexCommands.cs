@@ -77,6 +77,13 @@ public static class TexCommands
         string[] one = [TexRole.Base];
         All([@"\overline", @"\underline", @"\overbrace", @"\underbrace", @"\boxed", @"\fbox"], one);
         All([@"\cancel", @"\bcancel", @"\xcancel", @"\sout", @"\phantom", @"\hphantom", @"\vphantom"], one);
+
+        // The class-setting commands. They decorate nothing and draw nothing of their own — what they
+        // change is how TeX spaces what is inside them, since every gap between symbols comes from what
+        // class each side is. Still one thing with an argument, and reading them otherwise left the
+        // argument standing on its own outside the command that was meant to be typing it.
+        All([@"\mathop", @"\mathbin", @"\mathrel", @"\mathord", @"\mathopen", @"\mathclose",
+             @"\mathpunct", @"\mathinner"], one);
         All([@"\vec", @"\hat", @"\widehat", @"\tilde", @"\widetilde", @"\bar", @"\dot", @"\ddot",
              @"\dddot", @"\acute", @"\grave", @"\check", @"\breve", @"\mathring"], one);
         All([@"\overrightarrow", @"\overleftarrow", @"\overleftrightarrow",
@@ -134,8 +141,14 @@ public static class TexCommands
         Add(@"\textcolor", [TexRole.Argument, TexRole.Base]);
         Add(@"\colorbox", [TexRole.Argument, TexRole.Base]);
         Add(@"\raisebox", [TexRole.Base], TexRole.Option);
-        Add(@"\label", [TexRole.Argument]);
-        Add(@"\tag", [TexRole.Argument]);
+        // Commands whose effect belongs to a page rather than to a formula. They are read with their
+        // arguments so that what they swallow is nested under them and not left standing beside them —
+        // `\stackrel{\eqref{k}}{=}` set the label's own text on the arrow otherwise, because `\eqref`
+        // looked like a command with nothing after it and `{k}` looked like a group of its own.
+        All([@"\label", @"\tag", @"\eqref", @"\raisetag", @"\intertext", @"\shortintertext"],
+            [TexRole.Argument]);
+        All([@"\numberwithin", @"\accentedsymbol", @"\DeclareMathOperator"],
+            [TexRole.Argument, TexRole.Argument]);
 
         // A line break may say how much room to leave after it: \\[2pt].
         Add(@"\\", [], TexRole.Option);

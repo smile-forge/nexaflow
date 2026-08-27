@@ -179,6 +179,16 @@ public class TexBuilderTests
         @"\boldsymbol{\alpha}",
         @"\vdots",
         @"\ddots",
+        @"\underbrace{a+b}",
+        @"\overbrace{x y}",
+        @"\fbox{a}",
+        @"\mathop{\rm tr}",
+
+        // Commands whose whole effect belongs to a page this formula does not have. They draw nothing,
+        // so they make no atom — but the reading keeps them, argument and all.
+        @"E = mc^2 \tag{1}",
+        @"a = b \nonumber",
+        @"x \label{eq:one} + y",
         @"A^{a}{}_{\mu} X_{a}",
         @"\int_{}^{} x",
         @"R_{ab} = R_{acb}{}^{c}",

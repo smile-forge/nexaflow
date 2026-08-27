@@ -450,7 +450,7 @@ internal static class StandardCommands
     }
 
     // \boxed{x} and \fbox{x}: the content inside a rectangular frame.
-    private sealed class BoxedCommand : ICommandParser
+    private sealed class BoxedCommand : ICommandParser, IAssembleCommand
     {
         public CommandProcessingResult ProcessCommand(CommandContext context)
         {
@@ -461,6 +461,9 @@ internal static class StandardCommands
             var atom = new BoxedAtom(atomSource, content.RootAtom);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1 ? new BoxedAtom(null, arguments[0]) { Origin = origin } : null;
     }
 
     // \xrightarrow[under]{over} and friends: an arrow stretched to fit the labels written over (and optionally
@@ -513,7 +516,7 @@ internal static class StandardCommands
     // body, with an optional label beyond it. LaTeX makes these operators, so a script written after
     // one belongs above (or below) the brace rather than beside it — which means reading it here,
     // before the parser attaches it as an ordinary script.
-    private sealed class BraceCommand : ICommandParser
+    private sealed class BraceCommand : ICommandParser, IAssembleCommand
     {
         public static BraceCommand Over { get; } = new(over: true);
         public static BraceCommand Under { get; } = new(over: false);
@@ -559,6 +562,29 @@ internal static class StandardCommands
                 _over);
             return new CommandProcessingResult(atom, position);
         }
+
+        /// <summary>
+        /// The brace over or under one thing. No label: where a reading nests the <c>^{n}</c> around the
+        /// whole <c>\overbrace{…}</c> instead of inside it, the script belongs to what holds this and is
+        /// not this command's to take.
+        /// </summary>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1
+                ? new OverUnderDelimiter(
+                    null,
+                    arguments[0],
+                    null,
+                    SymbolAtom.GetAtom(
+                        TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][
+                            (int)(_over ? TexDelimeterType.Over : TexDelimeterType.Under)],
+                        null),
+                    TexUnit.Ex,
+                    LabelKern,
+                    _over)
+                {
+                    Origin = origin,
+                }
+                : null;
     }
 
     // \boldsymbol{…} (also spelled \bm): every character underneath comes from the bold companion of
@@ -796,7 +822,7 @@ internal static class StandardCommands
     // \mathop{…} and its family: the argument keeps its shape and changes its kind, which is what
     // decides the space around it. A paper reaches for \mathop where a name should behave as an
     // operator and for \mathrel where a symbol should behave as a relation.
-    private sealed class AtomTypeCommand : ICommandParser
+    private sealed class AtomTypeCommand : ICommandParser, IAssembleCommand
     {
         public static AtomTypeCommand Ordinary { get; } = new(TexAtomType.Ordinary);
         public static AtomTypeCommand Operator { get; } = new(TexAtomType.BigOperator);
@@ -823,6 +849,11 @@ internal static class StandardCommands
             var atom = argument.RootAtom ?? (Atom)new NullAtom(atomSource);
             return new CommandProcessingResult(new TypedAtom(atomSource, atom, _type, _type), position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1
+                ? new TypedAtom(null, arguments[0], _type, _type) { Origin = origin }
+                : null;
     }
 
     // \_ : there is no underscore in the text encoding, so LaTeX draws one - a rule 0.3em wide,
@@ -890,6 +921,14 @@ internal static class StandardCommands
     // 2.95 em - an arithmetic progression, since both the struts and the rule are linear in the size.
     // Those lengths are absolute in TeX, so unlike almost everything else here they do not shrink
     // with the style: \big( is the same delimiter inside a subscript as outside one.
+    /// <summary>
+    /// Whether this command draws nothing at all — its effect belongs to a page rather than to a formula,
+    /// as <c>\tag</c> and <c>\nonumber</c> do. Asked so that a second reading discards exactly what this
+    /// one discards, rather than keeping its own list of which those are.
+    /// </summary>
+    internal static bool IsDiscarded(string command) =>
+        Dictionary.TryGetValue(command, out var parser) && parser is DiscardedCommand;
+
     /// <summary>Whether this command can be built from arguments somebody else has already read.</summary>
     internal static bool CanAssemble(string command) =>
         Dictionary.TryGetValue(command, out var parser) && parser is IAssembleCommand;

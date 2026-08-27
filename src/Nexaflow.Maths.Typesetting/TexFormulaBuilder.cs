@@ -444,6 +444,13 @@ public static class TexFormulaBuilder
                 break;
             }
 
+            // A command whose whole effect belongs to a page this formula does not have — `\tag`,
+            // `\nonumber`, `\label`. It draws nothing, so it makes no atom, exactly as a typed space
+            // makes none; the reading keeps it either way, argument and all, because the writer wrote it
+            // and will want it back. Which commands those are, and how many arguments each swallows, is
+            // the engine's table's answer and not a list kept here.
+            if (Discarded(run[at])) continue;
+
             var atom = Of(run[at], style, knowledge);
             if (atom is null) return null;
 
@@ -702,6 +709,15 @@ public static class TexFormulaBuilder
         // asking one at a time, before it was obvious they were one question.
         if (StandardCommands.CanAssemble(name[1..]))
         {
+            // Except where a script is written on it. What a script *means* depends on what it lands on:
+            // `\underbrace{x}_{d}` tucks the d under the brace as its label, and `\mathop{lim}_{n}` sets
+            // the n as a limit beneath rather than beside — both because the thing underneath says so.
+            // The engine reads that while it reads the argument, in one pass; this reading has the script
+            // nested round the whole command instead, so the two must be brought together deliberately.
+            // 112 corpus formulas, and every one is one of those two, so it is one question and not a
+            // family of them. Unexamined, so declined.
+            if (part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
+
             var arguments = new List<Atom>();
 
             foreach (var argument in part.Parts)
@@ -798,6 +814,11 @@ public static class TexFormulaBuilder
     /// takes width away rather than adding it. A plain <c>\,</c> or <c>\quad</c> beside a prefix is not
     /// one — those agree, and declining them cost two hundred formulas for the sake of seventeen.
     /// </summary>
+    private static bool Discarded(ITexPart part) =>
+        part.Kind == TexKind.Command
+        && part.Part(TexRole.Name)?.Text is { } name
+        && StandardCommands.IsDiscarded(name[1..]);
+
     private static bool Spacing(ITexPart part) =>
         part.Kind == TexKind.Space
         || part.Text == "~"
