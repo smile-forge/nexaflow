@@ -467,11 +467,16 @@ public static class TexParser
     }
 
     /// <summary>The name an environment was begun with — <c>matrix</c> for <c>\begin{matrix}</c>.</summary>
-    public static string NameOf(TexNode command)
-    {
-        if (command.Part(TexRole.Argument) is not { } argument) return string.Empty;
+    public static string NameOf(TexNode command) =>
+        command.Part(TexRole.Argument) is { } argument ? Named(argument.Print()) : string.Empty;
 
-        var text = argument.Print().Trim();
+    /// <inheritdoc cref="NameOf(TexNode)"/>
+    public static string NameOf(ITexPart command) =>
+        command.Part(TexRole.Argument) is { } argument ? Named(argument.Print()) : string.Empty;
+
+    private static string Named(string argument)
+    {
+        var text = argument.Trim();
         return text.Length >= 2 && text[0] == '{' && text[^1] == '}'
             ? text[1..^1].Trim()
             : text;

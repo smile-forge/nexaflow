@@ -1199,10 +1199,14 @@ public class TexFormulaParser
     /// <para>
     /// These are macros, not commands: <c>\quad</c> is defined as a formula in
     /// <c>PredefinedTexFormulas.xml</c> and parsed from that definition. Which means the atoms it comes
-    /// back as carry offsets into text nobody wrote — the definition's, not the reader's. Where the
-    /// expansion is a single atom that is fixable and fixed here. Where it is several, as <c>\sin</c> is
-    /// three letters, there is no reaching them, so those are left alone and
-    /// <see cref="TexFormulaBuilder"/> declines them.
+    /// back as carry offsets into text nobody wrote — the definition's, not the reader's. So the whole
+    /// expansion is marked <see cref="Atom.Borrowed"/> as it is cached, and a borrowed atom never lends a
+    /// box its source: the offsets stay where they are and cannot reach a layout.
+    /// </para>
+    /// <para>
+    /// Which is what lets an expansion be more than one atom. <c>\cdots</c> is three dots and <c>\neq</c>
+    /// is a slash over an equals; both used to be declined for fear of those offsets, and between them
+    /// and the rest of their family that was some eighteen thousand formulas.
     /// </para>
     /// </summary>
     /// <summary>
@@ -1212,7 +1216,7 @@ public class TexFormulaParser
     /// </summary>
     private readonly ConcurrentDictionary<string, Atom?> _expansions = new();
 
-    internal Atom? SingleAtomExpansionOf(string command)
+    internal Atom? ExpansionOf(string command)
     {
         var expansion = _expansions.GetOrAdd(command, name =>
         {
@@ -1221,13 +1225,28 @@ public class TexFormulaParser
             // The definition text stands in for the source, because the source is not this method's to
             // have and nothing that comes out of here keeps it anyway.
             var root = factory(new SourceSpan(name, name, 0, name.Length))?.RootAtom;
+            if (root is null) return null;
 
-            return root is null || root.Slots.Count > 0 ? null : root;
+            // Marked once, here, before anyone can use it: everything in this subtree was parsed from a
+            // definition, so none of it may lend a box an offset. That is what lets an expansion be
+            // several atoms — `\cdots` is three dots, `\neq` is a slash over an equals — rather than only
+            // the ones small enough to have nothing inside them to go wrong.
+            Borrow(root);
+            return root;
         });
 
         // A copy each time, never the one in the table: what comes back has a part hung on it by whoever
-        // asked, and two formulas asking for the same space must not end up sharing one atom.
+        // asked, and two formulas asking for the same space must not end up sharing one atom. Only the
+        // root — what is under it is drawing and nothing points at it, so there is nothing to hang.
         return expansion is null ? null : expansion with { Source = null };
+    }
+
+    /// <summary>Marks a whole expansion as the definition's rather than the reader's.</summary>
+    private static void Borrow(Atom atom)
+    {
+        atom.Borrowed = true;
+        foreach (var slot in atom.Slots)
+            if (slot.Node is Atom inner) Borrow(inner);
     }
 
     /// <summary>

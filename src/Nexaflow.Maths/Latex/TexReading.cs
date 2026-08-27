@@ -11,7 +11,7 @@ namespace Nexaflow.Maths.Latex;
 /// changes, which is the only time either could be wrong.
 /// </para>
 /// </summary>
-public sealed class TexPart
+public sealed class TexPart : ITexPart
 {
     private readonly List<TexPart> _children = [];
 
@@ -149,7 +149,29 @@ public sealed class TexPart
                                       && child.Role is not (TexRole.Name or TexRole.Open or TexRole.Close
                                                             or TexRole.Separator or TexRole.Trivia));
 
+    /// <summary>Its own text — the node's, never a stretch of the formula.</summary>
+    public string Text => this.Node.Text;
+
+    /// <summary>This part written back out, built up from the tree rather than cut out of the source.</summary>
+    public string Print() => this.Node.Print();
+
     public override string ToString() => $"{this.Kind}[{this.Role}] @{this.Start}+{this.Length}";
+
+    // ── The same tree, with the positions taken away ─────────────────────────
+    //
+    // Explicit, so that holding a TexPart still gets you everything and holding an ITexPart gets you only
+    // what a builder may have. The lists convert on their own: IReadOnlyList and IEnumerable are both
+    // covariant, so a list of parts is already a list of the read-only view of them.
+
+    ITexPart? ITexPart.Parent => this.Parent;
+
+    IReadOnlyList<ITexPart> ITexPart.Children => this._children;
+
+    IEnumerable<ITexPart> ITexPart.Parts => this.Parts;
+
+    ITexPart? ITexPart.Part(string role) => this.Part(role);
+
+    IEnumerable<ITexPart> ITexPart.SelfAndDescendants() => this.SelfAndDescendants();
 }
 
 /// <summary>

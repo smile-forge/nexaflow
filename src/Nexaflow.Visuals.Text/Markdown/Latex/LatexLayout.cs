@@ -85,7 +85,7 @@ public sealed class LatexLayout
             // rather than the exception — today for about three formulas in ten.
             var reading = TexReading.Of(latex);
             var built = written is null && !placeholders
-                ? XamlMath.TexFormulaBuilder.Build(reading, WpfTeXFormulaParser.Instance)
+                ? XamlMath.TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance)
                 : null;
 
             var formula = built ?? WpfTeXFormulaParser.Instance.ParseWithRecovery(

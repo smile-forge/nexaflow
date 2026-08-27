@@ -155,6 +155,15 @@ public class TexBuilderTests
         @"a\quad b",
         @"a\qquad b",
 
+        // Macros whose expansion is several atoms rather than one — three dots, a slash laid over an
+        // equals. The reader wrote one token and it draws as a little assembly, which is the case that
+        // used to be declined: those atoms were parsed from the definition and carry offsets into it.
+        @"a \cdots b",
+        @"a \ldots b",
+        @"x \neq y",
+        @"a \longrightarrow b",
+        @"\hbar \omega",
+
         // Switches, which take the rest of the group they stand in rather than an argument. So the
         // scope is a fact about the run, and nothing says where it ends except the closing brace.
         @"{\cal L}",
@@ -179,7 +188,7 @@ public class TexBuilderTests
     public void EverythingItClaimsToKnowItCanBuild() => UiThread.Run(() =>
     {
         foreach (var latex in Known)
-            Assert.IsNotNull(TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance), latex);
+            Assert.IsNotNull(TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
     });
 
     [TestMethod]
@@ -190,12 +199,24 @@ public class TexBuilderTests
         // as a TypedAtom around a CharAtom — and those wrappers exist to carry decisions this builder
         // makes differently or not at all. What has to match is where everything ends up on the page,
         // because that is what the reader sees and what every position in the editor is measured in.
+        //
+        // The same two questions the corpus asks, for the same reason. The parser is a reference and not
+        // a specification — it was only ever about drawing a formula once, where this has to serve
+        // selection and calculation too — so "the tree differs" is not a verdict. "The ink differs" is.
         foreach (var latex in Known)
         {
-            var ours = TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance);
+            var ours = TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance);
             Assert.IsNotNull(ours, latex);
 
-            Assert.AreEqual(Settled(WpfTeXFormulaParser.Instance.Parse(latex), latex), Settled(ours, latex), latex);
+            var theirs = WpfTeXFormulaParser.Instance.Parse(latex);
+            Assert.AreEqual(Drawn(theirs, latex), Drawn(ours, latex), latex);
+
+            if (Settled(theirs, latex) == Settled(ours, latex)) continue;
+
+            // Same picture, different tree. Allowed, but only where somebody has said which shape is
+            // wanted — an unnamed structural difference is indistinguishable from one nobody meant.
+            Assert.IsNotNull(Decided(TexReading.Of(latex), ours),
+                $"{latex} draws the same and nests differently, and nothing says which is meant");
         }
     });
 
@@ -211,19 +232,32 @@ public class TexBuilderTests
         // quietly threads a span through for convenience.
         foreach (var latex in Known)
         {
-            var formula = TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance);
+            var formula = TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance);
             Assert.IsNotNull(formula, latex);
 
             foreach (var atom in Parts(formula.Root!))
             {
-                Assert.IsNull(atom.Source, $"{atom.GetType().Name} in {latex} names a point in the source");
+                // A macro's expansion is the one thing here the builder did not make. Those atoms were
+                // parsed from the definition text and name points in *that* — a document nobody has open
+                // — so they are marked borrowed where they are cached, and the box assertion below is
+                // what proves the marking works. Everything the builder makes itself carries nothing.
+                Assert.IsTrue(atom.Source is null || (atom as XamlMath.Atoms.Atom)?.Borrowed is true,
+                    $"{atom.GetType().Name} in {latex} names a point in the source");
 
-                // Everything the reader wrote carries the part they wrote it as. The one exception is the
-                // cell nobody wrote — what squares off a short row — and it is an exception because there
-                // is nothing in the reading for it to be, not because it was overlooked.
-                Assert.IsTrue(atom.Origin is not null || atom is XamlMath.Atoms.NullAtom,
+                // Everything the reader wrote carries the part they wrote it as. Two exceptions: the cell
+                // nobody wrote — what squares off a short row — and the insides of a macro, which nothing
+                // points at because the token the reader wrote is the whole of it.
+                Assert.IsTrue(atom.Origin is not null
+                              || atom is XamlMath.Atoms.NullAtom
+                              || (atom as XamlMath.Atoms.Atom)?.Borrowed is true,
                     $"{atom.GetType().Name} in {latex} was built from nothing");
             }
+
+            // And the rule itself, on the thing it is about. Every box that will be laid out, asked
+            // whether it names a point in the text — because "no atom carries an offset" is a proxy for
+            // this, and a proxy is exactly what stops holding when a new path appears.
+            foreach (var box in Boxes(formula.RootAtom!.CreateBox(_setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale))))
+                Assert.IsNull(box.Source, $"a {box.GetType().Name} of {latex} names a point in the source");
         }
     });
 
@@ -233,7 +267,7 @@ public class TexBuilderTests
         // What none of this is possible without, and what the parser can never provide: an atom that
         // came from a reading which still knows where every brace was.
         var reading = TexReading.Of(@"\frac{a}{b}");
-        var formula = TexFormulaBuilder.Build(reading, WpfTeXFormulaParser.Instance);
+        var formula = TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance);
         Assert.IsNotNull(formula);
 
         // The numerator's atom is the `a` itself — a group holding one thing is that thing, here as in
@@ -262,7 +296,7 @@ public class TexBuilderTests
                                       @"\begin{array}{cc} \hline a & b \end{array}",
                                       @"\begin{array}{@{}c@{}} a \end{array}",  // a preamble it cannot read
                                       @"\begin{array} a & b \end{array}" })     // and one that is not there
-            Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance), latex);
+            Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
     });
 
     [TestMethod]
@@ -296,11 +330,31 @@ public class TexBuilderTests
         var built = 0;
         var wrong = new List<string>();
         var deliberate = new Dictionary<string, int>(StringComparer.Ordinal);
+        var named = new Dictionary<string, (int Built, int Declined)>(StringComparer.Ordinal);
+        var declined = new List<(string Latex, HashSet<string> Names)>();
 
         UiThread.Across(formulas, formula =>
         {
-            if (TexFormulaBuilder.Build(TexReading.Of(formula.Latex), WpfTeXFormulaParser.Instance)
-                is not { } ours) return;
+            var reading = TexReading.Of(formula.Latex);
+            var made = TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance);
+
+            // What the declines are made of, counted rather than listed. Every command the reading names
+            // is tallied twice over — formulas built and formulas declined — so a command the builder has
+            // never learnt appears as a column of declines with nothing beside it, and one it handles
+            // appears in both. A hand-written list of what is missing goes stale the day something lands;
+            // this cannot, because it is derived from the run that reports the coverage.
+            var commands = Commands(reading.Root.Node, []);
+            if (commands.Count > 0)
+                lock (named)
+                    foreach (var command in commands)
+                    {
+                        var (yes, no) = named.TryGetValue(command, out var count) ? count : default;
+                        named[command] = made is null ? (yes, no + 1) : (yes + 1, no);
+                    }
+
+            if (made is null) lock (declined) declined.Add((formula.Latex, commands));
+
+            if (made is not { } ours) return;
 
             Interlocked.Increment(ref built);
 
@@ -351,23 +405,56 @@ public class TexBuilderTests
             + $"parser sets it — bar {decided} set deliberately otherwise:\n"
             + string.Join("\n", deliberate.OrderByDescending(d => d.Value)
                                           .Select(d => $"  {d.Value,7:N0}  {d.Key}")));
+
+        // And what the other quarter is made of. Ranked by how many formulas a command costs — its
+        // declines, less the ones it is plainly not the reason for — so the next thing to teach the
+        // builder is the top of this file rather than whichever gap came to mind.
+        File.WriteAllText(
+            Path.Combine(Path.GetDirectoryName(corpus)!, "tex-builder-gaps.txt"),
+            $"{seen - built:N0} formulas went to the engine's own parser. What they name, worst first —\n"
+            + "a command with declines and no builds beside them is one the builder has never learnt;\n"
+            + "one with both is present in declines it is not the reason for.\n\n"
+            + $"{"declined",10}{"built",10}  command\n"
+            + string.Join("\n", named.Where(n => n.Value.Declined > 20)
+                                     .OrderByDescending(n => n.Value.Declined)
+                                     .Take(120)
+                                     .Select(n => $"{n.Value.Declined,10:N0}{n.Value.Built,10:N0}  {n.Key}"))
+            + Residue(declined, named));
     }
 
     /// <summary>
-    /// Why this formula is allowed to be drawn differently, or null if it is not.
+    /// The declines the list above does not account for: formulas naming no command the builder has
+    /// failed on every time, so something other than an unlearnt command turned them away.
     ///
     /// <para>
-    /// The list is what has been <em>looked at</em>. Each entry is a shape somebody compared — the parse
-    /// tree, both box trees, both renderings and the picture the published paper shipped — and decided
-    /// ours was the one to keep. Until that happens a difference is a failure, because a difference
-    /// nobody has examined is indistinguishable from a defect.
-    /// </para>
-    /// <para>
-    /// Matched on the reading rather than on the text. "Contains two `\left`" is a search; "a fence
-    /// whose body holds a fence" is the shape that was ruled on, and it is a question the parse tree
-    /// answers exactly.
+    /// The check that stops the ranking being read as the whole story. A tally of commands can only find
+    /// what has a name — an empty group, a preamble it cannot read, a script it will not place have
+    /// none, and would be invisible in a file that looks complete. Shortest first, because the shortest
+    /// example of a shape is the one worth reading.
     /// </para>
     /// </summary>
+    private static string Residue(
+        List<(string Latex, HashSet<string> Names)> declined,
+        Dictionary<string, (int Built, int Declined)> named)
+    {
+        var unlearnt = named.Where(n => n.Value.Built == 0).Select(n => n.Key).ToHashSet(StringComparer.Ordinal);
+        var rest = declined.Where(d => !d.Names.Overlaps(unlearnt))
+                           .OrderBy(d => d.Latex.Length)
+                           .ToList();
+
+        return $"\n\n{rest.Count:N0} of the declines name no command from that list, so something else "
+             + "turned them\naway. The forty shortest —\n\n"
+             + string.Join("\n", rest.Take(40).Select(d => $"  {d.Latex}"));
+    }
+
+    /// <summary>Every command a reading names, once each.</summary>
+    private static HashSet<string> Commands(TexNode node, HashSet<string> into)
+    {
+        if (node.Role == TexRole.Name && node.Text.StartsWith('\\')) into.Add(node.Text);
+        foreach (var child in node.Children) Commands(child, into);
+        return into;
+    }
+
     /// <summary>
     /// What the reader actually sees: every box that draws something, and where. Containers left out.
     /// <para>
@@ -401,8 +488,33 @@ public class TexBuilderTests
         return text.ToString();
     }
 
+    /// <summary>
+    /// Why this formula is allowed to be drawn differently, or null if it is not.
+    ///
+    /// <para>
+    /// The list is what has been <em>looked at</em>. Each entry is a shape somebody compared — the parse
+    /// tree, both box trees, both renderings and the picture the published paper shipped — and decided
+    /// ours was the one to keep. Until that happens a difference is a failure, because a difference
+    /// nobody has examined is indistinguishable from a defect.
+    /// </para>
+    /// <para>
+    /// Matched on the reading rather than on the text. "Contains two <c>\left</c>" is a search; "a fence
+    /// whose body holds a fence" is the shape that was ruled on, and it is a question the parse tree
+    /// answers exactly.
+    /// </para>
+    /// </summary>
     private static string? Decided(TexReading reading, TexFormula ours)
     {
+        // A macro whose expansion is several atoms — `\cdots` is three dots, `\hbar` an h with a bar laid
+        // over it. The reader wrote one token, so one thing is what it is here: ours keeps the assembly
+        // under a node of its own, where the parser splices the pieces into the row around them and loses
+        // that the token was ever one. Which matters beyond drawing — a calculation reading `\hbar` wants
+        // the constant, not three boxes, and a selection wants the whole of it or none.
+        if (Parts(ours.RootAtom!).Any(atom => atom.Slots.Count > 0
+                                              && atom.Origin is { Kind: TexKind.Command } part
+                                              && part.Children.All(child => child.Role == TexRole.Name)))
+            return "a macro's expansion — ours keeps the one token the reader wrote as one thing";
+
         // Reviewed 2026-08-27. Identical renderings; the parser splices a row written first into the row
         // it is starting, but only there — put anything before it and it nests, as ours always does.
         // Ours respects the grouping that was written; the parser's depends on where the group sits.
@@ -499,6 +611,15 @@ public class TexBuilderTests
 
     private static string Number(double value) =>
         value.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Everything a formula lays out, box by box.</summary>
+    private static IEnumerable<XamlMath.Boxes.Box> Boxes(XamlMath.Boxes.Box box)
+    {
+        yield return box;
+
+        foreach (var child in box.Children)
+            foreach (var under in Boxes(child)) yield return under;
+    }
 
     private static IEnumerable<IFormulaNode> Parts(IFormulaNode node)
     {

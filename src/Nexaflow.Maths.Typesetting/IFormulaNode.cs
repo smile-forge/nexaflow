@@ -60,6 +60,13 @@ public interface IFormulaNode
     /// every atom, and every box that comes out of it therefore knows which part of the source it was set
     /// from — without anything having to match spans up afterwards.
     /// </para>
+    /// <para>
+    /// The whole part, because this is the backlink an editor follows and an editor needs where things
+    /// are. The narrowing is on the other side: <see cref="TexFormulaBuilder"/> only ever holds these as
+    /// <see cref="Nexaflow.Maths.Latex.ITexPart"/>, so it cannot read a position while it builds — but
+    /// what it hangs here is the real part, and asking that for a position later is exactly right,
+    /// because later is the only time the answer can be current.
+    /// </para>
     /// </summary>
     Nexaflow.Maths.Latex.TexPart? Origin { get; }
 }

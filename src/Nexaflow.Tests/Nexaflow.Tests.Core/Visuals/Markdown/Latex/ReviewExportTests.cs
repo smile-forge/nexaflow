@@ -163,7 +163,7 @@ public class ReviewExportTests
         TexFormulaBuilder.DeclineUnsettled = false;
         try
         {
-            if (TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance) is not { } ours)
+            if (TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance) is not { } ours)
                 return false;
 
             return Settled(WpfTeXFormulaParser.Instance.Parse(latex), latex) != Settled(ours, latex);
@@ -212,7 +212,7 @@ public class ReviewExportTests
         TexFormulaBuilder.DeclineUnsettled = false;
         try
         {
-            if (TexFormulaBuilder.Build(TexReading.Of(latex), WpfTeXFormulaParser.Instance) is not { } ours)
+            if (TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance) is not { } ours)
             {
                 File.WriteAllText(Path.Combine(folder, $"{prefix}ours-MISSING.txt"),
                     "The builder declines this even with the parked declines lifted, so there is no "
