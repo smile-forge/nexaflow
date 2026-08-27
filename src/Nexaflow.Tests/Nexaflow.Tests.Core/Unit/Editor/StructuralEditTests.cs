@@ -355,6 +355,162 @@ public class StructuralEditTests
             "'replace all' should say how many it touched, not just that it worked");
     }
 
+    // ── Several edits to one file, in a row ─────────────────────────────────
+
+    private const string Overloaded = """
+        public class W
+        {
+            public void Add(int a)
+            {
+                Log("ONE");
+            }
+
+            public void Add(int a, int b)
+            {
+                Log("TWO");
+            }
+
+            public void Add(int a, int b, int c)
+            {
+                Log("THREE");
+            }
+        }
+        """;
+
+    /// <summary>
+    /// Deleting one of three overloads renumbers the survivors, so the path that named the deleted one
+    /// resolves again immediately — and the guard that asked "does this path still resolve" called a correct
+    /// delete half-applied. What has to be true is that one fewer declaration carries the name.
+    /// </summary>
+    [TestMethod]
+    public void DeletingAnOverload_IsNotMistakenForAFailedDelete()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Overloaded, "T:W/M:Add#1", StructuralEdit.Op.Delete, null);
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.IsFalse(result.NewText!.Contains("\"TWO\""), "the two-arg overload should be gone");
+        StringAssert.Contains(result.NewText, "\"ONE\"");
+        StringAssert.Contains(result.NewText, "\"THREE\"");
+    }
+
+    /// <summary>
+    /// The one way a sequence of edits to one file goes wrong without anything refusing: `#N` is a position,
+    /// so after a delete a caller reusing its earlier listing aims at a different declaration — and the name
+    /// check still passes, because the overloads share a name.
+    /// </summary>
+    [TestMethod]
+    public void DeletingAnOverload_WarnsThatTheOtherPathsHaveMoved()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Overloaded, "T:W/M:Add#1", StructuralEdit.Op.Delete, null);
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("renumbers")),
+            "a caller reusing its earlier listing has to be told the positions moved");
+    }
+
+    [TestMethod]
+    public void AStalePathAfterARename_IsRefusedRatherThanGuessedAt()
+    {
+        var renamed = StructuralEdit.Apply("c-sharp", Widget, "T:Widget/M:Add", StructuralEdit.Op.Rename,
+                                           null, null, "Plus");
+        Assert.IsTrue(renamed.Ok, renamed.Message);
+
+        var stale = StructuralEdit.Apply("c-sharp", renamed.NewText!, "T:Widget/M:Add",
+                                         StructuralEdit.Op.Delete, null);
+        Assert.IsFalse(stale.Ok, "the old path must not silently find something else");
+        StringAssert.Contains(stale.Message, "does not name a declaration");
+    }
+
+    /// <summary>`expect` is the hard guard for the renumbering case — the one thing that still refuses when
+    /// the path resolves to the wrong declaration.</summary>
+    [TestMethod]
+    public void Expect_CatchesAPathThatNowMeansADifferentOverload()
+    {
+        var afterDelete = StructuralEdit.Apply("c-sharp", Overloaded, "T:W/M:Add#1",
+                                               StructuralEdit.Op.Delete, null).NewText!;
+
+        // 'Add#1' now names the three-arg overload. Without expect this succeeds against the wrong one.
+        var unpinned = StructuralEdit.Apply("c-sharp", afterDelete, "T:W/M:Add#1", StructuralEdit.Op.Substitute,
+            "Log(\"EDITED\");", new StructuralEdit.Options(Find: "Log(\"THREE\");"));
+        Assert.IsTrue(unpinned.Ok, "nothing can detect this from the path alone — hence the warning note");
+
+        var pinned = StructuralEdit.Apply("c-sharp", afterDelete, "T:W/M:Add#1", StructuralEdit.Op.Substitute,
+            "Log(\"EDITED\");", new StructuralEdit.Options(Find: "Log(\"THREE\");", Expect: "int a, int b)"));
+        Assert.IsFalse(pinned.Ok, "pinning to what the caller believed it was editing must refuse");
+    }
+
+    /// <summary>Unrelated declarations keep their paths, so a run of edits from one listing is fine as long
+    /// as nothing overloaded is added or removed.</summary>
+    [TestMethod]
+    public void SeveralEditsInARow_EachLandWhereTheCallerMeant()
+    {
+        var text = Widget;
+
+        foreach (var step in new Func<string, StructuralEdit.Result>[]
+                 {
+                     s => StructuralEdit.Apply("c-sharp", s, "T:Widget/M:Add", StructuralEdit.Op.Rename, null, null, "Plus"),
+                     s => StructuralEdit.Apply("c-sharp", s, "T:Widget", StructuralEdit.Op.Append, "public int Total;"),
+                     s => StructuralEdit.Apply("c-sharp", s, "T:Widget/P:Count", StructuralEdit.Op.Doc, "/// <summary>How many.</summary>"),
+                     s => StructuralEdit.AddImport("c-sharp", s, "using System.Linq;"),
+                 })
+        {
+            var result = step(text);
+            Assert.IsTrue(result.Ok, result.Message);
+            text = result.NewText!;
+        }
+
+        AssertLine(text, "    public void Plus(int n)");
+        AssertLine(text, "    public int Total;");
+        AssertLine(text, "    /// <summary>How many.</summary>");
+        AssertLine(text, "using System.Linq;");
+        Assert.IsTrue(new DeclarationAnchors().ParsesCleanly("c-sharp", text), "and the file still parses");
+    }
+
+    // ── Delete leaves the spacing it found ──────────────────────────────────
+
+    private const string ThreeMembers = """
+        public class W
+        {
+            public void A() { }
+
+            public void B() { }
+
+            public void C() { }
+        }
+        """;
+
+    /// <summary>
+    /// A deletion takes one adjacent blank line with it, or every one widens the gap it leaves. The blank
+    /// above is the separator the declaration owns; the fallback to the one below is what the first member
+    /// of a body needs, where there is nothing above it but the brace.
+    /// </summary>
+    [TestMethod]
+    [DataRow("T:W/M:A", "A")]
+    [DataRow("T:W/M:B", "B")]
+    [DataRow("T:W/M:C", "C")]
+    public void Delete_LeavesExactlyOneBlankLineBetweenTheSurvivors(string path, string gone)
+    {
+        var result = StructuralEdit.Apply("c-sharp", ThreeMembers, path, StructuralEdit.Op.Delete, null);
+        Assert.IsTrue(result.Ok, result.Message);
+
+        var lines = SourceText.Of(result.NewText!).Lines;
+        Assert.IsFalse(lines.Any(l => l.Contains($"void {gone}(")), $"{gone} should be gone");
+
+        Assert.AreEqual(1, lines.Count(l => l.Trim().Length == 0),
+            "two members left means exactly one blank line between them — none stranded against a brace:\n  "
+            + string.Join("\n  ", lines));
+    }
+
+    [TestMethod]
+    public void Delete_OfTheOnlyMember_LeavesAnEmptyBody()
+    {
+        var result = StructuralEdit.Apply("c-sharp", "public class W\n{\n    public void A() { }\n}\n",
+                                          "T:W/M:A", StructuralEdit.Op.Delete, null);
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.AreEqual("public class W\n{\n}\n", result.NewText);
+    }
+
     // ── The splice an editor applies ────────────────────────────────────────
 
     /// <summary>

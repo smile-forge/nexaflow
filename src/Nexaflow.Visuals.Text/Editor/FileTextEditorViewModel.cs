@@ -472,7 +472,10 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 new ClientToolParameter("find_is_regex", "Treat 'find' as a regular expression.", Required: false, Type: "boolean"),
                 new ClientToolParameter("all_occurrences", "Allow 'find' to match more than once.", Required: false, Type: "boolean"),
                 new ClientToolParameter("with_trivia", "For 'replace', also replace the doc comment above it.", Required: false, Type: "boolean"),
-                new ClientToolParameter("expect", "Refuse unless the declaration currently contains this text.", Required: false),
+                new ClientToolParameter("expect",
+                    "Refuse unless the declaration currently contains this text. Worth passing when editing "
+                  + "an overload (an ast_path with #N) after an earlier edit added or removed one, since #N "
+                  + "is a position and the others will have renumbered.", Required: false),
             ],
             ToolSafety.RequiresApproval,
             (args, _) =>

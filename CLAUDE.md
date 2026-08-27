@@ -123,6 +123,14 @@ There is deliberately **no line-addressed edit inside a body**: line numbers are
 removes, and a `substitute` whose search text you extend by a line either side is both unambiguous and
 self-verifying.
 
+**Several edits to one file in a row** are safe — each re-resolves against the file as it then is, so line
+drift is a non-issue, and a path invalidated by an earlier edit (a rename, a delete) is *refused*, not
+guessed at. The one exception is **overloads**: the `#N` in `T:C/M:Add#1` is that overload's *position* among
+its same-named siblings, so deleting or inserting one renumbers the rest, and a later edit reusing an earlier
+listing would aim at a different method while the name check still passes. Such an edit says so in its notes
+(`… renumbers the others`). After one, either re-list, or pin the next edit with `--expect` — that is the only
+guard that still refuses when the path itself has come to mean something else.
+
 You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
 flush-left with `\n` and it lands correctly indented with the file's own endings and encoding. Text comes from
 `--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows

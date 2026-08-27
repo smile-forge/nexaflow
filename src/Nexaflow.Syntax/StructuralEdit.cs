@@ -244,6 +244,17 @@ public static class StructuralEdit
             is { } problem)
             return Result.Fail(problem);
 
+        // A `#N` in an ast path is an overload's POSITION among its same-named siblings, so removing or
+        // adding one silently renumbers the rest. A caller working from a listing it took before this edit
+        // would then aim `#1` at what used to be `#2` — the one way a sequence of edits to one file can go
+        // wrong without anything refusing, since the name check still passes. Say so rather than assume the
+        // caller knows the path format.
+        if (astPath.Contains('#', StringComparison.Ordinal)
+            && op is Op.Delete or Op.InsertBefore or Op.InsertAfter or Op.Replace)
+            notes.Add($"'{expectedName}' is overloaded, and the #N in an ast path is its position among the "
+                    + "overloads — this edit renumbers the others. List the declarations again before making "
+                    + "further edits to this file.");
+
         if (op is Op.Replace or Op.Substitute && extractor.ResolveSpan(grammarId, updated, astPath) is null)
             notes.Add($"'{astPath}' no longer resolves after the edit — the declaration was renamed or "
                     + "restructured, so anything holding that path will need to re-resolve it.");
@@ -284,11 +295,18 @@ public static class StructuralEdit
 
     private static (string? Text, string? Error) Delete(string src, DeclarationAnchor a)
     {
-        // Whole lines, so no indentation is left stranded, and one of the surrounding blank lines goes with
-        // it — otherwise every deletion leaves a widening gap behind.
+        // Whole lines, so no indentation is left stranded, and one adjacent blank line goes with it —
+        // otherwise every deletion leaves a widening gap behind.
+        //
+        // The blank ABOVE is preferred, because that is the separator this declaration owns. Falling back to
+        // the one below matters for the first member of a body, where there is nothing above but the opening
+        // brace: taking neither left a blank line stranded at the top of the block.
         var from = LineStart(src, a.TriviaStart);
         var to   = LineEndInclusive(src, a.End);
-        if (BlankLine(src, to + 1, out var following) && BlankBefore(src, from)) to = following;
+
+        if (PrecedingBlankLine(src, from) is { } above) from = above;
+        else if (BlankLine(src, to + 1, out var below)) to = below;
+
         return (src[..from] + src[Math.Min(to + 1, src.Length)..], null);
     }
 
@@ -549,7 +567,11 @@ public static class StructuralEdit
 
         switch (op)
         {
-            case Op.Delete when extractor.ResolveSpan(grammar, updated, astPath) is not null:
+            // Counted, not resolved by path: deleting one of three overloads renumbers the survivors, so the
+            // path that named the deleted one resolves again straight away and a correct delete looked
+            // half-applied. What actually has to be true is that one fewer declaration carries the name.
+            case Op.Delete when Named(extractor.Extract(grammar, updated), name)
+                                >= Named(extractor.Extract(grammar, original), name):
                 return $"'{name}' is still declared after the delete — refusing a half-applied edit.";
 
             case Op.Rename:
@@ -593,6 +615,12 @@ public static class StructuralEdit
         var b = to(anchor);
         return a is null || b is null ? null : updated[a.Value..b.Value];
     }
+
+    /// <summary>How many declarations carry <paramref name="name"/> — one per overload.</summary>
+    private static int Named(CodeOutline outline, string name) =>
+        outline.Types.Count(t => t.Name == name)
+      + outline.Types.Sum(t => t.Members.Count(m => m.Name == name))
+      + outline.TopLevel.Count(m => m.Name == name);
 
     private static (int Line, int EndLine)? SpanOf(CodeOutline outline, string name)
     {
@@ -683,6 +711,14 @@ public static class StructuralEdit
         while (i < src.Length && src[i] != '\n') { if (src[i] is not (' ' or '\t' or '\r')) return false; i++; }
         end = Math.Min(i, src.Length - 1);
         return true;
+    }
+
+    /// <summary>The start offset of the line before <paramref name="at"/> when that line is blank.</summary>
+    private static int? PrecedingBlankLine(string src, int at)
+    {
+        if (at <= 0) return null;
+        var start = LineStart(src, at - 1);
+        return src[start..(at - 1)].Trim().Length == 0 ? start : null;
     }
 
     private static bool BlankBefore(string src, int at)
