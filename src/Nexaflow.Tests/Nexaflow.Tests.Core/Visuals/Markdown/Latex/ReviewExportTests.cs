@@ -42,40 +42,38 @@ public class ReviewExportTests
     /// </summary>
     private static readonly (string Name, string Question, Func<string, bool> Shows, string Fallback)[] Parked =
     [
-        ("1-fence-in-fence",
-         "The parser boxes a scripted fence before measuring the outer one, and picks a smaller bracket "
-         + "than we do; ours grows to fit the script. Which bracket is right?",
-         l => !l.Contains(@"\|")
-              && l.IndexOf(@"\left", StringComparison.Ordinal) is var first and >= 0
-              && first < l.IndexOf(@"\right", StringComparison.Ordinal)
-              && l.IndexOf(@"\left", first + 1, StringComparison.Ordinal) is var second and >= 0
-              && second < l.IndexOf(@"\right", StringComparison.Ordinal),
-         @"\left[ \left( a \right)^{2} \right]"),
-
-        ("2-script-on-a-construct-in-a-fence",
-         "A fraction or an overline wearing a script, between delimiters. Outside a fence the two agree "
-         + "exactly. Every number is identical here too - what differs is which box holds which.",
-         l => l.Contains(@"\left(") && l.Contains(@"\frac") && l.Contains("} _ {"),
-         @"\left( \frac { f } { g } _ { i } \right)"),
-
-        ("3-double-bar-fence",
-         @"\left\| - the double bar. We draw no bar at all rather than guess: stripping the backslash "
-         + "draws a single bar and naming it Vert does not agree either. What should it be?",
-         l => l.Contains(@"\left\|") || l.Contains(@"\right\|"),
-         @"\left\| x \right\|"),
-
-        ("4-row-written-first-in-a-row",
-         "The parser splices a styled row into the row it is starting, but only when it is written "
-         + "first; put anything before it and it nests, exactly as we do. Identical geometry either way.",
-         l => l.TrimStart().StartsWith(@"\mathrm {", StringComparison.Ordinal) && l.Length > 24,
-         @"\mathrm { v o l } ( 1 0 )"),
-
-        ("5-script-with-nothing-to-carry-it",
-         "A script written where there is nothing to set it on - after a tie, or first in a group. TeX "
-         + "sets it on an empty box, so the drawing has a box that nothing in the reading stands for. "
-         + "We decline rather than invent one. Should we invent it?",
+        ("1-space-beside-a-prefix-script",
+         "A prefix script with a space beside it - a tie in front of it, or a space between it and what "
+         + "it is on. A prefix is drawn as an empty box wearing the scripts, followed by the base, so "
+         + "the question is which side of that box the gap the writer asked for belongs on. 17 formulas.",
          l => l.Contains("~ ^ {") || l.Contains("~ _ {"),
-         @"F _ { \rho } ~ ^ { \nu }"),
+         @"F _ { \rho } ~ ^ { \nu } G"),
+
+        ("2-script-on-an-assembled-command",
+         "What a script means depends on what it lands on. \\underbrace{x}_{d} tucks the d under the "
+         + "brace as its label and \\mathop{lim}_{n} sets the n as a limit beneath, rather than either "
+         + "being an ordinary subscript beside. The parser reads that while it reads the argument, in "
+         + "one pass; our reading has the script nested round the whole command, so the two have to be "
+         + "brought together deliberately. Is the label part of the brace, or a script on it? 112 formulas.",
+         l => l.Contains(@"\underbrace") && l.Contains("} _ {"),
+         @"\underbrace { a + b } _ { n }"),
+
+        ("3-script-written-first-in-a-run",
+         "A script with nothing at all before it - ^{(4)}R, {^6 g}, {_B}T. The rule that hands a prefix "
+         + "what follows it fires only after something that COULD NOT carry a script, and at the start "
+         + "of a run there is nothing there at all, so today these get no base and are not built. Should "
+         + "\"nothing before it\" count as \"cannot carry it\"? This one is about the parser rather than "
+         + "the drawing, and it is now the largest single family left.",
+         l => l.Contains("{ ^ ") || l.Contains("{ _ ") || l.TrimStart().StartsWith('^'),
+         @"^ { ( 4 ) } R _ { \mu }"),
+
+        ("4-tie-beside-an-asked-for-space-in-a-style",
+         "\\mathrm{\\quad ~} - a tie standing next to a space that was asked for, inside a style. Two "
+         + "formulas in the whole corpus. This is what the old \"a tie inside a style\" decline was "
+         + "really about; written that broadly it also turned away every \\mathrm{~mod~}, of which "
+         + "there are thousands and all of which agree.",
+         l => l.Contains(@"\mathrm { \quad ~ }"),
+         @"\Gamma _ { \mathrm { \quad ~ } \mu } ^ { \lambda }"),
     ];
 
     [TestMethod]
@@ -205,8 +203,25 @@ public class ReviewExportTests
         File.WriteAllText(Path.Combine(folder, $"{prefix}parse-tree.txt"),
             Shape(TexParser.Parse(latex), 0, new StringBuilder()).ToString());
 
-        var theirs = WpfTeXFormulaParser.Instance.Parse(latex);
-        var settledTheirs = Write(folder, $"{prefix}theirs", theirs, latex);
+        // The parser refuses some of these outright — a leading `^` is "Every script needs a base" and
+        // nothing is drawn at all. Worth saying rather than crashing on: where there is no rival reading
+        // there is no disagreement to arbitrate, and the question becomes whether ours should exist.
+        string? settledTheirs = null;
+        var refused = string.Empty;
+
+        try
+        {
+            settledTheirs = Write(
+                folder, $"{prefix}theirs", WpfTeXFormulaParser.Instance.Parse(latex), latex);
+        }
+        catch (XamlMath.Exceptions.TexParseException refusal)
+        {
+            refused = $"**The parser refuses this outright**: *{refusal.Message}* — so there is no "
+                    + "rendering of theirs at all, and nothing to hold ours against. The question is not "
+                    + "which of two readings is right but whether this should be readable.\n\n";
+
+            File.WriteAllText(Path.Combine(folder, $"{prefix}theirs-REFUSED.txt"), refusal.Message);
+        }
 
         // The whole point of the flag: what we would draw if this were not parked.
         TexFormulaBuilder.DeclineUnsettled = false;
@@ -219,11 +234,16 @@ public class ReviewExportTests
                     + "rendering of ours to compare. That is not a disagreement about the picture — it is "
                     + "a construct we have not decided how to draw.");
 
-                return "We decline this even with the parked declines lifted, so there is no "
+                return refused
+                     + "We decline this even with the parked declines lifted, so there is no "
                      + "rendering of ours: it is a construct with no answer chosen yet.\n";
             }
 
             var settledOurs = Write(folder, $"{prefix}ours", ours, latex);
+
+            if (settledTheirs is null)
+                return refused + "Ours draws it — `ours.png` and `layout-ours.txt` — so there is one "
+                     + "reading of this and it is ours. Is it the right one?\n";
 
             return settledOurs == settledTheirs
                 ? "**The two agree exactly here** — every box in the same place. Whatever is parked "

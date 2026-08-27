@@ -524,7 +524,7 @@ public static class TexFormulaBuilder
             // them to hold back 17 — worth writing down, because the number reads like an argument for
             // building all of them and is not one: what a corpus of printed physics happens to contain is
             // not what a chemist will type, and the rule is the same rule either way.
-            if (Spaced(part)) return null;
+            if (DeclineUnsettled && Spaced(part)) return null;
 
             var carried = Scripts(part, new RowAtom(null), style, knowledge);
             if (carried is null) return null;
@@ -656,7 +656,7 @@ public static class TexFormulaBuilder
                 // k wearing the subscript, and in the engine as `\not` on a k that already wears it — a
                 // question about what the script is *on*, which is the same one the assembled commands
                 // raise above and belongs with them. Three formulas.
-                if (part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
+                if (DeclineUnsettled && part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
 
                 if (Part(part, TexRole.Base, style, knowledge) is not { } negated) return null;
                 if (Symbol("not", part, style, knowledge) is not { } slash) return null;
@@ -713,7 +713,8 @@ public static class TexFormulaBuilder
             // broadly: it also turned away every `\mathrm{~mod~}` and `\mathrm{Im~}`, which is how these
             // papers space an operator name and which runs to thousands of formulas that all agree. A
             // decline is never exercised, so the words it is written in are the whole of it.
-            if (styled.SelfAndDescendants().Any(inner => inner.Text == "~")
+            if (DeclineUnsettled
+                && styled.SelfAndDescendants().Any(inner => inner.Text == "~")
                 && styled.SelfAndDescendants().Any(inner => inner.Role == TexRole.Name))
                 return null;
 
@@ -748,7 +749,7 @@ public static class TexFormulaBuilder
             // nested round the whole command instead, so the two must be brought together deliberately.
             // 112 corpus formulas, and every one is one of those two, so it is one question and not a
             // family of them. Unexamined, so declined.
-            if (part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
+            if (DeclineUnsettled && part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
 
             var arguments = new List<Atom>();
 
