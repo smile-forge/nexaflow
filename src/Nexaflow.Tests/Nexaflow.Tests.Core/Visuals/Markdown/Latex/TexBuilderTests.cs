@@ -145,6 +145,17 @@ public class TexBuilderTests
         @"\frac{f}{g}_{i} h",
 
         "a~b",               // a tie
+        @"\mathrm{~mod~}",   // and a tie inside a style, which is how a paper spaces an operator name
+        @"X \mathrm{~mod~} 2",
+        @"\mathrm{Im~} z",
+
+        // The empty group: a place for the next thing to attach to, and the tensor-index idiom that
+        // half the physics in the corpus is written with.
+        "{}",
+        @"T^{\alpha}{}_{\alpha}",
+        @"A^{a}{}_{\mu} X_{a}",
+        @"\int_{}^{} x",
+        @"R_{ab} = R_{acb}{}^{c}",
 
         // Space that was asked for rather than typed. TeX's own spacing comes from atom classes and is
         // not written down; these are, so they build like any other command.
@@ -558,6 +569,14 @@ public class TexBuilderTests
         foreach (var part in reading.Root.SelfAndDescendants())
             if (part.Role == TexRole.Argument && part.Print() == @"\|")
                 return @"\| — ours draws the double bar it names; the parser draws otherwise";
+
+        // An empty group is a place and not an absence. The parser drops `{}` and leaves nothing behind;
+        // ours keeps a box of no width, because the reader wrote it, a caret has to be able to sit in it,
+        // and it is what a prefix script attaches to. Nothing on the page differs — both draw nothing —
+        // but only one of the two can be pointed at.
+        foreach (var part in reading.Root.SelfAndDescendants())
+            if (part.Kind == TexKind.Group && !part.Parts.Any())
+                return "an empty group — ours keeps the place the reader wrote, where the parser keeps nothing";
 
         foreach (var part in reading.Root.SelfAndDescendants())
         {

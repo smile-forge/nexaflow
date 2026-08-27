@@ -92,6 +92,7 @@ public static class TexFormulaBuilder
         {
             TexKind.Char => Character(part, style, knowledge),
             TexKind.Sequence => Run(part.Parts, part, style, knowledge),
+            TexKind.Group when !part.Parts.Any() => Empty(part),
             TexKind.Group when Written(part) => Group(part, style, knowledge),
             TexKind.Group => Run(part.Parts, part, style, knowledge),
             TexKind.Script => Script(part, style, knowledge),
@@ -344,6 +345,19 @@ public static class TexFormulaBuilder
     private static bool Written(ITexPart group) =>
         group.Role == TexRole.Element
         || (group.Role == TexRole.Base && group.Parent?.Kind == TexKind.Script);
+
+    /// <summary>
+    /// A group with nothing written in it, which is a deliberate thing to write and not an absence.
+    ///
+    /// <para>
+    /// <c>{}</c> is how a physicist writes somewhere for the next thing to attach to.
+    /// <c>T^{\alpha}{}_{\alpha}</c> sets the two indices side by side instead of stacking them, because
+    /// the empty group is a base for the second one to sit on — the same trick as a prefix script, and
+    /// the reason the two arrived together. It draws nothing and takes no width, and it is still a place
+    /// a caret can be and a thing <see cref="IFormulaNode.Origin"/> can point at.
+    /// </para>
+    /// </summary>
+    private static Atom Empty(ITexPart part) => Tag(new NullAtom(), part);
 
     /// <summary>
     /// A braced group, which is a thing in its own right and not merely what is inside it.
@@ -634,9 +648,17 @@ public static class TexFormulaBuilder
 
             if (part.Part(TexRole.Base) is not { } styled) return null;
 
-            // A tie inside a style — `\mathrm { \quad ~ }`. Two formulas in the corpus, and the two
-            // readings space it differently; not looked at yet, so not guessed at.
-            if (styled.SelfAndDescendants().Any(inner => inner.Text == "~")) return null;
+            // A tie standing beside a space that was asked for, inside a style — `\mathrm{\quad ~}`. Two
+            // formulas in the corpus, and the two readings space them differently; unexamined, so not
+            // guessed at.
+            //
+            // This decline used to read "a tie inside a style", which is the same shape described far too
+            // broadly: it also turned away every `\mathrm{~mod~}` and `\mathrm{Im~}`, which is how these
+            // papers space an operator name and which runs to thousands of formulas that all agree. A
+            // decline is never exercised, so the words it is written in are the whole of it.
+            if (styled.SelfAndDescendants().Any(inner => inner.Text == "~")
+                && styled.SelfAndDescendants().Any(inner => inner.Role == TexRole.Name))
+                return null;
 
             if (Of(styled, restyled, knowledge) is not { } inner) return null;
 
