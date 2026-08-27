@@ -163,6 +163,22 @@ public class TexBuilderTests
         // and is parked, so it is presently gated to nothing.
         @"{}^{14}_{6}\mathrm{C}",
         @"{}^{3}He",
+
+        // Something set above or below something else. The roles say which is which, because the order
+        // does not: \overset and \underset both write the annotation first.
+        @"\stackrel{\rm def}{=}",
+        @"\overset{a}{b}",
+        @"\underset{a}{b}",
+        @"A \stackrel{f}{\longrightarrow} B",
+
+        // And the rest of the commands the table can build from arguments it is handed.
+        @"\binom{n}{k}",
+        @"\dbinom{n}{k} + \tbinom{a}{b}",
+        @"\phantom{x} y",
+        @"\overrightarrow{AB}",
+        @"\boldsymbol{\alpha}",
+        @"\vdots",
+        @"\ddots",
         @"A^{a}{}_{\mu} X_{a}",
         @"\int_{}^{} x",
         @"R_{ab} = R_{acb}{}^{c}",

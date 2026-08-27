@@ -30,7 +30,7 @@ internal static class StandardCommands
     }
 
     // The stretchy arrow accents: an arrow drawn to the width of its argument, above or below it.
-    private sealed class OverArrowCommand : ICommandParser
+    private sealed class OverArrowCommand : ICommandParser, IAssembleCommand
     {
         public static OverArrowCommand Right { get; } = new(ArrowDecoration.HeadRight, over: true);
         public static OverArrowCommand Left { get; } = new(ArrowDecoration.HeadLeft, over: true);
@@ -65,10 +65,15 @@ internal static class StandardCommands
             var atom = new OverArrowAtom(atomSource, baseFormula.RootAtom, _decoration, _over);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1
+                ? new OverArrowAtom(null, arguments[0], _decoration, _over) { Origin = origin }
+                : null;
     }
 
     // \vdots and \ddots take no argument; they just emit a fixed run of dots.
-    private sealed class DotsCommand : ICommandParser
+    private sealed class DotsCommand : ICommandParser, IAssembleCommand
     {
         public static DotsCommand Vertical { get; } = new(DotsAtom.DotsShape.Vertical);
         public static DotsCommand Diagonal { get; } = new(DotsAtom.DotsShape.Diagonal);
@@ -88,6 +93,9 @@ internal static class StandardCommands
             var atom = new DotsAtom(atomSource, _shape);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 0 ? new DotsAtom(null, _shape) { Origin = origin } : null;
     }
 
     // \hspace{<length>} inserts horizontal space of an explicit length, e.g. \hspace{2em} or \hspace{-3pt}.
@@ -353,25 +361,35 @@ internal static class StandardCommands
             var start = context.CommandNameStartPosition;
             var atomSource = context.CommandSource.Segment(start, position - start);
 
-            Atom atom = new UnderOverAtom(
-                atomSource,
-                baseFormula.RootAtom,
-                annotation.RootAtom,
-                TexUnit.Mu,
-                AnnotationSpace,
-                true,
-                _over);
+            return new CommandProcessingResult(
+                Assemble(annotation.RootAtom!, baseFormula.RootAtom!, atomSource, null), position);
+        }
 
-            if (_asRelation)
-                atom = new TypedAtom(atomSource, atom, TexAtomType.Relation, TexAtomType.Relation);
+        /// <summary>
+        /// The atom this command makes of an annotation and a base already built.
+        /// <para>
+        /// Which of the two goes on top, and whether the whole reads as a relation, are this table's
+        /// answers — <c>\stackrel</c> relates where <c>\overset</c> merely decorates — so a second reading
+        /// asks rather than copies.
+        /// </para>
+        /// </summary>
+        internal Atom Assemble(
+            Atom annotation, Atom on, SourceSpan? source, Nexaflow.Maths.Latex.TexPart? origin)
+        {
+            Atom atom = new UnderOverAtom(source, on, annotation, TexUnit.Mu, AnnotationSpace, true, _over)
+            {
+                Origin = origin,
+            };
 
-            return new CommandProcessingResult(atom, position);
+            return _asRelation
+                ? new TypedAtom(source, atom, TexAtomType.Relation, TexAtomType.Relation) { Origin = origin }
+                : atom;
         }
     }
 
     // \phantom{x} and its one-dimensional variants: the content is measured and then not drawn, so it reserves
     // space without printing anything.
-    private sealed class PhantomCommand : ICommandParser
+    private sealed class PhantomCommand : ICommandParser, IAssembleCommand
     {
         public static PhantomCommand Both { get; } = new(useWidth: true, useHeight: true);
         public static PhantomCommand Horizontal { get; } = new(useWidth: true, useHeight: false);
@@ -395,6 +413,11 @@ internal static class StandardCommands
             var atom = new PhantomAtom(atomSource, content.RootAtom, _useWidth, _useHeight, _useHeight);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1
+                ? new PhantomAtom(null, arguments[0], _useWidth, _useHeight, _useHeight) { Origin = origin }
+                : null;
     }
 
     // \smash{x} draws the content and reports no height, \math?lap{x} draws it and reports no width. Both are the
@@ -541,7 +564,7 @@ internal static class StandardCommands
     // \boldsymbol{…} (also spelled \bm): every character underneath comes from the bold companion of
     // the font it would otherwise use, which is what makes it work on Greek letters and symbols
     // rather than only on the Latin ones a text style could reach.
-    private sealed class BoldSymbolCommand : ICommandParser
+    private sealed class BoldSymbolCommand : ICommandParser, IAssembleCommand
     {
         public CommandProcessingResult ProcessCommand(CommandContext context)
         {
@@ -552,6 +575,9 @@ internal static class StandardCommands
             var atom = new BoldAtom(atomSource, content.RootAtom);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1 ? new BoldAtom(null, arguments[0]) { Origin = origin } : null;
     }
 
     // \operatorname{name} sets a function name upright and, more importantly, types it as an
@@ -584,7 +610,7 @@ internal static class StandardCommands
 
     // inom{n}{k}, and \dbinom / 	binom which force display or text style. amsmath spells all
     // three as \genfrac{(}{)}{0pt}{}: a fraction with no rule drawn, inside parentheses.
-    private sealed class BinomCommand : ICommandParser
+    private sealed class BinomCommand : ICommandParser, IAssembleCommand
     {
         public static BinomCommand Plain { get; } = new(null);
         public static BinomCommand Display { get; } = new(TexStyle.Display);
@@ -616,6 +642,32 @@ internal static class StandardCommands
             var left = new SymbolAtom(atomSource, "(", TexAtomType.Opening, true);
             var right = new SymbolAtom(atomSource, ")", TexAtomType.Closing, true);
             return new CommandProcessingResult(new FencedAtom(atomSource, fraction, left, right), position);
+        }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin)
+        {
+            if (arguments.Count != 2) return null;
+
+            var fraction = new FractionAtom(null, arguments[0], arguments[1], TexUnit.Point, 0)
+            {
+                SuppressNullDelimiterSpace = true,
+            };
+
+            if (_style is { } style) fraction = fraction with { OverrideStyle = style };
+
+            // Every piece carries the part, as a bracketed matrix's do: a binomial is one construct drawn
+            // in several atoms — the brackets, the stack, the space they leave — and all of them came
+            // from this one \binom. Tagging only the outermost would leave the stack knowing nothing.
+            fraction.Origin = origin;
+
+            return new FencedAtom(
+                null,
+                fraction,
+                new SymbolAtom(null, "(", TexAtomType.Opening, true) { Origin = origin },
+                new SymbolAtom(null, ")", TexAtomType.Closing, true) { Origin = origin })
+            {
+                Origin = origin,
+            };
         }
     }
 
@@ -838,6 +890,30 @@ internal static class StandardCommands
     // 2.95 em - an arithmetic progression, since both the struts and the rule are linear in the size.
     // Those lengths are absolute in TeX, so unlike almost everything else here they do not shrink
     // with the style: \big( is the same delimiter inside a subscript as outside one.
+    /// <summary>Whether this command can be built from arguments somebody else has already read.</summary>
+    internal static bool CanAssemble(string command) =>
+        Dictionary.TryGetValue(command, out var parser) && parser is IAssembleCommand;
+
+    /// <summary>
+    /// What this command makes of arguments already built, in the order it reads them — or null where it
+    /// is not one that can be asked.
+    /// </summary>
+    internal static Atom? AssembledOf(
+        string command, IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        Dictionary.TryGetValue(command, out var parser) && parser is IAssembleCommand assembler
+            ? assembler.Assemble(arguments, origin)
+            : null;
+
+    /// <summary>
+    /// The stacked annotation this command stands for, given both parts already built — or null where the
+    /// command sets nothing above or below anything.
+    /// </summary>
+    internal static Atom? StackedOf(
+        string command, Atom annotation, Atom on, Nexaflow.Maths.Latex.TexPart? origin) =>
+        Dictionary.TryGetValue(command, out var parser) && parser is StackedAnnotationCommand stacked
+            ? stacked.Assemble(annotation, on, null, origin)
+            : null;
+
     /// <summary>
     /// The sized delimiter this command stands for, given the delimiter already read — or null where the
     /// command is not one of the <c>\big</c> family at all.

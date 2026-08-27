@@ -639,6 +639,20 @@ public static class TexFormulaBuilder
             && StandardCommands.BigDelimiterOf(name[1..], sized.Name, Whole(part)) is { } big)
             return big;
 
+        // Something set above or below something else — \stackrel, \overset, \underset. The reading
+        // already names which is which, because the roles say so rather than the order: \overset writes
+        // its annotation first and \underset writes it first too, so counting arguments would read one of
+        // them backwards. Whether the whole then reads as a relation is the table's answer.
+        if (part.Part(TexRole.Over) is not null || part.Part(TexRole.Under) is not null)
+        {
+            var above = part.Part(TexRole.Over) is not null ? TexRole.Over : TexRole.Under;
+
+            if (Part(part, above, style, knowledge) is { } annotation
+                && Part(part, TexRole.Base, style, knowledge) is { } on
+                && StandardCommands.StackedOf(name[1..], annotation, on, Whole(part)) is { } stacked)
+                return stacked;
+        }
+
         // A style is not an atom. \mathrm{abc} sets three roman letters and wraps them in nothing at all,
         // because which alphabet a letter is drawn from is a property of the letter. So it is carried
         // down the build rather than built: the argument is made under the new style, and what comes back
@@ -679,6 +693,25 @@ public static class TexFormulaBuilder
             if (Of(accented, style, knowledge) is not { } inner) return null;
 
             return Tag(new AccentedAtom(null, inner, accent.Name), part);
+        }
+
+        // Any other command the table can make from arguments already built — \binom, \phantom,
+        // \overrightarrow, \boldsymbol. The reading has the arguments in the order the command reads
+        // them, so what is asked for is the other half: what this command *makes* of them. Which is the
+        // same question the matrices, the sized delimiters and the stacked annotations each ended up
+        // asking one at a time, before it was obvious they were one question.
+        if (StandardCommands.CanAssemble(name[1..]))
+        {
+            var arguments = new List<Atom>();
+
+            foreach (var argument in part.Parts)
+            {
+                if (Of(argument, style, knowledge) is not { } built) return null;
+
+                arguments.Add(built);
+            }
+
+            return StandardCommands.AssembledOf(name[1..], arguments, Whole(part));
         }
 
         // Anything else has to be a symbol standing on its own; a command with arguments this does not
