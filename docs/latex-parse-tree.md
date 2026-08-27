@@ -363,12 +363,27 @@ about `\overline`, and it should be answered once. Nothing reads it yet, so it i
 side by side. It does not compose: `a+b` comes out as three atoms in a row, because deciding otherwise
 is the other tree's job.
 
+### Settled, and we differ on purpose
+
+Shapes somebody has looked at — the parse tree, both box trees, both renderings, and the picture the
+published paper shipped — and decided ours was the one to keep. The corpus sweep counts these and names
+the reason instead of failing on them, because a difference nobody has examined is indistinguishable
+from a defect and a difference somebody *has* examined is not one at all. They are matched on the
+reading rather than on the text: "a fence whose body holds a fence" is the shape that was ruled on;
+"contains two `\left`" is a search that would also catch things nobody looked at.
+
+| | Why ours |
+|---|---|
+| a fence inside a fence | 1,327 formulas. Identical renderings — every number the same. The parser collapses the `^{4}` of `\left( \left( \tfrac12 \right)^{4}, 0^{4} \right)` into a single atom; ours keeps the group holding one thing, which is what was written and what a substitution has to be able to reach. *Reviewed 2026-08-27* |
+
 ### Still to be settled
 
 Cases where our reading and the parser's disagree about the picture and **it is not yet established
 which is right**. These are not bugs to fix by matching — the parser is a reference, not a
 specification, and it is the thing being replaced. Each needs looking at properly: the parse tree, both
 layout trees, and both renderings beside the corpus's own reference image from the published paper.
+
+The first of these has been decided and moved above; what follows is what has not.
 
 **Almost everything left here is a fence, which is itself the finding.** Three separate-looking
 disagreements turned out to be three shapes of one: what is written between `\left` and `\right` is
@@ -378,7 +393,6 @@ handling as the suspect** rather than ours.
 
 | | What differs |
 |---|---|
-| a fence inside a fence | `\left[ \left( a \right)^2 \right]` — the parser puts a scripted fence inside boxes of its own before measuring it, and picks a smaller outer bracket than we do. Ours grows to fit the script. **Ours may well be the better rendering**; it was declined because it differed, not because it was wrong |
 | a script on a construct, inside a fence | `\left( \frac{f}{g}_{i} \right)`, and the same with an `\overline`. Written anywhere else the two agree exactly. This decline used to sit on `\overline` itself, where it was both too narrow — it never caught `\frac` — and too broad, costing every unfenced `\overline{J}^{a}` its coverage for nothing |
 | `\left\|` | the double bar. Stripping the backslash draws a single bar; naming it `Vert` instead does not agree either. Every norm in the corpus is written with it |
 | a row written first in a row | `\mathrm{vol}(10)` — the parser splices the style's row into the row it is starting; `A \mathrm{vol}(10)` nests it, exactly as we do. Identical geometry either way, and an artefact of the accumulator (the first atom handed to `TexFormula.Add` *becomes* the row) rather than a rule. **Ours is the consistent one**; it was declined because it differed |

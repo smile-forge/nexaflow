@@ -241,11 +241,11 @@ public static class TexFormulaBuilder
     {
         if (part.Part(TexRole.Body) is not { } body) return null;
 
-        // A fence inside a fence, not yet. Delimiters grow to fit what is between them, and the parser
-        // puts a scripted fence inside boxes of its own before measuring it — so `\left[ \left( a
-        // \right)^2 \right]` picks a smaller bracket there than it does here. Every disagreement the
-        // corpus had left was this, and a bracket one size out is not something to guess at.
-        if (DeclineUnsettled && body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence)) return null;
+        // A fence inside a fence was declined here, and is not any more: looked at, and ours is the one
+        // to keep. The two draw it identically — every number the same — and differ in what they built
+        // to draw it with. The parser collapses the `^{4}` of `\left( \left( \tfrac12 \right)^{4}, 0^4
+        // \right)` into a single atom; ours keeps it a group holding one thing, which is what it was
+        // written as and what a substitution has to be able to reach. Reviewed 2026-08-27.
 
         // And a script on something a command *built*, between delimiters — `\left( \frac{f}{g}_{i}
         // \right)`, or the same with an `\overline`. Written anywhere else the two readings agree

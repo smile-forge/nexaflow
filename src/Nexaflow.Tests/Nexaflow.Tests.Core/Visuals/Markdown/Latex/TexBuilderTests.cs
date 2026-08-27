@@ -301,6 +301,7 @@ public class TexBuilderTests
         var seen = formulas.Count;
         var built = 0;
         var wrong = new List<string>();
+        var deliberate = new Dictionary<string, int>(StringComparer.Ordinal);
 
         UiThread.Across(formulas, formula =>
         {
@@ -313,6 +314,17 @@ public class TexBuilderTests
             try { theirs = WpfTeXFormulaParser.Instance.Parse(formula.Latex); } catch { return; }
 
             if (Settled(theirs, formula.Latex) == Settled(ours, formula.Latex)) return;
+
+            // A difference that has been looked at and decided in our favour is not a failure. The
+            // parser is a reference and not a specification, so "differs from it" was never the same as
+            // "wrong" — it is just the only signal available until somebody looks.
+            if (Decided(TexReading.Of(formula.Latex)) is { } why)
+            {
+                lock (deliberate)
+                    deliberate[why] = deliberate.TryGetValue(why, out var n) ? n + 1 : 1;
+
+                return;
+            }
 
             lock (wrong) wrong.Add($"line {formula.Line}: {formula.Latex}");
         });
@@ -333,10 +345,45 @@ public class TexBuilderTests
         // Written down rather than asserted. How much of the corpus the builder reaches is a number to
         // watch go up as constructs are taught to it, not a bar to clear — a floor here would either sit
         // so low it never fires or have to be edited every time the builder learns something.
+        var decided = deliberate.Sum(d => d.Value);
+
         File.WriteAllText(
             Path.Combine(Path.GetDirectoryName(corpus)!, "tex-builder-coverage.txt"),
             $"built {built} of {seen} ({100.0 * built / seen:F1}%), and every one of them set where the "
-            + "parser sets it");
+            + $"parser sets it — bar {decided} set deliberately otherwise:\n"
+            + string.Join("\n", deliberate.OrderByDescending(d => d.Value)
+                                          .Select(d => $"  {d.Value,7:N0}  {d.Key}")));
+    }
+
+    /// <summary>
+    /// Why this formula is allowed to be drawn differently, or null if it is not.
+    ///
+    /// <para>
+    /// The list is what has been <em>looked at</em>. Each entry is a shape somebody compared — the parse
+    /// tree, both box trees, both renderings and the picture the published paper shipped — and decided
+    /// ours was the one to keep. Until that happens a difference is a failure, because a difference
+    /// nobody has examined is indistinguishable from a defect.
+    /// </para>
+    /// <para>
+    /// Matched on the reading rather than on the text. "Contains two `\left`" is a search; "a fence
+    /// whose body holds a fence" is the shape that was ruled on, and it is a question the parse tree
+    /// answers exactly.
+    /// </para>
+    /// </summary>
+    private static string? Decided(TexReading reading)
+    {
+        foreach (var part in reading.Root.SelfAndDescendants())
+        {
+            // Reviewed 2026-08-27. Identical renderings; the parser collapses a script inside the inner
+            // fence into one atom where ours keeps the group it was written as, which is what a
+            // substitution has to be able to reach.
+            if (part.Kind == TexKind.Fence
+                && part.Part(TexRole.Body) is { } body
+                && body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence))
+                return "a fence inside a fence — ours keeps the groups the parser collapses";
+        }
+
+        return null;
     }
 
     /// <summary>
