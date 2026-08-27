@@ -88,7 +88,7 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph walk <id> --hops 2                                # its N-hop neighbourhood
 & $nfi graph grep <regex> --from <id> --hops 2 --mode content        # grep source NEAR a code node
 & $nfi graph grep <regex> --from product:<slug> --scope owned --mode content   # grep a whole FEATURE
-& $nfi graph grep <regex> --mode content                             # grep EVERY code node (~1s, 47k nodes)
+& $nfi graph grep <regex> --mode content                             # grep EVERY code node (~3s, 64k nodes)
 & $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
 & $nfi graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
@@ -97,7 +97,10 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 compared with a bare `StartsWith`"), an idiom sweep, a "does anything still do Y" — all of it is
 `graph grep … --mode content`, which reports each hit as file:line **plus the owning type/member and feature**.
 Reach for it exactly where you would otherwise type `grep -rn`; a blanket text search is never the better tool
-here, and with no `--from` it covers the whole repo in about a second.
+here, and with no `--from` it covers the whole repo in a few seconds. **`--limit` trims the printed list, never
+the search** — the total on the summary line is the real total, and a trimmed run says `showing N, raise --limit
+for the rest`. Only an explicit `--scan-cap` can cut the search short, and that prints a loud `INCOMPLETE`. So a
+count with neither notice is a count you can reason about, including a zero.
 
 Pick the scope by what you mean, not by tuning a number:
 
