@@ -327,6 +327,7 @@ public static class GraphTools
             "append"        => StructuralEdit.Op.Append,
             "doc"           => StructuralEdit.Op.Doc,
             "substitute" or "sub" => StructuralEdit.Op.Substitute,
+            "import" or "using"   => StructuralEdit.Op.Import,
             _               => (StructuralEdit.Op?)null,
         };
         if (op is null)

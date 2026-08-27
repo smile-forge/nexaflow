@@ -45,6 +45,9 @@ public static class StructuralEdit
         Doc,
         /// <summary>Replace text <i>inside</i> the declaration — a find-and-replace that cannot escape it.</summary>
         Substitute,
+        /// <summary>Add an import to the file. File-level: see <see cref="AddImport"/>, which is what
+        /// implements it — this member exists so a caller with one <c>op</c> parameter can ask for it.</summary>
+        Import,
     }
 
     /// <param name="WithTrivia">For <see cref="Op.Replace"/>, also replace the attached doc comments and
@@ -63,9 +66,120 @@ public static class StructuralEdit
     /// <summary>The changed region, for display.</summary>
     public sealed record Hunk(int Line, IReadOnlyList<string> Removed, IReadOnlyList<string> Added);
 
-    public sealed record Result(bool Ok, string Message, string? NewText, Hunk? Hunk, IReadOnlyList<string> Notes)
+    /// <summary>
+    /// The edit as a single splice: replace <paramref name="Length"/> characters at
+    /// <paramref name="Offset"/> with <paramref name="Inserted"/>.
+    /// <para>
+    /// A live editor needs this rather than the whole new document. Assigning the full text back would work,
+    /// but it collapses the undo stack into "everything changed", moves the caret to the top and re-renders
+    /// the file; a minimal splice is one undo step, leaves the caret where it was, and only redraws the lines
+    /// that moved.
+    /// </para>
+    /// </summary>
+    public sealed record TextChange(int Offset, int Length, string Inserted);
+
+    /// <summary>One declaration the text contains, and the path that addresses it.</summary>
+    public sealed record Declaration(string Name, string Kind, string AstPath, int Line, int EndLine);
+
+    public sealed record Result(bool Ok, string Message, string? NewText, Hunk? Hunk,
+                                IReadOnlyList<string> Notes, TextChange? Change = null)
     {
         public static Result Fail(string message) => new(false, message, null, null, []);
+    }
+
+    /// <summary>
+    /// Every type and member the text declares, in document order — the addressing table for a caller with
+    /// no knowledge graph to look node ids up in, which is any editor working on the buffer in front of it.
+    /// </summary>
+    public static IReadOnlyList<Declaration> Declarations(string grammarId, string source)
+    {
+        if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(source)) return [];
+
+        var outline = new CodeStructureExtractor().Extract(grammarId, source);
+        var found   = new List<Declaration>();
+
+        foreach (var type in outline.Types)
+        {
+            found.Add(new Declaration(type.Name, type.Kind.ToString(), type.AstPath, type.Line, type.EndLine));
+            foreach (var member in type.Members)
+                found.Add(new Declaration(member.Name, member.Kind.ToString(), member.AstPath,
+                                          member.Line, member.EndLine));
+        }
+        foreach (var member in outline.TopLevel)
+            found.Add(new Declaration(member.Name, member.Kind.ToString(), member.AstPath,
+                                      member.Line, member.EndLine));
+
+        return [.. found.OrderBy(d => d.Line).ThenBy(d => d.AstPath, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// Adds an import (a <c>using</c>, an <c>import</c>, a <c>#include</c>) in the place the file already
+    /// keeps them: after the last one, or — when there are none — above the first declaration but below any
+    /// header comment, so a licence block stays at the top.
+    /// <para>
+    /// This is file-level rather than declaration-level, which is why it is not one of the
+    /// <see cref="Op"/>s. Reaching it through <see cref="Op.InsertBefore"/> on the first declaration was
+    /// possible and wrong: in a file with a file-scoped namespace it put the <c>using</c> underneath the
+    /// <c>namespace</c>, which compiles and looks like a mistake.
+    /// </para>
+    /// </summary>
+    public static Result AddImport(string grammarId, string source, string importText)
+    {
+        if (string.IsNullOrEmpty(grammarId))
+            return Result.Fail("No tree-sitter grammar covers this file, so an import cannot be placed.");
+        if (importText is not { Length: > 0 })
+            return Result.Fail("The import to add is required.");
+
+        var wanted = importText.Trim();
+        if (SourceText.Of(source).Lines.Any(l => l.Trim() == wanted))
+            return Result.Fail($"{Quote(wanted)} is already imported.");
+
+        var (lastImportEnd, firstDeclaration) = new DeclarationAnchors().ImportRegion(grammarId, source);
+        var shape   = SourceText.Of(source);
+        var newline = shape.Newline;
+
+        int at;
+        string trailing;
+        if (lastImportEnd is { } end)
+        {
+            at       = Math.Min(LineEndInclusive(source, end) + 1, source.Length);
+            trailing = "";                    // it joins an existing block; no blank line inside one
+        }
+        else if (firstDeclaration is { } first)
+        {
+            at       = LineStart(source, first);
+            trailing = newline;               // starting a block, so separate it from what follows
+        }
+        else
+        {
+            at       = 0;
+            trailing = newline;
+        }
+
+        var updated = source[..at] + Block(wanted, IndentAt(source, at), newline) + newline + trailing
+                    + source[at..];
+
+        var anchors = new DeclarationAnchors();
+        if (anchors.ParsesCleanly(grammarId, source) && !anchors.ParsesCleanly(grammarId, updated))
+            return Result.Fail("Adding that import would leave the file unparseable, so it was not applied.");
+
+        return new Result(true, $"import {wanted}", updated, HunkOf(source, updated), [],
+                          ChangeOf(source, updated));
+    }
+
+    /// <summary>
+    /// The same edit, for a caller addressing a declaration by path alone. The name to verify against is
+    /// taken from this very parse, which is right when the text in hand <i>is</i> the source of truth — an
+    /// open editor has no stale record to catch out, unlike a graph built from another checkout.
+    /// </summary>
+    public static Result Apply(string grammarId, string source, string astPath, Op op, string? text,
+                               Options? options = null, string? renameTo = null)
+    {
+        var named = Declarations(grammarId, source).FirstOrDefault(d => d.AstPath == astPath);
+        if (named is null)
+            return Result.Fail($"'{astPath}' does not name a declaration in this file. List them first.");
+
+        return Apply(grammarId, source, astPath, named.Name, op, text, options, renameTo);
     }
 
     /// <summary>
@@ -117,6 +231,7 @@ public static class StructuralEdit
             Op.Append       => Append(source, anchor, text, indent, newline, shape),
             Op.Doc          => Doc(source, anchor, text, indent, newline),
             Op.Substitute   => Substitute(source, anchor, text, o),
+            Op.Import       => (null, "An import belongs to the file, not to a declaration — call AddImport."),
             _               => (Text: (string?)null, Error: $"Unsupported operation {op}."),
         };
 
@@ -132,7 +247,28 @@ public static class StructuralEdit
             notes.Add($"'{astPath}' no longer resolves after the edit — the declaration was renamed or "
                     + "restructured, so anything holding that path will need to re-resolve it.");
 
-        return new Result(true, $"{Describe(op)} {expectedName}", updated, HunkOf(source, updated), notes);
+        return new Result(true, $"{Describe(op)} {expectedName}", updated, HunkOf(source, updated), notes,
+                          ChangeOf(source, updated));
+    }
+
+    /// <summary>
+    /// The edit expressed as one splice, found by trimming the common prefix and suffix. Derived from the
+    /// two texts rather than tracked through the operations, so it cannot disagree with what actually
+    /// changed however the operation got there.
+    /// </summary>
+    private static TextChange ChangeOf(string before, string after)
+    {
+        var max = Math.Min(before.Length, after.Length);
+
+        var prefix = 0;
+        while (prefix < max && before[prefix] == after[prefix]) prefix++;
+
+        var suffix = 0;
+        while (suffix < max - prefix
+               && before[before.Length - 1 - suffix] == after[after.Length - 1 - suffix]) suffix++;
+
+        return new TextChange(prefix, before.Length - suffix - prefix,
+                              after[prefix..(after.Length - suffix)]);
     }
 
     // ── The operations ──────────────────────────────────────────────────────
@@ -207,15 +343,26 @@ public static class StructuralEdit
                                                         string indent, string newline, SourceText shape)
     {
         if (text is null) return (null, "Text to append is required.");
-        if (a.BodyEnd is not { } bodyEnd)
+        if (a.BodyStart is not { } bodyStart)
             return (null, $"The parser gives this {a.NodeType} no body, so there is nothing to append into. "
                         + "Append targets a type; use insert-after for a free-standing declaration.");
 
-        // Before the line the body closes on — after the last member, not after the closing brace.
-        var at     = LineStart(src, Math.Max(bodyEnd - 1, 0));
-        var inner  = MemberIndent(src, a) ?? indent + shape.IndentUnit();
-        var spacer = BlankBefore(src, at) ? "" : newline;
-        return (src[..at] + spacer + Block(text, inner, newline) + newline + src[at..], null);
+        var inner = MemberIndent(src, a) ?? indent + shape.IndentUnit();
+
+        // After the last thing actually in the body. Saying it that way rather than "before the closing
+        // brace" is what makes this work for Python, whose body ends with its last statement and has no
+        // brace to sit before — phrased the other way it inserted INTO the last method.
+        if (a.BodyContentEnd is { } contentEnd)
+        {
+            var at     = Math.Min(LineEndInclusive(src, contentEnd) + 1, src.Length);
+            var spacer = newline;
+            return (src[..at] + spacer + Block(text, inner, newline) + newline + src[at..], null);
+        }
+
+        // An empty body: nothing to sit after, so sit just inside it — and with no blank line, because a
+        // gap above the only member of an otherwise empty type reads as an accident.
+        var opening = Math.Min(LineEndInclusive(src, bodyStart) + 1, src.Length);
+        return (src[..opening] + Block(text, inner, newline) + newline + src[opening..], null);
     }
 
     private static (string? Text, string? Error) Doc(string src, DeclarationAnchor a, string? text,
@@ -372,25 +519,21 @@ public static class StructuralEdit
         src[..from] + replacement + src[to..];
 
     /// <summary>
-    /// How this type indents its members, read off the members it already has. Measuring beats inferring a
-    /// file-wide indent unit and adding it: a nested type, a member inside a namespace block and a top-level
-    /// one all sit at different depths, and the existing members are the only thing that knows. Null when the
-    /// body is empty, which is the one case with nothing to measure.
+    /// How this type indents its members, taken from the first member it already has. Measuring beats
+    /// inferring a file-wide indent unit and adding it: a nested type, a member inside a namespace block and
+    /// a top-level one all sit at different depths, and the existing members are the only thing that knows.
+    /// <para>
+    /// It reads the first member's own line, not "the first non-blank line inside the braces" — those are
+    /// the same thing until the body is empty, where the latter finds the closing <c>}</c> and reports an
+    /// indent of nothing, which is how an appended member ended up flush-left.
+    /// </para>
+    /// Null when the body is empty, which is the one case with nothing to measure.
     /// </summary>
-    private static string? MemberIndent(string src, DeclarationAnchor type)
-    {
-        if (type.BodyStart is not { } start || type.BodyEnd is not { } end) return null;
-
-        var i = LineEndInclusive(src, start) + 1;    // past the line the body opens on
-        while (i < end && i < src.Length)
-        {
-            var lineEnd = LineEndInclusive(src, i);
-            var line    = src[i..Math.Min(lineEnd + 1, src.Length)];
-            if (line.Trim().Length > 0) return SourceText.IndentOf(line);
-            i = lineEnd + 1;
-        }
-        return null;
-    }
+    private static string? MemberIndent(string src, DeclarationAnchor type) =>
+        type.BodyContentStart is { } first
+            ? src[LineStart(src, first)..Math.Clamp(first, 0, src.Length)] is { } lead
+              && lead.Trim().Length == 0 ? lead : SourceText.IndentOf(src[LineStart(src, first)..])
+            : null;
 
     /// <summary>Whether only indentation separates <paramref name="offset"/> from the start of its line — the
     /// test for whether a splice there begins a line or continues one.</summary>
@@ -459,7 +602,7 @@ public static class StructuralEdit
         Op.Replace => "replace",   Op.Delete       => "delete",        Op.Signature  => "re-sign",
         Op.Body    => "re-body",   Op.Rename       => "rename",        Op.Doc        => "document",
         Op.Append  => "append to", Op.InsertBefore => "insert before", Op.Substitute => "substitute in",
-        _          => "insert after",
+        Op.Import  => "import",    _               => "insert after",
     };
 
     // ── Diff ────────────────────────────────────────────────────────────────

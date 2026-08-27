@@ -105,6 +105,7 @@ rather than by which lines it currently occupies:
 & $nfi graph edit append     <type-id> --text-escaped 'public int Zero() => 0;'   # into a type's body
 & $nfi graph edit insert-before|insert-after|doc <node-id> --file …
 & $nfi graph edit substitute <node-id> --find 'old();' --text 'new();'   # find/replace INSIDE one declaration
+& $nfi graph edit import     <file-or-node-id> --text 'using System.Linq;'   # where the file keeps its imports
 ```
 
 **Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
@@ -122,10 +123,25 @@ path — alone), `--file`, or `--stdin`; `--find`/`--find-escaped` mirror that p
 and writes nothing; `--expect S` refuses unless the block still contains `S`, pinning the edit to what you
 read. Rebuild the graph afterwards so its record matches.
 
+`import` is file-level (it takes a `file:` id, or any code node in that file) and lands where the file already
+keeps its imports — under the last one, or below a licence header when there are none. Reaching that through
+`insert-before` on the first declaration was possible and wrong: with a file-scoped namespace it put the
+`using` *underneath* the `namespace`, which compiles and reads as a mistake.
+
 The engine is `StructuralEdit` in **`Nexaflow.Syntax`** — source text in, source text out, no graph and no
-file IO — so the Code/Notebook editors can drive the same operations on the buffer in front of them.
-`GraphEdit` (in `Services.Initiatives`) is only the adapter that turns a node id into a file, an AST path and
-the name to verify against. Both are also exposed to the in-app assistant as the `graph_edit` client tool.
+file IO. `GraphEdit` (in `Services.Initiatives`) is only the adapter that turns a node id into a file, an AST
+path and the name to verify against. Three surfaces drive it:
+
+| Surface | How a declaration is addressed |
+|---|---|
+| `nfi graph edit` | a graph node id |
+| `graph_edit` client tool (assistant) | a graph node id |
+| `list_declarations` + `edit_declaration` (any editor tab) | an `ast_path` from the open buffer — no graph needed |
+
+The editor tools live on `FileTextEditorViewModel`, so every tab built on the shared editor base (Code,
+Notebook, …) gets them. They apply the edit as a **minimal splice** rather than reassigning the document, so
+it is one undo step and the caret and scroll position survive. Prefer `edit_declaration` over the older
+`set_editor_text` / `replace_all`, which respectively restate the whole file and match across all of it.
 
 **Searching for a code *pattern* is a graph query too** — not just "where is X". A defect signature ("a path
 compared with a bare `StartsWith`"), an idiom sweep, a "does anything still do Y" — all of it is

@@ -1,8 +1,8 @@
-using Nexaflow.Services.Initiatives.Graph;
+
 using Nexaflow.Syntax;
 using Nexaflow.Tests.Fixtures;
 
-namespace Nexaflow.Tests.Initiatives.Graph;
+namespace Nexaflow.Tests.Core.Unit.Editor;
 
 /// <summary>
 /// The three things a structural edit promises not to make the caller think about: line endings, the

@@ -44,6 +44,11 @@ public static class GraphEdit
             return Result.Fail($"No graph node '{nodeId}'. Use graph search to find one.");
         if (node.FilePath is not { Length: > 0 } rel)
             return Result.Fail($"'{nodeId}' is not a code node — it has no file.");
+
+        // An import belongs to the file, not to any declaration in it, so it needs neither an AST path nor
+        // a label — which also lets a `file:` node address it.
+        if (op is StructuralEdit.Op.Import) return Import(rel, text, read);
+
         if (node.Metadata?.GetValueOrDefault("ast") is not { Length: > 0 } astPath)
             return Result.Fail($"'{nodeId}' records no AST path, so its declaration cannot be located exactly.");
         if (node.Label is not { Length: > 0 } name)
@@ -57,6 +62,22 @@ public static class GraphEdit
             return Result.Fail($"No tree-sitter grammar covers {rel}, so an edit there cannot be verified.");
 
         var result = StructuralEdit.Apply(grammar, original, astPath, name, op, text, options, renameTo);
+        if (!result.Ok || result.NewText is null || result.Hunk is null)
+            return Result.Fail($"{result.Message} ({rel})");
+
+        return new Result(true, $"{result.Message} in {rel}",
+                          [new FileChange(rel, original, result.NewText, result.Hunk)], result.Notes);
+    }
+
+    private static Result Import(string rel, string? text, ReadText read)
+    {
+        if (read(rel) is not { } original) return Result.Fail($"Could not read {rel}.");
+
+        var grammar = TreeSitterLanguages.ForFile(rel);
+        if (grammar is not { Length: > 0 })
+            return Result.Fail($"No tree-sitter grammar covers {rel}, so an import cannot be placed.");
+
+        var result = StructuralEdit.AddImport(grammar, original, text ?? "");
         if (!result.Ok || result.NewText is null || result.Hunk is null)
             return Result.Fail($"{result.Message} ({rel})");
 

@@ -28,7 +28,9 @@ public sealed record DeclarationAnchor(
     int? ParametersStart,
     int? ParametersEnd,
     int? BodyStart,
-    int? BodyEnd)
+    int? BodyEnd,
+    int? BodyContentStart = null,
+    int? BodyContentEnd = null)
 {
     /// <summary>Whether the grammar gave this declaration a body, and so whether the signature and the body
     /// can be edited apart from one another.</summary>
@@ -36,6 +38,9 @@ public sealed record DeclarationAnchor(
 
     /// <summary>Everything before the body — what "the signature" means for a replace that keeps the body.</summary>
     public (int Start, int End)? Header => BodyStart is { } b ? (Start, b) : null;
+
+    /// <summary>Whether the body holds nothing yet, so an insertion into it has no sibling to sit after.</summary>
+    public bool BodyIsEmpty => BodyStart is not null && BodyContentEnd is null;
 }
 
 /// <summary>Finds <see cref="DeclarationAnchor"/>s. See the type's remarks for why this sits beside the
@@ -103,6 +108,49 @@ public sealed class DeclarationAnchors
         catch { return false; }
     }
 
+    /// <summary>
+    /// Where the file's imports end, and where the first thing that is not one begins — the two offsets an
+    /// inserted import has to choose between. Both null when the grammar has nothing to say about the file.
+    /// <para>
+    /// Only top-level statements are considered. That is what keeps C#'s <c>using (var x = …)</c> out of it:
+    /// its node type also begins with "using", but it lives inside a method body, and nothing here looks
+    /// there.
+    /// </para>
+    /// </summary>
+    /// <returns>LastImportEnd is the offset just past the last import; FirstDeclarationStart is the offset
+    /// of the first non-import, non-comment top-level node.</returns>
+    public (int? LastImportEnd, int? FirstDeclarationStart) ImportRegion(string grammarId, string text)
+    {
+        if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(text)) return (null, null);
+
+        using var highlighter = CodeHighlighter.TryCreate(grammarId);
+        if (highlighter is null) return (null, null);
+
+        try
+        {
+            return highlighter.WithParseTree(text, root =>
+            {
+                int? lastImport = null;
+                int? firstOther = null;
+
+                foreach (var child in root.NamedChildren)
+                {
+                    if (IsImport(child.Type)) { lastImport = child.EndIndex; continue; }
+                    if (child.Type.Contains("comment", StringComparison.Ordinal)) continue;
+                    firstOther ??= child.StartIndex;
+                }
+                return (lastImport, firstOther);
+            });
+        }
+        catch { return (null, null); }
+    }
+
+    private static bool IsImport(string nodeType) =>
+        nodeType.Contains("import", StringComparison.Ordinal)
+     || nodeType.Contains("using", StringComparison.Ordinal)
+     || nodeType.Contains("include", StringComparison.Ordinal)
+     || nodeType.Contains("use_declaration", StringComparison.Ordinal);
+
     /// <summary>Every named node whose <c>name</c> field is exactly <paramref name="expectedName"/>.</summary>
     private static void Collect(Node node, string expectedName, List<Node> into)
     {
@@ -145,8 +193,14 @@ public sealed class DeclarationAnchors
     private static DeclarationAnchor Anchor(Node declaration, Node span, string text)
     {
         var name    = NameOf(declaration);
-        var body    = declaration.GetChildForField("body");
         var @params = declaration.GetChildForField("parameters");
+        var body    = BodyOf(declaration, @params);
+
+        // The first and last thing actually inside the body. An insertion belongs after the last of them,
+        // which is the only phrasing that works for a language with a closing brace AND one without: C#'s
+        // body ends with `}` so the content stops before it, Python's ends with the last statement itself.
+        var first = body?.FirstNamedChild;
+        var last  = body?.LastNamedChild;
 
         return new DeclarationAnchor(
             declaration.Type,
@@ -155,10 +209,48 @@ public sealed class DeclarationAnchors
             TriviaStart(span, text),
             name?.StartIndex, name?.EndIndex,
             @params?.StartIndex, @params?.EndIndex,
-            body?.StartIndex, body?.EndIndex);
+            body?.StartIndex, body?.EndIndex,
+            first?.StartIndex, last?.EndIndex);
     }
 
     private static Node? NameOf(Node node) => node.GetChildForField("name");
+
+    /// <summary>
+    /// The declaration's body. Most grammars declare it as a <c>body</c> field, but not all of them do for
+    /// every declaration — a C# property's accessors are an <c>accessor_list</c> with no field name, and a
+    /// property is a thing people edit. So a named body wins, and failing that the last named child is
+    /// accepted when it is one of the shapes a body actually takes.
+    /// <para>
+    /// The allow-list is deliberate rather than a heuristic. "Last named child" alone would call an
+    /// interface method's <c>parameter_list</c> its body, and replacing "the body" would then delete the
+    /// parameters — a wrong answer that still parses, which is the worst kind.
+    /// </para>
+    /// </summary>
+    private static Node? BodyOf(Node declaration, Node? parameters)
+    {
+        if (declaration.GetChildForField("body") is { } named) return named;
+
+        var last = declaration.LastNamedChild;
+        if (last is null) return null;
+        if (parameters is not null && last.StartIndex == parameters.StartIndex) return null;
+
+        return BodyLikeTypes.Contains(last.Type) ? last : null;
+    }
+
+    /// <summary>Node types that are a declaration's body when the grammar does not say so with a field.</summary>
+    private static readonly HashSet<string> BodyLikeTypes = new(StringComparer.Ordinal)
+    {
+        "accessor_list",        // C# property / indexer / event
+        "block",
+        "statement_block",
+        "compound_statement",
+        "declaration_list",
+        "field_declaration_list",
+        "enum_member_declaration_list",
+        "class_body",
+        "body_statement",       // Ruby
+        "suite",                // Python
+    };
 
     /// <summary>
     /// Where the doc comments and attributes written directly above this declaration start. Contiguity is

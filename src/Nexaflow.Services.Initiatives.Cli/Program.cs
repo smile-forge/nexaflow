@@ -664,12 +664,13 @@ internal static class Program
             "insert-after"  => StructuralEdit.Op.InsertAfter,
             "append"        => StructuralEdit.Op.Append,
             "doc"           => StructuralEdit.Op.Doc,
-            "substitute" or "sub" => StructuralEdit.Op.Substitute,
+            "substitute" or "sub"  => StructuralEdit.Op.Substitute,
+            "import" or "using"    => StructuralEdit.Op.Import,
             _               => (StructuralEdit.Op?)null,
         };
         if (op is null)
             return VerbUsage($"unknown edit op '{a[0]}' — expected replace | delete | signature | body | "
-                           + "rename | insert-before | insert-after | append | doc | substitute");
+                           + "rename | insert-before | insert-after | append | doc | substitute | import");
 
         if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
 
