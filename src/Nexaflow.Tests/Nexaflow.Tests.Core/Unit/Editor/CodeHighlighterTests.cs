@@ -119,6 +119,103 @@ public class CodeHighlighterTests
         Assert.IsFalse(folds.Any(f => Covers(src, f, "lonely")), "a single own-line comment is not folded");
     }
 
+    /// <summary>
+    /// One sample per grammar, each carrying the shape that broke: a run of own-line comments above a
+    /// foldable block. Written with \n so each case can be run twice, once converted to \r\n.
+    /// </summary>
+    private static readonly Dictionary<string, string> FoldSamples = new()
+    {
+        ["c"]                 = "// alpha\n// beta\nint main(void)\n{\n    return 0;\n}\n",
+        ["cpp"]               = "// alpha\n// beta\nint main()\n{\n    return 0;\n}\n",
+        ["c-sharp"]           = "// alpha\n// beta\nclass C\n{\n    void M()\n    {\n    }\n}\n",
+        ["java"]              = "// alpha\n// beta\nclass C {\n    void m() {\n    }\n}\n",
+        ["javascript"]        = "// alpha\n// beta\nfunction f() {\n  return 1;\n}\n",
+        ["typescript"]        = "// alpha\n// beta\nfunction f(): number {\n  return 1;\n}\n",
+        ["rust"]              = "// alpha\n// beta\nfn main() {\n    let x = 1;\n}\n",
+        ["php"]               = "<?php\n// alpha\n// beta\nfunction f() {\n  return 1;\n}\n",
+        ["css"]               = "/* alpha */\n/* beta */\n.x {\n  color: red;\n}\n",
+        ["python"]            = "# alpha\n# beta\ndef f():\n    return 1\n",
+        ["ruby"]              = "# alpha\n# beta\ndef f\n  1\nend\n",
+        ["html"]              = "<!-- alpha -->\n<!-- beta -->\n<html>\n  <body>\n    <p>x</p>\n  </body>\n</html>\n",
+        ["jinja"]             = "{# alpha #}\n{# beta #}\n<div>\n  <p>x</p>\n</div>\n",
+        ["xml"]               = "<!-- alpha -->\n<!-- beta -->\n<root>\n  <a>\n    <b>x</b>\n  </a>\n</root>\n",
+        ["xaml"]              = "<!-- alpha -->\n<!-- beta -->\n<Grid>\n  <TextBlock>\n    x\n  </TextBlock>\n</Grid>\n",
+        ["json"]              = "{\n  \"a\": {\n    \"b\": 1\n  }\n}\n",
+        ["embedded-template"] = "<%# alpha %>\n<%# beta %>\n<div>\n  <p>x</p>\n</div>\n",
+        ["razor"]             = "@* alpha *@\n@* beta *@\n<div>\n  <p>x</p>\n</div>\n",
+    };
+
+    public static IEnumerable<object[]> FoldSampleGrammars() =>
+        FoldSamples.Keys.Select(k => new object[] { k });
+
+    /// <summary>
+    /// A fold must never end strictly inside a line delimiter. AvalonEdit refuses such an element, and it
+    /// refuses it from the render pass — where the shell cannot recover, because handling the exception
+    /// leaves the layout dirty and WPF just re-measures and throws again. One customer's log was that
+    /// live-lock: the same trace 17,724 times in 85 seconds, 170MB.
+    /// <para>
+    /// It only bites on CRLF, since a one-character delimiter has no "strictly inside". Every folding test
+    /// here used \n literals, which is exactly why c, cpp, java, rust, python and ruby all shipped broken —
+    /// their grammars match a line comment as "up to \n", so the token swallows the CR.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    [DynamicData(nameof(FoldSampleGrammars))]
+    [CoversNode("code-folding")]
+    public void Folds_NeverEndInsideALineDelimiter(string grammarId)
+    {
+        using var highlighter = CodeHighlighter.TryCreate(grammarId);
+        Assert.IsNotNull(highlighter, $"grammar '{grammarId}' failed to load");
+
+        var lf   = FoldSamples[grammarId];
+        var crlf = lf.Replace("\n", "\r\n");
+
+        AssertNoneEndInDelimiter(highlighter, lf,   grammarId, "LF");
+        AssertNoneEndInDelimiter(highlighter, crlf, grammarId, "CRLF");
+    }
+
+    private static void AssertNoneEndInDelimiter(CodeHighlighter highlighter, string src,
+                                                 string grammarId, string endings)
+    {
+        foreach (var f in highlighter.GetFolds(src))
+        {
+            Assert.IsTrue(f.Start >= 0 && f.End <= src.Length && f.Start < f.End,
+                $"[{grammarId}/{endings}] fold [{f.Start}..{f.End}) is out of bounds for {src.Length} chars");
+
+            bool insideDelimiter = f.End < src.Length && src[f.End - 1] == '\r' && src[f.End] == '\n';
+            Assert.IsFalse(insideDelimiter,
+                $"[{grammarId}/{endings}] fold [{f.Start}..{f.End}) ends between the \\r and the \\n — "
+                + "AvalonEdit throws on this from the render pass and the shell cannot recover");
+        }
+    }
+
+    /// <summary>The guard above is only worth as much as its coverage: a new grammar must bring a sample.</summary>
+    [TestMethod]
+    [CoversNode("code-folding")]
+    public void EveryGrammar_HasAFoldSample()
+    {
+        var missing = HighlightQueries.ByGrammar.Keys.Where(k => !FoldSamples.ContainsKey(k)).ToList();
+        Assert.AreEqual(0, missing.Count,
+            $"grammars with no fold sample, so untested against the CRLF delimiter bug: {string.Join(", ", missing)}");
+    }
+
+    /// <summary>
+    /// Trimming must take the CR off the fold, not take the fold away — the six broken grammars should still
+    /// collapse a comment run, just ending on the comment text.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("code-folding")]
+    public void CommentRun_StillFolds_OnCrlf_AndEndsOnTheText()
+    {
+        using var highlighter = CodeHighlighter.TryCreate("python");
+        const string src = "# alpha\r\n# beta\r\ndef f():\r\n    return 1\r\n";
+
+        var run = highlighter!.GetFolds(src).FirstOrDefault(f => Covers(src, f, "alpha") && Covers(src, f, "beta"));
+        Assert.AreNotEqual(default, run, "the comment run should still fold on CRLF");
+        Assert.AreEqual("# alpha\r\n# beta", src.Substring(run.Start, run.End - run.Start),
+            "the fold should end on the comment text, not on the CR that the grammar swallowed");
+    }
+
     private static bool Covers(string src, FoldRange f, string needle) =>
         src.Substring(f.Start, f.End - f.Start).Contains(needle);
 }

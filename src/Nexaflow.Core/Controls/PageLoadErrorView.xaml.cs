@@ -40,7 +40,13 @@ public partial class PageLoadErrorView : UserControl, IPageView
 
         ShowLikelyCauses();
 
-        LogPathText.Text = $"Also written to {Path.Combine(ConfigManager.Instance.BaseDir, "crash.log")}";
+        // This view exists because the failure was CAUGHT — so it never reaches the dispatcher handler, and
+        // until now nothing wrote it down. "Also written to …" was simply untrue, and the consequence was
+        // real: a customer reported a PDF tab failing to open and their crash log had no record of it.
+        // Record it here, where the failure actually surfaces.
+        if (error is not null) CrashLog.Instance.Record(error);
+
+        LogPathText.Text = $"Also written to {CrashLog.Instance.CurrentPath}";
     }
 
     /// <summary>This page has no feature view-model — it exists because building one failed.</summary>

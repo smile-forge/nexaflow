@@ -125,7 +125,33 @@ public sealed class CodeHighlighter : IDisposable
     {
         var folds = new List<FoldRange>();
         GetFoldsInto(folds, text, 0, null, new InjectionBudget());
+        TrimToContent(folds, text);
         return folds;
+    }
+
+    /// <summary>
+    /// Pulls every fold end back off the line delimiter it may have landed on, and drops what that leaves
+    /// empty. A fold ending <i>inside</i> a delimiter is the one shape a folding consumer cannot render:
+    /// AvalonEdit rejects such an element outright, and because it throws from the render pass the shell's
+    /// unhandled-exception handler cannot recover it - the layout stays dirty, WPF re-measures, it throws
+    /// again. That live-lock wrote 170MB of one identical stack trace in 85 seconds for a customer.
+    /// <para>
+    /// The source is the grammars, not us: c, cpp, java, rust, python and ruby all match a line comment as
+    /// "up to the newline", so the token swallows the CR of a CRLF and a comment-run fold ends between the
+    /// \r and the \n. Trimming every trailing newline character here makes the invariant hold by
+    /// construction - for those six, for the ones that already behave, and for any grammar added later.
+    /// </para>
+    /// </summary>
+    private static void TrimToContent(List<FoldRange> folds, string text)
+    {
+        for (int i = 0; i < folds.Count; i++)
+        {
+            int start = Math.Max(0, folds[i].Start);
+            int end   = Math.Min(folds[i].End, text.Length);
+            while (end > start && (text[end - 1] == '\r' || text[end - 1] == '\n')) end--;
+            folds[i] = new FoldRange(start, end);
+        }
+        folds.RemoveAll(f => f.End <= f.Start);
     }
 
     private void GetFoldsInto(List<FoldRange> folds, string text, int offset,
