@@ -46,22 +46,29 @@ public class TypesettingUnchangedTests
 {
     private const double Scale = 16;
 
-    /// <summary>The shape of each construct formula's layout, as it has been set since the engine was ingested.</summary>
+    /// <summary>
+    /// The shape of each construct formula's layout, as it has been set since the engine was ingested.
+    /// <para>
+    /// Rewritten once, when this stopped counting the boxes that hold things and started counting only
+    /// the ones that draw something. Every hash moved and no formula did — which is the point of the
+    /// change, and the reason the old numbers are not worth keeping beside the new ones.
+    /// </para>
+    /// </summary>
     private static readonly Dictionary<string, string> Settled = new(StringComparer.Ordinal)
     {
-        ["fractions and binomials"] = "093C8B671663EC23",
-        ["roots, bars and boxes"] = "1B5987CEEF3F4B4D",
-        ["scripts, primes and big operators"] = "16B46332D2DCEDC7",
-        ["accents and arrows"] = "BB786D2EE93EE6C5",
-        ["fences and delimiters"] = "3CDEE57B6DB62DBD",
-        ["matrices and environments"] = "5D10C08247631C88",
-        ["aligned and gathered blocks"] = "05D2446EFFA9FD4F",
-        ["stacked and gathered"] = "8FFDDCED224E1EBA",
-        ["text styles and fonts"] = "26D26A2A43BAEA3C",
-        ["spacing, dots and modular arithmetic"] = "B569C2F93B07F9F3",
-        ["colour, phantoms and overlap"] = "2E801F2B5D97DD23",
-        ["styles and sizes"] = "EDE1860CA4A4B90C",
-        ["greek, relations and symbols"] = "5055B9A7A962A131",
+        ["fractions and binomials"] = "1448FD4EF22417F5",
+        ["roots, bars and boxes"] = "681D9E8E48FBA6D4",
+        ["scripts, primes and big operators"] = "D74B5C0E5507CE0B",
+        ["accents and arrows"] = "195E9AEA77EA1A0A",
+        ["fences and delimiters"] = "EB24F7C32E81A8E7",
+        ["matrices and environments"] = "AFE71FA801602FA1",
+        ["aligned and gathered blocks"] = "BB2AC1E5F464D80A",
+        ["stacked and gathered"] = "AEE4C548EF2E7028",
+        ["text styles and fonts"] = "68DE1BB4CEFEF57F",
+        ["spacing, dots and modular arithmetic"] = "66A99FC0BD7B6EB9",
+        ["colour, phantoms and overlap"] = "E842EF1E1E46E2E6",
+        ["styles and sizes"] = "CAE74BF57299F92F",
+        ["greek, relations and symbols"] = "889A84AE4F160058",
     };
 
     [TestMethod]
@@ -100,13 +107,21 @@ public class TypesettingUnchangedTests
     /// "the typesetting moved" — which is the one thing this exists to say. What each piece is named
     /// from is checked by the tests that use it, which is every selection and caret test there is.
     /// </para>
+    /// <para>
+    /// Nor are the containers, for exactly the same reason and learned the same way. A formula that
+    /// starts being built from our own reading rather than the typesetter's keeps groups the parser
+    /// collapsed, so it gains boxes that hold things without drawing any — and every one of those moved
+    /// this hash while the page stayed pixel-identical. A reading that <em>nests</em> a construct
+    /// differently has not moved anything either. So this counts the boxes that draw something, which is
+    /// the same line the corpus sweep draws between a picture and a tree.
+    /// </para>
     /// </summary>
     private static string Shape(LatexLayout layout)
     {
         var text = new StringBuilder();
         text.Append(Number(layout.Size.Width)).Append('x').Append(Number(layout.Size.Height)).Append('\n');
 
-        foreach (var node in layout.Tree.Root.SelfAndDescendants())
+        foreach (var node in layout.Tree.Root.SelfAndDescendants().Where(node => node.Children.Count == 0))
             text.Append(node.Kind).Append(' ')
                 .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
                 .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))

@@ -838,6 +838,20 @@ internal static class StandardCommands
     // 2.95 em - an arithmetic progression, since both the struts and the rule are linear in the size.
     // Those lengths are absolute in TeX, so unlike almost everything else here they do not shrink
     // with the style: \big( is the same delimiter inside a subscript as outside one.
+    /// <summary>
+    /// The sized delimiter this command stands for, given the delimiter already read — or null where the
+    /// command is not one of the <c>\big</c> family at all.
+    /// <para>
+    /// The question asked from outside, so that which commands those are, how big each one is and whether
+    /// it opens, closes or relates stay answers this table gives rather than facts copied out of it.
+    /// </para>
+    /// </summary>
+    internal static Atom? BigDelimiterOf(
+        string command, string delimiter, Nexaflow.Maths.Latex.TexPart? origin) =>
+        Dictionary.TryGetValue(command, out var parser) && parser is BigDelimiterCommand big
+            ? big.Assemble(delimiter, null, origin)
+            : null;
+
     private sealed class BigDelimiterCommand : ICommandParser
     {
         private const double SmallestHeight = 1.15;
@@ -860,13 +874,23 @@ internal static class StandardCommands
             var delimiter = TexFormulaParser.ParseDelimiter(source, start, ref position);
 
             var atomSource = source.Segment(start, position - start);
-            var atom = new BigDelimiterAtom(
-                atomSource,
-                delimiter.Name,
-                SmallestHeight + HeightStep * _size,
-                _type);
-            return new CommandProcessingResult(atom, position);
+            return new CommandProcessingResult(Assemble(delimiter.Name, atomSource, null), position);
         }
+
+        /// <summary>
+        /// The atom this command makes of a delimiter that has already been read.
+        ///
+        /// <para>
+        /// Split out so that a reading done elsewhere gets the same size and the same class from the same
+        /// place. How big a <c>\Bigg</c> is and whether a <c>\bigl</c> opens or closes are this table's
+        /// answers, and a second copy of them would be two tables to keep in step.
+        /// </para>
+        /// </summary>
+        internal Atom Assemble(string delimiter, SourceSpan? source, Nexaflow.Maths.Latex.TexPart? origin) =>
+            new BigDelimiterAtom(source, delimiter, SmallestHeight + HeightStep * _size, _type)
+            {
+                Origin = origin,
+            };
     }
 
     // \genfrac{ldelim}{rdelim}{thickness}{style}{numerator}{denominator}: the general fraction that

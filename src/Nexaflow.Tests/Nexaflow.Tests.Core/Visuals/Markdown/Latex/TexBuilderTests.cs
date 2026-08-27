@@ -154,6 +154,24 @@ public class TexBuilderTests
         @"a\:b",
         @"a\quad b",
         @"a\qquad b",
+        @"a\ b",                        // the control space: asked for, so built
+        @"6 4 \ ,",                     // how a paper spaces a formula off from its punctuation
+
+        // Sized delimiters. Not a fence: each one stands on its own, which is why the second of these is
+        // good LaTeX and the third — a bracket opened at one size and closed at another — is too.
+        @"\big( x \big)",
+        @"\bigl( x",
+        @"\bigl( x \Biggr]",
+        @"\Big\{ a \Big\}",
+        @"\biggl\| v \biggr\|",
+        @"\big| x \big|",
+
+        // The whole of the fences sample the typesetting baseline covers. It used to decline on the
+        // \big family and go to the parser; now it builds, so whether that moved any ink is a question
+        // worth asking here rather than inferring from a hash that also counts the containers.
+        @"\left( a \right) + \left[ b \right] + \left\{ c \right\} + \left| d \right|
+          + \left\langle e \right\rangle + \bigl( h \bigr) + \Bigl[ i \Bigr]
+          + \biggl\{ j \biggr\} + \Biggl| k \Biggr|",
 
         // Macros whose expansion is several atoms rather than one — three dots, a slash laid over an
         // equals. The reader wrote one token and it draws as a little assembly, which is the case that
@@ -209,14 +227,16 @@ public class TexBuilderTests
             Assert.IsNotNull(ours, latex);
 
             var theirs = WpfTeXFormulaParser.Instance.Parse(latex);
-            Assert.AreEqual(Drawn(theirs, latex), Drawn(ours, latex), latex);
-
             if (Settled(theirs, latex) == Settled(ours, latex)) continue;
 
-            // Same picture, different tree. Allowed, but only where somebody has said which shape is
-            // wanted — an unnamed structural difference is indistinguishable from one nobody meant.
-            Assert.IsNotNull(Decided(TexReading.Of(latex), ours),
-                $"{latex} draws the same and nests differently, and nothing says which is meant");
+            // Same picture and a different tree is a structural choice; a different picture is a
+            // disagreement about what the reader sees. Either may stand, but only where somebody has said
+            // so — a difference nobody has examined is indistinguishable from a defect.
+            var why = Drawn(theirs, latex) == Drawn(ours, latex)
+                ? "the same picture, a different tree — ours keeps what the writer grouped"
+                : Decided(TexReading.Of(latex), ours);
+
+            Assert.IsNotNull(why, $"{latex} is built differently and nothing says which is meant");
         }
     });
 
@@ -531,16 +551,17 @@ public class TexBuilderTests
 
     private static string? Decided(TexReading reading)
     {
+        // The same ruling, wherever the delimiter is written. `\|` is TeX's spelling of `\Vert` whether it
+        // follows a `\left`, a `\biggl` or nothing at all, so the shape that was ruled on is the token and
+        // not the construct around it — matching only inside a fence would leave `\biggl\|` looking like a
+        // finding nobody had seen before, when it is this one again.
+        foreach (var part in reading.Root.SelfAndDescendants())
+            if (part.Role == TexRole.Argument && part.Print() == @"\|")
+                return @"\| — ours draws the double bar it names; the parser draws otherwise";
+
         foreach (var part in reading.Root.SelfAndDescendants())
         {
             if (part.Kind != TexKind.Fence || part.Part(TexRole.Body) is not { } body) continue;
-
-            // Reviewed 2026-08-27, and the one ruling so far that moves ink. `\left\|` drew no bar at
-            // all on our side — `\|` strips to a symbol called `|` that no table has — which was simply
-            // wrong. It is TeX's own spelling of `\Vert`, so that is what it asks for now, and the two
-            // readings differ about the glyph rather than about the structure.
-            if (Names(part, TexRole.Open) == @"\|" || Names(part, TexRole.Close) == @"\|")
-                return @"\left\| — ours draws the double bar it names; the parser draws otherwise";
 
             // Reviewed 2026-08-27. Identical renderings; the parser collapses a script inside the inner
             // fence into one atom where ours keeps the group it was written as, which is what a

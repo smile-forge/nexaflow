@@ -601,7 +601,25 @@ public static class TexFormulaBuilder
 
                 return Tag(new UnderlinedAtom(null, inner), part);
             }
+
+            // The control space, and the non-breaking one: an ordinary inter-word space, and the writer
+            // asking for it rather than typing it — so it is built, where a typed space is not. Named
+            // here rather than looked up because nothing defines it: unlike `\,` and `\quad`, which are
+            // macros with a definition, this one is a case in the reader. It is the single most written
+            // thing the builder did not know, by a factor of ten.
+            case @"\ ":
+            case @"\nbsp":
+                return part.Parts.Any() ? null : Tag(new SpaceAtom(null), part);
         }
+
+        // A sized delimiter — \big( , \Bigl\{ , \biggr] . Not a fence: nothing pairs it with anything, and
+        // TeX does not either. `\big(` is one bracket drawn at a chosen size, standing on its own, which
+        // is why a formula may open with `\bigl(` and never close it and still be perfectly good LaTeX.
+        // So it reads as a command with one argument and builds as one atom, and the pairing a reader
+        // sees is theirs rather than the tree's.
+        if (Delimiter(part) is { } sized
+            && StandardCommands.BigDelimiterOf(name[1..], sized.Name, Whole(part)) is { } big)
+            return big;
 
         // A style is not an atom. \mathrm{abc} sets three roman letters and wraps them in nothing at all,
         // because which alphabet a letter is drawn from is a property of the letter. So it is carried
