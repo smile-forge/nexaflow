@@ -33,17 +33,6 @@ public class DicomOpenActionTests
         return (shell, opened);
     }
 
-    // ── "As DICOM" on files ───────────────────────────────────────────────────
-
-    [TestMethod]
-    public void AsDicom_OnOneFile_OpensThatFile()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsTrue(new ShowDicomAction(shell).PerformAction(@"C:\study\IM_0001"));
-
-        Assert.AreEqual(@"C:\study\IM_0001", opened.Single()["path"]);
-    }
 
     [TestMethod]
     public void AsDicom_OnASelection_OpensOneTabHoldingAllOfThem()
@@ -58,15 +47,6 @@ public class DicomOpenActionTests
                                   "every selected instance reaches the container, in order");
     }
 
-    [TestMethod]
-    public void AsDicom_OnAnEmptySelection_OpensNothing()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsFalse(new ShowDicomAction(shell).PerformAction([]));
-
-        Assert.AreEqual(0, opened.Count, "an empty tab with nothing to view is worse than no tab");
-    }
 
     [TestMethod]
     public void AsDicom_IsNonDestructive_AndOwnsTheDicomExperience()

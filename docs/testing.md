@@ -11,11 +11,11 @@ All under `src/Nexaflow.Tests/`:
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.UIJourneys` | `net10.0-windows10.0.19041.0`, MSTest exe | **Every test that launches the app.** `Core\` for the shell, `Features\<Feature>\` for the rest | `Nexaflow.Tests.Fixtures` **and nothing else** — a journey knows the app as a running process, never as an assembly |
 | `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome, services, `Nexaflow.Visuals.*` | `Nexaflow.Core`, `Nexaflow.Visuals.Text`, `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
+| `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the folder viewlets (Git, Dotnet) and the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
+| `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the suites above **and** `Tests.Initiatives` (for their **output**, not their API) |
-| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` conformance contract. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
+| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
@@ -135,6 +135,47 @@ test bases need no attribute. This is enforced at author time by the `Nexaflow.A
 test assembly). `dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests . --suggest-attributes`
 prints the starter set derived from the tree's existing `tests` snaplinks. See CLAUDE.md → *Test coverage is
 declared on the test* for the full loop (scan-tests → manifest → Integrity-page reconcile → Add link).
+
+## Conformance suites — one contract, every implementor
+
+Two contracts are written once in `Nexaflow.Tests.Features.Common` and inherited per implementor, rather
+than restated by hand in each feature's folder. Derive a concrete `[TestClass]`, supply the two or three
+things the base cannot know, and the inherited `[TestMethod]`s run against it — so a new implementor cannot
+ship without being held to the same rules, and a rule added to the base applies everywhere at once.
+
+| Contract | Base | Implementors |
+|---|---|---|
+| `ISearchable` — a page may decline regex, but never *appear* to support it | `Search/SearchableConformance.cs` (two tiers: with and without seeded content) | every searchable page |
+| viewer `IFileAction` — `PerformAction(p)` and `PerformAction([p])` are the same user intent | `FileActions/FileActionConformance.cs` | every action with `OpensViewer => true` |
+
+Both were written after the same discovery: the rule *was* asserted by hand in some features and not in
+others, and the features missing it were the ones that had drifted. The file-action contract found six
+actions whose two overloads disagreed — four (`ShowAudioAction`, `OpenAsEmailAction`, `ShowImageAction`,
+`ShowHtmlAction`) filtered the selection overload by file type but not the single-file one, so "As
+Audio" on a text file queued it from the file list and silently refused the very same file as a one-item
+selection; two (`OpenAsArchiveAction`, `OpenAsDiskAction`) returned `true` for an *empty* selection and
+opened a tab per file while declaring `SupportsMultipleFiles => false`.
+
+What the base deliberately does **not** test is the metadata half — that `StaticExperienceId` is declared
+and the experience is mapped in the bundled file map. Reflection over every feature assembly already covers
+that in `FeatureTouchPointTests`; what reflection cannot do is *invoke* the action, which was the half that
+had rotted.
+
+Adding an action to the contract costs six lines:
+
+```csharp
+[TestClass]
+[CoversNode("svg-open-actions")]
+public class ShowSvgActionConformance : ViewerActionConformanceTests
+{
+    protected override IFileAction CreateAction(IShellServices shell) => new ShowSvgAction(shell);
+    protected override string ExpectedPageKind => SvgTabRegistration.StaticPageKind;
+    protected override string AcceptableFile   => @"C:\art\logo.svg";
+}
+```
+
+Nothing touches disk: every viewer action is a pass-through to `IShellServices.OpenTab`, and the ones that
+filter do it on the extension alone, so the paths are probes rather than fixtures.
 
 ## Coverage by feature
 

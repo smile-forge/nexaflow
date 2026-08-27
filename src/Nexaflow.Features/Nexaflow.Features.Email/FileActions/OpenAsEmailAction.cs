@@ -21,16 +21,17 @@ public sealed class OpenAsEmailAction(IShellServices shell) : IFileAction, ICach
     public bool CanPerformAction => true;
     public bool OpensViewer => true;
 
-    public bool PerformAction(string filePath)
-    {
-        shell.OpenTab(EmailTabRegistration.StaticPageKind,
-            new Dictionary<string, string> { ["path"] = filePath });
-        return true;
-    }
+    // Both overloads filter. Filtering only the selection one meant "As Email" opened a message tab on a
+    // text file from the file list and silently did nothing on a one-item selection of that same file.
+    public bool PerformAction(string filePath) => PerformAction([filePath]);
 
     public bool PerformAction(IEnumerable<string> filePaths)
     {
         var first = filePaths.FirstOrDefault(EmailFileTypes.IsEmail);
-        return first is not null && PerformAction(first);
+        if (first is null) return false;
+
+        shell.OpenTab(EmailTabRegistration.StaticPageKind,
+            new Dictionary<string, string> { ["path"] = first });
+        return true;
     }
 }
