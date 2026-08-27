@@ -88,6 +88,11 @@ public partial class App : Application
         // Catch stray UI-thread exceptions so one bad event handler can't take the whole shell down.
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
+        // …and the two channels that used to swallow a fault whole: a throw on a background thread, and a
+        // faulted Task nobody awaited. Neither reached the crash log before, so neither was reportable.
+        AppDomain.CurrentDomain.UnhandledException     += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException          += OnUnobservedTaskException;
+
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
         SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
         _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
@@ -316,6 +321,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        CrashLog.Instance.Flush();   // a burst still collapsing at shutdown would otherwise go unrecorded
         VoiceManager.Instance.Dispose();
         _singleInstance.Dispose();
         base.OnExit(e);
@@ -325,34 +331,57 @@ public partial class App : Application
     /// Last-resort handler for an unhandled exception on the UI thread: log it, tell the user, and mark it
     /// handled so the shell stays open instead of terminating. A genuinely fatal fault will recur and leave
     /// a trail in the crash log rather than vanishing with the process.
+    /// <para>
+    /// Handling is not unconditional. An exception thrown from the WPF render pass cannot be recovered by
+    /// handling it: the layout stays dirty, WPF re-measures on the next frame and it throws again. When
+    /// <see cref="CrashLog"/> sees that shape it withholds handling and the process terminates, which beats
+    /// a live-locked shell writing the same trace 200 times a second.
+    /// </para>
     /// </summary>
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        try
-        {
-            // Write into the active config root (honours NEXAFLOW_CONFIG_DIR) so an isolated run — e.g. a
-            // UI test — logs to its own dir instead of the developer's real %APPDATA%, and its teardown can
-            // assert the log stayed empty.
-            var dir = ConfigManager.Instance.BaseDir;
-            Directory.CreateDirectory(dir);
-            File.AppendAllText(Path.Combine(dir, "crash.log"),
-                $"[{DateTimeOffset.Now:O}] {e.Exception}{Environment.NewLine}{Environment.NewLine}");
-        }
-        catch { }
+        // CrashLog writes into the active config root (honours NEXAFLOW_CONFIG_DIR) so an isolated run — e.g.
+        // a UI test — logs to its own dir instead of the developer's real %APPDATA%, and its teardown can
+        // assert the log stayed empty.
+        bool survivable = CrashLog.Instance.Record(e.Exception);
 
-        try
+        if (survivable)
         {
-            MessageCenter.Instance.Post(new NotificationItem
+            try
             {
-                Title     = "Something went wrong",
-                Body      = "An unexpected error was caught and logged; the app stayed open. If this keeps happening, please report it.",
-                Severity  = MessageSeverity.Error,
-                ShowToast = true,
-            });
+                MessageCenter.Instance.Post(new NotificationItem
+                {
+                    Title     = "Something went wrong",
+                    Body      = "An unexpected error was caught and logged; the app stayed open. If this keeps happening, please report it.",
+                    Severity  = MessageSeverity.Error,
+                    ShowToast = true,
+                });
+            }
+            catch { }
         }
-        catch { }
 
-        e.Handled = true;
+        e.Handled = survivable;
+    }
+
+    /// <summary>
+    /// A fault on any thread but the UI one. Nothing caught these before, so a background failure left no
+    /// trace at all — the crash log only ever knew about dispatcher faults, which is why a customer's log
+    /// could be 170MB and still not contain the two bugs they were actually reporting.
+    /// </summary>
+    private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex) CrashLog.Instance.Record(ex);
+        CrashLog.Instance.Flush();   // the process is going down; do not leave a burst uncounted
+    }
+
+    /// <summary>
+    /// A faulted <see cref="Task"/> nobody awaited. Silent by default — the finalizer observes it and the
+    /// exception evaporates — so these are logged and then marked observed, leaving behaviour unchanged.
+    /// </summary>
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        CrashLog.Instance.Record(e.Exception);
+        e.SetObserved();
     }
 
     /// <summary>
