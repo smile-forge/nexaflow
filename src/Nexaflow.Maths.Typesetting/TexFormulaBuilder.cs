@@ -47,6 +47,22 @@ namespace XamlMath;
 /// </summary>
 public static class TexFormulaBuilder
 {
+    /// <summary>
+    /// Whether the handful of disagreements parked for review are declined — which is what parking one
+    /// means, and the default.
+    /// <para>
+    /// Turned off to look at one. A decline is never exercised, so it goes stale without anything saying
+    /// so: *a script on `\overline`* sat on the list for weeks describing a difference that was not the
+    /// difference, over ten times as many formulas as recorded, and it stayed there because looking took
+    /// an edit to this file. It takes a line now.
+    /// </para>
+    /// <para>
+    /// It changes what the builder draws, so it is not a thing to leave off. Nothing but a diagnostic
+    /// sets it.
+    /// </para>
+    /// </summary>
+    internal static bool DeclineUnsettled = true;
+
     /// <summary>The formula that reading stands for, or null if it holds something not built here yet.</summary>
     public static TexFormula? Build(TexReading reading, TexFormulaParser knowledge)
     {
@@ -229,7 +245,7 @@ public static class TexFormulaBuilder
         // puts a scripted fence inside boxes of its own before measuring it — so `\left[ \left( a
         // \right)^2 \right]` picks a smaller bracket there than it does here. Every disagreement the
         // corpus had left was this, and a bracket one size out is not something to guess at.
-        if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence)) return null;
+        if (DeclineUnsettled && body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence)) return null;
 
         // And a script on something a command *built*, between delimiters — `\left( \frac{f}{g}_{i}
         // \right)`, or the same with an `\overline`. Written anywhere else the two readings agree
@@ -240,7 +256,7 @@ public static class TexFormulaBuilder
         // On a command *with arguments*, and that qualifier is worth twelve thousand formulas. A scripted
         // `\sum` is a scripted command too, and `\left( \sum_{i} \right)` agrees perfectly — a symbol
         // wearing a script is not the shape that differs. See the docs, "still to be settled".
-        if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Script
+        if (DeclineUnsettled && body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Script
                                                    && inner.Part(TexRole.Base) is { Kind: TexKind.Command } built
                                                    && built.Parts.Any()))
             return null;
@@ -256,7 +272,7 @@ public static class TexFormulaBuilder
         // and naming it Vert instead does not agree with the parser either. Every norm in the corpus is
         // written with it, so it is worth getting right rather than guessing at: see docs, "still to be
         // settled".
-        if (Names(open) == @"\|" || Names(close) == @"\|") return null;
+        if (DeclineUnsettled && (Names(open) == @"\|" || Names(close) == @"\|")) return null;
 
         return Tag(
             new FencedAtom(null, inside, Delimiter(open), Delimiter(close)),
@@ -421,7 +437,7 @@ public static class TexFormulaBuilder
         // anything before it and `A \mathrm{vol}(10)` nests, exactly as this does. Both set identically.
         // So it is an artefact of that reading's accumulator and not a rule, and this declines rather
         // than reproducing it — see the docs, "still to be settled".
-        if (built.Count > 1 && built[0] is RowAtom) return null;
+        if (DeclineUnsettled && built.Count > 1 && built[0] is RowAtom) return null;
 
         return built;
     }
