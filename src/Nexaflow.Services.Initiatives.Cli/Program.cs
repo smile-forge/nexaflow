@@ -51,6 +51,8 @@ internal static class Program
             "batch"       => Batch(args[1..]),
             "lint"        => Lint(args[1..]),
             "doctor"      => Doctor(args[1..]),
+            "pending"     => Pending(args[1..]),
+            "promote"     => Promote(args[1..]),
             "graph"       => Graph(args[1..]),
             _ => Usage($"unknown command '{args[0]}'")
         };
@@ -267,6 +269,10 @@ internal static class Program
             if (!json) Console.WriteLine($"No .product/ under {root} — nothing to validate.");
             return Clean;
         }
+
+        // Before validating, take in anything that has merged since — otherwise the first thing validate
+        // would report is links the shared tree has not been told about yet.
+        if (!a.Has("--no-promote")) ConsolidateMerged(root);
 
         IntegrityReport report;
         try
@@ -1962,8 +1968,8 @@ internal static class Program
     {
         private static readonly string[] None = [];
 
-        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save", "--main"],
-            "validate [<root>] [--json] [--save] [--main]");
+        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save", "--main", "--no-promote"],
+            "validate [<root>] [--json] [--save] [--main] [--no-promote]");
         public static readonly VerbSpec Find = new("find", 1, None, ["--json"],
             "find <term> [<root>] [--json]");
         public static readonly VerbSpec Query = new("query", 0, ["--under", "--concern", "--status"],
@@ -1986,6 +1992,10 @@ internal static class Program
             "remap <old-path> <new-path> [<root>] [--class <name>] [--method <name>]");
         public static readonly VerbSpec ScanTests = new("scan-tests", 0, ["--test-dll"], ["--suggest-attributes"],
             "scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]");
+        public static readonly VerbSpec Pending = new("pending", 0, None, ["--all"],
+            "pending [<root>] [--all]");
+        public static readonly VerbSpec Promote = new("promote", 0, ["--branch"], ["--dry-run", "--no-commit"],
+            "promote [<root>] [--branch <name>] [--dry-run] [--no-commit]");
         public static readonly VerbSpec Batch = new("batch", 1, None, ["--dry-run"],
             "batch <script-file> [<root>] [--dry-run]");
         public static readonly VerbSpec Doctor = new("doctor", 0, None, ["--fix"],
@@ -2152,12 +2162,232 @@ internal static class Program
         return ok;
     }
 
+    // ── Snaplinks a branch has changed but not merged ───────────────────────
+
+    /// <summary>The branch whose snaplink changes this invocation belongs to, or null in the main checkout.
+    /// Snaplinks only go to a pending set when there is a branch for them to belong to.</summary>
+    private static string? PendingBranch(string root)
+    {
+        var here = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        return here is { Length: > 0 } && !PathsEqual(here, root) ? ProductGit.CurrentBranch(here) : null;
+    }
+
+    /// <summary>
+    /// The working tree a pending set belongs in — the caller's own, not the product root.
+    /// <para>
+    /// This is the whole mechanism: the file has to be committable alongside the code it describes, so it
+    /// has to be written into the tree the branch is checked out in. Writing it beside the shared tree would
+    /// leave it on the wrong side of the merge and reintroduce the problem it exists to solve.
+    /// </para>
+    /// </summary>
+    private static string PendingRoot(string productRoot) =>
+        WorkingTreeRootOf(Directory.GetCurrentDirectory()) is { Length: > 0 } here ? here : productRoot;
+
+    private static PendingStore PendingStoreFor(string root) =>
+        new(PendingRoot(root), ExportDirFor(root));
+
+    /// <summary>
+    /// Records the link sets <paramref name="touched"/> names into this branch's pending set, so they travel
+    /// with the pull request instead of being written into the shared tree before the code they describe
+    /// exists anywhere else.
+    /// </summary>
+    private static void CapturePending(ProductState state, string root, string branch,
+                                       IReadOnlyList<(string NodeId, string? Concern)> touched)
+    {
+        if (touched.Count == 0) return;
+
+        var store   = PendingStoreFor(root);
+        var pending = store.Load(branch);
+
+        foreach (var (nodeId, concern) in touched)
+        {
+            if (!state.Nodes.TryGetValue(nodeId, out var node)) continue;
+
+            if (concern is { Length: > 0 })
+            {
+                var link = node.Concerns?.FirstOrDefault(c => string.Equals(c.Tag, concern, StringComparison.Ordinal));
+                pending.Capture(nodeId, concern, link?.Snaplinks ?? []);
+            }
+            else pending.Capture(nodeId, null, node.Snaplinks ?? []);
+        }
+
+        store.Save(pending);
+        Console.Error.WriteLine(
+            $"snaplinks: recorded for branch '{branch}' in {ExportDirFor(root)}/{PendingStore.FolderName}/ — "
+          + "commit it with your change and it merges into the shared tree with the PR. `nfi pending` to review.");
+    }
+
+    /// <summary>
+    /// Folds in any pending set that has arrived by merge, as a side effect of an ordinary command.
+    /// <para>
+    /// Only in the main checkout, and only for sets that are physically present there — which they can only
+    /// be because the branch that wrote one merged. That is the whole trick: the change set travels with the
+    /// pull request, so the moment its code lands the instruction to consolidate lands with it, and no one
+    /// has to remember to run anything from the machine the branch happened to be on.
+    /// </para>
+    /// </summary>
+    private static void ConsolidateMerged(string root)
+    {
+        if (PendingBranch(root) is not null) return;                 // on a branch: its own set is not merged
+        var store = PendingStoreFor(root);
+        var sets  = store.All();
+        if (sets.Count == 0) return;
+
+        try
+        {
+            var state   = new ProductStore(root).Load();
+            var applied = sets.Sum(p => p.ApplyTo(state));
+            var paths   = store.RelativePaths(PendingRoot(root), sets);
+
+            new ProductStore(root).SaveTree(state.Nodes);
+            foreach (var pending in sets) store.Delete(pending.Branch);
+
+            var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
+                paths, $"Product: consolidate snaplinks from {string.Join(", ", sets.Select(s => s.Branch))}");
+
+            Console.Error.WriteLine(
+                $"snaplinks: folded in {applied} set(s) from {sets.Count} merged branch(es)"
+              + (ok ? " and committed the removal." : $" — removal not committed ({error})."));
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"note: could not consolidate pending snaplinks ({ex.Message})."); }
+    }
+
+    /// <summary>
+    /// What this branch has changed and not yet merged — the review step before committing a pending set.
+    /// </summary>
+    private static int Pending(string[] args)
+    {
+        if (!TryRead(Specs.Pending, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoad(root, out var state, out var code, applyPending: false)) return code;
+
+        var store = PendingStoreFor(root);
+        var all   = a.Has("--all") ? store.All()
+                  : PendingBranch(root) is { } branch ? [store.Load(branch)] : store.All();
+
+        var sets = all.Where(p => !p.IsEmpty).ToList();
+        if (sets.Count == 0)
+        {
+            Console.WriteLine(PendingBranch(root) is { } b
+                ? $"Nothing pending on '{b}' — no snaplink changes waiting to merge."
+                : "Nothing pending — no branch has snaplink changes waiting to merge.");
+            return Clean;
+        }
+
+        foreach (var pending in sets)
+        {
+            Console.WriteLine($"{pending.Branch}  ({pending.ChangedSets} link set(s) across "
+                            + $"{pending.Nodes.Count} node(s))   {store.PathFor(pending.Branch)}");
+
+            foreach (var nodeId in pending.TouchedNodes)
+            {
+                var entry   = pending.Nodes[nodeId];
+                var present = state.Nodes.ContainsKey(nodeId);
+                Console.WriteLine($"  {nodeId}{(present ? "" : "   [not in the shared tree — promote will skip it]")}");
+
+                if (entry.Links is { } links) PrintPendingLinks("node", links, state, nodeId, null);
+                foreach (var (tag, concernLinks) in entry.Concerns ?? [])
+                    PrintPendingLinks(tag, concernLinks, state, nodeId, tag);
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Commit these files with your change; they merge into the shared tree with the PR.");
+        return Clean;
+    }
+
+    /// <summary>One link set, marked against what the shared tree currently holds for it.</summary>
+    private static void PrintPendingLinks(string label, IReadOnlyList<Snaplink> links, ProductState state,
+                                          string nodeId, string? concern)
+    {
+        var current = state.Nodes.TryGetValue(nodeId, out var node)
+            ? concern is { Length: > 0 }
+                ? node.Concerns?.FirstOrDefault(c => c.Tag == concern)?.Snaplinks
+                : node.Snaplinks
+            : null;
+
+        Console.WriteLine($"    [{label}] {links.Count} link(s), replacing {current?.Count ?? 0} in the shared tree");
+        foreach (var link in links) Console.WriteLine($"      + {link.Display}");
+    }
+
+    /// <summary>
+    /// Folds pending sets into the shared tree and removes them. In the main checkout a pending file can
+    /// only be there because the branch that wrote it merged, so its presence is the signal — no need to
+    /// know which worktree or machine produced it.
+    /// </summary>
+    private static int Promote(string[] args)
+    {
+        if (!TryRead(Specs.Promote, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var store = PendingStoreFor(root);
+        var sets  = (a.Value("--branch") is { Length: > 0 } only
+                        ? store.All().Where(p => p.Branch == only)
+                        : store.All()).ToList();
+
+        if (sets.Count == 0)
+        {
+            Console.WriteLine("Nothing to promote — no pending snaplink sets are present here.");
+            return Clean;
+        }
+
+        var applied = sets.Sum(p => p.ApplyTo(state));
+        if (a.Has("--dry-run"))
+        {
+            Console.WriteLine($"dry run — would apply {applied} link set(s) from {sets.Count} branch(es) "
+                            + "and delete their pending files. Nothing written.");
+            return Clean;
+        }
+
+        new ProductStore(root).SaveTree(state.Nodes);
+
+        var paths = store.RelativePaths(PendingRoot(root), sets);
+        foreach (var pending in sets) store.Delete(pending.Branch);
+
+        Console.WriteLine($"Promoted {applied} link set(s) from {sets.Count} branch(es) into the shared tree.");
+
+        if (!a.Has("--no-commit"))
+        {
+            var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
+                paths, $"Product: consolidate snaplinks from {string.Join(", ", sets.Select(s => s.Branch))}");
+            Console.WriteLine(ok
+                ? "Committed the consolidated pending file(s) as merged."
+                : $"note: the pending file(s) were removed but not committed ({error}).");
+        }
+
+        var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
+        new ProductStore(root).SaveIntegrity(report);
+        Console.WriteLine(report.IsClean
+            ? $"Snaplinks OK — scanned {report.ScannedSnaplinks}."
+            : $"{report.IssueCount} broken snaplink(s) — run: validate .");
+        return Clean;
+    }
+
+    /// <summary>The committed export directory this product uses.</summary>
+    private static string ExportDirFor(string root)
+    {
+        try { return new ProductStore(root).Load().Product.ExportDir is { Length: > 0 } d ? d : "docs/product"; }
+        catch { return "docs/product"; }
+    }
+
     /// <summary>Persist the mutated tree via the canonical serializer, re-validate, and print the outcome —
     /// the same "edit then show the effect" contract as remap/add-node.</summary>
-    private static int SaveAndValidate(ProductState state, string root, string message)
+    private static int SaveAndValidate(ProductState state, string root, string message,
+                                       IReadOnlyList<(string NodeId, string? Concern)>? touchedLinks = null)
     {
-        var store = new ProductStore(root);
-        store.SaveTree(state.Nodes);
+        var store  = new ProductStore(root);
+        var branch = touchedLinks is { Count: > 0 } ? PendingBranch(root) : null;
+
+        // A node is a plan, and the shared tree is deliberately forward-looking about those — so it is
+        // written at once. A snaplink is a claim that a file exists and contains something, and from an
+        // unmerged branch that claim is not true anywhere but here. So a link change on a branch goes to the
+        // branch's pending set and NOT into the shared tree, which is what stops the main checkout reporting
+        // broken links for work nobody has finished. In the main checkout there is no branch to defer to and
+        // the write happens normally.
+        if (branch is null) store.SaveTree(state.Nodes);
+        else CapturePending(state, root, branch, touchedLinks!);
+
+        // Validated against the in-memory state either way, so a branch sees its own links resolved against
+        // its own tree rather than the shared tree's older idea of them.
         var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         store.SaveIntegrity(report);
         Console.WriteLine(message);
@@ -2169,14 +2399,23 @@ internal static class Program
 
     /// <summary>The standalone-verb path: parse against the verb's spec, load, apply one mutation, then save
     /// + re-validate. Parsing happens before the tree is even loaded, so a bad command line never touches it.</summary>
-    private static int RunOne(VerbSpec spec, string[] args, Func<ProductState, VerbArgs, (bool Ok, string Message)> apply)
+    /// <param name="touchesSnaplinks">True for the verbs that change a node's links rather than the node
+    /// itself — they all name the node positionally and the concern with <c>--concern</c>, so that is enough
+    /// to record what a branch changed.</param>
+    private static int RunOne(VerbSpec spec, string[] args,
+                              Func<ProductState, VerbArgs, (bool Ok, string Message)> apply,
+                              bool touchesSnaplinks = false)
     {
         if (!VerbArgs.TryParse(spec, args, out var parsed, out var parseError)) return VerbUsage(parseError);
         var root = ResolveProductRoot(parsed.Root ?? ".");
         if (!TryLoad(root, out var state, out var code)) return code;
         var (ok, msg) = apply(state, parsed);
         if (!ok) { Console.Error.WriteLine($"error: {msg}"); return Error; }
-        return SaveAndValidate(state, root, msg);
+
+        var touched = touchesSnaplinks && parsed.Positionals.Count > 0
+            ? new[] { (parsed[0], parsed.Value("--concern")) }
+            : null;
+        return SaveAndValidate(state, root, msg, touched);
     }
 
     private static int SetStatus(string[] args) => RunOne(Specs.SetStatus, args, ApplySetStatus);
@@ -2211,7 +2450,7 @@ internal static class Program
             : (false, $"'{a[0]}' has no '{a[1]}' concern to remove");
     }
 
-    private static int SetSnaplink(string[] args) => RunOne(Specs.SetSnaplink, args, ApplySetSnaplink);
+    private static int SetSnaplink(string[] args) => RunOne(Specs.SetSnaplink, args, ApplySetSnaplink, touchesSnaplinks: true);
 
     private static (bool Ok, string Message) ApplySetSnaplink(ProductState s, VerbArgs a)
     {
@@ -2254,7 +2493,7 @@ internal static class Program
             : (false, $"no snaplink #{index} on {where} (or an unknown --clear field)");
     }
 
-    private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink);
+    private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink, touchesSnaplinks: true);
 
     private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, VerbArgs a)
     {
@@ -2295,7 +2534,7 @@ internal static class Program
         f.Target is null ? null : $"target={f.Target}",
     }.Where(x => x is not null));
 
-    private static int AddSnaplink(string[] args) => RunOne(Specs.AddSnaplink, args, ApplyAddSnaplink);
+    private static int AddSnaplink(string[] args) => RunOne(Specs.AddSnaplink, args, ApplyAddSnaplink, touchesSnaplinks: true);
 
     private static (bool Ok, string Message) ApplyAddSnaplink(ProductState s, VerbArgs a)
     {
@@ -2561,13 +2800,30 @@ internal static class Program
         _          => Status.Should
     };
 
-    /// <summary>Loads the tree, or emits the right message + exit code when there is nothing to load.</summary>
-    private static bool TryLoad(string root, out ProductState state, out int code)
+    /// <summary>
+    /// Loads the tree, or emits the right message + exit code when there is nothing to load.
+    /// <para>
+    /// On a branch the tree is read with that branch's pending snaplinks overlaid, so every verb —
+    /// describe, validate, tree, and the edits themselves — sees the links as this branch has them rather
+    /// than the shared tree's older idea. That is what makes deferring a link change invisible in normal
+    /// use: it is only the <i>write</i> that goes somewhere else.
+    /// </para>
+    /// </summary>
+    /// <param name="applyPending">False for the one caller that must see the shared tree as it stands —
+    /// <c>pending</c>, which reports the difference between the two.</param>
+    private static bool TryLoad(string root, out ProductState state, out int code, bool applyPending = true)
     {
         state = new ProductState();
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
         if (!ProductStore.Exists(root)) { Console.Error.WriteLine($"error: no .product/ under {root}."); code = Error; return false; }
-        try { state = new ProductStore(root).Load(); code = Clean; return true; }
+        try
+        {
+            state = new ProductStore(root).Load();
+            if (applyPending && PendingBranch(root) is { } branch)
+                PendingStoreFor(root).Load(branch).ApplyTo(state);
+            code = Clean;
+            return true;
+        }
         catch (Exception ex) { Console.Error.WriteLine($"error: {ex.Message}"); code = Error; return false; }
     }
 }

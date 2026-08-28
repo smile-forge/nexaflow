@@ -238,6 +238,25 @@ Every verb's arguments are **strict** — an unknown option, a missing option va
 hard error naming that verb's usage, never silently ignored (`batch` parses each line the same way and is
 all-or-nothing).
 
+**A snaplink you change on a branch stays with the branch.** Nodes and snaplinks are different kinds of
+claim: a node is a plan, and the tree is deliberately forward-looking about those, so `add-node` /
+`set-status` / `set-concern` write to the shared tree at once. A snaplink says *this file exists and contains
+this*, which from an unmerged branch is true nowhere else — so `add-snaplink` / `set-snaplink` /
+`remove-snaplink` record into `docs/product/pending/<branch>.json` instead, and the shared tree is left
+alone. Every read overlays your branch's set, so `describe`/`validate`/`tree` show your links normally; only
+the write is deferred.
+
+```powershell
+& $nfi pending                  # what this branch has changed and not merged — review before committing
+& $nfi promote [--dry-run]      # fold arrived sets into the shared tree and delete them
+```
+
+**Commit that file with your change.** It is under the committed export dir on purpose: it rides along with
+the PR, so at merge the change set arrives in the main checkout together with the code it describes — no
+knowing which worktree, on whose machine, produced it. Its presence there *is* the merged signal, and the
+next `validate` in the main checkout folds it in and commits the removal (`--no-promote` to skip). A branch
+that is abandoned never merges, so its set never arrives and there is nothing to clean up.
+
 **`validate` answers about the branch you are on.** From a linked worktree it resolves each snaplink against
 *that* tree — not the main checkout — because "does this file exist somewhere" is not the question a branch
 needs answered. It then splits what it finds: a link to a file that is in **neither** checkout belongs to some
