@@ -51,6 +51,8 @@ internal static class Program
             "batch"       => Batch(args[1..]),
             "lint"        => Lint(args[1..]),
             "doctor"      => Doctor(args[1..]),
+            "pending"     => Pending(args[1..]),
+            "promote"     => Promote(args[1..]),
             "graph"       => Graph(args[1..]),
             _ => Usage($"unknown command '{args[0]}'")
         };
@@ -268,6 +270,10 @@ internal static class Program
             return Clean;
         }
 
+        // Before validating, take in anything that has merged since — otherwise the first thing validate
+        // would report is links the shared tree has not been told about yet.
+        if (!a.Has("--no-promote")) ConsolidateMerged(root);
+
         IntegrityReport report;
         try
         {
@@ -276,7 +282,13 @@ internal static class Program
             // The coverage manifest gates [CoversNode] ids that no longer exist. It is derived, gitignored
             // state, so LoadTestCoverage() returning null (clean CI checkout, or scan-tests never run) simply
             // means that check is skipped — never a failure, and never a false all-clear either.
-            report = SnaplinkValidator.Validate(state, root, FileRootsFor(root), store.LoadTestCoverage());
+            // From a linked worktree, validate against THAT tree alone. Falling back to the main checkout —
+            // which is what the two-root form does — answers "does this file exist somewhere", and the
+            // question a branch needs answered is "does it exist here". The fallback hid the one failure
+            // that is genuinely yours: a file you moved away still resolved through main, so the branch read
+            // clean while its links were stale. Main's own view is still available with --main.
+            var roots = a.Has("--main") ? [root] : FileRootsFor(root);
+            report = SnaplinkValidator.Validate(state, root, [roots[0]], store.LoadTestCoverage());
             if (save) store.SaveIntegrity(report);
         }
         catch (Exception ex)
@@ -297,8 +309,51 @@ internal static class Program
         var text = ProductReport.Validate(report);
         if (report.IsClean) { Console.WriteLine(text); return Clean; }
 
+        // In a worktree, separate what this branch broke from what it has simply never seen. A link to a
+        // file that exists in neither checkout belongs to some other branch's not-yet-merged work — it is
+        // the forward-looking state the tree is meant to hold, and failing on it makes every branch answer
+        // for every other one. A link to a file main HAS and this branch does not is the opposite: that one
+        // is yours.
+        if (!a.Has("--main") && FileRootsFor(root) is [var here, var main] && !PathsEqual(here, main))
+        {
+            var (mine, theirs) = Partition(report, here, main);
+            if (theirs.Count > 0)
+            {
+                Console.Error.WriteLine(text);
+                Console.Error.WriteLine();
+                Console.Error.WriteLine(
+                    $"{theirs.Count} of the above name files that are in neither this worktree nor the main "
+                  + "checkout — another branch's not-yet-merged work, not this branch's problem:");
+                foreach (var issue in theirs.Take(10))
+                    Console.Error.WriteLine($"  {issue.NodeId} [{issue.Scope}] #{issue.Index}  {issue.Link.Doc}");
+                if (theirs.Count > 10) Console.Error.WriteLine($"  … and {theirs.Count - 10} more");
+                Console.Error.WriteLine();
+                Console.Error.WriteLine(mine.Count == 0
+                    ? "Nothing here is broken on this branch. (`validate --main` for the main checkout's view.)"
+                    : $"{mine.Count} issue(s) ARE this branch's. Exit code reflects those.");
+                return mine.Count == 0 ? Clean : Broken;
+            }
+        }
+
         Console.Error.WriteLine(text);
         return Broken;
+    }
+
+    /// <summary>Splits file-missing issues into the ones this working tree caused and the ones it inherited.</summary>
+    private static (List<IntegrityIssue> Mine, List<IntegrityIssue> Theirs) Partition(
+        IntegrityReport report, string here, string main)
+    {
+        List<IntegrityIssue> mine = [], theirs = [];
+        foreach (var issue in report.Issues)
+        {
+            var doc = issue.Link.Doc;
+            var absentEverywhere = issue.Kind == IntegrityKind.MissingFile
+                                && doc is { Length: > 0 }
+                                && !File.Exists(Path.Combine(here, doc.Replace('/', Path.DirectorySeparatorChar)))
+                                && !File.Exists(Path.Combine(main, doc.Replace('/', Path.DirectorySeparatorChar)));
+            (absentEverywhere ? theirs : mine).Add(issue);
+        }
+        return (mine, theirs);
     }
 
     // ── graph: product ⊕ code AST ⊕ snaplinks → .product/graph.json (the Graph viewer opens it) ──
@@ -314,18 +369,27 @@ internal static class Program
                 case "orphans":               return GraphOrphans(args[1..]);
                 case "paths" or "path":       return GraphPaths(args[1..]);
                 case "rank":                  return GraphRank(args[1..]);
-                case "node":                  return GraphNode(args[1..]);
-                case "search":                return GraphSearch(args[1..]);
-                case "list":                  return GraphList(args[1..]);
-                case "walk":                  return GraphWalk(args[1..]);
-                case "context" or "ctx":      return GraphContext(args[1..]);
-                case "grep":                  return GraphGrep(args[1..]);
-                case "code" or "cat":         return GraphCode(args[1..]);
+                // Every read of the graph ends by saying whether the graph still describes the working tree.
+                // Wrapped here rather than repeated in each verb so no query can quietly forget to say.
+                case "node":                  return Answered(GraphNode(args[1..]));
+                case "search":                return Answered(GraphSearch(args[1..]));
+                case "list":                  return Answered(GraphList(args[1..]));
+                case "walk":                  return Answered(GraphWalk(args[1..]));
+                case "context" or "ctx":      return Answered(GraphContext(args[1..]));
+                case "grep":                  return Answered(GraphGrep(args[1..]));
+                case "code" or "cat":         return Answered(GraphCode(args[1..]));
                 case "edit":                  return GraphEditVerb(args[1..]);
                 case "build":                 return GraphBuild(args[1..]);
                 case "help" or "-h" or "--help": return GraphUsage();
             }
         return GraphBuild(args);   // `graph [<root>] [--flags]` still builds (back-compat)
+    }
+
+    /// <summary>A query's exit code, after saying whether what it just reported is current.</summary>
+    private static int Answered(int code)
+    {
+        EndFreshness();
+        return code;
     }
 
     private static int GraphBuild(string[] args)
@@ -351,7 +415,7 @@ internal static class Program
         KnowledgeGraph graph;
         try
         {
-            var store = new ProductStore(root);
+            var store = GraphStore(root, a.Has("--main"));
             var state = store.Load();
             var options = new GraphBuildOptions
             {
@@ -382,7 +446,7 @@ internal static class Program
         }
 
         var m = graph.Metadata;
-        Console.WriteLine($"Graph written to {new ProductStore(root).GraphFilePath} — " +
+        Console.WriteLine($"Graph written to {GraphStore(root, a.Has("--main")).GraphFilePath} — " +
                           $"{m.NodeCount:N0} nodes, {m.EdgeCount:N0} edges, {m.HyperEdgeCount:N0} hyperedges.");
         return Clean;
     }
@@ -443,14 +507,14 @@ internal static class Program
         return Clean;
     }
 
-    private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code)
+    private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code, bool main = false)
     {
         graph = null!;
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
-        var loaded = new ProductStore(root).LoadGraph();
+        var loaded = GraphStore(root, main).LoadGraph();
         if (loaded is null)
         {
-            Console.Error.WriteLine($"error: no graph at {new ProductStore(root).GraphFilePath} — build it first with: graph {root}");
+            Console.Error.WriteLine($"error: no graph at {GraphStore(root, main).GraphFilePath} — build it first with: graph {root}");
             code = Error; return false;
         }
         graph = loaded; code = Clean; return true;
@@ -529,6 +593,8 @@ internal static class Program
         var term = a[0];
         if (!TryIntOpt(a, "--limit", 40, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         var hits = GraphQuery.Search(g, term, a.Value("--type"));
         Console.WriteLine(GraphReport.Search(hits, term, limit));
@@ -540,6 +606,8 @@ internal static class Program
         if (!TryRead(Specs.GraphList, args, out var a, out var root, out var parseCode)) return parseCode;
         if (!TryIntOpt(a, "--limit", 60, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         var type = a.Value("--type");
         var file = a.Value("--file");
@@ -573,6 +641,8 @@ internal static class Program
         var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         if (GraphQuery.Node(g, id) is not { } hood)
         { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
@@ -588,6 +658,8 @@ internal static class Program
         if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
         if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         var types = a.Value("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                      .ToHashSet(StringComparer.Ordinal);
@@ -651,6 +723,10 @@ internal static class Program
     private static int GraphEditVerb(string[] args)
     {
         if (!TryRead(Specs.GraphEdit, args, out var a, out var root, out var parseCode)) return parseCode;
+
+        // `create` names a path that does not exist yet, so there is no node to look up and no graph to load.
+        if (a[0] is "create" or "new") return GraphCreateFile(a, root);
+
         if (!TryLoadGraph(root, out var graph, out var loadCode)) return loadCode;
 
         var op = a[0] switch
@@ -677,7 +753,19 @@ internal static class Program
         if (a.Value("--find") is not null && a.Value("--find-escaped") is not null)
             return VerbUsage("give either --find or --find-escaped, not both");
 
-        var main = a.Has("--main");
+        var main  = a.Has("--main");
+        var store = GraphStore(root, main);
+        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var stale = !a.Has("--no-refresh");
+
+        // Bring the graph's record of the target file up to date BEFORE looking anything up. One file's
+        // parse costs milliseconds against the ninety seconds a whole-repo walk takes, and it is the
+        // difference between "the graph might be stale" being something the caller has to reason about and
+        // it not being one.
+        var dirty = stale
+                 && FileOfNodeId(a[1]) is { } target
+                 && GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, main));
+
         var find = a.Value("--find")
                 ?? (a.Value("--find-escaped") is { } escaped ? SourceText.Unescape(escaped) : null);
 
@@ -686,7 +774,14 @@ internal static class Program
         var result  = GraphEdit.Plan(graph, a[1], op.Value, text, rel => ReadRaw(root, rel, main)?.Text,
                                      options, a.Value("--to"));
 
-        if (!result.Ok) { Console.Error.WriteLine($"error: {result.Message}"); return Error; }
+        if (!result.Ok)
+        {
+            // The refresh above may have learned something real — the file changed — and that is worth
+            // keeping even though the edit itself is not going ahead.
+            if (dirty) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
+            Console.Error.WriteLine($"error: {result.Message}");
+            return Error;
+        }
 
         foreach (var change in result.Changes) PrintHunk(change);
         foreach (var note in result.Notes) Console.Error.WriteLine($"note: {note}");
@@ -715,9 +810,238 @@ internal static class Program
             }
         }
 
-        Console.WriteLine($"{result.Message}. Rebuild the graph (graph build) so its record matches.");
+        // …and again afterwards, so the graph describes what was just written. Both refreshes share one
+        // save, and neither costs more than parsing the file that changed.
+        foreach (var change in result.Changes)
+            if (stale) dirty |= GraphBuilder.RefreshFile(graph, cache, root, change.RelativePath,
+                                                        CodeRootOrNull(root, main));
+        if (dirty)
+        {
+            store.SaveGraph(graph);
+            store.SaveGraphCache(cache);
+        }
+
+        // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
+        // saying it anyway only teaches the caller to distrust the tool between builds. A full `graph build`
+        // is for the cross-file passes (call and inheritance resolution), not for editing.
+        Console.WriteLine($"{result.Message}.");
         return Clean;
     }
+
+    // ── Is the graph still describing what is on disk? ──────────────────────
+
+    /// <summary>
+    /// The freshness check for this invocation, started before the graph is even loaded so its ~0.7s runs
+    /// against the query's own work rather than after it. A CLI process answers one question, so a single
+    /// static is the whole lifetime.
+    /// </summary>
+    private static Task<GraphFreshness.Report>? _freshness;
+
+    /// <summary>
+    /// Kicks the check off against the graph the verb has already loaded, so it costs a stat per known file
+    /// and a walk of the project directories — and nothing is read twice. Taking the file list from the
+    /// cache index instead would mean loading <c>graph-cache.json</c>, which holds every file's extracted
+    /// nodes and costs more than the query it was meant to be describing.
+    /// </summary>
+    private static void BeginFreshness(string root, bool main, KnowledgeGraph graph)
+    {
+        var codeRoot = CodeRootOrNull(root, main) ?? root;
+        // Only the files the builder actually read. A file node is also synthesized for an import target
+        // that never resolved to anything on disk, and those carry the REFERRING file as their source — so
+        // counting them made a clean main checkout report hundreds of files "removed".
+        var known = graph.Nodes
+            .Where(n => n.Type == NodeType.File
+                     && n.FilePath is { Length: > 0 }
+                     && string.Equals(n.Source, n.FilePath, StringComparison.OrdinalIgnoreCase))
+            .Select(n => n.FilePath!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var graphFile  = GraphStore(root, main).GraphFilePath;
+
+        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
+    }
+
+    /// <summary>
+    /// Prints the verdict — to stderr, because it is a note about the answer rather than part of it, and a
+    /// caller piping results should not have to strip it. Always says something definite: either the graph
+    /// is current or these files have moved on. Leaving it unsaid is what makes a reader assume the worst.
+    /// </summary>
+    private static void EndFreshness()
+    {
+        if (_freshness is null) return;
+        try
+        {
+            var report = _freshness.Result;
+            if (report.Available) Console.Error.WriteLine(report.Summary());
+        }
+        catch { }   // a freshness check that fails must never fail the query it was describing
+    }
+
+    /// <summary>
+    /// Folds every file that has moved on back into the graph before the query reads it, so
+    /// <c>--refresh</c> answers from current data rather than warning about stale data.
+    /// </summary>
+    private static void RefreshStaleFiles(string root, bool main, KnowledgeGraph graph)
+    {
+        if (_freshness is null) return;
+
+        GraphFreshness.Report report;
+        try { report = _freshness.Result; } catch { return; }
+        if (!report.Available || report.IsCurrent) return;
+
+        var store = GraphStore(root, main);
+        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var dirty = false;
+
+        foreach (var rel in report.Stale)
+            dirty |= GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
+
+        // Files the graph names that this tree does not have. Dropping them is only safe because the graph
+        // being updated is this tree's own — from a shared one they could as easily be a parallel branch's
+        // work in progress, and pruning would delete it.
+        var pruned = 0;
+        if (GraphIsLocal(root, main))
+            foreach (var rel in report.Absent)
+                if (GraphBuilder.ForgetFile(graph, cache, rel)) { pruned++; dirty = true; }
+
+        if (!dirty) return;
+
+        store.SaveGraph(graph);
+        store.SaveGraphCache(cache);
+        Console.Error.WriteLine(
+            $"graph: refreshed {report.Stale.Count} file(s)"
+          + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
+        _freshness = null;                       // the report it would print is now out of date itself
+    }
+
+    /// <summary>The repo-relative file a node id names, or null when the id names neither.</summary>
+    private static string? FileOfNodeId(string id)
+    {
+        if (id.StartsWith("file:", StringComparison.Ordinal)) return id["file:".Length..];
+        if (!id.StartsWith("code:", StringComparison.Ordinal)) return null;
+        var hash = id.IndexOf('#');
+        return hash < 0 ? id["code:".Length..] : id["code:".Length..hash];
+    }
+
+    /// <summary>The tree source should be read from — the caller's worktree, or null to mean the product root.</summary>
+    private static string? CodeRootOrNull(string productRoot, bool main) =>
+        main ? null : FileRootsFor(productRoot) is [var here, _] ? here : null;
+
+    /// <summary>
+    /// The store the <b>derived graph</b> is read from and written to — this working tree's own when we are
+    /// in a worktree, the shared one in the main checkout.
+    /// <para>
+    /// A graph is a function of source, and source differs per branch, so one shared graph forced a bad
+    /// choice: a worktree either read the main checkout's view of code it does not have, or wrote its own
+    /// view into a file every other session reads. The second is the worse half — it hands a parallel
+    /// session this branch's idea of the codebase, and a file that branch is only halfway through creating
+    /// looks to everyone else like a file that exists.
+    /// </para>
+    /// <para>
+    /// Per-tree graphs make "does this graph describe my code?" answerable with yes, which is what the
+    /// freshness check needs in order to say anything useful. It also makes pruning safe: a file absent
+    /// from a tree really is absent from that tree's graph, rather than possibly being someone else's work
+    /// in progress. The authored product tree is untouched by this and stays shared — it is written, not
+    /// derived, and it is deliberately forward-looking.
+    /// </para>
+    /// </summary>
+    private static ProductStore GraphStore(string productRoot, bool main)
+    {
+        if (CodeRootOrNull(productRoot, main) is not { } here || PathsEqual(here, productRoot))
+            return new ProductStore(productRoot);
+
+        var scoped = new ProductStore(productRoot, Path.GetFileName(here.TrimEnd('/', '\\')));
+        if (File.Exists(scoped.GraphFilePath)) return scoped;
+
+        // First use in this worktree. Start from the main checkout's graph rather than a ninety-second
+        // build: most of a branch is the same code, so a clone plus a refresh of what differs is the cheap
+        // way in — and until it is refreshed the freshness line says exactly how far off it is.
+        try
+        {
+            var shared = new ProductStore(productRoot);
+            if (File.Exists(shared.GraphFilePath))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(scoped.GraphFilePath)!);
+                File.Copy(shared.GraphFilePath, scoped.GraphFilePath);
+                if (File.Exists(shared.GraphCacheFilePath))
+                    File.Copy(shared.GraphCacheFilePath, scoped.GraphCacheFilePath);
+                Console.Error.WriteLine(
+                    "graph: this worktree had none, so the main checkout's was cloned for it — `--refresh` "
+                  + "brings it onto your branch, and nothing here writes to the shared one.");
+            }
+        }
+        catch { }   // a failed clone just means an empty local graph, which the next build fills
+
+        return scoped;
+    }
+
+    /// <summary>Whether the graph being updated is this working tree's own, and so may have files absent
+    /// from the tree pruned out of it.</summary>
+    private static bool GraphIsLocal(string productRoot, bool main) =>
+        !main && CodeRootOrNull(productRoot, main) is { } here && !PathsEqual(here, productRoot);
+
+    /// <summary>
+    /// Writes a new file. It belongs on this verb rather than being left to whatever else can write a file,
+    /// because the same two things should be true of a created file as of an edited one: it has to parse, and
+    /// it is written with the line endings the repository uses rather than the caller's. An existing file is
+    /// refused — overwriting one is an edit, and there are nine operations for that.
+    /// </summary>
+    private static int GraphCreateFile(VerbArgs a, string root)
+    {
+        var rel = a[1].Replace('\\', '/');
+        if (Path.IsPathRooted(rel)) return VerbUsage($"give a repo-relative path, not '{rel}'");
+
+        if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
+        if (text is null) return VerbUsage("creating a file needs its content (--text, --file or --stdin)");
+
+        var target = Path.Combine(CodeRootFor(root, a.Has("--main")),
+                                  rel.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(target))
+        {
+            Console.Error.WriteLine($"error: {rel} already exists — use an edit op to change it.");
+            return Error;
+        }
+
+        // Same bar as an edit: a file that does not parse must not be written, because the next tool to read
+        // it sees a root ERROR node and every declaration in it vanishes from the graph.
+        var grammar = TreeSitterLanguages.ForFile(rel);
+        if (grammar is { Length: > 0 } && !new DeclarationAnchors().ParsesCleanly(grammar, text))
+        {
+            Console.Error.WriteLine($"error: that content does not parse as {grammar}, so {rel} was not created.");
+            return Error;
+        }
+
+        var body = string.Join(Environment.NewLine, SourceText.BlockOf(text)) + Environment.NewLine;
+
+        if (a.Has("--dry-run"))
+        {
+            Console.WriteLine($"--- {rel} (new, {SourceText.Of(body).Lines.Count} lines)");
+            foreach (var line in SourceText.Of(body).Lines) Console.WriteLine("+ " + line);
+            Console.WriteLine("dry run — nothing written.");
+            return Clean;
+        }
+
+        try
+        {
+            if (Path.GetDirectoryName(target) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
+            File.WriteAllText(target, body, new UTF8Encoding(false));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"error: could not create {rel}: {ex.Message}");
+            return Error;
+        }
+
+        Console.WriteLine($"created {rel} ({SourceText.Of(body).Lines.Count} lines). It is editable straight "
+                        + $"away — code:{rel}#<astpath> works without a graph build.");
+        return Clean;
+    }
+
+    /// <summary>The root a new file should be created under — the caller's working tree, so a file created
+    /// from a worktree lands on that branch.</summary>
+    private static string CodeRootFor(string productRoot, bool main) =>
+        main ? productRoot : FileRootsFor(productRoot)[0];
 
     /// <summary>
     /// The replacement text, from whichever source was given. Four sources rather than one because the shell
@@ -804,6 +1128,8 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 6, out var near)) return Error;
         if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         // The library reads source through a callback precisely so the CLI can resolve the caller's working
         // tree first (and --main can override it) without the query layer knowing anything about worktrees.
@@ -854,6 +1180,8 @@ internal static class Program
         if (!TryIntOpt(a, "--scan-cap", int.MaxValue, out var scanCap)) return Error;
 
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         Regex rx;
         try { rx = new Regex(pattern, RegexOptions.IgnoreCase); }
@@ -1640,8 +1968,8 @@ internal static class Program
     {
         private static readonly string[] None = [];
 
-        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save"],
-            "validate [<root>] [--json] [--save]");
+        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save", "--main", "--no-promote"],
+            "validate [<root>] [--json] [--save] [--main] [--no-promote]");
         public static readonly VerbSpec Find = new("find", 1, None, ["--json"],
             "find <term> [<root>] [--json]");
         public static readonly VerbSpec Query = new("query", 0, ["--under", "--concern", "--status"],
@@ -1664,6 +1992,10 @@ internal static class Program
             "remap <old-path> <new-path> [<root>] [--class <name>] [--method <name>]");
         public static readonly VerbSpec ScanTests = new("scan-tests", 0, ["--test-dll"], ["--suggest-attributes"],
             "scan-tests [<root>] [--test-dll <path>]... [--suggest-attributes]");
+        public static readonly VerbSpec Pending = new("pending", 0, None, ["--all"],
+            "pending [<root>] [--all]");
+        public static readonly VerbSpec Promote = new("promote", 0, ["--branch"], ["--dry-run", "--no-commit"],
+            "promote [<root>] [--branch <name>] [--dry-run] [--no-commit]");
         public static readonly VerbSpec Batch = new("batch", 1, None, ["--dry-run"],
             "batch <script-file> [<root>] [--dry-run]");
         public static readonly VerbSpec Doctor = new("doctor", 0, None, ["--fix"],
@@ -1711,31 +2043,31 @@ internal static class Program
         public static readonly VerbSpec GraphOrphans = new("graph orphans", 0,
             ["--type", "--limit", "--under"], ["--all"],
             "graph orphans [<root>] [--type type|member] [--under <path>] [--all] [--limit N]");
-        public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], None,
-            "graph search <term> [<root>] [--type <t>] [--limit N]");
+        public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], ["--refresh"],
+            "graph search <term> [<root>] [--type <t>] [--limit N] [--refresh]");
         public static readonly VerbSpec GraphList = new("graph list", 0,
-            ["--type", "--community", "--file", "--limit"], ["--unparsed"],
-            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N]");
+            ["--type", "--community", "--file", "--limit"], ["--unparsed", "--refresh"],
+            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N] [--refresh]");
         public static readonly VerbSpec GraphPaths = new("graph paths", 2,
             ["--hops", "--limit"], ["--undirected"],
             "graph paths <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]");
         public static readonly VerbSpec GraphRank = new("graph rank", 0,
             ["--by", "--type", "--under", "--limit"], None,
             "graph rank [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]");
-        public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], None,
-            "graph node <id> [<root>] [--limit N]");
-        public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], None,
-            "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N]");
-        public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main"],
-            "graph context <id> [<root>] [--lines N] [--limit N] [--main]");
+        public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], ["--refresh"],
+            "graph node <id> [<root>] [--limit N] [--refresh]");
+        public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], ["--refresh"],
+            "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N] [--refresh]");
+        public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main", "--refresh"],
+            "graph context <id> [<root>] [--lines N] [--limit N] [--main] [--refresh]");
         public static readonly VerbSpec GraphGrep = new("graph grep", 1,
-            ["--from", "--hops", "--scope", "--mode", "--type", "--limit", "--scan-cap"], ["--main"],
-            "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main]");
-        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main"],
-            "graph code <id> [<root>] [--lines A-B] [--main]");
+            ["--from", "--hops", "--scope", "--mode", "--type", "--limit", "--scan-cap"], ["--main", "--refresh"],
+            "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main] [--refresh]");
+        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main", "--refresh"],
+            "graph code <id> [<root>] [--lines A-B] [--main] [--refresh]");
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped"],
-            ["--stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main"],
+            ["--stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh"],
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
           + "[--to NAME] [--find S | --find-escaped S] [--regex] [--all] [--expect S] [--with-trivia] "
           + "[--dry-run] [--main]");
@@ -1830,12 +2162,267 @@ internal static class Program
         return ok;
     }
 
+    // ── Snaplinks a branch has changed but not merged ───────────────────────
+
+    /// <summary>The branch whose snaplink changes this invocation belongs to, or null in the main checkout.
+    /// Snaplinks only go to a pending set when there is a branch for them to belong to.</summary>
+    private static string? PendingBranch(string root)
+    {
+        var here = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        return here is { Length: > 0 } && !PathsEqual(here, root) ? ProductGit.CurrentBranch(here) : null;
+    }
+
+    /// <summary>
+    /// The working tree a pending set belongs in — the caller's own, not the product root.
+    /// <para>
+    /// This is the whole mechanism: the file has to be committable alongside the code it describes, so it
+    /// has to be written into the tree the branch is checked out in. Writing it beside the shared tree would
+    /// leave it on the wrong side of the merge and reintroduce the problem it exists to solve.
+    /// </para>
+    /// </summary>
+    private static string PendingRoot(string productRoot) =>
+        WorkingTreeRootOf(Directory.GetCurrentDirectory()) is { Length: > 0 } here ? here : productRoot;
+
+    private static PendingStore PendingStoreFor(string root) =>
+        new(PendingRoot(root), ExportDirFor(root));
+
+    /// <summary>
+    /// Records the link sets <paramref name="touched"/> names into this branch's pending set, so they travel
+    /// with the pull request instead of being written into the shared tree before the code they describe
+    /// exists anywhere else.
+    /// </summary>
+    private static PendingSnaplinks CapturePending(ProductState state, string root, string branch,
+                                                   IReadOnlyList<(string NodeId, string? Concern)> touched)
+    {
+        var store   = PendingStoreFor(root);
+        var pending = store.Load(branch);
+
+        foreach (var (nodeId, concern) in touched)
+        {
+            if (!state.Nodes.TryGetValue(nodeId, out var node)) continue;
+
+            if (concern is { Length: > 0 })
+            {
+                var link = node.Concerns?.FirstOrDefault(c => string.Equals(c.Tag, concern, StringComparison.Ordinal));
+                pending.Capture(nodeId, concern, link?.Snaplinks ?? []);
+            }
+            else pending.Capture(nodeId, null, node.Snaplinks ?? []);
+        }
+
+        store.Save(pending);
+        Console.Error.WriteLine(
+            $"snaplinks: recorded for branch '{branch}' in {ExportDirFor(root)}/{PendingStore.FolderName}/ — "
+          + "commit it with your change and it merges into the shared tree with the PR. `nfi pending` to review.");
+        return pending;
+    }
+
+    /// <summary>
+    /// Puts the touched link sets back to what the shared tree holds, so writing the tree lands everything
+    /// else this run changed without carrying the branch's links along with it. A node that does not exist
+    /// in the shared tree yet is being created by this same run, so it lands with no links — its links are
+    /// in the pending set, waiting for the branch that creates the files they name.
+    /// </summary>
+    private static void RestoreSharedLinks(ProductState state, ProductState shared,
+                                           IReadOnlyList<(string NodeId, string? Concern)> touched)
+    {
+        foreach (var (nodeId, concern) in touched)
+        {
+            if (!state.Nodes.TryGetValue(nodeId, out var node)) continue;
+            shared.Nodes.TryGetValue(nodeId, out var before);
+
+            if (concern is { Length: > 0 })
+            {
+                if (node.Concerns?.FirstOrDefault(c => string.Equals(c.Tag, concern, StringComparison.Ordinal))
+                    is not { } target) continue;
+                target.Snaplinks =
+                    [.. before?.Concerns?.FirstOrDefault(c => string.Equals(c.Tag, concern, StringComparison.Ordinal))
+                               ?.Snaplinks ?? []];
+            }
+            else node.Snaplinks = [.. before?.Snaplinks ?? []];
+        }
+    }
+
+    /// <summary>
+    /// Folds in any pending set that has arrived by merge, as a side effect of an ordinary command.
+    /// <para>
+    /// Only in the main checkout, and only for sets that are physically present there — which they can only
+    /// be because the branch that wrote one merged. That is the whole trick: the change set travels with the
+    /// pull request, so the moment its code lands the instruction to consolidate lands with it, and no one
+    /// has to remember to run anything from the machine the branch happened to be on.
+    /// </para>
+    /// </summary>
+    private static void ConsolidateMerged(string root)
+    {
+        if (PendingBranch(root) is not null) return;                 // on a branch: its own set is not merged
+        var store = PendingStoreFor(root);
+        var sets  = store.All();
+        if (sets.Count == 0) return;
+
+        try
+        {
+            var state   = new ProductStore(root).Load();
+            var applied = sets.Sum(p => p.ApplyTo(state));
+            var paths   = store.RelativePaths(PendingRoot(root), sets);
+
+            new ProductStore(root).SaveTree(state.Nodes);
+            foreach (var pending in sets) store.Delete(pending.Branch);
+
+            var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
+                paths, $"Product: consolidate snaplinks from {string.Join(", ", sets.Select(s => s.Branch))}");
+
+            Console.Error.WriteLine(
+                $"snaplinks: folded in {applied} set(s) from {sets.Count} merged branch(es)"
+              + (ok ? " and committed the removal." : $" — removal not committed ({error})."));
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"note: could not consolidate pending snaplinks ({ex.Message})."); }
+    }
+
+    /// <summary>
+    /// What this branch has changed and not yet merged — the review step before committing a pending set.
+    /// </summary>
+    private static int Pending(string[] args)
+    {
+        if (!TryRead(Specs.Pending, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoad(root, out var state, out var code, applyPending: false)) return code;
+
+        var store = PendingStoreFor(root);
+        var all   = a.Has("--all") ? store.All()
+                  : PendingBranch(root) is { } branch ? [store.Load(branch)] : store.All();
+
+        var sets = all.Where(p => !p.IsEmpty).ToList();
+        if (sets.Count == 0)
+        {
+            Console.WriteLine(PendingBranch(root) is { } b
+                ? $"Nothing pending on '{b}' — no snaplink changes waiting to merge."
+                : "Nothing pending — no branch has snaplink changes waiting to merge.");
+            return Clean;
+        }
+
+        foreach (var pending in sets)
+        {
+            Console.WriteLine($"{pending.Branch}  ({pending.ChangedSets} link set(s) across "
+                            + $"{pending.Nodes.Count} node(s))   {store.PathFor(pending.Branch)}");
+
+            foreach (var nodeId in pending.TouchedNodes)
+            {
+                var entry   = pending.Nodes[nodeId];
+                var present = state.Nodes.ContainsKey(nodeId);
+                Console.WriteLine($"  {nodeId}{(present ? "" : "   [not in the shared tree — promote will skip it]")}");
+
+                if (entry.Links is { } links) PrintPendingLinks("node", links, state, nodeId, null);
+                foreach (var (tag, concernLinks) in entry.Concerns ?? [])
+                    PrintPendingLinks(tag, concernLinks, state, nodeId, tag);
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Commit these files with your change; they merge into the shared tree with the PR.");
+        return Clean;
+    }
+
+    /// <summary>One link set, marked against what the shared tree currently holds for it.</summary>
+    private static void PrintPendingLinks(string label, IReadOnlyList<Snaplink> links, ProductState state,
+                                          string nodeId, string? concern)
+    {
+        var current = state.Nodes.TryGetValue(nodeId, out var node)
+            ? concern is { Length: > 0 }
+                ? node.Concerns?.FirstOrDefault(c => c.Tag == concern)?.Snaplinks
+                : node.Snaplinks
+            : null;
+
+        Console.WriteLine($"    [{label}] {links.Count} link(s), replacing {current?.Count ?? 0} in the shared tree");
+        foreach (var link in links) Console.WriteLine($"      + {link.Display}");
+    }
+
+    /// <summary>
+    /// Folds pending sets into the shared tree and removes them. In the main checkout a pending file can
+    /// only be there because the branch that wrote it merged, so its presence is the signal — no need to
+    /// know which worktree or machine produced it.
+    /// </summary>
+    private static int Promote(string[] args)
+    {
+        if (!TryRead(Specs.Promote, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (!TryLoad(root, out var state, out var code)) return code;
+
+        var store = PendingStoreFor(root);
+        var sets  = (a.Value("--branch") is { Length: > 0 } only
+                        ? store.All().Where(p => p.Branch == only)
+                        : store.All()).ToList();
+
+        if (sets.Count == 0)
+        {
+            Console.WriteLine("Nothing to promote — no pending snaplink sets are present here.");
+            return Clean;
+        }
+
+        var applied = sets.Sum(p => p.ApplyTo(state));
+        if (a.Has("--dry-run"))
+        {
+            Console.WriteLine($"dry run — would apply {applied} link set(s) from {sets.Count} branch(es) "
+                            + "and delete their pending files. Nothing written.");
+            return Clean;
+        }
+
+        new ProductStore(root).SaveTree(state.Nodes);
+
+        var paths = store.RelativePaths(PendingRoot(root), sets);
+        foreach (var pending in sets) store.Delete(pending.Branch);
+
+        Console.WriteLine($"Promoted {applied} link set(s) from {sets.Count} branch(es) into the shared tree.");
+
+        if (!a.Has("--no-commit"))
+        {
+            var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
+                paths, $"Product: consolidate snaplinks from {string.Join(", ", sets.Select(s => s.Branch))}");
+            Console.WriteLine(ok
+                ? "Committed the consolidated pending file(s) as merged."
+                : $"note: the pending file(s) were removed but not committed ({error}).");
+        }
+
+        var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
+        new ProductStore(root).SaveIntegrity(report);
+        Console.WriteLine(report.IsClean
+            ? $"Snaplinks OK — scanned {report.ScannedSnaplinks}."
+            : $"{report.IssueCount} broken snaplink(s) — run: validate .");
+        return Clean;
+    }
+
+    /// <summary>The committed export directory this product uses.</summary>
+    private static string ExportDirFor(string root)
+    {
+        try { return new ProductStore(root).Load().Product.ExportDir is { Length: > 0 } d ? d : "docs/product"; }
+        catch { return "docs/product"; }
+    }
+
     /// <summary>Persist the mutated tree via the canonical serializer, re-validate, and print the outcome —
     /// the same "edit then show the effect" contract as remap/add-node.</summary>
-    private static int SaveAndValidate(ProductState state, string root, string message)
+    private static int SaveAndValidate(ProductState state, string root, string message,
+                                       IReadOnlyList<(string NodeId, string? Concern)>? touchedLinks = null)
     {
-        var store = new ProductStore(root);
-        store.SaveTree(state.Nodes);
+        var store  = new ProductStore(root);
+        var branch = touchedLinks is { Count: > 0 } ? PendingBranch(root) : null;
+
+        // A node is a plan, and the shared tree is deliberately forward-looking about those — so it is
+        // written at once. A snaplink is a claim that a file exists and contains something, and from an
+        // unmerged branch that claim is not true anywhere but here. So a link change on a branch goes to the
+        // branch's pending set and not into the shared tree. In the main checkout there is no branch to
+        // defer to and the write happens normally.
+        if (branch is null) store.SaveTree(state.Nodes);
+        else
+        {
+            var pending = CapturePending(state, root, branch, touchedLinks!);
+
+            // The tree is still written — with the touched link sets put back as the SHARED tree has them.
+            // Restoring rather than skipping the write is what lets one batch add a node and change a
+            // snaplink: the node lands, the link stays with the branch. Skipping would lose the node.
+            RestoreSharedLinks(state, store.Load(), touchedLinks!);
+            store.SaveTree(state.Nodes);
+
+            pending.ApplyTo(state);   // back to the branch's view, so the validation below reports on it
+        }
+
+        // Validated against the in-memory state either way, so a branch sees its own links resolved against
+        // its own tree rather than the shared tree's older idea of them.
         var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         store.SaveIntegrity(report);
         Console.WriteLine(message);
@@ -1847,14 +2434,23 @@ internal static class Program
 
     /// <summary>The standalone-verb path: parse against the verb's spec, load, apply one mutation, then save
     /// + re-validate. Parsing happens before the tree is even loaded, so a bad command line never touches it.</summary>
-    private static int RunOne(VerbSpec spec, string[] args, Func<ProductState, VerbArgs, (bool Ok, string Message)> apply)
+    /// <param name="touchesSnaplinks">True for the verbs that change a node's links rather than the node
+    /// itself — they all name the node positionally and the concern with <c>--concern</c>, so that is enough
+    /// to record what a branch changed.</param>
+    private static int RunOne(VerbSpec spec, string[] args,
+                              Func<ProductState, VerbArgs, (bool Ok, string Message)> apply,
+                              bool touchesSnaplinks = false)
     {
         if (!VerbArgs.TryParse(spec, args, out var parsed, out var parseError)) return VerbUsage(parseError);
         var root = ResolveProductRoot(parsed.Root ?? ".");
         if (!TryLoad(root, out var state, out var code)) return code;
         var (ok, msg) = apply(state, parsed);
         if (!ok) { Console.Error.WriteLine($"error: {msg}"); return Error; }
-        return SaveAndValidate(state, root, msg);
+
+        var touched = touchesSnaplinks && parsed.Positionals.Count > 0
+            ? new[] { (parsed[0], parsed.Value("--concern")) }
+            : null;
+        return SaveAndValidate(state, root, msg, touched);
     }
 
     private static int SetStatus(string[] args) => RunOne(Specs.SetStatus, args, ApplySetStatus);
@@ -1889,7 +2485,7 @@ internal static class Program
             : (false, $"'{a[0]}' has no '{a[1]}' concern to remove");
     }
 
-    private static int SetSnaplink(string[] args) => RunOne(Specs.SetSnaplink, args, ApplySetSnaplink);
+    private static int SetSnaplink(string[] args) => RunOne(Specs.SetSnaplink, args, ApplySetSnaplink, touchesSnaplinks: true);
 
     private static (bool Ok, string Message) ApplySetSnaplink(ProductState s, VerbArgs a)
     {
@@ -1932,7 +2528,7 @@ internal static class Program
             : (false, $"no snaplink #{index} on {where} (or an unknown --clear field)");
     }
 
-    private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink);
+    private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink, touchesSnaplinks: true);
 
     private static (bool Ok, string Message) ApplyRemoveSnaplink(ProductState s, VerbArgs a)
     {
@@ -1973,7 +2569,7 @@ internal static class Program
         f.Target is null ? null : $"target={f.Target}",
     }.Where(x => x is not null));
 
-    private static int AddSnaplink(string[] args) => RunOne(Specs.AddSnaplink, args, ApplyAddSnaplink);
+    private static int AddSnaplink(string[] args) => RunOne(Specs.AddSnaplink, args, ApplyAddSnaplink, touchesSnaplinks: true);
 
     private static (bool Ok, string Message) ApplyAddSnaplink(ProductState s, VerbArgs a)
     {
@@ -2076,11 +2672,19 @@ internal static class Program
 
         var lines = File.ReadAllLines(file);
         var applied = new List<string>();
+
+        // Snaplink work is mostly done in batches — written, checked with --dry-run, then applied — so a
+        // batch has to make the same split a single verb does: nodes to the shared tree, links to the
+        // branch. Collected as we go, because a batch can legitimately do both in one run.
+        var touchedLinks = new List<(string NodeId, string? Concern)>();
+
         for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
             if (line.Length == 0 || line.StartsWith('#')) continue;   // blank lines + # comments
-            var (ok, msg) = ApplyOne(state, [.. Tokenize(line)]);
+            var tokens = Tokenize(line).ToArray();
+            if (LinkTargetOf(tokens) is { } target) touchedLinks.Add(target);
+            var (ok, msg) = ApplyOne(state, tokens);
             if (!ok)
             {
                 Console.Error.WriteLine($"error: line {i + 1}: {msg}");
@@ -2098,7 +2702,31 @@ internal static class Program
             Console.WriteLine($"Dry run — {applied.Count} instruction(s) valid, nothing written. Drop --dry-run to apply.");
             return Clean;
         }
-        return SaveAndValidate(state, root, $"Applied {applied.Count} instruction(s) from {Path.GetFileName(file)}.");
+        return SaveAndValidate(state, root, $"Applied {applied.Count} instruction(s) from {Path.GetFileName(file)}.",
+                               touchedLinks);
+    }
+
+    /// <summary>
+    /// The node (and concern) whose links a batch instruction changes, or null when it changes none.
+    /// <para>
+    /// <c>remap</c> is deliberately absent: it rewrites links across many nodes to follow a rename, which is
+    /// a repair of the shared tree rather than a claim this branch is making, and it is run on main.
+    /// </para>
+    /// </summary>
+    private static (string NodeId, string? Concern)? LinkTargetOf(string[] tokens)
+    {
+        var spec = tokens switch
+        {
+            ["add-snaplink",    ..] => Specs.AddSnaplink,
+            ["set-snaplink",    ..] => Specs.SetSnaplink,
+            ["remove-snaplink", ..] => Specs.RemoveSnaplink,
+            _                       => null,
+        };
+        if (spec is null) return null;
+
+        return VerbArgs.TryParse(spec.InBatch, tokens[1..], out var parsed, out _) && parsed.Positionals.Count > 0
+            ? (parsed[0], parsed.Value("--concern"))
+            : null;
     }
 
     /// <summary>
@@ -2239,13 +2867,30 @@ internal static class Program
         _          => Status.Should
     };
 
-    /// <summary>Loads the tree, or emits the right message + exit code when there is nothing to load.</summary>
-    private static bool TryLoad(string root, out ProductState state, out int code)
+    /// <summary>
+    /// Loads the tree, or emits the right message + exit code when there is nothing to load.
+    /// <para>
+    /// On a branch the tree is read with that branch's pending snaplinks overlaid, so every verb —
+    /// describe, validate, tree, and the edits themselves — sees the links as this branch has them rather
+    /// than the shared tree's older idea. That is what makes deferring a link change invisible in normal
+    /// use: it is only the <i>write</i> that goes somewhere else.
+    /// </para>
+    /// </summary>
+    /// <param name="applyPending">False for the one caller that must see the shared tree as it stands —
+    /// <c>pending</c>, which reports the difference between the two.</param>
+    private static bool TryLoad(string root, out ProductState state, out int code, bool applyPending = true)
     {
         state = new ProductState();
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
         if (!ProductStore.Exists(root)) { Console.Error.WriteLine($"error: no .product/ under {root}."); code = Error; return false; }
-        try { state = new ProductStore(root).Load(); code = Clean; return true; }
+        try
+        {
+            state = new ProductStore(root).Load();
+            if (applyPending && PendingBranch(root) is { } branch)
+                PendingStoreFor(root).Load(branch).ApplyTo(state);
+            code = Clean;
+            return true;
+        }
         catch (Exception ex) { Console.Error.WriteLine($"error: {ex.Message}"); code = Error; return false; }
     }
 }

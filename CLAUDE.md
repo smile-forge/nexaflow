@@ -106,7 +106,44 @@ rather than by which lines it currently occupies:
 & $nfi graph edit insert-before|insert-after|doc <node-id> --file …
 & $nfi graph edit substitute <node-id> --find 'old();' --text 'new();'   # find/replace INSIDE one declaration
 & $nfi graph edit import     <file-or-node-id> --text 'using System.Linq;'   # where the file keeps its imports
+& $nfi graph edit create     <relpath> --file new-class.cs         # a new file (refuses to overwrite; must parse)
+& $nfi graph edit substitute file:<relpath> --find 'namespace A;' --text 'namespace B;'   # what is in NO declaration
 ```
+
+**You never have to think about the graph being stale.** Three things make it a non-issue, so don't reach for
+`graph build` before editing:
+
+- **The target file is re-read and merged into the graph on every edit** (`GraphBuilder.RefreshFile`) — one
+  file's parse, not the ~90s whole-repo walk. A file you *just created* is in the graph after the first edit
+  to it, and a file you deleted is pruned from it. `--no-refresh` skips this for a batch.
+- **A moved declaration is re-found by name.** If the recorded AST path no longer resolves but the name is
+  declared once in that file, the edit goes ahead and says so. It refuses only when the name is gone, or when
+  several declarations share it — it will not pick one for you.
+- **A node the graph has never seen is still editable.** `code:<relpath>#<astpath>` and `file:<relpath>` name
+  everything an edit needs, so the id works whether or not the graph holds it. The graph is how you *find* an
+  id; it is not what makes one valid.
+
+`graph build` is for the cross-file passes — call/inheritance resolution, communities — not for editing.
+
+**Every graph query tells you whether its answer is current**, so you never have to guess. It compares
+`graph.json`'s own write time against the files the graph recorded (a stat each — no re-reading, which is the
+90s) and the directories the solution's projects live in (4,009 files, not the 17,038 the whole repo holds,
+because 14,849 of those are pinned submodule corpora). Roughly 0.2s, and it always says one of:
+
+```
+graph: current — 6,204 files, none changed since it was built.
+graph: 2 changed, 5 added vs this working tree — this answer may be out of date. Re-run with --refresh …
+```
+
+`--refresh` (on `search`/`list`/`node`/`walk`/`context`/`grep`/`code`) folds those files in *before* answering.
+
+**Each working tree has its own graph.** A graph is a function of source, and source differs per branch, so a
+worktree gets `.product/worktrees/<name>/graph.json`, cloned from the main checkout's on first use and
+brought onto your branch by one `--refresh` (~10s, then queries are current). The **authored tree**
+(`tree.json` — nodes, concerns, snaplinks) is unchanged by this and stays shared: it is written rather than
+derived, and it is deliberately forward-looking. Nothing a worktree does writes to the shared `graph.json`,
+so a parallel session's view of the code is never overwritten by yours — which is also what makes it safe for
+a refresh to *drop* files that aren't in your tree, since they can only be your branch's.
 
 **Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
 in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale
@@ -132,7 +169,10 @@ listing would aim at a different method while the name check still passes. Such 
 guard that still refuses when the path itself has come to mean something else.
 
 You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
-flush-left with `\n` and it lands correctly indented with the file's own endings and encoding. Text comes from
+flush-left with `\n` and it lands correctly indented with the file's own endings and encoding — that holds
+for **every** verb including `substitute`, whose replacement is indented for the line it lands on. `replace`
+keeps the declaration's existing doc comment, *unless* your replacement opens with one, in which case yours
+replaces it rather than being stacked on top. Text comes from
 `--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
 path — alone), `--file`, or `--stdin`; `--find`/`--find-escaped` mirror that pair. `--dry-run` prints the hunk
 and writes nothing; `--expect S` refuses unless the block still contains `S`, pinning the edit to what you
@@ -199,8 +239,35 @@ the roadmap of analyzers/validators to lock it down — is in
 
 Every verb's arguments are **strict** — an unknown option, a missing option value or a surplus positional is a
 hard error naming that verb's usage, never silently ignored (`batch` parses each line the same way and is
-all-or-nothing). And `validate` resolves a snaplink's file against **your working tree first**, so from a
-worktree it checks the branch you're editing rather than flagging every not-yet-merged file.
+all-or-nothing).
+
+**A snaplink you change on a branch stays with the branch.** Nodes and snaplinks are different kinds of
+claim: a node is a plan, and the tree is deliberately forward-looking about those, so `add-node` /
+`set-status` / `set-concern` write to the shared tree at once. A snaplink says *this file exists and contains
+this*, which from an unmerged branch is true nowhere else — so `add-snaplink` / `set-snaplink` /
+`remove-snaplink` record into `docs/product/pending/<branch>.json` instead, and the shared tree is left
+alone. Every read overlays your branch's set, so `describe`/`validate`/`tree` show your links normally; only
+the write is deferred.
+
+```powershell
+& $nfi pending                  # what this branch has changed and not merged — review before committing
+& $nfi promote [--dry-run]      # fold arrived sets into the shared tree and delete them
+```
+
+**Commit that file with your change.** It is under the committed export dir on purpose: it rides along with
+the PR, so at merge the change set arrives in the main checkout together with the code it describes — no
+knowing which worktree, on whose machine, produced it. Its presence there *is* the merged signal, and the
+next `validate` in the main checkout folds it in and commits the removal (`--no-promote` to skip). A branch
+that is abandoned never merges, so its set never arrives and there is nothing to clean up.
+
+**`validate` answers about the branch you are on.** From a linked worktree it resolves each snaplink against
+*that* tree — not the main checkout — because "does this file exist somewhere" is not the question a branch
+needs answered. It then splits what it finds: a link to a file that is in **neither** checkout belongs to some
+other branch's not-yet-merged work and is reported but does **not** set the exit code, while a link to a file
+main has and your branch does not **is** yours and does. `validate --main` gives the main checkout's view,
+which is what the installer's release gate runs (from the main checkout, where the two are the same anyway).
+The old fallback to the product root is what let a file you had *moved away* keep resolving through main, so a
+branch read clean while its links were stale.
 
 When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
 

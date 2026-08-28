@@ -63,6 +63,88 @@ public sealed class GraphBuilder
     public static KnowledgeGraph Build(ProductState state, string productRoot, GraphBuildOptions options) =>
         BuildWithCache(state, productRoot, options, null).Graph;
 
+    /// <summary>
+    /// Re-reads ONE file and merges its declarations into an already-built graph, in place.
+    /// <para>
+    /// A whole-repo build costs about a minute and a half — almost all of it walking four thousand files to
+    /// discover that they have not changed. Parsing one file costs milliseconds, and the cache is already
+    /// per-file and content-hashed, so a caller that knows which file it just touched can keep the graph
+    /// honest for the price of the parse. That is what stops "the graph might be stale" being a thing anyone
+    /// has to reason about.
+    /// </para>
+    /// <para>
+    /// What this refreshes is the file's own declarations and its structural edges — which is what addressing
+    /// a declaration needs. It does NOT re-run the global passes (inheritance and call resolution, community
+    /// detection), so a cross-file inferred edge involving this file can still be one build behind. Those are
+    /// discovery aids; nothing in an edit depends on them.
+    /// </para>
+    /// </summary>
+    /// <returns>True when the file had changed and the graph was updated.</returns>
+    public static bool RefreshFile(KnowledgeGraph graph, GraphCache cache, string productRoot,
+                                   string relPath, string? codeRoot = null)
+    {
+        var builder = new GraphBuilder(new ProductState(), productRoot,
+                                       new GraphBuildOptions { CodeRoot = codeRoot, Incremental = true }, cache);
+
+        var full = Path.Combine(builder._codeRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
+        var text = SnaplinkTargets.ReadText(full);
+
+        // A file that is not here is NOT evidence that it should leave the graph. graph.json is shared with
+        // every worktree, and a branch that runs `graph build` publishes its own files into it — so a file
+        // absent from this tree is just as likely to be another branch's work in progress as it is to be
+        // deleted. Pruning on that guess would quietly destroy a parallel session's contribution, which is
+        // far worse than carrying a node that is one build out of date. A full `graph build` reconciles
+        // deletions properly, because it knows what the whole tree contains rather than one path.
+        if (text is null) return false;
+
+        var hash    = Hashing.Md5(text);
+        var current = cache.Files.TryGetValue(relPath, out var cached) && cached.Hash == hash;
+        if (current && graph.Nodes.Any(n => string.Equals(n.Source, relPath, StringComparison.Ordinal)))
+            return false;                                    // already describes this exact content
+
+        var fresh = builder.ExtractContribution(relPath, full, text, hash);
+
+        // Everything this file contributed, out first — Node.Source and Edge.ProvenanceFile exist for exactly
+        // this — and the fresh contribution in after, or the prune would drop the cache entry just written.
+        Prune(graph, cache, relPath);
+        cache.Files[relPath] = fresh;
+
+        var known = new HashSet<string>(graph.Nodes.Select(n => n.Id), StringComparer.Ordinal);
+        foreach (var node in fresh.Nodes) if (known.Add(node.Id)) graph.Nodes.Add(node);
+        graph.Edges.AddRange(fresh.Edges);
+
+        graph.Metadata.NodeCount = graph.Nodes.Count;
+        graph.Metadata.EdgeCount = graph.Edges.Count;
+        return true;
+    }
+
+    /// <summary>
+    /// Drops a file from the graph entirely — for a file that is no longer in the tree this graph describes.
+    /// <para>
+    /// Only ever correct against a graph that belongs to one working tree. Against a shared graph an absent
+    /// file is as likely to be another branch's work in progress, and forgetting it would delete a parallel
+    /// session's published work; that is why <see cref="RefreshFile"/> will not do this on its own.
+    /// </para>
+    /// </summary>
+    /// <returns>True when the graph actually held something for it.</returns>
+    public static bool ForgetFile(KnowledgeGraph graph, GraphCache cache, string relPath)
+    {
+        var had = graph.Nodes.Any(n => string.Equals(n.Source, relPath, StringComparison.Ordinal));
+        Prune(graph, cache, relPath);
+        return had;
+    }
+
+    /// <summary>Removes everything one file contributed, so its fresh contribution can replace it.</summary>
+    private static void Prune(KnowledgeGraph graph, GraphCache cache, string relPath)
+    {
+        graph.Nodes.RemoveAll(n => string.Equals(n.Source, relPath, StringComparison.Ordinal));
+        graph.Edges.RemoveAll(e => string.Equals(e.ProvenanceFile, relPath, StringComparison.Ordinal));
+        cache.Files.Remove(relPath);
+
+        graph.Metadata.NodeCount = graph.Nodes.Count;
+        graph.Metadata.EdgeCount = graph.Edges.Count;
+    }
+
     /// <summary>Builds the graph, reusing <paramref name="cache"/> for unchanged files and returning the updated
     /// cache to persist. The returned graph is byte-identical whether built fresh or from a warm cache.</summary>
     public static (KnowledgeGraph Graph, GraphCache Cache) BuildWithCache(

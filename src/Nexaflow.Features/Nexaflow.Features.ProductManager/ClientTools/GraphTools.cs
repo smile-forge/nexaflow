@@ -129,13 +129,16 @@ public static class GraphTools
             new DelegateClientTool("graph_edit",
                 "Edit a declaration structurally, addressed by node id rather than by line number - replace "
                 + "it, delete it, change its signature without touching its body (or the reverse), rename it, "
-                + "insert one beside it, append a member to a type, or rewrite its doc comment. Prefer this "
-                + "over rewriting a file: it re-resolves the declaration in the file as it is NOW and refuses "
-                + "unless the parser agrees it is still the one the graph named, so a graph that has fallen "
-                + "behind cannot overwrite whatever occupies those lines instead. The result is re-parsed and "
-                + "the edit is refused if it would leave the file broken. Do not worry about line endings, "
-                + "indentation or escaping - write the replacement flush-left with \\n and it lands correctly "
-                + "indented with the file's own endings. Use dry_run first to see the hunk.",
+                + "insert one beside it, append a member to a type, add an import, or rewrite its doc "
+                + "comment. Prefer this over rewriting a file: it re-resolves the declaration in the file as "
+                + "it is NOW, so it cannot overwrite whatever else occupies those lines, and the result is "
+                + "re-parsed and refused if it would leave the file broken. "
+                + "You do NOT need to rebuild the graph first, and should not: the target file is re-read and "
+                + "merged in on every edit, a declaration that has moved is re-found by name, and a node the "
+                + "graph has never seen is still editable because the id names the file and the declaration "
+                + "outright. Do not worry about line endings, indentation or escaping - write the "
+                + "replacement flush-left with \\n and it lands correctly indented with the file's own "
+                + "endings. Use dry_run first to see the hunk.",
                 [new ClientToolParameter("node_id", "The code node to edit (see graph_search / graph_context)."),
                  new ClientToolParameter("op",
                      "replace | delete | signature | body | rename | insert_before | insert_after | append | doc. "
