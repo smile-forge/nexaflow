@@ -125,6 +125,21 @@ rather than by which lines it currently occupies:
 
 `graph build` is for the cross-file passes — call/inheritance resolution, communities — not for editing.
 
+**Every graph query tells you whether its answer is current**, so you never have to guess. It compares
+`graph.json`'s own write time against the files the graph recorded (a stat each — no re-reading, which is the
+90s) and the directories the solution's projects live in (4,009 files, not the 17,038 the whole repo holds,
+because 14,849 of those are pinned submodule corpora). Roughly 0.2s, and it always says one of:
+
+```
+graph: current — 6,204 files, none changed since it was built.
+graph: 2 changed, 5 added vs this working tree — this answer may be out of date. Re-run with --refresh …
+```
+
+`--refresh` (on `search`/`list`/`node`/`walk`/`context`/`grep`/`code`) folds those files in *before*
+answering. **From a worktree the refresh is in-memory only** — `graph.json` is shared with the main checkout
+and every other session, so a branch never silently writes its view into it; `graph build` from the worktree
+is how a branch deliberately publishes one.
+
 **Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
 in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale
 graph can never overwrite whatever now occupies those lines), and re-parses the result — an edit that would

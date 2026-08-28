@@ -363,18 +363,27 @@ internal static class Program
                 case "orphans":               return GraphOrphans(args[1..]);
                 case "paths" or "path":       return GraphPaths(args[1..]);
                 case "rank":                  return GraphRank(args[1..]);
-                case "node":                  return GraphNode(args[1..]);
-                case "search":                return GraphSearch(args[1..]);
-                case "list":                  return GraphList(args[1..]);
-                case "walk":                  return GraphWalk(args[1..]);
-                case "context" or "ctx":      return GraphContext(args[1..]);
-                case "grep":                  return GraphGrep(args[1..]);
-                case "code" or "cat":         return GraphCode(args[1..]);
+                // Every read of the graph ends by saying whether the graph still describes the working tree.
+                // Wrapped here rather than repeated in each verb so no query can quietly forget to say.
+                case "node":                  return Answered(GraphNode(args[1..]));
+                case "search":                return Answered(GraphSearch(args[1..]));
+                case "list":                  return Answered(GraphList(args[1..]));
+                case "walk":                  return Answered(GraphWalk(args[1..]));
+                case "context" or "ctx":      return Answered(GraphContext(args[1..]));
+                case "grep":                  return Answered(GraphGrep(args[1..]));
+                case "code" or "cat":         return Answered(GraphCode(args[1..]));
                 case "edit":                  return GraphEditVerb(args[1..]);
                 case "build":                 return GraphBuild(args[1..]);
                 case "help" or "-h" or "--help": return GraphUsage();
             }
         return GraphBuild(args);   // `graph [<root>] [--flags]` still builds (back-compat)
+    }
+
+    /// <summary>A query's exit code, after saying whether what it just reported is current.</summary>
+    private static int Answered(int code)
+    {
+        EndFreshness();
+        return code;
     }
 
     private static int GraphBuild(string[] args)
@@ -578,6 +587,8 @@ internal static class Program
         var term = a[0];
         if (!TryIntOpt(a, "--limit", 40, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         var hits = GraphQuery.Search(g, term, a.Value("--type"));
         Console.WriteLine(GraphReport.Search(hits, term, limit));
@@ -589,6 +600,8 @@ internal static class Program
         if (!TryRead(Specs.GraphList, args, out var a, out var root, out var parseCode)) return parseCode;
         if (!TryIntOpt(a, "--limit", 60, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         var type = a.Value("--type");
         var file = a.Value("--file");
@@ -622,6 +635,8 @@ internal static class Program
         var id = a.Positionals.Count > 0 ? a[0] : string.Empty;
         if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         if (GraphQuery.Node(g, id) is not { } hood)
         { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
@@ -637,6 +652,8 @@ internal static class Program
         if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
         if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         var types = a.Value("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                      .ToHashSet(StringComparer.Ordinal);
@@ -755,7 +772,7 @@ internal static class Program
         {
             // The refresh above may have learned something real — the file changed, or was deleted out from
             // under the graph — and that is worth keeping even though the edit itself is not going ahead.
-            if (dirty) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
+            if (dirty && CanPersistGraph(root, main)) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
             Console.Error.WriteLine($"error: {result.Message}");
             return Error;
         }
@@ -792,7 +809,7 @@ internal static class Program
         foreach (var change in result.Changes)
             if (stale) dirty |= GraphBuilder.RefreshFile(graph, cache, root, change.RelativePath,
                                                         CodeRootOrNull(root, main));
-        if (dirty)
+        if (dirty && CanPersistGraph(root, main))
         {
             store.SaveGraph(graph);
             store.SaveGraphCache(cache);
@@ -803,6 +820,93 @@ internal static class Program
         // is for the cross-file passes (call and inheritance resolution), not for editing.
         Console.WriteLine($"{result.Message}.");
         return Clean;
+    }
+
+    // ── Is the graph still describing what is on disk? ──────────────────────
+
+    /// <summary>
+    /// The freshness check for this invocation, started before the graph is even loaded so its ~0.7s runs
+    /// against the query's own work rather than after it. A CLI process answers one question, so a single
+    /// static is the whole lifetime.
+    /// </summary>
+    private static Task<GraphFreshness.Report>? _freshness;
+
+    /// <summary>
+    /// Kicks the check off against the graph the verb has already loaded, so it costs a stat per known file
+    /// and a walk of the project directories — and nothing is read twice. Taking the file list from the
+    /// cache index instead would mean loading <c>graph-cache.json</c>, which holds every file's extracted
+    /// nodes and costs more than the query it was meant to be describing.
+    /// </summary>
+    private static void BeginFreshness(string root, bool main, KnowledgeGraph graph)
+    {
+        var codeRoot = CodeRootOrNull(root, main) ?? root;
+        // Only the files the builder actually read. A file node is also synthesized for an import target
+        // that never resolved to anything on disk, and those carry the REFERRING file as their source — so
+        // counting them made a clean main checkout report hundreds of files "removed".
+        var known = graph.Nodes
+            .Where(n => n.Type == NodeType.File
+                     && n.FilePath is { Length: > 0 }
+                     && string.Equals(n.Source, n.FilePath, StringComparison.OrdinalIgnoreCase))
+            .Select(n => n.FilePath!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var graphFile  = new ProductStore(root).GraphFilePath;
+        var ownBranch  = !PathsEqual(codeRoot, root);
+        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile, ownBranch));
+    }
+
+    /// <summary>
+    /// Prints the verdict — to stderr, because it is a note about the answer rather than part of it, and a
+    /// caller piping results should not have to strip it. Always says something definite: either the graph
+    /// is current or these files have moved on. Leaving it unsaid is what makes a reader assume the worst.
+    /// </summary>
+    private static void EndFreshness()
+    {
+        if (_freshness is null) return;
+        try
+        {
+            var report = _freshness.Result;
+            if (report.Available) Console.Error.WriteLine(report.Summary());
+        }
+        catch { }   // a freshness check that fails must never fail the query it was describing
+    }
+
+    /// <summary>
+    /// Folds every file that has moved on back into the graph before the query reads it, so
+    /// <c>--refresh</c> answers from current data rather than warning about stale data.
+    /// </summary>
+    private static void RefreshStaleFiles(string root, bool main, KnowledgeGraph graph)
+    {
+        if (_freshness is null) return;
+
+        GraphFreshness.Report report;
+        try { report = _freshness.Result; } catch { return; }
+        if (!report.Available || report.IsCurrent) return;
+
+        var store = new ProductStore(root);
+        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var dirty = false;
+
+        foreach (var rel in report.Stale)
+            dirty |= GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
+
+        if (!dirty) return;
+
+        if (CanPersistGraph(root, main))
+        {
+            store.SaveGraph(graph);
+            store.SaveGraphCache(cache);
+            Console.Error.WriteLine($"graph: refreshed {report.Stale.Count} file(s) before answering.");
+        }
+        else
+        {
+            Console.Error.WriteLine(
+                $"graph: refreshed {report.Stale.Count} file(s) for this answer, in memory only — graph.json "
+              + "is shared with the main checkout, so a branch does not write into it. `graph build` from "
+              + "here is how to publish this branch's view.");
+        }
+        _freshness = null;                       // the report it would print is now out of date itself
     }
 
     /// <summary>The repo-relative file a node id names, or null when the id names neither.</summary>
@@ -817,6 +921,20 @@ internal static class Program
     /// <summary>The tree source should be read from — the caller's worktree, or null to mean the product root.</summary>
     private static string? CodeRootOrNull(string productRoot, bool main) =>
         main ? null : FileRootsFor(productRoot) is [var here, _] ? here : null;
+
+    /// <summary>
+    /// Whether a refreshed graph may be written back.
+    /// <para>
+    /// <c>graph.json</c> lives in the main checkout and is shared by every worktree and every session using
+    /// it. Folding a branch's files into it automatically would quietly hand another session this branch's
+    /// view of the code, which is worse than the staleness it was fixing — a wrong answer delivered
+    /// confidently, to someone who never asked. So a refresh from a worktree updates the graph in memory,
+    /// which is enough to make the command in hand correct, and stops there. An explicit
+    /// <c>graph build</c> is still how a branch deliberately publishes its view.
+    /// </para>
+    /// </summary>
+    private static bool CanPersistGraph(string productRoot, bool main) =>
+        main || CodeRootOrNull(productRoot, main) is not { } here || PathsEqual(here, productRoot);
 
     /// <summary>
     /// Writes a new file. It belongs on this verb rather than being left to whatever else can write a file,
@@ -965,6 +1083,8 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 6, out var near)) return Error;
         if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         // The library reads source through a callback precisely so the CLI can resolve the caller's working
         // tree first (and --main can override it) without the query layer knowing anything about worktrees.
@@ -1015,6 +1135,8 @@ internal static class Program
         if (!TryIntOpt(a, "--scan-cap", int.MaxValue, out var scanCap)) return Error;
 
         if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
 
         Regex rx;
         try { rx = new Regex(pattern, RegexOptions.IgnoreCase); }
@@ -1872,28 +1994,28 @@ internal static class Program
         public static readonly VerbSpec GraphOrphans = new("graph orphans", 0,
             ["--type", "--limit", "--under"], ["--all"],
             "graph orphans [<root>] [--type type|member] [--under <path>] [--all] [--limit N]");
-        public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], None,
-            "graph search <term> [<root>] [--type <t>] [--limit N]");
+        public static readonly VerbSpec GraphSearch = new("graph search", 1, ["--type", "--limit"], ["--refresh"],
+            "graph search <term> [<root>] [--type <t>] [--limit N] [--refresh]");
         public static readonly VerbSpec GraphList = new("graph list", 0,
-            ["--type", "--community", "--file", "--limit"], ["--unparsed"],
-            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N]");
+            ["--type", "--community", "--file", "--limit"], ["--unparsed", "--refresh"],
+            "graph list [<root>] [--type <t>] [--community N] [--file <f>] [--unparsed] [--limit N] [--refresh]");
         public static readonly VerbSpec GraphPaths = new("graph paths", 2,
             ["--hops", "--limit"], ["--undirected"],
             "graph paths <from-id> <to-id> [<root>] [--hops N] [--undirected] [--limit N]");
         public static readonly VerbSpec GraphRank = new("graph rank", 0,
             ["--by", "--type", "--under", "--limit"], None,
             "graph rank [<root>] [--by fanin|fanout] [--type <t>] [--under <path>] [--limit N]");
-        public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], None,
-            "graph node <id> [<root>] [--limit N]");
-        public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], None,
-            "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N]");
-        public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main"],
-            "graph context <id> [<root>] [--lines N] [--limit N] [--main]");
+        public static readonly VerbSpec GraphNode = new("graph node", 1, ["--limit"], ["--refresh"],
+            "graph node <id> [<root>] [--limit N] [--refresh]");
+        public static readonly VerbSpec GraphWalk = new("graph walk", 1, ["--hops", "--limit", "--types"], ["--refresh"],
+            "graph walk <id> [<root>] [--hops N] [--types a,b] [--limit N] [--refresh]");
+        public static readonly VerbSpec GraphContext = new("graph context", 1, ["--lines", "--limit"], ["--main", "--refresh"],
+            "graph context <id> [<root>] [--lines N] [--limit N] [--main] [--refresh]");
         public static readonly VerbSpec GraphGrep = new("graph grep", 1,
-            ["--from", "--hops", "--scope", "--mode", "--type", "--limit", "--scan-cap"], ["--main"],
-            "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main]");
-        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main"],
-            "graph code <id> [<root>] [--lines A-B] [--main]");
+            ["--from", "--hops", "--scope", "--mode", "--type", "--limit", "--scan-cap"], ["--main", "--refresh"],
+            "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main] [--refresh]");
+        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main", "--refresh"],
+            "graph code <id> [<root>] [--lines A-B] [--main] [--refresh]");
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped"],
             ["--stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh"],
