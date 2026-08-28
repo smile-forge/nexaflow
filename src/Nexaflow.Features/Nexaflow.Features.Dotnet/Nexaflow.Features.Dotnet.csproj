@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
   </ItemGroup>
 
   <ItemGroup>

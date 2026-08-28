@@ -55,6 +55,7 @@
     <InternalsVisibleTo Include="Nexaflow.Visuals.Maths" />
     <InternalsVisibleTo Include="Nexaflow.Visuals.Text" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Typesetting" />
   </ItemGroup>
 

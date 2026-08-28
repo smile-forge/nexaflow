@@ -37,15 +37,30 @@ deliberately; a drop you did not intend is the thing this table exists to make v
 
 | Target | Score | Killed | Survived | Uncovered | Measured |
 |--------|-------|--------|----------|-----------|----------|
-| `initiatives` | **73.4%** | 1469 | 239 | 295 | 2026-08-26, 4m38s |
-
-**The score is reproducible**, which is what makes `break` worth setting at all: two identical runs came back
-73.26% and 73.41%, 0.15 points apart. So a `break` a few points under the baseline is a real tripwire rather
-than a coin toss — it is at 55 for `initiatives`, and should be walked *up* as the score improves, not left
-where it is.
+| `initiatives` | **78.1%** | 1533 | 142 | 289 | 2026-08-26, 5m03s |
 
 For scale on what moves it: adding `BlockEndTests`' seven escape/comment cases and the seven `RepoFilesTests`
 took this target from 61.3% to 73.4% in one sitting.
+
+### Read the score as a band, not a number
+
+This file used to say the score was reproducible to 0.15 points, on the evidence of two runs that came back
+73.26% and 73.41%. Three later runs came back **75.0%, 76.1% and 78.1%**, and the movement was not where the
+edits were: between the last two, the only change was two tests covering `SourceSpans`, which killed 2
+mutants there — while `GraphQuery` gained 12 kills, `GraphBuilder` 16 and `SnaplinkValidator` 15, none of
+which those tests touch.
+
+The mutant *population* is identical run to run — 4138 created, 1253 `CompileError`, 1678 tested, all three
+times — so this is verdict-level movement on a fixed set, not a different set. Why has not been chased down.
+The cheap experiment, if someone wants it, is two sweeps of the same commit diffed per mutant id (the json
+report carries them): same-verdict means the added tests really did it, flipped verdicts on untouched files
+means run-to-run noise, most likely from test-host contention under `-Concurrency`.
+
+So: treat a single number as a **band of a few points**, compare a file against itself rather than the
+target total, and do not read a 1-2 point move as a result. `break` at 55 is still a sane tripwire — it is
+far enough below the band to mean something — but walking it up to just under the last score would make it
+a coin toss. Why the population shifts has not been chased down; it is the first thing to look at before
+anyone leans on these numbers harder.
 
 ## The targets
 
@@ -81,18 +96,30 @@ against 72-88% for the product-tree services, and two clusters were worth acting
 - **`GraphQuery.BlockEnd`** - 35 surviving mutants in a hand-written C# lexer (line comments, block
   comments, verbatim and raw string literals, char literals) that decides where a member's source stops.
   It backs `graph code`, `graph context` and a content `graph grep`, so a wrong answer is a false "no
-  match" rather than an error. `BlockEndTests` now pins each cluster.
+  match" rather than an error. **Resolved by deletion** - see below.
 - **`RepoFiles.SkipDirs`** - all ten entries could be blanked with nothing going red. That set is what
   keeps a graph build out of `node_modules`; losing one costs minutes per build and fails nothing.
   `RepoFilesTests` covers it, plus the generated-file markers beside it.
 
-**The lexer is a known follow-up, not a settled design.** Tree-sitter is already a dependency here
-(`Nexaflow.Services.Initiatives` references `Nexaflow.Syntax`) and `GraphQuery.ReadSource` does prefer the
-extractor's `endLine` when the graph carries one - but three CLI paths call `BlockEnd` directly, and two of
-them unconditionally: `graph grep` (Program.cs:750) and snaplink block resolution (Program.cs:1039). Only
-`graph code` (Program.cs:613) checks the parsed span first. So the hand-rolled scanner is on the hot path
-for the verb this repo tells every agent to reach for, and re-parsing with tree-sitter would delete it
-outright. The tests above are the holding position.
+**The lexer is gone.** It was the clearest thing this tool has found: 35 survivors clustered on exactly the
+cases a second, partial C# parser gets wrong, in code that only existed because nobody had asked the real
+parser. Tree-sitter records both ends of every declaration it extracts, for every grammar, so
+`SourceSpans` re-parses the file in hand and `BlockEnd` was deleted outright. The re-parse is what makes a
+query from a linked worktree describe *that* branch's code, and testing each file whole before attributing
+anything keeps a full-repo content grep at ~1.3s - a file matching nothing costs no parse.
+
+What the follow-up sweep then found is worth reading as a pattern, because it is the same one twice: every
+survivor in the new class was a decision the code stated only in a comment - declarations consulted in line
+order, the tighter of two bounds, a stale line on a declaration's own first or last line still counting as
+inside it. Six tests took `SourceSpans` from 83.8% to 92.6%, the top of the `Graph/` files. The four left
+are equivalent mutants and are recorded as such in the commit rather than chased: `Clamp` already
+neutralises both `lineCount - 1` mutations, `Extract` already guards a null grammar id, and
+`{ Length: > 0 }` to `>= 0` reaches the same failed dictionary lookup.
+
+`GraphQuery` itself now reads *lower* (around 52-56%), which is the arithmetic of the move rather than a
+regression: its best-tested method left for a file of its own. What remains there is 125 **uncovered**
+mutants - lines no test executes at all - which is a different problem from the one this sweep solved, and
+the next one worth taking.
 
 ### `search` — `Nexaflow.Search` via three Features suites
 

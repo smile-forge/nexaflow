@@ -29,15 +29,6 @@ public class HexOpenActionTests
         return (shell, opened);
     }
 
-    [TestMethod]
-    public void ItOpensTheFileItWasInvokedOn()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsTrue(new ShowBinaryAction(shell).PerformAction(@"C:\fw\image.bin"));
-
-        Assert.AreEqual(@"C:\fw\image.bin", opened.Single()["path"]);
-    }
 
     [TestMethod]
     public void ItOwnsTheBinaryCatchAllExperience()
@@ -50,25 +41,4 @@ public class HexOpenActionTests
         Assert.IsFalse(action.IsDestructive, "opening a file to look at its bytes changes nothing");
     }
 
-    [TestMethod]
-    public void ASelectionOpensTheFirstFileOnly_BecauseAHexEditorHasOneBuffer()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsFalse(new ShowBinaryAction(shell).SupportsMultipleFiles);
-        Assert.IsTrue(new ShowBinaryAction(shell).PerformAction([@"C:\a.bin", @"C:\b.bin"]));
-
-        Assert.AreEqual(1, opened.Count);
-        Assert.AreEqual(@"C:\a.bin", opened.Single()["path"]);
-    }
-
-    [TestMethod]
-    public void AnEmptySelectionOpensNothing()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsFalse(new ShowBinaryAction(shell).PerformAction([]));
-
-        Assert.AreEqual(0, opened.Count);
-    }
 }

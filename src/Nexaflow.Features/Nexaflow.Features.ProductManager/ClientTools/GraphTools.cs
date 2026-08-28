@@ -3,6 +3,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using Nexaflow.Syntax;
 
 namespace Nexaflow.Features.ProductManager.ClientTools;
 
@@ -124,6 +125,50 @@ public static class GraphTools
                  new ClientToolParameter("limit", "Maximum rows (default 25).", Required: false, Type: "number")],
                 ToolSafety.SafeOperation,
                 (a, _) => Task.FromResult(Rank(productRoot, a))),
+
+            new DelegateClientTool("graph_edit",
+                "Edit a declaration structurally, addressed by node id rather than by line number - replace "
+                + "it, delete it, change its signature without touching its body (or the reverse), rename it, "
+                + "insert one beside it, append a member to a type, or rewrite its doc comment. Prefer this "
+                + "over rewriting a file: it re-resolves the declaration in the file as it is NOW and refuses "
+                + "unless the parser agrees it is still the one the graph named, so a graph that has fallen "
+                + "behind cannot overwrite whatever occupies those lines instead. The result is re-parsed and "
+                + "the edit is refused if it would leave the file broken. Do not worry about line endings, "
+                + "indentation or escaping - write the replacement flush-left with \\n and it lands correctly "
+                + "indented with the file's own endings. Use dry_run first to see the hunk.",
+                [new ClientToolParameter("node_id", "The code node to edit (see graph_search / graph_context)."),
+                 new ClientToolParameter("op",
+                     "replace | delete | signature | body | rename | insert_before | insert_after | append | doc. "
+                   + "'append' targets a type and adds a member at the end of its body; 'signature' and 'body' "
+                   + "each leave the other half byte-for-byte unchanged."),
+                 new ClientToolParameter("text",
+                     "The new code — or, for 'substitute', what to replace 'find' with. Not needed for 'delete'.",
+                     Required: false),
+                 new ClientToolParameter("to", "The new name, for 'rename'.", Required: false),
+                 new ClientToolParameter("find",
+                     "For 'substitute': the text to find, searched only INSIDE this declaration so it cannot "
+                   + "run away across the file. Literal unless find_is_regex, and refused unless it matches "
+                   + "exactly once - use this instead of rewriting a whole method to change one line. "
+                   + "Indentation need not match: paste the fragment as you read it, or flush-left, and it "
+                   + "will still be found. If it is not there, the refusal names the declaration that does "
+                   + "contain it.", Required: false),
+                 new ClientToolParameter("find_is_regex",
+                     "Treat 'find' as a regular expression. Off by default, because a '(' or '.' in a code "
+                   + "fragment matching something unintended is the hazard this avoids.",
+                     Required: false, Type: "boolean"),
+                 new ClientToolParameter("all_occurrences",
+                     "Allow 'find' to match more than once. Off by default, so an ambiguous substitution is "
+                   + "an error rather than a silent multi-edit.", Required: false, Type: "boolean"),
+                 new ClientToolParameter("expect",
+                     "Refuse unless the declaration currently contains this text - pin the edit to what you "
+                   + "read.", Required: false),
+                 new ClientToolParameter("with_trivia",
+                     "For 'replace', also replace the doc comment above it. Off by default, so replacing a "
+                   + "method keeps its documentation.", Required: false, Type: "boolean"),
+                 new ClientToolParameter("dry_run", "Report what would change and write nothing.",
+                     Required: false, Type: "boolean")],
+                ToolSafety.RequiresApproval,
+                (a, _) => Task.FromResult(Edit(productRoot, a))),
 
             new DelegateClientTool("graph_build",
                 "Rebuild graph.json from the product tree and the current source. Incremental - only files "
@@ -265,6 +310,68 @@ public static class GraphTools
         return ToolResult.Ok($"{g.Nodes.Count} node(s)", GraphReport.Stats(g));
     }
 
+    private static ToolResult Edit(string root, JsonObject a)
+    {
+        if (!TryLoad(root, out var g, out var error)) return error;
+
+        var id = Str(a, "node_id");
+        if (string.IsNullOrWhiteSpace(id)) return ToolResult.Error("Provide a 'node_id'.");
+
+        var op = Blank(Str(a, "op"))?.Replace('-', '_').ToLowerInvariant() switch
+        {
+            "replace"       => StructuralEdit.Op.Replace,
+            "delete"        => StructuralEdit.Op.Delete,
+            "signature"     => StructuralEdit.Op.Signature,
+            "body"          => StructuralEdit.Op.Body,
+            "rename"        => StructuralEdit.Op.Rename,
+            "insert_before" => StructuralEdit.Op.InsertBefore,
+            "insert_after"  => StructuralEdit.Op.InsertAfter,
+            "append"        => StructuralEdit.Op.Append,
+            "doc"           => StructuralEdit.Op.Doc,
+            "substitute" or "sub" => StructuralEdit.Op.Substitute,
+            "import" or "using"   => StructuralEdit.Op.Import,
+            _               => (StructuralEdit.Op?)null,
+        };
+        if (op is null)
+            return ToolResult.Error(
+                $"Unknown 'op' '{Str(a, "op")}'. Expected replace, delete, signature, body, rename, "
+              + "insert_before, insert_after, append, doc or substitute.");
+
+        var options = new StructuralEdit.Options(
+            Bool(a, "with_trivia"), Blank(Str(a, "expect")),
+            Blank(Str(a, "find")), Bool(a, "find_is_regex"), Bool(a, "all_occurrences"));
+        var result  = GraphEdit.Plan(g, id!, op.Value, Str(a, "text"), RawReader(root), options, Blank(Str(a, "to")));
+
+        if (!result.Ok) return ToolResult.Error(result.Message);
+
+        var report = new System.Text.StringBuilder();
+        foreach (var change in result.Changes)
+        {
+            report.AppendLine($"--- {change.RelativePath}:{change.Hunk.Line}");
+            foreach (var line in change.Hunk.Removed) report.AppendLine($"- {line}");
+            foreach (var line in change.Hunk.Added)   report.AppendLine($"+ {line}");
+        }
+        foreach (var note in result.Notes) report.AppendLine($"note: {note}");
+
+        if (Bool(a, "dry_run"))
+        {
+            report.AppendLine("Dry run — nothing was written.");
+            return ToolResult.Ok($"would {result.Message}", report.ToString());
+        }
+
+        foreach (var change in result.Changes)
+        {
+            var full = FullPath(root, change.RelativePath);
+            if (SourceFile.Read(full) is not { } raw)
+                return ToolResult.Error($"{change.RelativePath} could not be re-read before writing.");
+            if (SourceFile.WriteIfUnchanged(full, change.OriginalText, change.NewText, raw.Encoding) is { } refused)
+                return ToolResult.Error(refused);
+        }
+
+        report.AppendLine("Rebuild the graph (graph_build) so its record matches the file.");
+        return ToolResult.Ok(result.Message, report.ToString());
+    }
+
     private static ToolResult Build(string root)
     {
         try
@@ -304,6 +411,16 @@ public static class GraphTools
         }
         catch { return null; }
     };
+
+    /// <summary>Raw file text — line endings and BOM intact, because an edit puts them back. The
+    /// line-splitting <see cref="Reader"/> above normalises both away, so it cannot be used for editing.</summary>
+    private static GraphEdit.ReadText RawReader(string root) => rel => SourceFile.Read(FullPath(root, rel))?.Text;
+
+    private static string FullPath(string root, string rel) =>
+        System.IO.Path.Combine(root, rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+
+    private static bool Bool(JsonObject a, string key) =>
+        a.TryGetPropertyValue(key, out var v) && bool.TryParse(v?.ToString(), out var b) && b;
 
     private static bool TryLoad(string root, out KnowledgeGraph graph, out ToolResult error)
     {

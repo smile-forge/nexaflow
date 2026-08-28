@@ -25,11 +25,9 @@ namespace Nexaflow.Features.Images.FileActions
         public bool   CanPerformAction       => true;
         public bool   OpensViewer            => true;
 
-        public bool PerformAction(string filePath)
-        {
-            _shellServices.OpenTab("Images", new Dictionary<string, string> { ["paths"] = filePath });
-            return true;
-        }
+        // Routed through the selection overload so both filter alike — opening one file and opening a
+        // one-item selection of it are the same user intent, and only one of them used to check the type.
+        public bool PerformAction(string filePath) => PerformAction([filePath]);
 
         public bool PerformAction(IEnumerable<string> filePaths)
         {

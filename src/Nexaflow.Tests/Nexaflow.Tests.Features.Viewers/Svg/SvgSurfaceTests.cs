@@ -170,32 +170,4 @@ public class SvgOpenActionTests
         return (shell, opened);
     }
 
-    [TestMethod]
-    public void ItOpensTheFileItWasInvokedOn()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsTrue(new ShowSvgAction(shell).PerformAction(@"C:\art\logo.svg"));
-
-        Assert.AreEqual(@"C:\art\logo.svg", opened.Single()["path"]);
-    }
-
-    [TestMethod]
-    public void ItIsAViewer_AndChangesNothing()
-    {
-        var action = new ShowSvgAction(Substitute.For<IShellServices>());
-
-        Assert.IsTrue(action.OpensViewer);
-        Assert.IsFalse(action.IsDestructive);
-    }
-
-    [TestMethod]
-    public void AnEmptySelectionOpensNothing()
-    {
-        var (shell, opened) = Shell();
-
-        Assert.IsFalse(new ShowSvgAction(shell).PerformAction([]));
-
-        Assert.AreEqual(0, opened.Count);
-    }
 }

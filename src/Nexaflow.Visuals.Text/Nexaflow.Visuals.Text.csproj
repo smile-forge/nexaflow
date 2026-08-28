@@ -21,7 +21,7 @@
   <ItemGroup>
     <!-- The score engraver's internals (layout engine, stem/beam rules) are asserted directly by the tests —
          those are the parts a rendered bitmap can't tell you are right. -->
-    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
   </ItemGroup>
 
   <ItemGroup>

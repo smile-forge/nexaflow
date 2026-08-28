@@ -149,6 +149,10 @@ public class ProductToolParityTests
         ("graph_paths",                     ToolSafety.SafeOperation),
         ("graph_rank",                      ToolSafety.SafeOperation),
         ("graph_build",                     ToolSafety.RequiresApproval),
+
+        // The only tool here that writes source. It verifies heavily and refuses rather than guessing, but
+        // "it checked first" is not a reason to change someone's code without asking.
+        ("graph_edit",                      ToolSafety.RequiresApproval),
     ];
 
     [TestMethod]

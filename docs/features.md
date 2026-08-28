@@ -338,7 +338,7 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 ### Shell services & lifecycle (`Services/`)
 | Interface | What it's for |
 |---|---|
-| `IShellServices` | The active workspace's shell handle: open/close/find tabs, notifications, prompts, `WatchFile`, `RunOnUiAsync`. |
+| `IShellServices` | The active workspace's shell handle: open/close/find tabs, notifications, prompts, `WatchFile`, `RunOnUiAsync`, `GetDependencyStatus`. |
 | `IFileWatch` | Handle from `IShellServices.WatchFile`; `Enabled = false` holds + coalesces callbacks, dispose to unwatch. |
 | `IBackgroundTask` | Self-contained background work handed to `IShellServices.QueueBackgroundTask` (runs off the UI thread). |
 | `IShellAware` | A custom config-editor control that needs the shell handed to it (for the themed file/folder pickers). |
@@ -383,3 +383,23 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 | Interface | What it's for |
 |---|---|
 | `IThemeContribution` | A feature ships fallback theme resources (region tokens / `Scene.*` templates) without Core referencing it. |
+
+### External components (`Dependencies/`)
+| Interface | What it's for |
+|---|---|
+| `IExternalDependency` | A feature declares a third-party runtime/tool it needs present on the machine (Edge WebView2, libvlc, the `dotnet` CLI). Discovered by reflection like `IThemeContribution`; Core probes each off the UI thread and lists them in **Options → About → System components**. |
+
+Two features may declare the **same** `Id` — WebView2 is declared by both `Pdf` and `Web`. The registry keys
+on the id and merges them into one row naming both, and `Required` beats `Optional` whichever is seen first.
+Keep the wording identical across co-declarations; `ExternalDependencyRulesTests` fails the build if it drifts,
+if a declaration has no parameterless constructor, or if a probe throws.
+
+A feature can also **pre-flight** before using the component:
+
+```csharp
+if (shell.GetDependencyStatus(WebView2Dependency.DependencyId).State == ExternalDependencyState.Missing)
+    { ShowRuntimeMissing(); return; }
+```
+
+Only `Missing` means absent. `Unknown` is the answer for an unrecognised id, a probe that threw, and the
+window before the first probe finishes — always treat it as "carry on and try", never as "it isn't there".

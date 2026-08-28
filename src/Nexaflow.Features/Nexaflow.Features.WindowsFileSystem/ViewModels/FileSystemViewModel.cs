@@ -1238,7 +1238,18 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         // Resolves the default action by extension and opens it; files inside an archive open through the
         // VFS-aware readers (the opener's magic-byte sniff self-skips for a non-existent real path).
-        if (await _opener.OpenAsync(entry.FullPath)) Refresh();
+        try
+        {
+            if (await _opener.OpenAsync(entry.FullPath)) Refresh();
+        }
+        catch (Exception ex)
+        {
+            // Double-click is the single most-used path in the app and it used to be exception-transparent:
+            // anything an action threw unwound out to the app-level dispatcher handler, which reports an
+            // anonymous "something went wrong" naming neither the file nor the viewer. Name the file here.
+            // A viewer that opens and then fails to build its view reports that itself, on its own tab.
+            _shell.ShowError($"Couldn't open {entry.Name}: {ex.Message}");
+        }
     }
 
     /// <summary>Loads an archive's contents (or a folder inside one) through the VFS. Archives are small

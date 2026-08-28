@@ -421,7 +421,113 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 return Task.FromResult(ToolResult.Ok(tree ?? string.Empty, "Parsed the document."));
             }),
 
+        new DelegateClientTool(
+            "list_declarations",
+            "List the types and members this file declares, each with the ast_path that addresses it, its "
+            + "kind and its line range. The way to find something to edit structurally — read this before "
+            + "calling edit_declaration. Empty if the file has no code grammar.",
+            [],
+            ToolSafety.SafeOperation,
+            (_, _) =>
+            {
+                if (EditorGrammar is not { } grammar)
+                    return Task.FromResult(ToolResult.Ok(string.Empty, "This file has no code grammar."));
+
+                var found = Nexaflow.Syntax.StructuralEdit.Declarations(grammar, Document.Text);
+                if (found.Count == 0)
+                    return Task.FromResult(ToolResult.Ok("none", "This file declares nothing the parser recognises."));
+
+                var listing = string.Join("\n",
+                    found.Select(d => $"{d.Line,5}-{d.EndLine,-5} {d.Kind,-11} {d.Name,-32} {d.AstPath}"));
+                return Task.FromResult(ToolResult.Ok($"{found.Count} declaration(s)", listing));
+            }),
+
         // ── Edit / save (approval-gated) — mutate the live AvalonEdit document ──
+        new DelegateClientTool(
+            "edit_declaration",
+            "Change ONE declaration — replace it, delete it, change its signature without touching its body "
+            + "(or the reverse), rename it, substitute text inside it, insert one beside it, append a member "
+            + "to a type, or rewrite its doc comment. Prefer this over set_editor_text and replace_all: it "
+            + "edits exactly the declaration named and nothing else, and it re-parses the result and refuses "
+            + "rather than leaving the file broken. Do not worry about indentation or line endings — write "
+            + "the replacement flush-left with \\n and it lands correctly indented with the file's own "
+            + "endings. Get ast_path from list_declarations.",
+            [
+                new ClientToolParameter("ast_path",
+                    "Which declaration, from list_declarations (e.g. 'T:C/M:Add'). Not needed for 'import'.",
+                    Required: false),
+                new ClientToolParameter("op",
+                    "replace | delete | signature | body | rename | insert_before | insert_after | append | "
+                  + "doc | substitute | import. 'append' targets a type and adds a member at the end of its "
+                  + "body; 'signature' and 'body' each leave the other half byte-for-byte unchanged; "
+                  + "'import' adds a using/import where the file already keeps them (pass it in 'text')."),
+                new ClientToolParameter("text", "The new code — or, for 'substitute', the replacement. Not needed for 'delete'.", Required: false),
+                new ClientToolParameter("to", "The new name, for 'rename'.", Required: false),
+                new ClientToolParameter("find",
+                    "For 'substitute': the text to find, searched only INSIDE this declaration. Literal "
+                  + "unless find_is_regex, and refused unless it matches exactly once — use it to change one "
+                  + "line without restating the whole method. Indentation need not match: paste the fragment "
+                  + "as you read it, or flush-left, and it will still be found. If it is not there, the "
+                  + "refusal names the declaration that does contain it.", Required: false),
+                new ClientToolParameter("find_is_regex", "Treat 'find' as a regular expression.", Required: false, Type: "boolean"),
+                new ClientToolParameter("all_occurrences", "Allow 'find' to match more than once.", Required: false, Type: "boolean"),
+                new ClientToolParameter("with_trivia", "For 'replace', also replace the doc comment above it.", Required: false, Type: "boolean"),
+                new ClientToolParameter("expect",
+                    "Refuse unless the declaration currently contains this text. Worth passing when editing "
+                  + "an overload (an ast_path with #N) after an earlier edit added or removed one, since #N "
+                  + "is a position and the others will have renumbered.", Required: false),
+            ],
+            ToolSafety.RequiresApproval,
+            (args, _) =>
+            {
+                if (IsReadOnlyMode) return Task.FromResult(ToolResult.Error("This file can't be edited."));
+                if (EditorGrammar is not { } grammar)
+                    return Task.FromResult(ToolResult.Error(
+                        "This file has no code grammar, so it has no declarations to edit structurally. Use "
+                      + "replace_all or set_editor_text."));
+
+                if (ParseEditOp(ToolArgs.Str(args, "op", "operation")) is not { } op)
+                    return Task.FromResult(ToolResult.Error(
+                        $"Unknown 'op' '{ToolArgs.Str(args, "op", "operation")}'. Expected replace, delete, "
+                      + "signature, body, rename, insert_before, insert_after, append, doc, substitute or import."));
+
+                // 'import' is the one op that belongs to the file rather than to a declaration, so it is the
+                // one that needs no ast_path.
+                var path = ToolArgs.Str(args, "ast_path", "path", "declaration");
+                if (op is not Nexaflow.Syntax.StructuralEdit.Op.Import && string.IsNullOrEmpty(path))
+                    return Task.FromResult(ToolResult.Error("No 'ast_path' provided — call list_declarations first."));
+
+                var options = new Nexaflow.Syntax.StructuralEdit.Options(
+                    ToolArgs.Bool(args, "with_trivia"),
+                    ToolArgs.Str(args, "expect"),
+                    ToolArgs.Raw(args, "find"),
+                    ToolArgs.Bool(args, "find_is_regex"),
+                    ToolArgs.Bool(args, "all_occurrences"));
+
+                // Raw, not Str: replacement code is whitespace-significant, and trimming it would silently
+                // reflow whatever the caller wrote.
+                var text   = ToolArgs.Raw(args, "text", "content", "new_text");
+                var result = op is Nexaflow.Syntax.StructuralEdit.Op.Import
+                    ? Nexaflow.Syntax.StructuralEdit.AddImport(grammar, Document.Text, text ?? "")
+                    : Nexaflow.Syntax.StructuralEdit.Apply(grammar, Document.Text, path!, op, text,
+                                                           options, ToolArgs.Str(args, "to"));
+
+                if (!result.Ok || result.Change is not { } change)
+                    return Task.FromResult(ToolResult.Error(result.Message));
+
+                // One splice rather than a whole-document assignment: a single undo step, and the caret and
+                // scroll position survive.
+                Document.Replace(change.Offset, change.Length, change.Inserted);
+
+                var report = string.Join("\n",
+                    [$"--- line {result.Hunk!.Line}",
+                     .. result.Hunk.Removed.Select(l => "- " + l),
+                     .. result.Hunk.Added.Select(l => "+ " + l),
+                     .. result.Notes.Select(n => "note: " + n),
+                     "Unsaved — call save_file to persist."]);
+                return Task.FromResult(ToolResult.Ok(result.Message, report));
+            }),
+
         new DelegateClientTool(
             "set_editor_text",
             "Replace the entire document with new text (read it first with get_editor_text). Unsaved — call save_file to persist.",
@@ -478,6 +584,34 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 return ToolResult.Ok("saved", $"Saved {FileName}.");
             }),
     ];
+
+    /// <summary>The tree-sitter grammar for the open file, or null when no grammar covers it — which is the
+    /// line between "this file has declarations to address" and "this file is just text".</summary>
+    private string? EditorGrammar
+    {
+        get
+        {
+            var grammar = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage;
+            return string.IsNullOrEmpty(grammar) ? null : grammar;
+        }
+    }
+
+    private static Nexaflow.Syntax.StructuralEdit.Op? ParseEditOp(string? op) =>
+        op?.Replace('-', '_').ToLowerInvariant() switch
+        {
+            "replace"       => Nexaflow.Syntax.StructuralEdit.Op.Replace,
+            "delete"        => Nexaflow.Syntax.StructuralEdit.Op.Delete,
+            "signature"     => Nexaflow.Syntax.StructuralEdit.Op.Signature,
+            "body"          => Nexaflow.Syntax.StructuralEdit.Op.Body,
+            "rename"        => Nexaflow.Syntax.StructuralEdit.Op.Rename,
+            "insert_before" => Nexaflow.Syntax.StructuralEdit.Op.InsertBefore,
+            "insert_after"  => Nexaflow.Syntax.StructuralEdit.Op.InsertAfter,
+            "append"        => Nexaflow.Syntax.StructuralEdit.Op.Append,
+            "doc"           => Nexaflow.Syntax.StructuralEdit.Op.Doc,
+            "substitute" or "sub" => Nexaflow.Syntax.StructuralEdit.Op.Substitute,
+            "import" or "using"   => Nexaflow.Syntax.StructuralEdit.Op.Import,
+            _               => null,
+        };
 
     public virtual IContext? GetContextObject()
     {

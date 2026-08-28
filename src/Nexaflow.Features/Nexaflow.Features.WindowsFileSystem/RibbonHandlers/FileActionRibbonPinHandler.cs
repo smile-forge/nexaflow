@@ -55,6 +55,27 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
         return new RibbonPinResult { PageKind = PageKind, Label = label, Icon = action.Icon, PageParams = pageParams };
     }
 
+    /// <summary>
+    /// Why a pinned action cannot run on a selection of <paramref name="selectionCount"/> files, or null when
+    /// it can.
+    /// <para>
+    /// The action strip decides this by <em>hiding</em> the action: <c>FileActionManager</c> drops anything
+    /// whose <see cref="IFileAction.SupportsMultipleFiles"/> is false from a multi-selection, so the user
+    /// never has a button to press. A pinned ribbon button cannot be hidden — it is already on the ribbon —
+    /// and this path resolved the action straight from the registry and invoked it, so the guard the rest of
+    /// the shell applies simply was not here. "Properties" pinned, two files selected, click:
+    /// <c>NotImplementedException</c>. Saying why it cannot run is the ribbon's version of not offering it;
+    /// quietly acting on the first of the files the user selected would be a different action from the one
+    /// they asked for.
+    /// </para>
+    /// </summary>
+    internal static string? BlockedReason(IFileAction action, int selectionCount) =>
+        selectionCount == 0
+            ? "Select files in the file explorer first."
+            : selectionCount > 1 && !action.SupportsMultipleFiles
+                ? $"\"{action.DisplayName}\" works on one file at a time — select a single file."
+                : null;
+
     public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
     {
         if (pageParams?.TryGetValue(KeyActionType, out var typeName) != true) return;
@@ -69,17 +90,14 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
 
         List<string> paths;
         if (pageParams.TryGetValue(KeyFiles, out var filesStr) && !string.IsNullOrEmpty(filesStr))
-        {
             paths = [.. filesStr.Split('|').Where(p => !string.IsNullOrEmpty(p))];
-        }
         else
-        {
             paths = [.. context.SelectedFilePaths];
-            if (paths.Count == 0)
-            {
-                context.ShowError("Select files in the file explorer first.");
-                return;
-            }
+
+        if (BlockedReason(action, paths.Count) is { } why)
+        {
+            context.ShowError(why);
+            return;
         }
 
         // Through the VFS: a pinned action on a mounted or in-archive path is still valid, and asking

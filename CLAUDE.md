@@ -88,16 +88,84 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph walk <id> --hops 2                                # its N-hop neighbourhood
 & $nfi graph grep <regex> --from <id> --hops 2 --mode content        # grep source NEAR a code node
 & $nfi graph grep <regex> --from product:<slug> --scope owned --mode content   # grep a whole FEATURE
-& $nfi graph grep <regex> --mode content                             # grep EVERY code node (~1s, 47k nodes)
+& $nfi graph grep <regex> --mode content                             # grep EVERY code node (~3s, 64k nodes)
 & $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
 & $nfi graph build             # regenerate .product/graph.json after code changes (incremental)
 ```
+
+**The graph edits too, and structurally — `graph edit <op> <node-id>`.** Addressing a change by *what it is*
+rather than by which lines it currently occupies:
+
+```powershell
+& $nfi graph edit replace    <node-id> --file new-method.cs        # whole declaration (keeps its doc comment)
+& $nfi graph edit signature  <node-id> --text 'public long Add(int a, int b)'   # body stays byte-for-byte
+& $nfi graph edit body       <node-id> --stdin                     # signature stays byte-for-byte
+& $nfi graph edit rename     <node-id> --to NewName
+& $nfi graph edit delete     <node-id>                             # takes its doc/attributes with it
+& $nfi graph edit append     <type-id> --text-escaped 'public int Zero() => 0;'   # into a type's body
+& $nfi graph edit insert-before|insert-after|doc <node-id> --file …
+& $nfi graph edit substitute <node-id> --find 'old();' --text 'new();'   # find/replace INSIDE one declaration
+& $nfi graph edit import     <file-or-node-id> --text 'using System.Linq;'   # where the file keeps its imports
+```
+
+**Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
+in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale
+graph can never overwrite whatever now occupies those lines), and re-parses the result — an edit that would
+break the file is refused, not written. `signature` and `body` each prove the other half is unchanged
+afterwards rather than assuming it. `substitute` is the safe form of a stream edit: literal unless `--regex`,
+bounded to the one declaration so a common identifier can't be rewritten across the file, and refused unless
+it matches exactly once (`--all` to override, and it reports how many it touched). **`--find` does not need
+matching indentation** — an exact match wins, and failing that the fragment is matched line-by-line ignoring
+leading whitespace, so a snippet pasted as you read it or written flush-left is found either way. When it
+isn't there at all, the refusal names the declaration that *does* contain it, with its node id.
+
+There is deliberately **no line-addressed edit inside a body**: line numbers are the failure mode this design
+removes, and a `substitute` whose search text you extend by a line either side is both unambiguous and
+self-verifying.
+
+**Several edits to one file in a row** are safe — each re-resolves against the file as it then is, so line
+drift is a non-issue, and a path invalidated by an earlier edit (a rename, a delete) is *refused*, not
+guessed at. The one exception is **overloads**: the `#N` in `T:C/M:Add#1` is that overload's *position* among
+its same-named siblings, so deleting or inserting one renumbers the rest, and a later edit reusing an earlier
+listing would aim at a different method while the name check still passes. Such an edit says so in its notes
+(`… renumbers the others`). After one, either re-list, or pin the next edit with `--expect` — that is the only
+guard that still refuses when the path itself has come to mean something else.
+
+You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
+flush-left with `\n` and it lands correctly indented with the file's own endings and encoding. Text comes from
+`--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
+path — alone), `--file`, or `--stdin`; `--find`/`--find-escaped` mirror that pair. `--dry-run` prints the hunk
+and writes nothing; `--expect S` refuses unless the block still contains `S`, pinning the edit to what you
+read. Rebuild the graph afterwards so its record matches.
+
+`import` is file-level (it takes a `file:` id, or any code node in that file) and lands where the file already
+keeps its imports — under the last one, or below a licence header when there are none. Reaching that through
+`insert-before` on the first declaration was possible and wrong: with a file-scoped namespace it put the
+`using` *underneath* the `namespace`, which compiles and reads as a mistake.
+
+The engine is `StructuralEdit` in **`Nexaflow.Syntax`** — source text in, source text out, no graph and no
+file IO. `GraphEdit` (in `Services.Initiatives`) is only the adapter that turns a node id into a file, an AST
+path and the name to verify against. Three surfaces drive it:
+
+| Surface | How a declaration is addressed |
+|---|---|
+| `nfi graph edit` | a graph node id |
+| `graph_edit` client tool (assistant) | a graph node id |
+| `list_declarations` + `edit_declaration` (any editor tab) | an `ast_path` from the open buffer — no graph needed |
+
+The editor tools live on `FileTextEditorViewModel`, so every tab built on the shared editor base (Code,
+Notebook, …) gets them. They apply the edit as a **minimal splice** rather than reassigning the document, so
+it is one undo step and the caret and scroll position survive. Prefer `edit_declaration` over the older
+`set_editor_text` / `replace_all`, which respectively restate the whole file and match across all of it.
 
 **Searching for a code *pattern* is a graph query too** — not just "where is X". A defect signature ("a path
 compared with a bare `StartsWith`"), an idiom sweep, a "does anything still do Y" — all of it is
 `graph grep … --mode content`, which reports each hit as file:line **plus the owning type/member and feature**.
 Reach for it exactly where you would otherwise type `grep -rn`; a blanket text search is never the better tool
-here, and with no `--from` it covers the whole repo in about a second.
+here, and with no `--from` it covers the whole repo in a few seconds. **`--limit` trims the printed list, never
+the search** — the total on the summary line is the real total, and a trimmed run says `showing N, raise --limit
+for the rest`. Only an explicit `--scan-cap` can cut the search short, and that prints a loud `INCOMPLETE`. So a
+count with neither notice is a count you can reason about, including a zero.
 
 Pick the scope by what you mean, not by tuning a number:
 
@@ -126,6 +194,8 @@ The product-folder skill has fast-query recipes for deeper questions; the per-re
 — the UI/Functionality/AI backbone, concern-by-role rules, the one-journey-plus-per-leaf-unit-test model, and
 the roadmap of analyzers/validators to lock it down — is in
 [docs/feature-tree-and-tests.md](docs/feature-tree-and-tests.md) (the Text Viewer is the worked reference).
+
+**Every git-reading verb runs git where *you* stand, not where the tree lives.** `remap --from-git` resolves its repository from the caller's working tree — from a linked worktree the product root is the MAIN checkout, whose `HEAD` has never seen your commits, so a range ending at `HEAD` came back empty and the verb rewrote nothing while reporting success. Note the blind spot that hid it: `validate` falls back to the product root when your working tree lacks a file (deliberately — it is what stops a worktree flagging every not-yet-merged path), so a file you have **moved away** still resolves in the main checkout and the tree reads clean while its links are stale. After a rename or move, run `remap --from-git <base>..HEAD --dry-run` — do not infer from a clean `validate` that nothing needs remapping.
 
 Every verb's arguments are **strict** — an unknown option, a missing option value or a surplus positional is a
 hard error naming that verb's usage, never silently ignored (`batch` parses each line the same way and is
@@ -279,12 +349,14 @@ Test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full 
 | Project | Covers |
 |---------|--------|
 | `Nexaflow.Tests.UIJourneys` | **Every test that launches the app** and drives the real mouse — `Core\` for the shell, `Features\<Feature>\` for the rest. References **only** `Tests.Fixtures`: a journey knows the app as a running process, never as an assembly. Fixtures it can't click into being are built by the suite that owns that format, into `test-samples/ui/`; a missing one is *inconclusive*, not a failure. **So run the other suites first.** |
-| `Nexaflow.Tests.Core` | Core shell + `Nexaflow.Visuals.*`. References Core. Its `TestCategory("UI")` tests render WPF off-screen — an STA thread, no window; its `TestCategory("Desktop")` ones show a real window and so must also be `[DoNotParallelize]`. |
-| `Nexaflow.Tests.Features` | The shell-adjacent features — AI chat, console, network, OneDrive, Product/Projects, scratchpad, This PC, web — plus the feature-agnostic search plumbing. References the feature projects, **not** Core. |
-| `Nexaflow.Tests.Features.Viewers` | Every viewer/editor/player (Audio…Video) and the sample-file corpus. |
+| `Nexaflow.Tests.Core` | The Core shell **only** — config/workspaces, feature catalog + DI, shell services, agent loop, the `?` search route, theming. References Core, and Core hard-references every feature and provider (they must land in its output for `FeatureCatalog`), so building this builds the solution. That is why everything not needing Core lives in the two suites below. |
+| `Nexaflow.Tests.Visuals` | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, editor highlighting, shared controls + layout, the WebView surface. **Never Core.** Its `TestCategory("UI")` tests render WPF off-screen — an STA thread, no window; its `TestCategory("Desktop")` ones show a real window and so must also be `[DoNotParallelize]`. |
+| `Nexaflow.Tests.Components` | The shared leaves that are neither IO nor UI: `Nexaflow.Syntax`, `Nexaflow.Search`, `Elevation.Contracts`. Same shape as `Tests.IO` — references the subjects and `Tests.Fixtures`, nothing else, and no WPF. |
+| `Nexaflow.Tests.Features` | The shell-adjacent features — AI chat, console, network, OneDrive, Product/Projects, scratchpad, This PC, web — plus the **folder viewlets** (Git, Dotnet) and the feature-agnostic search plumbing. References the feature projects, **not** Core. |
+| `Nexaflow.Tests.Features.Viewers` | Every viewer/editor/player (Audio…Video) and the sample-file corpus. A feature that registers no page is not a viewer: Git and Dotnet are `IFolderViewlet`s and live in `.Features` beside the other three. |
 | `Nexaflow.Tests.Features.WindowsOS` | The Windows-integration features: file system, registry, search index, installed apps, processes, system info. |
 | `Nexaflow.Tests.Features.Architecture` | The whole-repo guards. References the other suites for their **output** — the rules reflect over every feature and test assembly. A new suite must be added to `FeatureTestSuites.Patterns` or it silently drops out of the `[CoversNode]` guard. |
-| `Nexaflow.Tests.Features.Common` | **Not a test project** — shared support for the suites above: `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` conformance contract. No feature reference. (The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures`, which both its consumers reference.) |
+| `Nexaflow.Tests.Features.Common` | **Not a test project** — shared support for the suites above: `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts. No feature reference. (The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures`, which both its consumers reference.) |
 | `Nexaflow.Tests.IO` | `Nexaflow.IO.*` — the WPF-free IO leaves. References the IO projects and **nothing else**: no Core, no Features, no Visuals, so it needs neither a desktop session nor a shell. |
 | `Nexaflow.Tests.Initiatives` | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser. Same shape as `Tests.IO`: plain `net10.0`, references the backend and `Tests.Fixtures` and nothing else, so it needs no desktop session. What stayed in `.Features` is the ProductManager *feature* (view-models, AI client tools, graph viewer). |
 | `Nexaflow.Tests.Providers` | Provider clients. |

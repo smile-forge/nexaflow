@@ -20,37 +20,6 @@ public class ShowPdfActionTests
         return (new ShowPdfAction(shell), shell);
     }
 
-    [TestMethod]
-    [TestCategory("Unit")]
-    public void PerformAction_OpensTheDocumentInAPdfTab()
-    {
-        var (action, shell) = Subject();
-
-        Assert.IsTrue(action.PerformAction(@"C:\docs\report.pdf"));
-        shell.Received(1).OpenTab("Pdf",
-            Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\docs\report.pdf"));
-    }
-
-    [TestMethod]
-    [TestCategory("Unit")]
-    public void PerformAction_OnASelection_OpensTheFirstOnly()
-    {
-        var (action, shell) = Subject();
-
-        Assert.IsTrue(action.PerformAction([@"C:\a.pdf", @"C:\b.pdf"]));
-        shell.Received(1).OpenTab("Pdf", Arg.Any<Dictionary<string, string>>());
-        shell.Received(1).OpenTab("Pdf", Arg.Is<Dictionary<string, string>>(p => p["path"] == @"C:\a.pdf"));
-    }
-
-    [TestMethod]
-    [TestCategory("Unit")]
-    public void PerformAction_OnAnEmptySelection_DoesNothing()
-    {
-        var (action, shell) = Subject();
-
-        Assert.IsFalse(action.PerformAction([]));
-        shell.DidNotReceive().OpenTab(Arg.Any<string>(), Arg.Any<Dictionary<string, string>>());
-    }
 
     [TestMethod]
     [TestCategory("Unit")]

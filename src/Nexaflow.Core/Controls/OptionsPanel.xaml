@@ -257,7 +257,11 @@
             <Border Grid.Column="0"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,1,0">
-                <ListBox ItemsSource="{Binding Sections}"
+                <!-- The section list is the only handle a UI journey has on the Options interior: a
+                     ListBox is a Control (so it gets a real automation peer) and each ListBoxItem
+                     exposes its FriendlyName, which is how a journey selects a section by name. -->
+                <ListBox AutomationProperties.AutomationId="Options_SectionList"
+                         ItemsSource="{Binding Sections}"
                          SelectedItem="{Binding SelectedSection}"
                          Style="{StaticResource DarkListBox}"
                          Padding="8,4">
@@ -280,7 +284,8 @@
             <!-- Right: custom control (when section has [CustomControl]) or property grid -->
             <Grid Grid.Column="1">
                 <!-- Custom control mode -->
-                <ContentControl Content="{Binding SelectedSection.CustomControlInstance}"
+                <ContentControl AutomationProperties.AutomationId="Options_CustomSection"
+                                Content="{Binding SelectedSection.CustomControlInstance}"
                                 Visibility="{Binding SelectedSection.HasCustomControl, Converter={StaticResource BoolVis}}"/>
                 <!-- Property grid mode -->
                 <ScrollViewer Padding="20,12"

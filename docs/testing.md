@@ -10,12 +10,14 @@ All under `src/Nexaflow.Tests/`:
 | Project | Target | Covers | References |
 |---------|--------|--------|------------|
 | `Nexaflow.Tests.UIJourneys` | `net10.0-windows10.0.19041.0`, MSTest exe | **Every test that launches the app.** `Core\` for the shell, `Features\<Feature>\` for the rest | `Nexaflow.Tests.Fixtures` **and nothing else** — a journey knows the app as a running process, never as an assembly |
-| `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome, services, `Nexaflow.Visuals.*` | `Nexaflow.Core`, `Nexaflow.Visuals.Text`, `Nexaflow.Tests.Fixtures` |
-| `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
-| `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
+| `Nexaflow.Tests.Core` | `net10.0-windows10.0.19041.0`, MSTest exe | Core shell chrome and services **only** — config/workspaces, the feature catalog and DI, shell services, the agent loop, the `?` search route, theming | `Nexaflow.Core`, `Nexaflow.Tests.Fixtures` |
+| `Nexaflow.Tests.Visuals` | `net10.0-windows`, MSTest exe | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, the shared controls and layout, the WebView surface, and the editor-side highlighting | `Visuals.Common/.Text/.Web`, `Syntax`, `Search`, `IO.Common`, `Features.Common`, `Nexaflow.Tests.Fixtures` — **never Core** |
+| `Nexaflow.Tests.Components` | `net10.0-windows`, MSTest exe | The shared component leaves that are neither IO nor UI: `Nexaflow.Syntax` (tree-sitter, structural edit), `Nexaflow.Search` (query syntax/terms), `Elevation.Contracts` | those + `IO.Common` + `Nexaflow.Tests.Fixtures` — **nothing else**, and no WPF |
+| `Nexaflow.Tests.Features` | `net10.0-windows10.0.19041.0`, MSTest exe | The shell-adjacent features: AI chat, console, network discovery, OneDrive, Product/Projects, scratchpad, This PC, web — plus the folder viewlets (Git, Dotnet) and the generic search plumbing | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` — **never Core** |
+| `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the suites above **and** `Tests.Initiatives` (for their **output**, not their API) |
-| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` conformance contract. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
+| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
@@ -95,19 +97,22 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 ### Categories
 
 - **Unit / non-UI** — fast, headless, no desktop. The default for CI.
-- **`TestCategory("Desktop")`** *(`Tests.Core`)* — **shows a real window and takes focus.** Focus is a
-  single machine-wide resource, so these must also carry **`[DoNotParallelize]`**: run two at once and
-  they take it from each other mid-assertion, which surfaces as a *different* test failing on each run
-  rather than as anything resembling a real bug. `DesktopTestCategoryGuardTests` enforces this — a class
-  whose source shows a window must declare the category and opt out of parallelism.
+- **`TestCategory("Desktop")`** *(`Tests.Visuals`, `Tests.Core`)* — **shows a real window and takes
+  focus.** Focus is a single machine-wide resource, so these must also carry **`[DoNotParallelize]`**:
+  run two at once and they take it from each other mid-assertion, which surfaces as a *different* test
+  failing on each run rather than as anything resembling a real bug. `DesktopTestCategoryGuardTests`
+  enforces this — a class whose source shows a window must declare the category and opt out of
+  parallelism. It reads **both** suites' sources, because the resource is machine-wide: a guard scoped to
+  the assembly it happens to sit in would pass over the other one and read green while testing nothing.
 - **`TestCategory("UI")`** — needs an interactive desktop session; skip in headless/CI with
-  `--filter "TestCategory!=UI"`. In `Tests.Core` this now means only *renders WPF off-screen* — an STA
-  thread, no window, safe to parallelise. Elsewhere, two kinds, and the split is the point:
+  `--filter "TestCategory!=UI"`. In `Tests.Visuals` and `Tests.Core` this now means only *renders WPF
+  off-screen* — an STA thread, no window, safe to parallelise. Elsewhere, two kinds, and the split is the
+  point:
   - **`Nexaflow.Tests.UIJourneys`** drives the real `Nexaflow.exe` via FlaUI. Each test launches a fresh
     app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp dir), so it neither
     depends on nor pollutes the developer's real `%APPDATA%` config. See `UITestBase`.
-  - The remainder, in `Tests.Core/Visuals`, render WPF controls off-screen. They want a desktop session
-    but launch nothing and touch no pointer, so they stay beside their subject.
+  - The remainder, in `Tests.Visuals`, render WPF controls off-screen. They want a desktop session but
+    launch nothing and touch no pointer, so they stay beside their subject.
 
   They live in one assembly because they used to be spread over four, and a whole-suite run then started
   four test hosts: each asked for the machine separately, and each launched its own app, so the instances
@@ -150,6 +155,47 @@ test assembly). `dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- s
 prints the starter set derived from the tree's existing `tests` snaplinks. See CLAUDE.md → *Test coverage is
 declared on the test* for the full loop (scan-tests → manifest → Integrity-page reconcile → Add link).
 
+## Conformance suites — one contract, every implementor
+
+Two contracts are written once in `Nexaflow.Tests.Features.Common` and inherited per implementor, rather
+than restated by hand in each feature's folder. Derive a concrete `[TestClass]`, supply the two or three
+things the base cannot know, and the inherited `[TestMethod]`s run against it — so a new implementor cannot
+ship without being held to the same rules, and a rule added to the base applies everywhere at once.
+
+| Contract | Base | Implementors |
+|---|---|---|
+| `ISearchable` — a page may decline regex, but never *appear* to support it | `Search/SearchableConformance.cs` (two tiers: with and without seeded content) | every searchable page |
+| viewer `IFileAction` — `PerformAction(p)` and `PerformAction([p])` are the same user intent | `FileActions/FileActionConformance.cs` | every action with `OpensViewer => true` |
+
+Both were written after the same discovery: the rule *was* asserted by hand in some features and not in
+others, and the features missing it were the ones that had drifted. The file-action contract found six
+actions whose two overloads disagreed — four (`ShowAudioAction`, `OpenAsEmailAction`, `ShowImageAction`,
+`ShowHtmlAction`) filtered the selection overload by file type but not the single-file one, so "As
+Audio" on a text file queued it from the file list and silently refused the very same file as a one-item
+selection; two (`OpenAsArchiveAction`, `OpenAsDiskAction`) returned `true` for an *empty* selection and
+opened a tab per file while declaring `SupportsMultipleFiles => false`.
+
+What the base deliberately does **not** test is the metadata half — that `StaticExperienceId` is declared
+and the experience is mapped in the bundled file map. Reflection over every feature assembly already covers
+that in `FeatureTouchPointTests`; what reflection cannot do is *invoke* the action, which was the half that
+had rotted.
+
+Adding an action to the contract costs six lines:
+
+```csharp
+[TestClass]
+[CoversNode("svg-open-actions")]
+public class ShowSvgActionConformance : ViewerActionConformanceTests
+{
+    protected override IFileAction CreateAction(IShellServices shell) => new ShowSvgAction(shell);
+    protected override string ExpectedPageKind => SvgTabRegistration.StaticPageKind;
+    protected override string AcceptableFile   => @"C:\art\logo.svg";
+}
+```
+
+Nothing touches disk: every viewer action is a pass-through to `IShellServices.OpenTab`, and the ones that
+filter do it on the extension alone, so the paths are probes rather than fixtures.
+
 ## Coverage by feature
 
 Feature assemblies (`Nexaflow.Features.*`) are tested across the `Nexaflow.Tests.Features*` suites,
@@ -183,16 +229,37 @@ points, so `LogViewModel`/`TextViewModel` tests run under `Infrastructure/AsyncP
 single-threaded synchronization context). `LogViewModel`'s background head-reassembly needs a live UI
 `Dispatcher`, so that one path is left to the UI smoke rather than a unit test.
 
-### Core & shared libraries (`Nexaflow.Tests.Core`)
+### Core shell (`Nexaflow.Tests.Core`)
 
-Covers `Nexaflow.Core` and the `Nexaflow.Visuals.*` libraries.
+Covers `Nexaflow.Core` and nothing else — background activity, config manager + migration, conversation
+store, message center, panes and quick-open, shell services, workspace manager + config scoping, the
+feature catalog / subfeature catalog / feature DI, the elevated bridge launcher, the client-tool parser
+and agent loop, the `?` search route (`SearchQueryHandler`, `SearchClientTools`) and theme freezing.
 
-- **Unit** — background activity, config manager, conversation store, message center, panes, shell
-  services, workspace manager + config scoping, elevation contracts + bridge launcher, the client-tool
-  parser + agent loop, and the WPF-free Markdown/diagram parsers, pipeline factory and Sugiyama layout.
-- **UI** — app launch, notifications, setup wizard and the tab strip (Core shell); plus the
-  `Visuals.Text` Markdown renderer (`BlockRenderer`, `MarkdownView`, extensions, diagram renderer,
-  sample render).
+`Tests.Core` is the one suite that references Core, and Core hard-references every feature and provider
+assembly (they must land in its output for `FeatureCatalog` to scan). So building it builds the whole
+solution — which is why everything that does **not** need Core has been moved out, below.
+
+### Visuals (`Nexaflow.Tests.Visuals`)
+
+Covers the `Nexaflow.Visuals.*` libraries, with no reference to Core: markdown parsing and rendering
+(`BlockRenderer`, `MarkdownView`, extensions, pipeline factory, diagram renderer, Sugiyama layout), the
+LaTeX formula tree/layout/caret model, the music engraver, the inline markdown editor, `Visuals.Text`'s
+editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
+
+Its two WPF categories are split by what they *need*, not what they touch — see
+[Two kinds of WPF test](#two-kinds-of-wpf-test) below. `DesktopTestCategoryGuardTests` lives here and
+scans both this suite and `Tests.Core`, because focus is machine-wide and the rule is not per-assembly.
+
+### Component leaves (`Nexaflow.Tests.Components`)
+
+Covers the shared leaves that are neither IO nor UI, and — like `Tests.IO` — references nothing above
+them:
+
+- **`Syntax/`** — `Nexaflow.Syntax`: the tree-sitter probe, the code highlighter, language injection,
+  `SourceText`, `StructuralEdit`, XAML value highlighting.
+- **`Search/`** — `Nexaflow.Search`: the `?` bar's query syntax and term parsing (globs vs regex).
+- **`Elevation/`** — `Elevation.Contracts` DTO round-trips.
 
 ### IO leaves (`Nexaflow.Tests.IO`)
 

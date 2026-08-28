@@ -25,6 +25,8 @@
     <!-- TestFramework only, not the MSTest meta-package: this library declares [TestMethod]s on abstract
          bases for the suites to inherit, but it is never itself run. -->
     <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
+    <!-- The file-action conformance base drives each action against a recording IShellServices. -->
+    <PackageReference Include="NSubstitute" Version="6.2.0" />
     <PackageReference Include="FlaUI.Core" Version="5.0.0" />
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
     <!-- DicomTestFiles writes multi-frame instances and a real DICOMDIR. Shared because both the DICOM

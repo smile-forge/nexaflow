@@ -125,18 +125,33 @@ public abstract class UITestBase
         _gate?.Dispose();               // hand the machine to the next host, however this test ended
         _gate = null;
 
-        // The app writes any unhandled UI-thread exception to crash.log in its (isolated) config dir; the
+        // The app writes any unhandled exception to a dated crash log in its (isolated) config dir; the
         // handler marks it handled so the app stays up, making the log the only trail. Opening/clicking
         // around the app must not trigger one — surface it as a test failure rather than a silent log.
-        string? crash = null;
-        var crashLog = Path.Combine(_configDir, "crash.log");
-        try { if (File.Exists(crashLog)) crash = File.ReadAllText(crashLog); } catch { }
+        var crash = ReadCrashLogs(_configDir);
 
         try { if (Directory.Exists(_configDir)) Directory.Delete(_configDir, recursive: true); } catch { }
 
         if (!string.IsNullOrWhiteSpace(crash))
             Assert.Fail("The app logged an unhandled exception during this UI test — opening/clicking " +
                         $"triggered a crash:{Environment.NewLine}{crash}");
+    }
+
+    /// <summary>
+    /// Everything the app recorded under <paramref name="configDir"/>, or null if it recorded nothing. The
+    /// log is one file per day (<c>crash-yyyy-MM-dd.log</c>), so a run spanning midnight leaves two — read
+    /// them all rather than the one whose name today happens to be.
+    /// </summary>
+    internal static string? ReadCrashLogs(string configDir)
+    {
+        try
+        {
+            if (!Directory.Exists(configDir)) return null;
+            var logs = Directory.GetFiles(configDir, "crash*.log").OrderBy(p => p).ToList();
+            if (logs.Count == 0) return null;
+            return string.Join(Environment.NewLine, logs.Select(File.ReadAllText));
+        }
+        catch { return null; }
     }
 
     /// <summary>

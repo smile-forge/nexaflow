@@ -86,19 +86,37 @@ public sealed class CodeStructureExtractor
         return Search(Extract(grammarId, text, baseDir), astPath);
     }
 
+    /// <summary>
+    /// Every element's span, keyed by AST path - one parse answering every lookup, for a caller resolving many
+    /// paths in the same file (a whole-file grep) or asking where the declaration <i>around</i> a line stops.
+    /// First declaration wins on a duplicate path, exactly as <see cref="ResolveSpan"/>'s search does.
+    /// </summary>
+    public static IReadOnlyDictionary<string, (int Line, int EndLine)> Spans(CodeOutline outline)
+    {
+        var map = new Dictionary<string, (int Line, int EndLine)>(StringComparer.Ordinal);
+        foreach (var (path, line, end) in Walk(outline)) map.TryAdd(path, (line, end));
+        return map;
+    }
+
     private static (int Line, int EndLine)? Search(CodeOutline o, string astPath)
+    {
+        foreach (var (path, line, end) in Walk(o))
+            if (path == astPath) return (line, end);
+        return null;
+    }
+
+    /// <summary>Every declaration the outline holds, host types and their members first, then top-level members,
+    /// then embedded languages - the order a path lookup resolves in, so one traversal defines both.</summary>
+    private static IEnumerable<(string Path, int Line, int EndLine)> Walk(CodeOutline o)
     {
         foreach (var t in o.Types)
         {
-            if (t.AstPath == astPath) return (t.Line, t.EndLine);
-            foreach (var m in t.Members)
-                if (m.AstPath == astPath) return (m.Line, m.EndLine);
+            yield return (t.AstPath, t.Line, t.EndLine);
+            foreach (var m in t.Members) yield return (m.AstPath, m.Line, m.EndLine);
         }
-        foreach (var m in o.TopLevel)
-            if (m.AstPath == astPath) return (m.Line, m.EndLine);
+        foreach (var m in o.TopLevel) yield return (m.AstPath, m.Line, m.EndLine);
         foreach (var e in o.Embedded)
-            if (Search(e.Outline, astPath) is { } span) return span;
-        return null;
+            foreach (var span in Walk(e.Outline)) yield return span;
     }
 
     /// <summary>Returns a copy of <paramref name="o"/> with every line shifted by <paramref name="lineOffset"/>
