@@ -96,18 +96,25 @@ public class GraphRefreshTests
         CollectionAssert.Contains(Ids(graph), $"code:{Rel}#T:C/M:M", "and the ones still there stay");
     }
 
+    /// <summary>
+    /// A file that is not here is not evidence that it should leave the graph. graph.json is shared with
+    /// every worktree, and a branch that runs a build publishes its own files into it — so an absent file is
+    /// as likely to be a parallel session's work in progress as a deletion. Pruning on that guess would
+    /// destroy their contribution, which is far worse than carrying a node one build out of date. A full
+    /// build reconciles deletions, because it sees the whole tree rather than one path.
+    /// </summary>
     [TestMethod]
-    public void ADeletedFile_IsPrunedRatherThanLeftBehind()
+    public void AFileThatIsNotHere_IsLeftAloneRatherThanPruned()
     {
         Write("public class C\n{\n    public void M() { }\n}\n");
         var (graph, cache) = Empty();
         GraphBuilder.RefreshFile(graph, cache, _root, Rel);
 
         File.Delete(Path.Combine(_root, "src", "Sample.cs"));
-        Assert.IsTrue(GraphBuilder.RefreshFile(graph, cache, _root, Rel), "the deletion is a change worth saving");
 
-        Assert.AreEqual(0, graph.Nodes.Count(n => n.Source == Rel), "nothing should still be attributed to it");
-        Assert.IsFalse(cache.Files.ContainsKey(Rel), "and its cached contribution goes too");
+        Assert.IsFalse(GraphBuilder.RefreshFile(graph, cache, _root, Rel), "absence is not a change to record");
+        CollectionAssert.Contains(Ids(graph), $"code:{Rel}#T:C",
+            "another branch's file must survive a refresh run from a tree that does not have it");
     }
 
     [TestMethod]

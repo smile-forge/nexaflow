@@ -135,10 +135,15 @@ graph: current — 6,204 files, none changed since it was built.
 graph: 2 changed, 5 added vs this working tree — this answer may be out of date. Re-run with --refresh …
 ```
 
-`--refresh` (on `search`/`list`/`node`/`walk`/`context`/`grep`/`code`) folds those files in *before*
-answering. **From a worktree the refresh is in-memory only** — `graph.json` is shared with the main checkout
-and every other session, so a branch never silently writes its view into it; `graph build` from the worktree
-is how a branch deliberately publishes one.
+`--refresh` (on `search`/`list`/`node`/`walk`/`context`/`grep`/`code`) folds those files in *before* answering.
+
+**Each working tree has its own graph.** A graph is a function of source, and source differs per branch, so a
+worktree gets `.product/worktrees/<name>/graph.json`, cloned from the main checkout's on first use and
+brought onto your branch by one `--refresh` (~10s, then queries are current). The **authored tree**
+(`tree.json` — nodes, concerns, snaplinks) is unchanged by this and stays shared: it is written rather than
+derived, and it is deliberately forward-looking. Nothing a worktree does writes to the shared `graph.json`,
+so a parallel session's view of the code is never overwritten by yours — which is also what makes it safe for
+a refresh to *drop* files that aren't in your tree, since they can only be your branch's.
 
 **Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
 in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale

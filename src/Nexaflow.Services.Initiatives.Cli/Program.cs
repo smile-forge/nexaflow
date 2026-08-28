@@ -409,7 +409,7 @@ internal static class Program
         KnowledgeGraph graph;
         try
         {
-            var store = new ProductStore(root);
+            var store = GraphStore(root, a.Has("--main"));
             var state = store.Load();
             var options = new GraphBuildOptions
             {
@@ -440,7 +440,7 @@ internal static class Program
         }
 
         var m = graph.Metadata;
-        Console.WriteLine($"Graph written to {new ProductStore(root).GraphFilePath} — " +
+        Console.WriteLine($"Graph written to {GraphStore(root, a.Has("--main")).GraphFilePath} — " +
                           $"{m.NodeCount:N0} nodes, {m.EdgeCount:N0} edges, {m.HyperEdgeCount:N0} hyperedges.");
         return Clean;
     }
@@ -501,14 +501,14 @@ internal static class Program
         return Clean;
     }
 
-    private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code)
+    private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code, bool main = false)
     {
         graph = null!;
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
-        var loaded = new ProductStore(root).LoadGraph();
+        var loaded = GraphStore(root, main).LoadGraph();
         if (loaded is null)
         {
-            Console.Error.WriteLine($"error: no graph at {new ProductStore(root).GraphFilePath} — build it first with: graph {root}");
+            Console.Error.WriteLine($"error: no graph at {GraphStore(root, main).GraphFilePath} — build it first with: graph {root}");
             code = Error; return false;
         }
         graph = loaded; code = Clean; return true;
@@ -748,7 +748,7 @@ internal static class Program
             return VerbUsage("give either --find or --find-escaped, not both");
 
         var main  = a.Has("--main");
-        var store = new ProductStore(root);
+        var store = GraphStore(root, main);
         var cache = store.LoadGraphCache() ?? new GraphCache();
         var stale = !a.Has("--no-refresh");
 
@@ -770,9 +770,9 @@ internal static class Program
 
         if (!result.Ok)
         {
-            // The refresh above may have learned something real — the file changed, or was deleted out from
-            // under the graph — and that is worth keeping even though the edit itself is not going ahead.
-            if (dirty && CanPersistGraph(root, main)) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
+            // The refresh above may have learned something real — the file changed — and that is worth
+            // keeping even though the edit itself is not going ahead.
+            if (dirty) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
             Console.Error.WriteLine($"error: {result.Message}");
             return Error;
         }
@@ -809,7 +809,7 @@ internal static class Program
         foreach (var change in result.Changes)
             if (stale) dirty |= GraphBuilder.RefreshFile(graph, cache, root, change.RelativePath,
                                                         CodeRootOrNull(root, main));
-        if (dirty && CanPersistGraph(root, main))
+        if (dirty)
         {
             store.SaveGraph(graph);
             store.SaveGraphCache(cache);
@@ -851,9 +851,9 @@ internal static class Program
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var graphFile  = new ProductStore(root).GraphFilePath;
-        var ownBranch  = !PathsEqual(codeRoot, root);
-        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile, ownBranch));
+        var graphFile  = GraphStore(root, main).GraphFilePath;
+
+        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
     }
 
     /// <summary>
@@ -884,28 +884,28 @@ internal static class Program
         try { report = _freshness.Result; } catch { return; }
         if (!report.Available || report.IsCurrent) return;
 
-        var store = new ProductStore(root);
+        var store = GraphStore(root, main);
         var cache = store.LoadGraphCache() ?? new GraphCache();
         var dirty = false;
 
         foreach (var rel in report.Stale)
             dirty |= GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
 
+        // Files the graph names that this tree does not have. Dropping them is only safe because the graph
+        // being updated is this tree's own — from a shared one they could as easily be a parallel branch's
+        // work in progress, and pruning would delete it.
+        var pruned = 0;
+        if (GraphIsLocal(root, main))
+            foreach (var rel in report.Absent)
+                if (GraphBuilder.ForgetFile(graph, cache, rel)) { pruned++; dirty = true; }
+
         if (!dirty) return;
 
-        if (CanPersistGraph(root, main))
-        {
-            store.SaveGraph(graph);
-            store.SaveGraphCache(cache);
-            Console.Error.WriteLine($"graph: refreshed {report.Stale.Count} file(s) before answering.");
-        }
-        else
-        {
-            Console.Error.WriteLine(
-                $"graph: refreshed {report.Stale.Count} file(s) for this answer, in memory only — graph.json "
-              + "is shared with the main checkout, so a branch does not write into it. `graph build` from "
-              + "here is how to publish this branch's view.");
-        }
+        store.SaveGraph(graph);
+        store.SaveGraphCache(cache);
+        Console.Error.WriteLine(
+            $"graph: refreshed {report.Stale.Count} file(s)"
+          + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
         _freshness = null;                       // the report it would print is now out of date itself
     }
 
@@ -923,18 +923,57 @@ internal static class Program
         main ? null : FileRootsFor(productRoot) is [var here, _] ? here : null;
 
     /// <summary>
-    /// Whether a refreshed graph may be written back.
+    /// The store the <b>derived graph</b> is read from and written to — this working tree's own when we are
+    /// in a worktree, the shared one in the main checkout.
     /// <para>
-    /// <c>graph.json</c> lives in the main checkout and is shared by every worktree and every session using
-    /// it. Folding a branch's files into it automatically would quietly hand another session this branch's
-    /// view of the code, which is worse than the staleness it was fixing — a wrong answer delivered
-    /// confidently, to someone who never asked. So a refresh from a worktree updates the graph in memory,
-    /// which is enough to make the command in hand correct, and stops there. An explicit
-    /// <c>graph build</c> is still how a branch deliberately publishes its view.
+    /// A graph is a function of source, and source differs per branch, so one shared graph forced a bad
+    /// choice: a worktree either read the main checkout's view of code it does not have, or wrote its own
+    /// view into a file every other session reads. The second is the worse half — it hands a parallel
+    /// session this branch's idea of the codebase, and a file that branch is only halfway through creating
+    /// looks to everyone else like a file that exists.
+    /// </para>
+    /// <para>
+    /// Per-tree graphs make "does this graph describe my code?" answerable with yes, which is what the
+    /// freshness check needs in order to say anything useful. It also makes pruning safe: a file absent
+    /// from a tree really is absent from that tree's graph, rather than possibly being someone else's work
+    /// in progress. The authored product tree is untouched by this and stays shared — it is written, not
+    /// derived, and it is deliberately forward-looking.
     /// </para>
     /// </summary>
-    private static bool CanPersistGraph(string productRoot, bool main) =>
-        main || CodeRootOrNull(productRoot, main) is not { } here || PathsEqual(here, productRoot);
+    private static ProductStore GraphStore(string productRoot, bool main)
+    {
+        if (CodeRootOrNull(productRoot, main) is not { } here || PathsEqual(here, productRoot))
+            return new ProductStore(productRoot);
+
+        var scoped = new ProductStore(productRoot, Path.GetFileName(here.TrimEnd('/', '\\')));
+        if (File.Exists(scoped.GraphFilePath)) return scoped;
+
+        // First use in this worktree. Start from the main checkout's graph rather than a ninety-second
+        // build: most of a branch is the same code, so a clone plus a refresh of what differs is the cheap
+        // way in — and until it is refreshed the freshness line says exactly how far off it is.
+        try
+        {
+            var shared = new ProductStore(productRoot);
+            if (File.Exists(shared.GraphFilePath))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(scoped.GraphFilePath)!);
+                File.Copy(shared.GraphFilePath, scoped.GraphFilePath);
+                if (File.Exists(shared.GraphCacheFilePath))
+                    File.Copy(shared.GraphCacheFilePath, scoped.GraphCacheFilePath);
+                Console.Error.WriteLine(
+                    "graph: this worktree had none, so the main checkout's was cloned for it — `--refresh` "
+                  + "brings it onto your branch, and nothing here writes to the shared one.");
+            }
+        }
+        catch { }   // a failed clone just means an empty local graph, which the next build fills
+
+        return scoped;
+    }
+
+    /// <summary>Whether the graph being updated is this working tree's own, and so may have files absent
+    /// from the tree pruned out of it.</summary>
+    private static bool GraphIsLocal(string productRoot, bool main) =>
+        !main && CodeRootOrNull(productRoot, main) is { } here && !PathsEqual(here, productRoot);
 
     /// <summary>
     /// Writes a new file. It belongs on this verb rather than being left to whatever else can write a file,

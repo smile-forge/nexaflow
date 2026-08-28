@@ -20,11 +20,18 @@ namespace Nexaflow.Services.Initiatives.Graph;
 /// so anything modified since is what it has not seen.
 /// </para>
 /// <para>
-/// The two halves are scoped differently, because they are different questions. <b>Changed and removed</b>
+/// The halves are scoped differently, because they are different questions. <b>Changed</b> and <b>absent</b>
 /// are answered by stat-ing the files the graph already recorded — no directory walk at all. <b>Added</b>
 /// needs a walk, and that is narrowed to the directories the solution's projects live in: scanning the whole
 /// repository means 17,038 files, of which 14,849 are pinned submodule test corpora that cannot gain a file
 /// without a deliberate pin bump. Project-scoped it is 4,009 files, and the whole check lands around 100ms.
+/// </para>
+/// <para>
+/// <b>Absent is reported, never acted on.</b> <c>graph.json</c> is shared with every worktree, and a branch
+/// that runs a build publishes its own files into it — so a file the graph knows and this tree does not is
+/// as likely to be a parallel session's work in progress as it is to be deleted. Nothing here can tell those
+/// apart, and guessing wrong deletes someone else's feature from the shared graph. A full <c>graph build</c>
+/// is what reconciles deletions, because it sees the whole tree rather than one path.
 /// </para>
 /// <para>
 /// It errs towards saying "stale". A file touched and reverted, or rewritten with identical content, is
@@ -36,46 +43,64 @@ public static class GraphFreshness
 {
     /// <param name="Known">How many files the graph was built from.</param>
     /// <param name="Available">False when the check could not run — nothing was built, so nothing is claimed.</param>
+    /// <param name="Absent">Files the graph describes that are not in this tree. NOT the same as deleted —
+    /// <c>graph.json</c> is shared, and a branch that runs a build publishes its own files into it, so these
+    /// are as likely to be another session's work in progress. Reported, never acted on.</param>
     /// <param name="OtherBranch">The graph was built from a different working tree than the one queried —
     /// so most of the difference is the branch, not edits since.</param>
     public sealed record Report(
         int Known,
         IReadOnlyList<string> Changed,
         IReadOnlyList<string> Added,
-        IReadOnlyList<string> Removed,
+        IReadOnlyList<string> Absent,
         bool Available,
         bool OtherBranch = false)
     {
         public static readonly Report Unknown = new(0, [], [], [], false);
 
-        public int Drifted => Changed.Count + Added.Count + Removed.Count;
+        /// <summary>Drift that makes this answer wrong. An absent file does not: it means the graph knows
+        /// something extra, which is a different (and much less alarming) thing than knowing something
+        /// out of date.</summary>
+        public int Drifted => Changed.Count + Added.Count;
 
         public bool IsCurrent => Available && Drifted == 0;
 
-        /// <summary>Every file the graph should re-read, in a stable order.</summary>
+        /// <summary>
+        /// Every file worth re-reading. Deliberately excludes <see cref="Absent"/>: re-reading a file that
+        /// is not here can only mean removing it from the graph, and doing that on a guess would delete a
+        /// parallel branch's published work. A full <c>graph build</c> is what reconciles deletions.
+        /// </summary>
         public IReadOnlyList<string> Stale =>
-            [.. Changed.Concat(Added).Concat(Removed).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+            [.. Changed.Concat(Added).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
 
         /// <summary>One line for a human or an agent — definite either way.</summary>
         public string Summary()
         {
             if (!Available) return "graph: not built yet — nothing to be stale.";
-            if (IsCurrent)  return $"graph: current — {Known:N0} files, none changed since it was built.";
+
+            // Kept separate from the verdict, and phrased as extra knowledge rather than as a fault. From a
+            // shared graph these are usually another branch's in-flight work, and reporting someone else's
+            // feature as "removed" is both wrong and the sort of noise that gets a warning ignored.
+            var aside = Absent.Count == 0 ? ""
+                : $" {Absent.Count:N0} file(s) it describes are not in this tree — another branch's work, or "
+                + "removed; a full `graph build` settles which.";
+
+            if (IsCurrent)
+                return $"graph: current for this tree — {Known:N0} files, none changed since it was built.{aside}";
 
             var parts = new List<string>();
             if (Changed.Count > 0) parts.Add($"{Changed.Count} changed");
             if (Added.Count   > 0) parts.Add($"{Added.Count} added");
-            if (Removed.Count > 0) parts.Add($"{Removed.Count} removed");
 
-            // From a worktree the graph was built from another branch, so the count is mostly branch
+            // From a worktree the graph was built from another branch, so the count is partly branch
             // difference rather than edits since. Saying that stops a large, permanent-looking number
             // reading as alarm — which would train exactly the shrug this whole check exists to prevent.
             var why = OtherBranch
-                ? " (the graph was built from a different branch, so most of this is that). Queries that read "
+                ? " (the graph was built from a different branch, so some of this is that). Queries that read "
                 + "source already use your tree; --refresh brings the graph's own record across."
                 : " — this answer may be out of date. Re-run with --refresh to fold them in first.";
 
-            return $"graph: {string.Join(", ", parts)} vs this working tree{why}";
+            return $"graph: {string.Join(", ", parts)} vs this working tree{why}{aside}";
         }
     }
 
@@ -98,9 +123,9 @@ public static class GraphFreshness
         if (known.Count == 0) return Report.Unknown;
 
         var changed = new List<string>();
-        var removed = new List<string>();
+        var absent  = new List<string>();
 
-        // Changed and removed: a stat each, over the set the graph already knows. No walk, and it covers the
+        // Changed and absent: a stat each, over the set the graph already knows. No walk, and it covers the
         // thousand-odd files that live outside any project directory (build props, the product exports).
         foreach (var rel in known)
         {
@@ -108,7 +133,7 @@ public static class GraphFreshness
             try
             {
                 var info = new FileInfo(full);
-                if (!info.Exists) removed.Add(rel);
+                if (!info.Exists) absent.Add(rel);
                 else if (info.LastWriteTimeUtc > baseline) changed.Add(rel);
             }
             catch { }                                    // unreadable is not evidence of anything
@@ -131,12 +156,12 @@ public static class GraphFreshness
         }
 
         changed.Sort(StringComparer.Ordinal);
-        removed.Sort(StringComparer.Ordinal);
+        absent.Sort(StringComparer.Ordinal);
 
         return new Report(known.Count,
                           changed,
                           [.. added.Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal)],
-                          removed,
+                          absent,
                           true,
                           otherBranch);
     }

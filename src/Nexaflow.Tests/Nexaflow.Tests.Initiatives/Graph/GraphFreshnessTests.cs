@@ -78,17 +78,27 @@ public class GraphFreshnessTests
         StringAssert.Contains(report.Summary(), "--refresh");
     }
 
+    /// <summary>
+    /// A file the graph knows and this tree does not is <b>reported, never acted on</b>. graph.json is
+    /// shared, and a branch that runs a build publishes its own files into it — so this is as likely to be
+    /// a parallel session's work in progress as a deletion, and nothing here can tell them apart. Treating
+    /// it as staleness and "refreshing" it would delete someone else's feature from the shared graph.
+    /// </summary>
     [TestMethod]
-    public void NoticesADeletedFile()
+    public void AFileNotInThisTree_IsReportedButNeverQueuedForRefresh()
     {
-        var proj = File_("Proj.csproj", "<Project />\n");
-        var code = File_("C.cs");
+        var proj  = File_("Proj.csproj", "<Project />\n");
+        var mine  = File_("C.cs");
+        var other = "src/Nexaflow.Maths/Latex/TexNode.cs";      // another branch's work in progress
         BuiltNow();
-        System.IO.File.Delete(Path.Combine(_root, "src", "Proj", "C.cs"));
 
-        var report = GraphFreshness.Check([proj, code], _root, _graphFile);
+        var report = GraphFreshness.Check([proj, mine, other], _root, _graphFile);
 
-        CollectionAssert.Contains(report.Removed.ToList(), code);
+        CollectionAssert.Contains(report.Absent.ToList(), other);
+        CollectionAssert.DoesNotContain(report.Stale.ToList(), other,
+            "refreshing an absent file can only prune it, and that would destroy a parallel branch's work");
+        Assert.IsTrue(report.IsCurrent, "the graph knowing something extra does not make this answer wrong");
+        StringAssert.Contains(report.Summary(), "another branch's work");
     }
 
     /// <summary>
@@ -139,7 +149,8 @@ public class GraphFreshnessTests
 
         var stale = GraphFreshness.Check([proj, kept, gone], _root, _graphFile).Stale;
 
-        CollectionAssert.AreEquivalent(new[] { kept, gone, added }, stale.ToList());
+        CollectionAssert.AreEquivalent(new[] { kept, added }, stale.ToList(),
+            "what is worth re-reading is what exists — an absent file is reported, not refreshed");
     }
 
     [TestMethod]

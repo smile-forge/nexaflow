@@ -89,14 +89,13 @@ public sealed class GraphBuilder
         var full = Path.Combine(builder._codeRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
         var text = SnaplinkTargets.ReadText(full);
 
-        if (text is null)
-        {
-            // Deleted (or become unreadable). Its declarations are gone, so the graph should stop claiming
-            // them — a stale node for a file that no longer exists is worse than no node, because searching
-            // finds it and every path from it is a dead end.
-            if (!File.Exists(full) && Prune(graph, cache, relPath)) return true;
-            return false;
-        }
+        // A file that is not here is NOT evidence that it should leave the graph. graph.json is shared with
+        // every worktree, and a branch that runs `graph build` publishes its own files into it — so a file
+        // absent from this tree is just as likely to be another branch's work in progress as it is to be
+        // deleted. Pruning on that guess would quietly destroy a parallel session's contribution, which is
+        // far worse than carrying a node that is one build out of date. A full `graph build` reconciles
+        // deletions properly, because it knows what the whole tree contains rather than one path.
+        if (text is null) return false;
 
         var hash    = Hashing.Md5(text);
         var current = cache.Files.TryGetValue(relPath, out var cached) && cached.Hash == hash;
@@ -119,16 +118,31 @@ public sealed class GraphBuilder
         return true;
     }
 
-    /// <summary>Removes everything one file contributed, from both the graph and the cache.</summary>
-    private static bool Prune(KnowledgeGraph graph, GraphCache cache, string relPath)
+    /// <summary>
+    /// Drops a file from the graph entirely — for a file that is no longer in the tree this graph describes.
+    /// <para>
+    /// Only ever correct against a graph that belongs to one working tree. Against a shared graph an absent
+    /// file is as likely to be another branch's work in progress, and forgetting it would delete a parallel
+    /// session's published work; that is why <see cref="RefreshFile"/> will not do this on its own.
+    /// </para>
+    /// </summary>
+    /// <returns>True when the graph actually held something for it.</returns>
+    public static bool ForgetFile(KnowledgeGraph graph, GraphCache cache, string relPath)
     {
-        var removed = graph.Nodes.RemoveAll(n => string.Equals(n.Source, relPath, StringComparison.Ordinal));
+        var had = graph.Nodes.Any(n => string.Equals(n.Source, relPath, StringComparison.Ordinal));
+        Prune(graph, cache, relPath);
+        return had;
+    }
+
+    /// <summary>Removes everything one file contributed, so its fresh contribution can replace it.</summary>
+    private static void Prune(KnowledgeGraph graph, GraphCache cache, string relPath)
+    {
+        graph.Nodes.RemoveAll(n => string.Equals(n.Source, relPath, StringComparison.Ordinal));
         graph.Edges.RemoveAll(e => string.Equals(e.ProvenanceFile, relPath, StringComparison.Ordinal));
         cache.Files.Remove(relPath);
 
         graph.Metadata.NodeCount = graph.Nodes.Count;
         graph.Metadata.EdgeCount = graph.Edges.Count;
-        return removed > 0;
     }
 
     /// <summary>Builds the graph, reusing <paramref name="cache"/> for unchanged files and returning the updated
