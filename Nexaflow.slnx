@@ -170,6 +170,9 @@
     </Project>
   </Folder>
   <Folder Name="/Nexaflow.Tests/">
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Components/Nexaflow.Tests.Components.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj" Id="ccb84772-1b15-4e2b-b98a-1e9b524e7238">
       <Platform Project="x64" />
     </Project>
@@ -198,6 +201,9 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Nexaflow.Tests.UIJourneys.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Nexaflow.Tests.Visuals.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj" Id="326ee97c-f425-4981-a59a-76072e0ed179">

@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
   </ItemGroup>
 
 </Project>
