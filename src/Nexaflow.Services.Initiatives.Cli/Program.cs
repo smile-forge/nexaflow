@@ -2191,11 +2191,9 @@ internal static class Program
     /// with the pull request instead of being written into the shared tree before the code they describe
     /// exists anywhere else.
     /// </summary>
-    private static void CapturePending(ProductState state, string root, string branch,
-                                       IReadOnlyList<(string NodeId, string? Concern)> touched)
+    private static PendingSnaplinks CapturePending(ProductState state, string root, string branch,
+                                                   IReadOnlyList<(string NodeId, string? Concern)> touched)
     {
-        if (touched.Count == 0) return;
-
         var store   = PendingStoreFor(root);
         var pending = store.Load(branch);
 
@@ -2215,6 +2213,33 @@ internal static class Program
         Console.Error.WriteLine(
             $"snaplinks: recorded for branch '{branch}' in {ExportDirFor(root)}/{PendingStore.FolderName}/ — "
           + "commit it with your change and it merges into the shared tree with the PR. `nfi pending` to review.");
+        return pending;
+    }
+
+    /// <summary>
+    /// Puts the touched link sets back to what the shared tree holds, so writing the tree lands everything
+    /// else this run changed without carrying the branch's links along with it. A node that does not exist
+    /// in the shared tree yet is being created by this same run, so it lands with no links — its links are
+    /// in the pending set, waiting for the branch that creates the files they name.
+    /// </summary>
+    private static void RestoreSharedLinks(ProductState state, ProductState shared,
+                                           IReadOnlyList<(string NodeId, string? Concern)> touched)
+    {
+        foreach (var (nodeId, concern) in touched)
+        {
+            if (!state.Nodes.TryGetValue(nodeId, out var node)) continue;
+            shared.Nodes.TryGetValue(nodeId, out var before);
+
+            if (concern is { Length: > 0 })
+            {
+                if (node.Concerns?.FirstOrDefault(c => string.Equals(c.Tag, concern, StringComparison.Ordinal))
+                    is not { } target) continue;
+                target.Snaplinks =
+                    [.. before?.Concerns?.FirstOrDefault(c => string.Equals(c.Tag, concern, StringComparison.Ordinal))
+                               ?.Snaplinks ?? []];
+            }
+            else node.Snaplinks = [.. before?.Snaplinks ?? []];
+        }
     }
 
     /// <summary>
@@ -2380,11 +2405,21 @@ internal static class Program
         // A node is a plan, and the shared tree is deliberately forward-looking about those — so it is
         // written at once. A snaplink is a claim that a file exists and contains something, and from an
         // unmerged branch that claim is not true anywhere but here. So a link change on a branch goes to the
-        // branch's pending set and NOT into the shared tree, which is what stops the main checkout reporting
-        // broken links for work nobody has finished. In the main checkout there is no branch to defer to and
-        // the write happens normally.
+        // branch's pending set and not into the shared tree. In the main checkout there is no branch to
+        // defer to and the write happens normally.
         if (branch is null) store.SaveTree(state.Nodes);
-        else CapturePending(state, root, branch, touchedLinks!);
+        else
+        {
+            var pending = CapturePending(state, root, branch, touchedLinks!);
+
+            // The tree is still written — with the touched link sets put back as the SHARED tree has them.
+            // Restoring rather than skipping the write is what lets one batch add a node and change a
+            // snaplink: the node lands, the link stays with the branch. Skipping would lose the node.
+            RestoreSharedLinks(state, store.Load(), touchedLinks!);
+            store.SaveTree(state.Nodes);
+
+            pending.ApplyTo(state);   // back to the branch's view, so the validation below reports on it
+        }
 
         // Validated against the in-memory state either way, so a branch sees its own links resolved against
         // its own tree rather than the shared tree's older idea of them.
@@ -2637,11 +2672,19 @@ internal static class Program
 
         var lines = File.ReadAllLines(file);
         var applied = new List<string>();
+
+        // Snaplink work is mostly done in batches — written, checked with --dry-run, then applied — so a
+        // batch has to make the same split a single verb does: nodes to the shared tree, links to the
+        // branch. Collected as we go, because a batch can legitimately do both in one run.
+        var touchedLinks = new List<(string NodeId, string? Concern)>();
+
         for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
             if (line.Length == 0 || line.StartsWith('#')) continue;   // blank lines + # comments
-            var (ok, msg) = ApplyOne(state, [.. Tokenize(line)]);
+            var tokens = Tokenize(line).ToArray();
+            if (LinkTargetOf(tokens) is { } target) touchedLinks.Add(target);
+            var (ok, msg) = ApplyOne(state, tokens);
             if (!ok)
             {
                 Console.Error.WriteLine($"error: line {i + 1}: {msg}");
@@ -2659,7 +2702,31 @@ internal static class Program
             Console.WriteLine($"Dry run — {applied.Count} instruction(s) valid, nothing written. Drop --dry-run to apply.");
             return Clean;
         }
-        return SaveAndValidate(state, root, $"Applied {applied.Count} instruction(s) from {Path.GetFileName(file)}.");
+        return SaveAndValidate(state, root, $"Applied {applied.Count} instruction(s) from {Path.GetFileName(file)}.",
+                               touchedLinks);
+    }
+
+    /// <summary>
+    /// The node (and concern) whose links a batch instruction changes, or null when it changes none.
+    /// <para>
+    /// <c>remap</c> is deliberately absent: it rewrites links across many nodes to follow a rename, which is
+    /// a repair of the shared tree rather than a claim this branch is making, and it is run on main.
+    /// </para>
+    /// </summary>
+    private static (string NodeId, string? Concern)? LinkTargetOf(string[] tokens)
+    {
+        var spec = tokens switch
+        {
+            ["add-snaplink",    ..] => Specs.AddSnaplink,
+            ["set-snaplink",    ..] => Specs.SetSnaplink,
+            ["remove-snaplink", ..] => Specs.RemoveSnaplink,
+            _                       => null,
+        };
+        if (spec is null) return null;
+
+        return VerbArgs.TryParse(spec.InBatch, tokens[1..], out var parsed, out _) && parsed.Positionals.Count > 0
+            ? (parsed[0], parsed.Value("--concern"))
+            : null;
     }
 
     /// <summary>

@@ -199,4 +199,37 @@ public class PendingSnaplinksTests
         Assert.AreEqual(0, store.All().Count);
         Assert.IsTrue(store.Load("never-written").IsEmpty);
     }
+
+    // ── One run that changes both ───────────────────────────────────────────
+
+    /// <summary>
+    /// Snaplink work is mostly done in batches, and a batch can legitimately add a node and change a link in
+    /// the same run. Deferring the whole write would lose the node; writing the whole thing would leak the
+    /// link. So the link sets are put back to the shared tree's version before the tree is written, which is
+    /// what lets each half land in the right place.
+    /// </summary>
+    [TestMethod]
+    public void RestoringTheSharedLinks_LetsANodeLandWhileItsLinkStaysBehind()
+    {
+        var branchView = TreeWith(Code("Old"), Code("BranchOnly"));
+        branchView.Nodes["feature"].Note = "changed by the batch";
+
+        var shared  = TreeWith(Code("Old"));
+        var pending = new PendingSnaplinks { Branch = "b" };
+        pending.Capture("feature", null, branchView.Nodes["feature"].Snaplinks!);
+
+        // What the shared tree is written with: the node's other edits, and the links it already had.
+        branchView.Nodes["feature"].Snaplinks = [.. shared.Nodes["feature"].Snaplinks!];
+
+        Assert.AreEqual("changed by the batch", branchView.Nodes["feature"].Note,
+            "the node edit must survive into the shared tree");
+        CollectionAssert.AreEqual(new[] { "Old" },
+            branchView.Nodes["feature"].Snaplinks!.Select(l => l.Class).ToArray(),
+            "and the branch's new link must not go with it");
+
+        // …while the branch keeps its own view, and promoting later delivers it.
+        pending.ApplyTo(branchView);
+        CollectionAssert.AreEqual(new[] { "Old", "BranchOnly" },
+            branchView.Nodes["feature"].Snaplinks!.Select(l => l.Class).ToArray());
+    }
 }
