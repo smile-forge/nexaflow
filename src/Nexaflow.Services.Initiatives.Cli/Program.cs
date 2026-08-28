@@ -276,7 +276,13 @@ internal static class Program
             // The coverage manifest gates [CoversNode] ids that no longer exist. It is derived, gitignored
             // state, so LoadTestCoverage() returning null (clean CI checkout, or scan-tests never run) simply
             // means that check is skipped — never a failure, and never a false all-clear either.
-            report = SnaplinkValidator.Validate(state, root, FileRootsFor(root), store.LoadTestCoverage());
+            // From a linked worktree, validate against THAT tree alone. Falling back to the main checkout —
+            // which is what the two-root form does — answers "does this file exist somewhere", and the
+            // question a branch needs answered is "does it exist here". The fallback hid the one failure
+            // that is genuinely yours: a file you moved away still resolved through main, so the branch read
+            // clean while its links were stale. Main's own view is still available with --main.
+            var roots = a.Has("--main") ? [root] : FileRootsFor(root);
+            report = SnaplinkValidator.Validate(state, root, [roots[0]], store.LoadTestCoverage());
             if (save) store.SaveIntegrity(report);
         }
         catch (Exception ex)
@@ -297,8 +303,51 @@ internal static class Program
         var text = ProductReport.Validate(report);
         if (report.IsClean) { Console.WriteLine(text); return Clean; }
 
+        // In a worktree, separate what this branch broke from what it has simply never seen. A link to a
+        // file that exists in neither checkout belongs to some other branch's not-yet-merged work — it is
+        // the forward-looking state the tree is meant to hold, and failing on it makes every branch answer
+        // for every other one. A link to a file main HAS and this branch does not is the opposite: that one
+        // is yours.
+        if (!a.Has("--main") && FileRootsFor(root) is [var here, var main] && !PathsEqual(here, main))
+        {
+            var (mine, theirs) = Partition(report, here, main);
+            if (theirs.Count > 0)
+            {
+                Console.Error.WriteLine(text);
+                Console.Error.WriteLine();
+                Console.Error.WriteLine(
+                    $"{theirs.Count} of the above name files that are in neither this worktree nor the main "
+                  + "checkout — another branch's not-yet-merged work, not this branch's problem:");
+                foreach (var issue in theirs.Take(10))
+                    Console.Error.WriteLine($"  {issue.NodeId} [{issue.Scope}] #{issue.Index}  {issue.Link.Doc}");
+                if (theirs.Count > 10) Console.Error.WriteLine($"  … and {theirs.Count - 10} more");
+                Console.Error.WriteLine();
+                Console.Error.WriteLine(mine.Count == 0
+                    ? "Nothing here is broken on this branch. (`validate --main` for the main checkout's view.)"
+                    : $"{mine.Count} issue(s) ARE this branch's. Exit code reflects those.");
+                return mine.Count == 0 ? Clean : Broken;
+            }
+        }
+
         Console.Error.WriteLine(text);
         return Broken;
+    }
+
+    /// <summary>Splits file-missing issues into the ones this working tree caused and the ones it inherited.</summary>
+    private static (List<IntegrityIssue> Mine, List<IntegrityIssue> Theirs) Partition(
+        IntegrityReport report, string here, string main)
+    {
+        List<IntegrityIssue> mine = [], theirs = [];
+        foreach (var issue in report.Issues)
+        {
+            var doc = issue.Link.Doc;
+            var absentEverywhere = issue.Kind == IntegrityKind.MissingFile
+                                && doc is { Length: > 0 }
+                                && !File.Exists(Path.Combine(here, doc.Replace('/', Path.DirectorySeparatorChar)))
+                                && !File.Exists(Path.Combine(main, doc.Replace('/', Path.DirectorySeparatorChar)));
+            (absentEverywhere ? theirs : mine).Add(issue);
+        }
+        return (mine, theirs);
     }
 
     // ── graph: product ⊕ code AST ⊕ snaplinks → .product/graph.json (the Graph viewer opens it) ──
@@ -651,6 +700,10 @@ internal static class Program
     private static int GraphEditVerb(string[] args)
     {
         if (!TryRead(Specs.GraphEdit, args, out var a, out var root, out var parseCode)) return parseCode;
+
+        // `create` names a path that does not exist yet, so there is no node to look up and no graph to load.
+        if (a[0] is "create" or "new") return GraphCreateFile(a, root);
+
         if (!TryLoadGraph(root, out var graph, out var loadCode)) return loadCode;
 
         var op = a[0] switch
@@ -677,7 +730,19 @@ internal static class Program
         if (a.Value("--find") is not null && a.Value("--find-escaped") is not null)
             return VerbUsage("give either --find or --find-escaped, not both");
 
-        var main = a.Has("--main");
+        var main  = a.Has("--main");
+        var store = new ProductStore(root);
+        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var stale = !a.Has("--no-refresh");
+
+        // Bring the graph's record of the target file up to date BEFORE looking anything up. One file's
+        // parse costs milliseconds against the ninety seconds a whole-repo walk takes, and it is the
+        // difference between "the graph might be stale" being something the caller has to reason about and
+        // it not being one.
+        var dirty = stale
+                 && FileOfNodeId(a[1]) is { } target
+                 && GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, main));
+
         var find = a.Value("--find")
                 ?? (a.Value("--find-escaped") is { } escaped ? SourceText.Unescape(escaped) : null);
 
@@ -686,7 +751,14 @@ internal static class Program
         var result  = GraphEdit.Plan(graph, a[1], op.Value, text, rel => ReadRaw(root, rel, main)?.Text,
                                      options, a.Value("--to"));
 
-        if (!result.Ok) { Console.Error.WriteLine($"error: {result.Message}"); return Error; }
+        if (!result.Ok)
+        {
+            // The refresh above may have learned something real — the file changed, or was deleted out from
+            // under the graph — and that is worth keeping even though the edit itself is not going ahead.
+            if (dirty) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
+            Console.Error.WriteLine($"error: {result.Message}");
+            return Error;
+        }
 
         foreach (var change in result.Changes) PrintHunk(change);
         foreach (var note in result.Notes) Console.Error.WriteLine($"note: {note}");
@@ -715,9 +787,98 @@ internal static class Program
             }
         }
 
-        Console.WriteLine($"{result.Message}. Rebuild the graph (graph build) so its record matches.");
+        // …and again afterwards, so the graph describes what was just written. Both refreshes share one
+        // save, and neither costs more than parsing the file that changed.
+        foreach (var change in result.Changes)
+            if (stale) dirty |= GraphBuilder.RefreshFile(graph, cache, root, change.RelativePath,
+                                                        CodeRootOrNull(root, main));
+        if (dirty)
+        {
+            store.SaveGraph(graph);
+            store.SaveGraphCache(cache);
+        }
+
+        // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
+        // saying it anyway only teaches the caller to distrust the tool between builds. A full `graph build`
+        // is for the cross-file passes (call and inheritance resolution), not for editing.
+        Console.WriteLine($"{result.Message}.");
         return Clean;
     }
+
+    /// <summary>The repo-relative file a node id names, or null when the id names neither.</summary>
+    private static string? FileOfNodeId(string id)
+    {
+        if (id.StartsWith("file:", StringComparison.Ordinal)) return id["file:".Length..];
+        if (!id.StartsWith("code:", StringComparison.Ordinal)) return null;
+        var hash = id.IndexOf('#');
+        return hash < 0 ? id["code:".Length..] : id["code:".Length..hash];
+    }
+
+    /// <summary>The tree source should be read from — the caller's worktree, or null to mean the product root.</summary>
+    private static string? CodeRootOrNull(string productRoot, bool main) =>
+        main ? null : FileRootsFor(productRoot) is [var here, _] ? here : null;
+
+    /// <summary>
+    /// Writes a new file. It belongs on this verb rather than being left to whatever else can write a file,
+    /// because the same two things should be true of a created file as of an edited one: it has to parse, and
+    /// it is written with the line endings the repository uses rather than the caller's. An existing file is
+    /// refused — overwriting one is an edit, and there are nine operations for that.
+    /// </summary>
+    private static int GraphCreateFile(VerbArgs a, string root)
+    {
+        var rel = a[1].Replace('\\', '/');
+        if (Path.IsPathRooted(rel)) return VerbUsage($"give a repo-relative path, not '{rel}'");
+
+        if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
+        if (text is null) return VerbUsage("creating a file needs its content (--text, --file or --stdin)");
+
+        var target = Path.Combine(CodeRootFor(root, a.Has("--main")),
+                                  rel.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(target))
+        {
+            Console.Error.WriteLine($"error: {rel} already exists — use an edit op to change it.");
+            return Error;
+        }
+
+        // Same bar as an edit: a file that does not parse must not be written, because the next tool to read
+        // it sees a root ERROR node and every declaration in it vanishes from the graph.
+        var grammar = TreeSitterLanguages.ForFile(rel);
+        if (grammar is { Length: > 0 } && !new DeclarationAnchors().ParsesCleanly(grammar, text))
+        {
+            Console.Error.WriteLine($"error: that content does not parse as {grammar}, so {rel} was not created.");
+            return Error;
+        }
+
+        var body = string.Join(Environment.NewLine, SourceText.BlockOf(text)) + Environment.NewLine;
+
+        if (a.Has("--dry-run"))
+        {
+            Console.WriteLine($"--- {rel} (new, {SourceText.Of(body).Lines.Count} lines)");
+            foreach (var line in SourceText.Of(body).Lines) Console.WriteLine("+ " + line);
+            Console.WriteLine("dry run — nothing written.");
+            return Clean;
+        }
+
+        try
+        {
+            if (Path.GetDirectoryName(target) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
+            File.WriteAllText(target, body, new UTF8Encoding(false));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"error: could not create {rel}: {ex.Message}");
+            return Error;
+        }
+
+        Console.WriteLine($"created {rel} ({SourceText.Of(body).Lines.Count} lines). It is editable straight "
+                        + $"away — code:{rel}#<astpath> works without a graph build.");
+        return Clean;
+    }
+
+    /// <summary>The root a new file should be created under — the caller's working tree, so a file created
+    /// from a worktree lands on that branch.</summary>
+    private static string CodeRootFor(string productRoot, bool main) =>
+        main ? productRoot : FileRootsFor(productRoot)[0];
 
     /// <summary>
     /// The replacement text, from whichever source was given. Four sources rather than one because the shell
@@ -1640,8 +1801,8 @@ internal static class Program
     {
         private static readonly string[] None = [];
 
-        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save"],
-            "validate [<root>] [--json] [--save]");
+        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save", "--main"],
+            "validate [<root>] [--json] [--save] [--main]");
         public static readonly VerbSpec Find = new("find", 1, None, ["--json"],
             "find <term> [<root>] [--json]");
         public static readonly VerbSpec Query = new("query", 0, ["--under", "--concern", "--status"],
@@ -1735,7 +1896,7 @@ internal static class Program
             "graph code <id> [<root>] [--lines A-B] [--main]");
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped"],
-            ["--stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main"],
+            ["--stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh"],
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
           + "[--to NAME] [--find S | --find-escaped S] [--regex] [--all] [--expect S] [--with-trivia] "
           + "[--dry-run] [--main]");

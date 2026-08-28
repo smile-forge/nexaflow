@@ -415,10 +415,12 @@ public class StructuralEditTests
                                            null, null, "Plus");
         Assert.IsTrue(renamed.Ok, renamed.Message);
 
+        // Recovery is by NAME, and the name is exactly what a rename changed — so there is nothing to
+        // recover to, and the old path must not quietly find something else.
         var stale = StructuralEdit.Apply("c-sharp", renamed.NewText!, "T:Widget/M:Add",
                                          StructuralEdit.Op.Delete, null);
         Assert.IsFalse(stale.Ok, "the old path must not silently find something else");
-        StringAssert.Contains(stale.Message, "does not name a declaration");
+        StringAssert.Contains(stale.Message, "Nothing named 'Add'");
     }
 
     /// <summary>`expect` is the hard guard for the renumbering case — the one thing that still refuses when
@@ -464,6 +466,119 @@ public class StructuralEditTests
         AssertLine(text, "    /// <summary>How many.</summary>");
         AssertLine(text, "using System.Linq;");
         Assert.IsTrue(new DeclarationAnchors().ParsesCleanly("c-sharp", text), "and the file still parses");
+    }
+
+    // ── A record that has fallen behind the file ────────────────────────────
+
+    private const string Nested = """
+        public class Outer
+        {
+            public class Inner
+            {
+                public void Work()
+                {
+                    Log("here");
+                }
+            }
+        }
+        """;
+
+    private static StructuralEdit.Result Edit(string src, string path, string name) =>
+        StructuralEdit.Apply("c-sharp", src, path, name, StructuralEdit.Op.Substitute, "Log(\"EDITED\");",
+                             new StructuralEdit.Options(Find: "Log(\"here\");"));
+
+    /// <summary>
+    /// The record an edit arrives with was built from a checkout that is not this working tree, and
+    /// refreshing it takes about a minute and a half. Refusing on a moved path would make every caller
+    /// believe the tool cannot be trusted between rebuilds. The NAME is the durable half, so the declaration
+    /// is re-found by that and the edit goes ahead.
+    /// </summary>
+    [TestMethod]
+    [DataRow("T:Outer/M:Work",  "a declaration since nested inside another type")]
+    [DataRow("T:Widget/M:Work", "a container since renamed")]
+    public void AStalePath_IsRecoveredByName_RatherThanRefused(string stalePath, string why)
+    {
+        var result = Edit(Nested, stalePath, "Work");
+
+        Assert.IsTrue(result.Ok, $"{why}: {result.Message}");
+        StringAssert.Contains(result.NewText!, "Log(\"EDITED\");");
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("re-found")),
+            "the caller should be told the path it gave was not the one used");
+    }
+
+    [TestMethod]
+    public void RecoveryStops_WhenTheNameIsGoneToo()
+    {
+        var result = Edit(Nested, "T:Outer/M:Gone", "Gone");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "Nothing named 'Gone'");
+    }
+
+    /// <summary>Recovering by name must never become guessing between same-named declarations.</summary>
+    [TestMethod]
+    public void RecoveryRefusesToChooseBetweenOverloads()
+    {
+        const string overloaded = """
+            public class C
+            {
+                public void Work(int a) { Log("one"); }
+                public void Work(int a, int b) { Log("two"); }
+            }
+            """;
+
+        var result = StructuralEdit.Apply("c-sharp", overloaded, "T:Gone/M:Work", "Work",
+                                          StructuralEdit.Op.Delete, null);
+
+        Assert.IsFalse(result.Ok, "two candidates is a question for the caller, not a coin toss");
+        StringAssert.Contains(result.Message, "T:C/M:Work#0");
+        StringAssert.Contains(result.Message, "T:C/M:Work#1");
+    }
+
+    /// <summary>The editor's form has no name to fall back on, so it takes one from the path's last segment
+    /// — which is what the caller meant even when the rest of the path has moved on.</summary>
+    [TestMethod]
+    public void APathOnlyCaller_AlsoRecoversFromItsOwnStaleListing()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Nested, "T:Outer/M:Work", StructuralEdit.Op.Substitute,
+            "Log(\"EDITED\");", new StructuralEdit.Options(Find: "Log(\"here\");"));
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(result.NewText!, "Log(\"EDITED\");");
+    }
+
+    // ── File scope, for what is not inside a declaration ────────────────────
+
+    /// <summary>
+    /// A namespace statement is in no declaration, so declaration scope has nothing to offer it — and the
+    /// answer to "rename the namespace this file declares" should not be a hand edit.
+    /// </summary>
+    [TestMethod]
+    public void SubstituteInFile_ReachesWhatIsNotInsideADeclaration()
+    {
+        const string file = "namespace Old.Name;\n\npublic class C\n{\n    public void M() { }\n}\n";
+
+        var result = StructuralEdit.SubstituteInFile("c-sharp", file, "namespace New.Name;",
+                                                     new StructuralEdit.Options(Find: "namespace Old.Name;"));
+
+        Assert.IsTrue(result.Ok, result.Message);
+        AssertLine(result.NewText!, "namespace New.Name;");
+        AssertLine(result.NewText!, "public class C");
+    }
+
+    [TestMethod]
+    public void SubstituteInFile_KeepsTheSameGuarantees()
+    {
+        const string file = "namespace N;\n\npublic class C\n{\n    void A() { Log(); }\n    void B() { Log(); }\n}\n";
+
+        var ambiguous = StructuralEdit.SubstituteInFile("c-sharp", file, "Trace();",
+                                                        new StructuralEdit.Options(Find: "Log();"));
+        Assert.IsFalse(ambiguous.Ok, "wider scope must not mean looser rules");
+        StringAssert.Contains(ambiguous.Message, "occurs 2 times");
+
+        var unparseable = StructuralEdit.SubstituteInFile("c-sharp", file, "public class C {",
+                                                          new StructuralEdit.Options(Find: "public class C"));
+        Assert.IsFalse(unparseable.Ok, "the result still has to parse");
     }
 
     // ── Delete leaves the spacing it found ──────────────────────────────────
@@ -573,6 +688,7 @@ public class StructuralEditTests
         var result = StructuralEdit.Apply("c-sharp", Widget, "T:Widget/M:Nope", StructuralEdit.Op.Delete, null);
 
         Assert.IsFalse(result.Ok);
-        StringAssert.Contains(result.Message, "does not name a declaration");
+        StringAssert.Contains(result.Message, "Nothing named 'Nope'");
+        StringAssert.Contains(result.Message, "List the declarations");
     }
 }

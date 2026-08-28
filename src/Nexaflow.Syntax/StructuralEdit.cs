@@ -113,6 +113,36 @@ public static class StructuralEdit
     }
 
     /// <summary>
+    /// A substitution over the whole file rather than one declaration — for the things that are not inside a
+    /// declaration at all: a namespace or package statement, a file-level attribute, a licence header.
+    /// <para>
+    /// Declaration scope is the better default and stays the default, because it is what stops a common
+    /// identifier being rewritten somewhere you did not mean. But refusing to go wider leaves the caller with
+    /// nothing for "rename the namespace this file declares", and the answer to that should not be a hand
+    /// edit. The rest of the guarantees are unchanged: literal unless asked otherwise, refused unless it
+    /// matches exactly once, and the result has to parse.
+    /// </para>
+    /// </summary>
+    public static Result SubstituteInFile(string grammarId, string source, string? replacement, Options options)
+    {
+        if (string.IsNullOrEmpty(grammarId))
+            return Result.Fail("No tree-sitter grammar covers this file, so an edit cannot be verified.");
+
+        var notes = new List<string>();
+        var whole = new DeclarationAnchor("file", 0, source.Length, 0, null, null, null, null, null, null);
+
+        var (text, error) = Substitute(grammarId, source, whole, replacement, options, SourceText.Of(source).Newline, notes);
+        if (error is { } why) return Result.Fail(why);
+
+        var anchors = new DeclarationAnchors();
+        if (anchors.ParsesCleanly(grammarId, source) && !anchors.ParsesCleanly(grammarId, text!))
+            return Result.Fail("The edit would leave the file unparseable, so it has not been applied.");
+
+        return new Result(true, "substitute in the file", text, HunkOf(source, text!), notes,
+                          ChangeOf(source, text!));
+    }
+
+    /// <summary>
     /// Adds an import (a <c>using</c>, an <c>import</c>, a <c>#include</c>) in the place the file already
     /// keeps them: after the last one, or — when there are none — above the first declaration but below any
     /// header comment, so a licence block stays at the top.
@@ -175,11 +205,45 @@ public static class StructuralEdit
     public static Result Apply(string grammarId, string source, string astPath, Op op, string? text,
                                Options? options = null, string? renameTo = null)
     {
-        var named = Declarations(grammarId, source).FirstOrDefault(d => d.AstPath == astPath);
-        if (named is null)
+        var declarations = Declarations(grammarId, source);
+
+        if (declarations.FirstOrDefault(d => d.AstPath == astPath) is { } named)
+            return Apply(grammarId, source, astPath, named.Name, op, text, options, renameTo);
+
+        // The path is out of date — the caller listed the file, then changed it, and is working from the
+        // older listing. The last segment still says what it meant, so recover from that instead of sending
+        // it back to re-list for a name it has already told us.
+        if (NameInPath(astPath) is not { Length: > 0 } wanted)
             return Result.Fail($"'{astPath}' does not name a declaration in this file. List them first.");
 
-        return Apply(grammarId, source, astPath, named.Name, op, text, options, renameTo);
+        var candidates = declarations.Where(d => d.Name == wanted).ToList();
+
+        if (candidates.Count == 1)
+            return Apply(grammarId, source, candidates[0].AstPath, wanted, op, text, options, renameTo);
+
+        if (candidates.Count > 1)
+            return Result.Fail(
+                $"'{astPath}' no longer resolves and '{wanted}' is declared {candidates.Count} times here "
+              + $"({string.Join(", ", candidates.Select(d => d.AstPath))}) — name one of those.");
+
+        return Result.Fail(
+            $"Nothing named '{wanted}' is declared in this file. List the declarations to see what is there now.");
+    }
+
+    /// <summary>
+    /// The declared name an AST path ends in — <c>Add</c> for <c>T:C/M:Add#1</c>. The path is
+    /// <c>&lt;kind&gt;:&lt;name&gt;</c> segments with an overload position on the last one, and the name is
+    /// the part of it that survives the file being edited.
+    /// </summary>
+    private static string? NameInPath(string astPath)
+    {
+        if (string.IsNullOrEmpty(astPath)) return null;
+
+        var last  = astPath.Split('/')[^1];
+        var colon = last.IndexOf(':');
+        var name  = colon >= 0 ? last[(colon + 1)..] : last;
+        var hash  = name.IndexOf('#');
+        return hash >= 0 ? name[..hash] : name;
     }
 
     /// <summary>
@@ -198,12 +262,36 @@ public static class StructuralEdit
         if (string.IsNullOrEmpty(grammarId))
             return Result.Fail("No tree-sitter grammar covers this file, so an edit cannot be verified.");
 
+        var notes     = new List<string>();
         var extractor = new CodeStructureExtractor();
-        if (extractor.ResolveSpan(grammarId, source, astPath) is not { } span)
-            return Result.Fail(
-                $"'{astPath}' no longer resolves. The record is behind the text in hand — the declaration has "
-              + "been renamed, moved or removed.");
+        var resolved  = extractor.ResolveSpan(grammarId, source, astPath);
 
+        if (resolved is null)
+        {
+            // The recorded path is stale — the declaration moved between types, or its container was
+            // renamed. Treat that as ordinary rather than as a failure: the record this came from was built
+            // from a checkout that is not this working tree, and refreshing it takes a minute and a half.
+            // The NAME is the durable half of the record, so re-find by that and carry on. What is never
+            // guessed is which of several same-named declarations was meant.
+            var candidates = Declarations(grammarId, source).Where(d => d.Name == expectedName).ToList();
+
+            if (candidates.Count == 0)
+                return Result.Fail(
+                    $"Nothing named '{expectedName}' is declared in this file — it has been renamed or "
+                  + "removed. List the declarations to see what is there now.");
+
+            if (candidates.Count > 1)
+                return Result.Fail(
+                    $"'{astPath}' no longer resolves and '{expectedName}' is declared {candidates.Count} "
+                  + $"times here ({string.Join(", ", candidates.Select(d => d.AstPath))}) — name one of those.");
+
+            notes.Add($"'{astPath}' had moved; '{expectedName}' was re-found at '{candidates[0].AstPath}' "
+                    + "and edited there.");
+            astPath  = candidates[0].AstPath;
+            resolved = (candidates[0].Line, candidates[0].EndLine);
+        }
+
+        var span    = resolved.Value;
         var anchors = new DeclarationAnchors();
         var anchor  = anchors.Find(grammarId, source, expectedName, span.Line, span.EndLine);
         if (anchor is null)
@@ -218,8 +306,6 @@ public static class StructuralEdit
         var shape   = SourceText.Of(source);
         var newline = shape.Newline;
         var indent  = IndentAt(source, anchor.Start);
-
-        var notes = new List<string>();
 
         var edit = op switch
         {

@@ -106,7 +106,24 @@ rather than by which lines it currently occupies:
 & $nfi graph edit insert-before|insert-after|doc <node-id> --file …
 & $nfi graph edit substitute <node-id> --find 'old();' --text 'new();'   # find/replace INSIDE one declaration
 & $nfi graph edit import     <file-or-node-id> --text 'using System.Linq;'   # where the file keeps its imports
+& $nfi graph edit create     <relpath> --file new-class.cs         # a new file (refuses to overwrite; must parse)
+& $nfi graph edit substitute file:<relpath> --find 'namespace A;' --text 'namespace B;'   # what is in NO declaration
 ```
+
+**You never have to think about the graph being stale.** Three things make it a non-issue, so don't reach for
+`graph build` before editing:
+
+- **The target file is re-read and merged into the graph on every edit** (`GraphBuilder.RefreshFile`) — one
+  file's parse, not the ~90s whole-repo walk. A file you *just created* is in the graph after the first edit
+  to it, and a file you deleted is pruned from it. `--no-refresh` skips this for a batch.
+- **A moved declaration is re-found by name.** If the recorded AST path no longer resolves but the name is
+  declared once in that file, the edit goes ahead and says so. It refuses only when the name is gone, or when
+  several declarations share it — it will not pick one for you.
+- **A node the graph has never seen is still editable.** `code:<relpath>#<astpath>` and `file:<relpath>` name
+  everything an edit needs, so the id works whether or not the graph holds it. The graph is how you *find* an
+  id; it is not what makes one valid.
+
+`graph build` is for the cross-file passes — call/inheritance resolution, communities — not for editing.
 
 **Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
 in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale
@@ -199,8 +216,16 @@ the roadmap of analyzers/validators to lock it down — is in
 
 Every verb's arguments are **strict** — an unknown option, a missing option value or a surplus positional is a
 hard error naming that verb's usage, never silently ignored (`batch` parses each line the same way and is
-all-or-nothing). And `validate` resolves a snaplink's file against **your working tree first**, so from a
-worktree it checks the branch you're editing rather than flagging every not-yet-merged file.
+all-or-nothing).
+
+**`validate` answers about the branch you are on.** From a linked worktree it resolves each snaplink against
+*that* tree — not the main checkout — because "does this file exist somewhere" is not the question a branch
+needs answered. It then splits what it finds: a link to a file that is in **neither** checkout belongs to some
+other branch's not-yet-merged work and is reported but does **not** set the exit code, while a link to a file
+main has and your branch does not **is** yours and does. `validate --main` gives the main checkout's view,
+which is what the installer's release gate runs (from the main checkout, where the two are the same anyway).
+The old fallback to the product root is what let a file you had *moved away* keep resolving through main, so a
+branch read clean while its links were stale.
 
 When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
 
