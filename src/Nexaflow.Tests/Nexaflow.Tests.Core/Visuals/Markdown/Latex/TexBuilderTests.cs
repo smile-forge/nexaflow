@@ -376,19 +376,37 @@ public class TexBuilderTests
     [TestMethod]
     public void WhatItDoesNotKnowItDeclines() => UiThread.Run(() =>
     {
-        // Half a formula built each way would mix two readings of the same source, which is the thing
-        // being got rid of. Declining is what keeps the fallback honest.
-        foreach (var latex in new[] { @"\textcolor{red}{a}",
+        // What is left of declining. A command nobody has taught it no longer turns a formula away — it
+        // draws nothing of its own and keeps whatever it was given, so `\textrm{Hello}` is a word in the
+        // wrong face rather than a blank. What still declines is a *block*: how a grid is arranged is
+        // read off the reading as rows and cells, and where that reading cannot be had there is no
+        // half-answer to give.
+        foreach (var latex in new[] { "'x",                                 // a prime marking nothing
                                       @"\text{for all}",     // words, not maths: the spaces are the point
-                                      "'x",                  // a prime with nothing to be the prime of
-                                      @"\left( a", @"\notacommand{x}",
+                                      @"\textcolor{red}{a}",
+                                      @"\left( a",                          // a fence still open
                                       @"\begin{matrix} a & b",              // never closed
                                       @"\begin{equation} a \end{equation}", // means nothing here yet
                                       @"\begin{alignat}{2} a & b \end{alignat}", // its count reads as a cell
-                                      @"\begin{array}{cc} \hline a & b \end{array}",
                                       @"\begin{array}{@{}c@{}} a \end{array}",  // a preamble it cannot read
                                       @"\begin{array} a & b \end{array}" })     // and one that is not there
             Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
+    });
+
+    [TestMethod]
+    public void AndEverythingElseItBuildsSomethingFor() => UiThread.Run(() =>
+    {
+        // The other half of the rule above. A command *nothing* knows has no better rendering to defer
+        // to, so this must answer for it rather than decline: it shows what was written and reports it,
+        // which is what a reader needs. A command the typesetter knows and this does not is the other
+        // case entirely, and is in the list above — that one still falls back and still renders properly.
+        foreach (var latex in new[] { @"\notacommand{x}",
+                                      @"\alhpa + \beta",
+                                      @"\bbox[red]{a}",      // nothing knows this one either
+                                      @"\hline",           // nor this: it is a rule between rows
+                                      @"x + \nosuchthing" })
+            Assert.IsNotNull(
+                TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
     });
 
     [TestMethod]

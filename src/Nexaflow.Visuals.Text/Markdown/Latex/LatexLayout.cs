@@ -109,9 +109,17 @@ public sealed class LatexLayout
             if (built is not null) Own(root);
             else Attribute(root, latex);
 
+            // What the parser could not read, and what the builder read but had no drawing for. The two
+            // arrive differently on purpose: a parser diagnostic already names a stretch of input, where
+            // the builder names the *part* and this asks it where that was written — which is this side
+            // of the fence, and the only moment the answer is current.
             var trouble = formula.Diagnostics
                 .Select(d => new Diagnostic(
                     d.At.Start, d.At.Length, DiagnosticSeverity.Error, d.Message))
+                .Concat(formula.Ignored.Select(part => Diagnostic.Of(
+                    part,
+                    DiagnosticSeverity.Error,
+                    $"Nothing knows the command {part.Part(TexRole.Name)?.Text}, so it draws nothing.")))
                 .ToList();
 
             var tree = new LatexTree(latex, root, new Size(union.Width, union.Height), trouble);

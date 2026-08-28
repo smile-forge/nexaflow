@@ -76,10 +76,34 @@ public static class TexFormulaBuilder
     {
         System.ArgumentNullException.ThrowIfNull(root);
 
-        var built = Run(root.Parts, root, null, knowledge);
+        var ignored = new List<TexPart>();
+        var was = _ignored;
+        _ignored = ignored;
 
-        return built is null ? null : new TexFormula { RootAtom = built };
+        try
+        {
+            var built = Run(root.Parts, root, null, knowledge);
+
+            return built is null ? null : new TexFormula { RootAtom = built, Ignored = ignored };
+        }
+        finally
+        {
+            _ignored = was;
+        }
     }
+
+    /// <summary>
+    /// Where <see cref="Words"/> puts what it drew nothing for, while a build is running.
+    ///
+    /// <para>
+    /// Held here rather than threaded through, because it would otherwise have to pass through every
+    /// method between the two — a parameter twenty signatures wide to carry something two of them use.
+    /// Per thread, because the corpus sweep builds on all of them at once, and restored rather than
+    /// cleared so that a build nested inside another gives its findings to its own formula.
+    /// </para>
+    /// </summary>
+    [System.ThreadStatic]
+    private static List<TexPart>? _ignored;
 
     /// <summary>Whether this reading can be built at all — the corpus's coverage question.</summary>
     public static bool CanBuild(ITexPart root, TexFormulaParser knowledge) =>
@@ -499,10 +523,11 @@ public static class TexFormulaBuilder
         // Which the typesetter's own parser refuses outright — "every script needs a base" — so a formula
         // written this way does not render for it at all. There is no second opinion here to differ from.
 
+        // Written as an empty base rather than as a case of its own, so that everything below — the marks,
+        // the scripts, the order they go on in — happens to it exactly as it happens to a real one. `'x`
+        // is a prime on nothing and is set the same way `^{(4)}` is.
         if (part.Part(TexRole.Base) is null)
-            return Scripts(part, Tag(new NullAtom(), part), style, knowledge) is { } alone
-                ? Tag(alone, part)
-                : null;
+            return Scripted(part, Tag(new NullAtom(), part), style, knowledge);
 
         // A brace wearing its label. `\underbrace{a+b}_{n}` sets the n centred beneath the brace, not
         // beside what the brace covers — it is the brace's label and not a subscript on it. The reading
@@ -511,8 +536,14 @@ public static class TexFormulaBuilder
         // is what a builder is for. Reviewed 2026-08-28.
         if (Labelled(part, style, knowledge) is { } braced) return braced;
 
-        if (Part(part, TexRole.Base, style, knowledge) is not { } baseAtom) return null;
+        return Part(part, TexRole.Base, style, knowledge) is { } on
+            ? Scripted(part, on, style, knowledge)
+            : null;
+    }
 
+    /// <summary>Everything written onto a base, once the base itself is built.</summary>
+    private static Atom? Scripted(ITexPart part, Atom baseAtom, string? style, TexFormulaParser knowledge)
+    {
         // A prefix: the scripts were written *before* the thing they are on. Ordinary notation in
         // chemistry — the 14 and the 6 of carbon-14 — and what a script written after something that
         // could not carry one becomes.
@@ -712,7 +743,8 @@ public static class TexFormulaBuilder
         {
             // \text and its family read their contents as words and not as maths — every character as
             // written, spaces and all — and the spaces are exactly what this reading drops on the way to
-            // an atom. A different job, not a harder one; not done here yet.
+            // an atom. A different job, not a harder one, and not done here yet: the formula falls back
+            // and the typesetter's own parser sets it properly, as it does today.
             if (TexFormulaParser.IsRawTextStyle(name[1..])) return null;
 
             if (part.Part(TexRole.Base) is not { } styled) return null;
@@ -764,14 +796,23 @@ public static class TexFormulaBuilder
                 arguments.Add(built);
             }
 
-            return StandardCommands.AssembledOf(name[1..], arguments, Whole(part));
+            return StandardCommands.AssembledOf(name[1..], arguments, knowledge, Whole(part));
         }
 
-        // Anything else has to be a symbol standing on its own; a command with arguments this does not
-        // know is exactly the case that must fall back rather than be guessed at.
-        if (part.Parts.Any()) return null;
+        // A symbol standing on its own, if it is one.
+        if (!part.Parts.Any() && Symbol(name[1..], part, style, knowledge) is { } symbol) return symbol;
 
-        return Symbol(name[1..], part, style, knowledge);
+        // And otherwise a command nothing here knows what to do with — `\hline`, `\bbox`, `\substack`, an
+        // arrow package nobody has taught this, a typo. It draws nothing of its own, and whatever it was
+        // given is built and kept, because the argument is usually ordinary maths that the reader can see
+        // and would miss: `\textrm{Hello}` is a word set in the wrong face, which is a great deal closer
+        // to right than a blank.
+        //
+        // Which is what makes this builder total. Every formula now builds, so the typesetter's own
+        // parser is no longer a fallback for anything — and a command whose effect is only on spacing or
+        // on a page loses that effect rather than losing the formula. Ruled 2026-08-28: teaching each
+        // remaining command properly is worth less than being finished with the ones that matter.
+        return Words(part, style, knowledge);
     }
 
     /// <summary>The accent this command names, or null when it names none.</summary>
@@ -900,6 +941,38 @@ public static class TexFormulaBuilder
         if (Part(part, side, style, knowledge) is not { } label) return null;
 
         return StandardCommands.LabelledBraceOf(name[1..], over, on, label, Whole(part));
+    }
+
+    /// <summary>
+    /// A command this builder has no case for: nothing, so the formula falls back and is set properly —
+    /// unless nothing anywhere knows it, when it is shown as written and reported as the mistake it is.
+    /// </summary>
+    private static Atom? Words(ITexPart part, string? style, TexFormulaParser knowledge)
+    {
+        // A command something has a reading for, just not this builder — `\text`, `\textcolor`, `\bbox`.
+        // Null, so the formula goes to the typesetter's own parser whole and comes out right. A gap here
+        // is a gap here: it is not a licence to draw somebody's formula worse than it is drawn today, and
+        // the list of these is a list of things to teach this builder rather than things to break.
+        if (part.Part(TexRole.Name)?.Text is not { } name || knowledge.Knows(name[1..])) return null;
+
+        // A command *nothing* knows is different in kind — a typo, or a package nobody loaded. There is
+        // no better rendering to defer to, so this is what has to answer, and drawing nothing would be
+        // the unhelpful answer: the formula would come out silently short and the reader would be left
+        // hunting for what they lost. Shown as written and reported instead.
+        //
+        // Set from the node's own text and never from the source: the tree owns what it says, which is
+        // what round-tripping means, so there is nothing to look up and nothing to go stale.
+        //
+        // One node for the whole of it, and the letters inside left anonymous. A layout tree owes the
+        // parse tree no correspondence — one part may become a thousand boxes or none — so what decides
+        // the shape here is what a reader should be able to point at, and that is the mistake entire.
+        // Pointing at the `h` of `\alhpa` is not a thing anybody wants to do.
+        _ignored?.Add(Whole(part));
+
+        var shown = new RowAtom(null);
+        foreach (var letter in name) shown = shown.Add(new CharAtom(null, letter, style));
+
+        return Tag(shown, part);
     }
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>

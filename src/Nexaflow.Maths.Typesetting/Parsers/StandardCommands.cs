@@ -66,7 +66,7 @@ internal static class StandardCommands
             return new CommandProcessingResult(atom, position);
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new OverArrowAtom(null, arguments[0], _decoration, _over) { Origin = origin }
                 : null;
@@ -94,7 +94,7 @@ internal static class StandardCommands
             return new CommandProcessingResult(atom, position);
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 0 ? new DotsAtom(null, _shape) { Origin = origin } : null;
     }
 
@@ -186,7 +186,7 @@ internal static class StandardCommands
     }
 
     // \dfrac and \tfrac: \frac forced into display or text style respectively.
-    private sealed class FracStyleCommand : ICommandParser
+    private sealed class FracStyleCommand : ICommandParser, IAssembleCommand
     {
         public static FracStyleCommand Dfrac { get; } = new(TexStyle.Display);
         public static FracStyleCommand Tfrac { get; } = new(TexStyle.Text);
@@ -211,11 +211,16 @@ internal static class StandardCommands
             };
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 2
+                ? new FractionAtom(null, arguments[0], arguments[1], true) { OverrideStyle = _style, Origin = origin }
+                : null;
     }
 
     // \cfrac[l|c|r]{a}{b}: a continued-fraction fraction — display style throughout (nested \cfrac stays
     // full size) with an optional numerator alignment.
-    private sealed class CfracCommand : ICommandParser
+    private sealed class CfracCommand : ICommandParser, IAssembleCommand
     {
         public CommandProcessingResult ProcessCommand(CommandContext context)
         {
@@ -239,10 +244,16 @@ internal static class StandardCommands
             };
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 2
+                ? new FractionAtom(null, arguments[0], arguments[1], true, TexAlignment.Center, TexAlignment.Center)
+                  { OverrideStyle = TexStyle.Display, KeepContentStyle = true, Origin = origin }
+                : null;
     }
 
     // \nicefrac{a}{b} and \sfrac{a}{b}: an inline "slash" fraction (raised numerator / lowered denominator).
-    private sealed class SlashFractionCommand : ICommandParser
+    private sealed class SlashFractionCommand : ICommandParser, IAssembleCommand
     {
         public CommandProcessingResult ProcessCommand(CommandContext context)
         {
@@ -254,10 +265,15 @@ internal static class StandardCommands
             var atom = new SlashFractionAtom(atomSource, numerator.RootAtom, denominator.RootAtom);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 2
+                ? new SlashFractionAtom(null, arguments[0], arguments[1]) { Origin = origin }
+                : null;
     }
 
     // \pmod{n} -> "(mod n)" after a wide space; \pod{n} -> "(n)". Used as e.g. a \equiv b \pmod{n}.
-    private sealed class ParenModCommand : ICommandParser
+    private sealed class ParenModCommand : ICommandParser, IAssembleCommand
     {
         public static ParenModCommand Pmod { get; } = new(withMod: true);
         public static ParenModCommand Pod { get; } = new(withMod: false);
@@ -284,6 +300,47 @@ internal static class StandardCommands
             var formula = context.Parser.Parse(
                 bodySpan, context.Formula.TextStyle, context.Environment.CreateChildEnvironment());
             return new CommandProcessingResult(formula.RootAtom, position);
+        }
+
+        /// <summary>
+        /// <c>(mod n)</c>, built round an argument already read.
+        /// <para>
+        /// The parentheses and the word are this command's, not the reader's — they are why <c>\pmod{n}</c>
+        /// is one thing to point at and not just an n. Assembled here rather than by re-reading a string
+        /// of LaTeX, because a formula built from a parse tree should not have to write LaTeX to get one.
+        /// </para>
+        /// </summary>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin)
+        {
+            if (arguments.Count != 1) return null;
+
+            var inside = new RowAtom(null);
+
+            // The same pieces the written-out form would have produced, asked for by name rather than
+            // guessed at. `\quad` and `\;` are macros with definitions; inventing two space atoms of
+            // roughly the right size instead moved every \pmod in the corpus a fraction of an em.
+            if (_withMod)
+            {
+                foreach (var letter in "mod") inside = inside.Add(new CharAtom(null, letter, "mathrm"));
+
+                if (knowledge.ExpansionOf(";") is { } thin) inside = inside.Add(thin);
+            }
+
+            var fenced = new FencedAtom(
+                null,
+                inside.Add(arguments[0]),
+                new SymbolAtom(null, "(", TexAtomType.Opening, true) { Origin = origin },
+                new SymbolAtom(null, ")", TexAtomType.Closing, true) { Origin = origin })
+            {
+                Origin = origin,
+            };
+
+            var whole = new RowAtom(null);
+            if (knowledge.ExpansionOf("quad") is { } gap) whole = whole.Add(gap);
+            whole = whole.Add(fenced);
+
+            whole.Origin = origin;
+            return whole;
         }
     }
 
@@ -414,7 +471,7 @@ internal static class StandardCommands
             return new CommandProcessingResult(atom, position);
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new PhantomAtom(null, arguments[0], _useWidth, _useHeight, _useHeight) { Origin = origin }
                 : null;
@@ -422,7 +479,7 @@ internal static class StandardCommands
 
     // \smash{x} draws the content and reports no height, \math?lap{x} draws it and reports no width. Both are the
     // inverse of \phantom: ink without extent rather than extent without ink.
-    private sealed class SmashCommand : ICommandParser
+    private sealed class SmashCommand : ICommandParser, IAssembleCommand
     {
         public static SmashCommand Smash { get; } = new(null);
         public static SmashCommand Llap { get; } = new(TexAlignment.Left);
@@ -447,6 +504,13 @@ internal static class StandardCommands
                 : new SmashAtom(atomSource, content.RootAtom);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count != 1
+                ? null
+                : _lapAlignment is { } alignment
+                    ? new LapAtom(null, arguments[0], alignment) { Origin = origin }
+                    : new SmashAtom(null, arguments[0]) { Origin = origin };
     }
 
     // \boxed{x} and \fbox{x}: the content inside a rectangular frame.
@@ -462,13 +526,13 @@ internal static class StandardCommands
             return new CommandProcessingResult(atom, position);
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1 ? new BoxedAtom(null, arguments[0]) { Origin = origin } : null;
     }
 
     // \xrightarrow[under]{over} and friends: an arrow stretched to fit the labels written over (and optionally
     // under) it. The under label is the optional argument, as in LaTeX.
-    private sealed class ExtensibleArrowCommand : ICommandParser
+    private sealed class ExtensibleArrowCommand : ICommandParser, IAssembleCommand
     {
         public static ExtensibleArrowCommand Right { get; } = new(ArrowDecoration.HeadRight);
         public static ExtensibleArrowCommand Left { get; } = new(ArrowDecoration.HeadLeft);
@@ -510,6 +574,19 @@ internal static class StandardCommands
             var atom = new ExtensibleArrowAtom(atomSource, over.RootAtom, under?.RootAtom, _decoration);
             return new CommandProcessingResult(atom, position);
         }
+
+        /// <summary>The arrow, its label over it and — where one was written — its label under it.</summary>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count is 1 or 2
+                ? new ExtensibleArrowAtom(
+                    null,
+                    arguments[^1],
+                    arguments.Count == 2 ? arguments[0] : null,
+                    _decoration)
+                {
+                    Origin = origin,
+                }
+                : null;
     }
 
     // \overbrace{body}^{label} and \underbrace{body}_{label}: a brace stretched to the width of the
@@ -578,7 +655,7 @@ internal static class StandardCommands
         /// is none of its business.
         /// </para>
         /// </summary>
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             Labelled(arguments.Count == 1 ? arguments[0] : null, null, origin);
 
         /// <summary>Whether a label on this side belongs to the brace: <c>^</c> over, <c>_</c> under.</summary>
@@ -618,14 +695,14 @@ internal static class StandardCommands
             return new CommandProcessingResult(atom, position);
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1 ? new BoldAtom(null, arguments[0]) { Origin = origin } : null;
     }
 
     // \operatorname{name} sets a function name upright and, more importantly, types it as an
     // operator: that is what gives it operator spacing and lets a following script become a limit.
     // The starred form takes its limits above and below in display style, as \sum does.
-    private sealed class OperatorNameCommand : ICommandParser
+    private sealed class OperatorNameCommand : ICommandParser, IAssembleCommand
     {
         public CommandProcessingResult ProcessCommand(CommandContext context)
         {
@@ -648,6 +725,11 @@ internal static class StandardCommands
             var atom = new BigOperatorAtom(atomSource, name.RootAtom, null, null, starred ? null : (bool?)false);
             return new CommandProcessingResult(atom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1
+                ? new BigOperatorAtom(null, arguments[0], null, null, false) { Origin = origin }
+                : null;
     }
 
     // inom{n}{k}, and \dbinom / 	binom which force display or text style. amsmath spells all
@@ -686,7 +768,7 @@ internal static class StandardCommands
             return new CommandProcessingResult(new FencedAtom(atomSource, fraction, left, right), position);
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin)
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin)
         {
             if (arguments.Count != 2) return null;
 
@@ -729,7 +811,7 @@ internal static class StandardCommands
     /// separator and sometimes an ordinary bar is worth getting right on purpose rather than in passing.
     /// </para>
     /// </summary>
-    private sealed class BraketCommand : ICommandParser
+    private sealed class BraketCommand : ICommandParser, IAssembleCommand
     {
         public static BraketCommand Bra { get; } = new("langle", "vert");
         public static BraketCommand Ket { get; } = new("vert", "rangle");
@@ -757,9 +839,21 @@ internal static class StandardCommands
             return new CommandProcessingResult(
                 new FencedAtom(atomSource, body.RootAtom, left, right), position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1
+                ? new FencedAtom(
+                    null,
+                    arguments[0],
+                    new SymbolAtom(null, _open, TexAtomType.Opening, true) { Origin = origin },
+                    new SymbolAtom(null, _close, TexAtomType.Closing, true) { Origin = origin })
+                {
+                    Origin = origin,
+                }
+                : null;
     }
 
-    private sealed class CancelCommand : ICommandParser
+    private sealed class CancelCommand : ICommandParser, IAssembleCommand
     {
         public static CancelCommand BCancel { get; } = new(StrokeBoxMode.Back);
         public static CancelCommand Cancel { get; } = new(StrokeBoxMode.Normal);
@@ -788,6 +882,11 @@ internal static class StandardCommands
 
             return new CommandProcessingResult(cancelAtom, position);
         }
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1
+                ? new CancelAtom(null, arguments[0], _strokeBoxMode) { Origin = origin }
+                : null;
     }
 
     /// <summary>
@@ -866,7 +965,7 @@ internal static class StandardCommands
             return new CommandProcessingResult(new TypedAtom(atomSource, atom, _type, _type), position);
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new TypedAtom(null, arguments[0], _type, _type) { Origin = origin }
                 : null;
@@ -965,9 +1064,12 @@ internal static class StandardCommands
     /// is not one that can be asked.
     /// </summary>
     internal static Atom? AssembledOf(
-        string command, IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
+        string command,
+        IReadOnlyList<Atom> arguments,
+        TexFormulaParser knowledge,
+        Nexaflow.Maths.Latex.TexPart? origin) =>
         Dictionary.TryGetValue(command, out var parser) && parser is IAssembleCommand assembler
-            ? assembler.Assemble(arguments, origin)
+            ? assembler.Assemble(arguments, knowledge, origin)
             : null;
 
     /// <summary>
@@ -1186,7 +1288,7 @@ internal static class StandardCommands
     /// A command whose LaTeX-level effect is page layout but whose argument is real maths -
     /// <c>\shoveleft</c> and <c>\shoveright</c>. The layout goes; the contents stay.
     /// </summary>
-    private sealed class TransparentCommand : ICommandParser
+    private sealed class TransparentCommand : ICommandParser, IAssembleCommand
     {
         public static TransparentCommand Instance { get; } = new();
 
@@ -1199,6 +1301,10 @@ internal static class StandardCommands
             var atomSource = source.Segment(start, position - start);
             return new CommandProcessingResult(argument.RootAtom ?? new NullAtom(atomSource), position);
         }
+
+        /// <summary>What was inside it, and nothing of its own: the layout goes, the contents stay.</summary>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 1 ? arguments[0] : null;
     }
 
     /// <summary>

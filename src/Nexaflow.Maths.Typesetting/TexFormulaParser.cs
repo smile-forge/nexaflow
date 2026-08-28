@@ -1241,6 +1241,36 @@ public class TexFormulaParser
         return expansion is null ? null : expansion with { Source = null };
     }
 
+    /// <summary>
+    /// Whether anything here has a reading for a command at all — a command parser, a macro, a style or a
+    /// symbol.
+    ///
+    /// <para>
+    /// Asked by <see cref="TexFormulaBuilder"/> to tell two different things apart, both of which reach
+    /// the same place in it. A command this knows but the builder has no drawing for — <c>\textrm</c>,
+    /// <c>\bbox</c> — is a gap in the builder, and the reader should see their formula rather than a
+    /// complaint about it. A command <em>nothing</em> knows is a mistake in what they typed, and saying so
+    /// is the useful thing to do.
+    /// </para>
+    /// </summary>
+    internal bool Knows(string command)
+    {
+        if (StandardCommands.Dictionary.ContainsKey(command)) return true;
+        if (predefinedFormulas.ContainsKey(command)) return true;
+        if (textStyles.Contains(command)) return true;
+        if (embeddedCommands.Contains(command)) return true;
+
+        try
+        {
+            SymbolAtom.GetAtom(command, null);
+            return true;
+        }
+        catch (SymbolNotFoundException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Marks a whole expansion as the definition's rather than the reader's.</summary>
     private static void Borrow(Atom atom)
     {
