@@ -491,11 +491,25 @@ public static class TexFormulaBuilder
 
     private static Atom? Script(ITexPart part, string? style, TexFormulaParser knowledge)
     {
-        // A script with no base at all — one written with nothing before it that could carry it and
-        // nothing after it either. The reading gives what follows to it where there is anything to give;
-        // where there is not, the parser sets it on an empty box, and a box that nothing in the reading
-        // stands for is not a thing to invent.
-        if (part.Part(TexRole.Base) is null) return null;
+        // A script with nothing before it at all — `^{(4)}R`, `{_abc}`. It stands alone, and deliberately:
+        // whether it was meant for what follows cannot be told from the writing, only from knowing what
+        // the mathematics means, and that is not this reading's to know. So it attaches to nothing and is
+        // drawn where it was written, on a box of no width. Reviewed 2026-08-28.
+        //
+        // Which the typesetter's own parser refuses outright — "every script needs a base" — so a formula
+        // written this way does not render for it at all. There is no second opinion here to differ from.
+
+        if (part.Part(TexRole.Base) is null)
+            return Scripts(part, Tag(new NullAtom(), part), style, knowledge) is { } alone
+                ? Tag(alone, part)
+                : null;
+
+        // A brace wearing its label. `\underbrace{a+b}_{n}` sets the n centred beneath the brace, not
+        // beside what the brace covers — it is the brace's label and not a subscript on it. The reading
+        // has them apart, because a script nests around what it is written on and says nothing about what
+        // that thing will do with it; deciding that they are one construct is this builder's job, which
+        // is what a builder is for. Reviewed 2026-08-28.
+        if (Labelled(part, style, knowledge) is { } braced) return braced;
 
         if (Part(part, TexRole.Base, style, knowledge) is not { } baseAtom) return null;
 
@@ -515,18 +529,16 @@ public static class TexFormulaBuilder
         // name child, and "after nothing" is not "first".
         if (Order(part, TexRole.Name) is var name and >= 0 && Order(part, TexRole.Base) > name)
         {
-            // A space standing beside a prefix, which the two readings space differently. Seventeen
-            // formulas in the corpus and every one of them is one of these two shapes: a tie in front of
-            // the prefix (`F_{\rho} ~ ^{\nu}`), or a space between the prefix and what it is on
-            // (`{^5 \! \vec P}`). Unexamined, so declined.
-            //
-            // The whole of prefix drawing is 228 formulas in a quarter of a million, so this costs 211 of
-            // them to hold back 17 — worth writing down, because the number reads like an argument for
-            // building all of them and is not one: what a corpus of printed physics happens to contain is
-            // not what a chemist will type, and the rule is the same rule either way.
-            if (DeclineUnsettled && Spaced(part)) return null;
-
-            var carried = Scripts(part, new RowAtom(null), style, knowledge);
+            // Reviewed 2026-08-28, including with a space beside it — a tie in front of the prefix, or a
+            // space between the prefix and what it is on. Identical rendering, and ours is the tree to
+            // keep: the scripts belong to what follows and the reading says so.
+            // Whatever the prefix turns out to sit next to — a base wearing its own scripts, a space
+            // between the two, another script trailing after — it is built the same way and never
+            // declined. A prefix nobody can resolve is a standalone script and then its base, which is
+            // this same pair of atoms; what would make it more than that is knowing what the mathematics
+            // means, and that is a later stage's to know. So it renders, and if selection is coarser than
+            // it might be, that is the price and it is the right one. Ruled 2026-08-28.
+            var carried = Scripts(part, Tag(new NullAtom(), part), style, knowledge);
             if (carried is null) return null;
 
             var both = new RowAtom(null).Add(Tag(carried, part)).Add(baseAtom);
@@ -705,18 +717,10 @@ public static class TexFormulaBuilder
 
             if (part.Part(TexRole.Base) is not { } styled) return null;
 
-            // A tie standing beside a space that was asked for, inside a style — `\mathrm{\quad ~}`. Two
-            // formulas in the corpus, and the two readings space them differently; unexamined, so not
-            // guessed at.
-            //
-            // This decline used to read "a tie inside a style", which is the same shape described far too
-            // broadly: it also turned away every `\mathrm{~mod~}` and `\mathrm{Im~}`, which is how these
-            // papers space an operator name and which runs to thousands of formulas that all agree. A
-            // decline is never exercised, so the words it is written in are the whole of it.
-            if (DeclineUnsettled
-                && styled.SelfAndDescendants().Any(inner => inner.Text == "~")
-                && styled.SelfAndDescendants().Any(inner => inner.Role == TexRole.Name))
-                return null;
+            // A tie standing beside a space that was asked for, inside a style — `\mathrm{\quad ~}`.
+            // Reviewed 2026-08-28: ours is the structure to keep. It was declined for a while as "a tie
+            // inside a style", which is the same shape described far too broadly — it also turned away
+            // every `\mathrm{~mod~}` and `\mathrm{Im~}`, thousands of formulas that all agreed.
 
             if (Of(styled, restyled, knowledge) is not { } inner) return null;
 
@@ -742,14 +746,14 @@ public static class TexFormulaBuilder
         // asking one at a time, before it was obvious they were one question.
         if (StandardCommands.CanAssemble(name[1..]))
         {
-            // Except where a script is written on it. What a script *means* depends on what it lands on:
-            // `\underbrace{x}_{d}` tucks the d under the brace as its label, and `\mathop{lim}_{n}` sets
-            // the n as a limit beneath rather than beside — both because the thing underneath says so.
-            // The engine reads that while it reads the argument, in one pass; this reading has the script
-            // nested round the whole command instead, so the two must be brought together deliberately.
-            // 112 corpus formulas, and every one is one of those two, so it is one question and not a
-            // family of them. Unexamined, so declined.
-            if (DeclineUnsettled && part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
+            // Except `\mathop`, which types whatever is inside it as a big operator — and a script on a
+            // big operator is a *limit*, set above or below it rather than beside. The brace half of this
+            // question has been ruled on and is built above; this half has not. 23 formulas.
+            if (DeclineUnsettled
+                && name is @"\mathop"
+                && part.Parent is { Kind: TexKind.Script }
+                && part.Role == TexRole.Base)
+                return null;
 
             var arguments = new List<Atom>();
 
@@ -867,6 +871,36 @@ public static class TexFormulaBuilder
         part.Kind == TexKind.Space
         || part.Text == "~"
         || (part.Kind == TexKind.Command && part.Part(TexRole.Name)?.Text is @"\!" or @"\ ");
+
+    /// <summary>
+    /// This script read as a brace and its label, or null where it is not one.
+    ///
+    /// <para>
+    /// The one place two nodes of the reading are deliberately understood as one thing. Everything else
+    /// here builds a part into an atom; this looks at a <see cref="TexKind.Script"/> and the command
+    /// underneath it together, because what the script <em>means</em> is decided by what it lands on. Only
+    /// where the brace labels that side — an <c>\underbrace</c> wearing a <c>^</c> is scripted like
+    /// anything else, and the table is what says so.
+    /// </para>
+    /// </summary>
+    private static Atom? Labelled(ITexPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (part.Part(TexRole.Base) is not { Kind: TexKind.Command } braced) return null;
+        if (braced.Part(TexRole.Name)?.Text is not { } name) return null;
+
+        var over = part.Part(TexRole.Superscript) is not null;
+        var side = over ? TexRole.Superscript : TexRole.Subscript;
+
+        // One label and nothing else on it. `\underbrace{x}_{a}^{b}` wears both, and what the other one
+        // does is a question nobody has asked yet.
+        if (part.Part(over ? TexRole.Subscript : TexRole.Superscript) is not null) return null;
+        if (part.Part(TexRole.Mark) is not null) return null;
+
+        if (Part(braced, TexRole.Base, style, knowledge) is not { } on) return null;
+        if (Part(part, side, style, knowledge) is not { } label) return null;
+
+        return StandardCommands.LabelledBraceOf(name[1..], over, on, label, Whole(part));
+    }
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
     private static int Order(ITexPart whole, string role)

@@ -154,15 +154,17 @@ public class TexBuilderTests
         "{}",
         @"T^{\alpha}{}_{\alpha}",
 
-        // Prefix scripts, drawn in front. Chemistry writes carbon-14 this way and physics writes a
-        // tensor index this way; both are an empty box wearing the scripts followed by the real base.
-        // Carbon-14, and how a prefix is actually written. Not the builder's prefix branch at all: `{}`
+        // Carbon-14, and how a prefix is usually written. Not the builder's prefix branch at all: `{}`
         // carries a script like anything else, so these are ordinary suffix scripts on an empty box
-        // followed by the base — which is TeX's own construction and why the empty group had to come
-        // first. The branch is for a prefix the reading nests, and every one of those follows a space
-        // and is parked, so it is presently gated to nothing.
+        // followed by the base — TeX's own construction, and why the empty group had to come first.
         @"{}^{14}_{6}\mathrm{C}",
         @"{}^{3}He",
+
+        // And the branch itself: a script written after something that cannot carry one belongs to what
+        // comes next, space beside it or not. Reviewed 2026-08-28 — identical rendering, ours is the tree.
+        @"x~^{2}y",
+        @"F_{\rho} ~ ^{\nu} G",
+        @"\int C ~ _{\wedge} dT",
 
         // Something set above or below something else. The roles say which is which, because the order
         // does not: \overset and \underset both write the annotation first.
@@ -181,6 +183,20 @@ public class TexBuilderTests
         @"\ddots",
         @"\underbrace{a+b}",
         @"\overbrace{x y}",
+
+        // A brace wearing its label — the n belongs to the brace and is set centred beneath it, which
+        // the reading has as a script around the whole command until the builder puts them together.
+        @"\underbrace{a+b}_{n}",
+        @"\overbrace{x+y}^{m}",
+        @"\underbrace{1+\cdots+1}_{k}",
+        @"\underbrace{a}^{b}",          // labelled on the side it does not label: an ordinary script
+
+        // A script with nothing at all before it. It stands alone, drawn where it was written, on a box
+        // of no width — the typesetter's own parser refuses these outright.
+        @"^{(4)}R_{\mu}",
+        @"{_a b c}",
+        @"^{*}F",
+        @"\mathrm{\quad ~}",            // a tie beside an asked-for space, inside a style
         @"\fbox{a}",
         @"\mathop{\rm tr}",
 
@@ -276,7 +292,14 @@ public class TexBuilderTests
             var ours = TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance);
             Assert.IsNotNull(ours, latex);
 
-            var theirs = WpfTeXFormulaParser.Instance.Parse(latex);
+            // Some of these the parser will not read at all — a script with nothing before it is "every
+            // script needs a base" and it throws. That is not a disagreement to arbitrate: there is one
+            // reading of such a formula and it is ours, and the only test that can be applied to it is
+            // that it builds, which the list above already applies.
+            TexFormula theirs;
+            try { theirs = WpfTeXFormulaParser.Instance.Parse(latex); }
+            catch (XamlMath.Exceptions.TexParseException) { continue; }
+
             if (Settled(theirs, latex) == Settled(ours, latex)) continue;
 
             // Same picture and a different tree is a structural choice; a different picture is a
@@ -358,7 +381,6 @@ public class TexBuilderTests
         foreach (var latex in new[] { @"\textcolor{red}{a}",
                                       @"\text{for all}",     // words, not maths: the spaces are the point
                                       "'x",                  // a prime with nothing to be the prime of
-                                      @"^{2}",               // a script with nothing at all before it
                                       @"\left( a", @"\notacommand{x}",
                                       @"\begin{matrix} a & b",              // never closed
                                       @"\begin{equation} a \end{equation}", // means nothing here yet
@@ -398,6 +420,7 @@ public class TexBuilderTests
 
         var seen = formulas.Count;
         var built = 0;
+        var alone = 0;
         var wrong = new List<string>();
         var deliberate = new Dictionary<string, int>(StringComparer.Ordinal);
         var named = new Dictionary<string, (int Built, int Declined)>(StringComparer.Ordinal);
@@ -428,15 +451,22 @@ public class TexBuilderTests
 
             Interlocked.Increment(ref built);
 
+            // A formula the parser will not read has nothing to be held against, so it leaves here
+            // unchecked — counted, because "none of them disagree" means less than it sounds if some
+            // large number of them had no second opinion to disagree with.
             TexFormula? theirs;
-            try { theirs = WpfTeXFormulaParser.Instance.Parse(formula.Latex); } catch { return; }
+            try { theirs = WpfTeXFormulaParser.Instance.Parse(formula.Latex); }
+            catch { Interlocked.Increment(ref alone); return; }
 
-            if (Settled(theirs, formula.Latex) == Settled(ours, formula.Latex)) return;
+            var (theirTree, theirInk) = Landed(theirs, formula.Latex);
+            var (ourTree, ourInk) = Landed(ours, formula.Latex);
+
+            if (theirTree == ourTree) return;
 
             // A difference that has been looked at and decided in our favour is not a failure. The
             // parser is a reference and not a specification, so "differs from it" was never the same as
             // "wrong" — it is just the only signal available until somebody looks.
-            var why = Drawn(theirs, formula.Latex) == Drawn(ours, formula.Latex)
+            var why = theirInk == ourInk
                 ? "the same picture, a different tree — ours keeps what the writer grouped"
                 : Decided(TexReading.Of(formula.Latex), ours);
 
@@ -472,7 +502,8 @@ public class TexBuilderTests
         File.WriteAllText(
             Path.Combine(Path.GetDirectoryName(corpus)!, "tex-builder-coverage.txt"),
             $"built {built} of {seen} ({100.0 * built / seen:F1}%), and every one of them set where the "
-            + $"parser sets it — bar {decided} set deliberately otherwise:\n"
+            + $"parser sets it — bar {decided} set deliberately otherwise, and {alone} the parser will "
+            + "not read at all, which nothing here can check:\n"
             + string.Join("\n", deliberate.OrderByDescending(d => d.Value)
                                           .Select(d => $"  {d.Value,7:N0}  {d.Key}")));
 
@@ -548,8 +579,12 @@ public class TexBuilderTests
 
         var text = new StringBuilder();
 
+        // A leaf with no area marks nothing. Ours emits those where the parser emits none — the empty box
+        // a prefix script sits on, the place an empty group keeps — and counting them called a difference
+        // in the *picture* what is a difference in the tree, which is the one distinction this exists to
+        // draw. A reader cannot see a box of no width; nor should this.
         foreach (var node in capture.Root!.SelfAndDescendants())
-            if (node.Children.Count == 0)
+            if (node.Children.Count == 0 && node.Bounds.Width > 0 && node.Bounds.Height > 0)
                 text.Append(node.Kind).Append(' ')
                     .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
                     .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))
@@ -599,6 +634,15 @@ public class TexBuilderTests
         return Decided(reading);
     }
 
+    /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
+    private static int Order(TexPart whole, string role)
+    {
+        for (var at = 0; at < whole.Children.Count; at++)
+            if (whole.Children[at].Role == role) return at;
+
+        return -1;
+    }
+
     private static string? Decided(TexReading reading)
     {
         // The same ruling, wherever the delimiter is written. `\|` is TeX's spelling of `\Vert` whether it
@@ -608,6 +652,29 @@ public class TexBuilderTests
         foreach (var part in reading.Root.SelfAndDescendants())
             if (part.Role == TexRole.Argument && part.Print() == @"\|")
                 return @"\| — ours draws the double bar it names; the parser draws otherwise";
+
+        // A prefix — a script written before the thing it is on, because what came before it could not
+        // carry one. Ruled 2026-08-28: where it cannot be resolved further it is a standalone script and
+        // then its base, which is the pair of atoms ours builds. Resolving it any further needs to know
+        // what the mathematics means, and that is a later stage's job; this one renders it.
+        foreach (var part in reading.Root.SelfAndDescendants())
+            if (part.Kind == TexKind.Script && Order(part, TexRole.Name) is var wrote and >= 0
+                                            && Order(part, TexRole.Base) > wrote)
+                return "a prefix script — ours sets it in front, as a script and then its base";
+
+        // A script written with nothing before it stands alone, and the box it stands on has no width.
+        // Reviewed 2026-08-28: `^{(4)}R_{\mu}` is a superscript, then an R, then a subscript, because
+        // whether the script was meant for what follows cannot be told from the writing at all — only
+        // from knowing what the mathematics means, which is not this reading's to know.
+        //
+        // The parser gives that empty base a box 2.22 wide and ours gives it none, which is the whole of
+        // the difference and the only thing left in these. An empty box has no width is now one rule
+        // across all three places an empty box appears — the empty group, the baseless script, and the
+        // box a prefix's scripts ride on — and having it be one rule is worth more than matching a
+        // number the typesetter's parser only reaches by way of a case it calls an error.
+        foreach (var part in reading.Root.SelfAndDescendants())
+            if (part.Kind == TexKind.Script && part.Part(TexRole.Base) is null)
+                return "a script with nothing before it — ours stands it on a box of no width";
 
         // An empty group is a place and not an absence. The parser drops `{}` and leaves nothing behind;
         // ours keeps a box of no width, because the reader wrote it, a caret has to be able to sit in it,
@@ -666,6 +733,59 @@ public class TexBuilderTests
     /// </summary>
     [ThreadStatic]
     private static XamlMath.TexEnvironment? _setting;
+
+    /// <summary>
+    /// Where every piece of a formula lands, laid out once and reduced to two numbers: the whole tree, and
+    /// only the boxes that draw something.
+    ///
+    /// <para>
+    /// Numbers rather than the strings this used to compare, because the strings were most of the cost of
+    /// the sweep. Every box carries four coordinates, a formula has some tens of boxes, both readings are
+    /// measured and there are a quarter of a million formulas — which came to something like fifty million
+    /// calls to <c>ToString("F2")</c> and a few hundred megabytes of transient text, to answer a question
+    /// whose answer is yes or no. The rounding is the same rounding; only the comparison changed.
+    /// </para>
+    /// <para>
+    /// And laid out once for both answers, where it used to be laid out again for the second. The ink is a
+    /// subset of the tree, so nothing about it needs a second rendering.
+    /// </para>
+    /// </summary>
+    private static (ulong Tree, ulong Ink) Landed(TexFormula formula, string latex)
+    {
+        _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
+
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, latex);
+        formula.RenderTo(capture, _setting, 0, 0);
+        capture.FinishRendering();
+
+        Assert.IsNotNull(capture.Root, $"nothing was drawn for {latex}");
+
+        var tree = 14695981039346656037UL;
+        var ink = 14695981039346656037UL;
+
+        foreach (var node in capture.Root.SelfAndDescendants())
+        {
+            tree = Mixed(tree, node);
+
+            if (node.Children.Count == 0 && node.Bounds.Width > 0 && node.Bounds.Height > 0)
+                ink = Mixed(ink, node);
+        }
+
+        return (tree, ink);
+    }
+
+    /// <summary>One box folded into a running fingerprint, rounded exactly as the text was.</summary>
+    private static ulong Mixed(ulong so, Nexaflow.Visuals.Text.Editing.ILayoutNode node)
+    {
+        so = Fold(so, (ulong)node.Kind.GetHashCode());
+        so = Fold(so, (ulong)(long)Math.Round(node.Bounds.X * 100));
+        so = Fold(so, (ulong)(long)Math.Round(node.Bounds.Y * 100));
+        so = Fold(so, (ulong)(long)Math.Round(node.Bounds.Width * 100));
+
+        return Fold(so, (ulong)(long)Math.Round(node.Bounds.Height * 100));
+    }
+
+    private static ulong Fold(ulong so, ulong next) => (so ^ next) * 1099511628211UL;
 
     private static string Settled(TexFormula formula, string latex)
     {

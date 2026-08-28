@@ -564,16 +564,33 @@ internal static class StandardCommands
         }
 
         /// <summary>
-        /// The brace over or under one thing. No label: where a reading nests the <c>^{n}</c> around the
-        /// whole <c>\overbrace{…}</c> instead of inside it, the script belongs to what holds this and is
-        /// not this command's to take.
+        /// The brace over or under one thing, and the label written on it.
+        ///
+        /// <para>
+        /// The <c>_{n}</c> of <c>\underbrace{a+b}_{n}</c> is the brace's label and not a subscript on it:
+        /// it sits centred under the brace rather than beside what the brace covers. Which is why this
+        /// takes a label at all — a reading that nests the script around the whole command has the two
+        /// apart, and handing them over separately is what puts them back together.
+        /// </para>
+        /// <para>
+        /// Which side counts is this command's own: <c>\overbrace</c> takes a <c>^</c> and
+        /// <c>\underbrace</c> a <c>_</c>, so a script written on the other side is an ordinary script and
+        /// is none of its business.
+        /// </para>
         /// </summary>
         public Atom? Assemble(IReadOnlyList<Atom> arguments, Nexaflow.Maths.Latex.TexPart? origin) =>
-            arguments.Count == 1
-                ? new OverUnderDelimiter(
+            Labelled(arguments.Count == 1 ? arguments[0] : null, null, origin);
+
+        /// <summary>Whether a label on this side belongs to the brace: <c>^</c> over, <c>_</c> under.</summary>
+        public bool Labels(bool over) => over == _over;
+
+        public Atom? Labelled(Atom? on, Atom? label, Nexaflow.Maths.Latex.TexPart? origin) =>
+            on is null
+                ? null
+                : new OverUnderDelimiter(
                     null,
-                    arguments[0],
-                    null,
+                    on,
+                    label,
                     SymbolAtom.GetAtom(
                         TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][
                             (int)(_over ? TexDelimeterType.Over : TexDelimeterType.Under)],
@@ -583,8 +600,7 @@ internal static class StandardCommands
                     _over)
                 {
                     Origin = origin,
-                }
-                : null;
+                };
     }
 
     // \boldsymbol{…} (also spelled \bm): every character underneath comes from the bold companion of
@@ -928,6 +944,17 @@ internal static class StandardCommands
     /// </summary>
     internal static bool IsDiscarded(string command) =>
         Dictionary.TryGetValue(command, out var parser) && parser is DiscardedCommand;
+
+    /// <summary>
+    /// A brace with its label, where this command is one that takes one on that side — <c>\overbrace</c>
+    /// on a <c>^</c>, <c>\underbrace</c> on a <c>_</c>. Null for anything else, including a brace scripted
+    /// on the side it does not label, which is then an ordinary script like any other.
+    /// </summary>
+    internal static Atom? LabelledBraceOf(
+        string command, bool over, Atom on, Atom label, Nexaflow.Maths.Latex.TexPart? origin) =>
+        Dictionary.TryGetValue(command, out var parser) && parser is BraceCommand brace && brace.Labels(over)
+            ? brace.Labelled(on, label, origin)
+            : null;
 
     /// <summary>Whether this command can be built from arguments somebody else has already read.</summary>
     internal static bool CanAssemble(string command) =>
