@@ -169,7 +169,10 @@ listing would aim at a different method while the name check still passes. Such 
 guard that still refuses when the path itself has come to mean something else.
 
 You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
-flush-left with `\n` and it lands correctly indented with the file's own endings and encoding. Text comes from
+flush-left with `\n` and it lands correctly indented with the file's own endings and encoding — that holds
+for **every** verb including `substitute`, whose replacement is indented for the line it lands on. `replace`
+keeps the declaration's existing doc comment, *unless* your replacement opens with one, in which case yours
+replaces it rather than being stacked on top. Text comes from
 `--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
 path — alone), `--file`, or `--stdin`; `--find`/`--find-escaped` mirror that pair. `--dry-run` prints the hunk
 and writes nothing; `--expect S` refuses unless the block still contains `S`, pinning the edit to what you

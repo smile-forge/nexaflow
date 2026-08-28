@@ -626,6 +626,144 @@ public class StructuralEditTests
         Assert.AreEqual("public class W\n{\n}\n", result.NewText);
     }
 
+    // ── Reported from a real editing session ────────────────────────────────
+
+    private const string Documented = """
+        public class Work
+        {
+            /// <summary>The original doc.</summary>
+            public void Run(int n)
+            {
+                Log(n);
+            }
+
+            public void Other()
+            {
+                Log(0);
+            }
+        }
+        """;
+
+    /// <summary>
+    /// The tool's one promise about whitespace is that the caller does not handle it. A literal substitution
+    /// used to be an undocumented exception, inserting the replacement byte-for-byte — so a fragment written
+    /// flush-left, exactly as every other verb asks for, produced flush-left code inside an indented body.
+    /// It compiles, so only reading the file afterwards catches it.
+    /// </summary>
+    [TestMethod]
+    public void Substitute_IndentsItsReplacementLikeEveryOtherVerb()
+    {
+        var text = Applied(StructuralEdit.Apply("c-sharp", Documented, "T:Work/M:Run",
+            StructuralEdit.Op.Substitute, "if (n > 0)\n{\n    Paint(n);\n}",
+            new StructuralEdit.Options(Find: "Log(n);")));
+
+        AssertLine(text, "        if (n > 0)");
+        AssertLine(text, "        {");
+        AssertLine(text, "            Paint(n);");
+        AssertLine(text, "        }");
+    }
+
+    /// <summary>When the search text swallowed the line's indentation, the replacement has to supply it
+    /// again — otherwise the same fix would land the statement at column 0.</summary>
+    [TestMethod]
+    public void Substitute_IndentsWhenTheSearchTextIncludedTheIndentation()
+    {
+        var text = Applied(StructuralEdit.Apply("c-sharp", Documented, "T:Work/M:Run",
+            StructuralEdit.Op.Substitute, "Paint(n);",
+            new StructuralEdit.Options(Find: "        Log(n);")));
+
+        AssertLine(text, "        Paint(n);");
+    }
+
+    /// <summary>
+    /// "Keeps its doc comment" means you needn't supply one, not that you mustn't. A replacement that opens
+    /// with its own doc used to be added below the old one, leaving two — which compiles, so it survives
+    /// until someone reads it.
+    /// </summary>
+    [TestMethod]
+    public void Replace_UsesTheReplacementsOwnDocInsteadOfKeepingBoth()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Documented, "T:Work/M:Run", StructuralEdit.Op.Replace,
+            "/// <summary>A new doc.</summary>\npublic void Run(int n)\n{\n    Log(n);\n}");
+
+        var text = Applied(result);
+        AssertLine(text, "    /// <summary>A new doc.</summary>");
+        Assert.IsFalse(text.Contains("The original doc."), "the old doc should have been replaced, not kept");
+        Assert.AreEqual(1, SourceText.Of(text).Lines.Count(l => l.Contains("<summary>")),
+            "exactly one doc comment");
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("replaced the existing doc")));
+    }
+
+    [TestMethod]
+    public void Replace_StillKeepsTheDocWhenTheReplacementHasNone()
+    {
+        var text = Applied(StructuralEdit.Apply("c-sharp", Documented, "T:Work/M:Run",
+            StructuralEdit.Op.Replace, "public void Run(long n)\n{\n    Log(n);\n}"));
+
+        AssertLine(text, "    /// <summary>The original doc.</summary>");
+        AssertLine(text, "    public void Run(long n)");
+    }
+
+    /// <summary>
+    /// A rename used to cost a full graph build before the renamed thing could be edited again. The edit
+    /// re-resolves against the text in hand, so the new name is addressable immediately.
+    /// </summary>
+    [TestMethod]
+    public void ARenamedDeclaration_IsEditableImmediatelyUnderItsNewName()
+    {
+        var renamed = StructuralEdit.Apply("c-sharp", Documented, "T:Work", StructuralEdit.Op.Rename,
+                                           null, null, "Job");
+        Assert.IsTrue(renamed.Ok, renamed.Message);
+
+        var next = StructuralEdit.Apply("c-sharp", renamed.NewText!, "T:Job/M:Run",
+            StructuralEdit.Op.Substitute, "Log(n * 2);", new StructuralEdit.Options(Find: "Log(n);"));
+
+        Assert.IsTrue(next.Ok, $"editing the renamed type should not need a rebuild: {next.Message}");
+        AssertLine(next.NewText!, "        Log(n * 2);");
+    }
+
+    /// <summary>
+    /// The refusal used to name the very node the caller had passed — "it does occur in X" where X was X —
+    /// because it ruled the searched declaration out by range, and a declaration's line span starts before
+    /// its own anchor offset, so it never contained itself.
+    /// </summary>
+    [TestMethod]
+    public void AMissNeverPointsBackAtTheDeclarationYouAsked()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Documented, "T:Work/M:Run", StructuralEdit.Op.Substitute,
+            "x", new StructuralEdit.Options(Find: "NotPresentAnywhere();"));
+
+        Assert.IsFalse(result.Ok);
+        Assert.IsFalse(result.Message.Contains("T:Work/M:Run"),
+            $"it must not tell the caller to edit what they just named: {result.Message}");
+    }
+
+    [TestMethod]
+    public void AMissStillPointsAtTheSiblingThatDoesHaveIt()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Documented, "T:Work/M:Run", StructuralEdit.Op.Substitute,
+            "x", new StructuralEdit.Options(Find: "Log(0);"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "T:Work/M:Other");
+    }
+
+    /// <summary>An AST path names a constructor after its type; <c>.ctor</c> is an IL habit worth one line
+    /// of help rather than a bare "not declared".</summary>
+    [TestMethod]
+    public void GuessingTheIlNameForAConstructor_IsAnsweredWithTheRealOne()
+    {
+        const string withCtor = "public class Work\n{\n    public Work(int n) { }\n}\n";
+
+        var wrong = StructuralEdit.Apply("c-sharp", withCtor, "T:Work/M:.ctor", StructuralEdit.Op.Delete, null);
+        Assert.IsFalse(wrong.Ok);
+        StringAssert.Contains(wrong.Message, "M:TypeName");
+
+        Assert.IsTrue(StructuralEdit.Apply("c-sharp", withCtor, "T:Work/M:Work",
+                                           StructuralEdit.Op.Delete, null).Ok,
+            "and the real path works");
+    }
+
     // ── The splice an editor applies ────────────────────────────────────────
 
     /// <summary>

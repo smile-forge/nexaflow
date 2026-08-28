@@ -131,7 +131,8 @@ public static class StructuralEdit
         var notes = new List<string>();
         var whole = new DeclarationAnchor("file", 0, source.Length, 0, null, null, null, null, null, null);
 
-        var (text, error) = Substitute(grammarId, source, whole, replacement, options, SourceText.Of(source).Newline, notes);
+        var (text, error) = Substitute(grammarId, source, whole, replacement, options,
+                                       SourceText.Of(source).Newline, "", notes);
         if (error is { } why) return Result.Fail(why);
 
         var anchors = new DeclarationAnchors();
@@ -227,7 +228,8 @@ public static class StructuralEdit
               + $"({string.Join(", ", candidates.Select(d => d.AstPath))}) — name one of those.");
 
         return Result.Fail(
-            $"Nothing named '{wanted}' is declared in this file. List the declarations to see what is there now.");
+            $"Nothing named '{wanted}' is declared in this file.{ConstructorHint(wanted)} "
+          + "List the declarations to see what is there now.");
     }
 
     /// <summary>
@@ -235,6 +237,16 @@ public static class StructuralEdit
     /// <c>&lt;kind&gt;:&lt;name&gt;</c> segments with an overload position on the last one, and the name is
     /// the part of it that survives the file being edited.
     /// </summary>
+    /// <summary>
+    /// A nudge for the one name that is guessed wrong from habit. IL calls a constructor <c>.ctor</c> and
+    /// the JVM calls it <c>&lt;init&gt;</c>; an AST path names it after its type, because that is what the
+    /// source says.
+    /// </summary>
+    private static string ConstructorHint(string name) =>
+        name is ".ctor" or "ctor" or "<init>" or ".cctor"
+            ? " A constructor is addressed by its type's own name — M:TypeName, not M:.ctor."
+            : "";
+
     private static string? NameInPath(string astPath)
     {
         if (string.IsNullOrEmpty(astPath)) return null;
@@ -277,7 +289,8 @@ public static class StructuralEdit
 
             if (candidates.Count == 0)
                 return Result.Fail(
-                    $"Nothing named '{expectedName}' is declared in this file — it has been renamed or "
+                    $"Nothing named '{expectedName}' is declared in this file.{ConstructorHint(expectedName)} "
+                  + "It has been renamed or "
                   + "removed. List the declarations to see what is there now.");
 
             if (candidates.Count > 1)
@@ -309,7 +322,7 @@ public static class StructuralEdit
 
         var edit = op switch
         {
-            Op.Replace      => Replace(source, anchor, text, indent, newline, o.WithTrivia),
+            Op.Replace      => Replace(source, anchor, text, indent, newline, o.WithTrivia, grammarId, notes),
             Op.Delete       => Delete(source, anchor),
             Op.Signature    => Signature(source, anchor, text, indent, newline),
             Op.Body         => Body(source, anchor, text, indent, newline),
@@ -318,7 +331,7 @@ public static class StructuralEdit
             Op.InsertAfter  => InsertAfter(source, anchor, text, indent, newline),
             Op.Append       => Append(source, anchor, text, indent, newline, shape),
             Op.Doc          => Doc(source, anchor, text, indent, newline),
-            Op.Substitute   => Substitute(grammarId, source, anchor, text, o, newline, notes),
+            Op.Substitute   => Substitute(grammarId, source, anchor, text, o, newline, astPath, notes),
             Op.Import       => (null, "An import belongs to the file, not to a declaration — call AddImport."),
             _               => (Text: (string?)null, Error: $"Unsupported operation {op}."),
         };
@@ -372,11 +385,39 @@ public static class StructuralEdit
     // ── The operations ──────────────────────────────────────────────────────
 
     private static (string? Text, string? Error) Replace(string src, DeclarationAnchor a, string? text,
-                                                         string indent, string newline, bool withTrivia)
+                                                         string indent, string newline, bool withTrivia,
+                                                         string grammarId, List<string> notes)
     {
         if (text is null) return (null, "Replacement text is required.");
-        var from = withTrivia ? LineStart(src, a.TriviaStart) : a.Start;
-        return (Splice(src, from, a.End, Block(text, indent, newline, indentFirst: withTrivia)), null);
+
+        // Keeping the old doc comment is right when the replacement has none — that is what "you needn't
+        // supply one" means. When the replacement DOES open with one, keeping the old one too produces two,
+        // which is never what was meant and compiles fine, so only reading the file catches it.
+        var bringsOwnDoc = !withTrivia && a.TriviaStart < a.Start && OpensWithComment(grammarId, text);
+        if (bringsOwnDoc)
+            notes.Add("the replacement opens with a comment, so it replaced the existing doc comment rather "
+                    + "than being added above it.");
+
+        var replaceTrivia = withTrivia || bringsOwnDoc;
+        var from = replaceTrivia ? LineStart(src, a.TriviaStart) : a.Start;
+        return (Splice(src, from, a.End, Block(text, indent, newline, indentFirst: replaceTrivia)), null);
+    }
+
+    /// <summary>Whether a block of replacement text begins with a comment in this language.</summary>
+    private static bool OpensWithComment(string grammarId, string text)
+    {
+        var first = SourceText.BlockOf(text).FirstOrDefault(l => l.Trim().Length > 0)?.Trim();
+        if (first is not { Length: > 0 }) return false;
+
+        // `#` is a comment in Python and Ruby and a preprocessor directive in C#, so the marker set has to
+        // follow the language rather than be a union of all of them.
+        return grammarId switch
+        {
+            "python" or "ruby"                   => first.StartsWith('#'),
+            "xml" or "xaml" or "html" or "razor" => first.StartsWith("<!--", StringComparison.Ordinal),
+            _ => first.StartsWith("//", StringComparison.Ordinal)
+              || first.StartsWith("/*", StringComparison.Ordinal),
+        };
     }
 
     private static (string? Text, string? Error) Delete(string src, DeclarationAnchor a)
@@ -486,9 +527,11 @@ public static class StructuralEdit
     /// identifier cannot be rewritten across the file; an unexpected number of matches is refused rather
     /// than applied; and the result still has to parse.
     /// </summary>
+    /// <param name="astPath">The declaration being edited, so a "not found" message can rule it out when
+    /// suggesting where the text does live. Empty for a whole-file substitution.</param>
     private static (string? Text, string? Error) Substitute(string grammarId, string src, DeclarationAnchor a,
                                                             string? replacement, Options o, string newline,
-                                                            List<string> notes)
+                                                            string astPath, List<string> notes)
     {
         if (o.Find is not { Length: > 0 } find) return (null, "Text to find is required for a substitution.");
         if (replacement is null) return (null, "Replacement text is required (use an empty string to delete).");
@@ -502,25 +545,24 @@ public static class StructuralEdit
             catch (ArgumentException ex) { return (null, $"'{find}' is not a valid regular expression: {ex.Message}"); }
 
             var matches = regex.Matches(body).Count;
-            if (matches == 0) return (null, NotFound(grammarId, src, a, find));
+            if (matches == 0) return (null, NotFound(grammarId, src, a, find, astPath));
             if (matches > 1 && !o.AllOccurrences) return (null, Ambiguous(find, matches));
             if (matches > 1) notes.Add($"replaced {matches} occurrences");
 
-            var replaced = o.AllOccurrences ? regex.Replace(body, replacement) : regex.Replace(body, replacement, 1);
+            var replaced = regex.Replace(body, m => Indented(body, m.Index, m.Result(replacement), newline),
+                                         o.AllOccurrences ? int.MaxValue : 1);
             return (src[..a.Start] + replaced + src[a.End..], null);
         }
 
-        // Exact first, so a caller who reproduced the text byte-for-byte gets exactly what it asked for, at
+        // Exact first, so a caller who reproduced the text byte-for-byte gets the match it asked for, at
         // character granularity.
         var exact = Occurrences(body, find);
         if (exact > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact));
         if (exact > 0)
         {
             if (exact > 1) notes.Add($"replaced {exact} occurrences");
-            var replaced = o.AllOccurrences
-                ? body.Replace(find, replacement, StringComparison.Ordinal)
-                : ReplaceFirst(body, find, replacement);
-            return (src[..a.Start] + replaced + src[a.End..], null);
+            return (src[..a.Start] + ReplaceIndented(body, find, replacement, o.AllOccurrences, newline)
+                  + src[a.End..], null);
         }
 
         // Then ignoring indentation. Everywhere else this tool promises the caller does not handle
@@ -529,7 +571,7 @@ public static class StructuralEdit
         // that is a papercut with no upside. Exact still wins, so nothing that used to work changes.
         var loose = LooseMatches(body, find);
         if (loose.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, loose.Count));
-        if (loose.Count == 0) return (null, NotFound(grammarId, src, a, find));
+        if (loose.Count == 0) return (null, NotFound(grammarId, src, a, find, astPath));
 
         notes.Add(loose.Count == 1
             ? "matched ignoring indentation"
@@ -543,6 +585,47 @@ public static class StructuralEdit
             edited = edited[..start] + Block(replacement, indent, newline) + edited[end..];
         }
         return (src[..a.Start] + edited + src[a.End..], null);
+    }
+
+    /// <summary>
+    /// Replacement text indented for where it is going.
+    /// <para>
+    /// The tool's one promise about whitespace is that the caller does not handle it — text written
+    /// flush-left lands correctly indented. A literal substitution used to be the exception, inserting the
+    /// replacement byte-for-byte, so a multi-line fragment written flush-left produced flush-left
+    /// continuation lines inside an indented body. That compiles, so nothing catches it except reading the
+    /// file afterwards; an undocumented carve-out in the one guarantee everything else keeps is worse than
+    /// no guarantee.
+    /// </para>
+    /// <para>
+    /// The first line is indented only when the match began at column 0 — i.e. the search text swallowed the
+    /// line's indentation, so the replacement has to supply it again. When the match starts after the
+    /// indentation (or mid-line), the file already provides it and adding it would double it.
+    /// </para>
+    /// </summary>
+    private static string Indented(string body, int at, string replacement, string newline)
+    {
+        var lineStart = LineStart(body, at);
+        return Block(replacement, SourceText.IndentOf(body[lineStart..]), newline, indentFirst: at == lineStart);
+    }
+
+    /// <summary>Literal replacement, each occurrence indented for the line it lands on. Back to front, so an
+    /// earlier match's offset is still valid after a later one is replaced.</summary>
+    private static string ReplaceIndented(string body, string find, string replacement, bool all, string newline)
+    {
+        var at = new List<int>();
+        for (var i = body.IndexOf(find, StringComparison.Ordinal); i >= 0;
+             i = body.IndexOf(find, i + find.Length, StringComparison.Ordinal))
+        {
+            at.Add(i);
+            if (!all) break;
+        }
+
+        var edited = body;
+        foreach (var start in at.AsEnumerable().Reverse())
+            edited = edited[..start] + Indented(edited, start, replacement, newline)
+                   + edited[(start + find.Length)..];
+        return edited;
     }
 
     /// <summary>
@@ -594,17 +677,23 @@ public static class StructuralEdit
     /// contain the text turns "not found" from a dead end into the next call: the usual cause is having the
     /// right fragment and the wrong declaration.
     /// </summary>
-    private static string NotFound(string grammarId, string src, DeclarationAnchor a, string find)
+    private static string NotFound(string grammarId, string src, DeclarationAnchor a, string find, string astPath)
     {
         var probe = SourceText.BlockOf(find).FirstOrDefault()?.Trim();
         if (probe is { Length: > 0 })
         {
             // The tightest declaration containing it, not the first: every member is also inside its type,
             // and being told the text is "in Widget" when it is in Widget.Reset is not an answer.
+            //
+            // Excluded by PATH, not by range. Range containment looked right and was not: a declaration's
+            // line span starts at the beginning of its first line, while its anchor starts after that line's
+            // indentation, so the declaration failed to contain itself and the message named the very node
+            // the caller had just passed — telling them to do what they had just done.
             var elsewhere = Declarations(grammarId, src)
-                .Where(d => d.Line > 0 && d.EndLine >= d.Line)
+                .Where(d => d.Line > 0 && d.EndLine >= d.Line
+                         && !string.Equals(d.AstPath, astPath, StringComparison.Ordinal))
                 .Select(d => (Decl: d, From: OffsetOfLine(src, d.Line), To: OffsetOfLine(src, d.EndLine + 1)))
-                .Where(x => !(x.From >= a.Start && x.To <= a.End))          // not the one we just searched
+                .Where(x => x.To <= a.Start || x.From >= a.End)             // and nothing overlapping it
                 .Where(x => src[x.From..x.To].Contains(probe, StringComparison.Ordinal))
                 .OrderBy(x => x.To - x.From)
                 .Select(x => x.Decl)
