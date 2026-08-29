@@ -155,32 +155,6 @@ public sealed class LatexLayout
     }
 
     /// <summary>
-    /// Tells every piece of the picture which part of the parse tree it was drawn from — for a formula
-    /// the typesetter's own parser read, which is the path a formula takes when this one cannot build it.
-    ///
-    /// <para>
-    /// Once, here, rather than searched for on each of the thousands of questions an editing session
-    /// asks. It is also the seam. The boxes were built by a parser of the typesetter's own, so the only
-    /// thing the two readings share is the stretch of source each piece was named for, and matching on
-    /// that needs rules — a braced argument's box covers the space inside the braces, a table cell's
-    /// stops at the ink. Build the boxes from this tree instead and every piece arrives already knowing:
-    /// this method becomes an assignment, and the rules go with it.
-    /// </para>
-    /// </summary>
-    private static void Attribute(LayoutNode root, string latex)
-    {
-        var reading = TexReading.Of(latex);
-
-        foreach (var node in root.SelfAndDescendants())
-        {
-            if (node is not LatexNode piece || piece.SourceLength <= 0) continue;
-
-            var standing = reading.Standing(piece.SourceStart, piece.SourceLength);
-            piece.Part = standing.Count == 0 ? null : standing[^1];
-        }
-    }
-
-    /// <summary>
     /// How much of the page the formula actually covers. Spacing is left out: a strut is as tall as the
     /// line it reserves room on, so counting it would pad the element with margin nothing is drawn in.
     /// </summary>

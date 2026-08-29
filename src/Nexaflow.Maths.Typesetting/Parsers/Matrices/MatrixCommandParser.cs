@@ -165,16 +165,14 @@ internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
             if (lastRow == null)
                 rows.Add(lastRow = new List<Atom>());
 
-            // A cell with nothing in it is still a cell, so a trailing `&` leaves a hole to write into
-            // rather than nothing at all — the last cell was the one position in a matrix where it did.
+            // A cell with nothing in it is still a cell, so a trailing `&` leaves one behind rather than
+            // nothing at all — the last cell was the one position in a matrix where it did not.
             //
             // But only where a row is actually being closed. A trailing `\\` opens a row that is not a
-            // row, and the rule just below drops it for being empty; putting a hole in it would keep it,
-            // and "a & b \\" would set as a matrix with a blank line hanging under it.
+            // row, and the rule just below drops it for being empty; filling it would keep it, and
+            // "a & b \\" would set as a matrix with a blank line hanging under it.
             if (lastCellAtom != null) lastRow.Add(lastCellAtom);
-            else if (lastRow.Count > 0)
-                lastRow.Add(NextRowCommand.Hole(
-                    source.Segment(source.Length, 0), parentEnvironment.Placeholders));
+            else if (lastRow.Count > 0) lastRow.Add(new NullAtom());
         }
 
         // "a & b \ c & d \\" is a normal way to write a matrix out, and the \ at the end closes the
@@ -183,7 +181,7 @@ internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
         if (rows.Count > 1 && rows[rows.Count - 1].Count == 0)
             rows.RemoveAt(rows.Count - 1);
 
-        MakeRectangular(rows, source, parentEnvironment.Placeholders);
+        MakeRectangular(rows);
 
         return rows;
     }
@@ -193,17 +191,11 @@ internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
     /// standing at the end of the row they complete - so every position in the grid is a node with a
     /// place, and "the third column" means something in every row.
     /// </summary>
-    private static void MakeRectangular(List<List<Atom>> rowAtoms, SourceSpan source, bool placeholders)
+    private static void MakeRectangular(List<List<Atom>> rowAtoms)
     {
         var maxRowLength = rowAtoms.Max(r => r.Count);
         foreach (var row in rowAtoms.Where(r => r.Count < maxRowLength))
-        {
-            var end = row.LastOrDefault()?.Source is { } last
-                ? last.Segment(last.Length, 0)
-                : source.Segment(source.Length, 0);
-
             while (row.Count < maxRowLength)
-                row.Add(NextRowCommand.Hole(end, placeholders));
-        }
+                row.Add(new NullAtom());
     }
 }

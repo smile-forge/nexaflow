@@ -38,7 +38,7 @@ internal sealed class MatrixInternalEnvironment : NonRecursiveEnvironment
     {
         if (character == '&')
         {
-            NextRowCommand.NextCell(_rows, formula, at, Placeholders);
+            NextRowCommand.NextCell(_rows, formula);
             return true;
         }
 

@@ -37,22 +37,14 @@ public sealed class TexFormula
     public SourceSpan? Source { get; set; }
 
     /// <summary>
-    /// The parts of the input that could not be read, when this came from
-    /// <see cref="TexFormulaParser.ParseWithRecovery(SourceSpan, string?)"/>. Empty for a clean parse, and
-    /// always empty for a parse that was not recovering — that one throws instead.
-    /// </summary>
-    public IReadOnlyList<TexParseDiagnostic> Diagnostics { get; internal set; } = new List<TexParseDiagnostic>();
-
-    /// <summary>
     /// The commands this was built from that nothing had a reading for, as the parts they were written
     /// as. Empty unless it came from <see cref="TexFormulaBuilder"/>, which draws nothing for one.
     ///
     /// <para>
-    /// Parts rather than spans, and that is the whole reason this is a second list beside
-    /// <see cref="Diagnostics"/> instead of more of the same. A diagnostic names a stretch of input; the
-    /// builder may not name one, and does not have the input to name it from. So it reports <em>what</em>
-    /// it ignored and whoever shows the reader asks that part where it was written — which is also the
-    /// only moment the answer can still be right, after an edit or two.
+    /// Parts rather than spans. A stretch of input is the obvious thing to report and the wrong one: the
+    /// builder may not have a stretch to name, and does not hold the input to name it from. So it reports
+    /// <em>what</em> it ignored and whoever shows the reader asks that part where it was written — which
+    /// is also the only moment the answer can still be right, after an edit or two.
     /// </para>
     /// </summary>
     public IReadOnlyList<Nexaflow.Maths.Latex.TexPart> Ignored { get; internal set; } =

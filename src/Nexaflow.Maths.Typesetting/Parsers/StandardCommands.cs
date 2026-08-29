@@ -201,17 +201,11 @@ internal static class StandardCommands
     /// <summary>Reads one <c>{…}</c> (or single-token) argument as a formula and advances <paramref name="position"/>.</summary>
     private static TexFormula ReadArgument(CommandContext context, ref int position)
     {
-        var start = TexFormulaParser.WithSkippedWhiteSpace(context.CommandSource, position);
         var after = TexFormulaParser.ReadElement(context.CommandSource, position);
         position = after.position;
 
-        // An argument written as {} is a hole, not an absence — see WithPlaceholderIfEmpty. Taken from
-        // here so that every command gets it at once: each of them reads its arguments through this and
-        // then uses RootAtom, so none of them has to know that a hole is a thing.
-        return TexFormulaParser.WithPlaceholderIfEmpty(
-            context.Parser.Parse(after.source, context.Formula.TextStyle, context.Environment.CreateChildEnvironment()),
-            context.CommandSource.Segment(start, position - start),
-            context.Environment);
+        return context.Parser.Parse(
+            after.source, context.Formula.TextStyle, context.Environment.CreateChildEnvironment());
     }
 
     // \dfrac and \tfrac: \frac forced into display or text style respectively.

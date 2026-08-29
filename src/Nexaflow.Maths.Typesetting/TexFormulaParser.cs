@@ -217,45 +217,6 @@ public class TexFormulaParser
         return Parse(value, ref position, false, textStyle, DefaultCommandEnvironment.Instance);
     }
 
-    /// <summary>
-    /// Parses as much as it can, showing whatever it cannot read rather than giving up on the whole
-    /// formula, and reporting each such stretch in <see cref="TexFormula.Diagnostics"/>.
-    /// <para>
-    /// For anything being edited this is what you want. Text under a caret is wrong far more often than
-    /// it is right — every command is invalid until its last letter — and a formula that vanishes while
-    /// you write it tells the reader nothing about where the trouble is. What comes back is a formula in
-    /// the ordinary sense, drawn and laid out, with the parts that were not understood standing as the
-    /// characters that were actually typed. Those parts carry no meaning: they were shown, not read, so
-    /// anything working structurally should trust them no further than the diagnostics allow.
-    /// </para>
-    /// </summary>
-    /// <param name="shownAsWritten">
-    /// A stretch to set as the characters written rather than read as maths — see
-    /// <see cref="ICommandEnvironment.ShownAsWritten"/>. Null reads all of it.
-    /// </param>
-    /// <param name="placeholders">
-    /// Whether an empty argument or table cell is given a hole to stand in - see
-    /// <see cref="ICommandEnvironment.Placeholders"/>. Off unless asked for: a hole is an editing
-    /// affordance, and setting a formula to be read is what this library is mostly for.
-    /// </param>
-    public TexFormula ParseWithRecovery(
-        SourceSpan value, string? textStyle = null, (int Start, int Length)? shownAsWritten = null,
-        bool placeholders = false)
-    {
-        var environment = new RecoveringCommandEnvironment(shownAsWritten, placeholders);
-        var position = 0;
-        var formula = Parse(value, ref position, false, textStyle, environment);
-        formula.Diagnostics = environment.Collected;
-        return formula;
-    }
-
-    /// <inheritdoc cref="ParseWithRecovery(SourceSpan, string?, ValueTuple{int,int}?)"/>
-    public TexFormula ParseWithRecovery(
-        string value, string? textStyle = null, (int Start, int Length)? shownAsWritten = null,
-        bool placeholders = false) =>
-        ParseWithRecovery(
-            new SourceSpan("User input", value, 0, value.Length), textStyle, shownAsWritten, placeholders);
-
     internal TexFormula Parse(SourceSpan value, string? textStyle, ICommandEnvironment environment)
     {
         int localPostion = 0;
@@ -297,22 +258,6 @@ public class TexFormulaParser
         var initialPosition = position;
         while (position < value.Length && !(allowClosingDelimiter && closedDelimiter))
         {
-            var resumeFrom = position;
-            try
-            {
-            // Asked for as written, so it is set as written — the same treatment recovery gives input it
-            // could not read, before anything tries to read this. Checked as "covers here" rather than
-            // "starts here" so a stretch whose first character the parser stepped over on its way in is
-            // still shown from wherever reading actually resumed, instead of quietly typesetting.
-            if (Shown(environment, value, position) is { } written)
-            {
-                var shownAtom = ConvertRawText(written, TexUtilities.TextStyleName).RootAtom;
-                position += written.Length;
-                if (shownAtom is not null)
-                    formula.Add(shownAtom, value.Segment(initialPosition, position - initialPosition));
-                continue;
-            }
-
             char ch = value[position];
             var source = value.Segment(position, 1);
             if (IsWhiteSpace(ch))
@@ -393,66 +338,9 @@ public class TexFormulaParser
                     formula.Add(scriptsAtom, value.Segment(initialPosition, position - initialPosition));
                 }
             }
-            }
-            catch (TexParseException error) when (environment.Diagnostics is not null)
-            {
-                position = Recover(formula, value, resumeFrom, initialPosition, error, environment.Diagnostics);
-            }
         }
 
         return formula;
-    }
-
-    /// <summary>
-    /// The part of <see cref="ICommandEnvironment.ShownAsWritten"/> that starts here, or null when
-    /// nothing is being written at this position. Clipped to the span being parsed, so a stretch running
-    /// past the end of a group is shown as far as the group goes and the rest is met again outside it.
-    /// </summary>
-    private static SourceSpan? Shown(ICommandEnvironment environment, SourceSpan value, int position)
-    {
-        if (environment.ShownAsWritten is not { Length: > 0 } zone) return null;
-
-        var here = value.Start + position;
-        if (here < zone.Start || here >= zone.Start + zone.Length) return null;
-
-        var length = System.Math.Min(zone.Start + zone.Length - here, value.Length - position);
-        return length > 0 ? value.Segment(position, length) : null;
-    }
-
-    /// <summary>
-    /// Gives up on the stretch the parser could not read, shows it as written, and carries on after it.
-    /// </summary>
-    /// <remarks>
-    /// How far to give up is the whole question, and it is what the position on the exception is for: the
-    /// parser knows which characters defeated it far better than anything downstream could guess. Failing
-    /// that — a fault that named nothing — the rest of the input goes, because there is no way to tell
-    /// where the trouble ends. Either way it must move at least one character, or the loop that called it
-    /// would meet the same fault forever.
-    /// </remarks>
-    private static int Recover(
-        TexFormula formula,
-        SourceSpan value,
-        int from,
-        int rowStart,
-        TexParseException error,
-        ICollection<TexParseDiagnostic> diagnostics)
-    {
-        var blamed = error.At is { } at
-                     && string.Equals(at.Source, value.Source, StringComparison.Ordinal)
-                     && at.End > value.Start + from
-            ? at.End - value.Start
-            : value.Length;
-
-        var to = Math.Max(from + 1, Math.Min(Math.Max(blamed, from + 1), value.Length));
-        var unread = value.Segment(from, to - from);
-        diagnostics.Add(new TexParseDiagnostic(error.Message, unread));
-
-        // Shown as the characters the reader wrote, so the formula keeps its shape around the hole rather
-        // than disappearing. Deliberately not interpreted — this is the part that could not be.
-        var shown = ConvertRawText(unread, TexUtilities.TextStyleName).RootAtom;
-        if (shown is not null) formula.Add(shown, value.Segment(rowStart, to - rowStart));
-
-        return to;
     }
 
     private void ProcessLeftGroupChar(SourceSpan value, ref int position, string? textStyle, ICommandEnvironment environment, TexFormula formula, int initialPosition)
@@ -594,10 +482,7 @@ public class TexFormulaParser
         }
 
         position = afterScript.position;
-        return WithPlaceholderIfEmpty(
-            Parse(afterScript.source, formula.TextStyle, environment.CreateChildEnvironment()),
-            value.Segment(start, position - start),
-            environment);
+        return Parse(afterScript.source, formula.TextStyle, environment.CreateChildEnvironment());
     }
 
     /// <remarks>May return <c>null</c> for commands that produce no atoms.</remarks>
@@ -1399,57 +1284,20 @@ public class TexFormulaParser
             position);
     }
 
-    /// <returns>New position after space skipped</returns>
     /// <summary>
-    /// An argument that parsed to nothing, standing in as a placeholder.
-    /// <para>
-    /// <c>\frac{}{}</c> is a fraction with two arguments; they are simply empty. Left as nothing it sets
-    /// as a bar with two invisible sides — a formula a reader cannot see, cannot aim at and cannot tell
-    /// from a broken one. A placeholder is a symbol in its place, so everything downstream that knows how
-    /// to find, hit-test, select, carry or replace a symbol handles the hole without knowing it is one.
-    /// </para>
-    /// <para>
-    /// It exists in the parse and never in the source, which is what makes it a hole rather than
-    /// content: nothing the reader saves, copies or solves can carry it. And because an argument that
-    /// has not been written is a formula that does not yet mean anything, each one is reported — a
-    /// caller asking "can this be read" is told no, while the picture still draws.
-    /// </para>
-    /// </summary>
-    /// <param name="parsed">The argument as it parsed.</param>
-    /// <param name="at">The characters it was read from — the braces included, since they produced it.</param>
-    /// <summary>
-    /// Reads one <c>{…}</c> argument and parses it, making a hole of it when it was left empty — see
-    /// <see cref="WithPlaceholderIfEmpty"/>. The built-in constructs read their arguments through this
-    /// so that none of them has to know a hole is a thing.
+    /// Reads one <c>{…}</c> argument and parses it. The built-in constructs read their arguments
+    /// through this rather than each reaching for the source themselves.
     /// </summary>
     private TexFormula ReadArgumentFormula(
         TexFormula formula, SourceSpan value, ref int position, ICommandEnvironment environment)
     {
-        var start = WithSkippedWhiteSpace(value, position);
         var after = ReadElement(value, position);
         position = after.position;
 
-        return WithPlaceholderIfEmpty(
-            Parse(after.source, formula.TextStyle, environment.CreateChildEnvironment()),
-            value.Segment(start, position - start),
-            environment);
+        return Parse(after.source, formula.TextStyle, environment.CreateChildEnvironment());
     }
 
-    internal static TexFormula WithPlaceholderIfEmpty(
-        TexFormula parsed, SourceSpan at, ICommandEnvironment environment)
-    {
-        if (parsed.RootAtom is not null) return parsed;
-        if (!environment.Placeholders) return parsed;
-
-        // The placeholder's own span is empty, and sits where the argument's contents would have
-        // begun. It stands for nothing that was written, so it covers nothing that was written — and
-        // that is also what makes typing over it put the characters inside the braces rather than
-        // instead of them. The report covers the braces, because a wave needs something to sit under.
-        parsed.RootAtom = new PlaceholderAtom(at.Segment(at.Length > 0 ? 1 : 0, 0));
-        environment.Diagnostics?.Add(new TexParseDiagnostic("Something still has to go here.", at));
-        return parsed;
-    }
-
+    /// <returns>New position after space skipped</returns>
     internal static int WithSkippedWhiteSpace(SourceSpan value, int position)
     {
         while (position < value.Length && IsWhiteSpace(value[position]))
