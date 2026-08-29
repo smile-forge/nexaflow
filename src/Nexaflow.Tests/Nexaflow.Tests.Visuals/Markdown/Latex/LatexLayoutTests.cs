@@ -296,4 +296,140 @@ public class LatexLayoutTests
         Assert.AreEqual(before.Max(r => r.Right), stillBefore.Max(r => r.Right), 0.5,
             "the x+ in front of it has not moved");
     });
+
+    // ── Trouble ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A formula nobody can read whole is still drawn, and the part that could be read is still typeset.
+    /// <para>
+    /// The rule the whole editing model rests on: content being written is invalid most of the time, so
+    /// "this does not parse" can never mean "show nothing". It means draw what you can and show the rest
+    /// as the characters that were typed.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    [CoversNode("latex-diagnostics")]
+    public void WhatCannotBeReadIsStillShown() => UiThread.Run(() =>
+    {
+        const string latex = @"x + \nosuchcommand + y";
+        var layout = LatexLayout.Build(latex, Scale);
+        Assert.IsNotNull(layout, "a formula with an unreadable command still draws");
+
+        Assert.AreNotEqual(0, layout.Tree.Diagnostics.Count, "and says what it could not read");
+
+        // The characters are on the page, not swallowed. Every one of them has a place, which is what
+        // makes the stretch pointable and gives it caret stops.
+        var covered = layout.Tree.Root.Ink()
+            .Where(node => layout.Tree.Diagnostics.Any(trouble => trouble.Covers(node)))
+            .ToList();
+        Assert.AreNotEqual(0, covered.Count, "the unreadable stretch is drawn, not dropped");
+
+        // And the rest of it went through as maths rather than being dragged down with it.
+        var sound = layout.Tree.Root.Ink()
+            .Where(node => !layout.Tree.Diagnostics.Any(trouble => trouble.Covers(node)))
+            .ToList();
+        Assert.AreNotEqual(0, sound.Count, "the x + and + y either side are still typeset");
+    });
+
+    /// <summary>
+    /// Only the name nobody knows is marked — not the whole formula, and not the argument it was given.
+    /// <para>
+    /// <c>\textrm{Hello}</c> that nothing can draw is a word set in the wrong face, which is far closer to
+    /// right than a blank; so the reading replaces the command's <em>name</em> and leaves its argument to
+    /// be read as the maths it almost always is.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    [CoversNode("latex-diagnostics")]
+    public void TroubleIsConfinedToTheTroublePart() => UiThread.Run(() =>
+    {
+        const string latex = @"a + \nosuchcommand{b} + c";
+        var layout = LatexLayout.Build(latex, Scale);
+        Assert.IsNotNull(layout);
+
+        var trouble = layout.Tree.Diagnostics.Single();
+        var at = latex.IndexOf(@"\nosuchcommand", StringComparison.Ordinal);
+
+        Assert.AreEqual(at, trouble.Start, "it starts at the backslash");
+        Assert.AreEqual(@"\nosuchcommand", latex.Substring(trouble.Start, trouble.Length),
+            "and covers the name alone — not the braces, and not the b inside them");
+    });
+
+    /// <summary>
+    /// Two colours, because there are two different things to say. Red is a reading that failed: nothing
+    /// anywhere knows what this name is, so it is the writer's typo. Orange is a reading that worked and a
+    /// drawing we do not have — which is ours to fix, and the reader can tell at a glance which they are
+    /// looking at.
+    /// <para>
+    /// Each said once. Both halves used to fire together on an unknown command — the reading marking the
+    /// name, and then the builder failing to draw the very thing the reading had just given up on — which
+    /// put two colours of wavy line under one word.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    [CoversNode("latex-diagnostics")]
+    public void AFailedReadingIsRedAndAMissingDrawingIsOrange() => UiThread.Run(() =>
+    {
+        var unknown = LatexLayout.Build(@"x + \nosuchcommand", Scale);
+        Assert.IsNotNull(unknown);
+        CollectionAssert.AreEqual(
+            new[] { DiagnosticSeverity.Error },
+            unknown.Tree.Diagnostics.Select(d => d.Severity).ToArray(),
+            "a name nothing has heard of is a reading failure, reported once: " + Said(unknown.Tree));
+
+        // \substack is in the typesetter's tables — the reading resolves it and hands it over — and this
+        // builder has no case that stacks the lines. That is the whole of the orange channel: read fine,
+        // drawn as its own characters, and a job on our list rather than a mistake on theirs.
+        var undrawn = LatexLayout.Build(@"\substack{a \\ b}", Scale);
+        Assert.IsNotNull(undrawn);
+        CollectionAssert.AreEqual(
+            new[] { DiagnosticSeverity.Warning },
+            undrawn.Tree.Diagnostics.Select(d => d.Severity).ToArray(),
+            "something we read and cannot draw is ours, not the writer's: " + Said(undrawn.Tree));
+    });
+
+    private static string Said(LatexTree tree) =>
+        tree.Diagnostics.Count == 0
+            ? "nothing was reported at all"
+            : string.Join("; ", tree.Diagnostics.Select(d => $"{d.Severity} @{d.Start}+{d.Length} {d.Message}"));
+
+    /// <summary>
+    /// The stretch being written is set in place, so it occupies the room its characters need and the
+    /// formula flows around it.
+    /// <para>
+    /// This is the half that makes un-rendering usable rather than merely correct. A construct replaced by
+    /// a label, or hidden, would leave the reader typing into somewhere the formula does not go; setting
+    /// the eleven characters of <c>\frac{a}{b}</c> where the fraction was means the rest of the line makes
+    /// room for them, and moves back when the construct settles.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    [CoversNode("latex-shown-as-written")]
+    public void AStretchShownAsWrittenTakesUpRoomInTheFormula() => UiThread.Run(() =>
+    {
+        const string latex = @"x+\frac{a}{b}+y";
+        var at = latex.IndexOf(@"\frac", StringComparison.Ordinal);
+        var end = at + @"\frac{a}{b}".Length;
+
+        var typeset = LatexLayout.Build(latex, Scale);
+        var writing = LatexLayout.Build(latex, Scale, shownAsWritten: new LatexRawZone(at, end));
+        Assert.IsNotNull(typeset);
+        Assert.IsNotNull(writing);
+
+        // Eleven characters in a row are wider than the fraction they spell, so the formula grew.
+        Assert.IsTrue(writing.Tree.Size.Width > typeset.Tree.Size.Width,
+            $"shown as written should be wider than set: {writing.Tree.Size.Width} vs {typeset.Tree.Size.Width}");
+
+        // The characters are really there, with places of their own — not a gap the formula skips over.
+        var shown = writing.Tree.RangeRects(at, end - at);
+        Assert.AreNotEqual(0, shown.Count, "the stretch being written has ink");
+        Assert.IsTrue(shown.Sum(rect => rect.Width) > 0, "and that ink has width");
+
+        // And what comes after it has been pushed along to make the room, which is the same claim from the
+        // other end: the formula flowed around the stretch rather than drawing it over the top of itself.
+        var tail = latex.LastIndexOf('+');
+        Assert.IsTrue(writing.Tree.RangeRects(tail, latex.Length - tail).Min(rect => rect.Left)
+                    > typeset.Tree.RangeRects(tail, latex.Length - tail).Min(rect => rect.Left),
+            "the +y after it moved right");
+    });
 }

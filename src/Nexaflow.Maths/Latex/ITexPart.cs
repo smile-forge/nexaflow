@@ -35,6 +35,16 @@ public interface ITexPart
     string Text { get; }
 
     /// <summary>
+    /// Why the reading gave up on this part, or null where it did not.
+    /// <para>
+    /// Not a position and not source text, so it belongs here: it is what this part <em>is</em>. A builder
+    /// needs it for one thing only — to know the reading has already accounted for this piece, so that a
+    /// name nothing has heard of is reported once rather than again by whoever next fails to draw it.
+    /// </para>
+    /// </summary>
+    string? Trouble { get; }
+
+    /// <summary>
     /// This part written back out — its own text and everything under it, in order.
     /// <para>
     /// Not a slice of anything: the tree owns its text, so this is built up from the nodes rather than

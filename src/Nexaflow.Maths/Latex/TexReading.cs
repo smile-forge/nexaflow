@@ -48,6 +48,9 @@ public sealed class TexPart : ITexPart
 
     public TexNode Node { get; }
 
+    /// <inheritdoc/>
+    public string? Trouble => this.Node.Trouble;
+
     /// <summary>Where this part begins in the source the tree prints as.</summary>
     public int Start { get; }
 

@@ -167,7 +167,12 @@ public static class TexFormulaBuilder
     /// </summary>
     private static Atom Unread(ITexPart part, string? style)
     {
-        _ignored?.Add(Whole(part));
+        // Reported once. Where the reading already gave up on this — a name nothing has heard of, which it
+        // replaced with the characters and a reason — that verdict stands, and this failing to draw the
+        // same thing is the same fact arriving second. Saying it twice put an error and a warning on one
+        // stretch, which is two colours of squiggle under one command and no help to anybody.
+        if (!part.SelfAndDescendants().Any(piece => piece.Trouble is not null)) _ignored?.Add(Whole(part));
+
         return Tag(Letters(part.Print(), style), part);
     }
 
@@ -1020,21 +1025,20 @@ public static class TexFormulaBuilder
     }
 
     /// <summary>
-    /// A command this builder has no case for: nothing, so the formula falls back and is set properly —
-    /// unless nothing anywhere knows it, when it is shown as written and reported as the mistake it is.
+    /// A command this builder has no case for. Null where something else has a reading for it, so the
+    /// caller keeps looking; the name set as its own letters where nothing anywhere knows it.
     /// </summary>
     private static Atom? Words(ITexPart part, string? style, TexFormulaParser knowledge)
     {
         // A command something has a reading for, just not this builder — `\text`, `\textcolor`, `\bbox`.
-        // Null, so the formula goes to the typesetter's own parser whole and comes out right. A gap here
-        // is a gap here: it is not a licence to draw somebody's formula worse than it is drawn today, and
-        // the list of these is a list of things to teach this builder rather than things to break.
-        if (part.Part(TexRole.Name)?.Text is not { } name || knowledge.Knows(name[1..])) return null;
+        // Null, so whoever called goes on to its other cases. A gap here is a gap here: it is not a licence
+        // to draw somebody's formula worse than it is drawn today, and the list of these is a list of
+        // things to teach this builder rather than things to break.
+        if (part.Part(TexRole.Name) is not { Text: { } name } named || knowledge.Knows(name[1..])) return null;
 
-        // A command *nothing* knows is different in kind — a typo, or a package nobody loaded. There is
-        // no better rendering to defer to, so this is what has to answer, and drawing nothing would be
-        // the unhelpful answer: the formula would come out silently short and the reader would be left
-        // hunting for what they lost. Shown as written and reported instead.
+        // A command *nothing* knows is different in kind — a typo, or a package nobody loaded. Drawing
+        // nothing would be the unhelpful answer: the formula would come out silently short and the reader
+        // would be left hunting for what they lost. Shown as written instead.
         //
         // Set from the node's own text and never from the source: the tree owns what it says, which is
         // what round-tripping means, so there is nothing to look up and nothing to go stale.
@@ -1043,7 +1047,12 @@ public static class TexFormulaBuilder
         // parse tree no correspondence — one part may become a thousand boxes or none — so what decides
         // the shape here is what a reader should be able to point at, and that is the mistake entire.
         // Pointing at the `h` of `\alhpa` is not a thing anybody wants to do.
-        _ignored?.Add(Whole(part));
+        //
+        // Reported only where the reading has not already said it. `Check` walks the tree before this and
+        // replaces a name it cannot draw with the characters and a reason, so for almost every command
+        // reaching here the reader is already being told — in red, which is the right colour for a name
+        // nobody knows. Adding a second report made it two squiggles of different colours on one word.
+        if (named.Trouble is null) _ignored?.Add(Whole(part));
 
         var shown = new RowAtom(null);
         foreach (var letter in name) shown = shown.Add(new CharAtom(null, letter, style));

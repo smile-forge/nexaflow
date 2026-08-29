@@ -104,14 +104,17 @@ public class LatexPictureSweepTests
         var moved = drawn
             .Select(row => (Row: row, Before: was.GetValueOrDefault(row.Entry.Id)))
             .Where(pair => pair.Before is not null && pair.Before != pair.Row.Text)
-            .Select(pair => (pair.Row, Was: Halves(pair.Before!), Now: Halves(pair.Row.Text)))
+            .Select(pair => (pair.Row, Was: Parts(pair.Before!), Now: Parts(pair.Row.Text)))
             .ToList();
 
         if (moved.Count == 0) return;
 
         var set = moved.Where(pair => Geometry(pair.Was.Layout) != Geometry(pair.Now.Layout)).ToList();
         var named = moved.Count(pair => pair.Was.Layout != pair.Now.Layout) - set.Count;
-        var read = moved.Count - set.Count - named;
+        var told = moved.Count(pair => pair.Was.Layout == pair.Now.Layout
+                                      && pair.Was.Parse == pair.Now.Parse
+                                      && pair.Was.Trouble != pair.Now.Trouble);
+        var read = moved.Count - set.Count - named - told;
 
         Paint(work, moved.Select(pair => pair.Row).ToList());
 
@@ -120,6 +123,7 @@ public class LatexPictureSweepTests
         complaint.AppendLine($"  {read,8} read differently, and set in the same places from the same source");
         complaint.AppendLine($"  {named,8} set in the same places, from different source — selection moved, "
                              + "the drawing did not");
+        complaint.AppendLine($"  {told,8} set and read the same, and reported differently — a squiggle changed");
         complaint.AppendLine($"  {set.Count,8} set in different places — these are the ones a reader sees");
 
         if (set.Count > 0)
@@ -339,20 +343,28 @@ public class LatexPictureSweepTests
     }
 
     /// <summary>
-    /// A stored reading cut into the half that says how the formula was read and the half that says how
-    /// it was set. <see cref="Reading"/> writes them in that order, and the layout half is the only line
-    /// in either that starts flush against the margin.
+    /// A stored reading cut into the three things it says: how the formula was read, where its pieces were
+    /// set, and what was reported about it.
+    /// <para>
+    /// The third one earns its place. The trouble lines sit at the end of the layout section with no header
+    /// of their own, so cutting only twice folded them into the layout — and because a <c>!</c> line carries
+    /// no source-naming marker, <see cref="Geometry"/> passed it through untouched. A change to what is
+    /// <em>reported</em> then came out under "set in different places — these are the ones a reader sees",
+    /// which is the one line here that has to be trustworthy. 1,091 formulas said so while every score,
+    /// every bucket and the mean overlap were byte-identical.
+    /// </para>
     /// </summary>
-    /// <summary>
-    /// A stored reading cut into the three things it says, because a change to each means something
-    /// different: how the formula was read, where its pieces were set, and which piece of the source
-    /// each of those came from. <see cref="Reading"/> writes them in that order, and the layout half is
-    /// the only line in either that starts flush against the margin.
-    /// </summary>
-    private static (string Parse, string Layout) Halves(string reading)
+    private static (string Parse, string Layout, string Trouble) Parts(string reading)
     {
-        var at = reading.IndexOf("\nlayout ", StringComparison.Ordinal);
-        return at < 0 ? (reading, "") : (reading[..at], reading[at..]);
+        var layoutAt = reading.IndexOf("\nlayout ", StringComparison.Ordinal);
+        if (layoutAt < 0) return (reading, "", "");
+
+        var rest = reading[layoutAt..];
+        var troubleAt = rest.IndexOf("\n! ", StringComparison.Ordinal);
+
+        return troubleAt < 0
+            ? (reading[..layoutAt], rest, "")
+            : (reading[..layoutAt], rest[..troubleAt], rest[troubleAt..]);
     }
 
     /// <summary>Where a marker sits between where a piece was set and what it was set from.</summary>
