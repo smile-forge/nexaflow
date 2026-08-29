@@ -674,6 +674,13 @@ public static class TexFormulaBuilder
                 new BigOperatorAtom(null, big.BaseAtom, subscript, superscript, big.UseVerticalLimits),
                 part);
 
+        // And so are scripts on anything else that has been *typed* as one. `\mathop{X}` makes a big
+        // operator of whatever is inside it without making a BigOperatorAtom of it, so asking only what
+        // kind of atom this is set `\mathop{{\sum}^{\prime}}_{n=0}^{n=\infty}` with its limits beside the
+        // sign instead of over and under it.
+        if (baseAtom.GetLeftType() == TexAtomType.BigOperator)
+            return Tag(new BigOperatorAtom(null, baseAtom, subscript, superscript), part);
+
         return Tag(new ScriptsAtom(null, baseAtom, subscript, superscript), part);
     }
 
@@ -935,12 +942,6 @@ public static class TexFormulaBuilder
             // Except `\mathop`, which types whatever is inside it as a big operator — and a script on a
             // big operator is a *limit*, set above or below it rather than beside. The brace half of this
             // question has been ruled on and is built above; this half has not. 23 formulas.
-            if (DeclineUnsettled
-                && name is @"\mathop"
-                && part.Parent is { Kind: TexKind.Script }
-                && part.Role == TexRole.Base)
-                return null;
-
             var arguments = new List<Atom>();
 
             foreach (var argument in part.Parts)

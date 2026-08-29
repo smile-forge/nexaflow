@@ -58,7 +58,10 @@ public class TypesettingUnchangedTests
     {
         ["fractions and binomials"] = "1448FD4EF22417F5",
         ["roots, bars and boxes"] = "681D9E8E48FBA6D4",
-        ["scripts, primes and big operators"] = "D74B5C0E5507CE0B",
+        // Moved 2026-08-30. A script on something typed as a big operator is a limit, set over and under
+        // the sign rather than beside it. Only an atom that *was* a BigOperatorAtom got that, so \sum did
+        // and \mathop{X} did not — and \mathop is how a paper writes an operator of its own.
+        ["scripts, primes and big operators"] = "D1FCDD41BA85DE33",
         ["accents and arrows"] = "195E9AEA77EA1A0A",
         ["fences and delimiters"] = "EB24F7C32E81A8E7",
         ["matrices and environments"] = "AFE71FA801602FA1",
