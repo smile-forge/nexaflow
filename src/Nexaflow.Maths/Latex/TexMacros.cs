@@ -45,6 +45,20 @@ public static class TexMacros
             foreach (var name in names) Add(name, definition);
         }
 
+        // ── The multiple integrals ──────────────────────────────────────────────
+        // Several integral signs squeezed together and typed as one big operator, which is what puts a
+        // limit over and under the pile rather than beside the last sign of it. That second half is why
+        // these were the last things left in the typesetter's XML: the definition there is the LaTeX
+        // below *plus* a call setting the row's kinds, and a macro is text and cannot say that. \mathop
+        // says it — it is what \mathop is for — and once a \mathop's scripts became its limits the two
+        // spellings set to the same size, to a tenth of a pixel, at every arity.
+        Add(@"\iint", @"\mathop{\int\!\!\!\int}");
+        Add(@"\iiint", @"\mathop{\int\!\!\!\int\!\!\!\int}");
+        Add(@"\iiiint", @"\mathop{\int\!\!\!\int\!\!\!\int\!\!\!\int}");
+        Add(@"\idotsint", @"\mathop{\int\!\cdots\!\int}");
+        Add(@"\oiint", @"\mathop{\oint\!\!\!\oint}");
+        Add(@"\oiiint", @"\mathop{\oint\!\!\!\oint\!\!\!\oint}");
+
         // ── Written-down space ──────────────────────────────────────────────
         // The short forms. What each of these is short *for* is a strut of so many mu, which has no
         // spelling in LaTeX and so is not a macro but a primitive: it stays with the typesetter.

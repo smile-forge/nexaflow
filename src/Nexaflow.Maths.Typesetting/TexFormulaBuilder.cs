@@ -732,7 +732,9 @@ public static class TexFormulaBuilder
     /// </para>
     /// </summary>
     public static bool Draws(string written, TexFormulaParser knowledge) =>
-        Handles.Contains(written) || knowledge.Draws(written);
+        Handles.Contains(written)
+        || (written.Length > 1 && StandardCommands.PrimitiveOf(written[1..]) is not null)
+        || knowledge.Draws(written);
 
     private static Atom? Command(ITexPart part, string? style, TexFormulaParser knowledge)
     {
@@ -1134,10 +1136,11 @@ public static class TexFormulaBuilder
         // nobody knows. Adding a second report made it two squiggles of different colours on one word.
         if (named.Trouble is null) _ignored?.Add(Whole(part));
 
-        var shown = new RowAtom(null);
-        foreach (var letter in name) shown = shown.Add(new CharAtom(null, letter, style));
-
-        return Tag(shown, part);
+        // The whole of it, not just its name. This drew the letters of `\bbox` and dropped the `{ 1 }` it
+        // was written with, while tagging the result with the part that covers both — so the node claimed
+        // eleven characters and set five, and the reader was shown a command with its argument missing.
+        // What a fallback owes somebody is the text they typed.
+        return Tag(Letters(part.Print(), style), part);
     }
 
     /// <summary>
@@ -1232,10 +1235,29 @@ public static class TexFormulaBuilder
     /// </summary>
     private static TexPart Whole(ITexPart part) => (TexPart)part;
 
-    /// <summary>Hangs the part on the atom built from it. The whole reason for building them here.</summary>
+    /// <summary>
+    /// Says which part of the reading this atom was made for.
+    ///
+    /// <para>
+    /// A <see cref="TypedAtom"/> draws nothing of its own — it hands back the box of what is inside it —
+    /// so an origin left on the wrapper reaches no picture at all. That is what <c>\mathop{…}</c> makes,
+    /// and what <c>\iiiint</c> expands to, so a command seven characters long named nothing on the page
+    /// and could not be pointed at, selected or backspaced over.
+    /// </para>
+    /// <para>
+    /// Handed down only where the inside claims nothing itself. A macro's expansion stands for no source
+    /// and its parts are all of zero width, so the wrapper's span is the only true one there is; but
+    /// <c>\mathop{x}</c> written out has a real x underneath, and taking that from it would make the
+    /// whole construct the smallest thing anybody could aim at.
+    /// </para>
+    /// </summary>
     private static Atom Tag(Atom atom, ITexPart part)
     {
         atom.Origin = Whole(part);
+
+        if (atom is TypedAtom { Atom: { } inside } && inside.Origin is null or { Length: 0 })
+            Tag(inside, part);
+
         return atom;
     }
 }
