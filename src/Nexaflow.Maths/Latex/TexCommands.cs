@@ -147,8 +147,15 @@ public static class TexCommands
         // looked like a command with nothing after it and `{k}` looked like a group of its own.
         All([@"\label", @"\tag", @"\eqref", @"\raisetag", @"\intertext", @"\shortintertext"],
             [TexRole.Argument]);
+        // Two arguments, and they must not be called the same thing: `Part(role)` answers with whichever
+        // came first, so a second argument sharing the first's name is a second argument nothing can
+        // ever reach. The first names what is being declared and the second says what it is, which is
+        // the same shape as `\textcolor{red}{x}` and the same role `\operatorname` gives its only
+        // argument — `\DeclareMathOperator{\sgn}{sgn}` is, after all, a way of saying
+        // `\operatorname{sgn}`.
         All([@"\numberwithin", @"\accentedsymbol", @"\DeclareMathOperator"],
-            [TexRole.Argument, TexRole.Argument]);
+            [TexRole.Argument, TexRole.Base]);
+
 
         // A line break may say how much room to leave after it: \\[2pt].
         Add(@"\\", [], TexRole.Option);

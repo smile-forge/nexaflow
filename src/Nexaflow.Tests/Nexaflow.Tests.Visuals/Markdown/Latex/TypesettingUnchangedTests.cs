@@ -64,11 +64,26 @@ public class TypesettingUnchangedTests
         ["matrices and environments"] = "AFE71FA801602FA1",
         ["aligned and gathered blocks"] = "BB2AC1E5F464D80A",
         ["stacked and gathered"] = "AEE4C548EF2E7028",
-        ["text styles and fonts"] = "68DE1BB4CEFEF57F",
-        ["spacing, dots and modular arithmetic"] = "66A99FC0BD7B6EB9",
-        ["colour, phantoms and overlap"] = "E842EF1E1E46E2E6",
+        // These three moved 2026-08-29, when the engine's own parser stopped being a fallback and every
+        // formula started being set from our reading. All three contain constructs that used to decline
+        // — the `\text` family, `\mod`, the overlap commands — so what changed hands is who set them,
+        // not what anybody asked for. The other ten did not move at all, which is the useful half of
+        // this: the change was confined to what had been falling through.
+        //
+        // Held against the corpus's own LaTeX renderings across all 238,329 formulas, the same change
+        // put the mean ink overlap at 0.7727 where the fallback had it at 0.7733, and took the count
+        // that draw nothing at all from 8 to 0.
+        ["text styles and fonts"] = "FCAB07860B836086",
+        ["spacing, dots and modular arithmetic"] = "2997F89D7D3782B0",
+        ["colour, phantoms and overlap"] = "0BD3C607EDD1FB37",
         ["styles and sizes"] = "CAE74BF57299F92F",
-        ["greek, relations and symbols"] = "889A84AE4F160058",
+        // Moved 2026-08-29, and for the reason this guard exists to make somebody give: \mapsto is now
+        // set as TeX sets it. Computer Modern has a \mapstochar — zero width, on the axis, made for
+        // exactly this — sitting beside \not in cmsy and never named in our symbol table, so the bar had
+        // been faked with a full-height \vert pulled back five mu. Held against the corpus's own LaTeX
+        // renderings of the 528 formulas that use it, the change moved 430 closer and 98 further, mean
+        // ink overlap 0.6907 → 0.7069.
+        ["greek, relations and symbols"] = "67FD8491CB5D1FE4",
     };
 
     [TestMethod]

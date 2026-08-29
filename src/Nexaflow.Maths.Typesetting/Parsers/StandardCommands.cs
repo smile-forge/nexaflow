@@ -5,6 +5,7 @@ using XamlMath.Atoms;
 using XamlMath.Boxes;
 using XamlMath.Exceptions;
 using XamlMath.Parsers.Matrices;
+using System;
 
 namespace XamlMath.Parsers;
 
@@ -169,6 +170,34 @@ internal static class StandardCommands
         }
     }
 
+    /// <summary>
+    /// The space a length-taking command asks for — <c>\mspace{-3mu}</c>, <c>\hspace{2em}</c> — read
+    /// from the argument as it was written.
+    ///
+    /// <para>
+    /// A length is text and only text: <c>-3mu</c> is not something that survives being built into
+    /// atoms, so this is the one thing that cannot come through <see cref="IAssembleCommand"/> like the
+    /// rest of them. It does not need to. Whoever is building holds the parse tree, the tree holds the
+    /// argument, and the argument holds its own characters — so it is asked for them directly.
+    /// </para>
+    /// <para>
+    /// Null where the text is not a length at all, which is a formula saying something nobody can act
+    /// on rather than a reason to stop.
+    /// </para>
+    /// </summary>
+    internal static Atom? SpaceOf(string command, string written)
+    {
+        try
+        {
+            ParseLength(written, command, out var unit, out var value);
+            return new SpaceAtom(null, unit, value, 0, 0);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>Reads one <c>{…}</c> (or single-token) argument as a formula and advances <paramref name="position"/>.</summary>
     private static TexFormula ReadArgument(CommandContext context, ref int position)
     {
@@ -323,7 +352,7 @@ internal static class StandardCommands
             {
                 foreach (var letter in "mod") inside = inside.Add(new CharAtom(null, letter, "mathrm"));
 
-                if (knowledge.ExpansionOf(";") is { } thin) inside = inside.Add(thin);
+                if (PrimitiveOf("thickspace") is { } thin) inside = inside.Add(thin);
             }
 
             var fenced = new FencedAtom(
@@ -336,7 +365,7 @@ internal static class StandardCommands
             };
 
             var whole = new RowAtom(null);
-            if (knowledge.ExpansionOf("quad") is { } gap) whole = whole.Add(gap);
+            if (PrimitiveOf("quad") is { } gap) whole = whole.Add(gap);
             whole = whole.Add(fenced);
 
             whole.Origin = origin;
@@ -704,14 +733,27 @@ internal static class StandardCommands
     // The starred form takes its limits above and below in display style, as \sum does.
     private sealed class OperatorNameCommand : ICommandParser, IAssembleCommand
     {
+        /// <param name="starred">
+        /// Whether this is the <c>*</c> form, whose limits go wherever the style puts them rather than
+        /// always beside the name. Reading from source finds the star for itself; a reading that arrives
+        /// with its arguments already built cannot, so the table registers the two spellings separately
+        /// and this is how they differ.
+        /// </param>
+        public OperatorNameCommand(bool starred = false) => this._starred = starred;
+
+        private readonly bool _starred;
+
         public CommandProcessingResult ProcessCommand(CommandContext context)
         {
             var source = context.CommandSource;
             var position = context.ArgumentsStartPosition;
 
-            var starred = position < source.Length && source[position] == '*';
-            if (starred)
+            var starred = this._starred;
+            if (position < source.Length && source[position] == '*')
+            {
+                starred = true;
                 position++;
+            }
 
             var after = TexFormulaParser.ReadElement(source, position);
             position = after.position;
@@ -728,7 +770,7 @@ internal static class StandardCommands
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
-                ? new BigOperatorAtom(null, arguments[0], null, null, false) { Origin = origin }
+                ? new BigOperatorAtom(null, arguments[0], null, null, this._starred ? null : (bool?)false) { Origin = origin }
                 : null;
     }
 
@@ -1433,6 +1475,7 @@ internal static class StandardCommands
             ["Biggr"] = new BigDelimiterCommand(3, TexAtomType.Closing),
             ["Biggm"] = new BigDelimiterCommand(3, TexAtomType.Relation),
             ["operatorname"] = new OperatorNameCommand(),
+        ["operatorname*"] = new OperatorNameCommand(starred: true),
             ["boldsymbol"] = new BoldSymbolCommand(),
             ["bm"] = new BoldSymbolCommand(),
             ["pmb"] = new BoldSymbolCommand(),
@@ -1565,4 +1608,74 @@ internal static class StandardCommands
             ["xxalignat"] = CountedAlignEnvironment.Instance,
             ["xxalignat*"] = CountedAlignEnvironment.Instance
         };
+
+    /// <summary>
+    /// Written-down space, in mu — eighteenths of a quad.
+    ///
+    /// <para>
+    /// These are not macros and never were, whatever table they used to live in. A macro stands for
+    /// something somebody could have written out longhand; a strut of four mu stands for nothing but
+    /// itself, because LaTeX has no way of saying it. So it belongs here, with the symbols, which are
+    /// the other thing the typesetter knows how to draw and the reader cannot spell.
+    /// </para>
+    /// </summary>
+    private static readonly Dictionary<string, double> Struts = new(StringComparer.Ordinal)
+    {
+        ["thinspace"] = 3,
+        ["medspace"] = 4,
+        ["thickspace"] = 5,
+        ["negthinspace"] = -3,
+        ["negmedspace"] = -4,
+        ["negthickspace"] = -5,
+        ["enspace"] = 9,
+        ["space"] = 6,
+        ["quad"] = 18,
+        ["qquad"] = 36,
+    };
+
+    /// <summary>
+    /// What this name draws, where the typesetter draws it itself rather than reading it out of
+    /// anything — or null where the name means nothing to it.
+    ///
+    /// <para>
+    /// Everything here reaches for something LaTeX cannot say: a length in mu, a sign lifted onto the
+    /// axis, one glyph set over another at a fixed height without being shrunk. A name that <em>can</em>
+    /// be said in LaTeX is a macro and belongs to the reader, in <c>TexMacros</c>; these are the
+    /// residue, and they are the same kind of thing as a symbol.
+    /// </para>
+    /// </summary>
+    internal static Atom? PrimitiveOf(string name)
+    {
+        if (Struts.TryGetValue(name, out var mu)) return new SpaceAtom(null, TexUnit.Mu, mu, 0, 0);
+
+        return name switch
+        {
+            // A radical sign with nothing under it, lifted so it sits about the axis.
+            "surd" => new VerticalCenteredAtom(null, SymbolAtom.GetAtom("surdsign", null)),
+
+            // A dot and a tilde set over an equals sign. TeX builds both the same way — `\doteq` is
+            // `\buildrel\textstyle.\over=` — and the height is fixed rather than scaled, which is what
+            // tells them apart from anything `\overset` could write.
+            "doteq" => Over("equals", "ldotp", 2),
+            "cong" => Over("equals", "sim", 1),
+
+            // The \iint family is deliberately not here. It is several integral signs squeezed together
+            // and typed as one big operator, and an integral sign is not a plain symbol — it is promoted
+            // to a big operator on the way past, so reproducing the pile exactly means reproducing that
+            // too. Tried, and it moved the typesetting. The corpus names \iint twenty times, \iiint once
+            // and the other four never, so there is nothing to check a second attempt against; it stays
+            // in the table it was already in until something needs it to move.
+            _ => null,
+        };
+    }
+
+    /// <summary>One glyph over another, at a fixed height and full size, and a relation either side.</summary>
+    /// <summary>One glyph over another, at a fixed height and full size, and a relation either side.</summary>
+    private static Atom Over(string under, string over, double mu) =>
+        new TypedAtom(
+            null,
+            new UnderOverAtom(null, SymbolAtom.GetAtom(under, null), SymbolAtom.GetAtom(over, null),
+                              TexUnit.Mu, mu, false, true),
+            TexAtomType.Relation,
+            TexAtomType.Relation);
 }

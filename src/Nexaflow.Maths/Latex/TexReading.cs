@@ -15,21 +15,36 @@ public sealed class TexPart : ITexPart
 {
     private readonly List<TexPart> _children = [];
 
-    private TexPart(TexNode node, int start, TexPart? parent)
-    {
-        this.Node = node;
-        this.Start = start;
-        this.Parent = parent;
 
-        var at = start;
+    /// <summary>The macro span this part reports instead of its own, or nothing where it was written.</summary>
+    private readonly int? _derived;
+
+    private TexPart(TexNode node, int start, TexPart? parent, int? derived)
+    {
+        // A macro's expansion, and everything under it, stands for no source: it begins where the macro
+        // begins and is no characters long, which is the only answer that keeps a part's span and what
+        // it prints as the same thing. Selecting the whole of `\neq` still works — the piece that is set
+        // from it carries the *command*, which does have a span, and that is where it belongs. There is
+        // no part of `\neq` that is the slash and no part that is the equals, so there is nothing in
+        // here for a caret to land inside.
+        var inherited = derived ?? (node.Role == TexRole.Expansion && parent is not null
+            ? parent.Start
+            : (int?)null);
+
+        this.Node = node;
+        this.Parent = parent;
+        this._derived = inherited;
+        this.Start = inherited ?? start;
+
+        var at = this.Start;
         foreach (var child in node.Children)
         {
-            this._children.Add(new TexPart(child, at, this));
-            at += child.Width;
+            this._children.Add(new TexPart(child, at, this, inherited));
+            if (inherited is null) at += child.Width;
         }
     }
 
-    internal static TexPart Of(TexNode root) => new(root, 0, null);
+    internal static TexPart Of(TexNode root) => new(root, 0, null, null);
 
     public TexNode Node { get; }
 
@@ -45,10 +60,30 @@ public sealed class TexPart : ITexPart
 
     public TexKind Kind => this.Node.Kind;
 
-    public int Length => this.Node.Width;
+    /// <summary>
+    /// How much source this part stands for. Zero-width for anything a macro stands for, where the
+    /// span is the macro's own — see the constructor.
+    /// </summary>
+    /// <summary>
+    /// How much source this part stands for. Nothing at all for anything a macro stands for — see the
+    /// constructor — so that this and <see cref="Print"/> never disagree.
+    /// </summary>
+    public int Length => this._derived is null ? this.Node.Width : 0;   // a derived node is already zero-wide
+
+    /// <summary>
+    /// Whether this part is something a macro stands for rather than something somebody wrote.
+    ///
+    /// <para>
+    /// Such a part is in the tree because it says what the formula <em>means</em>, and it stands for no
+    /// source at all: it begins where its macro begins and is no characters long. Anything checking a
+    /// part against the text it came from has to ask this first, because there is no text it came from.
+    /// </para>
+    /// </summary>
+    public bool Derived => this._derived is not null || this.Node.IsDerived;
 
     /// <summary>One past its last character.</summary>
-    public int End => this.Start + this.Node.Width;
+    /// <summary>One past the last character this part stands for.</summary>
+    public int End => this.Start + this.Length;
 
     /// <summary>The span it names.</summary>
     public (int Start, int Length) Span => (this.Start, this.Length);
@@ -144,10 +179,22 @@ public sealed class TexPart : ITexPart
     /// are machinery: they are in the tree so it can be written back out, not because anything is
     /// written <em>in</em> them.
     /// </summary>
+    /// <summary>
+    /// The parts that mean something to this one — everything but the punctuation that makes it what it
+    /// is, and the space between them. A command's <c>\name</c>, a group's braces and a row's <c>\</c>
+    /// are machinery: they are in the tree so it can be written back out, not because anything is
+    /// written <em>in</em> them.
+    /// <para>
+    /// An expansion is left out for the opposite reason — nothing was written in it because nothing was
+    /// written at all. It is what a macro stands for, and whoever wants it asks for it by name; every
+    /// caller here is asking "what was this command given", and a macro was given nothing.
+    /// </para>
+    /// </summary>
     public IEnumerable<TexPart> Parts =>
         this._children.Where(child => child.Kind is not (TexKind.Space or TexKind.Comment)
                                       && child.Role is not (TexRole.Name or TexRole.Open or TexRole.Close
-                                                            or TexRole.Separator or TexRole.Trivia));
+                                                            or TexRole.Separator or TexRole.Trivia
+                                                            or TexRole.Expansion));
 
     /// <summary>Its own text — the node's, never a stretch of the formula.</summary>
     public string Text => this.Node.Text;
@@ -189,6 +236,13 @@ public sealed class TexReading
     /// <summary>Reads a formula.</summary>
     public static TexReading Of(string latex) =>
         new(latex, TexPart.Of(TexParser.Parse(latex)));
+
+    /// <summary>
+    /// A reading of a tree that has already been read and worked over — what the stages in
+    /// <see cref="TexPipeline"/> hand back. The source it reports is the source the tree prints as,
+    /// which is the same source it came from, because that is the one rule every stage keeps.
+    /// </summary>
+    public static TexReading Of(TexNode tree) => new(tree.Print(), TexPart.Of(tree));
 
     /// <summary>The source this was read from.</summary>
     public string Latex { get; }

@@ -198,9 +198,179 @@ never as `'`. So the whole of the mark handling, in the reader and in the builde
 teaching the builder primes moved the number by exactly zero. Ties, by contrast, are in 21,478 of them
 and genuinely covered.
 
+**And it contains no named operators either.** Not one of `\cos`, `\sin`, `\log`, `\exp`, `\det`,
+`\lim`, `\max`, `\min`, `\ker`, `\dim`, `\arg`, `\gcd`, `\sup`, `\inf` or any of the other 43 appears
+anywhere in the 238,329 formulas: whatever produced the dataset wrote them out as separate letters, so
+`\exp\left\{` arrives as `e x p \left\{`. Moving all 43 into the macro table changed the reading of
+exactly zero formulas, and the sweep reported a clean pass that meant *nothing was tested*. This is the
+trap the paragraph above is about, sprung the first time it could be. What covers them instead is
+`TexMacroTableTests`, which holds every row of the table against what the parser does with it —
+including that the row fires at all, which is how a row for a name the command table already claims
+gets caught rather than sitting there looking correct.
+
 Where the corpus is silent the hand-written list in `TexBuilderTests` is the *only* place the two
 readings are held against each other, so for a construct it cannot reach that list has to be more than
 a couple of shapes — braced both ways, inside a fraction, a root, a fence and a table.
+
+## The oracle had to stop being the thing we are deleting
+
+Every sweep above holds our reading against the typesetter's own, and that check has an expiry date on
+it: the old reader is going, and a reading held against itself proves nothing. So before it can go, the
+question "is this right" has to be pointed at something that was never ours.
+
+The corpus ships one. Each of its 238,329 formulas comes with a picture of it made by real LaTeX out of
+the paper it was lifted from, and no change of ours can move those.
+
+**But a picture is *a* truth, not ground truth.** Two rasterisers never agree on a pixel —
+anti-aliasing, hinting and sub-pixel placement see to that — so the comparison has to be a fuzzy one,
+and the useful question is how fuzzy. That was measured rather than guessed: each of a thousand corpus
+formulas was drawn correctly and then drawn **damaged** — one token dropped, a superscript turned into
+a subscript, two tokens transposed — and both were scored against the same reference picture.
+
+| | |
+|---|---|
+| what damaging a formula costs it | about **0.05** of score |
+| how much one correct formula differs from the next | about **0.25** |
+
+So no threshold can separate a wrong drawing from a merely long one, and none should be asked to. The
+score is worth reading as a **ranking** and nothing else. `GrayImage.InkOverlap`'s height, blur and
+slide were chosen against that same measurement — the setting that most often puts a correct drawing
+above its own damaged twin — which took the tail worth reviewing from 8.2% of the corpus to 0.16%.
+
+### What the pictures cannot see, demonstrated
+
+The builder was broken on purpose — made to decline `\not`, so those formulas fall back to the old
+parser and come out attributed differently — and the sweep re-run. The four formulas containing `\not`
+scored **0.5881, 0.6331, 0.7184 and 0.8216 before the break, and 0.5881, 0.6331, 0.7184 and 0.8216
+after it**. Identical to four decimal places. The pictures could not see it at all, and nothing built
+on them ever could.
+
+The tree comparison named all four, and none of the other 2,996.
+
+### So there are two references, because there are two questions
+
+- **Is it right?** LaTeX's picture. Fuzzy, so it ranks the corpus worst-first onto a page somebody
+  reads once, and it is never asked for a verdict.
+- **Has it moved?** Our own accepted reading. Exact, so it needs no threshold and no judgement.
+
+What is kept as that reference is not the picture but **the parse tree and the layout tree**. The
+picture is painted out of the layout tree, so trees that match draw the same pixels — keeping the
+pixels as well would only be keeping the same fact twice. Trees can differ where pixels do not, though,
+and that is the case worth catching: a formula that still draws correctly but whose parts have moved is
+a formula whose selection, caret and editing have quietly changed.
+
+`LatexPictureSweepTests` does both. It is opt-in and local — `NEXAFLOW_LATEX_PICTURES` points at the
+corpus, everything it writes goes beside the corpus rather than into the repository, and
+`NEXAFLOW_LATEX_BLESS=1` is the deliberate act that says somebody looked. `tools/latex-corpus`, which
+did the ranking half as a command-line tool, is gone into it: it drew through the old parser, so it
+could not have outlived it, and its scoring is now the sweep's.
+
+### What the ranking found on its first pass
+
+All 238,329 in 9.5 minutes, mean overlap 0.7732, and **372 formulas at or below 0.35** — the whole of
+what is worth a person's time, and the reason the tuning above was worth doing rather than reviewing
+nineteen thousand.
+
+| | |
+|---|---|
+| 126 | a stacked environment — `array`, `matrix`, `cases` — for the reason below |
+| 87 | assorted: `\renewcommand{\arraystretch}`, `\brack`, `\genfrac`, and long formulas where a small spacing difference early on shifts everything after it |
+| 65 | a command we deliberately show as written rather than draw |
+| 56 | `\fbox`, which we do not support |
+| 30 | the corpus's own mistokenisation — `\begin{array}[t]{c}` arriving as `{ } { t ] { c }` |
+| 8 | drew nothing at all: every one is the one-sided `\Bigl .` / `\Bigr .` idiom |
+
+**And the largest single group is a real difference nothing before could have seen.** TeX sets the
+cells of an `array` in text style; we set them in whatever style surrounds the array, which for a
+display formula is display style. So our operators take their limits above and below where TeX sets
+them beside,
+and our fractions come out full size. One three-row example is 573×174 against the corpus's 427×43 —
+both correct in content, one four times the height of the other. That authors write `\displaystyle`
+*inside* array cells at all, which several of these formulas do, is the corroboration: you would never
+need to ask for it if it were already the default.
+
+Every oracle before this one was the engine's own parser, which sets the cells the same way and would
+have agreed with us forever. Recorded rather than fixed here — it is a change to typesetting, it moves
+a large part of the corpus, and this branch is about where the reading comes from.
+
+## Macros belong to the reader
+
+A macro is a fact about what was *written* — one name standing for something the writer could have
+typed out longhand — so resolving it is reading, not setting. The typesetter had a table of them only
+because it used to be the reader as well.
+
+`TexMacros` is that table, in `Nexaflow.Maths`, and the parser writes what it finds into the tree:
+the command the writer typed, with its expansion hanging underneath it under a new
+`TexRole.Expansion`. Both are there to be asked — what was written, and what it means — and neither
+half has to know what the other wanted.
+
+**An expansion is not source, and nothing that measures source may see it.** It has no width, prints
+as nothing, is not placed anywhere and holds no leaves. That is what keeps `Print(Parse(s)) == s`
+true by construction rather than by care: `Width` is a sum over what is under a node, so a zero
+declared once is a zero all the way up.
+
+The same rule answers the question `Atom.Borrowed` used to. That flag stopped an expansion's atoms
+lending a box their offsets — a rule enforced on the atom, one layer too late and easy to forget.
+Now the tree says it: **everything a macro stands for begins where the macro begins and is no
+characters long.** There is no part of `\neq` that is the slash and no part that is the equals, so a
+caret lands either side and never inside, and selecting any of what it draws selects the whole —
+because the piece set from it carries the *command*, which does have a span.
+
+### What moved, and what the corpus said about it
+
+91 of the 107 definitions moved. The sweep answered a different question for each batch, and the
+three-way split — read / set from / set where — is what made the answers legible:
+
+| | |
+|---|---|
+| the 25 that were already LaTeX text | 72,583 formulas read differently; **not one box moved** |
+| the 43 operator names | zero formulas changed, because the corpus contains none of them — see above |
+| the arrows, dots and classes | 16,126 changed: ~4,600 read-only, ~10,900 attributed differently, **~620 set differently** |
+
+That last 620 is `\mapsto` and `\longmapsto`, and it was meant. Computer Modern has a `\mapstochar`
+— zero width, sitting on the axis, made for exactly this — in cmsy beside `\not`, and it had never
+been given a name in `TexSymbols.xml`. So `\mapsto` had been faked with a full-height `\vert` pulled
+back five mu. Named, TeX's own `\mapstochar\rightarrow` needs no pulling, and held against the
+corpus's LaTeX renderings of the 528 formulas that use it: **430 closer, 98 further, mean ink overlap
+0.6907 → 0.7069.** The whole corpus moved with it, 0.7732 → 0.7733.
+
+Everything else was checked and found not to move. `\ldots` becoming `\mathinner{\ldotp\ldotp\ldotp}`
+— which is plain.tex's own definition — is geometry-identical to the hand-typed version it replaced.
+
+### The sixteen that were not macros
+
+Not everything in that table was one, and the ones that were not should not be made to look like one.
+Each of them reaches for something LaTeX cannot say — a length in mu, a sign lifted onto the axis, one
+glyph set over another at a fixed height without being shrunk — which makes them the same kind of
+thing as a symbol. So they are built by the typesetter, in `StandardCommands.PrimitiveOf`, in C#
+rather than as a recipe interpreted out of XML at run time:
+
+- **ten struts** (`\quad`, `\thinspace`, `\enspace` …) — a length in mu and nothing else.
+- **`\surd`**, a radical sign with nothing under it, lifted so it sits about the axis.
+- **`\doteq` and `\cong`** — plain.tex composites these too (`\buildrel\textstyle.\over=`, and `\sim`
+  over `=`), at a fixed height and full size, where both `\overset` and `\stackrel` shrink what they
+  put on top. There is no faithful spelling to move them to.
+
+All thirteen moved without shifting a single box, on the corpus and on the hand-written constructs.
+
+**Three did not move**, and the reason is worth keeping:
+
+- **the `\iint` family** — several integral signs squeezed together and typed as one big operator.
+  Built directly it changed the typesetting, because an integral sign is not a plain symbol: it is
+  promoted to a big operator on the way past, so reproducing the pile means reproducing that too.
+  Tried, caught by `TypesettingUnchangedTests`, reverted. The corpus names `\iint` twenty times,
+  `\iiint` once and the other four never, so there is nothing to check a second attempt against.
+- **`\mod`**, which the command table already claims, and which takes its modulus after it.
+
+Which is why `TexFormulaParser.ExpansionOf` is still there, and now has exactly one caller and six
+names to serve. It is not what stands between us and deleting the old reader — `ParseWithRecovery`
+is, for the stretch shown as written while it is being edited and for the holes an empty argument
+gets, neither of which the builder does.
+
+`TexMacroTableTests` holds every row against what the parser does with it, and the first thing it
+asks is whether the row fires at all. A row for a name the command table already claims is invisible
+otherwise: nothing breaks, nothing complains, and the sweep reports a clean pass. That happened once
+already, to `\mod`.
 
 ## It is wired in
 

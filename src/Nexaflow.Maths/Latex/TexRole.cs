@@ -91,4 +91,27 @@ public static class TexRole
     /// where it was found, because it is where the writer put it.
     /// </summary>
     public const string Trivia = "trivia";
+
+
+    // ── Parts that were never written ───────────────────────────────────────
+    //
+    // Everything above stands for characters somebody typed. This does not.
+
+    /// <summary>
+    /// What a macro resolves to, hung under the macro itself.
+    ///
+    /// <para>
+    /// <c>\neq</c> is one command the writer typed and a slash over an equals sign to whoever sets it. The
+    /// tree carries both: the command, with its expansion beneath it. So a reader of the tree can ask what
+    /// was written and get <c>\neq</c>, and a setter of it can walk down and find the two things to draw,
+    /// and neither has to know what the other wanted.
+    /// </para>
+    /// <para>
+    /// <strong>An expansion is not source, and nothing that measures source may see it.</strong> It has no
+    /// width, it prints as nothing, it is not placed anywhere and it holds no leaves — which is exactly
+    /// what keeps <c>Print(Parse(s)) == s</c> true once a macro has been resolved into the tree. It is
+    /// still a part like any other to anything asking what the formula <em>means</em>.
+    /// </para>
+    /// </summary>
+    public const string Expansion = "expansion";
 }

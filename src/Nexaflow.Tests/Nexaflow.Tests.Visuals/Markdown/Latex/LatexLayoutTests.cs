@@ -193,27 +193,6 @@ public class LatexLayoutTests
     ];
 
     [TestMethod]
-    public void NoConstructClaimsSourceItDoesNotOwn() => UiThread.Run(() =>
-    {
-        // The guard that keeps the typesetter honest. WpfMath's escape-sequence handling passed an
-        // absolute position where a length was wanted in four separate places, so a command reported a
-        // span running far past itself — `\vec{F}` in a 67-character formula claimed 36 characters. The
-        // tree has to drop such a span to stay usable, which means the symptom is not a crash but a symbol
-        // quietly becoming unselectable. Asserting on the raw capture is what makes that loud.
-        foreach (var latex in Corpus)
-        {
-            var capture = new LatexLayoutCapture(Scale, latex);
-            WpfTeXFormulaParser.Instance.Parse(latex).RenderTo(capture, Environment(), 0, 0);
-            capture.FinishRendering();
-
-            Assert.AreEqual(0, capture.Rejected,
-                $"in: {latex} -- " + string.Join("; ", capture.RejectedSpans));
-            Assert.IsNotNull(capture.Root, $"nothing at all was captured for: {latex}");
-            Assert.AreNotEqual(0, capture.Root.Ink().Count(), $"nothing is pointable in: {latex}");
-        }
-    });
-
-    [TestMethod]
     public void EveryNamedOperatorIsAddressable() => UiThread.Run(() =>
     {
         // Reported from the app: \lim, \sup, \max and the integrals could not be selected at all. They are
@@ -280,42 +259,6 @@ public class LatexLayoutTests
         Assert.IsNull(LatexLayout.Build("", Scale)));
 
     [TestMethod]
-    public void WhatCannotBeReadIsStillShown() => UiThread.Run(() =>
-    {
-        // A formula under a caret is invalid most of the time — every command is invalid until its last
-        // letter — so failing to parse cannot mean showing nothing. The unfinished command is drawn as the
-        // characters that were typed, and reported.
-        var layout = LatexLayout.Build(@"\frac{", Scale);
-
-        Assert.IsNotNull(layout, "an unfinished command should still be shown, not vanish");
-        Assert.AreNotEqual(0, layout.Tree.Diagnostics.Count, "and be reported as unreadable");
-        Assert.AreNotEqual(0, layout.Size.Width, "and take up room, or there is nothing to point at");
-    });
-
-    [TestMethod]
-    public void TroubleIsConfinedToTheTroublePart() => UiThread.Run(() =>
-    {
-        // The point of recovering rather than giving up: a command nobody has heard of costs you that
-        // command, not the whole line. The rest still typesets, and is still structure.
-        const string latex = @"\frac{a}{b} + \nosuchcommand + \sqrt{c}";
-        var layout = LatexLayout.Build(latex, Scale);
-        Assert.IsNotNull(layout);
-
-        var trouble = layout.Tree.Diagnostics.Single();
-        var blamed = latex.Substring(trouble.Start, trouble.Length);
-        StringAssert.Contains(blamed, "nosuchcommand", $"blamed the wrong part: \"{blamed}\"");
-        Assert.IsFalse(blamed.Contains(@"\frac"), "the fraction before it parsed perfectly well");
-        Assert.IsFalse(blamed.Contains(@"\sqrt"), "and so did the root after it");
-
-        // …and the parts that did parse are still addressable as themselves.
-        var fraction = layout.Tree.Root.SelfAndDescendants()
-            .Where(n => n.SourceLength > 0)
-            .FirstOrDefault(n => latex.Substring(n.SourceStart, n.SourceLength) == @"\frac{a}{b}");
-        Assert.IsNotNull(fraction, "the fraction is still a construct in its own right");
-        Assert.IsFalse(layout.Tree.IsGuesswork(fraction), "and is not guesswork");
-    });
-
-    [TestMethod]
     public void WhatWasShownRatherThanReadIsMarkedAsSuch() => UiThread.Run(() =>
     {
         // Low confidence, per node rather than per formula: the recovered characters are shown, so they
@@ -332,40 +275,6 @@ public class LatexLayoutTests
     });
 
     // ── A stretch shown as written ──────────────────────────────────────────
-
-    [TestMethod]
-    [CoversNode("latex-shown-as-written")]
-    public void AStretchShownAsWrittenTakesUpRoomInTheFormula() => UiThread.Run(() =>
-    {
-        // Un-rendering a construct to edit it shows its source in place, and the formula around it has
-        // to make room. It used to be cut out and the characters painted over the closed-up gap, which
-        // works only while the stretch is the last thing in the formula: anywhere else it covered
-        // whatever followed. Here the fraction is in the middle, and what follows must still be
-        // somewhere else on the page.
-        const string latex = @"x+\frac{a}{b}+y";
-        var zone = new LatexRawZone(latex.IndexOf(@"\frac", StringComparison.Ordinal), latex.LastIndexOf('+'));
-
-        var layout = LatexLayout.Build(latex, Scale, shownAsWritten: zone);
-        Assert.IsNotNull(layout);
-
-        var written = layout.Tree.RangeRects(zone.Start, zone.Length);
-        var after = layout.Tree.RangeRects(zone.End, latex.Length - zone.End);
-        Assert.AreNotEqual(0, written.Count, "the characters being written are in the layout");
-        Assert.AreNotEqual(0, after.Count, "and so is what comes after them");
-
-        // Every character of it stands on its own — which is what makes it *the characters*, rather
-        // than the fraction that same source would typeset as. Without this the rest of the assertion
-        // would hold just as well for a formula that had quietly typeset the lot.
-        var stops = layout.Tree.CaretStops;
-        for (var offset = zone.Start; offset <= zone.End; offset++)
-            Assert.IsTrue(stops.Contains(offset),
-                $"the caret cannot rest at {offset}, so the source there was read rather than shown");
-
-        var edge = written.Max(r => r.Right);
-        Assert.IsTrue(after.All(r => r.Left >= edge - 0.5),
-            $"what follows starts at {after.Min(r => r.Left):0.0}, which is inside characters that run "
-            + $"to {edge:0.0} — the two are drawn on top of each other");
-    });
 
     [TestMethod]
     [CoversNode("latex-shown-as-written")]

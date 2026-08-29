@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-namespace Nexaflow.Tools.LatexCorpus;
+namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>One formula from the corpus, and the reference rendering that goes with it.</summary>
 /// <param name="Index">Line number in the dataset, 0-based - the only stable name an entry has.</param>

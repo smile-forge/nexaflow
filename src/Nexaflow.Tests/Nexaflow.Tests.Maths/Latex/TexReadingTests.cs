@@ -26,9 +26,33 @@ public class TexReadingTests
             var latex = LatexConstructs.Flatten(written);
             var reading = TexReading.Of(latex);
 
-            foreach (var part in reading.Root.SelfAndDescendants())
+            // Everything a macro stands for is skipped, and has to be: it prints as what it means and
+            // stands for none of what was written, so there is no stretch of the source to hold it
+            // against. That it stands for none is checked on its own, next door.
+            foreach (var part in reading.Root.SelfAndDescendants().Where(part => !part.Derived))
                 Assert.AreEqual(latex.Substring(part.Start, part.Length), part.Node.Print(),
                     $"{what}: {part}");
+        }
+    }
+
+    [TestMethod]
+    public void AndWhatAMacroStandsForKnowsItIsNowhere()
+    {
+        foreach (var (what, written) in LatexConstructs.Everything)
+        {
+            var reading = TexReading.Of(LatexConstructs.Flatten(written));
+
+            foreach (var part in reading.Root.SelfAndDescendants().Where(part => part.Derived))
+            {
+                Assert.AreEqual(0, part.Length, $"{what}: {part} claims source it was not written in");
+
+                var macro = part.Parent;
+                while (macro is { Derived: true }) macro = macro.Parent;
+
+                Assert.IsNotNull(macro, $"{what}: {part} has no macro above it");
+                Assert.AreEqual(macro.Start, part.Start,
+                    $"{what}: {part} does not begin where the macro it came from begins");
+            }
         }
     }
 

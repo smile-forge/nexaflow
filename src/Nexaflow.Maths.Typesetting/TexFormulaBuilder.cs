@@ -111,10 +111,38 @@ public static class TexFormulaBuilder
 
     // ── One part ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// What one piece is set as. Never nothing.
+    ///
+    /// <para>
+    /// A piece this has no drawing for is set as the characters it is written with, exactly as a piece
+    /// the reading already marked that way would be. Declining was the old answer and it cost the whole
+    /// formula: one construct nobody had taught this sent every other construct beside it to a different
+    /// reader, or latterly to a blank. Showing the one piece costs the one piece.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// What one piece is set as, where this has a drawing for it — and null where it has none.
+    ///
+    /// <para>
+    /// Nullable on purpose, and it matters. Half a dozen readings here probe with this and fall through
+    /// to a different one when it comes back empty: whether a brace-label is really a label, whether a
+    /// slash has something to slash. Answering those with "here it is as characters" would make every
+    /// probe succeed and every fall-through dead, and the second reading — the right one — would never
+    /// be reached. Measured, when it briefly was: 42,480 corpus formulas set differently and the
+    /// agreement with LaTeX down across the board.
+    /// </para>
+    /// <para>
+    /// So a piece nothing can draw becomes characters exactly where a piece is <em>assembled into a
+    /// run</em>, in <see cref="Built"/>, and nowhere a caller is asking a question.
+    /// </para>
+    /// </summary>
     private static Atom? Of(ITexPart part, string? style, TexFormulaParser knowledge) =>
         part.Kind switch
         {
             TexKind.Char => Character(part, style, knowledge),
+            TexKind.Verbatim => Shown(part, style),
+            TexKind.Hole => Tag(new PlaceholderAtom(null), part),
             TexKind.Sequence => Run(part.Parts, part, style, knowledge),
             TexKind.Group when !part.Parts.Any() => Empty(part),
             TexKind.Group when Written(part) => Group(part, style, knowledge),
@@ -125,6 +153,23 @@ public static class TexFormulaBuilder
             TexKind.Environment => Environment(part, style, knowledge),
             _ => null,
         };
+
+    /// <summary>
+    /// A piece this has no drawing for, set as the characters it is written with — and reported, so a
+    /// line can be drawn under it.
+    ///
+    /// <para>
+    /// A different colour of line from the one a piece the <em>reading</em> could not make sense of
+    /// gets, and the difference is worth seeing. That one is "this is not something anybody could read";
+    /// this one is "this was read perfectly well and nothing here knows how to draw it". The first is
+    /// probably the writer's to fix and the second is certainly ours.
+    /// </para>
+    /// </summary>
+    private static Atom Unread(ITexPart part, string? style)
+    {
+        _ignored?.Add(Whole(part));
+        return Tag(Letters(part.Print(), style), part);
+    }
 
     /// <summary>
     /// A block written between <c>\begin</c> and <c>\end</c>: a matrix, a cases block, an aligned
@@ -475,10 +520,9 @@ public static class TexFormulaBuilder
             // the engine's table's answer and not a list kept here.
             if (Discarded(run[at])) continue;
 
-            var atom = Of(run[at], style, knowledge);
-            if (atom is null) return null;
-
-            built.Add(atom);
+            // Never null. A piece nothing here can draw is set as the characters it is written with — the
+            // one construct costs itself, where declining used to cost the whole formula beside it.
+            built.Add(Of(run[at], style, knowledge) ?? Unread(run[at], style));
         }
 
         // A row written first in a row — `\mathrm{vol}(10)` — was declined here and is not any more:
@@ -707,6 +751,19 @@ public static class TexFormulaBuilder
                 return Tag(new RowAtom(null).Add(slash).Add(negated), part);
             }
 
+            // A length asked for outright. Its argument is a dimension, which is characters and stays
+            // characters — so it is read off the tree rather than built and handed over.
+            case @"\mspace":
+            case @"\hspace":
+            case @"\hspace*":
+            case @"\kern":
+            case @"\mkern":
+            {
+                if (part.Part(TexRole.Argument) is not { } amount) return null;
+
+                return StandardCommands.SpaceOf(name, Inside(amount)) is { } room ? Tag(room, part) : null;
+            }
+
             case @"\ ":
             case @"\nbsp":
                 return part.Parts.Any() ? null : Tag(new SpaceAtom(null), part);
@@ -745,7 +802,20 @@ public static class TexFormulaBuilder
             // written, spaces and all — and the spaces are exactly what this reading drops on the way to
             // an atom. A different job, not a harder one, and not done here yet: the formula falls back
             // and the typesetter's own parser sets it properly, as it does today.
-            if (TexFormulaParser.IsRawTextStyle(name[1..])) return null;
+            if (TexFormulaParser.IsRawTextStyle(name[1..]))
+            {
+                // Words rather than maths: every character as written, spaces and all. Declined here
+                // until now, which sent the whole formula to the typesetter's own parser for the sake
+                // of one word set in the right face.
+                if (part.Part(TexRole.Base) is not { } worded) return null;
+
+                // `\mbox` is `\text` spelled differently — LaTeX's box-making side of it means nothing
+                // here, where there is no line breaking to protect the contents from — and the font map
+                // knows the two of them under the one name.
+                var face = name[1..] == "mbox" ? TexUtilities.TextStyleName : restyled;
+
+                return Tag(Letters(Inside(worded), face), part);
+            }
 
             if (part.Part(TexRole.Base) is not { } styled) return null;
 
@@ -798,6 +868,10 @@ public static class TexFormulaBuilder
 
             return StandardCommands.AssembledOf(name[1..], arguments, knowledge, Whole(part));
         }
+
+        // Shorthand, and the reader has already said what it stands for: it is hanging underneath
+        // this command, so build that. Which is how the typesetter gets to not know the word macro.
+        if (Part(part, TexRole.Expansion, style, knowledge) is { } shorthand) return Tag(shorthand, part);
 
         // A symbol standing on its own, if it is one.
         if (!part.Parts.Any() && Symbol(name[1..], part, style, knowledge) is { } symbol) return symbol;
@@ -852,6 +926,8 @@ public static class TexFormulaBuilder
             // `\quad` — are macros rather than commands: each is defined as a formula and expands to a
             // single space atom. A space that was *asked for*, and so is built, unlike the space that was
             // merely typed, which the spacing rules would have put there anyway.
+            if (StandardCommands.PrimitiveOf(name) is { } primitive) return Tag(primitive, part);
+
             return knowledge.ExpansionOf(name) is { } expansion ? Tag(expansion, part) : null;
         }
     }
@@ -973,6 +1049,66 @@ public static class TexFormulaBuilder
         foreach (var letter in name) shown = shown.Add(new CharAtom(null, letter, style));
 
         return Tag(shown, part);
+    }
+
+    /// <summary>
+    /// A stretch set as the characters it is written with.
+    ///
+    /// <para>
+    /// What made it one — a reading nobody could make of it, a command nothing can draw, or somebody
+    /// typing it at this moment — was decided before this, and that is the point of it being decided
+    /// there: by the time it arrives here there is nothing to judge and nothing to look up, only letters
+    /// to set. Whether a line gets drawn under it afterwards follows from whether it had anything to say
+    /// for itself, which is not this method's business either.
+    /// </para>
+    /// <para>
+    /// Set from the node's own text and never from the source: the tree owns what it says, which is what
+    /// round-tripping means, so there is nothing to go stale.
+    /// </para>
+    /// <para>
+    /// One node for the whole of it, and the letters inside left anonymous. A layout tree owes the parse
+    /// tree no correspondence — one part may become a thousand boxes or none — so what decides the shape
+    /// here is what a reader should be able to point at, and that is the stretch entire. Pointing at the
+    /// `h` of `\alhpa` is not a thing anybody wants to do.
+    /// </para>
+    /// </summary>
+    private static Atom Shown(ITexPart part, string? style) => Tag(Letters(part.Text, style), part);
+
+    /// <summary>
+    /// A run of characters set exactly as they are written, spaces included.
+    ///
+    /// <para>
+    /// The spaces are the whole difference between this and ordinary maths. Reading a formula throws
+    /// away the space between two symbols, because how much room goes there is decided by what the
+    /// symbols are; a space inside <c>\text{a b}</c> is a space somebody typed and meant, and there is
+    /// no rule that would put it back.
+    /// </para>
+    /// </summary>
+    private static Atom Letters(string text, string? style)
+    {
+        var row = new RowAtom(null);
+
+        foreach (var letter in text)
+            row = row.Add(char.IsWhiteSpace(letter) ? new SpaceAtom(null) : (Atom)new CharAtom(null, letter, style));
+
+        return row;
+    }
+
+    /// <summary>
+    /// What a braced argument holds, as it was written — the braces themselves left off, and everything
+    /// else, spaces and all, exactly as typed.
+    /// </summary>
+    private static string Inside(ITexPart argument)
+    {
+        if (argument.Children.Count == 0) return argument.Print();
+
+        var text = new System.Text.StringBuilder();
+
+        foreach (var child in argument.Children)
+            if (child.Role is not (TexRole.Open or TexRole.Close))
+                text.Append(child.Print());
+
+        return text.ToString();
     }
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>

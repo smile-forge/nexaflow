@@ -270,6 +270,11 @@
   <!-- special relation symbol with "width=0" (to overlap other relational symbols) -->
 
   <Symbol name="not" type="rel"/>
+  <!-- The bar of a \mapsto: zero width, sitting on the axis, made to be drawn over whatever follows
+       it. The glyph was always in the font beside \not — it simply had no name here, so \mapsto was
+       built out of a full-height \vert pulled backwards instead. TeX's own definition is
+       \mapstochar\rightarrow and needs no pulling. -->
+  <Symbol name="mapstochar" type="ord"/>
 
   <!-- arrows = pointing relations -->
 

@@ -69,27 +69,34 @@ public sealed class LatexLayout
 
         try
         {
-            // Recovering rather than all-or-nothing: a formula under a caret is invalid most of the
-            // time, and one that vanishes as you type it tells the reader nothing about where the trouble
-            // is. What comes back draws everything it understood and shows the rest as written.
-            var written = shownAsWritten is { } zone && zone.Length > 0
+            // The tables, not the reader. Everything below builds from our own reading; what this is
+            // asked for is what a name means to a typesetter — which symbol, which face, which command
+            // it has a drawing for.
+            var knowledge = WpfTeXFormulaParser.Instance;
+
+            var editing = shownAsWritten is { } zone && zone.Length > 0
                 ? (zone.Start, zone.Length)
                 : ((int, int)?)null;
-            // Our own reading first, where it can manage the whole formula. It hangs the parse-tree part
-            // on every atom it makes, so what comes back out of the typesetter already knows what it is
-            // and `Attribute` has nothing to work out.
-            //
-            // Not when a stretch is being shown as written, and not when empty arguments want holes:
-            // both are the recovering parser's, and a formula half-built each way would mix two readings
-            // of the same source. It declines whatever it does not know, so the fallback is the rule
-            // rather than the exception — today for about three formulas in ten.
-            var reading = TexReading.Of(latex);
-            var built = written is null && !placeholders
-                ? XamlMath.TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance)
-                : null;
 
-            var formula = built ?? WpfTeXFormulaParser.Instance.ParseWithRecovery(
-                latex, textStyle: null, written, placeholders);
+            // One reading, every time, whatever the caret is doing. What cannot be drawn and what is
+            // being typed are both settled before this — they come back as pieces that say they are to
+            // be shown rather than read, and the builder sets them as characters without having to know
+            // which of the two it is looking at.
+            var read = TexPipeline.Read(latex, knowledge.Draws, editing, placeholders);
+            var reading = TexReading.Of(read);
+            var formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
+
+            if (formula is null)
+            {
+                // Nothing here could set it as maths, so it is set as it was typed. Which is the same
+                // answer this gives a stretch under the caret and a command nobody has heard of, reached
+                // by the same road — and a great deal more use to whoever wrote it than a blank space.
+                reading = TexReading.Of(TexNode.Branch(TexKind.Sequence, [TexNode.Shown(latex)]));
+                formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
+            }
+
+            if (formula is null) return null;
+
             var environment = WpfTeXEnvironment.Create(
                 style: inline ? TexStyle.Text : TexStyle.Display,
                 scale: scale,
@@ -105,21 +112,19 @@ public sealed class LatexLayout
             var union = Extent(root);
             var offset = new Vector(-union.X, -union.Y);
             Settle(root, offset);
+            Own(root);
 
-            if (built is not null) Own(root);
-            else Attribute(root, latex);
-
-            // What the parser could not read, and what the builder read but had no drawing for. The two
-            // arrive differently on purpose: a parser diagnostic already names a stretch of input, where
-            // the builder names the *part* and this asks it where that was written — which is this side
-            // of the fence, and the only moment the answer is current.
-            var trouble = formula.Diagnostics
-                .Select(d => new Diagnostic(
-                    d.At.Start, d.At.Length, DiagnosticSeverity.Error, d.Message))
+            // Asked of the tree rather than collected on the way through it. A piece that could not be
+            // read carries the reason it could not, so there is one place the answer lives and no second
+            // list to fall out of step with it — and a piece being typed carries nothing, which is how
+            // it draws without being complained about.
+            var trouble = reading.Root.SelfAndDescendants()
+                .Where(part => part.Node.Trouble is not null)
+                .Select(part => Diagnostic.Of(part, DiagnosticSeverity.Error, part.Node.Trouble!))
                 .Concat(formula.Ignored.Select(part => Diagnostic.Of(
                     part,
-                    DiagnosticSeverity.Error,
-                    $"Nothing knows the command {part.Part(TexRole.Name)?.Text}, so it draws nothing.")))
+                    DiagnosticSeverity.Warning,
+                    "This was read, and nothing here knows how to draw it.")))
                 .ToList();
 
             var tree = new LatexTree(latex, root, new Size(union.Width, union.Height), trouble);
@@ -127,7 +132,7 @@ public sealed class LatexLayout
         }
         catch
         {
-            // Every parse failure is the same answer to the caller: there is no formula to map.
+            // Every reading failure is the same answer to the caller: there is no formula to map.
             return null;
         }
     }

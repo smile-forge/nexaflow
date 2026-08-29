@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
+using Nexaflow.Maths.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -31,16 +32,19 @@ public static class LatexSyntax
 
         try
         {
-            // Recovering rather than all-or-nothing, so this reports every stretch it could not read
-            // instead of only the first — the same reading the renderer works from.
-            //
             // Holes asked for, because this is the question "is what has been written finished?" and an
             // argument left empty is exactly the case where the answer is no. Without them `\frac{}{2}`
             // reads as perfectly well-formed and a solver is handed a fraction with nothing on top.
-            var formula = WpfTeXFormulaParser.Instance.ParseWithRecovery(
-                latex, textStyle: null, shownAsWritten: null, placeholders: true);
-            return formula.Diagnostics
-                .Select(d => new Diagnostic(d.At.Start, d.At.Length, DiagnosticSeverity.Error, d.Message))
+            //
+            // The same reading the renderer works from, and now literally so: one call, one tree, and
+            // the complaints are what the pieces of it say about themselves rather than a second list
+            // kept alongside.
+            var reading = TexReading.Of(
+                TexPipeline.Read(latex, WpfTeXFormulaParser.Instance.Draws, holes: true));
+
+            return reading.Root.SelfAndDescendants()
+                .Where(part => part.Node.Trouble is not null)
+                .Select(part => Diagnostic.Of(part, DiagnosticSeverity.Error, part.Node.Trouble!))
                 .ToList();
         }
         catch

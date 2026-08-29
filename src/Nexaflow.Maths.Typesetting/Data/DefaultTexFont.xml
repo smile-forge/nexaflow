@@ -420,6 +420,7 @@ for a text style is not defined (e.g. "numbers" and "small" in "mathcal") -->
 
     <!-- special relation symbol with "width=0" (to overlap other relational symbols) -->
     <SymbolMapping name="not" ch="54" fontId="3"/>
+    <SymbolMapping name="mapstochar" ch="55" fontId="3"/>
 
     <!-- arrows = pointing relations -->
 

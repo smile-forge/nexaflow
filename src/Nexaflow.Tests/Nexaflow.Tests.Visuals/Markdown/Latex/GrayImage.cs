@@ -4,7 +4,7 @@ using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace Nexaflow.Tools.LatexCorpus;
+namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>
 /// A rendering reduced to how much ink is at each pixel: 0 is paper, 1 is full ink. Colour, alpha and
@@ -173,25 +173,69 @@ internal sealed class GrayImage
     /// verdict even so - a small spacing difference early in a long formula shifts everything after it,
     /// and the score falls for a rendering that is different rather than wrong.
     /// </remarks>
-    public static double InkOverlap(GrayImage a, GrayImage b, int height = 24)
+    /// <summary>
+    /// How much of the two renderings' ink lands in the same place, from 0 to 1. Both are brought to a
+    /// common height and to the same total amount of ink, blurred, and then slid over each other to see
+    /// how well they can be made to agree.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Normalising the total is what makes this a question about placement rather than about weight:
+    /// one rasteriser at 20 pixels tall lays down pale grey strokes where another at 50 lays down black
+    /// ones, and no amount of that difference is a rendering bug. The blur and the slide are the same
+    /// idea carried further — anti-aliasing, hinting and sub-pixel placement are differences between
+    /// rasterisers rather than between renderings, and every one of them survives into the pixels.
+    /// </para>
+    /// <para>
+    /// The height, the blur and the slide were chosen by measurement rather than taste. Each of a
+    /// thousand corpus formulas was drawn correctly and then drawn <em>damaged</em> — one token
+    /// dropped, a superscript turned into a subscript, two tokens transposed — and both were scored
+    /// against the same reference. What settles the question is how often the correct drawing beats the
+    /// damaged one; 24-tall with a single blur and no slide managed 66-79%, and this manages 76-83%
+    /// while also putting a correct drawing near 0.78 instead of near 0.54.
+    /// </para>
+    /// <para>
+    /// <strong>What that measurement also says, and it is the more important half:</strong> damaging a
+    /// formula costs it only about 0.05 of score, while one correct formula differs from the next by
+    /// 0.25. So no fixed threshold can separate a wrong drawing from a merely long one, and none should
+    /// be asked to. The number is worth reading as a ranking, and worth trusting as a comparison
+    /// between two runs over the <em>same</em> formula — where the variation between formulas, which is
+    /// most of it, cancels out.
+    /// </para>
+    /// </remarks>
+    public static double InkOverlap(GrayImage a, GrayImage b, int height = 16)
     {
-        var left = Normalise(a.ResampleToHeight(height).Blur());
-        var right = Normalise(b.ResampleToHeight(height).Blur());
+        var left = Normalise(Soften(a.ResampleToHeight(height)));
+        var right = Normalise(Soften(b.ResampleToHeight(height)));
         if (left is null || right is null) return left is null && right is null ? 1 : 0;
 
         var width = Math.Max(left.Width, right.Width);
-        var shared = 0.0;
-        for (var y = 0; y < height; y++)
+        var best = 0.0;
+
+        for (var dx = -Slide; dx <= Slide; dx++)
         {
-            for (var x = 0; x < width; x++)
+            for (var dy = -Slide; dy <= Slide; dy++)
             {
-                var p = x < left.Width ? left[x, y] : 0f;
-                var q = x < right.Width ? right[x, y] : 0f;
-                shared += Math.Min(p, q);
+                var shared = 0.0;
+                for (var y = 0; y < height; y++)
+                {
+                    var line = y + dy;
+                    if (line < 0 || line >= height) continue;
+
+                    for (var x = 0; x < width; x++)
+                    {
+                        var across = x + dx;
+                        var p = x < left.Width ? left[x, y] : 0f;
+                        var q = across >= 0 && across < right.Width ? right[across, line] : 0f;
+                        shared += Math.Min(p, q);
+                    }
+                }
+
+                if (shared > best) best = shared;
             }
         }
 
-        return shared;
+        return best;
     }
 
     /// <summary>Scales the ink so it totals 1, or null where there is none.</summary>
@@ -206,4 +250,11 @@ internal sealed class GrayImage
             ink[i] = (float)(image.Ink[i] / total);
         return new GrayImage(image.Width, image.Height, ink);
     }
+
+
+    /// <summary>How far either way the two are slid over each other looking for their best agreement.</summary>
+    private const int Slide = 2;
+
+    /// <summary>Three passes of the 1-2-1 blur: enough slack that a stroke landing a pixel out still counts.</summary>
+    private static GrayImage Soften(GrayImage image) => image.Blur().Blur().Blur();
 }

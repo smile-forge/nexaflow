@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace Nexaflow.Tools.LatexCorpus;
+namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>One formula, as the corpus drew it and as we draw it.</summary>
 /// <param name="Flagged">Whether the two are far enough apart to be worth a look.</param>
@@ -22,7 +22,7 @@ internal sealed record Pair(
 /// then scrolls like treacle, so the set is paginated and each page loads its images as they come
 /// into view.
 /// </summary>
-internal static class Report
+internal static class LatexPictureReport
 {
     public const int DefaultPageSize = 400;
 
@@ -101,7 +101,7 @@ internal static class Report
 
     /// <summary>Writes the index and every page into <paramref name="folder"/>.</summary>
     /// <returns>The path of the index.</returns>
-    public static string Write(string folder, IReadOnlyList<Pair> pairs, int pageSize, string imageFolder)
+    public static string Write(string folder, IReadOnlyList<Pair> pairs, int pageSize)
     {
         Directory.CreateDirectory(folder);
         var pageCount = Math.Max(1, (pairs.Count + pageSize - 1) / pageSize);
@@ -111,7 +111,7 @@ internal static class Report
             var rows = pairs.Skip(page * pageSize).Take(pageSize).ToList();
             File.WriteAllText(
                 Path.Combine(folder, PageName(page)),
-                Page(rows, page, pageCount, pairs.Count, imageFolder),
+                Page(rows, page, pageCount, pairs.Count),
                 new UTF8Encoding(false));
         }
 
@@ -122,8 +122,7 @@ internal static class Report
 
     private static string PageName(int page) => $"page-{page + 1:D4}.html";
 
-    private static string Page(
-        IReadOnlyList<Pair> rows, int page, int pageCount, int total, string imageFolder)
+    private static string Page(IReadOnlyList<Pair> rows, int page, int pageCount, int total)
     {
         var html = new StringBuilder();
         var first = (page * DefaultPageSize) + 1;
@@ -156,8 +155,8 @@ internal static class Report
             html.Append($"""
                     <tr data-id="{row.Entry.Id}" data-formula="{Escape(row.Entry.Formula)}">
                       <td class="pick"><input type="checkbox">{flag}</td>
-                      <td class="img"><img loading="lazy" src="{imageFolder}/{row.ReferenceImage}" alt=""></td>
-                      <td class="img">{Ours(row, imageFolder)}</td>
+                      <td class="img"><img loading="lazy" src="{row.ReferenceImage}" alt=""></td>
+                      <td class="img">{Ours(row)}</td>
                       <td><code>{Escape(row.Entry.Formula)}</code></td>
                     </tr>
 
@@ -179,9 +178,9 @@ internal static class Report
         return html.ToString();
     }
 
-    private static string Ours(Pair row, string imageFolder) =>
+    private static string Ours(Pair row) =>
         row.OurImage is { } file
-            ? $"""<img loading="lazy" src="{imageFolder}/{file}" alt="">"""
+            ? $"""<img loading="lazy" src="{file}" alt="">"""
             : $"""<div class="err">{Escape(row.Error ?? "no rendering")}</div>""";
 
     private static string Link(string href, string text, bool disabled) =>

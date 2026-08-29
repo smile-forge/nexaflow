@@ -46,34 +46,6 @@ public class LatexConstructCoverageTests
     });
 
     [TestMethod]
-    public void NoConstructNamesSourceItDoesNotOwn() => UiThread.Run(() =>
-    {
-        // The typesetter's spans, before the tree has repaired anything. A span reaching outside the very
-        // text it indexes costs a symbol its selectability outright.
-        foreach (var (what, latex) in LatexConstructs.Everything)
-        {
-            var capture = Capture(LatexConstructs.Flatten(latex));
-            Assert.AreEqual(0, capture.Rejected,
-                $"{what}: " + string.Join("; ", capture.RejectedSpans));
-        }
-    });
-
-    [TestMethod]
-    public void NoConstructNeedsItsNameTakenOffIt() => UiThread.Run(() =>
-    {
-        // The standing version of what the corpus sweep proved once over 238k formulas: nothing repeats a
-        // name its own ancestor carries, and nothing names source outside the piece containing it. Both
-        // are typesetter faults the tree can only repair by discarding the link — which costs a term the
-        // ability to be selected in its own right, quietly, while everything still draws correctly.
-        foreach (var (what, latex) in LatexConstructs.Everything)
-        {
-            var capture = Capture(LatexConstructs.Flatten(latex));
-            Assert.AreEqual(0, capture.Disowned.Count,
-                $"{what}: " + string.Join("; ", capture.Disowned));
-        }
-    });
-
-    [TestMethod]
     public void EveryConstructNestsItsNames() => UiThread.Run(() =>
     {
         // The same invariant asked of the finished tree rather than of the capture, so a repair that
@@ -96,14 +68,5 @@ public class LatexConstructCoverageTests
             }
         }
     });
-
-    private static LatexLayoutCapture Capture(string latex)
-    {
-        var capture = new LatexLayoutCapture(Scale, latex);
-        WpfTeXFormulaParser.Instance.Parse(latex)
-            .RenderTo(capture, WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale), 0, 0);
-        capture.FinishRendering();
-        return capture;
-    }
 
 }

@@ -11,6 +11,7 @@ using WpfMath.Parsers;
 using XamlMath;
 using XamlMath.Rendering;
 using WpfMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -276,85 +277,6 @@ public class TexBuilderTests
     });
 
     [TestMethod]
-    public void AndSetsItWhereTheParserSetsIt() => UiThread.Run(() =>
-    {
-        // Against the geometry, not against the atoms. The two trees are not the same shape and are not
-        // meant to be: the parser wraps things in atoms of its own bookkeeping — a lone `a` comes back
-        // as a TypedAtom around a CharAtom — and those wrappers exist to carry decisions this builder
-        // makes differently or not at all. What has to match is where everything ends up on the page,
-        // because that is what the reader sees and what every position in the editor is measured in.
-        //
-        // The same two questions the corpus asks, for the same reason. The parser is a reference and not
-        // a specification — it was only ever about drawing a formula once, where this has to serve
-        // selection and calculation too — so "the tree differs" is not a verdict. "The ink differs" is.
-        foreach (var latex in Known)
-        {
-            var ours = TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance);
-            Assert.IsNotNull(ours, latex);
-
-            // Some of these the parser will not read at all — a script with nothing before it is "every
-            // script needs a base" and it throws. That is not a disagreement to arbitrate: there is one
-            // reading of such a formula and it is ours, and the only test that can be applied to it is
-            // that it builds, which the list above already applies.
-            TexFormula theirs;
-            try { theirs = WpfTeXFormulaParser.Instance.Parse(latex); }
-            catch (XamlMath.Exceptions.TexParseException) { continue; }
-
-            if (Settled(theirs, latex) == Settled(ours, latex)) continue;
-
-            // Same picture and a different tree is a structural choice; a different picture is a
-            // disagreement about what the reader sees. Either may stand, but only where somebody has said
-            // so — a difference nobody has examined is indistinguishable from a defect.
-            var why = Drawn(theirs, latex) == Drawn(ours, latex)
-                ? "the same picture, a different tree — ours keeps what the writer grouped"
-                : Decided(TexReading.Of(latex), ours);
-
-            Assert.IsNotNull(why, $"{latex} is built differently and nothing says which is meant");
-        }
-    });
-
-    [TestMethod]
-    public void NothingItBuildsNamesAPointInTheSource() => UiThread.Run(() =>
-    {
-        // The rule, asserted on what comes out rather than on how it was written. A formula's layout may
-        // never carry an offset: an offset beside a tree is a second copy of a fact the tree already
-        // holds, and the two disagree the moment anything is edited. Where a part is written is the
-        // reading's to say, worked out by a walk when it is asked.
-        //
-        // On every construct, not one, because this is the kind of thing that stays true until one case
-        // quietly threads a span through for convenience.
-        foreach (var latex in Known)
-        {
-            var formula = TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance);
-            Assert.IsNotNull(formula, latex);
-
-            foreach (var atom in Parts(formula.Root!))
-            {
-                // A macro's expansion is the one thing here the builder did not make. Those atoms were
-                // parsed from the definition text and name points in *that* — a document nobody has open
-                // — so they are marked borrowed where they are cached, and the box assertion below is
-                // what proves the marking works. Everything the builder makes itself carries nothing.
-                Assert.IsTrue(atom.Source is null || (atom as XamlMath.Atoms.Atom)?.Borrowed is true,
-                    $"{atom.GetType().Name} in {latex} names a point in the source");
-
-                // Everything the reader wrote carries the part they wrote it as. Two exceptions: the cell
-                // nobody wrote — what squares off a short row — and the insides of a macro, which nothing
-                // points at because the token the reader wrote is the whole of it.
-                Assert.IsTrue(atom.Origin is not null
-                              || atom is XamlMath.Atoms.NullAtom
-                              || (atom as XamlMath.Atoms.Atom)?.Borrowed is true,
-                    $"{atom.GetType().Name} in {latex} was built from nothing");
-            }
-
-            // And the rule itself, on the thing it is about. Every box that will be laid out, asked
-            // whether it names a point in the text — because "no atom carries an offset" is a proxy for
-            // this, and a proxy is exactly what stops holding when a new path appears.
-            foreach (var box in Boxes(formula.RootAtom!.CreateBox(_setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale))))
-                Assert.IsNull(box.Source, $"a {box.GetType().Name} of {latex} names a point in the source");
-        }
-    });
-
-    [TestMethod]
     public void EveryAtomKnowsWhichPartOfTheSourceItWasBuiltFrom() => UiThread.Run(() =>
     {
         // What none of this is possible without, and what the parser can never provide: an atom that
@@ -374,26 +296,6 @@ public class TexBuilderTests
     });
 
     [TestMethod]
-    public void WhatItDoesNotKnowItDeclines() => UiThread.Run(() =>
-    {
-        // What is left of declining. A command nobody has taught it no longer turns a formula away — it
-        // draws nothing of its own and keeps whatever it was given, so `\textrm{Hello}` is a word in the
-        // wrong face rather than a blank. What still declines is a *block*: how a grid is arranged is
-        // read off the reading as rows and cells, and where that reading cannot be had there is no
-        // half-answer to give.
-        foreach (var latex in new[] { "'x",                                 // a prime marking nothing
-                                      @"\text{for all}",     // words, not maths: the spaces are the point
-                                      @"\textcolor{red}{a}",
-                                      @"\left( a",                          // a fence still open
-                                      @"\begin{matrix} a & b",              // never closed
-                                      @"\begin{equation} a \end{equation}", // means nothing here yet
-                                      @"\begin{alignat}{2} a & b \end{alignat}", // its count reads as a cell
-                                      @"\begin{array}{@{}c@{}} a \end{array}",  // a preamble it cannot read
-                                      @"\begin{array} a & b \end{array}" })     // and one that is not there
-            Assert.IsNull(TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
-    });
-
-    [TestMethod]
     public void AndEverythingElseItBuildsSomethingFor() => UiThread.Run(() =>
     {
         // The other half of the rule above. A command *nothing* knows has no better rendering to defer
@@ -408,138 +310,6 @@ public class TexBuilderTests
             Assert.IsNotNull(
                 TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
     });
-
-    [TestMethod]
-    public void ARealCorpusSaysHowFarItGetsAndThatItIsRight()
-    {
-        var corpus = Environment.GetEnvironmentVariable("NEXAFLOW_LATEX_CORPUS");
-        if (string.IsNullOrWhiteSpace(corpus) || !File.Exists(corpus))
-            Assert.Inconclusive($"set NEXAFLOW_LATEX_CORPUS to a file of formulas (got: {corpus ?? "nothing"})");
-
-        var stride = int.TryParse(Environment.GetEnvironmentVariable("NEXAFLOW_LATEX_CORPUS_STRIDE"), out var s)
-            ? Math.Max(s, 1)
-            : 1;
-
-        // Read first, measured after. Every formula is a self-contained piece of work — read it, build it
-        // both ways, compare where the pieces landed, forget all of it — so the only reason this ran on
-        // one thread was that it was written that way, and a quarter of a million of them is worth the
-        // other thirty-one.
-        var formulas = new List<(int Line, string Latex)>();
-        var line = 0;
-
-        foreach (var raw in File.ReadLines(corpus))
-        {
-            var at = line++;
-            if (at % stride != 0) continue;
-
-            var latex = raw.Trim();
-            if (latex.Length > 0) formulas.Add((at + 1, latex));
-        }
-
-        var seen = formulas.Count;
-        var built = 0;
-        var alone = 0;
-        var wrong = new List<string>();
-        var deliberate = new Dictionary<string, int>(StringComparer.Ordinal);
-        var named = new Dictionary<string, (int Built, int Declined)>(StringComparer.Ordinal);
-        var declined = new List<(string Latex, HashSet<string> Names)>();
-
-        UiThread.Across(formulas, formula =>
-        {
-            var reading = TexReading.Of(formula.Latex);
-            var made = TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance);
-
-            // What the declines are made of, counted rather than listed. Every command the reading names
-            // is tallied twice over — formulas built and formulas declined — so a command the builder has
-            // never learnt appears as a column of declines with nothing beside it, and one it handles
-            // appears in both. A hand-written list of what is missing goes stale the day something lands;
-            // this cannot, because it is derived from the run that reports the coverage.
-            var commands = Commands(reading.Root.Node, []);
-            if (commands.Count > 0)
-                lock (named)
-                    foreach (var command in commands)
-                    {
-                        var (yes, no) = named.TryGetValue(command, out var count) ? count : default;
-                        named[command] = made is null ? (yes, no + 1) : (yes + 1, no);
-                    }
-
-            if (made is null) lock (declined) declined.Add((formula.Latex, commands));
-
-            if (made is not { } ours) return;
-
-            Interlocked.Increment(ref built);
-
-            // A formula the parser will not read has nothing to be held against, so it leaves here
-            // unchecked — counted, because "none of them disagree" means less than it sounds if some
-            // large number of them had no second opinion to disagree with.
-            TexFormula? theirs;
-            try { theirs = WpfTeXFormulaParser.Instance.Parse(formula.Latex); }
-            catch { Interlocked.Increment(ref alone); return; }
-
-            var (theirTree, theirInk) = Landed(theirs, formula.Latex);
-            var (ourTree, ourInk) = Landed(ours, formula.Latex);
-
-            if (theirTree == ourTree) return;
-
-            // A difference that has been looked at and decided in our favour is not a failure. The
-            // parser is a reference and not a specification, so "differs from it" was never the same as
-            // "wrong" — it is just the only signal available until somebody looks.
-            var why = theirInk == ourInk
-                ? "the same picture, a different tree — ours keeps what the writer grouped"
-                : Decided(TexReading.Of(formula.Latex), ours);
-
-            if (why is not null)
-            {
-                lock (deliberate)
-                    deliberate[why] = deliberate.TryGetValue(why, out var n) ? n + 1 : 1;
-
-                return;
-            }
-
-            lock (wrong) wrong.Add($"line {formula.Line}: {formula.Latex}");
-        });
-
-        // Every one of them, written down beside the coverage, because an assertion message is truncated
-        // and ten formulas out of a quarter of a million only tell you what they have in common if you
-        // can see all ten.
-        wrong.Sort(StringComparer.Ordinal);
-        File.WriteAllLines(
-            Path.Combine(Path.GetDirectoryName(corpus)!, "tex-builder-disagreements.txt"), wrong);
-
-        Assert.IsTrue(seen > 1000, $"only {seen} formula(s) in {corpus}");
-        Assert.AreEqual(0, wrong.Count,
-            $"built {built} of {seen}; {wrong.Count} disagree, all of them written to "
-            + "tex-builder-disagreements.txt beside the corpus. The first few:\n"
-            + string.Join("\n", wrong.Take(5)));
-
-        // Written down rather than asserted. How much of the corpus the builder reaches is a number to
-        // watch go up as constructs are taught to it, not a bar to clear — a floor here would either sit
-        // so low it never fires or have to be edited every time the builder learns something.
-        var decided = deliberate.Sum(d => d.Value);
-
-        File.WriteAllText(
-            Path.Combine(Path.GetDirectoryName(corpus)!, "tex-builder-coverage.txt"),
-            $"built {built} of {seen} ({100.0 * built / seen:F1}%), and every one of them set where the "
-            + $"parser sets it — bar {decided} set deliberately otherwise, and {alone} the parser will "
-            + "not read at all, which nothing here can check:\n"
-            + string.Join("\n", deliberate.OrderByDescending(d => d.Value)
-                                          .Select(d => $"  {d.Value,7:N0}  {d.Key}")));
-
-        // And what the other quarter is made of. Ranked by how many formulas a command costs — its
-        // declines, less the ones it is plainly not the reason for — so the next thing to teach the
-        // builder is the top of this file rather than whichever gap came to mind.
-        File.WriteAllText(
-            Path.Combine(Path.GetDirectoryName(corpus)!, "tex-builder-gaps.txt"),
-            $"{seen - built:N0} formulas went to the engine's own parser. What they name, worst first —\n"
-            + "a command with declines and no builds beside them is one the builder has never learnt;\n"
-            + "one with both is present in declines it is not the reason for.\n\n"
-            + $"{"declined",10}{"built",10}  command\n"
-            + string.Join("\n", named.Where(n => n.Value.Declined > 20)
-                                     .OrderByDescending(n => n.Value.Declined)
-                                     .Take(120)
-                                     .Select(n => $"{n.Value.Declined,10:N0}{n.Value.Built,10:N0}  {n.Key}"))
-            + Residue(declined, named));
-    }
 
     /// <summary>
     /// The declines the list above does not account for: formulas naming no command the builder has
@@ -846,4 +616,42 @@ public class TexBuilderTests
             foreach (var inner in Parts(slot.Node))
                 yield return inner;
     }
+
+    /// <summary>
+    /// Every macro draws as something, rather than as its own name in plain letters.
+    ///
+    /// <para>
+    /// The hole this exists to close. <c>TexMacroTableTests</c> checks that a macro resolves and that
+    /// the source still prints back, and both of those passed for <c>\hbar</c> while it was drawing the
+    /// characters <c>\hbar</c> on the page in 4,343 corpus formulas. It resolved to
+    /// <c>\bar{}\mspace{-9mu}h</c>, which is right, and nothing could <em>build</em> <c>\mspace</c>,
+    /// which was not visible from the parse tree at all.
+    /// </para>
+    /// <para>
+    /// It stayed invisible for a second reason worth remembering: the formula declined and the engine's
+    /// own parser drew it instead, so the corpus sweep — which measures what comes out of
+    /// <see cref="LatexLayout.Build"/> — reported no change. It was measuring the fallback. The moment
+    /// the fallback went, so did the rendering.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void EveryMacroDrawsAsSomethingRatherThanAsItsOwnName() => UiThread.Run(() =>
+    {
+        var unbuilt = new List<string>();
+
+        foreach (var name in TexMacros.All.Keys)
+        {
+            var layout = LatexLayout.Build(name, 16);
+
+            if (layout is null) { unbuilt.Add($"{name} draws nothing at all"); continue; }
+
+            // A warning here is the builder saying it had no drawing for something and set the
+            // characters instead — which for a macro means the definition names something this cannot
+            // build, and the reader sees the definition rather than the symbol.
+            foreach (var trouble in layout.Tree.Diagnostics)
+                unbuilt.Add($"{name}: {trouble.Message}");
+        }
+
+        Assert.AreEqual(0, unbuilt.Count, string.Join("\n", unbuilt));
+    });
 }

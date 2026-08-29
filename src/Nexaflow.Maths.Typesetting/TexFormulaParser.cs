@@ -1271,6 +1271,14 @@ public class TexFormulaParser
         }
     }
 
+    /// <summary>
+    /// Whether there is a drawing for this command, given its name as it was written, backslash and
+    /// all. What a reader hands to <c>TexPipeline</c> so that the reading can say what cannot be set,
+    /// without the reader having to know anything about setting.
+    /// </summary>
+    internal bool Draws(string written) =>
+        written.Length > 1 && written[0] == '\\' && Knows(written[1..]);
+
     /// <summary>Marks a whole expansion as the definition's rather than the reader's.</summary>
     private static void Borrow(Atom atom)
     {

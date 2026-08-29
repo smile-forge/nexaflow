@@ -55,9 +55,24 @@ public enum TexKind
     Comment,
 
     /// <summary>
-    /// Held as written, because it could not be read: a <c>}</c> that closes nothing, an <c>\end</c>
-    /// naming an environment that was never begun. Never an exception and never dropped — half-finished
-    /// input is what an editor holds all day.
+    /// Held as written rather than read: a <c>}</c> that closes nothing, a command nothing can draw, or
+    /// a stretch somebody is in the middle of typing. Never an exception and never dropped —
+    /// half-finished input is what an editor holds all day.
+    /// <para>
+    /// Which of those it is shows in whether the piece has anything to say for itself: a reading nobody
+    /// could make carries the reason, and gets a line drawn under it, where a stretch under the caret
+    /// carries nothing and is simply shown.
+    /// </para>
     /// </summary>
     Verbatim,
+
+    /// <summary>
+    /// Somewhere something still has to go: an argument or a cell written empty, on a surface that is
+    /// being written on.
+    /// <para>
+    /// Stands for nothing anybody typed, so it takes up none of the source and the tree still prints as
+    /// what it came from — the same contract a macro's expansion keeps, for the same reason.
+    /// </para>
+    /// </summary>
+    Hole,
 }
