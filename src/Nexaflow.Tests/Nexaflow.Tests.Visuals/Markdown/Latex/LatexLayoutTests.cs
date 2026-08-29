@@ -377,10 +377,10 @@ public class LatexLayoutTests
             unknown.Tree.Diagnostics.Select(d => d.Severity).ToArray(),
             "a name nothing has heard of is a reading failure, reported once: " + Said(unknown.Tree));
 
-        // \substack is in the typesetter's tables — the reading resolves it and hands it over — and this
-        // builder has no case that stacks the lines. That is the whole of the orange channel: read fine,
+        // \shoveleft is in the typesetter's tables — the reading resolves it and hands it over — and this
+        // builder has no case for it — it belongs to a page rather than to a formula. That is the whole of
         // drawn as its own characters, and a job on our list rather than a mistake on theirs.
-        var undrawn = LatexLayout.Build(@"\substack{a \\ b}", Scale);
+        var undrawn = LatexLayout.Build(@"\shoveleft{x}", Scale);
         Assert.IsNotNull(undrawn);
         CollectionAssert.AreEqual(
             new[] { DiagnosticSeverity.Warning },

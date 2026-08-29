@@ -3,7 +3,11 @@ namespace Nexaflow.Maths.Latex;
 /// <summary>A command, and what the things after it are to it.</summary>
 /// <param name="Arguments">One role per required argument, in the order they are written.</param>
 /// <param name="Option">The role of a bracketed argument before them, or null if it takes none.</param>
-public sealed record TexCommand(string Name, IReadOnlyList<string> Arguments, string? Option = null);
+public sealed record TexCommand(
+    string Name,
+    IReadOnlyList<string> Arguments,
+    string? Option = null,
+    bool Grid = false);
 
 /// <summary>An environment, and how what is between its <c>\begin</c> and <c>\end</c> should be read.</summary>
 /// <param name="Grid">Whether the body is rows of cells rather than a plain run.</param>
@@ -48,8 +52,8 @@ public static class TexCommands
     {
         var table = new Dictionary<string, TexCommand>(StringComparer.Ordinal);
 
-        void Add(string name, string[] arguments, string? option = null) =>
-            table[name] = new TexCommand(name, arguments, option);
+        void Add(string name, string[] arguments, string? option = null, bool grid = false) =>
+            table[name] = new TexCommand(name, arguments, option, grid);
 
         void All(string[] names, string[] arguments, string? option = null)
         {
@@ -99,7 +103,7 @@ public static class TexCommands
         All([@"\pmod", @"\pod", @"\mod"], [TexRole.Argument]);
 
         // \substack{a \\ b} — the stack under a big operator's limit.
-        Add(@"\substack", one);
+        Add(@"\substack", one, grid: true);
 
         // MathJax's box, which says how to draw the frame before what to put in it.
         Add(@"\bbox", one, TexRole.Option);

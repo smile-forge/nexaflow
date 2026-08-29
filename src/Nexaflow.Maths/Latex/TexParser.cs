@@ -246,7 +246,7 @@ public static class TexParser
 
         // ── Groups, commands, arguments ─────────────────────────────────────
 
-        private TexNode Group(Until until)
+        private TexNode Group(Until until, bool grid = false)
         {
             var children = new List<TexNode> { TexNode.Leaf(TexKind.Token, this.Take().Text, TexRole.Open) };
 
@@ -256,7 +256,7 @@ public static class TexParser
             var inner = Until.CloseBrace;
             if (until.HasFlag(Until.Cell) || until.HasFlag(Until.End)) inner |= Until.End;
 
-            children.AddRange(this.Run(inner));
+            children.AddRange(grid ? this.Rows(inner) : this.Run(inner));
 
             if (!this.Done && this.Peek.Kind == TexTokenKind.CloseBrace)
                 children.Add(TexNode.Leaf(TexKind.Token, this.Take().Text, TexRole.Close));
@@ -294,7 +294,7 @@ public static class TexParser
                 var trivia = new List<TexNode>();
                 this.Trivia(trivia);
 
-                if (this.Argument(until) is not { } argument) { _at = mark; break; }
+                if (this.Argument(until, command.Grid) is not { } argument) { _at = mark; break; }
 
                 children.AddRange(trivia);
                 children.Add(argument.As(role));
@@ -339,7 +339,7 @@ public static class TexParser
         private static int _depth;
 
         /// <summary>The one thing written as an argument: a braced group, a command, or a character.</summary>
-        private TexNode? Argument(Until until)
+        private TexNode? Argument(Until until, bool grid = false)
         {
             if (this.Done || this.Stops(until)) return null;
 
@@ -347,7 +347,7 @@ public static class TexParser
 
             return token.Kind switch
             {
-                TexTokenKind.OpenBrace => this.Group(until),
+                TexTokenKind.OpenBrace => this.Group(until, grid),
                 TexTokenKind.Character => TexNode.Leaf(TexKind.Char, this.Take().Text),
                 TexTokenKind.ControlWord when token.Text == @"\begin" => this.Environment(until),
                 TexTokenKind.ControlWord when token.Text == @"\left" => this.Fence(until),

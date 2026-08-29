@@ -705,6 +705,18 @@ public static class TexFormulaBuilder
                 return Tag(new Radical(null, radicand, degree), part);
             }
 
+            case @"\substack":
+            {
+                // A stack of limits under a big operator. The lines are the argument, broken by \\.
+                // One column, one row per line. The reading has already broken it: \substack takes a grid
+                // argument, so its \\ arrives as a row separator exactly as it does inside \begin{matrix},
+                // and the cells are there to be walked rather than found by looking for a token.
+                if (part.Part(TexRole.Base) is not { } lines) return null;
+                if (Cells(lines, style, knowledge) is not { } stack) return null;
+
+                return MatrixCommandParser.SubStack.Assemble(null, stack, Whole(part));
+            }
+
             case @"\overline":
             {
                 if (Part(part, TexRole.Base, style, knowledge) is not { } inner) return null;

@@ -31,10 +31,26 @@ public static class WpfTeXEnvironment
             foreground.ToPlatform());
     }
 
-    private static WpfSystemFont GetSystemFont(string fontName, double size)
-    {
-        var fontFamily = System.Windows.Media.Fonts.SystemFontFamilies.First(
-            ff => ff.ToString() == fontName || ff.FamilyNames.Values?.Contains(fontName) == true);
-        return new WpfSystemFont(size, fontFamily);
-    }
+    /// <summary>
+    /// The installed family of that name, looked up once per name rather than once per formula.
+    ///
+    /// <para>
+    /// <see cref="System.Windows.Media.Fonts.SystemFontFamilies"/> walks every font on the machine, and the
+    /// predicate then walks each one's localised names, so this is not a lookup but a scan — and
+    /// <see cref="Create"/> sits behind every formula drawn. Once per name is the honest frequency: the
+    /// answer depends on the name alone, and the set of installed fonts does not change while a formula is
+    /// being typed into.
+    /// </para>
+    /// <para>
+    /// A <c>FontFamily</c> is an ordinary immutable object rather than a <c>DispatcherObject</c>, so one
+    /// shared between threads is safe — which matters, because the corpus sweep draws on all of them.
+    /// </para>
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, FontFamily> Families = new();
+
+    private static WpfSystemFont GetSystemFont(string fontName, double size) =>
+        new(size, Families.GetOrAdd(
+            fontName,
+            name => System.Windows.Media.Fonts.SystemFontFamilies.First(
+                ff => ff.ToString() == name || ff.FamilyNames.Values?.Contains(name) == true)));
 }

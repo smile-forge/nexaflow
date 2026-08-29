@@ -62,10 +62,14 @@ internal sealed class GrayImage
     }
 
     /// <summary>
-    /// Trims the paper away. Two renderers pad their output differently and there is nothing to learn
-    /// from that, so every comparison starts from the ink and nothing else.
+    /// The tightest rectangle holding every pixel with ink in it, or an empty one where there is none.
+    /// <para>
+    /// Separate from <see cref="CropToInk"/> because two callers want different things from the same
+    /// answer: the scoring wants the pixels, and whoever is drawing the review page wants the rectangle,
+    /// so it can crop the picture it is about to save rather than a copy of it.
+    /// </para>
     /// </summary>
-    public GrayImage CropToInk(float threshold = 0.15f)
+    public (int X, int Y, int Width, int Height) InkBounds(float threshold = 0.15f)
     {
         int left = this.Width, right = -1, top = this.Height, bottom = -1;
         for (var y = 0; y < this.Height; y++)
@@ -80,14 +84,23 @@ internal sealed class GrayImage
             }
         }
 
-        if (right < 0) return new GrayImage(0, 0, []);
+        return right < 0 ? (0, 0, 0, 0) : (left, top, right - left + 1, bottom - top + 1);
+    }
 
-        var width = right - left + 1;
-        var height = bottom - top + 1;
+    /// <summary>
+    /// Trims the paper away. Two renderers pad their output differently and there is nothing to learn
+    /// from that, so every comparison starts from the ink and nothing else.
+    /// </summary>
+    public GrayImage CropToInk(float threshold = 0.15f)
+    {
+        var (left, top, width, height) = this.InkBounds(threshold);
+        if (width == 0) return new GrayImage(0, 0, []);
+
         var ink = new float[width * height];
         for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
                 ink[(y * width) + x] = this[left + x, top + y];
+
         return new GrayImage(width, height, ink);
     }
 

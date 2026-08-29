@@ -61,11 +61,20 @@ internal sealed class ArrayCommandParser : IEnvironmentParser
             source,
             cells,
             MatrixCellAlignment.Center,
+            // Rows a line apart, struts rather than padding — the same as any other table, and the half of
+            // this that had been left at the defaults. An array without them spaced its rows by the 0.35 of
+            // DefaultPadding instead of a stretched line, so a five-row grid came out squashed to a third of
+            // its height; and because \left( sizes itself to what it encloses, the brackets came out short
+            // with it. Three complaints, one cause.
+            verticalPadding: 0,
             // An array keeps its outer gaps, unlike a matrix: that is the space you see inside the
             // brackets of \left[\begin{array}{cc|c} … \right].
             horizontalPadding: MatrixAtom.DefaultColumnGap,
+            suppressOuterPadding: true,
             columnSpec: spec,
-            horizontalRules: horizontalRules)
+            horizontalRules: horizontalRules,
+            rowStrutHeight: MatrixAtom.DefaultRowStrutHeight,
+            rowStrutDepth: MatrixAtom.DefaultRowStrutDepth)
         {
             Origin = origin,
         };

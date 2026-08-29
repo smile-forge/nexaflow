@@ -280,6 +280,14 @@ public class LatexPictureSweepTests
     /// Draws these formulas again and writes the pictures, for the rows of the review page somebody is
     /// going to look at. Separate from the scoring pass because the scoring pass keeps no pictures: the
     /// disk is the whole cost of this sweep, and a quarter of a million of them are never opened.
+    ///
+    /// <para>
+    /// Cropped to the ink, because the scoring is. <see cref="Picture"/> leaves a scale-wide margin so a
+    /// glyph spilling past its box still lands on the canvas, and the corpus's own renderings are trimmed
+    /// close — so a page showing both untouched puts a padded picture beside a tight one and invites the
+    /// reader to call a real difference "just whitespace", or the reverse. What is shown here is what was
+    /// measured, with a few pixels back so the ink is not flush against the edge.
+    /// </para>
     /// </summary>
     private static void Paint(string work, IReadOnlyList<Drawn> rows)
     {
@@ -296,13 +304,29 @@ public class LatexPictureSweepTests
             {
                 if (LatexLayout.Build(row.Entry.Formula, Scale) is not { } layout) return;
                 if (Picture(layout) is not { } drawing) return;
-                Save(drawing, Path.Combine(work, Drawings, row.Entry.Id[..2], row.Entry.Id + ".png"));
+                Save(Trimmed(drawing), Path.Combine(work, Drawings, row.Entry.Id[..2], row.Entry.Id + ".png"));
             }
             catch
             {
                 // Its row shows the reason there is no picture instead.
             }
         });
+    }
+
+    /// <summary>The same picture with the blank border taken off, give or take a few pixels.</summary>
+    private static BitmapSource Trimmed(RenderTargetBitmap drawing, int margin = 3)
+    {
+        var (x, y, width, height) = GrayImage.FromBitmap(drawing).InkBounds();
+        if (width == 0 || height == 0) return drawing;
+
+        var left = Math.Max(0, x - margin);
+        var top = Math.Max(0, y - margin);
+
+        return new CroppedBitmap(drawing, new System.Windows.Int32Rect(
+            left,
+            top,
+            Math.Min(drawing.PixelWidth - left, width + (2 * margin)),
+            Math.Min(drawing.PixelHeight - top, height + (2 * margin))));
     }
 
     // ── the reference ────────────────────────────────────────────────────────────
