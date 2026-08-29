@@ -464,4 +464,53 @@ public class LatexLayoutTests
         var at = latex.IndexOf('=', StringComparison.Ordinal);
         Assert.AreEqual((2, 5), tree.SnapRange(at, 1), "selecting the = takes the whole sign");
     });
+
+    /// <summary>
+    /// The builder sets what it says it sets.
+    ///
+    /// <para>
+    /// What can be drawn has to be known by the <em>reading</em>, which marks whatever cannot be before
+    /// anything is built — so the builder is handed a tree it can simply set. That only holds while the
+    /// answer the reading is given is true, and it was not: <c>\ </c> is a space the builder has a case
+    /// for, and the table the reading asked had never heard of it, so a written space came out underlined
+    /// in red on correct output.
+    /// </para>
+    /// <para>
+    /// So the names live beside the switch that acts on them, and this reads the switch to check they
+    /// agree. Deliberately over the source rather than over any list in the program: a guard written over
+    /// a list would be checking the very thing it is meant to doubt, and the first attempt at one passed
+    /// with the fault still present because the name it needed to test was in no list at all.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    [CoversNode("latex-diagnostics")]
+    public void TheBuilderSetsWhatItSaysItSets()
+    {
+        var here = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+        while (here is not null && !System.IO.File.Exists(System.IO.Path.Combine(here.FullName, "Nexaflow.slnx")))
+            here = here.Parent;
+
+        Assert.IsNotNull(here, "the repository root was not found from " + System.AppContext.BaseDirectory);
+
+        var source = System.IO.File.ReadAllText(System.IO.Path.Combine(
+            here.FullName, "src", "Nexaflow.Maths.Typesetting", "TexFormulaBuilder.cs"));
+
+        var cased = System.Text.RegularExpressions.Regex
+            .Matches(source, "^\\s*case @\"(?<name>\\\\[^\"]*)\":",
+                     System.Text.RegularExpressions.RegexOptions.Multiline)
+            .Select(match => match.Groups["name"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.AreNotEqual(0, cased.Count, "the switch was not found — this guard has stopped reading it");
+
+        var unsaid = cased.Where(name => !XamlMath.TexFormulaBuilder.Handles.Contains(name)).ToList();
+        Assert.AreEqual(0, unsaid.Count,
+            "the builder has a case for these and does not say so, so the reading will show them as their "
+            + "own characters:\n" + string.Join("\n", unsaid));
+
+        var unset = XamlMath.TexFormulaBuilder.Handles.Where(name => !cased.Contains(name)).ToList();
+        Assert.AreEqual(0, unset.Count,
+            "these are claimed and have no case, so the reading will pass them to a builder with no "
+            + "drawing for them:\n" + string.Join("\n", unset));
+    }
 }

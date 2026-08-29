@@ -693,6 +693,40 @@ public static class TexFormulaBuilder
         return new ScriptsAtom(null, on, subscript, superscript);
     }
 
+    /// <summary>
+    /// The commands this sets itself, rather than by asking the symbol tables for a glyph.
+    ///
+    /// <para>
+    /// One list, beside the switch that acts on it, because the alternative was two. What can be drawn is
+    /// something the <em>reading</em> has to know — it marks whatever cannot be, before anything is built,
+    /// which is what lets the builder set the tree it is handed without arguing with it. The reading was
+    /// asking a table describing a parser that has since been deleted, and that table had never heard of
+    /// <c>\ </c>: a written space came out underlined in red because two statements of one fact were free
+    /// to disagree.
+    /// </para>
+    /// <para>
+    /// <c>BuilderSetsWhatItSaysItSets</c> holds this to the switch below, so a case added without a name
+    /// added here fails rather than quietly reddening itself.
+    /// </para>
+    /// </summary>
+    internal static readonly IReadOnlySet<string> Handles = new HashSet<string>(System.StringComparer.Ordinal)
+    {
+        @"\frac", @"\sqrt", @"\substack", @"\overline", @"\underline", @"\not",
+        @"\mspace", @"\hspace", @"\hspace*", @"\kern", @"\mkern", @"\ ", @"\nbsp",
+    };
+
+    /// <summary>
+    /// Whether anything here can set this command, given its name as written, backslash and all.
+    ///
+    /// <para>
+    /// What the reading asks before it decides to show something as its own characters. The answer is
+    /// this builder's to give — it is what does the setting — and it is either something set here by name
+    /// or something the tables have a glyph, an expansion or a face for.
+    /// </para>
+    /// </summary>
+    public static bool Draws(string written, TexFormulaParser knowledge) =>
+        Handles.Contains(written) || knowledge.Draws(written);
+
     private static Atom? Command(ITexPart part, string? style, TexFormulaParser knowledge)
     {
         if (part.Part(TexRole.Name)?.Text is not { } name) return null;

@@ -82,7 +82,11 @@ public sealed class LatexLayout
             // being typed are both settled before this — they come back as pieces that say they are to
             // be shown rather than read, and the builder sets them as characters without having to know
             // which of the two it is looking at.
-            var read = TexPipeline.Read(latex, knowledge.Draws, editing, placeholders);
+            // Asked of the builder, because the builder is what draws. It was asked of the tables, which
+            // describe what the engine's own parser could read — and being a different question, it came back
+            // a different answer: a `\ ` the builder sets directly was shown as its own characters in red.
+            var read = TexPipeline.Read(
+                latex, name => XamlMath.TexFormulaBuilder.Draws(name, knowledge), editing, placeholders);
             var reading = TexReading.Of(read);
             var formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
 
