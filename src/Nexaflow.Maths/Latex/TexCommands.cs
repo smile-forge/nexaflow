@@ -79,6 +79,14 @@ public static class TexCommands
         All([@"\frac", @"\dfrac", @"\tfrac", @"\nicefrac", @"\sfrac"], overUnder);
         All([@"\binom", @"\dbinom", @"\tbinom"], overUnder);
 
+        // \genfrac{l}{r}{thickness}{style}{numerator}{denominator} — the general fraction every other one
+        // in amsmath is spelled with. Six arguments and no optional part, so the roles have to carry what
+        // each one is: the two delimiters go over and under nothing, so they take those roles, the rule thickness is a length like any other
+        // argument, and the style is the one thing written that changes how the rest is set.
+        Add(@"\genfrac",
+            [TexRole.Over, TexRole.Under, TexRole.Argument, TexRole.Option,
+             TexRole.Numerator, TexRole.Denominator]);
+
         // \cfrac takes [l] or [r] to say which way the numerator leans.
         Add(@"\cfrac", overUnder, TexRole.Option);
 

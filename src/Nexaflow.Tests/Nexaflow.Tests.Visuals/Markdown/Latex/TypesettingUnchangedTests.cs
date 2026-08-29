@@ -80,13 +80,18 @@ public class TypesettingUnchangedTests
         // Held against the corpus's own LaTeX renderings across all 238,329 formulas, the same change
         // put the mean ink overlap at 0.7727 where the fallback had it at 0.7733, and took the count
         // that draw nothing at all from 8 to 0.
-        ["text styles and fonts"] = "FCAB07860B836086",
+        // These three moved 2026-08-30. A stretch shown as its own characters now has a thin space at
+        // each end, so two of them in a row stop running together into one unreadable word; every family
+        // holding one moved with it. And \mod and \genfrac are set rather than shown — both had a reader
+        // and nothing that built them, so both had been dead in the app since the old reader stopped
+        // drawing, while the test that watched them was asking that same reader.
+        ["text styles and fonts"] = "B15C4CB8D0484981",
         // These two moved 2026-08-29 because two things stopped being set as their own characters. `\ `
         // is drawn by the builder and was not in the table the reading asks whether anything can draw it,
         // so it came out red; and characters shown because nothing could read or draw them are now set as
         // text rather than as maths, where a backslash and a brace have no glyph worth the name.
-        ["spacing, dots and modular arithmetic"] = "7CF430F82EBD42F0",
-        ["colour, phantoms and overlap"] = "0A2E6E8D5C986170",
+        ["spacing, dots and modular arithmetic"] = "80629F46344E0338",
+        ["colour, phantoms and overlap"] = "D49F6D37947045CE",
         ["styles and sizes"] = "CAE74BF57299F92F",
         // Moved 2026-08-29, and for the reason this guard exists to make somebody give: \mapsto is now
         // set as TeX sets it. Computer Modern has a \mapstochar — zero width, on the axis, made for

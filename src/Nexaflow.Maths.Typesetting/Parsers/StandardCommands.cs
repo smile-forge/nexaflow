@@ -11,27 +11,12 @@ namespace XamlMath.Parsers;
 
 internal static class StandardCommands
 {
-    private class UnderlineCommand : ICommandParser
+    private class UnderlineCommand
     {
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-            var afterFormula = TexFormulaParser.ReadElement(source, position);
-            position = afterFormula.position;
-            var underlineFormula = context.Parser.Parse(
-                afterFormula.source,
-                context.Formula.TextStyle,
-                context.Environment);
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            var atom = new UnderlinedAtom(atomSource, underlineFormula.RootAtom);
-            return new CommandProcessingResult(atom, position);
-        }
     }
 
     // The stretchy arrow accents: an arrow drawn to the width of its argument, above or below it.
-    private sealed class OverArrowCommand : ICommandParser, IAssembleCommand
+    private sealed class OverArrowCommand : IAssembleCommand
     {
         public static OverArrowCommand Right { get; } = new(ArrowDecoration.HeadRight, over: true);
         public static OverArrowCommand Left { get; } = new(ArrowDecoration.HeadLeft, over: true);
@@ -51,22 +36,6 @@ internal static class StandardCommands
             _over = over;
         }
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-            var afterFormula = TexFormulaParser.ReadElement(source, position);
-            position = afterFormula.position;
-            var baseFormula = context.Parser.Parse(
-                afterFormula.source,
-                context.Formula.TextStyle,
-                context.Environment.CreateChildEnvironment());
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            var atom = new OverArrowAtom(atomSource, baseFormula.RootAtom, _decoration, _over);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new OverArrowAtom(null, arguments[0], _decoration, _over) { Origin = origin }
@@ -74,7 +43,7 @@ internal static class StandardCommands
     }
 
     // \vdots and \ddots take no argument; they just emit a fixed run of dots.
-    private sealed class DotsCommand : ICommandParser, IAssembleCommand
+    private sealed class DotsCommand : IAssembleCommand
     {
         public static DotsCommand Vertical { get; } = new(DotsAtom.DotsShape.Vertical);
         public static DotsCommand Diagonal { get; } = new(DotsAtom.DotsShape.Diagonal);
@@ -86,21 +55,12 @@ internal static class StandardCommands
             _shape = shape;
         }
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var start = context.CommandNameStartPosition;
-            var position = context.ArgumentsStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = new DotsAtom(atomSource, _shape);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 0 ? new DotsAtom(null, _shape) { Origin = origin } : null;
     }
 
     // \hspace{<length>} inserts horizontal space of an explicit length, e.g. \hspace{2em} or \hspace{-3pt}.
-    private sealed class HspaceCommand : ICommandParser
+    private sealed class HspaceCommand
     {
         public static HspaceCommand Hspace { get; } = new("hspace");
 
@@ -112,25 +72,6 @@ internal static class StandardCommands
         private HspaceCommand(string name)
         {
             _name = name;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-
-            // \hspace* behaves identically here (there is no line breaking to make the space removable).
-            if (position < source.Length && source[position] == '*')
-                position++;
-
-            var afterArg = TexFormulaParser.ReadElement(source, position);
-            position = afterArg.position;
-            ParseLength(afterArg.source.ToString(), "\\" + _name, out var unit, out var value);
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            var atom = new SpaceAtom(atomSource, unit, value, 0, 0);
-            return new CommandProcessingResult(atom, position);
         }
     }
 
@@ -198,18 +139,8 @@ internal static class StandardCommands
         }
     }
 
-    /// <summary>Reads one <c>{…}</c> (or single-token) argument as a formula and advances <paramref name="position"/>.</summary>
-    private static TexFormula ReadArgument(CommandContext context, ref int position)
-    {
-        var after = TexFormulaParser.ReadElement(context.CommandSource, position);
-        position = after.position;
-
-        return context.Parser.Parse(
-            after.source, context.Formula.TextStyle, context.Environment.CreateChildEnvironment());
-    }
-
     // \dfrac and \tfrac: \frac forced into display or text style respectively.
-    private sealed class FracStyleCommand : ICommandParser, IAssembleCommand
+    private sealed class FracStyleCommand : IAssembleCommand
     {
         public static FracStyleCommand Dfrac { get; } = new(TexStyle.Display);
         public static FracStyleCommand Tfrac { get; } = new(TexStyle.Text);
@@ -221,20 +152,6 @@ internal static class StandardCommands
             _style = style;
         }
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var numerator = ReadArgument(context, ref position);
-            var denominator = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = new FractionAtom(atomSource, numerator.RootAtom, denominator.RootAtom, true)
-            {
-                OverrideStyle = _style
-            };
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 2
                 ? new FractionAtom(null, arguments[0], arguments[1], true) { OverrideStyle = _style, Origin = origin }
@@ -243,31 +160,8 @@ internal static class StandardCommands
 
     // \cfrac[l|c|r]{a}{b}: a continued-fraction fraction — display style throughout (nested \cfrac stays
     // full size) with an optional numerator alignment.
-    private sealed class CfracCommand : ICommandParser, IAssembleCommand
+    private sealed class CfracCommand : IAssembleCommand
     {
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-
-            var numeratorAlignment = TexAlignment.Center;
-            var optional = TexFormulaParser.ReadElementGroupOptional(source, ref position, '[', ']')?.ToString().Trim();
-            if (optional == "l") numeratorAlignment = TexAlignment.Left;
-            else if (optional == "r") numeratorAlignment = TexAlignment.Right;
-
-            var numerator = ReadArgument(context, ref position);
-            var denominator = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            var atom = new FractionAtom(
-                atomSource, numerator.RootAtom, denominator.RootAtom, true, numeratorAlignment, TexAlignment.Center)
-            {
-                OverrideStyle = TexStyle.Display,
-                KeepContentStyle = true
-            };
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 2
                 ? new FractionAtom(null, arguments[0], arguments[1], true, TexAlignment.Center, TexAlignment.Center)
@@ -276,19 +170,8 @@ internal static class StandardCommands
     }
 
     // \nicefrac{a}{b} and \sfrac{a}{b}: an inline "slash" fraction (raised numerator / lowered denominator).
-    private sealed class SlashFractionCommand : ICommandParser, IAssembleCommand
+    private sealed class SlashFractionCommand : IAssembleCommand
     {
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var numerator = ReadArgument(context, ref position);
-            var denominator = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = new SlashFractionAtom(atomSource, numerator.RootAtom, denominator.RootAtom);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 2
                 ? new SlashFractionAtom(null, arguments[0], arguments[1]) { Origin = origin }
@@ -296,33 +179,23 @@ internal static class StandardCommands
     }
 
     // \pmod{n} -> "(mod n)" after a wide space; \pod{n} -> "(n)". Used as e.g. a \equiv b \pmod{n}.
-    private sealed class ParenModCommand : ICommandParser, IAssembleCommand
+    private sealed class ParenModCommand : IAssembleCommand
     {
         public static ParenModCommand Pmod { get; } = new(withMod: true);
         public static ParenModCommand Pod { get; } = new(withMod: false);
 
-        private readonly bool _withMod;
+        // `a \mod b` is the same word without the parentheses round it — amsmath sets it as a binary
+        // operator with a wide gap in front. It had a reader of its own and nothing that built it, so it
+        // set as its own characters the moment the old reader stopped drawing.
+        public static ParenModCommand Mod { get; } = new(withMod: true, fenced: false);
 
-        private ParenModCommand(bool withMod)
+        private readonly bool _withMod;
+        private readonly bool _fenced;
+
+        private ParenModCommand(bool withMod, bool fenced = true)
         {
             _withMod = withMod;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-            var afterArg = TexFormulaParser.ReadElement(source, position);
-            position = afterArg.position;
-            var argument = afterArg.source.ToString();
-
-            var body = _withMod
-                ? $@"\quad(\mathrm{{mod}}\;{{{argument}}})"
-                : $@"\quad({{{argument}}})";
-            var bodySpan = new SourceSpan("pmod", body, 0, body.Length);
-            var formula = context.Parser.Parse(
-                bodySpan, context.Formula.TextStyle, context.Environment.CreateChildEnvironment());
-            return new CommandProcessingResult(formula.RootAtom, position);
+            _fenced = fenced;
         }
 
         /// <summary>
@@ -349,9 +222,21 @@ internal static class StandardCommands
                 if (PrimitiveOf("thickspace") is { } thin) inside = inside.Add(thin);
             }
 
+            inside = inside.Add(arguments[0]);
+
+            // Without the parentheses, the word and its argument are the whole of it.
+            if (!_fenced)
+            {
+                var bare = new RowAtom(null);
+                if (PrimitiveOf("quad") is { } lead) bare = bare.Add(lead);
+                bare = bare.Add(inside);
+                bare.Origin = origin;
+                return bare;
+            }
+
             var fenced = new FencedAtom(
                 null,
-                inside.Add(arguments[0]),
+                inside,
                 new SymbolAtom(null, "(", TexAtomType.Opening, true) { Origin = origin },
                 new SymbolAtom(null, ")", TexAtomType.Closing, true) { Origin = origin })
             {
@@ -367,11 +252,49 @@ internal static class StandardCommands
         }
     }
 
+    /// <summary>
+    /// <c>\genfrac{l}{r}{thickness}{style}{numerator}{denominator}</c> — the general fraction that every
+    /// other one in amsmath is spelled with.
+    ///
+    /// <para>
+    /// Assembled from arguments already built, like every other command here. It used to be read instead:
+    /// a command parser that walked the source itself, which meant it worked only for the engine's own
+    /// reader and set nothing at all once that reader stopped drawing. It was believed done, and the test
+    /// that said so was asking the old reader.
+    /// </para>
+    /// <para>
+    /// An empty delimiter argument means no delimiter that side, and an empty thickness means the default
+    /// rule — which is the one place a fraction's bar is written as a length rather than implied.
+    /// </para>
+    /// </summary>
+    private sealed class GenFracCommand : IAssembleCommand
+    {
+        public static GenFracCommand Instance { get; } = new();
+
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin)
+        {
+            if (arguments.Count != 6) return null;
+
+            // Written as `{}` where there is to be none, so an argument that drew nothing is not a
+            // delimiter that failed to build — it is a side the writer asked to leave open.
+            SymbolAtom? Delimiter(Atom written) =>
+                written is SymbolAtom symbol ? symbol : null;
+
+            var fraction = new FractionAtom(null, arguments[4], arguments[5], true) { Origin = origin };
+
+            var left = Delimiter(arguments[0]);
+            var right = Delimiter(arguments[1]);
+            if (left is null && right is null) return fraction;
+
+            return new FencedAtom(null, fraction, left, right) { Origin = origin };
+        }
+    }
+
     // \displaystyle, \textstyle, \scriptstyle and \scriptscriptstyle are switches, not one-argument commands:
     // they apply from where they appear to the end of the enclosing group. Reading only the next element would
     // leave the scripts of e.g. "\displaystyle\sum_{i=1}^{n}" outside the switch, which is where the style
     // actually matters (display style is what moves the limits above and below the operator).
-    private sealed class StyleCommand : ICommandParser
+    private sealed class StyleCommand
     {
         public static StyleCommand Display { get; } = new(TexStyle.Display);
         public static StyleCommand Text { get; } = new(TexStyle.Text);
@@ -394,29 +317,12 @@ internal static class StandardCommands
         {
             _style = style;
         }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var start = context.CommandNameStartPosition;
-
-            // The rest of the group is the argument. It keeps the current environment rather than a child one, so
-            // that a switch inside a matrix cell doesn't swallow the row and cell separators.
-            var rest = source.Segment(context.ArgumentsStartPosition);
-            var formula = context.Parser.Parse(rest, context.Formula.TextStyle, context.Environment);
-
-            var atomSource = source.Segment(start, source.Length - start);
-            Atom atom = _style is { } style
-                ? new StyleAtom(atomSource, formula.RootAtom, style)
-                : formula.RootAtom ?? new NullAtom(atomSource);
-            return new CommandProcessingResult(atom, source.Length);
-        }
     }
 
     // \overset{ann}{base}, \underset{ann}{base} and \stackrel{ann}{rel}: the annotation is set in script size
     // above or below the base. \stackrel differs from \overset only in the spacing it gets: its result is a
     // relation (it exists to stack something over an arrow), so it is typed as one.
-    private sealed class StackedAnnotationCommand : ICommandParser
+    private sealed class StackedAnnotationCommand
     {
         public static StackedAnnotationCommand Overset { get; } = new(over: true, asRelation: false);
         public static StackedAnnotationCommand Underset { get; } = new(over: false, asRelation: false);
@@ -431,18 +337,6 @@ internal static class StandardCommands
         {
             _over = over;
             _asRelation = asRelation;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var annotation = ReadArgument(context, ref position);
-            var baseFormula = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-
-            return new CommandProcessingResult(
-                Assemble(annotation.RootAtom!, baseFormula.RootAtom!, atomSource, null), position);
         }
 
         /// <summary>
@@ -469,7 +363,7 @@ internal static class StandardCommands
 
     // \phantom{x} and its one-dimensional variants: the content is measured and then not drawn, so it reserves
     // space without printing anything.
-    private sealed class PhantomCommand : ICommandParser, IAssembleCommand
+    private sealed class PhantomCommand : IAssembleCommand
     {
         public static PhantomCommand Both { get; } = new(useWidth: true, useHeight: true);
         public static PhantomCommand Horizontal { get; } = new(useWidth: true, useHeight: false);
@@ -484,16 +378,6 @@ internal static class StandardCommands
             _useHeight = useHeight;
         }
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var content = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = new PhantomAtom(atomSource, content.RootAtom, _useWidth, _useHeight, _useHeight);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new PhantomAtom(null, arguments[0], _useWidth, _useHeight, _useHeight) { Origin = origin }
@@ -502,7 +386,7 @@ internal static class StandardCommands
 
     // \smash{x} draws the content and reports no height, \math?lap{x} draws it and reports no width. Both are the
     // inverse of \phantom: ink without extent rather than extent without ink.
-    private sealed class SmashCommand : ICommandParser, IAssembleCommand
+    private sealed class SmashCommand : IAssembleCommand
     {
         public static SmashCommand Smash { get; } = new(null);
         public static SmashCommand Llap { get; } = new(TexAlignment.Left);
@@ -516,18 +400,6 @@ internal static class StandardCommands
             _lapAlignment = lapAlignment;
         }
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var content = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = _lapAlignment is { } alignment
-                ? (Atom)new LapAtom(atomSource, content.RootAtom, alignment)
-                : new SmashAtom(atomSource, content.RootAtom);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count != 1
                 ? null
@@ -537,25 +409,15 @@ internal static class StandardCommands
     }
 
     // \boxed{x} and \fbox{x}: the content inside a rectangular frame.
-    private sealed class BoxedCommand : ICommandParser, IAssembleCommand
+    private sealed class BoxedCommand : IAssembleCommand
     {
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var content = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = new BoxedAtom(atomSource, content.RootAtom);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1 ? new BoxedAtom(null, arguments[0]) { Origin = origin } : null;
     }
 
     // \xrightarrow[under]{over} and friends: an arrow stretched to fit the labels written over (and optionally
     // under) it. The under label is the optional argument, as in LaTeX.
-    private sealed class ExtensibleArrowCommand : ICommandParser, IAssembleCommand
+    private sealed class ExtensibleArrowCommand : IAssembleCommand
     {
         public static ExtensibleArrowCommand Right { get; } = new(ArrowDecoration.HeadRight);
         public static ExtensibleArrowCommand Left { get; } = new(ArrowDecoration.HeadLeft);
@@ -577,27 +439,6 @@ internal static class StandardCommands
             _decoration = decoration;
         }
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-
-            var underSource = TexFormulaParser.ReadElementGroupOptional(source, ref position, '[', ']');
-            var under = underSource == null
-                ? null
-                : context.Parser.Parse(
-                    underSource,
-                    context.Formula.TextStyle,
-                    context.Environment.CreateChildEnvironment());
-
-            var over = ReadArgument(context, ref position);
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            var atom = new ExtensibleArrowAtom(atomSource, over.RootAtom, under?.RootAtom, _decoration);
-            return new CommandProcessingResult(atom, position);
-        }
-
         /// <summary>The arrow, its label over it and — where one was written — its label under it.</summary>
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count is 1 or 2
@@ -616,7 +457,7 @@ internal static class StandardCommands
     // body, with an optional label beyond it. LaTeX makes these operators, so a script written after
     // one belongs above (or below) the brace rather than beside it — which means reading it here,
     // before the parser attaches it as an ordinary script.
-    private sealed class BraceCommand : ICommandParser, IAssembleCommand
+    private sealed class BraceCommand : IAssembleCommand
     {
         public static BraceCommand Over { get; } = new(over: true);
         public static BraceCommand Under { get; } = new(over: false);
@@ -628,39 +469,6 @@ internal static class StandardCommands
         private BraceCommand(bool over)
         {
             _over = over;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-            var body = ReadArgument(context, ref position);
-
-            Atom? label = null;
-            var afterBody = TexFormulaParser.WithSkippedWhiteSpace(source, position);
-            if (afterBody < source.Length && source[afterBody] == (_over ? '^' : '_'))
-            {
-                position = afterBody + 1;
-                label = ReadArgument(context, ref position).RootAtom;
-            }
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-
-            // The brace is a vertical delimiter stretched to the body's width and drawn rotated, so the
-            // two halves of the curly-brace pair are what open upwards and downwards.
-            var name = TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][
-                (int)(_over ? TexDelimeterType.Over : TexDelimeterType.Under)];
-
-            var atom = new OverUnderDelimiter(
-                atomSource,
-                body.RootAtom,
-                label,
-                SymbolAtom.GetAtom(name, atomSource),
-                TexUnit.Ex,
-                LabelKern,
-                _over);
-            return new CommandProcessingResult(atom, position);
         }
 
         /// <summary>
@@ -706,18 +514,8 @@ internal static class StandardCommands
     // \boldsymbol{…} (also spelled \bm): every character underneath comes from the bold companion of
     // the font it would otherwise use, which is what makes it work on Greek letters and symbols
     // rather than only on the Latin ones a text style could reach.
-    private sealed class BoldSymbolCommand : ICommandParser, IAssembleCommand
+    private sealed class BoldSymbolCommand : IAssembleCommand
     {
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var content = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = new BoldAtom(atomSource, content.RootAtom);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1 ? new BoldAtom(null, arguments[0]) { Origin = origin } : null;
     }
@@ -725,7 +523,7 @@ internal static class StandardCommands
     // \operatorname{name} sets a function name upright and, more importantly, types it as an
     // operator: that is what gives it operator spacing and lets a following script become a limit.
     // The starred form takes its limits above and below in display style, as \sum does.
-    private sealed class OperatorNameCommand : ICommandParser, IAssembleCommand
+    private sealed class OperatorNameCommand : IAssembleCommand
     {
         /// <param name="starred">
         /// Whether this is the <c>*</c> form, whose limits go wherever the style puts them rather than
@@ -737,31 +535,6 @@ internal static class StandardCommands
 
         private readonly bool _starred;
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-
-            var starred = this._starred;
-            if (position < source.Length && source[position] == '*')
-            {
-                starred = true;
-                position++;
-            }
-
-            var after = TexFormulaParser.ReadElement(source, position);
-            position = after.position;
-            var name = context.Parser.Parse(after.source, "mathrm", context.Environment.CreateChildEnvironment());
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-
-            // null lets the style decide, which is what the starred form means; false keeps the
-            // limits beside the name whatever the style, which is the plain form.
-            var atom = new BigOperatorAtom(atomSource, name.RootAtom, null, null, starred ? null : (bool?)false);
-            return new CommandProcessingResult(atom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new BigOperatorAtom(null, arguments[0], null, null, this._starred ? null : (bool?)false) { Origin = origin }
@@ -770,7 +543,7 @@ internal static class StandardCommands
 
     // inom{n}{k}, and \dbinom / 	binom which force display or text style. amsmath spells all
     // three as \genfrac{(}{)}{0pt}{}: a fraction with no rule drawn, inside parentheses.
-    private sealed class BinomCommand : ICommandParser, IAssembleCommand
+    private sealed class BinomCommand : IAssembleCommand
     {
         public static BinomCommand Plain { get; } = new(null);
         public static BinomCommand Display { get; } = new(TexStyle.Display);
@@ -781,27 +554,6 @@ internal static class StandardCommands
         private BinomCommand(TexStyle? style)
         {
             _style = style;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var top = ReadArgument(context, ref position);
-            var bottom = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-
-            // The parentheses stand where a bare fraction's null delimiter space would be.
-            var fraction = new FractionAtom(atomSource, top.RootAtom, bottom.RootAtom, TexUnit.Point, 0)
-            {
-                SuppressNullDelimiterSpace = true,
-            };
-            if (_style is { } style)
-                fraction = fraction with { OverrideStyle = style };
-
-            var left = new SymbolAtom(atomSource, "(", TexAtomType.Opening, true);
-            var right = new SymbolAtom(atomSource, ")", TexAtomType.Closing, true);
-            return new CommandProcessingResult(new FencedAtom(atomSource, fraction, left, right), position);
         }
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin)
@@ -847,7 +599,7 @@ internal static class StandardCommands
     /// separator and sometimes an ordinary bar is worth getting right on purpose rather than in passing.
     /// </para>
     /// </summary>
-    private sealed class BraketCommand : ICommandParser, IAssembleCommand
+    private sealed class BraketCommand : IAssembleCommand
     {
         public static BraketCommand Bra { get; } = new("langle", "vert");
         public static BraketCommand Ket { get; } = new("vert", "rangle");
@@ -860,20 +612,6 @@ internal static class StandardCommands
         {
             _open = open;
             _close = close;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var body = ReadArgument(context, ref position);
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-
-            var left = new SymbolAtom(atomSource, _open, TexAtomType.Opening, true);
-            var right = new SymbolAtom(atomSource, _close, TexAtomType.Closing, true);
-            return new CommandProcessingResult(
-                new FencedAtom(atomSource, body.RootAtom, left, right), position);
         }
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
@@ -889,7 +627,7 @@ internal static class StandardCommands
                 : null;
     }
 
-    private sealed class CancelCommand : ICommandParser, IAssembleCommand
+    private sealed class CancelCommand : IAssembleCommand
     {
         public static CancelCommand BCancel { get; } = new(StrokeBoxMode.Back);
         public static CancelCommand Cancel { get; } = new(StrokeBoxMode.Normal);
@@ -902,23 +640,6 @@ internal static class StandardCommands
 
         private readonly StrokeBoxMode _strokeBoxMode;
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-            var afterFormula = TexFormulaParser.ReadElement(source, position);
-            position = afterFormula.position;
-            var contentFormula = context.Parser.Parse(afterFormula.source,
-                                                      context.Formula.TextStyle,
-                                                      context.Environment.CreateChildEnvironment());
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            var cancelAtom = new CancelAtom(atomSource, contentFormula.RootAtom, _strokeBoxMode);
-
-            return new CommandProcessingResult(cancelAtom, position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new CancelAtom(null, arguments[0], _strokeBoxMode) { Origin = origin }
@@ -929,51 +650,14 @@ internal static class StandardCommands
     /// This command will parse the remaining part of an input string, and add it onto a new line of a formula. The
     /// new line is created as a <see cref="MatrixAtom"/>; the command will try to reuse existing atoms if possible.
     /// </summary>
-    private class NewLineCommand : ICommandParser
+    private class NewLineCommand
     {
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var prevFormulaAtom = context.Formula.RootAtom;
-
-            var nextLineAtom = context.Parser.Parse(
-                source.Segment(context.ArgumentsStartPosition),
-                context.Formula.TextStyle,
-                context.Environment).RootAtom;
-
-            // An optimization: if the new content itself is a matrix with suitable parameters, then we won't
-            // wrap it into another formula, but will combine it with the content on top.
-            var newMatrix = nextLineAtom is MatrixAtom m
-                && m.MatrixCellAlignment == MatrixCellAlignment.Left
-                && m.HorizontalPadding == MatrixAtom.DefaultPadding
-                && m.VerticalPadding == MatrixAtom.DefaultPadding
-                ? m
-                : null;
-
-            var topRow = new[] {prevFormulaAtom};
-            var rows = new List<IEnumerable<Atom?>> {topRow};
-            if (newMatrix != null)
-            {
-                rows.AddRange(newMatrix.MatrixCells);
-            }
-            else
-            {
-                var bottomRow = new[] {nextLineAtom};
-                rows.Add(bottomRow);
-            }
-
-            // We'll always use source = null for the resulting matrix, because it's a structural element and not a
-            // useful atom generated from any particular sources.
-            var atom = new MatrixAtom(null, rows, MatrixCellAlignment.Left);
-            var position = source.Length; // we always parse the provided source until the end
-            return new CommandProcessingResult(atom, position, AtomAppendMode.Replace);
-        }
     }
 
     // \mathop{…} and its family: the argument keeps its shape and changes its kind, which is what
     // decides the space around it. A paper reaches for \mathop where a name should behave as an
     // operator and for \mathrel where a symbol should behave as a relation.
-    private sealed class AtomTypeCommand : ICommandParser, IAssembleCommand
+    private sealed class AtomTypeCommand : IAssembleCommand
     {
         public static AtomTypeCommand Ordinary { get; } = new(TexAtomType.Ordinary);
         public static AtomTypeCommand Operator { get; } = new(TexAtomType.BigOperator);
@@ -991,16 +675,6 @@ internal static class StandardCommands
             _type = type;
         }
 
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var position = context.ArgumentsStartPosition;
-            var argument = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = argument.RootAtom ?? (Atom)new NullAtom(atomSource);
-            return new CommandProcessingResult(new TypedAtom(atomSource, atom, _type, _type), position);
-        }
-
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new TypedAtom(null, arguments[0], _type, _type) { Origin = origin }
@@ -1010,18 +684,9 @@ internal static class StandardCommands
     // \_ : there is no underscore in the text encoding, so LaTeX draws one - a rule 0.3em wide,
     // sitting a little below the baseline. Its neighbours \# \$ \% \& are ordinary glyphs and are
     // handled as symbols instead.
-    private sealed class UnderscoreCommand : ICommandParser
+    private sealed class UnderscoreCommand
     {
         public static UnderscoreCommand Instance { get; } = new();
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var start = context.CommandNameStartPosition;
-            var position = context.ArgumentsStartPosition;
-            var atomSource = context.CommandSource.Segment(start, position - start);
-            var atom = new RuleAtom(atomSource, TexUnit.Em, Width: 0.3, Thickness: 0.04, Shift: -0.06);
-            return new CommandProcessingResult(atom, position);
-        }
     }
 
     // The plain-TeX font switches: \cal, \bf, \it, \rm, \sf, \tt, \frak. Unlike \mathcal{…} they
@@ -1029,7 +694,7 @@ internal static class StandardCommands
     // are written {\cal N} rather than \cal{N}. Nothing in amsmath documents them and they are
     // deprecated in LaTeX2e, but published papers are full of them, so a formula lifted out of one
     // needs them to mean what it meant there.
-    private sealed class FontSwitchCommand : ICommandParser
+    private sealed class FontSwitchCommand
     {
         public static FontSwitchCommand Calligraphic { get; } = new("mathcal");
         public static FontSwitchCommand Bold { get; } = new("mathbf");
@@ -1048,21 +713,6 @@ internal static class StandardCommands
         private FontSwitchCommand(string textStyle)
         {
             _textStyle = textStyle;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var start = context.CommandNameStartPosition;
-
-            // The rest of the group is the argument. As with the style switches, the environment is
-            // kept rather than a child one, so a switch inside a matrix cell does not swallow the row
-            // and cell separators.
-            var rest = source.Segment(context.ArgumentsStartPosition);
-            var formula = context.Parser.Parse(rest, _textStyle, context.Environment);
-            var atomSource = source.Segment(start, source.Length - start);
-            var atom = formula.RootAtom ?? (Atom)new NullAtom(atomSource);
-            return new CommandProcessingResult(atom, source.Length);
         }
     }
 
@@ -1132,7 +782,7 @@ internal static class StandardCommands
             ? big.Assemble(delimiter, null, origin)
             : null;
 
-    private sealed class BigDelimiterCommand : ICommandParser
+    private sealed class BigDelimiterCommand
     {
         private const double SmallestHeight = 1.15;
         private const double HeightStep = 0.6;
@@ -1144,17 +794,6 @@ internal static class StandardCommands
         {
             _size = size;
             _type = type;
-        }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var start = context.CommandNameStartPosition;
-            var position = context.ArgumentsStartPosition;
-            var delimiter = TexFormulaParser.ParseDelimiter(source, start, ref position);
-
-            var atomSource = source.Segment(start, position - start);
-            return new CommandProcessingResult(Assemble(delimiter.Name, atomSource, null), position);
         }
 
         /// <summary>
@@ -1173,124 +812,11 @@ internal static class StandardCommands
             };
     }
 
-    // \genfrac{ldelim}{rdelim}{thickness}{style}{numerator}{denominator}: the general fraction that
-    // every other one in amsmath is spelled with. An empty delimiter argument means no delimiter on
-    // that side, an empty thickness means the default rule, and an empty style means whatever the
-    // surrounding one would have given.
-    private sealed class GenFracCommand : ICommandParser
-    {
-        public static GenFracCommand Instance { get; } = new();
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-
-            var left = ReadDelimiter(source, ref position);
-            var right = ReadDelimiter(source, ref position);
-            var thickness = ReadLiteral(source, ref position);
-            var style = ReadLiteral(source, ref position);
-            var numerator = ReadArgument(context, ref position);
-            var denominator = ReadArgument(context, ref position);
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-
-            FractionAtom fraction;
-            if (thickness.Length == 0)
-            {
-                fraction = new FractionAtom(atomSource, numerator.RootAtom, denominator.RootAtom, true);
-            }
-            else
-            {
-                // A thickness of 0pt is how \binom is written: a fraction with no rule drawn.
-                ParseLength(thickness, @"\genfrac", out var unit, out var value);
-                fraction = new FractionAtom(atomSource, numerator.RootAtom, denominator.RootAtom, unit, value);
-            }
-
-            if (style.Length > 0)
-                fraction = fraction with { OverrideStyle = ParseStyle(style) };
-
-            // Delimiters stand where the null delimiter space otherwise goes.
-            if (left != null || right != null)
-                fraction = fraction with { SuppressNullDelimiterSpace = true };
-
-            Atom atom = left == null && right == null
-                ? fraction
-                : new FencedAtom(atomSource, fraction, left, right);
-            return new CommandProcessingResult(atom, position);
-        }
-
-        private static SymbolAtom? ReadDelimiter(SourceSpan source, ref int position)
-        {
-            var after = TexFormulaParser.ReadElement(source, position);
-            position = after.position;
-            return after.source.ToString().Trim().Length == 0
-                ? null
-                : TexFormulaParser.GetDelimiterAtom(after.source, after.source);
-        }
-
-        /// <summary>Reads an argument that is a length or a digit, not maths.</summary>
-        private static string ReadLiteral(SourceSpan source, ref int position)
-        {
-            var after = TexFormulaParser.ReadElement(source, position);
-            position = after.position;
-            return after.source.ToString().Trim();
-        }
-
-        private static TexStyle ParseStyle(string text) => text switch
-        {
-            "0" => TexStyle.Display,
-            "1" => TexStyle.Text,
-            "2" => TexStyle.Script,
-            "3" => TexStyle.ScriptScript,
-            _ => throw new TexParseException($"\\genfrac takes a style of 0 to 3, not \"{text}\"."),
-        };
-    }
-
     // \hdotsfor[spacing]{n}: a run of dots across n columns of a matrix, standing in for a row of
     // entries left unwritten.
-    private sealed class HDotsForCommand : ICommandParser
+    private sealed class HDotsForCommand
     {
         public static HDotsForCommand Instance { get; } = new();
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-
-            var spacing = 1.0;
-            var spacingText = TexFormulaParser.ReadElementGroupOptional(source, ref position, '[', ']')?.ToString();
-            if (spacingText != null &&
-                !double.TryParse(spacingText.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out spacing))
-                throw new TexParseException($"Invalid \\hdotsfor spacing: \"{spacingText}\".");
-
-            var afterCount = TexFormulaParser.ReadElement(source, position);
-            position = afterCount.position;
-            var countText = afterCount.source.ToString().Trim();
-            if (!int.TryParse(countText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var columns) ||
-                columns < 1)
-                throw new TexParseException($"\\hdotsfor needs a column count, not \"{countText}\".");
-
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            return new CommandProcessingResult(new HDotsForAtom(atomSource, columns, spacing), position);
-        }
-    }
-
-    // Reads past a command's arguments without doing anything with them: a starred form, then an
-    // optional [...] group where the command has one, then its mandatory {...} groups.
-    private static int SkipArguments(CommandContext context, int mandatory, bool optional)
-    {
-        var source = context.CommandSource;
-        var position = context.ArgumentsStartPosition;
-        if (position < source.Length && source[position] == '*')
-            position++;
-        if (optional)
-            TexFormulaParser.ReadElementGroupOptional(source, ref position, '[', ']');
-        for (var i = 0; i < mandatory; i++)
-            position = TexFormulaParser.ReadElement(source, position).position;
-        return position;
     }
 
     /// <summary>
@@ -1299,7 +825,7 @@ internal static class StandardCommands
     /// to, so the command has no work left to do. Rejecting it would only make a formula lifted out
     /// of a paper unrenderable over a detail that could never have shown up anyway.
     /// </summary>
-    private sealed class DiscardedCommand : ICommandParser
+    private sealed class DiscardedCommand
     {
         public static DiscardedCommand Bare { get; } = new(0, optional: false);
         public static DiscardedCommand BareOrOptional { get; } = new(0, optional: true);
@@ -1315,28 +841,15 @@ internal static class StandardCommands
             _mandatory = mandatory;
             _optional = optional;
         }
-
-        public CommandProcessingResult ProcessCommand(CommandContext context) =>
-            new(null, SkipArguments(context, _mandatory, _optional));
     }
 
     /// <summary>
     /// A command whose LaTeX-level effect is page layout but whose argument is real maths -
     /// <c>\shoveleft</c> and <c>\shoveright</c>. The layout goes; the contents stay.
     /// </summary>
-    private sealed class TransparentCommand : ICommandParser, IAssembleCommand
+    private sealed class TransparentCommand : IAssembleCommand
     {
         public static TransparentCommand Instance { get; } = new();
-
-        public CommandProcessingResult ProcessCommand(CommandContext context)
-        {
-            var source = context.CommandSource;
-            var position = context.ArgumentsStartPosition;
-            var argument = ReadArgument(context, ref position);
-            var start = context.CommandNameStartPosition;
-            var atomSource = source.Segment(start, position - start);
-            return new CommandProcessingResult(argument.RootAtom ?? new NullAtom(atomSource), position);
-        }
 
         /// <summary>What was inside it, and nothing of its own: the layout goes, the contents stay.</summary>
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
@@ -1348,19 +861,9 @@ internal static class StandardCommands
     /// document is already its own display, with no page, no equation numbers, and no margins to be
     /// flush with. The wrapper is dropped and the body parsed in its place.
     /// </summary>
-    private sealed class TransparentEnvironment : IEnvironmentParser
+    private sealed class TransparentEnvironment
     {
         public static TransparentEnvironment Instance { get; } = new();
-
-        public EnvironmentProcessingResult ProcessEnvironment(EnvironmentContext context)
-        {
-            var formula = context.Parser.Parse(
-                context.EnvironmentBodySource,
-                context.Formula.TextStyle,
-                context.Environment.CreateChildEnvironment());
-            return new EnvironmentProcessingResult(
-                formula.RootAtom ?? new NullAtom(context.EnvironmentSource));
-        }
     }
 
     /// <summary>
@@ -1368,28 +871,13 @@ internal static class StandardCommands
     /// column pairs. That count exists to set inter-column spacing across a page of text, and has
     /// nothing to govern here, so it is read and dropped.
     /// </summary>
-    private sealed class CountedAlignEnvironment : IEnvironmentParser
+    private sealed class CountedAlignEnvironment
     {
         public static CountedAlignEnvironment Instance { get; } = new();
-
-        public EnvironmentProcessingResult ProcessEnvironment(EnvironmentContext context)
-        {
-            var body = context.EnvironmentBodySource;
-            var position = 0;
-            while (position < body.Length && char.IsWhiteSpace(body[position]))
-                position++;
-
-            // The count is mandatory in LaTeX, so a leading group is always it - but a formula written
-            // by hand often leaves it out, and there is nothing here that needs it.
-            if (position < body.Length && body[position] == '{')
-                body = body.Segment(TexFormulaParser.ReadElement(body, position).position);
-
-            return MatrixCommandParser.Align.ProcessEnvironment(context with { EnvironmentBodySource = body });
-        }
     }
 
-    internal static readonly IReadOnlyDictionary<string, ICommandParser> Dictionary =
-        new Dictionary<string, ICommandParser>
+    internal static readonly IReadOnlyDictionary<string, object?> Dictionary =
+        new Dictionary<string, object?>
         {
             [@"\"] = new NewLineCommand(),
             ["binom"] = BinomCommand.Plain,
@@ -1451,8 +939,7 @@ internal static class StandardCommands
             ["mathpunct"] = AtomTypeCommand.Punctuation,
             ["mathinner"] = AtomTypeCommand.Inner,
             ["_"] = UnderscoreCommand.Instance,
-            ["genfrac"] = GenFracCommand.Instance,
-            ["big"] = new BigDelimiterCommand(0, TexAtomType.Ordinary),
+            ["genfrac"] = GenFracCommand.Instance,            ["big"] = new BigDelimiterCommand(0, TexAtomType.Ordinary),
             ["bigl"] = new BigDelimiterCommand(0, TexAtomType.Opening),
             ["bigr"] = new BigDelimiterCommand(0, TexAtomType.Closing),
             ["bigm"] = new BigDelimiterCommand(0, TexAtomType.Relation),
@@ -1515,6 +1002,7 @@ internal static class StandardCommands
             ["Huge"] = StyleCommand.Unchanged,
             ["pmod"] = ParenModCommand.Pmod,
             ["pod"] = ParenModCommand.Pod,
+            ["mod"] = ParenModCommand.Mod,
 
             // Numbering, cross references and page layout: read and dropped. See DiscardedCommand.
             ["tag"] = DiscardedCommand.OneArgument,
@@ -1534,7 +1022,7 @@ internal static class StandardCommands
             ["DeclarePairedDelimiter"] = DiscardedCommand.ThreeArguments,
             ["shoveleft"] = TransparentCommand.Instance,
             ["shoveright"] = TransparentCommand.Instance,
-            ["begin"] = new ProcessEnvironmentCommand()
+            ["begin"] = null
         };
 
     /// <summary>
@@ -1565,8 +1053,8 @@ internal static class StandardCommands
         }
     }
 
-    internal static readonly IReadOnlyDictionary<string, IEnvironmentParser> Environments =
-        new Dictionary<string, IEnvironmentParser>
+    internal static readonly IReadOnlyDictionary<string, object> Environments =
+        new Dictionary<string, object>
         {
             ["array"] = ArrayCommandParser.Instance,
             ["align"] = MatrixCommandParser.Align,

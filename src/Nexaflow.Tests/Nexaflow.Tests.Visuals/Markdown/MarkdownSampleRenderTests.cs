@@ -3,6 +3,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using System.IO;
 using MdMarkdown = Markdig.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -78,17 +80,25 @@ public class MarkdownSampleRenderTests
     });
 
     /// <summary>
-    /// The <c>latex-math-*.md</c> references claim that every formula in them uses only constructs the
-    /// engine supports. This holds them to it, through the same check the renderer makes
-    /// (<see cref="WpfMath.Controls.FormulaControl.HasError"/>): a formula that stops typesetting fails
-    /// here instead of quietly turning a reference page into a wall of raw LaTeX. The symbols page
-    /// deliberately shows one unsupported formula to demonstrate the fallback, and that one is
-    /// required to keep failing.
+    /// Every formula in the latex-math-* samples is set, save the ones named below.
+    ///
+    /// <para>
+    /// Asked of <see cref="LatexLayout"/>, which is what draws the page. It used to be asked of
+    /// FormulaControl, a control nothing ships with any more, which read the formula with the engine's own
+    /// parser — so this measured a reader the app had stopped using and went on passing while the real one
+    /// could not set <c>\mod</c>, <c>\genfrac</c> or <c>\limits</c> at all. Two of those are fixed; the
+    /// third is named here rather than hidden, and the count is asserted so a fourth cannot join it
+    /// quietly.
+    /// </para>
     /// </summary>
     [TestMethod]
     public void LatexMathSamplesTypeset() => UiThread.Run(() =>
     {
-        const string deliberatelyUnsupported = @"\sideset";
+        // Not "unsupported by design" — a gap, written down. \limits and \nolimits say whether a big
+        // operator wears its scripts over and under or beside it, and nothing here reads them: they were
+        // handled only by the reader that has gone. The fix is the reading's, not the builder's — the
+        // operator and the word after it are one thing, the way `\not` and what it crosses are.
+        string[] known = [@"\sideset", @"\limits", @"\nolimits", @"\hline"];
 
         var files = TestSampleData.Files("markdown")
             .Where(p => Path.GetFileName(p).StartsWith("latex-math-", StringComparison.Ordinal))
@@ -104,11 +114,14 @@ public class MarkdownSampleRenderTests
             foreach (var math in doc.Descendants().OfType<Markdig.Extensions.Mathematics.MathInline>())
             {
                 string latex = math.Content.ToString();
-                bool   ok    = !new WpfMath.Controls.FormulaControl { Formula = latex }.HasError;
 
-                if (latex.Contains(deliberatelyUnsupported, StringComparison.Ordinal))
+                var layout = LatexLayout.Build(latex, 20);
+                var ok = layout is not null
+                         && !layout.Tree.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
+
+                if (known.Any(gap => latex.Contains(gap, StringComparison.Ordinal)))
                 {
-                    Assert.IsFalse(ok, $"{name}: the fallback demo now typesets: {latex}");
+                    Assert.IsFalse(ok, $"{name}: a known gap now typesets — take it off the list: {latex}");
                     fellBack++;
                 }
                 else
@@ -120,7 +133,7 @@ public class MarkdownSampleRenderTests
         }
 
         Assert.AreNotEqual(0, typeset, "no formula was found in the latex-math-* samples");
-        Assert.AreEqual(1, fellBack, "the fallback demo should be the only formula that does not typeset");
+        Assert.AreEqual(3, fellBack, "exactly the formulas naming a known gap should fail to typeset");
     });
 
     /// <summary>The <c>music-*.md</c> references parse into <c>#% … #%</c> music blocks and engrave (or

@@ -1184,12 +1184,16 @@ public static class TexFormulaBuilder
         // wins where there is one, so characters inside a \mathrm stay in it.
         style ??= TexUtilities.TextStyleName;
 
-        var row = new RowAtom(null);
+        // A thin space at each end. Two of these in a row — `\bbox { 1 } , \bbox { 1 }` — ran together
+        // into one unreadable word, and what somebody has to do with a stretch shown this way is read it
+        // and then select it. Room around it makes both easier, and it is the one thing on the page that
+        // is not trying to look like the formula it stands in.
+        var row = new RowAtom(null).Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0));
 
         foreach (var letter in text)
             row = row.Add(char.IsWhiteSpace(letter) ? new SpaceAtom(null) : (Atom)new CharAtom(null, letter, style));
 
-        return row;
+        return row.Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0));
     }
 
     /// <summary>

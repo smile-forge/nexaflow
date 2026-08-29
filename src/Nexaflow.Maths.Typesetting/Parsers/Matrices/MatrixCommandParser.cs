@@ -6,7 +6,7 @@ using XamlMath.Exceptions;
 namespace XamlMath.Parsers.Matrices;
 
 /// <summary>A parser for matrix-like constructs.</summary>
-internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
+internal sealed class MatrixCommandParser
 {
     // An aligned block is not a table: its columns are an equation and its parts, so they keep the
     // close spacing they had rather than taking a column gap.
@@ -57,39 +57,6 @@ internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
         // A table struts its rows a line apart; an aligned block and a stacked limit set theirs solid
         // and space them with padding of their own instead.
         _rowStrut = verticalPadding == 0;
-    }
-
-    public CommandProcessingResult ProcessCommand(CommandContext context)
-    {
-        var position = context.ArgumentsStartPosition;
-        var source = context.CommandSource;
-
-        if (position == source.Length)
-            throw new TexParseException("illegal end!");
-
-        var afterCells = TexFormulaParser.ReadElement(source, position);
-        position = afterCells.position;
-        var cellsSource = afterCells.source;
-        var matrixSource = context.CommandSource.Segment(
-            context.CommandNameStartPosition,
-            position - context.CommandNameStartPosition);
-
-        var envContext = new EnvironmentContext(
-            context.Parser,
-            context.Formula,
-            context.Environment,
-            matrixSource,
-            cellsSource);
-        var result = ProcessEnvironment(envContext);
-        return new CommandProcessingResult(result.Atom, position, result.AppendMode);
-    }
-
-    public EnvironmentProcessingResult ProcessEnvironment(EnvironmentContext context)
-    {
-        var cells = ReadMatrixCells(
-            context.Parser, context.Formula, context.EnvironmentBodySource, context.Environment);
-
-        return new EnvironmentProcessingResult(Assemble(context.EnvironmentSource, cells));
     }
 
     /// <summary>
@@ -146,44 +113,6 @@ internal sealed class MatrixCommandParser : ICommandParser, IEnvironmentParser
             atom = new StyleAtom(source, atom, style) { Origin = origin };
 
         return atom;
-    }
-
-    private static List<List<Atom>> ReadMatrixCells(
-        TexFormulaParser parser,
-        TexFormula formula,
-        SourceSpan source,
-        ICommandEnvironment parentEnvironment)
-    {
-        var rows = new List<List<Atom>> { new List<Atom>() }; // enter first row by default
-
-        // Commands from the environment will add all the finished cells to the matrix body, but the last one should
-        // be extracted here.
-        var environment = new MatrixInternalEnvironment(parentEnvironment, rows);
-        var lastCellAtom = parser.Parse(source, formula.TextStyle, environment).RootAtom;
-        {
-            var lastRow = rows.LastOrDefault();
-            if (lastRow == null)
-                rows.Add(lastRow = new List<Atom>());
-
-            // A cell with nothing in it is still a cell, so a trailing `&` leaves one behind rather than
-            // nothing at all — the last cell was the one position in a matrix where it did not.
-            //
-            // But only where a row is actually being closed. A trailing `\\` opens a row that is not a
-            // row, and the rule just below drops it for being empty; filling it would keep it, and
-            // "a & b \\" would set as a matrix with a blank line hanging under it.
-            if (lastCellAtom != null) lastRow.Add(lastCellAtom);
-            else if (lastRow.Count > 0) lastRow.Add(new NullAtom());
-        }
-
-        // "a & b \ c & d \\" is a normal way to write a matrix out, and the \ at the end closes the
-        // last row rather than opening another. An empty row left behind would be a blank line the
-        // grid grows to fit, and the delimiters around it grow again to cover that.
-        if (rows.Count > 1 && rows[rows.Count - 1].Count == 0)
-            rows.RemoveAt(rows.Count - 1);
-
-        MakeRectangular(rows);
-
-        return rows;
     }
 
     /// <summary>

@@ -44,7 +44,6 @@
     <EmbeddedResource Include="Data\DefaultTexFont.xml" />
     <EmbeddedResource Include="Data\GlueSettings.xml" />
     <EmbeddedResource Include="Data\PredefinedColors.xml" />
-    <EmbeddedResource Include="Data\PredefinedTexFormulas.xml" />
     <EmbeddedResource Include="Data\TexFormulaSettings.xml" />
     <EmbeddedResource Include="Data\TexSymbols.xml" />
   </ItemGroup>
