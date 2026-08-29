@@ -1,3 +1,4 @@
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -35,13 +36,30 @@ public sealed class ProductStore
 
     private static readonly JsonSerializerOptions Json = ProductJson.Options;
 
-    private readonly string _root;   // the folder that contains .product/
-    private readonly string _dir;    // <root>/.product
+    private readonly string _root;         // the folder that contains .product/
+    private readonly string _dir;          // <root>/.product
+    private readonly string? _graphScope;  // a working tree's own name, when the graph is scoped to one
 
-    public ProductStore(string productRoot)
+    public ProductStore(string productRoot) : this(productRoot, null) { }
+
+    /// <param name="graphScope">
+    /// A working tree's name, when the <b>derived graph</b> should be that tree's own rather than the shared
+    /// one. The authored tree (product.json, tree.json) is unaffected and always shared — only the graph,
+    /// which is a function of source and therefore differs per branch, is scoped.
+    /// </param>
+    public ProductStore(string productRoot, string? graphScope)
     {
-        _root = productRoot;
-        _dir  = DotProductDir(productRoot);
+        _root       = productRoot;
+        _dir        = DotProductDir(productRoot);
+        _graphScope = Sanitise(graphScope);
+    }
+
+    /// <summary>A directory-safe form of a working tree's name.</summary>
+    private static string? Sanitise(string? scope)
+    {
+        if (scope is not { Length: > 0 }) return null;
+        var safe = new string([.. scope.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '-' : c)]);
+        return safe.Trim('.', ' ') is { Length: > 0 } cleaned ? cleaned : null;
     }
 
     public static string DotProductDir(string productRoot) => Path.Combine(productRoot, ".product");
@@ -106,11 +124,25 @@ public sealed class ProductStore
 
     // ── Knowledge graph (derived — regenerate with `graph`; the Graph viewer opens this file) ──
 
+    /// <summary>
+    /// Where the derived graph lives: <c>.product/</c> for the main checkout, or
+    /// <c>.product/worktrees/&lt;branch&gt;/</c> when scoped to one.
+    /// <para>
+    /// The tree is authored and shared, so it stays in one place. The graph is <i>derived from source</i>,
+    /// and source differs per branch — so one shared graph meant a worktree either read another branch's
+    /// view of the code or overwrote it with its own. Giving each working tree its own copy makes "is this
+    /// graph describing my code?" answerable with yes, which is the whole point of the freshness check.
+    /// </para>
+    /// </summary>
+    private string GraphDir => _graphScope is { Length: > 0 } scope
+        ? Path.Combine(_dir, "worktrees", scope)
+        : _dir;
+
     /// <summary>On-disk path of the generated knowledge graph (the file the Graph viewer opens).</summary>
-    public string GraphFilePath => Path.Combine(_dir, "graph.json");
+    public string GraphFilePath => Path.Combine(GraphDir, "graph.json");
 
     /// <summary>Per-file incremental build state (content hashes + cached contributions). Derived — safe to delete.</summary>
-    public string GraphCacheFilePath => Path.Combine(_dir, "graph-cache.json");
+    public string GraphCacheFilePath => Path.Combine(GraphDir, "graph-cache.json");
 
     /// <summary>The last generated graph, or null when <c>graph</c> has never run for this product.</summary>
     public KnowledgeGraph? LoadGraph() => Read<KnowledgeGraph>(GraphFilePath);

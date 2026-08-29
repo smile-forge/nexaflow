@@ -310,14 +310,35 @@ public class GraphEditTests
 
     // ── Refusals: the whole point ───────────────────────────────────────────
 
+    /// <summary>
+    /// A path that no longer resolves is recovered by name where it can be — but when the NAME is gone too
+    /// there is nothing to recover to, and inventing a target would be the one unforgivable behaviour.
+    /// </summary>
     [TestMethod]
-    public void RefusesWhenTheAstPathNoLongerResolves()
+    public void RefusesWhenNeitherThePathNorTheNameIsThere()
     {
         var stale = GraphWith("code:src/Sample.cs#T:C/M:Gone", "Gone", "T:C/M:Gone");
         var result = GraphEdit.Plan(stale, "code:src/Sample.cs#T:C/M:Gone", StructuralEdit.Op.Delete, null, Reader(Source));
 
         Assert.IsFalse(result.Ok);
-        StringAssert.Contains(result.Message, "no longer resolves");
+        StringAssert.Contains(result.Message, "Nothing named 'Gone'");
+    }
+
+    /// <summary>
+    /// The everyday case the tool used to refuse: the record's path is out of date because the graph was
+    /// built from another checkout. The declaration is still there under a different path, so the edit
+    /// should just work — being sent away to rebuild a graph is what made this feel untrustworthy.
+    /// </summary>
+    [TestMethod]
+    public void APathFromAnOlderBuild_IsRecoveredRatherThanRefused()
+    {
+        var moved  = GraphWith("code:src/Sample.cs#T:Old/M:Add", "Add", "T:Old/M:Add");
+        var result = GraphEdit.Plan(moved, "code:src/Sample.cs#T:Old/M:Add", StructuralEdit.Op.Rename,
+                                    null, Reader(Source), renameTo: "Plus");
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(result.Changes[0].NewText, "public int Plus(int a, int b)");
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("re-found")));
     }
 
     [TestMethod]
@@ -349,6 +370,60 @@ public class GraphEditTests
 
         Assert.IsFalse(result.Ok, "a caller pinning the edit to what it read should be honoured");
         StringAssert.Contains(result.Message, "expected text");
+    }
+
+    // ── The graph is how you find an id, not what makes one valid ───────────
+
+    /// <summary>
+    /// A <c>code:&lt;file&gt;#&lt;astpath&gt;</c> id already names the file and the declaration, so an id the
+    /// graph has not indexed is still editable — a file created a moment ago, or one on a branch the graph
+    /// was not built from. Requiring a rebuild first would mean a minute and a half of waiting for a check
+    /// the file itself provides, and is why the tool felt untrustworthy between rebuilds.
+    /// </summary>
+    [TestMethod]
+    public void ANodeTheGraphHasNeverSeen_IsStillEditable()
+    {
+        var empty  = new KnowledgeGraph();      // nothing indexed at all
+        var result = GraphEdit.Plan(empty, "code:src/Sample.cs#T:C/M:Add", StructuralEdit.Op.Rename,
+                                    null, Reader(Source), renameTo: "Plus");
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(result.Changes[0].NewText, "public int Plus(int a, int b)");
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("not in the graph")),
+            "the caller should know the graph's name check did not run");
+    }
+
+    [TestMethod]
+    public void AFileIdReachesWhatIsInNoDeclaration()
+    {
+        const string withNamespace = "namespace Old.Name;\n\nclass C\n{\n    void M() { }\n}\n";
+
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "file:src/Sample.cs", StructuralEdit.Op.Substitute,
+            "namespace New.Name;", Reader(withNamespace),
+            new StructuralEdit.Options(Find: "namespace Old.Name;"));
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(result.Changes[0].NewText, "namespace New.Name;");
+    }
+
+    [TestMethod]
+    public void AFileIdIsRefusedForAnOpThatNeedsADeclaration()
+    {
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "file:src/Sample.cs", StructuralEdit.Op.Rename,
+                                    null, Reader(Source), renameTo: "Plus");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "names a file rather than a declaration");
+    }
+
+    [TestMethod]
+    public void AnIdThatIsNeitherKnownNorParseable_SaysSo()
+    {
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "product:whatever", StructuralEdit.Op.Delete,
+                                    null, Reader(Source));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "graph search");
     }
 
     [TestMethod]

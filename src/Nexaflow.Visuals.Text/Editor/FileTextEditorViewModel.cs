@@ -451,7 +451,9 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             + "edits exactly the declaration named and nothing else, and it re-parses the result and refuses "
             + "rather than leaving the file broken. Do not worry about indentation or line endings — write "
             + "the replacement flush-left with \\n and it lands correctly indented with the file's own "
-            + "endings. Get ast_path from list_declarations.",
+            + "endings. Get ast_path from list_declarations — and if the file has changed since you listed "
+            + "it, a path that has moved is re-found by name rather than refused, so an older listing is "
+            + "usually still fine.",
             [
                 new ClientToolParameter("ast_path",
                     "Which declaration, from list_declarations (e.g. 'T:C/M:Add'). Not needed for 'import'.",
