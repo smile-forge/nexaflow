@@ -49,7 +49,7 @@ public static class TexPipeline
     public static TexNode Read(string latex, Func<string, bool>? draws = null,
                                (int Start, int Length)? editing = null, bool holes = false)
     {
-        var tree = TexParser.Parse(latex);
+        var tree = Gathered(TexParser.Parse(latex));
 
         if (holes) tree = WithHoles(tree);
         if (draws is not null) tree = Checked(tree, draws);
@@ -97,6 +97,100 @@ public static class TexPipeline
     /// </para>
     /// </summary>
     public static TexNode WithHoles(TexNode tree) => Hollow(tree);
+
+    /// <summary>
+    /// The same tree with a sign that was written as several things gathered into the one node it means.
+    ///
+    /// <para>
+    /// The mirror of macro expansion, and it is worth seeing them as a pair. Expansion hangs structure
+    /// underneath that stands for <em>no</em> source — zero width, never printed. This re-nests structure
+    /// that stands for <em>all</em> of its source: every token stays, in the order it was written, and only
+    /// the shape over them changes. Both leave the tree printing as what it came from, which is the one
+    /// rule here.
+    /// </para>
+    /// <para>
+    /// <c>\not</c> is the case that needs it. It draws a slash over whatever follows, so <c>\not=</c> is
+    /// already one node meaning one sign — but physics writes <c>\not\!p</c>, pulling the slash onto the
+    /// letter with a kern, and a kern is not something to draw over. Read strictly, the <c>\!</c> becomes
+    /// the argument and the <c>p</c> is left outside as a neighbour, which is neither what was meant nor
+    /// something the builder can act on without reaching sideways out of its own node.
+    /// </para>
+    /// <para>
+    /// TeX agrees with the gathering rather than with the strict reading: <c>\not</c> overlays the next
+    /// <em>atom</em>, and a kern is not an atom. So this is the faithful shape and the parser's is the
+    /// literal one — which is the division of labour, the parser reading what is written and a stage
+    /// saying what it amounts to.
+    /// </para>
+    /// </summary>
+    public static TexNode Gathered(TexNode tree) => Gather(tree);
+
+    /// <summary>Whether this piece takes up room without drawing anything - a kern, or written space.</summary>
+    private static bool IsRoom(TexNode node) =>
+        node.Kind is TexKind.Space or TexKind.Comment
+        || (node.Kind == TexKind.Command
+            && node.Part(TexRole.Name)?.Text is { } name
+            && TexCommands.IsSpacing(name));
+
+    /// <summary>A <c>\not</c> whose argument turned out to be a kern, so what it slashes is further on.</summary>
+    private static bool IsReaching(TexNode node) =>
+        node.Kind == TexKind.Command
+        && node.Part(TexRole.Name)?.Text == @"\not"
+        && node.Part(TexRole.Base) is { } written
+        && IsRoom(written);
+
+    private static TexNode Gather(TexNode node)
+    {
+        if (node.IsLeaf) return node;
+
+        var rebuilt = new List<TexNode>(node.Children.Count);
+        var moved = false;
+
+        for (var at = 0; at < node.Children.Count; at++)
+        {
+            var child = Gather(node.Children[at]);
+            moved |= !ReferenceEquals(child, node.Children[at]);
+
+            if (IsReaching(child))
+            {
+                // Everything between the slash and what it is drawn over comes with it: the kern is what
+                // puts the one on the other, so it belongs inside the sign rather than beside it.
+                var next = at + 1;
+                var between = new List<TexNode>();
+                while (next < node.Children.Count && IsRoom(node.Children[next]))
+                    between.Add(Gather(node.Children[next++]));
+
+                if (next < node.Children.Count)
+                {
+                    rebuilt.Add(Slashing(child, between, Gather(node.Children[next])));
+                    at = next;
+                    moved = true;
+                    continue;
+                }
+            }
+
+            rebuilt.Add(child);
+        }
+
+        return moved ? node.With(rebuilt) : node;
+    }
+
+    /// <summary>
+    /// One <c>\not</c> node holding the whole sign: its name, the room written after it, and the thing the
+    /// slash goes over — in the order they were written, which is what keeps this printable.
+    /// </summary>
+    private static TexNode Slashing(TexNode reaching, List<TexNode> between, TexNode over)
+    {
+        var children = new List<TexNode>(reaching.Children.Count + between.Count + 1);
+
+        // The old argument was the first kern. It keeps its place and stops being the argument.
+        foreach (var child in reaching.Children)
+            children.Add(child.Role == TexRole.Base ? child.As(TexRole.Element) : child);
+
+        children.AddRange(between);
+        children.Add(over.As(TexRole.Base));
+
+        return reaching.With(children);
+    }
 
     private static TexNode Hollow(TexNode node)
     {
@@ -200,7 +294,12 @@ public static class TexPipeline
         // nobody has heard of is usually ordinary maths a reader can see and would miss.
         //
         // A command that resolved to something is drawable by definition, whatever its own name means.
-        var name = node.Kind == TexKind.Command && node.Part(TexRole.Expansion) is null
+        // \begin and \end are the structure of an environment rather than anything drawn in it, so asking
+        // whether a typesetter has a drawing for them is the wrong question — and answering it put a red
+        // wave under the \end of every correctly set array.
+        var name = node.Kind == TexKind.Command
+                   && node.Role is not (TexRole.Begin or TexRole.End)
+                   && node.Part(TexRole.Expansion) is null
             ? node.Part(TexRole.Name)
             : null;
 

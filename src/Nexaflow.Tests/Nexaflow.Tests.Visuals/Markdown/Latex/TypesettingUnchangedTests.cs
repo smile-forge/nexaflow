@@ -62,7 +62,11 @@ public class TypesettingUnchangedTests
         ["accents and arrows"] = "195E9AEA77EA1A0A",
         ["fences and delimiters"] = "EB24F7C32E81A8E7",
         ["matrices and environments"] = "AFE71FA801602FA1",
-        ["aligned and gathered blocks"] = "BB2AC1E5F464D80A",
+        // Moved 2026-08-29 with the array work: an array is strutted like the table it is, and no longer
+        // spaced by a bare 0.35 of padding, so its rows sit a line apart. And a row taller than its strut
+        // keeps at least TeX %s lineskip beneath the one above, which is what stopped `\frac T m` over
+        // `\frac 1 3` putting the m and the 1 in the same pixels.
+        ["aligned and gathered blocks"] = "925C975D6DD4248B",
         ["stacked and gathered"] = "AEE4C548EF2E7028",
         // These three moved 2026-08-29, when the engine's own parser stopped being a fallback and every
         // formula started being set from our reading. All three contain constructs that used to decline
@@ -74,8 +78,12 @@ public class TypesettingUnchangedTests
         // put the mean ink overlap at 0.7727 where the fallback had it at 0.7733, and took the count
         // that draw nothing at all from 8 to 0.
         ["text styles and fonts"] = "FCAB07860B836086",
-        ["spacing, dots and modular arithmetic"] = "2997F89D7D3782B0",
-        ["colour, phantoms and overlap"] = "0BD3C607EDD1FB37",
+        // These two moved 2026-08-29 because two things stopped being set as their own characters. `\ `
+        // is drawn by the builder and was not in the table the reading asks whether anything can draw it,
+        // so it came out red; and characters shown because nothing could read or draw them are now set as
+        // text rather than as maths, where a backslash and a brace have no glyph worth the name.
+        ["spacing, dots and modular arithmetic"] = "7CF430F82EBD42F0",
+        ["colour, phantoms and overlap"] = "0A2E6E8D5C986170",
         ["styles and sizes"] = "CAE74BF57299F92F",
         // Moved 2026-08-29, and for the reason this guard exists to make somebody give: \mapsto is now
         // set as TeX sets it. Computer Modern has a \mapstochar — zero width, on the axis, made for

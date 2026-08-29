@@ -34,6 +34,11 @@ public class TexFormulaParser
     /// </summary>
     private static readonly HashSet<string> embeddedCommands = new()
     {
+        // The written inter-word spaces. The builder sets both directly, so a reading that asked whether
+        // anything could draw them and was told no put a red wave under a space somebody meant.
+        " ",
+        "nbsp",
+
         "color",
         "colorbox",
         "frac",

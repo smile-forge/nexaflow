@@ -245,18 +245,33 @@ public static class TexFormulaBuilder
         var preamble = option.Print();
         if (preamble.Length < 2 || preamble[0] != '{' || preamble[^1] != '}') return null;
 
+        var written = preamble[1..^1];
+        var columns = cells.Count == 0 ? 0 : cells.Max(row => row.Count);
+        if (columns == 0) return null;
+
         ArrayColumnSpec spec;
 
-        // A preamble is written in a small language of its own — `@{}`, `*{3}{c}`, `p{2cm}` — and only
-        // some of it can be drawn. Not being able to read one is a decline like any other: building never
-        // throws, so that a formula this cannot manage costs coverage and never a rendering.
-        try
+        // A preamble naming no column at all. LaTeX refuses `\begin{array}{}` and the corpus carries it
+        // regardless, so refusing it here bought nothing and cost the whole formula: declining sends the
+        // array back to be shown as its own characters, and a reader offered `\begin{array}` in place of
+        // a matrix has been given the worse of the two.
+        if (!written.Any(c => c is 'l' or 'c' or 'r'))
         {
-            spec = ArrayColumnSpec.Parse(preamble[1..^1]);
+            spec = ArrayColumnSpec.Centred(columns);
         }
-        catch (TexParseException)
+        else
         {
-            return null;
+            // A preamble is written in a small language of its own — `@{}`, `*{3}{c}`, `p{2cm}` — and only
+            // some of it can be drawn. Not being able to read one is a decline like any other: building never
+            // throws, so that a formula this cannot manage costs coverage and never a rendering.
+            try
+            {
+                spec = ArrayColumnSpec.Parse(written);
+            }
+            catch (TexParseException)
+            {
+                return null;
+            }
         }
 
         return ArrayCommandParser.Assemble(null, cells, spec, null, Whole(part));
@@ -754,7 +769,11 @@ public static class TexFormulaBuilder
                 // a relation, and TeX's gaps come from that class — so what is spaced against what
                 // changes. Written as what *is* allowed rather than as a list of what is not, because
                 // three rounds of naming the exceptions each turned up another one.
-                if (!PlainSign(slashed)) return null;
+                // Whatever it was written over. Braces and accents used to be declined here because a slashed group
+                // is an ordinary atom where `\not=` stays a relation, so TeX spaces them differently — but that was
+                // measured against an engine that no longer sets any of this, and a slash drawn a shade too close to
+                // its neighbour beats `\not { \tilde { n } }` set as its own characters.
+                _ = slashed;
 
                 // And not where a script is written on the pair. `\not k_{1}` reads here as the slashed
                 // k wearing the subscript, and in the engine as `\not` on a k that already wears it — a
@@ -762,10 +781,24 @@ public static class TexFormulaBuilder
                 // raise above and belongs with them. Three formulas.
                 if (DeclineUnsettled && part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
 
-                if (Part(part, TexRole.Base, style, knowledge) is not { } negated) return null;
                 if (Symbol("not", part, style, knowledge) is not { } slash) return null;
 
-                return Tag(new RowAtom(null).Add(slash).Add(negated), part);
+                // Everything written after the name, in the order it was written: the kern that puts the slash on
+                // the letter — `\not\!p` — as much as the letter itself. The reading gathered them under this one
+                // node, so setting them is a walk over its children and not a hunt for a neighbour.
+                var sign = new RowAtom(null).Add(slash);
+                foreach (var written in part.Children)
+                {
+                    if (written.Role is not (TexRole.Element or TexRole.Base)) continue;
+
+                    // The letter has to be set — that is the whole sign. A kern or a written space between the two
+                    // that this has no atom for is room the reader asked for and did not get, which is not a reason to
+                    // hand back the sign as its own characters.
+                    if (Of(written, style, knowledge) is { } built) sign = sign.Add(Tag(built, part));
+                    else if (written.Role == TexRole.Base) return null;
+                }
+
+                return Tag(sign, part);
             }
 
             // A length asked for outright. Its argument is a dimension, which is characters and stays
@@ -1107,6 +1140,12 @@ public static class TexFormulaBuilder
     /// </summary>
     private static Atom Letters(string text, string? style)
     {
+        // Set as text, not as maths. These are characters shown because nothing could be read or drawn in
+        // their place, and a backslash or a brace has no maths glyph worth the name — `\begin{array}` came
+        // out as `♭beginiarray℘`, which is worse than useless to whoever has to fix it. The style in hand
+        // wins where there is one, so characters inside a \mathrm stay in it.
+        style ??= TexUtilities.TextStyleName;
+
         var row = new RowAtom(null);
 
         foreach (var letter in text)

@@ -432,4 +432,36 @@ public class LatexLayoutTests
                     > typeset.Tree.RangeRects(tail, latex.Length - tail).Min(rect => rect.Left),
             "the +y after it moved right");
     });
+
+    /// <summary>
+    /// A slashed sign is one thing on the page, however many things were written to make it.
+    ///
+    /// <para>
+    /// <c>\not\!p</c> is a slash, a kern and a letter — three written things, two of them drawn, overlapping
+    /// in the one place. What the reader made is a single sign, so there is one thing to point at, one to
+    /// select, and one for a backspace to take back to its parts. Both pieces name the same node in the
+    /// reading, which is what makes that true of a click as well as of a drag.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void ASlashedSignIsOneThingToPointAt() => UiThread.Run(() =>
+    {
+        const string latex = @"x+\not=y";
+        var tree = Build(latex);
+
+        var sign = tree.Root.Ink().Single(node => node.SourceLength > 1);
+        Assert.AreEqual(@"\not=", latex.Substring(sign.SourceStart, sign.SourceLength),
+            "the slash and what it crosses are one piece of ink, not two");
+
+        // And what is either side of it stayed its own, so the sign is one item among neighbours rather
+        // than something that swallowed them.
+        CollectionAssert.AreEqual(
+            new[] { "x", "+", @"\not=", "y" },
+            tree.Root.Ink().OrderBy(node => node.SourceStart)
+                .Select(node => latex.Substring(node.SourceStart, node.SourceLength)).ToArray());
+
+        // Dragging over any part of it selects all of it.
+        var at = latex.IndexOf('=', StringComparison.Ordinal);
+        Assert.AreEqual((2, 5), tree.SnapRange(at, 1), "selecting the = takes the whole sign");
+    });
 }

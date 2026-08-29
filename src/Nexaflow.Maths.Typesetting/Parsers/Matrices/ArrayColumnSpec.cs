@@ -25,6 +25,17 @@ internal sealed class ArrayColumnSpec
     /// </summary>
     public IReadOnlyCollection<int> VerticalRules { get; }
 
+    /// <summary>
+    /// Every column centred, for an array whose preamble named none.
+    /// <para>
+    /// <c>\begin{array}{}</c> is not legal LaTeX and the corpus has it anyway, rendered. A preamble that
+    /// says nothing is not a reason to draw nothing: the cells already say how many columns there are, and
+    /// centring them is what every matrix does, so it is set as one.
+    /// </para>
+    /// </summary>
+    public static ArrayColumnSpec Centred(int columns) =>
+        new(Enumerable.Repeat(TexAlignment.Center, columns).ToList(), []);
+
     /// <summary>Reads a preamble such as <c>c|cc</c>.</summary>
     /// <exception cref="TexParseException">On anything this implementation cannot draw.</exception>
     public static ArrayColumnSpec Parse(string preamble)

@@ -139,4 +139,53 @@ public class TexPipelineTests
         Assert.IsTrue(seen > 1000, $"only {seen} formula(s) in {corpus} — is that the right file?");
         Assert.AreEqual(0, faults, $"of {seen} formulas, {faults} did not print back{first}");
     }
+
+    /// <summary>
+    /// A sign written as several things is gathered into the one node it means, and the source it prints
+    /// back is untouched.
+    ///
+    /// <para>
+    /// The mirror of macro expansion. Expansion hangs on structure standing for no source; this re-nests
+    /// structure standing for all of it. Read strictly, <c>\not\!p</c> gives the kern to <c>\not</c> as its
+    /// argument and leaves the letter outside as a neighbour — which is neither what a physicist wrote nor
+    /// something the builder could act on without reaching out of its own node.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void ASlashAndWhatItCrossesAreOneSign()
+    {
+        const string latex = @"\not\!p";
+        var tree = TexPipeline.Gathered(TexParser.Parse(latex));
+
+        Assert.AreEqual(latex, tree.Print(), "a stage may re-nest anything and may change no character");
+
+        var sign = tree.Children.Single();
+        Assert.AreEqual(@"\not", sign.Part(TexRole.Name)?.Text, "one node, and it is the \\not");
+        Assert.AreEqual("p", sign.Part(TexRole.Base)?.Print(),
+            "what the slash is drawn over is the letter — a kern is not something to draw over");
+        Assert.AreEqual(@"\!", sign.Part(TexRole.Element)?.Print(),
+            "and the kern that puts it there came inside rather than being dropped");
+    }
+
+    /// <summary>Nothing to gather leaves the tree exactly as it was — the same instance, not a copy.</summary>
+    [TestMethod]
+    public void AndAFormulaWithNoneOfThatIsUntouched()
+    {
+        var read = TexParser.Parse(@"\frac{a}{b} + \not= x");
+        Assert.AreSame(read, TexPipeline.Gathered(read));
+    }
+
+    /// <summary>
+    /// Every corpus construct still prints as what it was written as, once gathered. The stage rewrites
+    /// the shape of a tree and the invariant it may not break is that one.
+    /// </summary>
+    [TestMethod]
+    public void GatheringNeverCostsACharacter()
+    {
+        foreach (var (what, written) in LatexConstructs.Everything)
+        {
+            var latex = LatexConstructs.Flatten(written);
+            Assert.AreEqual(latex, TexPipeline.Gathered(TexParser.Parse(latex)).Print(), what);
+        }
+    }
 }

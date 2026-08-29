@@ -48,6 +48,20 @@ public static class TexCommands
     public static TexEnvironment Environment(string name) =>
         Environments.TryGetValue(name, out var found) ? found : new TexEnvironment(name, Grid: false);
 
+    /// <summary>
+    /// Whether a command is written room rather than something drawn — a kern.
+    /// <para>
+    /// Named here because two readers of the tree need the same answer and must not each keep a list:
+    /// the stage that gathers <c>\not\!p</c> into one sign, and the typesetter deciding what a slash is
+    /// allowed to be drawn over.
+    /// </para>
+    /// </summary>
+    public static bool IsSpacing(string name) =>
+        name is @"\!" or @"\," or @"\:" or @"\;" or @"\ " or @"\quad" or @"\qquad"
+            or @"\thinspace" or @"\medspace" or @"\thickspace"
+            or @"\negthinspace" or @"\negmedspace" or @"\negthickspace"
+            or @"\enspace" or @"\space" or @"\nobreakspace";
+
     private static Dictionary<string, TexCommand> Build()
     {
         var table = new Dictionary<string, TexCommand>(StringComparer.Ordinal);

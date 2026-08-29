@@ -62,6 +62,23 @@ internal sealed record MatrixAtom : Atom
     /// <inheritdoc cref="DefaultRowStrutHeight"/>
     public const double DefaultRowStrutDepth = 0.3 * BaselineSkip * ArrayStretch;
 
+    /// <summary>
+    /// The least room left between one row's ink and the next's — TeX's <c>\lineskip</c>, 1pt.
+    ///
+    /// <para>
+    /// The struts space rows a line apart whatever they hold, but they are a floor and not a gap: a row
+    /// taller than its strut keeps its own height, and two such rows abut exactly. Boxes abutting is not
+    /// the same as ink abutting — a glyph may sit a shade outside the metrics that describe it — so
+    /// <c>\frac T m</c> over <c>\frac 1 3</c> put the m and the 1 in the same pixels.
+    /// </para>
+    /// <para>
+    /// TeX inserts this between two boxes exactly when the natural spacing would be tighter, which is what
+    /// the maximum below says: where the strut binds it already leaves more than this, and where it does
+    /// not this is what keeps the rows apart.
+    /// </para>
+    /// </summary>
+    private const double LineSkip = 0.1;
+
 
     public MatrixAtom(
         SourceSpan? source,
@@ -151,7 +168,7 @@ internal sealed record MatrixAtom : Atom
             // would only inflate the box - and with it the delimiters drawn around the whole thing.
             var naturalAscent = laidOut.Count > 0 ? laidOut.Max(cell => cell.Box.Height) : 0.0;
             var naturalDescent = laidOut.Count > 0 ? laidOut.Max(cell => cell.Box.Depth) : 0.0;
-            var rowAscent = r == 0 ? naturalAscent : Math.Max(naturalAscent, this.RowStrutHeight);
+            var rowAscent = r == 0 ? naturalAscent : Math.Max(naturalAscent + LineSkip, this.RowStrutHeight);
             var rowDescent = r == cells.Length - 1
                 ? naturalDescent
                 : Math.Max(naturalDescent, this.RowStrutDepth);
