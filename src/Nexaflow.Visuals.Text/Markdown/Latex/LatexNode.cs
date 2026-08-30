@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Editing;
@@ -48,12 +49,34 @@ internal sealed class LatexNode : LayoutNode
     /// reference and not a copy of anything — the layout tree stays about layout.
     /// </para>
     /// <para>
-    /// Set once, when the formula is typeset. Today it is worked out by matching the stretch of source
-    /// the box was named for, because the boxes were built by a parser of the typesetter's own; when they
-    /// are built from this tree instead, each box will arrive already knowing and the matching goes.
+    /// Set once, when the formula is typeset, through <see cref="Owns"/> — never assigned directly, so
+    /// what follows from it cannot be set separately and disagree.
     /// </para>
     /// </summary>
-    public Nexaflow.Maths.Latex.TexPart? Part { get; set; }
+    public Nexaflow.Maths.Latex.TexPart? Part { get; private set; }
+
+    /// <summary>
+    /// Says what part of the parse tree this piece was drawn from, and everything that follows from it.
+    /// <para>
+    /// <see cref="ILayoutNode.IsEnclosure"/> is one such thing: whether a caret can be inside this and
+    /// then outside it is a question about the construct, and the part is the only thing that can
+    /// answer it — so it is answered here rather than anywhere that happens to need it.
+    /// </para>
+    /// </summary>
+    public void Owns(Nexaflow.Maths.Latex.TexPart? part)
+    {
+        Part = part;
+        IsEnclosure = part is { } piece && piece.Parts.Any() && !IsRun(piece);
+    }
+
+    /// <summary>
+    /// Whether a part is a run of things rather than one thing made of parts. A row names every piece
+    /// of it <c>element</c>, because that is all a sequence can say about what it holds, where a
+    /// construct names its parts <c>numerator</c>, <c>radicand</c>, <c>superscript</c> — each meaning
+    /// something to the construct. So the roles already carry the distinction.
+    /// </summary>
+    internal static bool IsRun(Nexaflow.Maths.Latex.TexPart part) =>
+        part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Maths.Latex.TexRole.Element);
 
     /// <summary>What this piece drew, in the order it drew it.</summary>
     public IReadOnlyList<LatexMark> Marks => _marks;

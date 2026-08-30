@@ -43,6 +43,20 @@ public interface ILayoutNode
     bool IsInk { get; }
 
     /// <summary>
+    /// Whether a caret inside this is somewhere other than beside it — a script, a fraction, a root:
+    /// one thing made of parts, each meaning something to it. A run of terms is not one, and neither is
+    /// a box the typesetter made to hold a run.
+    /// <para>
+    /// It is what says there are two places at the end of <c>x^2</c>. LaTeX lets a one-token argument go
+    /// unbraced, so the exponent and the script it belongs to finish at the same character — and without
+    /// knowing the script is a thing to be inside of, there is nowhere to say "past it": the caret keeps
+    /// the exponent's height and its raised line, and the next arrow leaves the formula (or, in a matrix,
+    /// the cell) still wearing them.
+    /// </para>
+    /// </summary>
+    bool IsEnclosure { get; }
+
+    /// <summary>
     /// What kind of thing it is, in the content's own vocabulary — enough to recognise a row or a grid.
     /// Deliberately a string: the shared layer never switches on it, and each content type has its own
     /// set.

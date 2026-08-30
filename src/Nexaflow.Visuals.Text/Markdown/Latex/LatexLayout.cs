@@ -155,7 +155,7 @@ public sealed class LatexLayout
     {
         foreach (var node in root.SelfAndDescendants())
             if (node is LatexNode piece)
-                piece.Part = piece.Formula?.Origin;
+                piece.Owns(piece.Formula?.Origin);
     }
 
     /// <summary>

@@ -45,8 +45,8 @@ public sealed class ContentSelection
     {
         if (anchor is null || focus is null) return None;
 
-        if (SharedGrid(anchor, focus) is { } grid)
-            return Block(grid, anchor, focus);
+        if (SharedGrid(anchor, focus) is { } grid && Block(grid, anchor, focus) is { } block)
+            return block;
 
         var from = System.Math.Min(anchor.SourceStart, focus.SourceStart);
         var to = System.Math.Max(anchor.SourceEnd(), focus.SourceEnd());
@@ -66,12 +66,22 @@ public sealed class ContentSelection
         anchor.Ancestors().FirstOrDefault(a =>
             a.SelfAndDescendants().Contains(focus) && a.Grid().Count > 0);
 
-    private static ContentSelection Block(ILayoutNode grid, ILayoutNode anchor, ILayoutNode focus)
+    /// <summary>
+    /// The cells a drag covers, or null when it is not a drag across cells at all — which is the
+    /// caller's cue to read it as an ordinary run.
+    /// </summary>
+    private static ContentSelection? Block(ILayoutNode grid, ILayoutNode anchor, ILayoutNode focus)
     {
         var cells = grid.Grid();
         var (fromRow, fromColumn) = Locate(cells, anchor);
         var (toRow, toColumn) = Locate(cells, focus);
-        if (fromRow < 0 || toRow < 0) return None;
+        if (fromRow < 0 || toRow < 0) return null;
+
+        // Both ends in the one cell is a drag inside it, not a block of cells. A cell is where the
+        // grid stops having anything to say — what was dragged over within it is a run of terms like
+        // any other — and answering "the whole cell" is what made every term in a matrix impossible
+        // to pick out on its own: a cell reading `4b^{2}+3` could be selected entire or not at all.
+        if (fromRow == toRow && fromColumn == toColumn) return null;
 
         var (top, bottom) = fromRow <= toRow ? (fromRow, toRow) : (toRow, fromRow);
         var (left, right) = fromColumn <= toColumn ? (fromColumn, toColumn) : (toColumn, fromColumn);

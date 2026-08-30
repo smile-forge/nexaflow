@@ -328,6 +328,28 @@ public sealed class LatexTree
         return NearestStop(offset);
     }
 
+    /// <summary>
+    /// The place a press means: the stop under the pointer, and which of the bars drawn there is nearest
+    /// to it — so pressing in the space TeX sets around an operator puts the caret in that space, which is
+    /// where the reader pointed and where the arrow key would have taken them.
+    /// <para>
+    /// Ties go to the innermost. Two bars half a pixel apart — inside a trailing exponent and past the
+    /// script — are not something anyone can aim between, and the inner one is where a reader who has
+    /// just clicked behind a <c>2</c> means to be typing.
+    /// </para>
+    /// </summary>
+    public CaretPlace PlaceAt(Point point)
+    {
+        var offset = OffsetAt(point);
+        var bars = Root.CaretBars(offset);
+
+        var level = 0;
+        for (var at = 1; at < bars.Count; at++)
+            if (Math.Abs(bars[at].X - point.X) < Math.Abs(bars[level].X - point.X) - Hair) level = at;
+
+        return new CaretPlace(offset, level);
+    }
+
     // ── Source → geometry ───────────────────────────────────────────────────
 
     /// <summary>
@@ -336,6 +358,12 @@ public sealed class LatexTree
     /// a fraction.
     /// </summary>
     public Rect CaretRect(int offset) => Root.CaretRect(offset);
+
+    /// <summary>Where and how tall to draw the caret at <paramref name="place"/>.</summary>
+    public Rect CaretRect(CaretPlace place) => Root.CaretRect(place);
+
+    /// <summary>How many bars are drawn at <paramref name="offset"/> — see <see cref="CaretPlace"/>.</summary>
+    public int PlacesAt(int offset) => Root.CaretBars(offset).Count;
 
     /// <summary>
     /// The rectangles to wash for the source range — one per run, already merged, so a translucent
@@ -439,6 +467,12 @@ public sealed class LatexTree
     /// which is the host's cue to move the caret out into the surrounding text.
     /// </summary>
     public int? Step(int offset, bool forward) => Root.Step(offset, forward);
+
+    /// <summary>
+    /// The next place in <paramref name="forward"/>'s direction, or null at the formula's edge. Walks the
+    /// bars at one offset before moving on — see <see cref="CaretPlace"/>.
+    /// </summary>
+    public CaretPlace? Step(CaretPlace place, bool forward) => Root.Step(place, forward);
 
     /// <summary>
     /// The nearest caret stop on the line above or below — how the caret crosses a fraction bar or drops
@@ -906,19 +940,11 @@ public sealed class LatexTree
         Innermost(node) is { } part && part.Parts.Any();
 
     /// <summary>
-    /// Whether this piece is a run of things rather than one thing.
-    /// <para>
-    /// A row names every part <c>element</c>, because that is the only thing a sequence can say about
-    /// what is in it — where a construct names its parts <c>numerator</c>, <c>radicand</c>,
-    /// <c>superscript</c>, each meaning something to the construct holding it. So the roles already
-    /// carry the distinction between "one thing made of parts" and "several things in a row", and it
-    /// does not have to be guessed at from spans or sizes.
-    /// </para>
+    /// Whether this piece is a run of things rather than one thing — see <see cref="LatexNode.IsRun"/>,
+    /// which is the same question asked of the part a piece was drawn from.
     /// </summary>
     private bool IsSequence(ILayoutNode node) =>
-        Innermost(node) is { } part
-        && part.Parts.Any()
-        && part.Parts.All(inner => inner.Role == TexRole.Element);
+        Innermost(node) is { } part && LatexNode.IsRun(part);
 
     /// <summary>
     /// The innermost part of the parse tree standing for exactly what this piece of layout was drawn

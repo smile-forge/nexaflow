@@ -175,6 +175,38 @@ public class LatexTreeShapeTests
     });
 
     [TestMethod]
+    [CoversNode("latex-grid-selection")]
+    public void ADragInsideOneCellPicksOutWhatItCrossed() => UiThread.Run(() =>
+    {
+        // Reported from the app: in this matrix the whole of `4b^{2}+3` could be selected and nothing
+        // smaller — not the 3 on its own, not the `4b^{2}`. Every drag was read as a block of cells
+        // however short it was, and a block of one cell is that cell. A cell is where the grid stops
+        // having anything to say: what was dragged over inside one is a run of terms like any other.
+        const string latex = @"A = \begin{pmatrix} a & 4b^{2}+3 \\ c^4 & d+3i \end{pmatrix}";
+        var tree = Build(latex, "a matrix");
+        ILayoutNode At(int offset) => tree.Root.Ink().Single(n => n.SourceStart == offset);
+
+        var four = latex.IndexOf("4b", StringComparison.Ordinal);
+        var two = latex.IndexOf("{2}", StringComparison.Ordinal) + 1;
+        var three = latex.IndexOf("+3", StringComparison.Ordinal) + 1;
+
+        var alone = ContentSelection.Between(tree.Root, At(three), At(three));
+        Assert.AreEqual(1, alone.Ranges.Count);
+        Assert.AreEqual("3", latex.Substring(alone.Ranges[0].Start, alone.Ranges[0].Length));
+
+        var term = ContentSelection.Between(tree.Root, At(four), At(two));
+        Assert.AreEqual(1, term.Ranges.Count);
+        Assert.AreEqual("4b^{2}", latex.Substring(term.Ranges[0].Start, term.Ranges[0].Length),
+            "grown out to the whole script, because half of `^{2}` is not something you can carry");
+
+        // And the cells still select as cells the moment the drag leaves one, which is the behaviour
+        // this must not have cost: two rows of two, one range each.
+        var block = ContentSelection.Between(
+            tree.Root, At(four), At(latex.IndexOf(@"c^4", StringComparison.Ordinal)));
+        Assert.AreEqual(2, block.Ranges.Count, "corner to corner is still a block of cells");
+    });
+
+    [TestMethod]
     public void AFractionHoldsItsNumeratorAndDenominator() => UiThread.Run(() =>
     {
         // \cfrac nests three deep, which is what made the continued-fraction line such a good bug farm:
