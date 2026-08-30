@@ -94,11 +94,12 @@ public class MarkdownSampleRenderTests
     [TestMethod]
     public void LatexMathSamplesTypeset() => UiThread.Run(() =>
     {
-        // Not "unsupported by design" — a gap, written down. \limits and \nolimits say whether a big
+        // Not "unsupported by design" — a gap, written down. \limits, \nolimits, \hline, \mod and
+        // \genfrac were all on this list and are all set now; \sideset is what is left. \limits and \nolimits say whether a big
         // operator wears its scripts over and under or beside it, and nothing here reads them: they were
         // handled only by the reader that has gone. The fix is the reading's, not the builder's — the
         // operator and the word after it are one thing, the way `\not` and what it crosses are.
-        string[] known = [@"\sideset", @"\limits", @"\nolimits", @"\hline"];
+        string[] known = [@"\sideset"];
 
         var files = TestSampleData.Files("markdown")
             .Where(p => Path.GetFileName(p).StartsWith("latex-math-", StringComparison.Ordinal))
@@ -133,7 +134,7 @@ public class MarkdownSampleRenderTests
         }
 
         Assert.AreNotEqual(0, typeset, "no formula was found in the latex-math-* samples");
-        Assert.AreEqual(3, fellBack, "exactly the formulas naming a known gap should fail to typeset");
+        Assert.AreEqual(1, fellBack, "exactly the formulas naming a known gap should fail to typeset");
     });
 
     /// <summary>The <c>music-*.md</c> references parse into <c>#% … #%</c> music blocks and engrave (or

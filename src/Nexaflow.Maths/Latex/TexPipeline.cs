@@ -138,17 +138,67 @@ public static class TexPipeline
         && node.Part(TexRole.Base) is { } written
         && IsRoom(written);
 
+    /// <summary>Whether this says how the operator before it should wear its scripts.</summary>
+    private static bool IsLimitWord(TexNode node) =>
+        node.Kind == TexKind.Command
+        && node.Part(TexRole.Name)?.Text is @"\limits" or @"\nolimits";
+
+    /// <summary>
+    /// A script written after <c>\limits</c> belongs to the operator before it, not to the word.
+    ///
+    /// <para>
+    /// <c>\sum\limits_{i}^{n}</c> reads as three things in a row, and the script attaches to whatever it
+    /// was written after — which is <c>\limits</c>. So the operator sits outside the script wearing
+    /// nothing, and the word wears the limits, which is the wrong way round in every sense. Gathered, the
+    /// operator takes the word inside itself and becomes what the script is on.
+    /// </para>
+    /// <para>
+    /// The word goes in as trivia. It is not a part of the operator in the sense that a numerator is part
+    /// of a fraction — it says how the operator behaves and draws nothing — so <c>Parts</c> should not
+    /// offer it to anything building the operator, while <c>Print</c> still puts it back where it was.
+    /// </para>
+    /// </summary>
+    private static TexNode? Limited(TexNode operatorNode, TexNode script)
+    {
+        if (script.Kind != TexKind.Script) return null;
+        if (script.Part(TexRole.Base) is not { } written || !IsLimitWord(written)) return null;
+        if (operatorNode.Kind != TexKind.Command || operatorNode.Part(TexRole.Name) is null) return null;
+
+        var carried = operatorNode.With([.. operatorNode.Children, written.As(TexRole.Trivia)]);
+
+        return script.With([.. script.Children.Select(
+            child => ReferenceEquals(child, written) ? carried.As(TexRole.Base) : child)]);
+    }
+
     private static TexNode Gather(TexNode node)
     {
         if (node.IsLeaf) return node;
 
-        var rebuilt = new List<TexNode>(node.Children.Count);
+        // Every child gathered once, up front. Looking ahead at the next child and gathering it there as
+        // well cost the whole subtree twice at every level — which is exponential in depth, and turned a
+        // five minute sweep over the corpus into one still running at twelve.
+        var seen = new TexNode[node.Children.Count];
         var moved = false;
-
-        for (var at = 0; at < node.Children.Count; at++)
+        for (var at = 0; at < seen.Length; at++)
         {
-            var child = Gather(node.Children[at]);
-            moved |= !ReferenceEquals(child, node.Children[at]);
+            seen[at] = Gather(node.Children[at]);
+            moved |= !ReferenceEquals(seen[at], node.Children[at]);
+        }
+
+        var rebuilt = new List<TexNode>(seen.Length);
+
+        for (var at = 0; at < seen.Length; at++)
+        {
+            var child = seen[at];
+
+            // An operator and the word saying how it wears its scripts.
+            if (at + 1 < seen.Length && Limited(child, seen[at + 1]) is { } limited)
+            {
+                rebuilt.Add(limited);
+                at++;
+                moved = true;
+                continue;
+            }
 
             if (IsReaching(child))
             {
@@ -156,12 +206,11 @@ public static class TexPipeline
                 // puts the one on the other, so it belongs inside the sign rather than beside it.
                 var next = at + 1;
                 var between = new List<TexNode>();
-                while (next < node.Children.Count && IsRoom(node.Children[next]))
-                    between.Add(Gather(node.Children[next++]));
+                while (next < seen.Length && IsRoom(seen[next])) between.Add(seen[next++]);
 
-                if (next < node.Children.Count)
+                if (next < seen.Length)
                 {
-                    rebuilt.Add(Slashing(child, between, Gather(node.Children[next])));
+                    rebuilt.Add(Slashing(child, between, seen[next]));
                     at = next;
                     moved = true;
                     continue;

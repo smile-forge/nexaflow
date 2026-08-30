@@ -274,7 +274,7 @@ public static class TexFormulaBuilder
             }
         }
 
-        return ArrayCommandParser.Assemble(null, cells, spec, null, Whole(part));
+        return ArrayCommandParser.Assemble(null, cells, spec, Ruled(part), Whole(part));
     }
 
     /// <summary>
@@ -300,13 +300,20 @@ public static class TexFormulaBuilder
         {
             if (row.Role != TexRole.Row) continue;
 
+            // A row holding nothing but rules is the line under the table, not a line of it. Ruled has
+            // already counted it; making a row of empty cells here would add a blank one to the grid.
+            if (row.Children.Where(child => child.Role == TexRole.Cell)
+                   .All(cell => cell.Parts.All(piece => IsRule(piece) || piece.Kind == TexKind.Space)))
+                continue;
+
             var cells = new List<Atom?>();
 
             foreach (var cell in row.Children)
             {
                 if (cell.Role != TexRole.Cell) continue;
 
-                var built = Built(cell.Parts, style, knowledge);
+                // A rule is the grid's and never a cell's, so it is not built into one.
+                var built = Built(cell.Parts.Where(piece => !IsRule(piece)), style, knowledge);
                 if (built is null) return null;
 
                 cells.Add(built.Count switch
@@ -329,6 +336,45 @@ public static class TexFormulaBuilder
             while (row.Count < columns) row.Add(new NullAtom());
 
         return rows;
+    }
+
+    /// <summary>Whether this piece is an <c>\hline</c> — a rule across the table, not a cell's contents.</summary>
+    private static bool IsRule(ITexPart part) =>
+        part.Kind == TexKind.Command && part.Part(TexRole.Name)?.Text == @"\hline";
+
+    /// <summary>
+    /// The row boundaries carrying a rule, numbered from 0 above the first row.
+    ///
+    /// <para>
+    /// <c>\hline</c> is written inside the first cell of the row it sits above, which is where the reading
+    /// leaves it — so this is a question to ask of the grid and never of a cell. A row holding nothing but
+    /// rules is not a row at all: it is the line under the last one, and it names the boundary past the
+    /// end rather than adding an empty line to the table.
+    /// </para>
+    /// <para>
+    /// The builder used to hand <see cref="ArrayCommandParser.Assemble"/> a null here, so an array asking
+    /// for rules got none and the <c>\hline</c> itself was shown as its own characters.
+    /// </para>
+    /// </summary>
+    private static List<int> Ruled(ITexPart environment)
+    {
+        var rules = new List<int>();
+        var at = 0;
+
+        foreach (var row in environment.Children)
+        {
+            if (row.Role != TexRole.Row) continue;
+
+            var cells = row.Children.Where(child => child.Role == TexRole.Cell).ToList();
+            if (cells.Any(cell => cell.Parts.Any(IsRule))) rules.Add(at);
+
+            // A row of rules and nothing else does not become a line of the table, so the rows after it
+            // are not pushed down by one.
+            var written = cells.Any(cell => cell.Parts.Any(piece => !IsRule(piece) && piece.Kind != TexKind.Space));
+            if (written) at++;
+        }
+
+        return rules;
     }
 
     /// <summary>
@@ -669,9 +715,21 @@ public static class TexFormulaBuilder
 
         // Scripts on a big operator are its limits, not scripts. TeX stacks a sum's above and below it
         // and sets an integral's beside it, and it is a different atom that knows the difference.
+        // \limits and \nolimits, which the reading has gathered into the operator they were written
+        // after. They say how it wears what follows: over and under, or beside.
+        var asked = part.Part(TexRole.Base)?.Children
+            .FirstOrDefault(child => child.Kind == TexKind.Command
+                                     && child.Part(TexRole.Name)?.Text is @"\limits" or @"\nolimits")
+            ?.Part(TexRole.Name)?.Text switch
+        {
+            @"\limits" => true,
+            @"\nolimits" => false,
+            _ => (bool?)null,
+        };
+
         if (baseAtom is BigOperatorAtom big)
             return Tag(
-                new BigOperatorAtom(null, big.BaseAtom, subscript, superscript, big.UseVerticalLimits),
+                new BigOperatorAtom(null, big.BaseAtom, subscript, superscript, asked ?? big.UseVerticalLimits),
                 part);
 
         // And so are scripts on anything else that has been *typed* as one. `\mathop{X}` makes a big
@@ -679,7 +737,7 @@ public static class TexFormulaBuilder
         // kind of atom this is set `\mathop{{\sum}^{\prime}}_{n=0}^{n=\infty}` with its limits beside the
         // sign instead of over and under it.
         if (baseAtom.GetLeftType() == TexAtomType.BigOperator)
-            return Tag(new BigOperatorAtom(null, baseAtom, subscript, superscript), part);
+            return Tag(new BigOperatorAtom(null, baseAtom, subscript, superscript, asked), part);
 
         return Tag(new ScriptsAtom(null, baseAtom, subscript, superscript), part);
     }
@@ -723,6 +781,23 @@ public static class TexFormulaBuilder
     };
 
     /// <summary>
+    /// The commands this takes as structure rather than drawing: they say something about what is around
+    /// them and make no mark of their own.
+    ///
+    /// <para>
+    /// Separate from <see cref="Handles"/> because they are a different claim. A name in Handles has a
+    /// case in the switch below and turns into an atom; one here is read off the tree and consumed —
+    /// <c>\hline</c> becomes a rule the grid draws, <c>\limits</c> becomes the way an operator wears its
+    /// scripts. Both must answer yes to <see cref="Draws"/>, or the reading marks them undrawable and
+    /// shows them as their own characters; only the first kind can be checked against the switch.
+    /// </para>
+    /// </summary>
+    internal static readonly IReadOnlySet<string> Absorbs = new HashSet<string>(System.StringComparer.Ordinal)
+    {
+        @"\hline", @"\limits", @"\nolimits",
+    };
+
+    /// <summary>
     /// Whether anything here can set this command, given its name as written, backslash and all.
     ///
     /// <para>
@@ -733,6 +808,7 @@ public static class TexFormulaBuilder
     /// </summary>
     public static bool Draws(string written, TexFormulaParser knowledge) =>
         Handles.Contains(written)
+        || Absorbs.Contains(written)
         || (written.Length > 1 && StandardCommands.PrimitiveOf(written[1..]) is not null)
         || knowledge.Draws(written);
 

@@ -153,6 +153,10 @@ public class LatexPictureSweepTests
 
         var entries = Corpus.Load(corpus, limit, skip: 0).Entries
             .Where(entry => entry.ImageName is not null)
+            // \bbox is MathJax's own, not LaTeX's, and we are not going to draw it. Left in, it is a
+            // few hundred formulas that can only ever be shown as their own characters — a floor under
+            // the score that no work will lift, and rows in the review page nobody should spend a look on.
+            .Where(entry => !entry.Formula.Contains(@"\bbox", StringComparison.Ordinal))
             .Where((_, at) => at % stride == 0)
             .ToList();
 
