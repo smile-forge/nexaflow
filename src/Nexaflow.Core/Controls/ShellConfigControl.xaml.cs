@@ -28,12 +28,17 @@ public partial class ShellConfigControl : UserControl, ICustomConfigApply
     {
         if (DataContext is ShellConfig cfg && _vm is not null)
         {
-            cfg.Theme           = _vm.Theme;
-            cfg.Language        = _vm.Language;
-            cfg.PrestartAtLogin = _vm.PrestartAtLogin;
+            cfg.Theme                      = _vm.Theme;
+            cfg.Language                   = _vm.Language;
+            cfg.PrestartAtLogin            = _vm.PrestartAtLogin;
+            cfg.DisableAnimationsOnBattery = _vm.DisableAnimationsOnBattery;
 
             // Sync the HKCU Run entry to the toggle (takes effect next login).
             LoginAutoStartService.Set(_vm.PrestartAtLogin);
+
+            // Unlike the theme, this one needs no restart: the guard re-evaluates and every live
+            // ThemedRegion drops or rebuilds its scene on the spot.
+            BatteryAnimationGuard.SetDisableOnBattery(_vm.DisableAnimationsOnBattery);
         }
     }
 }
@@ -52,6 +57,7 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     [ObservableProperty] private string _selectedTheme;
     [ObservableProperty] private string _selectedLanguage;
     [ObservableProperty] private bool _prestartAtLogin;
+    [ObservableProperty] private bool _disableAnimationsOnBattery;
     [ObservableProperty] private IReadOnlyList<Color> _swatches = [];
 
     public ThemeOption    Theme    => Enum.Parse<ThemeOption>(SelectedTheme);
@@ -59,9 +65,10 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
 
     public ShellConfigViewModel(ShellConfig cfg)
     {
-        _selectedTheme    = cfg.Theme.ToString();
-        _selectedLanguage = cfg.Language.ToString();
-        _prestartAtLogin  = cfg.PrestartAtLogin;
+        _selectedTheme              = cfg.Theme.ToString();
+        _selectedLanguage           = cfg.Language.ToString();
+        _prestartAtLogin            = cfg.PrestartAtLogin;
+        _disableAnimationsOnBattery = cfg.DisableAnimationsOnBattery;
         LoadSwatches(cfg.Theme);
     }
 

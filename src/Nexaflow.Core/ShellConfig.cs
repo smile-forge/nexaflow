@@ -30,6 +30,16 @@ public sealed class ShellConfig : IFeatureConfig
     [ConfigDisplayName("Start with Windows")]
     public bool PrestartAtLogin { get; set; }
 
+
+    /// <summary>
+    /// When true, a theme's animated backdrop (the <c>Scene.{Region}</c> layer a <c>ThemedRegion</c>
+    /// renders behind the shell) is not rendered while the machine is running on battery. Applies
+    /// live - unplugging drops the scene, plugging back in restores it - and is a no-op on a machine
+    /// with no battery. Themes that ship no scene (Dark/Light) are unaffected either way.
+    /// </summary>
+    [ConfigDisplayName("Disable background animations on battery")]
+    public bool DisableAnimationsOnBattery { get; set; } = true;
+
     /// <summary>
     /// Assembly version of the last run that reached the main window. Compared to the current version
     /// to decide whether to show the "What's New" wizard step after an update. Not user-editable
