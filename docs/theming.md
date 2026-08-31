@@ -150,6 +150,29 @@ Both are supported; pick per theme:
 - **Per-region scenes** (`Scene.Page`, `Scene.AiBar`, …) → independent art per region. Use when regions
   should differ (e.g. a distinct treatment for the AI area vs the file list).
 
+### Scenes and battery
+
+A scene is the only part of the shell that animates forever with nothing happening, so it is the only
+part worth switching off wholesale to save power. Measured on a folder tab: an idle window on Ocean
+costs ~14.6% of a core, against ~0.7% on Dark.
+
+`Options → Shell → Disable background animations on battery` (on by default) gates that. The switch
+itself is `BackgroundAnimationPolicy.ScenesEnabled` in `Nexaflow.Visuals.Common/Theming` — a plain
+boolean plus a `Changed` event, knowing nothing about *why* scenes are off, so a feature-contributed
+scene is covered by the same gate and a test can flip it without a battery. Core's
+`BatteryAnimationGuard` owns the reasons: it combines the setting with `GetSystemPowerStatus` and
+re-evaluates on `SystemEvents.PowerModeChanged`.
+
+When it says no, `ThemedRegion` **realises no scene at all** rather than pausing one — the scene
+unloads, stops its clocks and clears its visuals, leaving exactly what a theme with no `Scene.*` key
+renders. Pausing would keep a large blended visual tree alive for no benefit, and would freeze
+travelling sprites wherever they happened to be (often off-screen, since they start there). The
+`{Region}.Bg` veil is colour rather than animation and is left alone, so a theme keeps its tint.
+
+Regions follow the policy live: a `ThemedRegion` subscribes to `Changed`, so unplugging the charger
+drops the scene and plugging back in rebuilds it, with no restart. A machine with no battery never
+reports "on battery", so the setting is a no-op on a desktop.
+
 ### The Ocean scene
 
 `Themes/OceanReefScene.xaml(.cs)` is a procedural `UserControl` (sunlit-reef gradient, sun glow, god

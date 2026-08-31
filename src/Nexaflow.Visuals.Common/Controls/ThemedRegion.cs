@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Visuals.Common.Controls;
 
@@ -43,7 +44,26 @@ public class ThemedRegion : ContentControl
     public ThemedRegion()
     {
         // Resources may not be reachable until the control is in the live tree; re-resolve then.
-        Loaded += (_, _) => ApplyRegion();
+        // The policy subscribe is idempotent and made from both here and Loaded: a region built but never
+        // loaded still tracks the policy, and one re-parented after Unloaded picks the handler back up.
+        SubscribeToAnimationPolicy();
+        Loaded   += (_, _) => { SubscribeToAnimationPolicy(); ApplyRegion(); };
+        Unloaded += (_, _) => BackgroundAnimationPolicy.Changed -= OnAnimationPolicyChanged;
+    }
+
+    private void SubscribeToAnimationPolicy()
+    {
+        BackgroundAnimationPolicy.Changed -= OnAnimationPolicyChanged;
+        BackgroundAnimationPolicy.Changed += OnAnimationPolicyChanged;
+    }
+
+    // The policy can flip from a system power-state thread, so hop to this region's own dispatcher
+    // before touching its visual tree. Dropping the handler on Unloaded is what keeps a static event
+    // from outliving the region that subscribed to it.
+    private void OnAnimationPolicyChanged(object? sender, EventArgs e)
+    {
+        if (Dispatcher.CheckAccess()) ApplyRegion();
+        else                          Dispatcher.BeginInvoke(ApplyRegion);
     }
 
     public override void OnApplyTemplate()
@@ -60,7 +80,11 @@ public class ThemedRegion : ContentControl
 
         _backdrop.Background = TryFindResource($"{Region}.Bg") as Brush ?? Brushes.Transparent;
 
-        if (TryFindResource($"Scene.{Region}") is DataTemplate scene)
+        // A scene is the only forever-animating part of the shell, so it is the one the power policy
+        // can switch off wholesale. Dropping the template (rather than pausing its clocks) is what makes
+        // that a real saving: the scene unloads, stops its clocks and clears its visuals, leaving exactly
+        // what a theme with no Scene key renders.
+        if (BackgroundAnimationPolicy.ScenesEnabled && TryFindResource($"Scene.{Region}") is DataTemplate scene)
         {
             _scene.ContentTemplate = scene;
             _scene.Content         = Region;   // any non-null value realises the template
