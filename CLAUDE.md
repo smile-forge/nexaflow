@@ -170,7 +170,9 @@ guard that still refuses when the path itself has come to mean something else.
 
 You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
 flush-left with `\n` and it lands correctly indented with the file's own endings and encoding — that holds
-for **every** verb including `substitute`, whose replacement is indented for the line it lands on. `replace`
+for **every** verb including `substitute`, whose replacement is indented for the line it lands on. A new
+file has no endings of its own, so `create` takes the ones its neighbours already use — the directory it
+lands in, then upward — rather than the machine's, which put CRLF into an LF repo on Windows. `replace`
 keeps the declaration's existing doc comment, *unless* your replacement opens with one, in which case yours
 replaces it rather than being stacked on top. Text comes from
 `--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
