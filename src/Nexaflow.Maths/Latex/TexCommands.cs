@@ -141,8 +141,12 @@ public static class TexCommands
         Add(@"\stackrel", [TexRole.Over, TexRole.Base]);
         Add(@"\underset", [TexRole.Under, TexRole.Base]);
 
-        // The extensible arrows: \xrightarrow[below]{above}.
+        // The extensible arrows: \xrightarrow[below]{above}. The capitalised spellings are the double
+        // ones — \xRightarrow is to \xrightarrow what \Rightarrow is to \rightarrow — and the typesetter
+        // has drawn them all along. Missing here, they were read as a command with no argument and the
+        // label after them as a group of its own, so the arrow was shown as its own characters.
         All([@"\xrightarrow", @"\xleftarrow", @"\xleftrightarrow", @"\xmapsto",
+             @"\xRightarrow", @"\xLeftarrow", @"\xLeftrightarrow",
              @"\xrightharpoonup", @"\xleftharpoondown", @"\xhookrightarrow", @"\xhookleftarrow"],
             [TexRole.Over], TexRole.Under);
 

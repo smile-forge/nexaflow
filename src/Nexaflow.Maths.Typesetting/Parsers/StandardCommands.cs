@@ -162,11 +162,34 @@ internal static class StandardCommands
     // full size) with an optional numerator alignment.
     private sealed class CfracCommand : IAssembleCommand
     {
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
-            arguments.Count == 2
-                ? new FractionAtom(null, arguments[0], arguments[1], true, TexAlignment.Center, TexAlignment.Center)
-                  { OverrideStyle = TexStyle.Display, KeepContentStyle = true, Origin = origin }
-                : null;
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin)
+        {
+            // Written before the two halves, so with an alignment the reading hands over three things
+            // rather than two. Taking only two meant `\cfrac[l]{a}{b}` built nothing at all and was shown
+            // as the characters it was written with — a whole continued fraction lost to an option.
+            if (arguments.Count is not (2 or 3)) return null;
+            var half = arguments.Count == 3 ? 1 : 0;   // the alignment, where written, comes first
+
+            return new FractionAtom(null, arguments[half], arguments[half + 1], true, Leaning(origin), TexAlignment.Center)
+            {
+                OverrideStyle = TexStyle.Display,
+                KeepContentStyle = true,
+                Origin = origin,
+            };
+        }
+
+        /// <summary>
+        /// Which way <c>[l]</c>, <c>[c]</c> or <c>[r]</c> says the numerator leans; centred where nothing
+        /// says. Read off the part it was written as rather than off the atom built from it: the letter
+        /// is an instruction and not a thing on the page, and the atom keeps no memory of which it was.
+        /// </summary>
+        private static TexAlignment Leaning(Nexaflow.Maths.Latex.TexPart? origin) =>
+            origin?.Part(Nexaflow.Maths.Latex.TexRole.Option)?.Print().Trim('[', ']', ' ') switch
+            {
+                "l" => TexAlignment.Left,
+                "r" => TexAlignment.Right,
+                _ => TexAlignment.Center,
+            };
     }
 
     // \nicefrac{a}{b} and \sfrac{a}{b}: an inline "slash" fraction (raised numerator / lowered denominator).
@@ -684,9 +707,24 @@ internal static class StandardCommands
     // \_ : there is no underscore in the text encoding, so LaTeX draws one - a rule 0.3em wide,
     // sitting a little below the baseline. Its neighbours \# \$ \% \& are ordinary glyphs and are
     // handled as symbols instead.
-    private sealed class UnderscoreCommand
+    //
+    // It was left an empty marker when the old reader went, and an empty marker in this table is worse
+    // than no entry at all: the reading asks the table whether a name can be drawn and is told yes, so
+    // `\_` came through unmarked as a name nobody knows and was quietly shown as its own two characters.
+    private sealed class UnderscoreCommand : IAssembleCommand
     {
         public static UnderscoreCommand Instance { get; } = new();
+
+        /// <remarks>
+        /// Measured in ex rather than the em LaTeX says, because <see cref="TexUnit.Em"/> in this engine
+        /// converts to an x-height — the same as <see cref="TexUnit.Ex"/>, its neighbour in the table —
+        /// so asking for 0.3em would quietly get 0.3ex and draw a third of an underscore. Written in the
+        /// unit the conversion actually is, so the numbers here mean what they say.
+        /// </remarks>
+        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
+            arguments.Count == 0
+                ? new RuleAtom(null, TexUnit.Ex, Width: 0.7, Thickness: 0.1, Shift: 0.3) { Origin = origin }
+                : null;
     }
 
     // The plain-TeX font switches: \cal, \bf, \it, \rm, \sf, \tt, \frak. Unlike \mathcal{…} they
