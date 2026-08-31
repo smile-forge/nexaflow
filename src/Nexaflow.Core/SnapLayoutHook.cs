@@ -22,6 +22,17 @@ internal sealed class SnapLayoutHook
     private readonly Action _toggleMaxRestore;
     private bool _maxHovered;
 
+    // The max button's bounds in screen (device) pixels.
+    //
+    // WM_NCHITTEST is NOT a rare message: every render pass re-invalidates hit-testing, which makes
+    // WPF synchronise the mouse, which sends another hit-test - so an idle window with a tab open
+    // takes tens of these per second forever. Resolving the button's rect from the visual tree on
+    // each one (two PointToScreen calls, each walking the ancestry into the compositor) made this
+    // hook one of the larger measurable idle costs. Cache the rect instead and recompute it only
+    // after something that can actually move the button.
+    private Rect _maxRect;
+    private bool _maxRectValid;
+
     internal SnapLayoutHook(Button maxButton, Action toggleMaxRestore)
     {
         _maxButton        = maxButton;
@@ -32,6 +43,16 @@ internal sealed class SnapLayoutHook
     {
         var hwnd = new WindowInteropHelper(window).Handle;
         HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
+
+        // Everything that can move the button relative to the screen. LayoutUpdated covers the
+        // button being re-positioned by chrome reflow without the window itself changing; it is
+        // free while idle (no layout passes run) and only ever costs one recompute on the next
+        // hit-test, so it is never worse than resolving the rect every time.
+        window.LocationChanged   += (_, _) => _maxRectValid = false;
+        window.SizeChanged       += (_, _) => _maxRectValid = false;
+        window.StateChanged      += (_, _) => _maxRectValid = false;
+        window.DpiChanged        += (_, _) => _maxRectValid = false;
+        _maxButton.LayoutUpdated += (_, _) => _maxRectValid = false;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -69,12 +90,21 @@ internal sealed class SnapLayoutHook
 
     private bool IsOverMaxButton(IntPtr lParam)
     {
-        long lp     = lParam.ToInt64();
-        var  screen = new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF));
-        var  topLeft    = _maxButton.PointToScreen(new Point(0, 0));
-        var  bottomRight = _maxButton.PointToScreen(
-            new Point(_maxButton.ActualWidth, _maxButton.ActualHeight));
-        return new Rect(topLeft, bottomRight).Contains(screen);
+        if (!_maxRectValid)
+        {
+            // Not rooted in a presentation source yet (or collapsed): PointToScreen would throw,
+            // and there is nothing to be over. Leave the cache invalid so the next message retries.
+            if (!_maxButton.IsVisible || _maxButton.ActualWidth <= 0 || _maxButton.ActualHeight <= 0)
+                return false;
+
+            _maxRect = new Rect(
+                _maxButton.PointToScreen(new Point(0, 0)),
+                _maxButton.PointToScreen(new Point(_maxButton.ActualWidth, _maxButton.ActualHeight)));
+            _maxRectValid = true;
+        }
+
+        long lp = lParam.ToInt64();
+        return _maxRect.Contains(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
     }
 
     private void SetMaxHover(bool on)
