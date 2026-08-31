@@ -460,6 +460,15 @@
                     <ColumnDefinition Width="Auto"/>   <!-- context + clear -->
                 </Grid.ColumnDefinitions>
 
+                <!-- Keyboard focus is parked here while the user is idle, so WPF tears down the
+                     AI input's caret; see PlaceholderTextBox "Idle caret parking". Zero-sized and
+                     Focusable="False" until the moment we park on it, so it can never become the
+                     window's default or tab focus - it is a focus target, not a control. -->
+                <ContentControl x:Name="AiFocusPark" Grid.Column="0"
+                                Focusable="False" IsTabStop="False"
+                                Width="0" Height="0"
+                                HorizontalAlignment="Left" VerticalAlignment="Top"/>
+
                 <!-- Left: AI indicator + clear — on a dark panel matching the input -->
                 <Border Grid.Column="0" VerticalAlignment="Stretch" Margin="0,6,12,6"
                         Background="{StaticResource AiBar.ClusterBg}" CornerRadius="10" Padding="7,8">
@@ -504,7 +513,8 @@
                         AcceptsReturn="True"
                         SendCommand="{Binding SendAiMessageCommand}"
                         CompletionText="{Binding AiCompletionSuggestion}"
-                        CaretBrush="#FFD8D8D8">
+                        CaretBrush="#FFD8D8D8"
+                        FocusPark="{Binding ElementName=AiFocusPark}">
                         <ctrl:PlaceholderTextBox.Style>
                             <Style TargetType="ctrl:PlaceholderTextBox">
                                 <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
