@@ -47,8 +47,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="ApprovalTestUtils.fs" />
+    <!-- Utils first: it owns the reading every other file here does, the approvals included. -->
     <Compile Include="Utils.fs" />
+    <Compile Include="ApprovalTestUtils.fs" />
     <Compile Include="BoxTests.fs" />
     <Compile Include="PredefinedColorParserTests.fs" />
     <Compile Include="CharBoxTests.fs" />
@@ -60,7 +61,7 @@
     <Compile Include="HorizontalRuleTests.fs" />
     <Compile Include="OverUnderBoxTests.fs" />
     <Compile Include="ParserTests.fs" />
-    <Compile Include="ParserExceptionTests.fs" />
+    <Compile Include="UnreadableMarkupTests.fs" />
     <Compile Include="AdditionalSymbolsTests.fs" />
     <Compile Include="AdditionalCommandsTests.fs" />
     <Compile Include="AmsSymbolFontTests.fs" />

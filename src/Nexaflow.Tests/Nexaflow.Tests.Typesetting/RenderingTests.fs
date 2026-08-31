@@ -6,12 +6,11 @@ open Xunit
 
 open WpfMath.Parsers
 open WpfMath.Rendering
-
-let private parser = WpfTeXFormulaParser.Instance
+open WpfMath.Tests.Utils
 
 [<Fact>]
 let ``WpfTeXFormulaExtensions::RenderToBitmap should create an image of proper size``(): unit =
-    let formula = parser.Parse "2+2=2"
+    let formula = parse "2+2=2"
     let environment = WpfTeXEnvironment.Create()
     let bitmap = formula.RenderToBitmap environment
     Assert.Equal(82, bitmap.PixelWidth)
@@ -19,7 +18,7 @@ let ``WpfTeXFormulaExtensions::RenderToBitmap should create an image of proper s
 
 [<Fact>]
 let ``WpfTeXFormulaExtensions::RenderToBitmap should create an image of proper size with offset``(): unit =
-    let formula = parser.Parse "2+2=2"
+    let formula = parse "2+2=2"
     let environment = WpfTeXEnvironment.Create()
     let margin = 50
     let bitmap = formula.RenderToBitmap(environment, x = float margin, y = float margin)
@@ -31,7 +30,7 @@ let ``WpfTeXFormulaExtensions::RenderToBitmap should create an image of proper s
 
 [<Fact>]
 let ``WpfTeXFormulaExtensions::RenderToBitmap should work with different DPI``(): unit =
-    let formula = parser.Parse "2+2=2"
+    let formula = parse "2+2=2"
     let environment = WpfTeXEnvironment.Create()
     let bitmap = formula.RenderToBitmap(environment, dpi = 192.0)
     Assert.Equal(163, bitmap.PixelWidth)
@@ -41,7 +40,7 @@ let ``WpfTeXFormulaExtensions::RenderToBitmap should work with different DPI``()
 
 [<Fact>]
 let ``WpfTeXFormulaExtensions::RenderToGeometry should work``() =
-    let formula = parser.Parse "2+2=2"
+    let formula = parse "2+2=2"
     let environment = WpfTeXEnvironment.Create()
     let geometry = formula.RenderToGeometry(environment) :?> GeometryGroup
     Assert.Equal(5, geometry.Children.Count)

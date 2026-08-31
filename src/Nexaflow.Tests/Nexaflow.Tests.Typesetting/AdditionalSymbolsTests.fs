@@ -15,8 +15,6 @@ open XamlMath.Atoms
 type AdditionalSymbolsTests() =
     static do initializeFontResourceLoading()
 
-    static let parseRoot (markup: string) =
-        WpfTeXFormulaParser.Instance.Parse(markup).RootAtom
 
     [<Theory>]
     [<InlineData(@"\mathring{a}")>]
@@ -67,8 +65,8 @@ type AdditionalSymbolsTests() =
     [<Theory>]
     [<InlineData(@"\hspace{2xyz}")>]
     [<InlineData(@"\hspace{abc}")>]
-    member _.``hspace with an invalid length throws``(markup: string) =
-        Assert.ThrowsAny<exn>(fun () -> parseRoot markup |> ignore) |> ignore
+    member _.``hspace with an invalid length is set as its own characters``(markup: string) =
+        Assert.NotEmpty(undrawn markup)
 
     [<Fact>]
     member _.``mathring is parsed as an accent``() =

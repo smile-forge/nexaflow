@@ -8,22 +8,32 @@ open Xunit
 open WpfMath.Parsers
 open WpfMath.Rendering
 open WpfMath.Tests.ApprovalTestUtils
+open WpfMath.Tests.Utils
 open XamlMath
 open XamlMath.Atoms
 open XamlMath.Boxes
-
-let private parse(text: string) =
-    let parser = WpfTeXFormulaParser.Instance
-    let result = parser.Parse text
-    result.RootAtom
 
 let private src (string: string) (start: int) (len: int) = SourceSpan("User input", string, start, len)
 
 let private environment = WpfTeXEnvironment.Create()
 
+/// Which stretch of the source a box was built from.
+///
+/// An atom no longer carries a SourceSpan. It carries the part of the parse tree it was built from,
+/// which answers the same question without keeping a second copy of the offsets beside the tree that
+/// already holds them - and that second copy is exactly what parted company from the tree whenever
+/// anything was edited. So these ask the part.
+let private origin (box: Box) =
+    match box.Node with
+    | null -> (-1, -1)
+    | node ->
+        match node.Origin with
+        | null -> (-1, -1)
+        | part -> (part.Start, part.Length)
+
 [<Fact>]
 let ``AccentedAtom should have a skew according to the char``() =
-    let topAtom = parse @"\bar{\bar{x}}" :?> AccentedAtom
+    let topAtom = parseRoot @"\bar{\bar{x}}" :?> AccentedAtom
     let childAtom = topAtom.BaseAtom :?> AccentedAtom
 
     let topBox = topAtom.CreateBox(environment).Children.[0]
@@ -33,7 +43,7 @@ let ``AccentedAtom should have a skew according to the char``() =
 
 [<Fact>]
 let ``Box for \text{æ,} should be created successfully``() =
-    let atom = parse @"\text{æ,}"
+    let atom = parseRoot @"\text{æ,}"
     let box = atom.CreateBox(environment)
     Assert.NotNull(box)
 
@@ -51,26 +61,20 @@ let ``ScriptsAtom should set Shift on the created box when creating box without 
 
 [<Fact>]
 let ``RowAtom creates boxes with proper sources``() =
-    let source = "2+2"
-    let src = src source
-    let parser = WpfTeXFormulaParser.Instance
-    let formula = parser.Parse source
+    let formula = parse "2+2"
     let box = formula.CreateBox environment :?> HorizontalBox
     let chars = box.Children.filter (fun x -> x :? CharBox)
     Assert.Collection (
         chars,
-        Action<_>(fun (x: Box) -> Assert.Equal(src 0 1, x.Source)),
-        Action<_>(fun (x: Box) -> Assert.Equal(src 1 1, x.Source)),
-        Action<_>(fun (x: Box) -> Assert.Equal(src 2 1, x.Source)))
+        Action<_>(fun (x: Box) -> Assert.Equal((0, 1), origin x)),
+        Action<_>(fun (x: Box) -> Assert.Equal((1, 1), origin x)),
+        Action<_>(fun (x: Box) -> Assert.Equal((2, 1), origin x)))
 
 [<Fact>]
 let ``BigOperatorAtom creates a box with proper sources``() =
     // A sum rather than an integral: an integral sets its limits beside it, so its box is a
     // horizontal one. The offsets are the same either way - both names are three letters.
-    let source = @"\sum_a^b"
-    let src = src source
-    let parser = WpfTeXFormulaParser.Instance
-    let formula = parser.Parse source
+    let formula = parse @"\sum_a^b"
     let box = formula.CreateBox environment :?> VerticalBox
 
     let charBoxes =
@@ -79,21 +83,28 @@ let ``BigOperatorAtom creates a box with proper sources``() =
             .collect(fun x -> x.Children.filter (fun y -> y :? CharBox))
             .toList()
 
+    // The operator's own stretch is `\sum`, backslash included. The parser this replaced named a
+    // command by its letters alone, which left the backslash belonging to nothing.
+    //
+    // FAILING, and reporting something true: the operator's glyph box comes back (-1, -1) — it carries
+    // no node at all, so there is nothing to ask where it was written. The two script boxes either side
+    // of it do. Whatever links a box to the atom it was built from is not doing it for the character a
+    // big operator draws itself with.
     Assert.Collection (
         charBoxes,
-        Action<_>(fun (x: Box) -> Assert.Equal(src 7 1, x.Source)),
-        Action<_>(fun (x: Box) -> Assert.Equal(src 1 3, x.Source)),
-        Action<_>(fun (x: Box) -> Assert.Equal(src 5 1, x.Source)))
+        Action<_>(fun (x: Box) -> Assert.Equal((7, 1), origin x)),
+        Action<_>(fun (x: Box) -> Assert.Equal((0, 4), origin x)),
+        Action<_>(fun (x: Box) -> Assert.Equal((5, 1), origin x)))
 
 [<Fact>]
 let ``Cyrillic followed by Latin should be rendered properly``() =
     Utils.initializeFontResourceLoading()
-    let atom = parse @"\text{Ц}V"
+    let atom = parseRoot @"\text{Ц}V"
     let box = atom.CreateBox environment
     Assert.NotNull(box)
 
 let private verifyBox source =
-    let atom = parse source
+    let atom = parseRoot source
     let box = atom.CreateBox environment
     verifyObject box
 

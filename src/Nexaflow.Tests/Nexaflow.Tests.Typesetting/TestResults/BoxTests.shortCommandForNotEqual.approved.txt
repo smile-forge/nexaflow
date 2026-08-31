@@ -1,0 +1,161 @@
+{
+  "Background": null,
+  "Children": [
+    {
+      "Background": null,
+      "Character": {
+        "Character": "6",
+        "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmsy10.ttf",
+        "FontId": 3,
+        "Metrics": {
+          "Depth": 0.194443,
+          "Height": 0.694445,
+          "Italic": 0.0,
+          "Width": 0.0
+        },
+        "Size": 1.0
+      },
+      "Children": [],
+      "Depth": 0.194443,
+      "Foreground": null,
+      "Height": 0.694445,
+      "Italic": 0.0,
+      "Node": {
+        "[AtomType]": "SymbolAtom",
+        "Borrowed": false,
+        "IsDelimeter": false,
+        "IsTextSymbol": false,
+        "Name": "not",
+        "Slots": [],
+        "Source": null,
+        "Type": "Relation"
+      },
+      "Shift": 0.0,
+      "Source": null,
+      "TotalHeight": 0.888888,
+      "TotalWidth": 0.0,
+      "Width": 0.0
+    },
+    {
+      "Background": null,
+      "Children": [],
+      "Depth": 0.0,
+      "Foreground": null,
+      "Height": 0.0,
+      "Italic": 0.0,
+      "Node": null,
+      "Shift": 0.0,
+      "Shrink": 0.0,
+      "Source": null,
+      "Stretch": 0.0,
+      "TotalHeight": 0.0,
+      "TotalWidth": 0.0,
+      "Width": 0.0
+    },
+    {
+      "Background": null,
+      "Character": {
+        "Character": "=",
+        "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+        "FontId": 1,
+        "Metrics": {
+          "Depth": -0.133125,
+          "Height": 0.366875,
+          "Italic": 0.0,
+          "Width": 0.777781
+        },
+        "Size": 1.0
+      },
+      "Children": [],
+      "Depth": -0.133125,
+      "Foreground": null,
+      "Height": 0.366875,
+      "Italic": 0.0,
+      "Node": {
+        "[AtomType]": "SymbolAtom",
+        "Borrowed": false,
+        "IsDelimeter": false,
+        "IsTextSymbol": false,
+        "Name": "equals",
+        "Slots": [],
+        "Source": null,
+        "Type": "Relation"
+      },
+      "Shift": 0.0,
+      "Source": null,
+      "TotalHeight": 0.23375,
+      "TotalWidth": 0.777781,
+      "Width": 0.777781
+    }
+  ],
+  "Depth": 0.194443,
+  "Foreground": null,
+  "Height": 0.694445,
+  "Italic": 0.0,
+  "Node": {
+    "[AtomType]": "RowAtom",
+    "Borrowed": false,
+    "Elements": [
+      {
+        "[AtomType]": "SymbolAtom",
+        "Borrowed": false,
+        "IsDelimeter": false,
+        "IsTextSymbol": false,
+        "Name": "not",
+        "Slots": [],
+        "Source": null,
+        "Type": "Relation"
+      },
+      {
+        "[AtomType]": "SymbolAtom",
+        "Borrowed": false,
+        "IsDelimeter": false,
+        "IsTextSymbol": false,
+        "Name": "equals",
+        "Slots": [],
+        "Source": null,
+        "Type": "Relation"
+      }
+    ],
+    "PreviousAtom": null,
+    "Slots": [
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "SymbolAtom",
+          "Borrowed": false,
+          "IsDelimeter": false,
+          "IsTextSymbol": false,
+          "Name": "not",
+          "Slots": [],
+          "Source": null,
+          "Type": "Relation"
+        },
+        "Role": "element",
+        "Row": -1
+      },
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "SymbolAtom",
+          "Borrowed": false,
+          "IsDelimeter": false,
+          "IsTextSymbol": false,
+          "Name": "equals",
+          "Slots": [],
+          "Source": null,
+          "Type": "Relation"
+        },
+        "Role": "element",
+        "Row": -1
+      }
+    ],
+    "Source": null,
+    "Type": "Ordinary"
+  },
+  "Shift": 0.0,
+  "Source": null,
+  "TotalHeight": 0.888888,
+  "TotalWidth": 0.777781,
+  "Width": 0.777781
+}

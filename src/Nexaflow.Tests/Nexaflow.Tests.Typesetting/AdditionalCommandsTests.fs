@@ -21,9 +21,6 @@ open XamlMath.Rendering
 type AdditionalCommandsTests() =
     static do initializeFontResourceLoading()
 
-    static let parseRoot (markup: string) =
-        WpfTeXFormulaParser.Instance.Parse(markup).RootAtom
-
     static let environment = WpfTeXEnvironment.Create()
 
     static let renderBounds (markup: string) =

@@ -53,11 +53,16 @@ type private InnerPropertyContractResolver() =
             // in every one of these files. Taking both would put the whole atom tree in each of them
             // twice, for no assurance the first copy does not already give.
             |> Seq.filter(fun p -> not (p.DeclaringType = typeof<XamlMath.TexFormula> && p.Name = "Root"))
-            // Atom.Origin points back at the parse tree a formula was built from. It is null for every
-            // formula the parser read, which is all of them here — so taking it would put a null on every
-            // atom of all 148 files, and a whole parse tree on each one the day a test builds a formula
-            // the other way. What these record is what was built, not where it came from.
-            |> Seq.filter(fun p -> p.Name <> "Origin")
+            // Atom.Origin points back at the parse tree a formula was built from, and TexFormula.Ignored
+            // is a list of parts of that same tree. Both are where a formula came from rather than what
+            // was built, which is what these record — and a part carries its parent, so serialising one
+            // walks back up the tree and round again for ever. That day was foreseen here and arrived
+            // when the engine stopped reading its own LaTeX: every formula is built the other way now.
+            //
+            // Nothing is lost by leaving Ignored out. What could not be drawn is a question with one
+            // answer and one place that asks it — Utils.undrawn, and the tests written on it — rather
+            // than a second copy folded into a hundred and forty-eight recordings of something else.
+            |> Seq.filter(fun p -> p.Name <> "Origin" && p.Name <> "Ignored")
             |> Seq.sortBy(fun p -> p.Name)
             |> Seq.map(fun p -> this.DoCreateProperty(p, memberSerialization))
 
@@ -131,9 +136,7 @@ let verifyObject: obj -> unit =
     serialize >> Approvals.Verify
 
 let verifyParseResult (formulaText: string): unit =
-    let parser = WpfTeXFormulaParser.Instance
-    let formula = parser.Parse formulaText
-    verifyObject formula
+    verifyObject (WpfMath.Tests.Utils.parse formulaText)
 
 let verifyParseResultScenario (scenario: string) (formulaText: string): unit =
     use block = NamerFactory.AsEnvironmentSpecificTest $"(%s{scenario})"

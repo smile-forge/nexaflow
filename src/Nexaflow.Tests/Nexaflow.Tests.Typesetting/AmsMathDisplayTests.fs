@@ -16,7 +16,6 @@ open XamlMath.Rendering
 type AmsMathDisplayTests() =
     static do initializeFontResourceLoading()
 
-    static let parse (markup: string) = WpfTeXFormulaParser.Instance.Parse(markup)
     static let environment = WpfTeXEnvironment.Create()
 
     static let boxOf (markup: string) = (parse markup).RootAtom.CreateBox(environment)
@@ -150,9 +149,9 @@ type AmsMathDisplayTests() =
 
     [<Fact>]
     member _.``a limit control is only a command after an operator``() =
-        // Anywhere it could not mean anything it stays unknown, rather than being quietly eaten and
-        // leaving a formula that looks like it was understood.
-        Assert.Throws<TexParseException>(fun () -> parse @"x\limits_{i}" |> ignore) |> ignore
+        // Anywhere it could not mean anything it is left undrawn and set as its own characters,
+        // rather than being quietly eaten and leaving a formula that looks like it was understood.
+        Assert.Equal<string list>([ @"\limits" ], undrawn @"x\limits_{i}")
 
     // ── \hdotsfor ────────────────────────────────────────────────────────────────
 
@@ -221,7 +220,7 @@ type AmsMathDisplayTests() =
 
     [<Fact>]
     member _.``a sized delimiter needs something that is a delimiter``() =
-        Assert.Throws<TexParseException>(fun () -> parse @"\big x" |> ignore) |> ignore
+        Assert.NotEmpty(undrawn @"\big x")
 
     // ── \genfrac ─────────────────────────────────────────────────────────────────
 
@@ -259,11 +258,16 @@ type AmsMathDisplayTests() =
         | _ -> failwith "expected four widths"
 
     [<Theory>]
-    [<InlineData(@"\genfrac{(}{)}{0pt}{4}{n}{k}")>]
-    [<InlineData(@"\genfrac{(}{)}{banana}{}{n}{k}")>]
-    [<InlineData(@"\genfrac{(}{)}{1}{}{n}{k}")>]
-    member _.``genfrac says what it could not read``(markup: string) =
-        Assert.Throws<TexParseException>(fun () -> parse markup |> ignore) |> ignore
+    [<InlineData(@"\genfrac{(}{)}{0pt}{4}{n}{k}", @"\genfrac{(}{)}{0pt}{}{n}{k}")>]   // there is no style 4
+    [<InlineData(@"\genfrac{(}{)}{banana}{}{n}{k}", @"\genfrac{(}{)}{}{}{n}{k}")>]    // not a length
+    [<InlineData(@"\genfrac{(}{)}{1}{}{n}{k}", @"\genfrac{(}{)}{}{}{n}{k}")>]         // a number with no unit
+    member _.``genfrac falls back where it cannot read a thickness or a style``(markup: string, asIf: string) =
+        // It used to refuse the formula outright. It now sets the fraction as though the argument had
+        // been left empty — and does so silently, which is the one place in this suite where
+        // something unreadable leaves no mark on the formula at all.
+        Assert.Empty(undrawn markup)
+        Assert.Equal(widthOf asIf, widthOf markup, 6)
+        Assert.Equal(heightOf asIf, heightOf markup, 6)
 
     // ── escaped braces inside a group ────────────────────────────────────────────
 

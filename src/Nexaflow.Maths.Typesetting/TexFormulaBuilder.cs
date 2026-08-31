@@ -173,7 +173,7 @@ public static class TexFormulaBuilder
         // stretch, which is two colours of squiggle under one command and no help to anybody.
         if (!part.SelfAndDescendants().Any(piece => piece.Trouble is not null)) _ignored?.Add(Whole(part));
 
-        return Tag(Letters(part.Print(), style), part);
+        return Tag(Letters(part.Print(), style, spaced: true), part);
     }
 
     /// <summary>
@@ -1216,7 +1216,7 @@ public static class TexFormulaBuilder
         // was written with, while tagging the result with the part that covers both — so the node claimed
         // eleven characters and set five, and the reader was shown a command with its argument missing.
         // What a fallback owes somebody is the text they typed.
-        return Tag(Letters(part.Print(), style), part);
+        return Tag(Letters(part.Print(), style, spaced: true), part);
     }
 
     /// <summary>
@@ -1240,7 +1240,7 @@ public static class TexFormulaBuilder
     /// `h` of `\alhpa` is not a thing anybody wants to do.
     /// </para>
     /// </summary>
-    private static Atom Shown(ITexPart part, string? style) => Tag(Letters(part.Text, style), part);
+    private static Atom Shown(ITexPart part, string? style) => Tag(Letters(part.Text, style, spaced: true), part);
 
     /// <summary>
     /// A run of characters set exactly as they are written, spaces included.
@@ -1252,7 +1252,20 @@ public static class TexFormulaBuilder
     /// no rule that would put it back.
     /// </para>
     /// </summary>
-    private static Atom Letters(string text, string? style)
+    /// <param name="spaced">
+    /// Whether to leave a thin space at each end. Only a stretch shown <em>because it could not be
+    /// read</em> wants one: two of those in a row — <c>\bbox { 1 } , \bbox { 1 }</c> — ran together into
+    /// one unreadable word, and what somebody has to do with such a stretch is read it and then select
+    /// it, both of which room makes easier. It is the one thing on the page not trying to look like the
+    /// formula it stands in.
+    /// <para>
+    /// <c>\text{…}</c> sets characters too and is not a failure of anything, so it must not have the
+    /// room — LaTeX puts none there. Padding it as well was a silent widening of every formula in the
+    /// corpus carrying one, and 3mu is far too little for a rendering comparison to notice: the
+    /// typesetter's own approvals are what caught it, by naming the atoms rather than measuring the ink.
+    /// </para>
+    /// </param>
+    private static Atom Letters(string text, string? style, bool spaced = false)
     {
         // Set as text, not as maths. These are characters shown because nothing could be read or drawn in
         // their place, and a backslash or a brace has no maths glyph worth the name — `\begin{array}` came
@@ -1260,16 +1273,19 @@ public static class TexFormulaBuilder
         // wins where there is one, so characters inside a \mathrm stay in it.
         style ??= TexUtilities.TextStyleName;
 
-        // A thin space at each end. Two of these in a row — `\bbox { 1 } , \bbox { 1 }` — ran together
-        // into one unreadable word, and what somebody has to do with a stretch shown this way is read it
-        // and then select it. Room around it makes both easier, and it is the one thing on the page that
-        // is not trying to look like the formula it stands in.
-        var row = new RowAtom(null).Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0));
+        // One character is that character, not a row holding it. A row is a different atom with a type
+        // and a spacing of its own, and `\text{x}` is an x — as the typesetter's own tests say when they
+        // ask a `\text{∅}` for its glyph and are handed a box of boxes instead of a character box.
+        if (!spaced && text.Length == 1 && !char.IsWhiteSpace(text[0]))
+            return new CharAtom(null, text[0], style);
+
+        var row = new RowAtom(null);
+        if (spaced) row = row.Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0));
 
         foreach (var letter in text)
             row = row.Add(char.IsWhiteSpace(letter) ? new SpaceAtom(null) : (Atom)new CharAtom(null, letter, style));
 
-        return row.Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0));
+        return spaced ? row.Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0)) : row;
     }
 
     /// <summary>

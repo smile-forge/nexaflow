@@ -85,7 +85,10 @@ public class TypesettingUnchangedTests
         // holding one moved with it. And \mod and \genfrac are set rather than shown — both had a reader
         // and nothing that built them, so both had been dead in the app since the old reader stopped
         // drawing, while the test that watched them was asking that same reader.
-        ["text styles and fonts"] = "B15C4CB8D0484981",
+        // Moved when `\text{…}` stopped being padded with a thin space at each end. That padding was
+        // meant for a stretch shown because it could not be read, and reached every text command by
+        // sharing the same builder — see TexFormulaBuilder.Letters.
+        ["text styles and fonts"] = "FCAB07860B836086",
         // These two moved 2026-08-29 because two things stopped being set as their own characters. `\ `
         // is drawn by the builder and was not in the table the reading asks whether anything can draw it,
         // so it came out red; and characters shown because nothing could read or draw them are now set as

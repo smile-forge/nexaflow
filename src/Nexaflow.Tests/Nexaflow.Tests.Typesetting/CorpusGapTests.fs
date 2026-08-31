@@ -13,7 +13,6 @@ open XamlMath.Atoms
 type CorpusGapTests() =
     static do initializeFontResourceLoading()
 
-    static let parse (markup: string) = WpfTeXFormulaParser.Instance.Parse(markup)
     static let environment = WpfTeXEnvironment.Create()
 
     static let boxOf (markup: string) = (parse markup).RootAtom.CreateBox(environment)

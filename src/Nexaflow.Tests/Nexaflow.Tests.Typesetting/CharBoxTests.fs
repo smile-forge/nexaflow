@@ -16,11 +16,6 @@ open XamlMath.Rendering
 type CharBoxTests() =
     static do Utils.initializeFontResourceLoading()
 
-    let parse(text: string) =
-        let parser = WpfTeXFormulaParser.Instance
-        let result = parser.Parse text
-        result.RootAtom
-
     let environment = WpfTeXEnvironment.Create()
 
     [<Fact>]
@@ -41,7 +36,7 @@ type CharBoxTests() =
 
     [<Fact>]
     member _.``CharBox GetGlyphRun for \text{∅} should throw the TexCharacterMappingNotFoundException``() =
-        let atom = parse @"\text{∅}"
+        let atom = Utils.parseRoot @"\text{∅}"
         let charBox : CharBox = downcast atom.CreateBox(environment)
         let action = Func<obj>(fun () -> upcast WpfCharInfoEx.GetGlyphRun(charBox.Character, 20.0, 0.5, 1.0))
         let exc = Assert.Throws<TexCharacterMappingNotFoundException>(action)

@@ -16,7 +16,6 @@ open XamlMath.Rendering
 type ArrayAndOperatorTests() =
     static do initializeFontResourceLoading()
 
-    static let parse (markup: string) = WpfTeXFormulaParser.Instance.Parse(markup)
     static let environment = WpfTeXEnvironment.Create()
 
     static let renders (markup: string) =
@@ -97,13 +96,23 @@ type ArrayAndOperatorTests() =
         Assert.Equal(3, ruled.HorizontalRules.Count) // above, between, below
 
     [<Theory>]
-    [<InlineData(@"\begin{array} a \end{array}")>]        // no preamble
-    [<InlineData(@"\begin{array}{} a \end{array}")>]      // empty preamble
-    [<InlineData(@"\begin{array}{p} a \end{array}")>]     // a column type we cannot draw
-    [<InlineData(@"\begin{array}{c@{x}c} a & b \end{array}")>]
+    [<InlineData(@"\begin{array} a \end{array}")>]              // no preamble at all
+    [<InlineData(@"\begin{array}{c@{x}c} a & b \end{array}")>]  // a preamble in a language we cannot read
     member _.``an array we cannot draw says so``(markup: string) =
-        // Better a clear failure than a grid quietly missing what was asked for.
-        Assert.ThrowsAny<exn>(fun () -> (parse markup).RootAtom |> ignore) |> ignore
+        // Better a grid shown as the characters that asked for it than one quietly missing what was
+        // asked for. It used to be an exception; it is a mark on the stretch now, and the reader sees
+        // which stretch rather than a formula that has vanished.
+        Assert.NotEmpty(undrawn markup)
+
+    [<Theory>]
+    [<InlineData(@"\begin{array}{} a \end{array}")>]      // not legal LaTeX, and the corpus has it anyway
+    [<InlineData(@"\begin{array}{p} a \end{array}")>]     // a column type we cannot draw
+    member _.``a preamble naming no column we can draw centres them instead``(markup: string) =
+        // The one preamble fault that is recovered rather than marked. Refusing these bought nothing
+        // and cost the whole formula: a reader handed `\begin{array}` in place of a matrix has been
+        // given the worse of the two, and the cells already say how many columns there are.
+        Assert.Empty(undrawn markup)
+        renders markup
 
     // ── \operatorname ────────────────────────────────────────────────────────────
 

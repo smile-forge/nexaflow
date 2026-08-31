@@ -16,7 +16,6 @@ open XamlMath.Atoms
 type AmsSymbolFontTests() =
     static do initializeFontResourceLoading()
 
-    static let parse (markup: string) = WpfTeXFormulaParser.Instance.Parse(markup)
     static let environment = WpfTeXEnvironment.Create()
 
     /// Parses the markup and builds its box, which is where a missing glyph would surface.

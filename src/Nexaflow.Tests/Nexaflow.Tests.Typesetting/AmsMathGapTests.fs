@@ -14,7 +14,6 @@ open XamlMath.Rendering
 type AmsMathGapTests() =
     static do initializeFontResourceLoading()
 
-    static let parse (markup: string) = WpfTeXFormulaParser.Instance.Parse(markup)
     static let environment = WpfTeXEnvironment.Create()
 
     static let renders (markup: string) =

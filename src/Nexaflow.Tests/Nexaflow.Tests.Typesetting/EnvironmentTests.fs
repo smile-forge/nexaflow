@@ -42,26 +42,16 @@ let nestedEnvironment(): unit =
 let nestedMatrix(): unit =
     verifyParseResult @"\begin{pmatrix}line 1\\\pmatrix{line x & line y}\end{pmatrix}"
 
-[<Fact>]
-let ``Empty environment name should trigger an exception``(): unit =
-    let markup = @"\begin{}"
-    let ex = assertParseThrows<TexParseException> markup
-    Assert.Equal(@"Empty environment name for the \begin command.", ex.Message)
+// An environment that cannot be made sense of is set as the characters that were written, the same
+// as anything else that cannot be drawn — see UnreadableMarkupTests, where that answer is set out.
+// Each of these was a TexParseException naming what was wrong with it; the reader is now shown the
+// stretch itself, squiggled, which says the same thing in the place it happened.
 
-[<Fact>]
-let ``Unknown environment should trigger an exception``(): unit =
-    let markup = @"\begin{unknown}"
-    let ex = assertParseThrows<TexParseException> markup
-    Assert.Equal(@"Unknown environment name for the \begin command: ""unknown"".", ex.Message)
-
-[<Fact>]
-let ``Broken nested environments should throw an exception``(): unit =
-    let markup = @"\begin{pmatrix}\begin{pmatrix}\end{pmatrix}"
-    let ex = assertParseThrows<TexParseException> markup
-    Assert.Equal(@"No matching \end found for command ""\begin{pmatrix}"".", ex.Message)
-
-[<Fact>]
-let ``Not corresponding \end should throw an exception``(): unit =
-    let markup = @"\begin{pmatrix}\end{unknown}"
-    let ex = assertParseThrows<TexParseException> markup
-    Assert.Equal(@"""\end{unknown}"" doesn't correspond to earlier ""\begin{pmatrix}"".", ex.Message)
+[<Theory>]
+[<InlineData(@"\begin{}")>]                                      // no name
+[<InlineData(@"\begin{unknown}")>]                               // a name nobody has heard of
+[<InlineData(@"\begin{pmatrix}\begin{pmatrix}\end{pmatrix}")>]   // no \end for the outer one
+[<InlineData(@"\begin{pmatrix}\end{unknown}")>]                  // and this \end is not its
+let ``an environment that cannot be read is set as its own characters``(markup: string): unit =
+    Assert.NotEmpty(undrawn markup)
+    Assert.Empty(unreadable markup)

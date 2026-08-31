@@ -1,0 +1,5291 @@
+{
+  "Background": null,
+  "Children": [
+    {
+      "Background": null,
+      "Children": [
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "SpaceAtom",
+            "Borrowed": false,
+            "Slots": [],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.166667166666667,
+          "Width": 0.166667166666667
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "\\",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.155064174107143,
+              "Height": 0.698001897439907,
+              "Italic": 0.0,
+              "Width": 0.276666666666667
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.155064174107143,
+          "Foreground": null,
+          "Height": 0.698001897439907,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "\\",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.85306607154705,
+          "TotalWidth": 0.276666666666667,
+          "Width": 0.276666666666667
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "p",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.341587611607143,
+              "Height": 0.539504870668411,
+              "Italic": 0.0,
+              "Width": 0.556666666666667
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.341587611607143,
+          "Foreground": null,
+          "Height": 0.539504870668411,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "p",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.881092482275553,
+          "TotalWidth": 0.556666666666667,
+          "Width": 0.556666666666667
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "m",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.142857142857143,
+              "Height": 0.539504870668411,
+              "Italic": 0.0,
+              "Width": 0.833333333333333
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.142857142857143,
+          "Foreground": null,
+          "Height": 0.539504870668411,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "m",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.682362013525553,
+          "TotalWidth": 0.833333333333333,
+          "Width": 0.833333333333333
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "a",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.154575892857143,
+              "Height": 0.539504870668411,
+              "Italic": 0.0,
+              "Width": 0.556666666666667
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.154575892857143,
+          "Foreground": null,
+          "Height": 0.539504870668411,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "a",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.694080763525553,
+          "TotalWidth": 0.556666666666667,
+          "Width": 0.556666666666667
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "t",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.149693080357143,
+              "Height": 0.675303557803495,
+              "Italic": 0.0,
+              "Width": 0.276666666666667
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.149693080357143,
+          "Foreground": null,
+          "Height": 0.675303557803495,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "t",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.824996638160638,
+          "TotalWidth": 0.276666666666667,
+          "Width": 0.276666666666667
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "r",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.142857142857143,
+              "Height": 0.539504870668411,
+              "Italic": 0.0,
+              "Width": 0.333333333333333
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.142857142857143,
+          "Foreground": null,
+          "Height": 0.539504870668411,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "r",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.682362013525553,
+          "TotalWidth": 0.333333333333333,
+          "Width": 0.333333333333333
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "i",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.142857142857143,
+              "Height": 0.688218130355247,
+              "Italic": 0.0,
+              "Width": 0.223333333333333
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.142857142857143,
+          "Foreground": null,
+          "Height": 0.688218130355247,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "i",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.83107527321239,
+          "TotalWidth": 0.223333333333333,
+          "Width": 0.223333333333333
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "x",
+            "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+            "FontId": -1,
+            "Metrics": {
+              "Depth": 0.142857142857143,
+              "Height": 0.530112454267137,
+              "Italic": 0.0,
+              "Width": 0.5
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.142857142857143,
+          "Foreground": null,
+          "Height": 0.530112454267137,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "x",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.672969597124279,
+          "TotalWidth": 0.5,
+          "Width": 0.5
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "SpaceAtom",
+            "Borrowed": false,
+            "Slots": [],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.166667166666667,
+          "Width": 0.166667166666667
+        }
+      ],
+      "Depth": 0.341587611607143,
+      "Foreground": null,
+      "Height": 0.698001897439907,
+      "Italic": 0.0,
+      "Node": {
+        "[AtomType]": "RowAtom",
+        "Borrowed": false,
+        "Elements": [
+          {
+            "[AtomType]": "SpaceAtom",
+            "Borrowed": false,
+            "Slots": [],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "\\",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "p",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "m",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "a",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "t",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "r",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "i",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "x",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "SpaceAtom",
+            "Borrowed": false,
+            "Slots": [],
+            "Source": null,
+            "Type": "Ordinary"
+          }
+        ],
+        "PreviousAtom": null,
+        "Slots": [
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "SpaceAtom",
+              "Borrowed": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "\\",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "p",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "m",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "a",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "t",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "r",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "i",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "x",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "SpaceAtom",
+              "Borrowed": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          }
+        ],
+        "Source": null,
+        "Type": "Ordinary"
+      },
+      "Shift": 0.0,
+      "Source": null,
+      "TotalHeight": 1.03958950904705,
+      "TotalWidth": 3.890001,
+      "Width": 3.890001
+    },
+    {
+      "Background": null,
+      "Children": [],
+      "Depth": 0.0,
+      "Foreground": null,
+      "Height": 0.0,
+      "Italic": 0.0,
+      "Node": null,
+      "Shift": 0.0,
+      "Shrink": 0.0,
+      "Source": null,
+      "Stretch": 0.0,
+      "TotalHeight": 0.0,
+      "TotalWidth": 0.0,
+      "Width": 0.0
+    },
+    {
+      "Background": null,
+      "Children": [
+        {
+          "Background": null,
+          "Character": {
+            "Character": "2",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "FontId": 1,
+            "Metrics": {
+              "Depth": 0.0,
+              "Height": 0.644444,
+              "Italic": 0.0,
+              "Width": 0.500002
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.644444,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.644444,
+          "TotalWidth": 0.500002,
+          "Width": 0.500002
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Children": [
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.166667166666667,
+              "Width": 0.166667166666667
+            },
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": null,
+              "Shift": 0.0,
+              "Shrink": 0.0,
+              "Source": null,
+              "Stretch": 0.0,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.0,
+              "Width": 0.0
+            },
+            {
+              "Background": null,
+              "Character": {
+                "Character": "&",
+                "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+                "FontId": -1,
+                "Metrics": {
+                  "Depth": 0.159458705357143,
+                  "Height": 0.698001897439907,
+                  "Italic": 0.0,
+                  "Width": 0.666666666666667
+                },
+                "Size": 1.0
+              },
+              "Children": [],
+              "Depth": 0.159458705357143,
+              "Foreground": null,
+              "Height": 0.698001897439907,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "&",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.85746060279705,
+              "TotalWidth": 0.666666666666667,
+              "Width": 0.666666666666667
+            },
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.166667166666667,
+              "Width": 0.166667166666667
+            }
+          ],
+          "Depth": 0.159458705357143,
+          "Foreground": null,
+          "Height": 0.698001897439907,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "RowAtom",
+            "Borrowed": false,
+            "Elements": [
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "&",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              }
+            ],
+            "PreviousAtom": {
+              "[AtomType]": "DummyAtom",
+              "Atom": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Borrowed": false,
+              "IsKern": false,
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "None"
+            },
+            "Slots": [
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              }
+            ],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.85746060279705,
+          "TotalWidth": 1.000001,
+          "Width": 1.000001
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "2",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "FontId": 1,
+            "Metrics": {
+              "Depth": 0.0,
+              "Height": 0.644444,
+              "Italic": 0.0,
+              "Width": 0.500002
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.644444,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.644444,
+          "TotalWidth": 0.500002,
+          "Width": 0.500002
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Children": [
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.166667166666667,
+              "Width": 0.166667166666667
+            },
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": null,
+              "Shift": 0.0,
+              "Shrink": 0.0,
+              "Source": null,
+              "Stretch": 0.0,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.0,
+              "Width": 0.0
+            },
+            {
+              "Background": null,
+              "Character": {
+                "Character": "\\",
+                "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+                "FontId": -1,
+                "Metrics": {
+                  "Depth": 0.155064174107143,
+                  "Height": 0.698001897439907,
+                  "Italic": 0.0,
+                  "Width": 0.276666666666667
+                },
+                "Size": 1.0
+              },
+              "Children": [],
+              "Depth": 0.155064174107143,
+              "Foreground": null,
+              "Height": 0.698001897439907,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "\\",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.85306607154705,
+              "TotalWidth": 0.276666666666667,
+              "Width": 0.276666666666667
+            },
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": null,
+              "Shift": 0.0,
+              "Shrink": 0.0,
+              "Source": null,
+              "Stretch": 0.0,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.0,
+              "Width": 0.0
+            },
+            {
+              "Background": null,
+              "Character": {
+                "Character": "\\",
+                "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+                "FontId": -1,
+                "Metrics": {
+                  "Depth": 0.155064174107143,
+                  "Height": 0.698001897439907,
+                  "Italic": 0.0,
+                  "Width": 0.276666666666667
+                },
+                "Size": 1.0
+              },
+              "Children": [],
+              "Depth": 0.155064174107143,
+              "Foreground": null,
+              "Height": 0.698001897439907,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "\\",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.85306607154705,
+              "TotalWidth": 0.276666666666667,
+              "Width": 0.276666666666667
+            },
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.166667166666667,
+              "Width": 0.166667166666667
+            }
+          ],
+          "Depth": 0.155064174107143,
+          "Foreground": null,
+          "Height": 0.698001897439907,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "RowAtom",
+            "Borrowed": false,
+            "Elements": [
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "\\",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "\\",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              }
+            ],
+            "PreviousAtom": {
+              "[AtomType]": "DummyAtom",
+              "Atom": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Borrowed": false,
+              "IsKern": false,
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "None"
+            },
+            "Slots": [
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              }
+            ],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.85306607154705,
+          "TotalWidth": 0.886667666666667,
+          "Width": 0.886667666666667
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "2",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "FontId": 1,
+            "Metrics": {
+              "Depth": 0.0,
+              "Height": 0.644444,
+              "Italic": 0.0,
+              "Width": 0.500002
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.644444,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.644444,
+          "TotalWidth": 0.500002,
+          "Width": 0.500002
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Children": [
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.166667166666667,
+              "Width": 0.166667166666667
+            },
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": null,
+              "Shift": 0.0,
+              "Shrink": 0.0,
+              "Source": null,
+              "Stretch": 0.0,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.0,
+              "Width": 0.0
+            },
+            {
+              "Background": null,
+              "Character": {
+                "Character": "&",
+                "Font": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+                "FontId": -1,
+                "Metrics": {
+                  "Depth": 0.159458705357143,
+                  "Height": 0.698001897439907,
+                  "Italic": 0.0,
+                  "Width": 0.666666666666667
+                },
+                "Size": 1.0
+              },
+              "Children": [],
+              "Depth": 0.159458705357143,
+              "Foreground": null,
+              "Height": 0.698001897439907,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "&",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.85746060279705,
+              "TotalWidth": 0.666666666666667,
+              "Width": 0.666666666666667
+            },
+            {
+              "Background": null,
+              "Children": [],
+              "Depth": 0.0,
+              "Foreground": null,
+              "Height": 0.0,
+              "Italic": 0.0,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Shift": 0.0,
+              "Source": null,
+              "TotalHeight": 0.0,
+              "TotalWidth": 0.166667166666667,
+              "Width": 0.166667166666667
+            }
+          ],
+          "Depth": 0.159458705357143,
+          "Foreground": null,
+          "Height": 0.698001897439907,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "RowAtom",
+            "Borrowed": false,
+            "Elements": [
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "&",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              }
+            ],
+            "PreviousAtom": {
+              "[AtomType]": "DummyAtom",
+              "Atom": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Borrowed": false,
+              "IsKern": false,
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "None"
+            },
+            "Slots": [
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              }
+            ],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.85746060279705,
+          "TotalWidth": 1.000001,
+          "Width": 1.000001
+        },
+        {
+          "Background": null,
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.0,
+          "Italic": 0.0,
+          "Node": null,
+          "Shift": 0.0,
+          "Shrink": 0.0,
+          "Source": null,
+          "Stretch": 0.0,
+          "TotalHeight": 0.0,
+          "TotalWidth": 0.0,
+          "Width": 0.0
+        },
+        {
+          "Background": null,
+          "Character": {
+            "Character": "2",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "FontId": 1,
+            "Metrics": {
+              "Depth": 0.0,
+              "Height": 0.644444,
+              "Italic": 0.0,
+              "Width": 0.500002
+            },
+            "Size": 1.0
+          },
+          "Children": [],
+          "Depth": 0.0,
+          "Foreground": null,
+          "Height": 0.644444,
+          "Italic": 0.0,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          "Shift": 0.0,
+          "Source": null,
+          "TotalHeight": 0.644444,
+          "TotalWidth": 0.500002,
+          "Width": 0.500002
+        }
+      ],
+      "Depth": 0.159458705357143,
+      "Foreground": null,
+      "Height": 0.698001897439907,
+      "Italic": 0.0,
+      "Node": {
+        "[AtomType]": "RowAtom",
+        "Borrowed": false,
+        "Elements": [
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "RowAtom",
+            "Borrowed": false,
+            "Elements": [
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "&",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              }
+            ],
+            "PreviousAtom": null,
+            "Slots": [
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              }
+            ],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "RowAtom",
+            "Borrowed": false,
+            "Elements": [
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "\\",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "\\",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              }
+            ],
+            "PreviousAtom": null,
+            "Slots": [
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              }
+            ],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "RowAtom",
+            "Borrowed": false,
+            "Elements": [
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "&",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              }
+            ],
+            "PreviousAtom": null,
+            "Slots": [
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              }
+            ],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "2",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          }
+        ],
+        "PreviousAtom": null,
+        "Slots": [
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "RowAtom",
+              "Borrowed": false,
+              "Elements": [
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                }
+              ],
+              "PreviousAtom": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "RowAtom",
+              "Borrowed": false,
+              "Elements": [
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                }
+              ],
+              "PreviousAtom": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "RowAtom",
+              "Borrowed": false,
+              "Elements": [
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                }
+              ],
+              "PreviousAtom": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          }
+        ],
+        "Source": null,
+        "Type": "Ordinary"
+      },
+      "Shift": 0.0,
+      "Source": null,
+      "TotalHeight": 0.85746060279705,
+      "TotalWidth": 4.88667766666667,
+      "Width": 4.88667766666667
+    }
+  ],
+  "Depth": 0.341587611607143,
+  "Foreground": null,
+  "Height": 0.698001897439907,
+  "Italic": 0.0,
+  "Node": {
+    "[AtomType]": "RowAtom",
+    "Borrowed": false,
+    "Elements": [
+      {
+        "[AtomType]": "RowAtom",
+        "Borrowed": false,
+        "Elements": [
+          {
+            "[AtomType]": "SpaceAtom",
+            "Borrowed": false,
+            "Slots": [],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "\\",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "p",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "m",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "a",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "t",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "r",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "i",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "x",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": "text",
+            "Type": "Ordinary"
+          },
+          {
+            "[AtomType]": "SpaceAtom",
+            "Borrowed": false,
+            "Slots": [],
+            "Source": null,
+            "Type": "Ordinary"
+          }
+        ],
+        "PreviousAtom": null,
+        "Slots": [
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "SpaceAtom",
+              "Borrowed": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "\\",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "p",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "m",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "a",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "t",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "r",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "i",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "x",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          },
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "SpaceAtom",
+              "Borrowed": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "element",
+            "Row": -1
+          }
+        ],
+        "Source": null,
+        "Type": "Ordinary"
+      },
+      {
+        "[AtomType]": "TypedAtom",
+        "Atom": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "RowAtom",
+              "Borrowed": false,
+              "Elements": [
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                }
+              ],
+              "PreviousAtom": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "RowAtom",
+              "Borrowed": false,
+              "Elements": [
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "\\",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                }
+              ],
+              "PreviousAtom": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "RowAtom",
+              "Borrowed": false,
+              "Elements": [
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "&",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": "text",
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "SpaceAtom",
+                  "Borrowed": false,
+                  "Slots": [],
+                  "Source": null,
+                  "Type": "Ordinary"
+                }
+              ],
+              "PreviousAtom": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "RowAtom",
+                "Borrowed": false,
+                "Elements": [
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  }
+                ],
+                "PreviousAtom": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "RowAtom",
+                "Borrowed": false,
+                "Elements": [
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  }
+                ],
+                "PreviousAtom": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "RowAtom",
+                "Borrowed": false,
+                "Elements": [
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  }
+                ],
+                "PreviousAtom": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Borrowed": false,
+        "LeftType": "Ordinary",
+        "RightType": "Ordinary",
+        "Slots": [
+          {
+            "Column": -1,
+            "Node": {
+              "[AtomType]": "RowAtom",
+              "Borrowed": false,
+              "Elements": [
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "RowAtom",
+                  "Borrowed": false,
+                  "Elements": [
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    }
+                  ],
+                  "PreviousAtom": null,
+                  "Slots": [
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    }
+                  ],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "RowAtom",
+                  "Borrowed": false,
+                  "Elements": [
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    }
+                  ],
+                  "PreviousAtom": null,
+                  "Slots": [
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    }
+                  ],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "RowAtom",
+                  "Borrowed": false,
+                  "Elements": [
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    }
+                  ],
+                  "PreviousAtom": null,
+                  "Slots": [
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    }
+                  ],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                }
+              ],
+              "PreviousAtom": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "RowAtom",
+                    "Borrowed": false,
+                    "Elements": [
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      }
+                    ],
+                    "PreviousAtom": null,
+                    "Slots": [
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "&",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      }
+                    ],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "RowAtom",
+                    "Borrowed": false,
+                    "Elements": [
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      }
+                    ],
+                    "PreviousAtom": null,
+                    "Slots": [
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "\\",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "\\",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      }
+                    ],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "RowAtom",
+                    "Borrowed": false,
+                    "Elements": [
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      }
+                    ],
+                    "PreviousAtom": null,
+                    "Slots": [
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "&",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      }
+                    ],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "element",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            "Role": "base",
+            "Row": -1
+          }
+        ],
+        "Source": null,
+        "Type": "Ordinary"
+      }
+    ],
+    "PreviousAtom": null,
+    "Slots": [
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SpaceAtom",
+              "Borrowed": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "\\",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "p",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "m",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "a",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "t",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "r",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "i",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "x",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": "text",
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "SpaceAtom",
+              "Borrowed": false,
+              "Slots": [],
+              "Source": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "\\",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "p",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "m",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "a",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "t",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "r",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "i",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "x",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": "text",
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SpaceAtom",
+                "Borrowed": false,
+                "Slots": [],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "element",
+        "Row": -1
+      },
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "TypedAtom",
+          "Atom": {
+            "[AtomType]": "RowAtom",
+            "Borrowed": false,
+            "Elements": [
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "RowAtom",
+                "Borrowed": false,
+                "Elements": [
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  }
+                ],
+                "PreviousAtom": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "RowAtom",
+                "Borrowed": false,
+                "Elements": [
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "\\",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  }
+                ],
+                "PreviousAtom": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "RowAtom",
+                "Borrowed": false,
+                "Elements": [
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "&",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": "text",
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "SpaceAtom",
+                    "Borrowed": false,
+                    "Slots": [],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  }
+                ],
+                "PreviousAtom": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              }
+            ],
+            "PreviousAtom": null,
+            "Slots": [
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "RowAtom",
+                  "Borrowed": false,
+                  "Elements": [
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    }
+                  ],
+                  "PreviousAtom": null,
+                  "Slots": [
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    }
+                  ],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "RowAtom",
+                  "Borrowed": false,
+                  "Elements": [
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "\\",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    }
+                  ],
+                  "PreviousAtom": null,
+                  "Slots": [
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    }
+                  ],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "RowAtom",
+                  "Borrowed": false,
+                  "Elements": [
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "&",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": "text",
+                      "Type": "Ordinary"
+                    },
+                    {
+                      "[AtomType]": "SpaceAtom",
+                      "Borrowed": false,
+                      "Slots": [],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    }
+                  ],
+                  "PreviousAtom": null,
+                  "Slots": [
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    },
+                    {
+                      "Column": -1,
+                      "Node": {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      "Role": "element",
+                      "Row": -1
+                    }
+                  ],
+                  "Source": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              },
+              {
+                "Column": -1,
+                "Node": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "Role": "element",
+                "Row": -1
+              }
+            ],
+            "Source": null,
+            "Type": "Ordinary"
+          },
+          "Borrowed": false,
+          "LeftType": "Ordinary",
+          "RightType": "Ordinary",
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "RowAtom",
+                "Borrowed": false,
+                "Elements": [
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "RowAtom",
+                    "Borrowed": false,
+                    "Elements": [
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      }
+                    ],
+                    "PreviousAtom": null,
+                    "Slots": [
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "&",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      }
+                    ],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "RowAtom",
+                    "Borrowed": false,
+                    "Elements": [
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "\\",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      }
+                    ],
+                    "PreviousAtom": null,
+                    "Slots": [
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "\\",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "\\",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      }
+                    ],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "RowAtom",
+                    "Borrowed": false,
+                    "Elements": [
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "CharAtom",
+                        "Borrowed": false,
+                        "Character": "&",
+                        "IsTextSymbol": false,
+                        "Slots": [],
+                        "Source": null,
+                        "TextStyle": "text",
+                        "Type": "Ordinary"
+                      },
+                      {
+                        "[AtomType]": "SpaceAtom",
+                        "Borrowed": false,
+                        "Slots": [],
+                        "Source": null,
+                        "Type": "Ordinary"
+                      }
+                    ],
+                    "PreviousAtom": null,
+                    "Slots": [
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "&",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      },
+                      {
+                        "Column": -1,
+                        "Node": {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        "Role": "element",
+                        "Row": -1
+                      }
+                    ],
+                    "Source": null,
+                    "Type": "Ordinary"
+                  },
+                  {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  }
+                ],
+                "PreviousAtom": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "2",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "RowAtom",
+                      "Borrowed": false,
+                      "Elements": [
+                        {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "&",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        }
+                      ],
+                      "PreviousAtom": null,
+                      "Slots": [
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "SpaceAtom",
+                            "Borrowed": false,
+                            "Slots": [],
+                            "Source": null,
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        },
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "CharAtom",
+                            "Borrowed": false,
+                            "Character": "&",
+                            "IsTextSymbol": false,
+                            "Slots": [],
+                            "Source": null,
+                            "TextStyle": "text",
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        },
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "SpaceAtom",
+                            "Borrowed": false,
+                            "Slots": [],
+                            "Source": null,
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        }
+                      ],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "2",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "RowAtom",
+                      "Borrowed": false,
+                      "Elements": [
+                        {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "\\",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "\\",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        }
+                      ],
+                      "PreviousAtom": null,
+                      "Slots": [
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "SpaceAtom",
+                            "Borrowed": false,
+                            "Slots": [],
+                            "Source": null,
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        },
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "CharAtom",
+                            "Borrowed": false,
+                            "Character": "\\",
+                            "IsTextSymbol": false,
+                            "Slots": [],
+                            "Source": null,
+                            "TextStyle": "text",
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        },
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "CharAtom",
+                            "Borrowed": false,
+                            "Character": "\\",
+                            "IsTextSymbol": false,
+                            "Slots": [],
+                            "Source": null,
+                            "TextStyle": "text",
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        },
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "SpaceAtom",
+                            "Borrowed": false,
+                            "Slots": [],
+                            "Source": null,
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        }
+                      ],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "2",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "RowAtom",
+                      "Borrowed": false,
+                      "Elements": [
+                        {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        },
+                        {
+                          "[AtomType]": "CharAtom",
+                          "Borrowed": false,
+                          "Character": "&",
+                          "IsTextSymbol": false,
+                          "Slots": [],
+                          "Source": null,
+                          "TextStyle": "text",
+                          "Type": "Ordinary"
+                        },
+                        {
+                          "[AtomType]": "SpaceAtom",
+                          "Borrowed": false,
+                          "Slots": [],
+                          "Source": null,
+                          "Type": "Ordinary"
+                        }
+                      ],
+                      "PreviousAtom": null,
+                      "Slots": [
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "SpaceAtom",
+                            "Borrowed": false,
+                            "Slots": [],
+                            "Source": null,
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        },
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "CharAtom",
+                            "Borrowed": false,
+                            "Character": "&",
+                            "IsTextSymbol": false,
+                            "Slots": [],
+                            "Source": null,
+                            "TextStyle": "text",
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        },
+                        {
+                          "Column": -1,
+                          "Node": {
+                            "[AtomType]": "SpaceAtom",
+                            "Borrowed": false,
+                            "Slots": [],
+                            "Source": null,
+                            "Type": "Ordinary"
+                          },
+                          "Role": "element",
+                          "Row": -1
+                        }
+                      ],
+                      "Source": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "2",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "element",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "Type": "Ordinary"
+              },
+              "Role": "base",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "element",
+        "Row": -1
+      }
+    ],
+    "Source": null,
+    "Type": "Ordinary"
+  },
+  "Shift": 0.0,
+  "Source": null,
+  "TotalHeight": 1.03958950904705,
+  "TotalWidth": 8.77667866666667,
+  "Width": 8.77667866666667
+}
