@@ -189,7 +189,9 @@ arrives as `/ x` and lands a syntax error, and `--text-escaped '/// <x/>\nfoo'` 
 turned round and writes a literal `/n` into the file while reporting success. `nfi` warns when it sees an
 MSYS shell without the exclusion, and refuses an escaped payload carrying `/n` where its escapes should be,
 but the environment variable is the fix — or pass payloads through `--file` / `--find-file` / `--stdin`,
-which no shell touches.
+which no shell touches. With `'*'` set nothing is converted at all, so a `--file` argument then has to be
+a Windows path (`C:\dir\x.cs`, or `$(cygpath -w "$p")`) — a `/c/…` one is passed through
+verbatim and not found.
 
 Two behaviours that read as bugs and are not: `--with-trivia` stops at a blank line, so deleting the last
 member under a `// ── section ──` header leaves the header (it belongs to the section, not the member);
