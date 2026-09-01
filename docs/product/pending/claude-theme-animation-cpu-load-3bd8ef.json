@@ -1,0 +1,19 @@
+{
+  "branch": "claude/theme-animation-cpu-load-3bd8ef",
+  "nodes": {
+    "theme-scene-base": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/AnimatedScene.cs",
+          "class": "AnimatedScene"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "theme-scene-base"
+  ]
+}

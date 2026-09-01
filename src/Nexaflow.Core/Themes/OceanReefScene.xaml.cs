@@ -1,11 +1,12 @@
 using System;
-using System.Collections.Generic;
+
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using System.Windows.Threading;
+
+using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Core.Themes;
 
@@ -24,7 +25,7 @@ public enum OceanSceneVariant
 /// column, white-cyan god rays + caustics, warm floor light pools, vivid reef fish and coral.
 /// Everything is procedural so it adapts to the region size, and it never participates in hit-testing.
 /// </summary>
-public partial class OceanReefScene : UserControl
+public partial class OceanReefScene : AnimatedScene
 {
     public static readonly DependencyProperty VariantProperty =
         DependencyProperty.Register(nameof(Variant), typeof(OceanSceneVariant),
@@ -36,93 +37,14 @@ public partial class OceanReefScene : UserControl
         set => SetValue(VariantProperty, value);
     }
 
-    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary translucent fills
-    // (sun glow, god rays, floor caustics, coral sway). Halving their update rate is a real saving on
-    // those large blended surfaces yet imperceptible, since the eye doesn't track them. The travelling
-    // sprites (fish, turtle, bubbles) are deliberately NOT capped: DesiredFrameRate decouples a clock
-    // from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
-    private const int AmbientFrameRate = 30;
-
     private readonly Random _rng = new();
-    private bool _built;
-    private readonly DispatcherTimer _resizeDebounce;
 
-    // Every animation runs through a controllable clock we retain, so a rebuild can *stop* the previous
-    // set — otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC — and
-    // so the whole reef can be paused when the host window is minimised.
-    private readonly List<ClockController> _clocks = new();
-    private Window? _host;
+    public OceanReefScene() => InitializeComponent();
 
-    public OceanReefScene()
+    protected override Panel SceneLayer => Layer;
+
+    protected override void BuildScene(double w, double h)
     {
-        InitializeComponent();
-        _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-        _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
-        SizeChanged += OnSizeChanged;
-        Loaded      += OnLoaded;
-        Unloaded    += OnUnloaded;
-    }
-
-    // Pause the reef only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
-    // window parked on a second monitor keeps its fish swimming while the user works elsewhere. (Full
-    // occlusion by another window isn't detectable without fragile Win32 region polling, so we don't.)
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        _host = Window.GetWindow(this);
-        if (_host is null) return;
-        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
-        _host.StateChanged += OnHostStateChanged;
-        ApplyPauseState();
-    }
-
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        _resizeDebounce.Stop();
-        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
-        _host = null;
-        StopClocks();
-        _built = false;
-        Layer.Children.Clear();
-    }
-
-    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
-
-    private void ApplyPauseState()
-    {
-        bool minimised = _host?.WindowState == WindowState.Minimized;
-        foreach (var c in _clocks)
-        {
-            if (minimised) c.Pause();
-            else           c.Resume();
-        }
-    }
-
-    // Detach every live clock so the TimeManager stops ticking them immediately, rather than waiting
-    // for the cleared elements to be garbage-collected.
-    private void StopClocks()
-    {
-        foreach (var c in _clocks) c.Remove();
-        _clocks.Clear();
-    }
-
-    // First layout builds immediately; later resizes rebuild once the size settles, so the
-    // procedural elements re-fit the region instead of staying pinned to the original size.
-    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (!_built) { Build(); return; }
-        _resizeDebounce.Stop();
-        _resizeDebounce.Start();
-    }
-
-    private void Build()
-    {
-        if (ActualWidth < 2 || ActualHeight < 2) return;
-        _built = true;
-
-        double w = ActualWidth, h = ActualHeight;
-        StopClocks();
-        Layer.Children.Clear();
-
         if (Variant == OceanSceneVariant.Full)
         {
             double area  = w * h;
@@ -145,7 +67,7 @@ public partial class OceanReefScene : UserControl
             AddBubbles(w, h, count: 10);
         }
 
-        ApplyPauseState();   // a rebuild starts clocks running; honour minimise if we're hidden
+           // a rebuild starts clocks running; honour minimise if we're hidden
     }
 
     // ── Sun glow: bright caustic light pouring in from the surface above ───────
@@ -319,23 +241,20 @@ public partial class OceanReefScene : UserControl
                     move,
                 },
             };
+            Cache(fish, scale);          // cached at the scale it is drawn at, so a big fish is not a soft one
             Layer.Children.Add(fish);
 
             double startX = toRight ? -140 : w + 140;
             double endX   = toRight ? w + 140 : -140;
             double dur    = 16 + _rng.Next(16);
 
-            // Park the fish off-screen at its start point until the crossing actually begins —
-            // otherwise the delayed (BeginTime) animation leaves it sitting at canvas x=0 (the left
-            // edge) for up to a full crossing, which reads as "stuck on the left" at startup/resize.
-            Canvas.SetLeft(fish, startX);
+            Canvas.SetLeft(fish, startX);   // parked at its start point; the crossing translates from there
 
             var cross = new DoubleAnimation(0, endX - startX, new Duration(TimeSpan.FromSeconds(dur)))
             {
                 RepeatBehavior = RepeatBehavior.Forever,
-                BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
-            };
-            Animate(move, TranslateTransform.XProperty, cross);
+                };
+                Animate(move, TranslateTransform.XProperty, cross, phaseSeconds: _rng.NextDouble() * dur);
             Loop(move, TranslateTransform.YProperty, -10, 10, 2.4 + _rng.NextDouble() * 2, _rng.NextDouble());
         }
     }
@@ -396,6 +315,7 @@ public partial class OceanReefScene : UserControl
                 move,
             },
         };
+        Cache(turtle, scale);
         Layer.Children.Add(turtle);
 
         double startX = toRight ? -160 : w + 160;
@@ -412,13 +332,12 @@ public partial class OceanReefScene : UserControl
         var cross = new DoubleAnimationUsingKeyFrames
         {
             RepeatBehavior = RepeatBehavior.Forever,
-            BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * total),
             Duration       = new Duration(TimeSpan.FromSeconds(total)),
         };
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(0,             KeyTime.FromPercent(0)));
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(crossFr)));
         cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(1)));
-        Animate(move, TranslateTransform.XProperty, cross);
+        Animate(move, TranslateTransform.XProperty, cross, phaseSeconds: _rng.NextDouble() * total);
 
         Loop(move, TranslateTransform.YProperty, -8, 8, 3.6 + _rng.NextDouble() * 2, _rng.NextDouble());
     }
@@ -540,58 +459,25 @@ public partial class OceanReefScene : UserControl
             Layer.Children.Add(bubble);
 
             double dur  = 5 + _rng.Next(7);
-            var begin   = TimeSpan.FromSeconds(_rng.NextDouble() * dur);
+            double phase = _rng.NextDouble() * dur;   // rise and fade share one phase, so a bubble fades as it climbs
 
             var rise = new DoubleAnimation(0, -(h + 40), new Duration(TimeSpan.FromSeconds(dur)))
             {
                 RepeatBehavior = RepeatBehavior.Forever,
-                BeginTime      = begin,
-            };
-            Animate(bubble.RenderTransform, TranslateTransform.YProperty, rise);
-            Loop(bubble.RenderTransform, TranslateTransform.XProperty, -6, 6, 1.4 + _rng.NextDouble() * 1.6, _rng.NextDouble());
+                };
+                Animate(bubble.RenderTransform, TranslateTransform.YProperty, rise, phaseSeconds: phase);
+                Loop(bubble.RenderTransform, TranslateTransform.XProperty, -6, 6, 1.4 + _rng.NextDouble() * 1.6, _rng.NextDouble());
 
             var fade = new DoubleAnimationUsingKeyFrames
             {
                 RepeatBehavior = RepeatBehavior.Forever,
-                BeginTime      = begin,
                 Duration       = new Duration(TimeSpan.FromSeconds(dur)),
             };
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.0, KeyTime.FromPercent(0.0)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.9, KeyTime.FromPercent(0.15)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.9, KeyTime.FromPercent(0.75)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0.0, KeyTime.FromPercent(1.0)));
-            Animate(bubble, OpacityProperty, fade);
+            Animate(bubble, OpacityProperty, fade, phaseSeconds: phase);
         }
-    }
-
-    // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private void Loop(IAnimatable target, DependencyProperty prop,
-                      double from, double to, double seconds, double beginSeconds, int? fps = null)
-        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
-        {
-            AutoReverse    = true,
-            RepeatBehavior = RepeatBehavior.Forever,
-            BeginTime      = TimeSpan.FromSeconds(beginSeconds),
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        }, fps);
-
-    // Start the animation through a controllable clock (retained so the reef can be stopped on rebuild
-    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers;
-    // travelling sprites omit it and run at the display refresh so tracked motion stays smooth.
-    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
-    {
-        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
-        var clock = anim.CreateClock();
-        target.ApplyAnimationClock(prop, clock);
-        if (clock.Controller is { } controller) _clocks.Add(controller);
-    }
-
-    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
-    // tracking. Everything the reef builds is immutable after creation (only element opacity and
-    // transforms animate), so all of it is freezable.
-    private static T Frozen<T>(T freezable) where T : Freezable
-    {
-        if (freezable.CanFreeze) freezable.Freeze();
-        return freezable;
     }
 }

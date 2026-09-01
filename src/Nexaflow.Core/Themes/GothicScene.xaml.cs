@@ -1,11 +1,12 @@
 using System;
-using System.Collections.Generic;
+
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using System.Windows.Threading;
+
+using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Core.Themes;
 
@@ -26,7 +27,7 @@ public enum GothicSceneVariant
 /// flapping across the dark. Everything is procedural so it adapts to the region size; it never
 /// participates in hit-testing.
 /// </summary>
-public partial class GothicScene : UserControl
+public partial class GothicScene : AnimatedScene
 {
     public static readonly DependencyProperty VariantProperty =
         DependencyProperty.Register(nameof(Variant), typeof(GothicSceneVariant),
@@ -38,89 +39,15 @@ public partial class GothicScene : UserControl
         set => SetValue(VariantProperty, value);
     }
 
-    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary decorative fills.
-    // Halving their update rate is a real saving on those large blended surfaces yet imperceptible,
-    // since the eye doesn't track them. Travelling sprites are NOT capped: DesiredFrameRate decouples a
-    // clock from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
-    private const int AmbientFrameRate = 30;
-
     private readonly Random _rng = new();
-    private bool _built;
-    private readonly DispatcherTimer _resizeDebounce;
 
-    // Every animation runs through a controllable clock we retain, so a rebuild can stop the previous
-    // set (otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC) and so
-    // the whole scene can be paused when the host window is minimised.
-    private readonly List<ClockController> _clocks = new();
-    private Window? _host;
+    public GothicScene() => InitializeComponent();
 
-    public GothicScene()
+    protected override Panel SceneLayer => Layer;
+
+    protected override void BuildScene(double w, double h)
     {
-        InitializeComponent();
-        _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-        _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
-        SizeChanged += OnSizeChanged;
-        Loaded      += OnLoaded;
-        Unloaded    += OnUnloaded;
-    }
 
-    // Pause the scene only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
-    // window parked on a second monitor keeps animating while the user works elsewhere.
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        _host = Window.GetWindow(this);
-        if (_host is null) return;
-        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
-        _host.StateChanged += OnHostStateChanged;
-        ApplyPauseState();
-    }
-
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        _resizeDebounce.Stop();
-        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
-        _host = null;
-        StopClocks();
-        _built = false;
-        Layer.Children.Clear();
-    }
-
-    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
-
-    private void ApplyPauseState()
-    {
-        bool minimised = _host?.WindowState == WindowState.Minimized;
-        foreach (var c in _clocks)
-        {
-            if (minimised) c.Pause();
-            else           c.Resume();
-        }
-    }
-
-    // Detach every live clock so the TimeManager stops ticking them immediately.
-    private void StopClocks()
-    {
-        foreach (var c in _clocks) c.Remove();
-        _clocks.Clear();
-    }
-
-    // First layout builds immediately; later resizes rebuild once the size settles, so the
-    // procedural elements re-fit the region instead of staying pinned to the original size.
-    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (!_built) { Build(); return; }
-        _resizeDebounce.Stop();
-        _resizeDebounce.Start();
-    }
-
-    private void Build()
-    {
-        if (ActualWidth < 2 || ActualHeight < 2) return;
-        _built = true;
-
-        double w = ActualWidth, h = ActualHeight;
-        StopClocks();
-        Layer.Children.Clear();
 
         // The moon anchors the composition up in the right sky; the tower rises beneath it on the left
         // of centre so the silhouette reads backlit. Both scale with the region.
@@ -150,7 +77,7 @@ public partial class GothicScene : UserControl
             AddBats(w, h, 3);
         }
 
-        ApplyPauseState();   // a rebuild starts clocks running; honour minimise if we're hidden
+           // a rebuild starts clocks running; honour minimise if we're hidden
     }
 
     // ── Moon: a pale disc behind a broad lilac halo, breathing slowly ──────────
@@ -436,9 +363,8 @@ public partial class GothicScene : UserControl
             var drift = new DoubleAnimation(0, endX - startX, new Duration(TimeSpan.FromSeconds(dur)))
             {
                 RepeatBehavior = RepeatBehavior.Forever,
-                BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
-            };
-            Animate(move, TranslateTransform.XProperty, drift, AmbientFrameRate);
+                };
+                Animate(move, TranslateTransform.XProperty, drift, AmbientFrameRate, _rng.NextDouble() * dur);
         }
     }
 
@@ -508,22 +434,21 @@ public partial class GothicScene : UserControl
                     move,
                 },
             };
+            Cache(bat, scale);
             Layer.Children.Add(bat);
 
             double startX = toRight ? -120 : w + 120;
             double endX   = toRight ? w + 120 : -120;
             double dur    = 14 + _rng.Next(16);
 
-            // Park the bat off-screen at its start point until the crossing begins — otherwise the
-            // delayed (BeginTime) animation leaves it stuck at canvas x=0 for up to a full crossing.
+            // Park the bat at its start point; the crossing translates from there.
             Canvas.SetLeft(bat, startX);
 
             var cross = new DoubleAnimation(0, endX - startX, new Duration(TimeSpan.FromSeconds(dur)))
             {
                 RepeatBehavior = RepeatBehavior.Forever,
-                BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
-            };
-            Animate(move, TranslateTransform.XProperty, cross);
+                };
+                Animate(move, TranslateTransform.XProperty, cross, phaseSeconds: _rng.NextDouble() * dur);
 
             // Erratic flight bob — swoopers dip far, cruisers barely waver.
             double amp = swooper ? 40 + _rng.Next(40) : 10 + _rng.Next(12);
@@ -594,34 +519,5 @@ public partial class GothicScene : UserControl
         };
         Animate(flap, ScaleTransform.ScaleYProperty, beat);
         return bat;
-    }
-
-    // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private void Loop(IAnimatable target, DependencyProperty prop,
-                      double from, double to, double seconds, double beginSeconds, int? fps = null)
-        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
-        {
-            AutoReverse    = true,
-            RepeatBehavior = RepeatBehavior.Forever,
-            BeginTime      = TimeSpan.FromSeconds(beginSeconds),
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        }, fps);
-
-    // Start the animation through a controllable clock (retained so the scene can be stopped on rebuild
-    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers.
-    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
-    {
-        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
-        var clock = anim.CreateClock();
-        target.ApplyAnimationClock(prop, clock);
-        if (clock.Controller is { } controller) _clocks.Add(controller);
-    }
-
-    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
-    // tracking. Everything here is immutable after creation (only opacity/transforms animate).
-    private static T Frozen<T>(T freezable) where T : Freezable
-    {
-        if (freezable.CanFreeze) freezable.Freeze();
-        return freezable;
     }
 }

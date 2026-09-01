@@ -150,11 +150,55 @@ Both are supported; pick per theme:
 - **Per-region scenes** (`Scene.Page`, `Scene.AiBar`, …) → independent art per region. Use when regions
   should differ (e.g. a distinct treatment for the AI area vs the file list).
 
+### Writing a scene: `AnimatedScene`
+
+Every scene derives from `Nexaflow.Visuals.Common/Controls/AnimatedScene` and supplies exactly two
+things — `SceneLayer` (its XAML `Layer` canvas) and `BuildScene(width, height)`. The base owns the
+rest: the build/rebuild cycle, the retained `ClockController`s (stopped on rebuild, paused on
+minimise), `Loop`/`Animate`/`Frozen`, `AmbientFrameRate`, and the caching pass. Nothing about any
+particular art lives there, and no scene re-implements the harness.
+
+Three things in the base exist purely to keep an idle themed shell off the CPU, and are worth
+understanding before changing a scene:
+
+- **Every element is cached as a texture after a build.** Uncached, WPF re-rasterises each gradient
+  fill and stroke on every frame, and that — not the number of elements, not their size, not the
+  number of clocks — is the scene's dominant cost. The base sets `CacheMode` on every child of
+  `SceneLayer` once the build finishes. A scene that draws a sprite through a `ScaleTransform` must
+  call `Cache(element, scale)` itself while it still knows the scale; cached at 1× and scaled up, a
+  sprite softens.
+- **Staggering is a seek into a running clock, never a `BeginTime`.** Pass `phaseSeconds` to
+  `Loop`/`Animate`. A delayed clock leaves its element frozen at whatever it was authored with until
+  the clock fires, then snaps it to the animation's from-value — which is what made the Ocean god rays
+  sit still and jump before they began drifting.
+- **A rebuild happens only on a real size change.** Layout settles over more than one pass, and
+  rebuilding for a pass that arrives at the size already built tore down and restarted every clock a
+  moment after the scene appeared.
+
+Measured in a bare window at 1400×900, 60 fps, hardware tier 2 — the reef alone, no shell. Take
+these numbers only from a window that is **in front**: DWM stops presenting a fully occluded window,
+which silently halves any reading taken with something on top of it.
+
+| | % of one core |
+|---|---|
+| nothing animating | 1.0 |
+| one 24×24 rectangle translating | ~3 |
+| 40 rectangles translating | ~3.5 |
+| the reef | 7.2 |
+
+Caching the elements is worth about a third of the reef's cost, measured as a back-to-back A/B.
+
+Read that top row first. **Roughly 3% of a core is WPF's floor for having any animation on screen at
+all**, and no scene can go below it; a full-window animated rectangle costs the same as a 24-pixel one,
+and thirty-nine extra moving shapes cost 0.6%. So adding another sprite to a scene is very nearly free,
+and the levers that matter are what the shapes are *made of* (gradients and strokes, which caching
+turns into textures) and, if it ever comes to it, the frame rate.
+
 ### Scenes and battery
 
 A scene is the only part of the shell that animates forever with nothing happening, so it is the only
 part worth switching off wholesale to save power. Measured on a folder tab: an idle window on Ocean
-costs ~14.6% of a core, against ~0.7% on Dark.
+costs ~14% of a core, against ~1% on Dark.
 
 `Options → Shell → Disable background animations on battery` (on by default) gates that. The switch
 itself is `BackgroundAnimationPolicy.ScenesEnabled` in `Nexaflow.Visuals.Common/Theming` — a plain
@@ -175,7 +219,7 @@ reports "on battery", so the setting is a no-op on a desktop.
 
 ### The Ocean scene
 
-`Themes/OceanReefScene.xaml(.cs)` is a procedural `UserControl` (sunlit-reef gradient, sun glow, god
+`Themes/OceanReefScene.xaml(.cs)` is a procedural `AnimatedScene` (sunlit-reef gradient, sun glow, god
 rays, floor caustics, vivid fish, colourful coral, highlight bubbles). It's theme art — referenced only
 by `Theme.Ocean.xaml`, never by `ThemedRegion`. Density scales with region size; it never hit-tests.
 Colours were taken from the source HTML mock.

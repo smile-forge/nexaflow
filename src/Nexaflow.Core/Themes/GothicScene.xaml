@@ -1,6 +1,7 @@
-<UserControl x:Class="Nexaflow.Core.Themes.GothicScene"
+<vcc:AnimatedScene x:Class="Nexaflow.Core.Themes.GothicScene"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              IsHitTestVisible="False">
     <Grid x:Name="Root" ClipToBounds="True">
         <Grid.Background>
@@ -16,4 +17,4 @@
         </Grid.Background>
         <Canvas x:Name="Layer"/>
     </Grid>
-</UserControl>
+</vcc:AnimatedScene>
