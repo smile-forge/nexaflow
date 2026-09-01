@@ -20,8 +20,22 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
+| `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
+| `Nexaflow.Tests.Typesetting` | `net10.0-windows`, **F# / xunit** | TeX's box model and the Computer Modern metrics — 762 approval tests that came with the engine when it was ingested. They also record what its old LaTeX parser produced, which is the oracle our own builder is measured against | `Nexaflow.Maths.Typesetting`, `Nexaflow.Visuals.Maths` |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
+
+**`Nexaflow.Tests.Typesetting` is the odd one out and has to be run from its own directory.** It is F# on
+xunit/VSTest where everything else is C# on MSTest under Microsoft.Testing.Platform, and `dotnet test`
+refuses to mix runners — so a `global.json` beside it shadows the repo's choice:
+
+```powershell
+cd src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
+dotnet test Nexaflow.Tests.Typesetting.fsproj
+```
+
+It is worth the awkwardness: it is the only thing watching the largest and most intricate part of the
+maths stack, and it caught a change of ours the day before the engine was ingested.
 
 No `Nexaflow.Tests.Features*` suite references Core (they mirror the architectural rule that features
 don't depend on Core). The sample-data generator therefore lives in its own dependency-free library,

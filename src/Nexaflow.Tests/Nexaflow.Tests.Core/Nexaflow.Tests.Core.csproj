@@ -22,6 +22,9 @@
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Core\Nexaflow.Core.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
+    <!-- The LaTeX parse tree, for the tests that hold it against the typesetter's own reading of the
+         same formula. Both readings are only in scope together here. -->
+    <ProjectReference Include="..\..\Nexaflow.Maths\Nexaflow.Maths.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
     <!-- Author-time coverage-declaration checks (NXCOV001/2). The tree feeds id-validity; absent on a
          clean checkout (gitignored), where the analyzer degrades to the presence check only. -->

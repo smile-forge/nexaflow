@@ -58,7 +58,9 @@ node carries snaplinks to its source):
 **`nfi.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
 the gitignored tree lives) — so run it from any checkout or worktree with NO root arg.** Build it once, then call the
 exe directly (fast; no per-call rebuild). In the main checkout a prebuilt copy also sits at `tools/graph-cli/`
-(`tools/publish-graph-cli.ps1` refreshes it). `$nfi` below is that exe. (The installer also ships it as an
+(`tools/publish-graph-cli.ps1` refreshes it — **run it from the main checkout**; `graph-cli/` is gitignored,
+so from a worktree it would publish into that worktree and leave the shared exe untouched, which is why the
+script refuses rather than let that read as success). `$nfi` below is that exe. (The installer also ships it as an
 opt-in **Command-line tools** feature — `[InstallFolder]\tools` added to the system PATH — so on an installed
 box `nfi` is just on PATH. Off by default; `nexaflowBundle.exe /quiet InstallTools=1` for unattended.)
 
@@ -170,7 +172,9 @@ guard that still refuses when the path itself has come to mean something else.
 
 You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
 flush-left with `\n` and it lands correctly indented with the file's own endings and encoding — that holds
-for **every** verb including `substitute`, whose replacement is indented for the line it lands on. `replace`
+for **every** verb including `substitute`, whose replacement is indented for the line it lands on. A new
+file has no endings of its own, so `create` takes the ones its neighbours already use — the directory it
+lands in, then upward — rather than the machine's, which put CRLF into an LF repo on Windows. `replace`
 keeps the declaration's existing doc comment, *unless* your replacement opens with one, in which case yours
 replaces it rather than being stacked on top. Text comes from
 `--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
@@ -371,6 +375,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 - **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
 - **Features never elevate directly.** No `Process.Start` with `runas` in a feature — route admin actions through `IShellServices.RunElevatedAsync` (a DTO in `Elevation.Contracts` + an `IElevatedOperation` in the PrivilegeBridge). See [docs/Architecture.md → Elevation](docs/Architecture.md#elevation--privilege-bridge).
 - **Third-party source deps are git submodules under `external/`, consumed via `ProjectReference` from the smile-forge fork — never `PackageReference`, never vendored/copied.** The one exception is a **native grammar**: C has no `.csproj` to reference, so an MSBuild target compiles it instead — same fork/branch/pin convention, different wiring (see *Native grammar submodules* in the runbook). That covers `external/tree-sitter-xml` and the nested grammar/runtime submodules inside `external/tree-sitter-dotnet-bindings`, whose own `src/TreeSitter.csproj` **is** a normal `ProjectReference` (it replaced the `TreeSitter.DotNet` package — the package's frozen natives were silently wrong). `origin` = the org fork, `upstream` = the original; a per-repo `nexaflow` integration branch is what's pinned, and upstream PRs come only from atomic `feat/*` branches. **Before touching anything under `external/`, adding/bumping a submodule, or wiring one of these deps, read the runbook [docs/externals.md](docs/externals.md)** (also pointed to by `external/README.md`). Remember the cwd is pinned → use `git -C external/<name> …` for every submodule git op.
+  - **xaml-math is no longer one of them — it was ingested and is now our code**, as `Nexaflow.Maths.Typesetting` / `Nexaflow.Visuals.Maths` (+ its own suite as `Nexaflow.Tests.Typesetting`). **Not a precedent**: the test is whether the boundary protects anything, and it had stopped — we replaced its LaTeX reader with our own parse tree, the atoms the boxes are built from are `internal`, and upstream was dormant. Reasoning in [docs/latex-parse-tree.md](docs/latex-parse-tree.md); licence in `src/Nexaflow.Core/Assets/ThirdPartyNotices.md`.
 
 The reference and dispatcher rules are **mechanically enforced**: `Nexaflow.Tests.Features.Architecture/Architecture/ArchitectureRulesTests` + `Nexaflow.Tests.Providers/ArchitectureRulesTests` fail on a violation, and `FeatureTouchPointTests` names any missed add-a-feature wiring step (Core/tests ProjectReference, filemap entry).
 

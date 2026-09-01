@@ -57,6 +57,40 @@ public class FormulaElementTests
     });
 
     [TestMethod]
+    public void TypingPastAScriptFollowsItRatherThanJoiningIt() => UiThread.Run(() =>
+    {
+        // `x^2` finishes the exponent and the script at the same character, so which of the two the
+        // caret is standing at is the whole of what a 3 typed there asks. It is why the second place
+        // exists: without it there was only one answer available, and half the time it was the wrong one.
+        var inside = Arranged("x^2");
+        inside.TakeCaret(3);
+        Type(inside, "3");
+        Assert.AreEqual(@"x^{23}", inside.Latex,
+            "in the exponent it is twenty-three, and the argument is braced so it can hold it");
+
+        var outside = Arranged("x^2");
+        outside.TakeCaret(3);
+        Assert.IsTrue(outside.MoveCaret(forward: true), "there is a place past the script to step out to");
+        Type(outside, "3");
+        Assert.AreEqual("x^23", outside.Latex, "past the script it is x squared followed by a 3");
+    });
+
+    [TestMethod]
+    public void BackspaceDoesNotCareWhichSideOfTheSpaceTheCaretIsOn() => UiThread.Run(() =>
+    {
+        // The caret has a place either side of the glue TeX sets around an operator, and backspace has
+        // one meaning at both of them: the character before the offset they share. Two marks, one
+        // deletion — asked for in as many words when the two places were.
+        var element = Arranged("6+5");
+        element.TakeCaret(1);
+        Assert.IsTrue(element.MoveCaret(forward: true), "over to the far side of the glue");
+        Assert.AreEqual(1, element.Caret, "which is the same character boundary");
+
+        element.Backspace();
+        Assert.AreEqual("+5", element.Latex);
+    });
+
+    [TestMethod]
     public void SpaceTypesetsWhatWasWritten() => UiThread.Run(() =>
     {
         var element = Arranged("x+");

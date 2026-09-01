@@ -199,12 +199,53 @@ public static class LayoutQuery
     // ── Caret ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Where and how tall to draw the caret at <paramref name="offset"/> — the ink it abuts decides, which
-    /// is what makes it shrink and rise inside an exponent and take the numerator's height in a fraction.
+    /// Every bar a caret could be drawn as at <paramref name="offset"/>, in the order an arrow key
+    /// visits them: against what ends there, then out through anything that ends where its contents do,
+    /// then against what starts there.
+    /// <para>
+    /// More than one, because a source offset is not a place on the page. The typesetter puts space
+    /// around a binary operator, so "after the 6" and "before the +" of <c>6+5</c> are the same character
+    /// boundary drawn a hand's width apart, and a reader arrowing along expects to visit both. And LaTeX
+    /// lets a one-token argument go unbraced, so the exponent of <c>x^2</c> and the script holding it
+    /// finish at the same character: without a second bar there is nowhere to stand past the script, and
+    /// the caret can never come back down from the exponent's height.
+    /// </para>
+    /// <para>
+    /// The two reasons for a second bar collapse differently, because they are different reasons. A bar
+    /// for the thing starting here is worth having only when there is space to put it in: where nothing
+    /// separates the things either side — the <c>2</c> of <c>123</c> — "after this" and "before the next"
+    /// are the one position a reader sees, and offering both would take two presses to get past a point
+    /// the caret never appeared to leave. A bar for stepping out of an enclosure is often in the same
+    /// column as the one inside it and is still a different place: it is a different height, on a
+    /// different line, and typing at it means something else.
+    /// </para>
     /// </summary>
-    public static Rect CaretRect(this ILayoutNode root, int offset)
+    public static IReadOnlyList<Rect> CaretBars(this ILayoutNode root, int offset)
     {
-        if (Abutting(root, offset, out var trailing) is { } against) return Bar(against, trailing);
+        var bars = new List<Rect>();
+        var (ends, starts) = Abutting(root, offset);
+
+        if (ends is not null)
+        {
+            bars.Add(Bar(ends, trailing: true));
+
+            // Out through every enclosure finishing where what is inside it finishes. That is the case
+            // the source cannot express: `x^{2}` closes the exponent with a brace and so has an offset
+            // of its own for "past the script", while `x^2` has none.
+            foreach (var enclosure in ends.Ancestors().Where(a => a.SourceEnd() == offset && a.IsEnclosure))
+            {
+                var stepped = Bar(enclosure, trailing: true);
+                if (!Coincide(bars[^1], stepped)) bars.Add(stepped);
+            }
+        }
+
+        if (starts is not null)
+        {
+            var leading = Bar(starts, trailing: false);
+            if (bars.Count == 0 || Math.Abs(bars[^1].X - leading.X) > Hair) bars.Add(leading);
+        }
+
+        if (bars.Count > 0) return bars;
 
         // Nothing begins or ends exactly here, which is the normal case straight after an edit: the caret
         // lands wherever the text was cut. Stand it beside the nearest ink rather than at the origin.
@@ -215,34 +256,49 @@ public static class LayoutQuery
             if (node.SourceStart >= offset && (after is null || node.SourceStart < after.SourceStart)) after = node;
         }
 
-        if (before is not null) return Bar(before, trailing: true);
-        if (after is not null) return Bar(after, trailing: false);
-        return new Rect(root.Bounds.X, root.Bounds.Y, 0, Math.Max(root.Bounds.Height, 1));
+        if (before is not null) return [Bar(before, trailing: true)];
+        if (after is not null) return [Bar(after, trailing: false)];
+        return [new Rect(root.Bounds.X, root.Bounds.Y, 0, Math.Max(root.Bounds.Height, 1))];
     }
 
+    /// <summary>Whether two bars would be drawn as the same mark, and so are one place.</summary>
+    private static bool Coincide(Rect a, Rect b) =>
+        Math.Abs(a.X - b.X) <= Hair && Math.Abs(a.Y - b.Y) <= Hair && Math.Abs(a.Height - b.Height) <= Hair;
+
     /// <summary>
-    /// The deepest node the caret at <paramref name="offset"/> stands against. One that <em>ends</em>
-    /// there wins: as in text, the caret belongs to what precedes it, so typing continues the exponent
-    /// you just finished rather than the base you left. Containers are considered only when no ink abuts,
-    /// so a caret before a fraction is as tall as the fraction rather than as its first digit.
+    /// Where and how tall to draw the caret — the ink it abuts decides, which is what makes it shrink and
+    /// rise inside an exponent and take the numerator's height in a fraction.
     /// </summary>
-    private static ILayoutNode? Abutting(ILayoutNode root, int offset, out bool trailing)
+    public static Rect CaretRect(this ILayoutNode root, CaretPlace place)
+    {
+        var bars = root.CaretBars(place.Offset);
+        return bars[Math.Clamp(place.Level, 0, bars.Count - 1)];
+    }
+
+    /// <summary>Where and how tall to draw the caret at an offset, read as innermost.</summary>
+    public static Rect CaretRect(this ILayoutNode root, int offset) => root.CaretRect(CaretPlace.At(offset));
+
+    /// <summary>
+    /// The nodes the caret at <paramref name="offset"/> stands between: the one ending there and the one
+    /// starting there, either of which may be absent at an end of the content.
+    /// <para>
+    /// Ending: the smallest such thing, because the caret belongs to what was just finished — after
+    /// <c>x^2</c> it is the exponent's, not the whole script's. Starting: the largest, because the caret
+    /// precedes all of them, and taking the smallest would stand a caret before a fraction against its
+    /// bar, which is two pixels tall.
+    /// </para>
+    /// </summary>
+    private static (ILayoutNode? Ends, ILayoutNode? Starts) Abutting(ILayoutNode root, int offset)
     {
         ILayoutNode? ends = null, starts = null;
 
         foreach (var node in root.SelfAndDescendants().Where(n => n.Stands()))
         {
-            // Ending here: the smallest such thing, because the caret belongs to what was just finished —
-            // after `x^2` it is the exponent's, not the whole script's.
             if (node.SourceEnd() == offset && (ends is null || Tighter(node, ends))) ends = node;
-
-            // Starting here: the largest, because the caret precedes all of them. Taking the smallest
-            // would stand a caret before a fraction against its bar, which is two pixels tall.
             if (node.SourceStart == offset && (starts is null || Wider(node, starts))) starts = node;
         }
 
-        trailing = ends is not null;
-        return ends ?? starts;
+        return (ends, starts);
     }
 
     /// <summary>Smaller in source, and among equals the outer one — a fraction rather than its bar.</summary>
@@ -276,6 +332,29 @@ public static class LayoutQuery
     }
 
     /// <summary>
+    /// The next place in <paramref name="forward"/>'s direction, or null at the edge — which is the
+    /// host's cue to move the caret out of this content and into whatever surrounds it.
+    /// <para>
+    /// Through the bars at the offset first, and only then on to the next one. That is what makes the
+    /// arrow key walk out of an exponent instead of leaving the formula from inside it, and what puts a
+    /// stop on each side of the space around an operator. Backwards it arrives at the far end of the
+    /// previous offset's bars, so the two directions retrace one another exactly.
+    /// </para>
+    /// </summary>
+    public static CaretPlace? Step(this ILayoutNode root, CaretPlace place, bool forward)
+    {
+        if (forward && place.Level + 1 < root.CaretBars(place.Offset).Count)
+            return place with { Level = place.Level + 1 };
+
+        if (!forward && place.Level > 0)
+            return place with { Level = place.Level - 1 };
+
+        if (root.Step(place.Offset, forward) is not { } next) return null;
+
+        return new CaretPlace(next, forward ? 0 : root.CaretBars(next).Count - 1);
+    }
+
+    /// <summary>
     /// The next caret stop in <paramref name="forward"/>'s direction, or null at the edge — which is the
     /// host's cue to move the caret out of this content and into whatever surrounds it.
     /// </summary>
@@ -304,7 +383,8 @@ public static class LayoutQuery
     /// </summary>
     public static int? StepVertical(this ILayoutNode root, int offset, bool up)
     {
-        var from = Abutting(root, offset, out _);
+        var (ends, starts) = Abutting(root, offset);
+        var from = ends ?? starts;
         if (from is null) return null;
         var fromX = root.CaretRect(offset).X;
 

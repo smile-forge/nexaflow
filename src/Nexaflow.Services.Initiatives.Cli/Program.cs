@@ -1033,7 +1033,9 @@ internal static class Program
             return Error;
         }
 
-        var body = string.Join(Environment.NewLine, SourceText.BlockOf(text)) + Environment.NewLine;
+        // A new file has no endings of its own, so it takes its neighbours' rather than the machine's.
+        var newline = SourceFile.NewlineFor(target, CodeRootFor(root, a.Has("--main")));
+        var body    = string.Join(newline, SourceText.BlockOf(text)) + newline;
 
         if (a.Has("--dry-run"))
         {

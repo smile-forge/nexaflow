@@ -27,7 +27,8 @@ namespace Nexaflow.Tests.Features.Architecture;
 internal static class FeatureTestSuites
 {
     /// <summary>Assembly/project name prefixes that identify a suite these guards apply to.</summary>
-    private static readonly string[] Patterns = ["Nexaflow.Tests.Features*", "Nexaflow.Tests.Initiatives*"];
+    private static readonly string[] Patterns =
+        ["Nexaflow.Tests.Features*", "Nexaflow.Tests.Initiatives*", "Nexaflow.Tests.Maths*"];
 
     /// <summary>Every suite assembly beside this one. They land here because this project references them
     /// (see the csproj) — which is also what puts the feature DLLs in reach of the reflection rules.</summary>

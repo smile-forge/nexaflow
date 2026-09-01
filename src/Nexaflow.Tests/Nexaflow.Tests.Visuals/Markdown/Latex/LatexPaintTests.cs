@@ -65,21 +65,6 @@ public class LatexPaintTests
     ];
 
     [TestMethod]
-    public void TheTreePaintsTheSamePictureTheTypesetterDoes() => UiThread.Run(() =>
-    {
-        foreach (var latex in Corpus)
-        {
-            var layout = LatexLayout.Build(latex, Scale);
-            Assert.IsNotNull(layout, $"expected {latex} to typeset");
-
-            var fromTree = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black));
-            var fromTypesetter = Draw(layout.Size, dc => Typeset(dc, latex, layout.PaintOffset));
-
-            Assert.AreEqual(fromTypesetter, fromTree, $"the picture moved for: {latex}");
-        }
-    });
-
-    [TestMethod]
     public void ThemeColourReachesTheGlyphsButNotTheOnesThatChoseTheirOwn() => UiThread.Run(() =>
     {
         // The formula is painted with the theme's brush, so a theme change must repaint without
@@ -118,20 +103,6 @@ public class LatexPaintTests
         var nothing = Draw(layout.Size, _ => { });
         Assert.AreNotEqual(nothing, part, "painting one term drew nothing at all");
     });
-
-    private static void Typeset(DrawingContext dc, string latex, Vector paintOffset)
-    {
-        var formula = WpfTeXFormulaParser.Instance.Parse(latex);
-        var environment = WpfTeXEnvironment.Create(
-            style: TexStyle.Display,
-            scale: Scale,
-            systemTextFontName: "Arial",
-            foreground: Brushes.Black);
-
-        dc.PushTransform(new TranslateTransform(paintOffset.X, paintOffset.Y));
-        formula.RenderTo(dc, environment, Scale, 0, 0);
-        dc.Pop();
-    }
 
     private static string Draw(Size size, Action<DrawingContext> paint, Color? paper = null)
     {

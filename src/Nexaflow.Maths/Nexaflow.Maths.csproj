@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The maths domain, WPF-free: a LaTeX parse tree that owns its text and prints back exactly what was
+    read, so that editing a formula is an operation on the tree and the source is only how the tree is
+    written down.
+
+    A leaf on purpose. Nexaflow.Visuals.Text renders from it and Nexaflow.Features.Solver will solve
+    from it, and neither may reference the other — so this sits under both, and depends on nothing.
+    Not folded into Nexaflow.Syntax (the tree-sitter engine), which would put grammars on the solver's
+    dependency path.
+
+    Design and staging: docs/latex-parse-tree.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+</Project>

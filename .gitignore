@@ -68,6 +68,15 @@ Generated\ Files/
 [Bb]uild[Ll]og.*
 *.trx
 
+# …except the typesetting suite's approvals, which are its baseline rather than its output: the
+# recorded shape of what the engine builds for 148 formulas. Ignoring them left the only copy on
+# whichever machine last ran the suite — so it could never be green on a fresh clone, and the record
+# the parser replacement was supposed to be measured against was one `rm` from gone. 25MB of JSON,
+# about half of one compressed, which is what git actually stores.
+!src/Nexaflow.Tests/Nexaflow.Tests.Typesetting/TestResults/
+!src/Nexaflow.Tests/Nexaflow.Tests.Typesetting/TestResults/*.approved.txt
+src/Nexaflow.Tests/Nexaflow.Tests.Typesetting/TestResults/*.received.txt
+
 # NUnit
 *.VisualState.xml
 TestResult.xml
@@ -449,6 +458,8 @@ src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/obj/
 
 # Published product-graph / initiatives CLI (nfi.exe; regenerate with tools/publish-graph-cli.ps1)
 tools/graph-cli/
+tools/graph-cli.staging/
+tools/graph-cli.old-*/
 
 # Derived: the latex-corpus survey's report and the images it references (tools/latex-corpus).
 .corpus-report/

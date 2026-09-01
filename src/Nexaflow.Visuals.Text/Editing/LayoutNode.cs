@@ -31,6 +31,7 @@ public class LayoutNode : ILayoutNode
     public int SourceStart { get; internal set; }
     public int SourceLength { get; internal set; }
     public bool IsInk { get; internal set; }
+    public bool IsEnclosure { get; internal set; }
     public string Kind { get; }
 
     /// <summary>Adds a child and adopts it. The only way parentage is set, so it cannot disagree.</summary>

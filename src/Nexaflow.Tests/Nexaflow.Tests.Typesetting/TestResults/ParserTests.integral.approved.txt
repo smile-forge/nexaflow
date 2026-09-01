@@ -1,0 +1,88 @@
+{
+  "RootAtom": {
+    "[AtomType]": "BigOperatorAtom",
+    "BaseAtom": {
+      "[AtomType]": "SymbolAtom",
+      "Borrowed": false,
+      "IsDelimeter": false,
+      "IsTextSymbol": false,
+      "Name": "int",
+      "Slots": [],
+      "Source": null,
+      "Type": "BigOperator"
+    },
+    "Borrowed": false,
+    "LowerLimitAtom": {
+      "[AtomType]": "CharAtom",
+      "Borrowed": false,
+      "Character": "a",
+      "IsTextSymbol": false,
+      "Slots": [],
+      "Source": null,
+      "TextStyle": null,
+      "Type": "Ordinary"
+    },
+    "Slots": [
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "SymbolAtom",
+          "Borrowed": false,
+          "IsDelimeter": false,
+          "IsTextSymbol": false,
+          "Name": "int",
+          "Slots": [],
+          "Source": null,
+          "Type": "BigOperator"
+        },
+        "Role": "base",
+        "Row": -1
+      },
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "a",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": null,
+          "Type": "Ordinary"
+        },
+        "Role": "lower limit",
+        "Row": -1
+      },
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "b",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": null,
+          "Type": "Ordinary"
+        },
+        "Role": "upper limit",
+        "Row": -1
+      }
+    ],
+    "Source": null,
+    "Type": "BigOperator",
+    "UpperLimitAtom": {
+      "[AtomType]": "CharAtom",
+      "Borrowed": false,
+      "Character": "b",
+      "IsTextSymbol": false,
+      "Slots": [],
+      "Source": null,
+      "TextStyle": null,
+      "Type": "Ordinary"
+    },
+    "UseVerticalLimits": false
+  },
+  "Source": null,
+  "TextStyle": null
+}

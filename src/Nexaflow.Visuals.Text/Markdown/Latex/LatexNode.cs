@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Editing;
@@ -30,15 +31,52 @@ internal sealed class LatexNode : LayoutNode
     }
 
     /// <summary>
-    /// The parse-tree node this piece was laid out from — the link back that says what it <em>is</em>
+    /// The typesetter's own reading of what this piece was laid out from. Kept because the geometry of a
+    /// matrix's cells is still matched up through it, and for nothing else.
+    /// <para>
+    /// It is a typesetting tree: built to decide box sizes, so it drops braces and spacing, and a style
+    /// atom names no parts at all. What a piece <em>is</em> comes from <see cref="Part"/>.
+    /// </para>
+    /// </summary>
+    public XamlMath.IFormulaNode? Formula { get; set; }
+
+    /// <summary>
+    /// The part of the parse tree this piece was drawn from — the link back that says what it <em>is</em>
     /// rather than merely where it came from.
     /// <para>
     /// Several pieces share one: a fraction's box and its bar are one construct drawn in parts. What a
     /// piece is <em>to</em> the thing holding it lives on the parse tree, not here, which is why this is a
     /// reference and not a copy of anything — the layout tree stays about layout.
     /// </para>
+    /// <para>
+    /// Set once, when the formula is typeset, through <see cref="Owns"/> — never assigned directly, so
+    /// what follows from it cannot be set separately and disagree.
+    /// </para>
     /// </summary>
-    public XamlMath.IFormulaNode? Formula { get; set; }
+    public Nexaflow.Maths.Latex.TexPart? Part { get; private set; }
+
+    /// <summary>
+    /// Says what part of the parse tree this piece was drawn from, and everything that follows from it.
+    /// <para>
+    /// <see cref="ILayoutNode.IsEnclosure"/> is one such thing: whether a caret can be inside this and
+    /// then outside it is a question about the construct, and the part is the only thing that can
+    /// answer it — so it is answered here rather than anywhere that happens to need it.
+    /// </para>
+    /// </summary>
+    public void Owns(Nexaflow.Maths.Latex.TexPart? part)
+    {
+        Part = part;
+        IsEnclosure = part is { } piece && piece.Parts.Any() && !IsRun(piece);
+    }
+
+    /// <summary>
+    /// Whether a part is a run of things rather than one thing made of parts. A row names every piece
+    /// of it <c>element</c>, because that is all a sequence can say about what it holds, where a
+    /// construct names its parts <c>numerator</c>, <c>radicand</c>, <c>superscript</c> — each meaning
+    /// something to the construct. So the roles already carry the distinction.
+    /// </summary>
+    internal static bool IsRun(Nexaflow.Maths.Latex.TexPart part) =>
+        part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Maths.Latex.TexRole.Element);
 
     /// <summary>What this piece drew, in the order it drew it.</summary>
     public IReadOnlyList<LatexMark> Marks => _marks;

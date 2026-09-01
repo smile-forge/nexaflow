@@ -32,6 +32,22 @@ public enum DiagnosticSeverity
 /// <param name="Message">What went wrong, for the reader.</param>
 public sealed record Diagnostic(int Start, int Length, DiagnosticSeverity Severity, string Message)
 {
+    /// <summary>
+    /// The part of the parse tree this is about, where it came from one.
+    ///
+    /// <para>
+    /// A diagnostic raised while <em>reading</em> text has only offsets to point with, because the tree
+    /// does not exist yet. One raised while <em>building</em> from a tree has the node itself, which is
+    /// the better pointer: a node survives an edit somewhere else in the formula and an offset does not.
+    /// So the node is what is kept, and <see cref="Start"/> and <see cref="Length"/> come from it.
+    /// </para>
+    /// </summary>
+    public Nexaflow.Maths.Latex.TexPart? Part { get; init; }
+
+    /// <summary>The trouble a part of the parse tree is in, pointing at the part rather than at a span.</summary>
+    public static Diagnostic Of(Nexaflow.Maths.Latex.TexPart part, DiagnosticSeverity severity, string message) =>
+        new(part.Start, part.Length, severity, message) { Part = part };
+
     /// <summary>One past the last character it covers.</summary>
     public int End => Start + Length;
 

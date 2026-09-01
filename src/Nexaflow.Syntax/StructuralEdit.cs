@@ -458,7 +458,9 @@ public static class StructuralEdit
         if (text is null) return (null, "Replacement body is required.");
         if (a.BodyStart is not { } start || a.BodyEnd is not { } end)
             return (null, $"The parser gives this {a.NodeType} no body to replace.");
-        return (Splice(src, start, end, Block(text, indent, newline, indentFirst: AtLineStart(src, start))), null);
+        // The splice starts at the brace, so the indentation in front of it is never consumed and must not be
+        // written again — indenting the first line here put the opening brace one level in from its own member.
+        return (Splice(src, start, end, Block(text, indent, newline, indentFirst: false)), null);
     }
 
     private static (string? Text, string? Error) Rename(string src, DeclarationAnchor a, string? renameTo)
