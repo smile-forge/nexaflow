@@ -755,8 +755,14 @@ internal static class Program
 
         var main  = a.Has("--main");
         var store = GraphStore(root, main);
-        var cache = store.LoadGraphCache() ?? new GraphCache();
         var stale = !a.Has("--no-refresh");
+
+        // Loaded on first use, not on the way past. graph-cache.json holds every file's extracted contributions
+        // — 152 MB on this repo, more than the graph itself — and only the refresh reads it, so --no-refresh was
+        // paying ~600ms to parse something it had just been told not to touch. A local rather than a nullable
+        // because the next person to want the cache should get one, not a null or an empty stand-in.
+        GraphCache? loadedCache = null;
+        GraphCache Cache() => loadedCache ??= store.LoadGraphCache() ?? new GraphCache();
 
         // Bring the graph's record of the target file up to date BEFORE looking anything up. One file's
         // parse costs milliseconds against the ninety seconds a whole-repo walk takes, and it is the
@@ -764,7 +770,7 @@ internal static class Program
         // it not being one.
         var dirty = stale
                  && FileOfNodeId(a[1]) is { } target
-                 && GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, main));
+                 && GraphBuilder.RefreshFile(graph, Cache(), root, target, CodeRootOrNull(root, main));
 
         var find = a.Value("--find")
                 ?? (a.Value("--find-escaped") is { } escaped ? SourceText.Unescape(escaped) : null);
@@ -778,7 +784,7 @@ internal static class Program
         {
             // The refresh above may have learned something real — the file changed — and that is worth
             // keeping even though the edit itself is not going ahead.
-            if (dirty) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
+            if (dirty) { store.SaveGraph(graph); store.SaveGraphCache(Cache()); }
             Console.Error.WriteLine($"error: {result.Message}");
             return Error;
         }
@@ -813,12 +819,12 @@ internal static class Program
         // …and again afterwards, so the graph describes what was just written. Both refreshes share one
         // save, and neither costs more than parsing the file that changed.
         foreach (var change in result.Changes)
-            if (stale) dirty |= GraphBuilder.RefreshFile(graph, cache, root, change.RelativePath,
+            if (stale) dirty |= GraphBuilder.RefreshFile(graph, Cache(), root, change.RelativePath,
                                                         CodeRootOrNull(root, main));
         if (dirty)
         {
             store.SaveGraph(graph);
-            store.SaveGraphCache(cache);
+            store.SaveGraphCache(Cache());
         }
 
         // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
