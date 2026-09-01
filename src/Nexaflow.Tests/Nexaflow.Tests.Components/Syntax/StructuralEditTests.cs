@@ -829,4 +829,103 @@ public class StructuralEditTests
         StringAssert.Contains(result.Message, "Nothing named 'Nope'");
         StringAssert.Contains(result.Message, "List the declarations");
     }
+
+    // ── Line endings ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Every op, on a file of each ending, with text that arrives carrying the other one. Mixed endings are
+    /// the failure that hides: the file compiles, the tool reports success, and the whole thing shows up as
+    /// changed in the next diff. Asserting on the *counts* rather than on a sample line is what makes it a
+    /// test — one stray CR is exactly what a spot check misses.
+    /// </summary>
+    [DataTestMethod]
+    [DataRow("\n",   "\n")]
+    [DataRow("\n",   "\r\n")]
+    [DataRow("\r\n", "\n")]
+    [DataRow("\r\n", "\r\n")]
+    public void EveryOp_KeepsTheFilesOwnEndings(string fileEnding, string textEnding)
+    {
+        // Widget is a raw string literal, so it already carries whatever endings THIS file has — normalise
+        // before re-ending it, or the CRLF case builds a source full of \r\r\n and tests nothing at all.
+        var src = Widget.Replace("\r\n", "\n").Replace("\n", fileEnding);
+        Assert.AreEqual(fileEnding, SoleEndingOf(src), "the fixture itself must be the ending under test");
+
+        string Text(string s) => s.Replace("\r\n", "\n").Replace("\n", textEnding);
+
+        (string Name, StructuralEdit.Result Result)[] edits =
+        [
+            ("replace",       StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Replace,
+                                  Text("public void Add(int n)\n{\n    _count += n;\n    _count++;\n}"))),
+            ("signature",     StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Signature,
+                                  Text("public void Add(long n)"))),
+            ("body",          StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Body,
+                                  Text("{\n    _count += n;\n    _count++;\n}"))),
+            ("rename",        StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Rename, null, renameTo: "Plus")),
+            ("delete",        StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Delete, "")),
+            ("append",        StructuralEdit.Apply("c-sharp", src, "T:Widget", StructuralEdit.Op.Append,
+                                  Text("public int Zero() => 0;\n"))),
+            ("insert-before", StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.InsertBefore,
+                                  Text("public int Zero() => 0;"))),
+            ("insert-after",  StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.InsertAfter,
+                                  Text("public int Zero() => 0;"))),
+            ("doc",           StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Doc,
+                                  Text("/// <summary>Adds.</summary>\n/// <remarks>To the count.</remarks>"))),
+            ("import",        StructuralEdit.AddImport("c-sharp", src, "using System.Linq;")),
+            ("substitute",    StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Substitute,
+                                  Text("_count += n;\n_count++;"),
+                                  new StructuralEdit.Options(Find: "_count += n;"))),
+        ];
+
+        foreach (var (name, result) in edits)
+        {
+            var text = Applied(result);
+            Assert.AreEqual(fileEnding, SoleEndingOf(text),
+                $"{name} wrote {Describe(SoleEndingOf(text))} into a {Describe(fileEnding)} file");
+        }
+    }
+
+    /// <summary>The one line ending in <paramref name="text"/>, or a description of the mix when there is more
+    /// than one — the assertion message is the whole point, so a failure says what it found.</summary>
+    private static string SoleEndingOf(string text)
+    {
+        var crlf = text.Split("\r\n").Length - 1;
+        var lf   = text.Count(c => c == '\n') - crlf;
+        var cr   = text.Count(c => c == '\r') - crlf;
+
+        return (crlf, lf, cr) switch
+        {
+            (> 0, 0, 0) => "\r\n",
+            (0, > 0, 0) => "\n",
+            (0, 0, > 0) => "\r",
+            _           => $"mixed ({crlf} CRLF, {lf} LF, {cr} CR)",
+        };
+    }
+
+    private static string Describe(string ending) => ending switch
+    {
+        "\r\n" => "CRLF",
+        "\n"   => "LF",
+        "\r"   => "CR",
+        _      => ending,
+    };
+
+    /// <summary>
+    /// The body splice begins at the opening brace, so the indentation already in front of it stays — writing
+    /// it again put the brace a level in from the member it belongs to. Every other op that starts mid-line
+    /// says so; this one asked whether the brace began its line, which is exactly when the indentation is
+    /// there to be doubled.
+    /// </summary>
+    [TestMethod]
+    public void Body_LeavesTheOpeningBraceAtTheMembersOwnIndent()
+    {
+        var lines = SourceText.Of(Applied(StructuralEdit.Apply(
+            "c-sharp", Widget, "T:Widget/M:Add", StructuralEdit.Op.Body,
+            "{\n    _count += n * 2;\n}"))).Lines;
+
+        var signature = lines.ToList().IndexOf("    public void Add(int n)");
+        Assert.IsTrue(signature >= 0, "the signature should be untouched");
+
+        CollectionAssert.AreEqual(new[] { "    {", "        _count += n * 2;", "    }" },
+                                  lines.Skip(signature + 1).Take(3).ToArray());
+    }
 }
