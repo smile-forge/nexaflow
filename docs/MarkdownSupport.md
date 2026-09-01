@@ -126,6 +126,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 |---|---|---|
 | `nomnoml` | ✅ | ❌ — no test or sample fixture |
 | `mermaid` | ⚠️ Partial | ✅ — see sub-types below |
+| `qr` | ✅ | ✅ — see [QR codes](#qr-codes--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
 
@@ -440,6 +441,64 @@ mechanism.
 
 ---
 
+## QR codes — sub-support
+
+A **`qr`** fence ([syntax](https://markdown.org/tools/diagrams/qr/)) generates a QR symbol. It is not a
+diagram, but it arrives the same way — a fenced block rendered to an element in place of its source — so
+it is registered as an [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/QrDiagramHandler.cs)
+and reaches both markdown surfaces through the one dispatcher.
+
+The body is a flat `key: value` list; the key is everything before the first colon, so a URL on the right
+needs no quoting. **Unrecognised keys are refused, not ignored** — a mistyped `cellsize` that silently did
+nothing would render a plausible-looking code that is not the one the author asked for.
+
+**Four pieces**, none of which knows about the next:
+
+| Piece | Does |
+|---|---|
+| [`QrBlockParser`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrBlockParser.cs) | lines → a `QrBlock` (payload + settings), or a message saying which line is wrong |
+| [`QrPayload`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrPayload.cs) | `type:` + fields → the one string that gets encoded, in the convention its scanners expect |
+| [`QrEncoder`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrEncoder.cs) | string → a `QrMatrix`. WPF-free, so a symbol can be asserted on without a UI thread |
+| [`WpfQrRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Qr/WpfQrRenderer.cs) | matrix → one `Path` on a quiet-zone `Border` |
+
+**The encoder is ours** (ISO/IEC 18004 model 2), not a package: versions 1–40, all four error-correction
+levels, numeric / alphanumeric / byte modes with the narrowest one chosen for the payload, Reed–Solomon
+parity, block interleaving, and all eight masks scored by the penalty rules. The whole job is arithmetic
+over a byte array — no IO, no platform, nothing to keep current.
+
+| `type:` | Fields | Encodes as |
+|---|---|---|
+| `text` | `text` | the text verbatim |
+| `url` | `url` | the URL; a missing scheme becomes `https://` |
+| `email` | `email`, `subject`, `body` | `mailto:` with a percent-encoded query |
+| `phone` | `phone` | `tel:`, spacing and punctuation stripped |
+| `sms` | `number`, `message` | `SMSTO:number:message` (the form both mobile OSes act on) |
+| `wifi` | `ssid`, `password`, `security`, `hidden` | `WIFI:T:…;S:…;P:…;;` — `;` `,` `:` `"` `\` escaped; no password ⇒ `nopass`; `H:true;` only when hidden |
+| `vcard` | `name`, `org`, `title`, `phone`, `email`, `url`, `address` | vCard 3.0, CRLF-delimited, with a structured `N:` split on the last space |
+| `geo` | `lat`, `lng` | `geo:lat,lng`, range-checked |
+| `event` | `title`, `location`, `start`, `end` | `VEVENT` with `DTSTART`/`DTEND` in basic format; a trailing `Z` is kept as UTC |
+| `crypto` | `coin`, `address`, `amount` | BIP-21 `coin:address?amount=…`; tickers (`BTC`, `ETH`, …) resolve to the scheme |
+
+**Settings** (any type): `ec` (`L`/`M`/`Q`/`H`, default `M`), `cellSize` (1–64, default 4), `margin`
+(0–32 modules, default 4), `dark` and `light` (`#RGB`, `#RRGGBB` or `#AARRGGBB`).
+
+**Colour is the one thing the palette does not follow.** `MarkdownPalette.QrDark` / `QrLight` are their own
+pair rather than `Text` over `FigureBg`: a code that inverted with a dark theme would stop scanning. A theme
+can retune them (`QrDarkBrush` / `QrLightBrush`); a block's `dark:` / `light:` win over both.
+
+**Testing it.** A round trip is the only thing that can say a symbol is right, so
+[`QrTestDecoder`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrTestDecoder.cs) is a scanner
+without the camera: it reads the format information, undoes the mask, walks the zigzag, de-interleaves the
+blocks, checks every Reed–Solomon syndrome and hands back the string. Where it can it takes a *different*
+route to the same answer — log/antilog tables against the encoder's shift-multiply, polynomial evaluation
+against its long division — because two copies of one mistake agree with each other.
+`RoundTrip_GrowsThroughEveryVersion` walks a payload up until the symbol reaches version 40, so every
+version and every row of the block tables is built and read back. The tables themselves are pinned from
+outside, on published figures: byte-mode capacities at versions 1/2/10/40 × L/M/Q/H, the alignment-pattern
+centres (including version 32, the one that breaks the spacing rule), and the Table C.1 format code words.
+
+---
+
 ## Musical Notation — sub-support
 
 Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
@@ -604,8 +663,12 @@ Available in Markdig but not in the pipeline. None are supported, so none are te
 
 ## Test coverage
 
-Tests live in `Nexaflow.Tests.Core` (the renderer ships in `Nexaflow.Visuals.*`,
-covered by the Core test project):
+Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code they cover.
+
+> The `Nexaflow.Tests.Core/…` paths in the table below are **stale** — the suite moved and the rows
+> have not been re-pointed. The files are under
+> [`Nexaflow.Tests.Visuals/Markdown/`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown) under the
+> same names.
 
 | File | Covers |
 |---|---|
@@ -618,6 +681,9 @@ covered by the Core test project):
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |
+| [`Markdown/Qr/QrEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrEncoderTests.cs) | The QR encoder: round trips through every version and level via `QrTestDecoder`, non-ASCII, the capacity boundary, and the published capacity / alignment-centre / format-code-word tables. |
+| [`Markdown/Qr/QrBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockParserTests.cs) | The `qr` block body: the exact payload each `type:` builds (escaping included), every setting, and each diagnostic — unknown type, mistyped setting, foreign field, missing field, bad value. |
+| [`Markdown/Qr/QrRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrRendererTests.cs) | QR dispatch through `DiagramRenderer`, geometry area = the dark modules, `cellSize`/`margin` measurement, palette vs. block colours, and both failure paths rendering their reason. (UI category.) |
 
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):

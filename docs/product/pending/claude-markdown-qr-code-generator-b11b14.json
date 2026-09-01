@@ -1,0 +1,114 @@
+{
+  "branch": "claude/markdown-qr-code-generator-b11b14",
+  "nodes": {
+    "qr-code": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/QrDiagramHandler.cs",
+          "class": "QrDiagramHandler"
+        }
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "QR codes \u2014 sub-support"
+            ]
+          }
+        ]
+      }
+    },
+    "qr-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Qr/QrEncoder.cs",
+          "class": "QrEncoder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrEncoderTests.cs",
+            "class": "QrEncoderTests"
+          }
+        ]
+      }
+    },
+    "qr-payloads": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Qr/QrPayload.cs",
+          "class": "QrPayload"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockParserTests.cs",
+            "class": "QrBlockParserTests"
+          }
+        ]
+      }
+    },
+    "qr-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Qr/QrBlockParser.cs",
+          "class": "QrBlockParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockParserTests.cs",
+            "class": "QrBlockParserTests"
+          }
+        ]
+      }
+    },
+    "qr-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Qr/WpfQrRenderer.cs",
+          "class": "WpfQrRenderer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrRendererTests.cs",
+            "class": "QrRendererTests"
+          }
+        ],
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownPalette.cs",
+            "class": "MarkdownPalette"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 11,
+  "touched_nodes": [
+    "qr-block-syntax",
+    "qr-code",
+    "qr-encoder",
+    "qr-payloads",
+    "qr-render"
+  ]
+}

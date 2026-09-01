@@ -22,6 +22,7 @@ public static class DiagramRenderer
     [
         new MermaidDiagramHandler(),                           // mermaid (pie, flowchart, …)
         new GraphDiagramHandler(new NomnomlParser()),          // nomnoml
+        new QrDiagramHandler(),                                // qr
     ];
 
     // ── Public API ─────────────────────────────────────────────────────────
@@ -59,7 +60,12 @@ public static class DiagramRenderer
     private static readonly FontFamily MonoFont = new("Consolas, Courier New");
     private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
-    private static FrameworkElement ErrorElement(string message, string source)
+    /// <summary>
+    /// The house style for "this block could not be rendered": the message, then the source that
+    /// produced it. Internal rather than private so a handler can meet its own no-throw contract
+    /// without inventing a second look for the same failure.
+    /// </summary>
+    internal static FrameworkElement ErrorElement(string message, string source)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 4, 0, 8) };
 

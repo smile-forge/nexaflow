@@ -494,6 +494,64 @@ venn-beta
 
 ---
 
+## QR codes
+
+A fenced `qr` block becomes a scannable QR code, generated on your machine like everything else here.
+The body is a flat list of `key: value` lines — a `type:`, then the fields that type needs:
+
+````markdown
+```qr
+type: url
+url: https://markdown.org
+```
+````
+
+![Three QR codes: a link, a Wi-Fi network and a contact card](images/markdown/qr-codes.png)
+
+The point of the `type:` is that a QR code only carries text — a phone offers to *join this network*
+or *add this contact* because the text follows a convention. Writing the convention by hand is
+miserable, so the block writes it for you:
+
+| `type:` | Fields | What a scanner offers |
+|---|---|---|
+| `text` | `text` | Plain text |
+| `url` | `url` | Open the link (a missing `https://` is filled in) |
+| `email` | `email`, `subject`, `body` | Compose a message |
+| `phone` | `phone` | Dial |
+| `sms` | `number`, `message` | Send a text |
+| `wifi` | `ssid`, `password`, `security`, `hidden` | Join the network |
+| `vcard` | `name`, `org`, `title`, `phone`, `email`, `url`, `address` | Add the contact |
+| `geo` | `lat`, `lng` | Open the map pin |
+| `event` | `title`, `location`, `start`, `end` | Add to the calendar |
+| `crypto` | `coin`, `address`, `amount` | Open the wallet |
+
+Any block can also carry these settings:
+
+| Setting | Values | Default |
+|---|---|---|
+| `ec` | `L`, `M`, `Q`, `H` — how much damage the code survives | `M` |
+| `cellSize` | pixels per module, 1–64 | `4` |
+| `margin` | quiet zone in modules, 0–32 | `4` |
+| `dark` | hex colour of the modules | the theme's |
+| `light` | hex colour behind them | the theme's |
+
+```qr
+type: wifi
+ssid: MyNetwork
+password: s3cr3t-pass
+security: WPA
+ec: H
+cellSize: 6
+```
+
+Higher error correction is worth it for anything that will be printed, put on a curved surface, or
+partly covered — it costs capacity, so the same content needs a slightly larger code.
+
+A block that can't be built says so in place of the picture, naming the line at fault: a misspelled
+setting, a field belonging to another type, a missing required field, or content too long to fit.
+
+---
+
 ## Good to know
 
 - **It's all local.** Diagrams and math render on your machine — nothing is sent anywhere, and the

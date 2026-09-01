@@ -47,6 +47,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("latex-math-amssymb.md",    LatexMathAmssymb),
         SampleFile.Text("music-abc.md",             MusicAbc),
         SampleFile.Text("music-lilypond.md",        MusicLilyPond),
+        SampleFile.Text("qr-codes.md",              Qr),
     ];
 
     private const string LatexMathSymbols =
@@ -3300,4 +3301,131 @@ internal sealed class MarkdownSamples : ISampleSet
 
         The dialect is auto-detected when the tag is omitted (`#%` alone).
         """;
+
+    private const string Qr =
+        """"
+        # QR codes
+
+        A `qr` fence becomes a scannable QR code, generated locally. The body is a flat list of
+        `key: value` lines ΓÇö a `type:`, then the fields that type needs.
+
+        A QR code only carries text; a phone offers to *join this network* or *add this contact*
+        because the text follows a convention. The `type:` is what writes that convention for you.
+
+        ## A link
+
+        ```qr
+        type: url
+        url: https://markdown.org/tools/diagrams/qr/
+        ```
+
+        ## Plain text
+
+        ```qr
+        type: text
+        text: Hello from markdown.org
+        ```
+
+        ## An email
+
+        ```qr
+        type: email
+        email: hi@example.com
+        subject: Hello
+        body: Just scanned your code
+        ```
+
+        ## A phone number, and a text message
+
+        ```qr
+        type: phone
+        phone: +1 (555) 123-4567
+        ```
+
+        ```qr
+        type: sms
+        number: +15551234567
+        message: Hello there
+        ```
+
+        ## A Wi-Fi network
+
+        Higher error correction (`ec: H`) survives a scuffed print, and costs a slightly larger code.
+
+        ```qr
+        type: wifi
+        ssid: Nexaflow Guest
+        password: s3cr3t-pass
+        security: WPA
+        hidden: false
+        ec: H
+        cellSize: 5
+        ```
+
+        ## A contact card
+
+        ```qr
+        type: vcard
+        name: Ada Lovelace
+        org: Analytical Engines
+        title: Engineer
+        phone: +15551234567
+        email: ada@example.com
+        url: https://example.com
+        address: 12 Baker St, London
+        ```
+
+        ## A place on the map
+
+        ```qr
+        type: geo
+        lat: 51.5074
+        lng: -0.1278
+        ```
+
+        ## A calendar event
+
+        ```qr
+        type: event
+        title: Launch party
+        location: The Office
+        start: 2026-08-01T18:00
+        end: 2026-08-01T21:00
+        ```
+
+        ## A payment
+
+        ```qr
+        type: crypto
+        coin: bitcoin
+        address: 1BoatSLRHtKNngkdXEeobR76b53LETtpyT
+        amount: 0.01
+        ```
+
+        ## Settings
+
+        Any block takes `ec` (`L`/`M`/`Q`/`H`), `cellSize`, `margin`, and a `dark` / `light` colour
+        pair. Left out, the colours follow the theme's QR tokens ΓÇö which stay dark-on-light whatever
+        the theme does, because an inverted code stops scanning.
+
+        ```qr
+        type: url
+        url: https://markdown.org
+        ec: Q
+        cellSize: 8
+        margin: 2
+        dark: #1a3a5c
+        light: #f4f7fb
+        ```
+
+        ## When a block is wrong
+
+        A block that cannot be built shows the reason in place of the picture ΓÇö a misspelled setting,
+        a field belonging to another type, a missing required field, or content too long to fit.
+
+        ```qr
+        type: wifi
+        password: hunter2
+        ```
+        """";
 }
