@@ -521,9 +521,17 @@ miserable, so the block writes it for you:
 | `sms` | `number`, `message` | Send a text |
 | `wifi` | `ssid`, `password`, `security`, `hidden` | Join the network |
 | `vcard` | `name`, `org`, `title`, `phone`, `email`, `url`, `address` | Add the contact |
+| `mecard` | `name`, `phone`, `email`, `url`, `address`, `note` | Add the contact, from a smaller code |
 | `geo` | `lat`, `lng` | Open the map pin |
 | `event` | `title`, `location`, `start`, `end` | Add to the calendar |
+| `epc` | `name`, `iban`, `bic`, `amount`, `purpose`, `reference`, `message` | Prefill a bank transfer |
 | `crypto` | `coin`, `address`, `amount` | Open the wallet |
+
+`mecard` is the compact form of `vcard`: it drops the organisation and job title and produces a
+noticeably smaller code, which older readers also handle more reliably. `epc` is the **GiroCode** seen
+on European invoices — it takes euro amounts only, and either a structured `reference:` or free
+`message:` text, not both. Its IBAN is checked (including the check digits) before the code is drawn,
+because a mistyped one scans perfectly and then fails at the bank.
 
 Any block can also carry these settings:
 

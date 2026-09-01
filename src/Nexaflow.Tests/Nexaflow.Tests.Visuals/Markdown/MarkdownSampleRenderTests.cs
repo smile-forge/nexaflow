@@ -176,7 +176,7 @@ public class MarkdownSampleRenderTests
                         .Where(f => "qr".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
-        Assert.IsTrue(fences.Count >= 12, $"expected the reference to show every type, found {fences.Count} qr fences");
+        Assert.IsTrue(fences.Count >= 14, $"expected the reference to show every type, found {fences.Count} qr fences");
 
         foreach (var fence in fences)
             Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a qr fence");

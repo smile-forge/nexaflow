@@ -363,4 +363,109 @@ public class QrBlockParserTests
         StringAssert.Contains(Rejects("type: geo\nlat: 91\nlng: 0"),           "latitude");
         StringAssert.Contains(Rejects("type: event\ntitle: t\nstart: someday"), "date/time");
     }
+
+    [TestMethod]
+    [CoversNode("qr-payloads")]
+    public void Epc_IsAnEpc069CreditTransfer() =>
+        // The twelve elements in their fixed order, line-feed separated, with the trailing empty ones
+        // dropped. Purpose and the structured reference are the two blanks in the middle.
+        Assert.AreEqual(
+            "BCD\n"
+          + "002\n"
+          + "1\n"
+          + "SCT\n"
+          + "BPOTBEB1\n"
+          + "Red Cross\n"
+          + "BE72000000001616\n"
+          + "EUR1.00\n"
+          + "\n"
+          + "\n"
+          + "Urgency fund",
+            Parse(
+            """
+            type: epc
+            name: Red Cross
+            iban: BE72000000001616
+            bic: BPOTBEB1
+            amount: 1
+            message: Urgency fund
+            """).Payload);
+
+    [TestMethod]
+    [CoversNode("qr-payloads")]
+    public void Epc_WithoutTheOptionalFields_StopsAtTheIban() =>
+        // Version 002 is what makes a BIC-less payment legal, and everything after the IBAN is empty here,
+        // so the whole tail goes.
+        Assert.AreEqual("BCD\n002\n1\nSCT\n\nRed Cross\nBE72000000001616", Parse(
+            """
+            type: epc
+            name: Red Cross
+            iban: BE72000000001616
+            """).Payload);
+
+    [TestMethod]
+    [CoversNode("qr-payloads")]
+    public void Epc_SpacedIbanIsAccepted_AndACheckDigitTypoIsNot()
+    {
+        // Written the way it appears on a statement.
+        StringAssert.Contains(Parse(
+            """
+            type: epc
+            name: Red Cross
+            iban: BE72 0000 0000 1616
+            """).Payload, "BE72000000001616");
+
+        // One digit changed: still the right shape, wrong check digits. This is the failure worth catching
+        // before the code is drawn, because the symbol would scan perfectly and the payment would not.
+        StringAssert.Contains(Rejects("type: epc\nname: Red Cross\niban: BE72000000001617"), "check digits");
+    }
+
+    [TestMethod]
+    [CoversNode("qr-payloads")]
+    public void Epc_RefusesWhatTheStandardCannotCarry()
+    {
+        StringAssert.Contains(Rejects("type: epc\nname: X\niban: BE72000000001616\nbic: NOPE"), "BIC");
+        StringAssert.Contains(Rejects("type: epc\nname: X\niban: BE72000000001616\namount: 0"), "0.01");
+        StringAssert.Contains(Rejects("type: epc\nname: X\niban: BE72000000001616\npurpose: TOOLONG"), "purpose");
+        StringAssert.Contains(
+            Rejects("type: epc\nname: X\niban: BE72000000001616\nreference: RF18\nmessage: hello"),
+            "not both");
+        StringAssert.Contains(
+            Rejects($"type: epc\nname: {new string('n', 71)}\niban: BE72000000001616"), "70");
+    }
+
+    [TestMethod]
+    [CoversNode("qr-payloads")]
+    public void Mecard_IsTheCompactContactForm()
+    {
+        Assert.AreEqual("MECARD:N:Lovelace,Ada;TEL:+15551234567;EMAIL:ada@example.com;;", Parse(
+            """
+            type: mecard
+            name: Ada Lovelace
+            phone: +15551234567
+            email: ada@example.com
+            """).Payload);
+
+        // The comma in N is a separator, so one inside a value has to be escaped or it splits the field.
+        Assert.AreEqual(@"MECARD:N:Lovelace,Ada;ADR:12 Baker St\, London;;", Parse(
+            """
+            type: mecard
+            name: Ada Lovelace
+            address: 12 Baker St, London
+            """).Payload);
+    }
+
+    [TestMethod]
+    [CoversNode("qr-payloads")]
+    public void Mecard_IsSmallerThanTheSameCardAsVcard()
+    {
+        // The reason to keep both: MECARD trades the organisation and job title for a smaller symbol.
+        const string fields = "name: Ada Lovelace\nphone: +15551234567\nemail: ada@example.com";
+
+        Assert.IsTrue(Parse($"type: mecard\n{fields}").Payload.Length
+                    < Parse($"type: vcard\n{fields}").Payload.Length);
+
+        // And it genuinely has no room for them, so asking is an error rather than a silent drop.
+        StringAssert.Contains(Rejects("type: mecard\nname: Ada\norg: Analytical Engines"), "org");
+    }
 }

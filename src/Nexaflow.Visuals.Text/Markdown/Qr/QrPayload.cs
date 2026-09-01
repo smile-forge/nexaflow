@@ -37,6 +37,8 @@ internal static class QrPayload
             ["geo"]    = ["lat", "lng"],
             ["event"]  = ["title", "location", "start", "end"],
             ["crypto"] = ["coin", "address", "amount"],
+            ["epc"]    = ["name", "iban", "bic", "amount", "purpose", "reference", "message"],
+            ["mecard"] = ["name", "phone", "email", "url", "address", "note"],
         };
 
     /// <summary>Builds the encodable string, or explains what the block is missing.</summary>
@@ -116,6 +118,18 @@ internal static class QrPayload
                 if (Field("title") is not { } summary) { error = Missing("title"); return false; }
                 return TryBuildEvent(summary, Field("location"), Field("start"), Field("end"),
                                      out payload, out error);
+
+            case "epc":
+            if (Field("name") is not { } payee)   { error = Missing("name"); return false; }
+            if (Field("iban") is not { } iban)    { error = Missing("iban"); return false; }
+            return TryBuildEpc(payee, iban, Field("bic"), Field("amount"), Field("purpose"),
+            Field("reference"), Field("message"), out payload, out error);
+
+            case "mecard":
+            if (Field("name") is not { } mecardName) { error = Missing("name"); return false; }
+            payload = BuildMecard(mecardName, Field("phone"), Field("email"),
+            Field("url"), Field("address"), Field("note"));
+            return true;
 
             case "crypto":
                 if (Field("address") is not { } cryptoAddress) { error = Missing("address"); return false; }
@@ -278,6 +292,164 @@ internal static class QrPayload
         return amount is null
             ? $"{scheme}:{address}"
             : $"{scheme}:{address}?amount={Uri.EscapeDataString(amount)}";
+    }
+
+    /// <summary>
+    /// An EPC069-12 credit transfer ΓÇö the "GiroCode" printed on European invoices. Twelve line-separated
+    /// elements in a fixed order, of which the trailing empty ones may be dropped.
+    /// <para>
+    /// Version 002 is emitted rather than 001 because it makes the BIC optional, which for an IBAN inside
+    /// the EEA is what banks actually want; 001 would force every block to carry one.
+    /// </para>
+    /// </summary>
+    private static bool TryBuildEpc(string name, string iban, string? bic, string? amount,
+                                    string? purpose, string? reference, string? message,
+                                    out string? payload, out string? error)
+    {
+        payload = null;
+        error   = null;
+
+        string account = iban.Replace(" ", string.Empty).ToUpperInvariant();
+        if (!IsValidIban(account))
+        {
+            error = $"`iban: {iban}` is not a valid IBAN ΓÇö the check digits do not match. "
+                  + "A typo here produces a code the bank rejects, so it is caught before the code is drawn.";
+            return false;
+        }
+
+        if (name.Length > 70)
+        {
+            error = $"`name:` is {name.Length} characters; an EPC payment carries at most 70.";
+            return false;
+        }
+
+        if (bic is not null && (bic.Length is not (8 or 11) || !bic.All(char.IsAsciiLetterOrDigit)))
+        {
+            error = $"`bic: {bic}` is not a BIC. It is 8 or 11 letters and digits.";
+            return false;
+        }
+
+        // Structured and unstructured remittance occupy different lines and the standard allows only one.
+        if (reference is not null && message is not null)
+        {
+            error = "An EPC payment takes either `reference:` (a structured creditor reference) or "
+                  + "`message:` (free text), not both.";
+            return false;
+        }
+
+        string amountLine = string.Empty;
+        if (amount is not null)
+        {
+            if (!decimal.TryParse(amount, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal value)
+                || value < 0.01m || value > 999999999.99m)
+            {
+                error = $"`amount: {amount}` is not a euro amount between 0.01 and 999999999.99.";
+                return false;
+            }
+            amountLine = "EUR" + value.ToString("0.00", CultureInfo.InvariantCulture);
+        }
+
+        if (purpose is not null && purpose.Length > 4)
+        {
+            error = $"`purpose: {purpose}` is longer than the 4-character purpose code the standard allows.";
+            return false;
+        }
+
+        string[] lines =
+        [
+            "BCD",                      // service tag
+            "002",                      // version ΓÇö 002 makes the BIC optional
+            "1",                        // character set: UTF-8
+            "SCT",                      // SEPA credit transfer
+            bic       ?? string.Empty,
+            name,
+            account,
+            amountLine,
+            purpose   ?? string.Empty,
+            reference ?? string.Empty,  // structured creditor reference
+            message   ?? string.Empty,  // unstructured remittance information
+            string.Empty,               // beneficiary-to-originator information
+        ];
+
+        // Trailing empties carry no meaning and the standard lets them go; dropping them keeps the symbol
+        // smaller, which for a code printed on an invoice is the difference worth having.
+        int last = lines.Length;
+        while (last > 0 && lines[last - 1].Length == 0) last--;
+
+        // EPC069-12 fixes the separator as a line feed, whatever the host document uses.
+        string result = string.Join("\n", lines[..last]);
+
+        const int maxBytes = 331;
+        int bytes = Encoding.UTF8.GetByteCount(result);
+        if (bytes > maxBytes)
+        {
+            error = $"This payment is {bytes} bytes; an EPC code holds {maxBytes}. Shorten `message:` or `name:`.";
+            return false;
+        }
+
+        payload = result;
+        return true;
+    }
+
+    /// <summary>
+    /// Checks an IBAN by its own check digits: move the first four characters to the end, read letters as
+    /// two-digit numbers, and the whole thing must be 1 mod 97.
+    /// </summary>
+    private static bool IsValidIban(string iban)
+    {
+        if (iban.Length is < 15 or > 34) return false;
+        if (!char.IsAsciiLetter(iban[0]) || !char.IsAsciiLetter(iban[1])) return false;
+        if (!char.IsAsciiDigit(iban[2]) || !char.IsAsciiDigit(iban[3])) return false;
+        if (!iban.All(char.IsAsciiLetterOrDigit)) return false;
+
+        int remainder = 0;
+        foreach (char c in iban[4..] + iban[..4])
+        {
+            int value = char.IsAsciiDigit(c) ? c - '0' : c - 'A' + 10;
+            remainder = value > 9 ? (remainder * 100 + value) % 97 : (remainder * 10 + value) % 97;
+        }
+        return remainder == 1;
+    }
+
+    /// <summary>
+    /// DENSO Wave's MECARD ΓÇö the compact contact format, one line, fewer fields than a vCard and a much
+    /// smaller symbol for it. Kept beside <c>vcard</c> rather than replacing it because the two are a real
+    /// trade: vCard carries the organisation and job title, MECARD scans faster and older readers know it.
+    /// </summary>
+    private static string BuildMecard(string name, string? phone, string? email,
+                                      string? url, string? address, string? note)
+    {
+        var sb = new StringBuilder("MECARD:");
+
+        // N takes "last,first" ΓÇö the comma is a separator, so each half is escaped on its own and joined
+        // with a raw one.
+        int split = name.LastIndexOf(' ');
+        string family = split > 0 ? name[(split + 1)..] : name;
+        string given  = split > 0 ? name[..split] : string.Empty;
+
+        sb.Append("N:").Append(EscapeMecard(family));
+        if (given.Length > 0) sb.Append(',').Append(EscapeMecard(given));
+        sb.Append(';');
+
+        if (phone is not null)   sb.Append("TEL:").Append(CompactNumber(phone)).Append(';');
+        if (email is not null)   sb.Append("EMAIL:").Append(EscapeMecard(email)).Append(';');
+        if (url is not null)     sb.Append("URL:").Append(EscapeMecard(url)).Append(';');
+        if (address is not null) sb.Append("ADR:").Append(EscapeMecard(address)).Append(';');
+        if (note is not null)    sb.Append("NOTE:").Append(EscapeMecard(note)).Append(';');
+
+        return sb.Append(';').ToString();
+    }
+
+    /// <summary>Backslash-escapes the characters MECARD uses as separators.</summary>
+    private static string EscapeMecard(string value)
+    {
+        var sb = new StringBuilder(value.Length);
+        foreach (char c in value)
+        {
+            if (c is '\\' or ';' or ':' or ',') sb.Append('\\');
+            sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     // ΓöÇΓöÇ Escaping and parsing helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ

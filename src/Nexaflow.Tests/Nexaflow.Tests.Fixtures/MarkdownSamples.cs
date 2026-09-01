@@ -3393,7 +3393,32 @@ internal sealed class MarkdownSamples : ISampleSet
         end: 2026-08-01T21:00
         ```
 
-        ## A payment
+        ## A contact card, compactly
+
+        MECARD trades the organisation and job title for a much smaller symbol, and older readers know it.
+
+        ```qr
+        type: mecard
+        name: Ada Lovelace
+        phone: +15551234567
+        email: ada@example.com
+        ```
+
+        ## A bank payment (GiroCode)
+
+        An EPC069-12 credit transfer - the code printed on European invoices. The IBAN is checked before
+        the code is drawn, because a typo there scans perfectly and then fails at the bank.
+
+        ```qr
+        type: epc
+        name: Red Cross
+        iban: BE72 0000 0000 1616
+        bic: BPOTBEB1
+        amount: 25.00
+        message: Urgency fund
+        ```
+
+        ## A crypto payment
 
         ```qr
         type: crypto
