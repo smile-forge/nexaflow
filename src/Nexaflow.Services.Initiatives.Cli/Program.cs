@@ -25,6 +25,14 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        // Say what the output actually is. The console's default code page cannot represent the em dashes and
+        // arrows this tool quotes out of source and prints in its own messages, so they arrived as question
+        // marks or hyphens — an error message that quotes a line of code back at you is no use if it quotes it
+        // wrong. Guarded because a redirected or absent console rejects the assignment.
+        try { Console.OutputEncoding = new UTF8Encoding(false); } catch { /* not a console we can set */ }
+
+        WarnIfPublishedExeIsStale();
+
         if (args.Length == 0 || args[0] is "-h" or "--help" or "help") return Usage();
 
         return args[0] switch
@@ -328,9 +336,21 @@ internal static class Program
                     Console.Error.WriteLine($"  {issue.NodeId} [{issue.Scope}] #{issue.Index}  {issue.Link.Doc}");
                 if (theirs.Count > 10) Console.Error.WriteLine($"  … and {theirs.Count - 10} more");
                 Console.Error.WriteLine();
-                Console.Error.WriteLine(mine.Count == 0
-                    ? "Nothing here is broken on this branch. (`validate --main` for the main checkout's view.)"
-                    : $"{mine.Count} issue(s) ARE this branch's. Exit code reflects those.");
+                if (mine.Count == 0)
+                {
+                    Console.Error.WriteLine(
+                        "Nothing here is broken on this branch. (`validate --main` for the main checkout's view.)");
+                }
+                else
+                {
+                    // Named, not counted. A bare "5 issue(s) ARE this branch's" leaves the reader to work out WHICH
+                    // five out of a list of thirty-six by hand, which is the one thing they need and the one thing the
+                    // partition already knows.
+                    Console.Error.WriteLine($"{mine.Count} issue(s) ARE this branch's — exit code reflects these:");
+                    foreach (var issue in mine.Take(10))
+                        Console.Error.WriteLine($"  {issue.NodeId} [{issue.Scope}] #{issue.Index}  {issue.Link.Doc}");
+                    if (mine.Count > 10) Console.Error.WriteLine($"  … and {mine.Count - 10} more");
+                }
                 return mine.Count == 0 ? Clean : Broken;
             }
         }
@@ -748,11 +768,13 @@ internal static class Program
             return VerbUsage($"unknown edit op '{a[0]}' — expected replace | delete | signature | body | "
                            + "rename | insert-before | insert-after | append | doc | substitute | import");
 
+        WarnIfShellRewritesArguments();
+
         if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
 
-        if (a.Value("--find") is not null && a.Value("--find-escaped") is not null)
-            return VerbUsage("give either --find or --find-escaped, not both");
+        if (!TryEditFind(a, out var find, out var findError)) return VerbUsage(findError!);
 
+        
         var main  = a.Has("--main");
         var store = GraphStore(root, main);
         var cache = store.LoadGraphCache() ?? new GraphCache();
@@ -766,8 +788,7 @@ internal static class Program
                  && FileOfNodeId(a[1]) is { } target
                  && GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, main));
 
-        var find = a.Value("--find")
-                ?? (a.Value("--find-escaped") is { } escaped ? SourceText.Unescape(escaped) : null);
+
 
         var options = new StructuralEdit.Options(a.Has("--with-trivia"), a.Value("--expect"),
                                                  find, a.Has("--regex"), a.Has("--all"));
@@ -1043,35 +1064,182 @@ internal static class Program
     private static string CodeRootFor(string productRoot, bool main) =>
         main ? productRoot : FileRootsFor(productRoot)[0];
 
+    /// <summary>A single backslash, written by code point because a literal one has to survive a shell, a
+    /// heredoc and an escape decoder to get into this file, and it does not always manage it.</summary>
+    private const char Backslash = '\u005C';
+
+    /// <summary>
+    /// A warning that this exe is the published copy and the CLI has been changed since it was published, or
+    /// nothing when it is not that copy or is current.
+    /// <para>
+    /// tools/graph-cli/ is gitignored and refreshed by hand, so it drifts behind the source it was built from
+    /// and then fails with "unknown option" on a switch the documentation describes. That reads as the docs
+    /// being wrong rather than the binary being old, and costs a detour every time. Only the published copy is
+    /// checked: a dev build IS its source, and warning about one would be noise on every call.
+    /// </para>
+    /// </summary>
+    private static void WarnIfPublishedExeIsStale()
+    {
+        var exe = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.Equals(Path.GetFileName(exe), "graph-cli", StringComparison.OrdinalIgnoreCase)) return;
+
+        var tools = Path.GetDirectoryName(exe);
+        if (tools is null || !string.Equals(Path.GetFileName(tools), "tools", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var repo = Path.GetDirectoryName(tools);
+        if (repo is null) return;
+
+        var built = File.GetLastWriteTimeUtc(Path.Combine(exe, "nfi.dll"));
+        string[] sources =
+        [
+            Path.Combine(repo, "src", "Nexaflow.Services.Initiatives.Cli"),
+            Path.Combine(repo, "src", "Nexaflow.Services.Initiatives"),
+            Path.Combine(repo, "src", "Nexaflow.Syntax"),
+        ];
+
+        var newest = sources.Where(Directory.Exists)
+                            .SelectMany(d => Directory.EnumerateFiles(d, "*.cs", SearchOption.AllDirectories))
+                            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+                            .Select(File.GetLastWriteTimeUtc)
+                            .DefaultIfEmpty(built)
+                            .Max();
+
+        if (newest <= built) return;
+
+        Console.Error.WriteLine(
+            $"note: this nfi.exe was published on {built.ToLocalTime():yyyy-MM-dd HH:mm} and the CLI source has "
+          + $"changed since ({newest.ToLocalTime():yyyy-MM-dd HH:mm}) — an option the docs describe may not exist "
+          + "in it yet. Refresh with tools/publish-graph-cli.ps1, from the main checkout.");
+    }
+
+    /// <summary>
+    /// A warning that this shell is rewriting arguments before the process ever sees them, or nothing when it
+    /// is not. Git Bash and MSYS convert anything that looks like a POSIX path: a value beginning with a slash
+    /// is re-rooted at the Git installation, and a leading double slash collapses to one. The second is the
+    /// dangerous half — a C-style comment passed as replacement text arrives with one slash, which is a syntax
+    /// error the edit then refuses for a reason that has nothing to do with what the caller wrote. Setting
+    /// MSYS2_ARG_CONV_EXCL turns the whole thing off, so the presence of MSYSTEM without it is the exact
+    /// condition worth saying something about.
+    /// </summary>
+    private static void WarnIfShellRewritesArguments()
+    {
+        if (Environment.GetEnvironmentVariable("MSYSTEM") is not { Length: > 0 }) return;
+        if (Environment.GetEnvironmentVariable("MSYS2_ARG_CONV_EXCL") is { Length: > 0 }) return;
+
+        Console.Error.WriteLine(
+            "note: this is a Git Bash / MSYS shell, which rewrites arguments that look like POSIX paths — a "
+          + "leading // becomes /, so a C-style comment passed as --text or --find arrives short a slash. "
+          + "Export MSYS2_ARG_CONV_EXCL to '*' for the session, or pass payloads through --file / --find-file.");
+    }
+
     /// <summary>
     /// The replacement text, from whichever source was given. Four sources rather than one because the shell
     /// is the awkward part of this: <c>--file</c> and <c>--stdin</c> pass code through untouched,
     /// <c>--text</c> is literal, and <c>--text-escaped</c> exists for the caller who can only send one line
-    /// and needs <c>\n</c> to mean something.
+    /// and needs a backslash-n to mean something.
     /// </summary>
-    private static bool TryEditText(VerbArgs a, out string? text, out string? error)
+    private static bool TryEditText(VerbArgs a, out string? text, out string? error) =>
+        TryPayload(a, "--text", "--text-escaped", "--file", "--stdin", out text, out error);
+
+    /// <summary>
+    /// The same four sources for <c>--find</c>. It used to have only the two inline ones, which made a
+    /// multi-line fragment containing an apostrophe — a possessive or a contraction in a comment — unsendable
+    /// from a POSIX shell, and pushed callers into regexes they had no other reason to write.
+    /// <para>
+    /// One trailing newline is dropped, exactly as the replacement side drops one: a file or a pipe ends with
+    /// a line break that is how text files are written rather than part of what the caller means to match.
+    /// Keeping it swallowed the line after the fragment, and a two-line comment replaced by one line took the
+    /// following statement with it — which parses, sometimes, and is why this is not left to the caller.
+    /// </para>
+    /// </summary>
+    private static bool TryEditFind(VerbArgs a, out string? find, out string? error)
     {
-        text = null;
+        if (!TryPayload(a, "--find", "--find-escaped", "--find-file", "--find-stdin", out find, out error))
+            return false;
+
+        if (find is { } f && f.EndsWith('\n')) find = f[..^(f.EndsWith("\r\n", StringComparison.Ordinal) ? 2 : 1)];
+        return true;
+    }
+
+    /// <summary>
+    /// One payload from exactly one of four sources: literal, backslash-escaped, a file, or standard input.
+    /// Null when none was given, which every caller reads as "not asked for" rather than as empty.
+    /// </summary>
+    private static bool TryPayload(VerbArgs a, string literalOpt, string escapedOpt, string fileOpt,
+                                   string stdinOpt, out string? text, out string? error)
+    {
+        text  = null;
         error = null;
 
-        string?[] sources = [a.Value("--text"), a.Value("--text-escaped"), a.Value("--file"),
-                             a.Has("--stdin") ? "" : null];
+        string?[] sources = [a.Value(literalOpt), a.Value(escapedOpt), a.Value(fileOpt),
+                             a.Has(stdinOpt) ? "" : null];
         if (sources.Count(s => s is not null) > 1)
         {
-            error = "give exactly one of --text, --text-escaped, --file or --stdin";
+            error = $"give exactly one of {literalOpt}, {escapedOpt}, {fileOpt} or {stdinOpt}";
             return false;
         }
 
-        if (a.Value("--text") is { } literal)          text = literal;
-        else if (a.Value("--text-escaped") is { } esc)  text = SourceText.Unescape(esc);
-        else if (a.Value("--file") is { } path)
+        if (a.Has("--stdin") && a.Has("--find-stdin"))
+        {
+            error = "--stdin and --find-stdin both read standard input, so only one of them can be used";
+            return false;
+        }
+
+        if (a.Value(literalOpt) is { } literal) text = literal;
+        else if (a.Value(escapedOpt) is { } esc)
+        {
+            if (MangledEscapes(escapedOpt, esc) is { } mangled) { error = mangled; return false; }
+            text = SourceText.Unescape(esc);
+        }
+        else if (a.Value(fileOpt) is { } path)
         {
             if (!File.Exists(path)) { error = $"no such file: {path}"; return false; }
             text = File.ReadAllText(path);
         }
-        else if (a.Has("--stdin")) text = Console.In.ReadToEnd();
+        else if (a.Has(stdinOpt)) text = ReadStdin();
 
         return true;
+    }
+
+    /// <summary>
+    /// Standard input decoded as UTF-8 rather than as the console's code page. <c>Console.In</c> uses the
+    /// latter, so a payload piped in with any character outside ASCII — an em dash, which this codebase writes
+    /// constantly — arrived as something else and the edit then failed to match, or worse, matched and wrote
+    /// the wrong character. Opening the raw stream sidesteps the console entirely.
+    /// </summary>
+    private static string ReadStdin()
+    {
+        using var reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>
+    /// Why an escaped payload looks like the shell got to it first, or null when it does not.
+    /// <para>
+    /// Git Bash and MSYS rewrite an argument they take for a POSIX path, and the damage is not always loud. A
+    /// find value starting with a slash comes back rooted at the Git installation and simply fails to match,
+    /// which is fine. But a doc comment written with escapes arrives with its backslashes turned round, and
+    /// that still parses, still applies, and reports success — it is found by eye, in the file, afterwards.
+    /// </para>
+    /// <para>
+    /// The signature is exact enough to act on: an <em>escaped</em> payload whose whole point is its
+    /// backslashes, carrying none, while carrying a slash where each escape would have been. A caller who
+    /// really means those two characters wants the literal option, which is what the refusal says.
+    /// </para>
+    /// </summary>
+    internal static string? MangledEscapes(string option, string value)
+    {
+        if (value.Contains(Backslash)) return null;
+        if (!value.Contains("/n") && !value.Contains("/t") && !value.Contains("/r")) return null;
+
+        var literal = option.Replace("-escaped", string.Empty);
+        return $"{option} carries no backslash at all yet contains /n, /t or /r where its escapes would have "
+             + "been — a shell (Git Bash or MSYS) has almost certainly turned them round while converting the "
+             + "value to a Windows path. Applying it would write those two characters into the file and report "
+             + "success. Export MSYS2_ARG_CONV_EXCL to '*' to stop the conversion, pass the text through "
+             + $"{literal}-file or {literal}-stdin, or use {literal} if you really did mean a slash and an n.";
     }
 
     /// <summary>A file's raw text plus the encoding to write it back with, resolved the same worktree-first
@@ -2066,10 +2234,11 @@ internal static class Program
         public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main", "--refresh"],
             "graph code <id> [<root>] [--lines A-B] [--main] [--refresh]");
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
-            ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped"],
-            ["--stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh"],
+            ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file"],
+            ["--stdin", "--find-stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh"],
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
-          + "[--to NAME] [--find S | --find-escaped S] [--regex] [--all] [--expect S] [--with-trivia] "
+          + "[--to NAME] [--find S | --find-escaped S | --find-file F | --find-stdin] [--regex] [--all] "
+          + "[--expect S] [--with-trivia] "
           + "[--dry-run] [--main]");
     }
 

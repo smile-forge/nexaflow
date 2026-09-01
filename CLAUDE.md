@@ -174,9 +174,22 @@ for **every** verb including `substitute`, whose replacement is indented for the
 keeps the declaration's existing doc comment, *unless* your replacement opens with one, in which case yours
 replaces it rather than being stacked on top. Text comes from
 `--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
-path — alone), `--file`, or `--stdin`; `--find`/`--find-escaped` mirror that pair. `--dry-run` prints the hunk
-and writes nothing; `--expect S` refuses unless the block still contains `S`, pinning the edit to what you
-read. Rebuild the graph afterwards so its record matches.
+path — alone), `--file`, or `--stdin`; `--find` mirrors all four — `--find-escaped`, `--find-file`,
+`--find-stdin` — so a fragment carrying apostrophes never has to be squeezed through a POSIX shell.
+`--dry-run` prints the hunk and writes nothing; `--expect S` refuses unless the block still contains `S`,
+pinning the edit to what you read. Rebuild the graph afterwards so its record matches.
+
+**In Git Bash, `export MSYS2_ARG_CONV_EXCL='*'` before you use this at all.** MSYS rewrites arguments it
+reads as POSIX paths, and the damaging half is silent: a leading `//` collapses to `/`, so `--text '// x'`
+arrives as `/ x` and lands a syntax error, and `--text-escaped '/// <x/>\nfoo'` arrives with its backslash
+turned round and writes a literal `/n` into the file while reporting success. `nfi` warns when it sees an
+MSYS shell without the exclusion, and refuses an escaped payload carrying `/n` where its escapes should be,
+but the environment variable is the fix — or pass payloads through `--file` / `--find-file` / `--stdin`,
+which no shell touches.
+
+Two behaviours that read as bugs and are not: `--with-trivia` stops at a blank line, so deleting the last
+member under a `// ── section ──` header leaves the header (it belongs to the section, not the member);
+and `$1` in a replacement is a backreference **only** with `--regex`, literal otherwise.
 
 `import` is file-level (it takes a `file:` id, or any code node in that file) and lands where the file already
 keeps its imports — under the last one, or below a licence header when there are none. Reaching that through
