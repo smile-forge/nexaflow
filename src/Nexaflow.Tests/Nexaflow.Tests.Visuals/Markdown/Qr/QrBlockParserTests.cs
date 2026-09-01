@@ -194,13 +194,19 @@ public class QrBlockParserTests
     [TestMethod]
     [CoversNode("qr-payloads")]
     public void Event_BecomesACalendarEntry() =>
+        // A bare VEVENT is read by some scanners and ignored by others; the VCALENDAR wrapper, with the
+        // PRODID and VERSION that make it a valid iCalendar object, is what every calendar app takes.
         Assert.AreEqual(
-            "BEGIN:VEVENT\r\n"
+            "BEGIN:VCALENDAR\r\n"
+          + "VERSION:2.0\r\n"
+          + "PRODID:-//Nexaflow//Markdown QR//EN\r\n"
+          + "BEGIN:VEVENT\r\n"
           + "SUMMARY:Launch party\r\n"
           + "LOCATION:The Office\r\n"
           + "DTSTART:20260801T180000\r\n"
           + "DTEND:20260801T210000\r\n"
-          + "END:VEVENT\r\n",
+          + "END:VEVENT\r\n"
+          + "END:VCALENDAR\r\n",
             Parse(
             """
             type: event

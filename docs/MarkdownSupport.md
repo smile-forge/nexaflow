@@ -476,7 +476,7 @@ over a byte array — no IO, no platform, nothing to keep current.
 | `wifi` | `ssid`, `password`, `security`, `hidden` | `WIFI:T:…;S:…;P:…;;` — `;` `,` `:` `"` `\` escaped; no password ⇒ `nopass`; `H:true;` only when hidden |
 | `vcard` | `name`, `org`, `title`, `phone`, `email`, `url`, `address` | vCard 3.0, CRLF-delimited, with a structured `N:` split on the last space |
 | `geo` | `lat`, `lng` | `geo:lat,lng`, range-checked |
-| `event` | `title`, `location`, `start`, `end` | `VEVENT` with `DTSTART`/`DTEND` in basic format; a trailing `Z` is kept as UTC |
+| `event` | `title`, `location`, `start`, `end` | a `VCALENDAR`-wrapped `VEVENT` — the form every calendar app takes, where a bare `VEVENT` is read only by some — with `DTSTART`/`DTEND` in basic format; a trailing `Z` is kept as UTC |
 | `crypto` | `coin`, `address`, `amount` | BIP-21 `coin:address?amount=…`; tickers (`BTC`, `ETH`, …) resolve to the scheme |
 
 **Settings** (any type): `ec` (`L`/`M`/`Q`/`H`, default `M`), `cellSize` (1–64, default 4), `margin`

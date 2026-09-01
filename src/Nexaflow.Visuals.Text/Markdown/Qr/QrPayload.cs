@@ -241,15 +241,22 @@ internal static class QrPayload
             return false;
         }
 
+        // Wrapped in a VCALENDAR rather than emitted as a bare VEVENT. Some readers take the bare form,
+        // but the wrapper is what every calendar app accepts ΓÇö and PRODID and VERSION are what make this
+        // a valid iCalendar object rather than one that happens to be tolerated.
         var sb = new StringBuilder();
         void Line(string s) => sb.Append(s).Append("\r\n");
 
+        Line("BEGIN:VCALENDAR");
+        Line("VERSION:2.0");
+        Line("PRODID:-//Nexaflow//Markdown QR//EN");
         Line("BEGIN:VEVENT");
         Line("SUMMARY:" + EscapeVCard(summary));
         if (location is not null)   Line("LOCATION:" + EscapeVCard(location));
         if (startStamp is not null) Line("DTSTART:" + startStamp);
         if (endStamp is not null)   Line("DTEND:"   + endStamp);
         Line("END:VEVENT");
+        Line("END:VCALENDAR");
 
         payload = sb.ToString();
         return true;
