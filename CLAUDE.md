@@ -58,7 +58,9 @@ node carries snaplinks to its source):
 **`nfi.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
 the gitignored tree lives) — so run it from any checkout or worktree with NO root arg.** Build it once, then call the
 exe directly (fast; no per-call rebuild). In the main checkout a prebuilt copy also sits at `tools/graph-cli/`
-(`tools/publish-graph-cli.ps1` refreshes it). `$nfi` below is that exe. (The installer also ships it as an
+(`tools/publish-graph-cli.ps1` refreshes it — **run it from the main checkout**; `graph-cli/` is gitignored,
+so from a worktree it would publish into that worktree and leave the shared exe untouched, which is why the
+script refuses rather than let that read as success). `$nfi` below is that exe. (The installer also ships it as an
 opt-in **Command-line tools** feature — `[InstallFolder]\tools` added to the system PATH — so on an installed
 box `nfi` is just on PATH. Off by default; `nexaflowBundle.exe /quiet InstallTools=1` for unattended.)
 

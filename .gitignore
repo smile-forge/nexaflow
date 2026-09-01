@@ -458,6 +458,8 @@ src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/obj/
 
 # Published product-graph / initiatives CLI (nfi.exe; regenerate with tools/publish-graph-cli.ps1)
 tools/graph-cli/
+tools/graph-cli.staging/
+tools/graph-cli.old-*/
 
 # Derived: the latex-corpus survey's report and the images it references (tools/latex-corpus).
 .corpus-report/
