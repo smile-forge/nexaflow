@@ -1,0 +1,6 @@
+{
+  "$comment": "This suite came with the typesetting engine and runs on xunit/VSTest, where the rest of the repo runs on MSTest under Microsoft.Testing.Platform. `dotnet test` refuses to mix runners, and the repo root names MTP for everything beneath it — so without this the suite cannot be run at all. Shadows that choice for anything run with the working directory inside this folder. Run it as: dotnet test Nexaflow.Tests.Typesetting.fsproj (from here).",
+  "test": {
+    "runner": "VSTest"
+  }
+}

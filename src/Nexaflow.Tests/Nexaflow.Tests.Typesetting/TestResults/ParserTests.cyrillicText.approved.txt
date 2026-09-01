@@ -1,0 +1,90 @@
+{
+  "RootAtom": {
+    "[AtomType]": "RowAtom",
+    "Borrowed": false,
+    "Elements": [
+      {
+        "[AtomType]": "CharAtom",
+        "Borrowed": false,
+        "Character": "а",
+        "IsTextSymbol": false,
+        "Slots": [],
+        "Source": null,
+        "TextStyle": "text",
+        "Type": "Ordinary"
+      },
+      {
+        "[AtomType]": "CharAtom",
+        "Borrowed": false,
+        "Character": "б",
+        "IsTextSymbol": false,
+        "Slots": [],
+        "Source": null,
+        "TextStyle": "text",
+        "Type": "Ordinary"
+      },
+      {
+        "[AtomType]": "CharAtom",
+        "Borrowed": false,
+        "Character": "в",
+        "IsTextSymbol": false,
+        "Slots": [],
+        "Source": null,
+        "TextStyle": "text",
+        "Type": "Ordinary"
+      }
+    ],
+    "PreviousAtom": null,
+    "Slots": [
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "а",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": "text",
+          "Type": "Ordinary"
+        },
+        "Role": "element",
+        "Row": -1
+      },
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "б",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": "text",
+          "Type": "Ordinary"
+        },
+        "Role": "element",
+        "Row": -1
+      },
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "в",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": "text",
+          "Type": "Ordinary"
+        },
+        "Role": "element",
+        "Row": -1
+      }
+    ],
+    "Source": null,
+    "Type": "Ordinary"
+  },
+  "Source": null,
+  "TextStyle": null
+}

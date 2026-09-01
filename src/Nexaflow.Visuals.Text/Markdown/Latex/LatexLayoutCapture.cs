@@ -1,3 +1,4 @@
+using Nexaflow.Maths.Latex;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -348,6 +349,24 @@ internal sealed class LatexLayoutCapture : IElementRenderer
     /// </summary>
     private (int Start, int Length) SourceOf(Box box)
     {
+        // Built from a reading rather than parsed: the atom carries the part it was made from, and a
+        // part knows where it stands. Nothing to match and nothing to repair.
+        //
+        // Named the way the other reading named it, though, and deliberately: everything downstream
+        // still works in offsets and was written against that convention. A braced argument's box
+        // covered what was between the braces and a cell's covered the ink, where the *part* is the
+        // whole `{a+b}` and the whole cell. Handing over the honest span instead re-braces an argument
+        // that is already braced, because what reads the characters around it finds a `}` where it
+        // expected a letter. This goes when the editor asks the part rather than the offsets.
+        if (box.Node?.Origin is { } part
+            && box.GetType().Name is not ("StrutBox" or "GlueBox"))
+            return part.Kind switch
+            {
+                TexKind.Group => part.Contents,
+                TexKind.Cell => part.Written,
+                _ => (part.Start, part.Length),
+            };
+
         if (box.Source is not { } source
             || !string.Equals(source.Source, _latex, StringComparison.Ordinal)
             || box.GetType().Name is "StrutBox" or "GlueBox")

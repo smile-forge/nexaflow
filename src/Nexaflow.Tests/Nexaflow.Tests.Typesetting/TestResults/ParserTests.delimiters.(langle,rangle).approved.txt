@@ -1,0 +1,57 @@
+{
+  "RootAtom": {
+    "[AtomType]": "FencedAtom",
+    "BaseAtom": {
+      "[AtomType]": "CharAtom",
+      "Borrowed": false,
+      "Character": "a",
+      "IsTextSymbol": false,
+      "Slots": [],
+      "Source": null,
+      "TextStyle": null,
+      "Type": "Ordinary"
+    },
+    "Borrowed": false,
+    "LeftDelimeter": {
+      "[AtomType]": "SymbolAtom",
+      "Borrowed": false,
+      "IsDelimeter": true,
+      "IsTextSymbol": false,
+      "Name": "langle",
+      "Slots": [],
+      "Source": null,
+      "Type": "Opening"
+    },
+    "RightDelimeter": {
+      "[AtomType]": "SymbolAtom",
+      "Borrowed": false,
+      "IsDelimeter": true,
+      "IsTextSymbol": false,
+      "Name": "rangle",
+      "Slots": [],
+      "Source": null,
+      "Type": "Closing"
+    },
+    "Slots": [
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "a",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": null,
+          "Type": "Ordinary"
+        },
+        "Role": "base",
+        "Row": -1
+      }
+    ],
+    "Source": null,
+    "Type": "Ordinary"
+  },
+  "Source": null,
+  "TextStyle": null
+}

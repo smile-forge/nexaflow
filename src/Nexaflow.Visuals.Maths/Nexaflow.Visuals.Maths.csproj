@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The WPF half of the typesetting engine: the Computer Modern faces, the font provider that reads
+    glyphs out of them, and the renderer that turns a box tree into drawing calls.
+
+    Ingested from XAML-Math's WpfMath project (MIT) alongside Nexaflow.Maths.Typesetting — see the note
+    there for why, and docs/externals.md for the exception it makes to the submodule rule.
+
+    Nexaflow does not use the renderer to draw. Visuals.Text renders through a capturing
+    IElementRenderer instead, which records where every box landed and what it drew, and paints from
+    that afterwards — so the picture and the answers to "what is under the caret" come from one pass and
+    cannot disagree. What is needed from here is the environment, the fonts, and the interfaces that
+    capture implements.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>WpfMath</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Beside the code that reads them, and the folder name is load-bearing: the font provider asks
+         WPF for pack://…/{assembly};component/Fonts/{file}, so the resource path has to BE Fonts\. They
+         were briefly kept apart with LinkBase, which does nothing for files already inside the project,
+         and every glyph silently failed to resolve. -->
+    <Resource Include="Fonts\*.ttf" />
+    <None Include="Fonts\LICENSES.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Maths.Typesetting\Nexaflow.Maths.Typesetting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Visuals.Text" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.Typesetting" />
+  </ItemGroup>
+
+</Project>

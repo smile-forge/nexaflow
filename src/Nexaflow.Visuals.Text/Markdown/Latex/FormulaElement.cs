@@ -40,6 +40,14 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private bool _caretVisible = true;
     private int _anchor;
     private ILayoutNode? _anchorNode;
+
+    /// <summary>
+    /// Which of the bars at the caret's offset it is drawn as — see <see cref="CaretPlace"/>. Kept beside
+    /// the state rather than in it: an offset is what an edit is made of, and this is not. It survives a
+    /// deliberate step and nothing else, because <see cref="Apply"/> takes it as an argument that defaults
+    /// to the innermost, so every other route back through there puts the caret inside again.
+    /// </summary>
+    private int _level;
     private Point _pressedAt;
     private bool _dragging;
 
@@ -194,16 +202,26 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// for the same reason: landing part-way along because that is where the column fell would drop the
     /// reader into the middle of a subscript they were only passing over.
     /// </remarks>
-    public void TakeCaretArriving(CaretArrival arrival) =>
-        TakeCaret(arrival is { Step: CaretStep.Character, Edge: BlockExit.After } ? _state.Latex.Length : 0);
+    public void TakeCaretArriving(CaretArrival arrival)
+    {
+        var backwards = arrival is { Step: CaretStep.Character, Edge: BlockExit.After };
+        if (!backwards) { TakeCaret(0); return; }
+
+        // Arriving from the text after the formula, the caret is outside everything in it — so it takes
+        // the outermost bar at the end. Landing on the innermost instead would put it inside a trailing
+        // exponent, raised and half-height, having been walked into from the far side of the formula.
+        var end = _state.Latex.Length;
+        TakeCaret(end, level: (_layout?.Tree.PlacesAt(Snap(end)) ?? 1) - 1);
+    }
 
     // ── Caret ownership ─────────────────────────────────────────────────────
 
     /// <summary>Gives this formula the caret at <paramref name="offset"/>.</summary>
-    public void TakeCaret(int offset)
+    /// <param name="level">Which of the bars drawn there — see <see cref="CaretPlace"/>.</param>
+    public void TakeCaret(int offset, int level = 0)
     {
         HasCaret = !IsReadOnly;
-        Apply(_state.MoveCaretTo(Snap(offset)), notify: false);
+        Apply(_state.MoveCaretTo(Snap(offset)), notify: false, level: level);
         if (HasCaret) StartBlinking();
     }
 
@@ -266,11 +284,10 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (_state.Raw is { } zone && zone.Holds(_state.Caret))
         {
             var step = _state.Caret + (forward ? 1 : -1);
-            if (step >= zone.Start && step <= zone.End) { MoveTo(step, extend); return true; }
+            if (step >= zone.Start && step <= zone.End) { MoveTo(CaretPlace.At(step), extend); return true; }
         }
 
-        var here = _state.Caret;
-        var next = _layout?.Tree.Step(here, forward);
+        var next = _layout?.Tree.Step(new CaretPlace(_state.Caret, _level), forward);
         if (next is null)
         {
             Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
@@ -287,14 +304,16 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         var next = _layout?.Tree.StepVertical(_state.Caret, up);
         if (next is null) return false;
 
-        MoveTo(next.Value, extend);
+        MoveTo(CaretPlace.At(next.Value), extend);
         return true;
     }
 
-    private void MoveTo(int offset, bool extend)
+    private void MoveTo(CaretPlace place, bool extend)
     {
-        if (extend) ExtendSelectionTo(offset);
-        else Apply(_state.MoveCaretTo(offset), notify: false);
+        // Extending is about a stretch of source, and a stretch has no levels — which of the bars at its
+        // far end the caret would have been drawn as says nothing about what is picked out.
+        if (extend) ExtendSelectionTo(place.Offset);
+        else Apply(_state.MoveCaretTo(place.Offset), notify: false, level: place.Level);
     }
 
     // ── Editing ─────────────────────────────────────────────────────────────
@@ -325,6 +344,11 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     {
         if (_layout is null || _state.HasSelection || _state.Raw is not null) return false;
         if (string.IsNullOrWhiteSpace(text)) return false;
+
+        // Only from inside. A caret that has stepped out of a construct is past it — that is what the
+        // place means and the whole reason it exists — so a 3 typed there follows `x^2` rather than
+        // joining its exponent, and the same keystroke one bar to the left still makes it twenty-three.
+        if (_level > 0) return false;
 
         if (_layout.Tree.Write(_state.Caret, text) is not { } written) return false;
 
@@ -446,7 +470,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             // A construct goes back to the source it was written as — there is source to go back to. A
             // symbol has nothing hidden behind it, so it is simply taken: an α is one thing on the page
             // however many letters spelled it, and backspace over one thing removes it.
-            Apply(LatexTree.IsComposite(symbol) ? _state.Backspace(span) : _state.Remove(span.Start, span.Length),
+            Apply(_layout!.Tree.IsComposite(symbol) ? _state.Backspace(span) : _state.Remove(span.Start, span.Length),
                   notify: true);
             return true;
         }
@@ -514,7 +538,9 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (Covers(_anchor)) { _moving = true; _dropAt = _anchor; return; }
 
         ClearSelection();
-        TakeCaret(_anchor);
+
+        var place = _layout.Tree.PlaceAt(pointInElement);
+        TakeCaret(place.Offset, place.Level);
     }
 
     /// <summary>Whether <paramref name="offset"/> falls inside one of the selected stretches.</summary>
@@ -666,13 +692,18 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
     // ── Layout and painting ─────────────────────────────────────────────────
 
-    private void Apply(LatexEditState next, bool notify)
+    /// <param name="level">
+    /// Which bar at the caret's offset — see <see cref="_level"/>. Innermost unless a step says otherwise,
+    /// which is what makes an edit, a click or a jump put the caret back inside whatever it is in.
+    /// </param>
+    private void Apply(LatexEditState next, bool notify, int level = 0)
     {
         var resized = next.Latex != _state.Latex || next.Raw != _state.Raw;
-        var moved = next.Caret != _state.Caret;
+        var moved = next.Caret != _state.Caret || level != _level;
         var changed = next.Latex != _state.Latex;
 
         _state = next;
+        _level = level;
         if (resized) { Rebuild(); InvalidateMeasure(); }
         if (moved || changed) HoldCaretVisible();   // never blink out mid-keystroke
         InvalidateVisual();
@@ -751,7 +782,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // in between, and washing from the first to the last would highlight the lot.
         foreach (var range in _state.Selection)
             foreach (var rect in _layout.Tree.RangeRects(range.Start, range.Length))
-                dc.DrawRectangle(_wash, null, rect);
+                dc.DrawRectangle(_wash, null, Marked(rect));
 
         _layout.Paint(dc, _palette.Text);
 
@@ -771,10 +802,31 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // up from — that is the one thing the reader needs to see before letting go. Inside a stretch
         // being written it needs no special case: those characters are in the layout like any others,
         // so the tree already knows where each of them sits.
-        var caret = _layout.Tree.CaretRect(_moving ? _dropAt : _state.Caret);
+        var caret = _layout.Tree.CaretRect(
+            _moving ? CaretPlace.At(_dropAt) : new CaretPlace(_state.Caret, _level));
 
         if ((!HasCaret && !_moving) || IsReadOnly || !_caretVisible) return;
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
+    }
+
+    /// <summary>
+    /// How far a wash reaches past the ink it marks, as a fraction of the type size.
+    /// <para>
+    /// A box the exact size of a glyph is a poor way to say "this is picked out". Text does not do it
+    /// either: a selected character is washed over the whole line box, not over its own outline, which
+    /// is why a selected <c>i</c> reads as selected at all. A glyph's box here is its advance and its
+    /// own height, so washing it exactly leaves an <c>a</c> showing the wash through its counter and
+    /// nowhere else, and an <c>i</c> or an <c>l</c> as a stripe too narrow to notice.
+    /// </para>
+    /// </summary>
+    private const double WashReach = 0.14;
+
+    /// <summary>A wash a little larger than what it marks — see <see cref="WashReach"/>.</summary>
+    private Rect Marked(Rect rect)
+    {
+        var reach = _scale * WashReach;
+        rect.Inflate(reach, reach);
+        return rect;
     }
 
     /// <summary>The caret itself. One place, so a formula that is empty draws the same one as any other.</summary>

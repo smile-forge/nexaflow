@@ -1,0 +1,102 @@
+{
+  "branch": "claude/latex-parse-tree",
+  "nodes": {
+    "latex-paint": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexPaintTests.cs",
+            "class": "LatexPaintTests",
+            "method": "ThemeColourReachesTheGlyphsButNotTheOnesThatChoseTheirOwn"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexPaintTests.cs",
+            "class": "LatexPaintTests",
+            "method": "OnePieceCanBePaintedOnItsOwn"
+          }
+        ]
+      }
+    },
+    "latex-source-map": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexLayoutTests.cs",
+            "class": "LatexLayoutTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexLayoutTests.cs",
+            "class": "LatexLayoutTests",
+            "method": "ACommandOwnsTheBackslashThatIntroducesIt"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexTreeTests.cs",
+            "class": "LatexTreeTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexTreeShapeTests.cs",
+            "class": "LatexTreeShapeTests",
+            "method": "NoPieceOfLayoutRepeatsAName"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexTreeShapeTests.cs",
+            "class": "LatexTreeShapeTests",
+            "method": "ANameAlwaysCoversTheNamesInsideIt"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexConstructCoverageTests.cs",
+            "class": "LatexConstructCoverageTests",
+            "method": "EveryConstructTypesets"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexConstructCoverageTests.cs",
+            "class": "LatexConstructCoverageTests",
+            "method": "EveryConstructNestsItsNames"
+          }
+        ]
+      }
+    },
+    "maths-latex-roles": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexCommandTableTests.cs",
+            "class": "TexCommandTableTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexRoleTests.cs",
+            "class": "LatexRoleTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "latex-paint",
+    "latex-source-map",
+    "maths-latex-roles"
+  ]
+}

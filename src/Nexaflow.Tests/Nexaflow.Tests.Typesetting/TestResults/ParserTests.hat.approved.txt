@@ -1,0 +1,105 @@
+{
+  "RootAtom": {
+    "[AtomType]": "TypedAtom",
+    "Atom": {
+      "[AtomType]": "AccentedAtom",
+      "AccentAtom": {
+        "[AtomType]": "SymbolAtom",
+        "Borrowed": false,
+        "IsDelimeter": false,
+        "IsTextSymbol": false,
+        "Name": "hat",
+        "Slots": [],
+        "Source": null,
+        "Type": "Accent"
+      },
+      "BaseAtom": {
+        "[AtomType]": "CharAtom",
+        "Borrowed": false,
+        "Character": "T",
+        "IsTextSymbol": false,
+        "Slots": [],
+        "Source": null,
+        "TextStyle": null,
+        "Type": "Ordinary"
+      },
+      "Borrowed": false,
+      "Slots": [
+        {
+          "Column": -1,
+          "Node": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "T",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          "Role": "base",
+          "Row": -1
+        }
+      ],
+      "Source": null,
+      "Type": "Ordinary"
+    },
+    "Borrowed": false,
+    "LeftType": "Ordinary",
+    "RightType": "Ordinary",
+    "Slots": [
+      {
+        "Column": -1,
+        "Node": {
+          "[AtomType]": "AccentedAtom",
+          "AccentAtom": {
+            "[AtomType]": "SymbolAtom",
+            "Borrowed": false,
+            "IsDelimeter": false,
+            "IsTextSymbol": false,
+            "Name": "hat",
+            "Slots": [],
+            "Source": null,
+            "Type": "Accent"
+          },
+          "BaseAtom": {
+            "[AtomType]": "CharAtom",
+            "Borrowed": false,
+            "Character": "T",
+            "IsTextSymbol": false,
+            "Slots": [],
+            "Source": null,
+            "TextStyle": null,
+            "Type": "Ordinary"
+          },
+          "Borrowed": false,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "T",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "base",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "base",
+        "Row": -1
+      }
+    ],
+    "Source": null,
+    "Type": "Ordinary"
+  },
+  "Source": null,
+  "TextStyle": null
+}

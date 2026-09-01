@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Maths.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using XamlMath;
 
@@ -81,29 +82,68 @@ public sealed class LatexTree
     /// </summary>
     public (ILayoutNode Construct, string Role)? RoleOf(ILayoutNode node)
     {
-        if (node is not LatexNode { Formula: { } mine }) return null;
+        if (node.SourceLength <= 0) return null;
 
         // Recovered text was shown, not read. Whatever the parser wrapped it in while carrying on is an
         // artefact of the recovery rather than anything the writer expressed, so it names no part of
         // anything — and copying it can only ever yield the characters.
         if (IsGuesswork(node)) return null;
 
-        // Climbing rather than taking the nearest ancestor: the typesetter wraps things in boxes of its
-        // own, and those carry the same construct or none at all. The first ancestor that actually holds
-        // this among its parts is the one that named it.
-        foreach (var ancestor in node.Ancestors())
-        {
-            if (ancestor is not LatexNode { Formula: { } theirs } || ReferenceEquals(theirs, mine)) continue;
+        if (Innermost(node) is not { } part) return null;
 
-            foreach (var slot in theirs.Slots)
-                // The construct comes back as its layout node, not as the parse node the role was read
-                // off. Spans then have one owner: the layout's, which has claimed each command's
-                // backslash, where the parser's span begins at the command's name.
-                if (ReferenceEquals(slot.Node, mine)) return (ancestor, slot.Role);
-        }
+        // A braced group — or a cell — stands for the one thing written in it, so pointing at that thing
+        // is pointing at the wrapper, and it is the wrapper the construct named. The braces are the
+        // writer's way of saying "all of this is one argument"; nothing downstream should have to know
+        // they were there.
+        while (part.Parent is { IsWrapper: true } wrapper && ReferenceEquals(Alone(wrapper), part))
+            part = wrapper;
+
+        if (!IsPart(part.Role)) return null;
+
+        // The construct comes back as a layout node, because that is what the caller can point at, draw
+        // and hit-test. Nearest ancestor naming the same stretch of source: the parse tree says which
+        // construct holds this part, and the layout says where that construct was drawn.
+        foreach (var holder in part.Ancestors())
+            if (Drawn(node, holder) is { } construct) return (construct, part.Role);
 
         return null;
     }
+
+    private TexReading? _reading;
+
+    /// <summary>
+    /// The formula read as a parse tree, with every part's place and parent worked out.
+    /// <para>
+    /// Read once and kept. This object is a reading of one string, and changed source is a different
+    /// <see cref="LatexTree"/> — so there is no moment at which this could be out of date.
+    /// </para>
+    /// </summary>
+    private TexReading Reading => _reading ??= TexReading.Of(Latex);
+
+    /// <summary>Roles that name a place content goes, as against the punctuation that holds it.</summary>
+    private static bool IsPart(string role) =>
+        role is not (TexRole.Name or TexRole.Open or TexRole.Close
+                     or TexRole.Separator or TexRole.Trivia or TexRole.Row);
+
+    /// <summary>The one thing written in a wrapper, or null when it holds none or several.</summary>
+    private static TexPart? Alone(TexPart wrapper)
+    {
+        TexPart? only = null;
+
+        foreach (var part in wrapper.Parts)
+        {
+            if (only is not null) return null;
+            only = part;
+        }
+
+        return only;
+    }
+
+    /// <summary>Where a part of the parse tree was drawn — the nearest thing above <paramref name="node"/>
+    /// that names the same stretch of source.</summary>
+    private static ILayoutNode? Drawn(ILayoutNode node, TexPart part) =>
+        node.Ancestors().FirstOrDefault(
+            a => a.SourceStart == part.Start && a.SourceLength == part.Length);
 
     /// <summary>Where a caret is allowed to rest, ascending.</summary>
     public IReadOnlyList<int> CaretStops => _stops;
@@ -118,30 +158,27 @@ public sealed class LatexTree
     /// makes "move this column", and every table edit after it, a question the tree can answer.
     /// </para>
     /// </summary>
-    public LatexGrid? GridAt(int offset)
+    public LatexGrid? GridAt(int offset) => GridFrom(offset);
+
+    /// <summary>
+    /// The table around <paramref name="offset"/>, as the grid the editor works from.
+    /// <para>
+    /// The cells come from the parse tree rather than from the typesetter's atoms, because the
+    /// typesetter's spans begin at a command's <em>name</em>: a cell holding <c>\alpha</c> was named as
+    /// <c>alpha</c>, so every rewrite of a matrix took the backslash off every command in it and handed
+    /// back LaTeX that no longer parsed. Nothing noticed, because every test written for grids until now
+    /// had a single letter in each cell.
+    /// </para>
+    /// </summary>
+    private LatexGrid? GridFrom(int offset)
     {
-        LatexGrid? innermost = null;
+        if (TexGrid.At(Reading.Root.Node, offset) is not { } grid) return null;
 
-        foreach (var node in Root.SelfAndDescendants())
-        {
-            // The parse node's own span, not the layout node's. A matrix drawn inside its brackets is one
-            // construct drawn in parts, and the layout deliberately takes a name off any piece whose
-            // ancestor already carries it — so the box holding the cells has no span at all. The parse
-            // tree is where a construct's own extent survives that.
-            if (node is not LatexNode { Formula: { Source: { } span } formula }) continue;
-            if (offset < span.Start || offset > span.End) continue;
+        var cells = grid.Cells
+            .Select(cell => (cell.Row, cell.Column, cell.Start, cell.Length))
+            .ToList();
 
-            var cells = formula.Slots
-                .Where(s => s.Row >= 0 && s.Column >= 0 && s.Node.Source is not null)
-                .Select(s => (s.Row, s.Column, s.Node.Source!.Start, s.Node.Source!.Length))
-                .ToList();
-            if (cells.Count == 0) continue;
-
-            if (innermost is not null && span.Length >= innermost.Length) continue;
-            if (LatexGrid.From(Latex, span.Start, span.Length, cells) is { } grid) innermost = grid;
-        }
-
-        return innermost;
+        return LatexGrid.From(Latex, grid.Start, grid.Length, cells);
     }
 
     /// <summary>
@@ -155,13 +192,30 @@ public sealed class LatexTree
     /// land in the cell it happens to be nearest.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Where in the source this piece of the typesetting tree was written — from the part it was built
+    /// from where there is one, and from the span its parser gave it otherwise.
+    /// <para>
+    /// Both readings answer the same question and only one of them stores the answer. A formula built
+    /// from the parse tree carries the part and no span at all, deliberately: an offset kept beside a
+    /// tree is a second copy of what the tree already holds, and the two part company as soon as
+    /// anything is edited. So this asks rather than reads, and the second arm goes when the parser does.
+    /// </para>
+    /// </summary>
+    private static (int Start, int Length)? Written(XamlMath.IFormulaNode? formula) =>
+        formula?.Origin is { } part ? (part.Start, part.Length)
+        : formula?.Source is { } span ? (span.Start, span.Length)
+        : null;
+
     public GridDrop? GridDropAt(Point point)
     {
         foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
         {
-            if (node is not LatexNode { Formula: { Source: { } span } formula }) continue;
+            if (node is not LatexNode { Formula: { } formula } || Written(formula) is not { } span) continue;
 
-            var slots = formula.Slots.Where(s => s.Row >= 0 && s.Column >= 0 && s.Node.Source is not null).ToList();
+            var slots = formula.Slots
+                .Where(s => s.Row >= 0 && s.Column >= 0 && Written(s.Node) is not null)
+                .ToList();
             if (slots.Count == 0) continue;
 
             // How far the matrix reaches, brackets included. The cells' box stops at the cells: the
@@ -171,16 +225,14 @@ public sealed class LatexTree
             // that same construct drawn in another part, so its extent counts as this one's.
             var reach = node.Bounds;
             foreach (var ancestor in node.Ancestors())
-                if (ancestor is LatexNode { Formula.Source: { } outer }
-                    && outer.Start == span.Start && outer.Length == span.Length)
+                if (ancestor is LatexNode { Formula: { } outer } && Written(outer) == span)
                     reach.Union(ancestor.Bounds);
 
             if (!reach.Contains(point)) continue;
 
-            var cells = slots
-                .Select(s => (s.Row, s.Column, s.Node.Source!.Start, s.Node.Source!.Length))
-                .ToList();
-            if (LatexGrid.From(Latex, span.Start, span.Length, cells) is not { } grid) continue;
+            // The shape from the parse tree, the boxes from the layout: which cell is which is a fact
+            // about what was written, and where it landed is a fact about how it was drawn.
+            if (GridFrom(span.Start) is not { } grid) continue;
 
             // Each cell's extent on the page, taken from the pieces laid out for its parse node.
             var boxes = new Dictionary<(int, int), Rect>();
@@ -276,6 +328,28 @@ public sealed class LatexTree
         return NearestStop(offset);
     }
 
+    /// <summary>
+    /// The place a press means: the stop under the pointer, and which of the bars drawn there is nearest
+    /// to it — so pressing in the space TeX sets around an operator puts the caret in that space, which is
+    /// where the reader pointed and where the arrow key would have taken them.
+    /// <para>
+    /// Ties go to the innermost. Two bars half a pixel apart — inside a trailing exponent and past the
+    /// script — are not something anyone can aim between, and the inner one is where a reader who has
+    /// just clicked behind a <c>2</c> means to be typing.
+    /// </para>
+    /// </summary>
+    public CaretPlace PlaceAt(Point point)
+    {
+        var offset = OffsetAt(point);
+        var bars = Root.CaretBars(offset);
+
+        var level = 0;
+        for (var at = 1; at < bars.Count; at++)
+            if (Math.Abs(bars[at].X - point.X) < Math.Abs(bars[level].X - point.X) - Hair) level = at;
+
+        return new CaretPlace(offset, level);
+    }
+
     // ── Source → geometry ───────────────────────────────────────────────────
 
     /// <summary>
@@ -284,6 +358,12 @@ public sealed class LatexTree
     /// a fraction.
     /// </summary>
     public Rect CaretRect(int offset) => Root.CaretRect(offset);
+
+    /// <summary>Where and how tall to draw the caret at <paramref name="place"/>.</summary>
+    public Rect CaretRect(CaretPlace place) => Root.CaretRect(place);
+
+    /// <summary>How many bars are drawn at <paramref name="offset"/> — see <see cref="CaretPlace"/>.</summary>
+    public int PlacesAt(int offset) => Root.CaretBars(offset).Count;
 
     /// <summary>
     /// The rectangles to wash for the source range — one per run, already merged, so a translucent
@@ -387,6 +467,12 @@ public sealed class LatexTree
     /// which is the host's cue to move the caret out into the surrounding text.
     /// </summary>
     public int? Step(int offset, bool forward) => Root.Step(offset, forward);
+
+    /// <summary>
+    /// The next place in <paramref name="forward"/>'s direction, or null at the formula's edge. Walks the
+    /// bars at one offset before moving on — see <see cref="CaretPlace"/>.
+    /// </summary>
+    public CaretPlace? Step(CaretPlace place, bool forward) => Root.Step(place, forward);
 
     /// <summary>
     /// The nearest caret stop on the line above or below — how the caret crosses a fraction bar or drops
@@ -793,6 +879,14 @@ public sealed class LatexTree
             // contained them all: in a two-line align block, backspace un-rendered both equations.
             if (IsSequence(node)) continue;
 
+            // And never a box the typesetter made for its own purposes. A piece of layout that no part
+            // of the parse tree stands for is not something the reader wrote: it is how the typesetter
+            // chose to group what they wrote — the body of an align block, a base and the primes after
+            // it, a construct and the space following it. Those are runs too, by a different route, and
+            // the same align block is what finds it: its body is one box covering both equations, and
+            // nothing in the source is exactly that.
+            if (Innermost(node) is null) continue;
+
             // Deliberately no exception for a node that happens to span the whole formula. There used to
             // be one — "backspace behind the last symbol must not take everything the reader wrote" —
             // and it was aimed at a row, which the line above already refuses. What it actually caught
@@ -842,29 +936,36 @@ public sealed class LatexTree
     /// one thing has always meant.
     /// </para>
     /// </summary>
-    public static bool IsComposite(ILayoutNode node) =>
-        // The node and whatever wraps it without covering any more of the source. The typesetter boxes
-        // a construct inside boxes of its own, and it is not always the innermost of them that carries
-        // the parse node — but they all stand for the same characters, so they are all the same thing
-        // as far as the reader is concerned, and any of them knowing it has parts settles it.
-        SameSpan(node).Any(n => n is LatexNode { Formula: { } parsed } && parsed.Slots.Count > 0);
+    public bool IsComposite(ILayoutNode node) =>
+        Innermost(node) is { } part && part.Parts.Any();
 
     /// <summary>
-    /// Whether this piece is a run of things rather than one thing.
+    /// Whether this piece is a run of things rather than one thing — see <see cref="LatexNode.IsRun"/>,
+    /// which is the same question asked of the part a piece was drawn from.
+    /// </summary>
+    private bool IsSequence(ILayoutNode node) =>
+        Innermost(node) is { } part && LatexNode.IsRun(part);
+
+    /// <summary>
+    /// The innermost part of the parse tree standing for exactly what this piece of layout was drawn
+    /// from, or null if nothing does.
     /// <para>
-    /// A row names every part <c>element</c>, because that is the only thing a sequence can say about
-    /// what is in it — where a construct names its parts <c>numerator</c>, <c>radicand</c>,
-    /// <c>superscript</c>, each meaning something to the construct holding it. So the roles already
-    /// carry the distinction between "one thing made of parts" and "several things in a row", and it
-    /// does not have to be guessed at from spans or sizes.
+    /// Innermost, because a part and what holds it can stand for the same characters — a formula that is
+    /// one fraction is both a run of one thing and a fraction — and the question is always about the
+    /// nearer of the two. Reading it as the run would make backspace refuse to un-render a formula
+    /// consisting of a single construct, on the grounds that a run is never one thing.
     /// </para>
     /// </summary>
-    private static bool IsSequence(ILayoutNode node) =>
-        SameSpan(node).Any(n => n is LatexNode { Formula: { } parsed }
-                                && parsed.Slots.Count > 0
-                                && parsed.Slots.All(slot => slot.Role == "element"));
+    private TexPart? Innermost(ILayoutNode node)
+    {
+        if (node.SourceLength <= 0) return null;
 
-    private static IEnumerable<ILayoutNode> SameSpan(ILayoutNode node) =>
-        new[] { node }.Concat(node.Ancestors()
-            .TakeWhile(a => a.SourceStart == node.SourceStart && a.SourceLength == node.SourceLength));
+        // Typeset pieces were told when the formula was laid out. Anything else is a tree built by hand
+        // — the query tests do that, and one day so will a caller with no desktop to typeset on — so it
+        // is worked out here instead.
+        if (node is LatexNode piece) return piece.Part;
+
+        var standing = Reading.Standing(node.SourceStart, node.SourceLength);
+        return standing.Count == 0 ? null : standing[^1];
+    }
 }

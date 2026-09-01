@@ -1,0 +1,1242 @@
+{
+  "RootAtom": {
+    "[AtomType]": "MatrixAtom",
+    "Borrowed": false,
+    "ColumnSpec": null,
+    "HorizontalPadding": 0.35,
+    "HorizontalRules": null,
+    "MatrixCellAlignment": "Aligned",
+    "MatrixCells": [
+      [
+        {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "x",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "plus",
+              "Slots": [],
+              "Source": null,
+              "Type": "BinaryOperator"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "1",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "x",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "plus",
+                "Slots": [],
+                "Source": null,
+                "Type": "BinaryOperator"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "1",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "y",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "y",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "a",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "ast",
+              "Slots": [],
+              "Source": null,
+              "Type": "BinaryOperator"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "a",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "ast",
+                "Slots": [],
+                "Source": null,
+                "Type": "BinaryOperator"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "b",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "b",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        }
+      ],
+      [
+        {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "x",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": null,
+          "Type": "Ordinary"
+        },
+        {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "y",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "minus",
+              "Slots": [],
+              "Source": null,
+              "Type": "BinaryOperator"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "1",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "y",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "minus",
+                "Slots": [],
+                "Source": null,
+                "Type": "BinaryOperator"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "1",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "a",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": null,
+          "Type": "Ordinary"
+        },
+        {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "FractionAtom",
+              "Borrowed": false,
+              "Denominator": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "KeepContentStyle": false,
+              "Numerator": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "b",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "OverrideStyle": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "b",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "numerator",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "denominator",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "SuppressNullDelimiterSpace": false,
+              "Type": "Inner"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "FractionAtom",
+                "Borrowed": false,
+                "Denominator": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "KeepContentStyle": false,
+                "Numerator": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "b",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "OverrideStyle": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "b",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "numerator",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "2",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "denominator",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "SuppressNullDelimiterSpace": false,
+                "Type": "Inner"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        }
+      ]
+    ],
+    "RowStrutDepth": 0.0,
+    "RowStrutHeight": 0.0,
+    "Slots": [
+      {
+        "Column": 0,
+        "Node": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "x",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "plus",
+              "Slots": [],
+              "Source": null,
+              "Type": "BinaryOperator"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "1",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "x",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "plus",
+                "Slots": [],
+                "Source": null,
+                "Type": "BinaryOperator"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "1",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 0
+      },
+      {
+        "Column": 1,
+        "Node": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "y",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "y",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 0
+      },
+      {
+        "Column": 2,
+        "Node": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "a",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "ast",
+              "Slots": [],
+              "Source": null,
+              "Type": "BinaryOperator"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "2",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "a",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "ast",
+                "Slots": [],
+                "Source": null,
+                "Type": "BinaryOperator"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 0
+      },
+      {
+        "Column": 3,
+        "Node": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "b",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "b",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 0
+      },
+      {
+        "Column": 0,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "x",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 1
+      },
+      {
+        "Column": 1,
+        "Node": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "y",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            },
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "minus",
+              "Slots": [],
+              "Source": null,
+              "Type": "BinaryOperator"
+            },
+            {
+              "[AtomType]": "CharAtom",
+              "Borrowed": false,
+              "Character": "1",
+              "IsTextSymbol": false,
+              "Slots": [],
+              "Source": null,
+              "TextStyle": null,
+              "Type": "Ordinary"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "y",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "minus",
+                "Slots": [],
+                "Source": null,
+                "Type": "BinaryOperator"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "1",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 1
+      },
+      {
+        "Column": 2,
+        "Node": {
+          "[AtomType]": "CharAtom",
+          "Borrowed": false,
+          "Character": "a",
+          "IsTextSymbol": false,
+          "Slots": [],
+          "Source": null,
+          "TextStyle": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 1
+      },
+      {
+        "Column": 3,
+        "Node": {
+          "[AtomType]": "RowAtom",
+          "Borrowed": false,
+          "Elements": [
+            {
+              "[AtomType]": "SymbolAtom",
+              "Borrowed": false,
+              "IsDelimeter": false,
+              "IsTextSymbol": false,
+              "Name": "equals",
+              "Slots": [],
+              "Source": null,
+              "Type": "Relation"
+            },
+            {
+              "[AtomType]": "FractionAtom",
+              "Borrowed": false,
+              "Denominator": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "2",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "KeepContentStyle": false,
+              "Numerator": {
+                "[AtomType]": "CharAtom",
+                "Borrowed": false,
+                "Character": "b",
+                "IsTextSymbol": false,
+                "Slots": [],
+                "Source": null,
+                "TextStyle": null,
+                "Type": "Ordinary"
+              },
+              "OverrideStyle": null,
+              "Slots": [
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "b",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "numerator",
+                  "Row": -1
+                },
+                {
+                  "Column": -1,
+                  "Node": {
+                    "[AtomType]": "CharAtom",
+                    "Borrowed": false,
+                    "Character": "2",
+                    "IsTextSymbol": false,
+                    "Slots": [],
+                    "Source": null,
+                    "TextStyle": null,
+                    "Type": "Ordinary"
+                  },
+                  "Role": "denominator",
+                  "Row": -1
+                }
+              ],
+              "Source": null,
+              "SuppressNullDelimiterSpace": false,
+              "Type": "Inner"
+            }
+          ],
+          "PreviousAtom": null,
+          "Slots": [
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "SymbolAtom",
+                "Borrowed": false,
+                "IsDelimeter": false,
+                "IsTextSymbol": false,
+                "Name": "equals",
+                "Slots": [],
+                "Source": null,
+                "Type": "Relation"
+              },
+              "Role": "element",
+              "Row": -1
+            },
+            {
+              "Column": -1,
+              "Node": {
+                "[AtomType]": "FractionAtom",
+                "Borrowed": false,
+                "Denominator": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "2",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "KeepContentStyle": false,
+                "Numerator": {
+                  "[AtomType]": "CharAtom",
+                  "Borrowed": false,
+                  "Character": "b",
+                  "IsTextSymbol": false,
+                  "Slots": [],
+                  "Source": null,
+                  "TextStyle": null,
+                  "Type": "Ordinary"
+                },
+                "OverrideStyle": null,
+                "Slots": [
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "b",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "numerator",
+                    "Row": -1
+                  },
+                  {
+                    "Column": -1,
+                    "Node": {
+                      "[AtomType]": "CharAtom",
+                      "Borrowed": false,
+                      "Character": "2",
+                      "IsTextSymbol": false,
+                      "Slots": [],
+                      "Source": null,
+                      "TextStyle": null,
+                      "Type": "Ordinary"
+                    },
+                    "Role": "denominator",
+                    "Row": -1
+                  }
+                ],
+                "Source": null,
+                "SuppressNullDelimiterSpace": false,
+                "Type": "Inner"
+              },
+              "Role": "element",
+              "Row": -1
+            }
+          ],
+          "Source": null,
+          "Type": "Ordinary"
+        },
+        "Role": "cell",
+        "Row": 1
+      }
+    ],
+    "Source": null,
+    "SuppressOuterPadding": false,
+    "Type": "Ordinary",
+    "VerticalPadding": 0.35
+  },
+  "Source": null,
+  "TextStyle": null
+}
