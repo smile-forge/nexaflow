@@ -209,12 +209,15 @@ internal static class QrPayload
 
         if (org is not null)     Line("ORG:"   + EscapeVCard(org));
         if (title is not null)   Line("TITLE:" + EscapeVCard(title));
-        if (phone is not null)   Line("TEL;TYPE=CELL:" + CompactNumber(phone));
-        if (email is not null)   Line("EMAIL;TYPE=INTERNET:" + EscapeVCard(email));
+        // No TYPE= parameters on these. The block gives one phone and one email with nothing said about
+        // what kind they are, so labelling them CELL and INTERNET would be inventing detail — and the
+        // parameter syntax is the part of vCard whose handling varies most between the things that read it.
+        if (phone is not null)   Line("TEL:"   + CompactNumber(phone));
+        if (email is not null)   Line("EMAIL:" + EscapeVCard(email));
         if (url is not null)     Line("URL:"   + EscapeVCard(url));
         // ADR's seven components are box;extended;street;locality;region;postcode;country. A single
         // written address cannot be split reliably, so it all goes in the street field.
-        if (address is not null) Line($"ADR;TYPE=WORK:;;{EscapeVCard(address)};;;;");
+        if (address is not null) Line($"ADR:;;{EscapeVCard(address)};;;;");
 
         Line("END:VCARD");
         return sb.ToString();

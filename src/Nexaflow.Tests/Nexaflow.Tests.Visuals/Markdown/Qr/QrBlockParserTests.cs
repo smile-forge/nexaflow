@@ -151,6 +151,8 @@ public class QrBlockParserTests
             address: 12 Baker St, London
             """).Payload;
 
+        // No TYPE= parameters: the block says nothing about what kind of phone or email these are, and
+        // the parameter syntax is the part of vCard that readers handle least consistently.
         Assert.AreEqual(
             "BEGIN:VCARD\r\n"
           + "VERSION:3.0\r\n"
@@ -158,10 +160,10 @@ public class QrBlockParserTests
           + "FN:Ada Lovelace\r\n"
           + "ORG:Analytical Engines\r\n"
           + "TITLE:Engineer\r\n"
-          + "TEL;TYPE=CELL:+15551234567\r\n"
-          + "EMAIL;TYPE=INTERNET:ada@example.com\r\n"
+          + "TEL:+15551234567\r\n"
+          + "EMAIL:ada@example.com\r\n"
           + "URL:https://example.com\r\n"
-          + @"ADR;TYPE=WORK:;;12 Baker St\, London;;;;" + "\r\n"
+          + @"ADR:;;12 Baker St\, London;;;;" + "\r\n"
           + "END:VCARD\r\n",
             payload);
     }
