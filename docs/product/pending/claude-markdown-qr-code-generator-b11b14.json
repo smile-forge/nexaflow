@@ -90,6 +90,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrRendererTests.cs",
             "class": "QrRendererTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrPixelRoundTripTests.cs",
+            "class": "QrPixelRoundTripTests"
           }
         ],
         "theming": [
