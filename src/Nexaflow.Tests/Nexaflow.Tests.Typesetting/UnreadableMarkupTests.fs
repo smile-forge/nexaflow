@@ -20,17 +20,30 @@ open WpfMath.Tests.Utils
 
 [<Theory>]
 [<InlineData(@"\left x\right)")>]         // x is not a delimiter
-[<InlineData(@"\left{")>]                 // nor is a bare brace; \{ is
-[<InlineData(@"\left{2+2\right\}")>]      // and nothing closes the { that \left was handed
-[<InlineData(@"\sqrt")>]                  // no radicand
 [<InlineData(@"\sum_ ")>]                 // no subscript
-[<InlineData(@"\frac{}")>]                // one argument, and it empty
-[<InlineData(@"\binom{}")>]
-[<InlineData(@"\color")>]
 [<InlineData(@"\color{red}")>]            // a colour, and nothing to colour with it
 let ``what cannot be drawn is set as the characters written``(markup: string): unit =
     Assert.NotEmpty(undrawn markup)
     Assert.Empty(unreadable markup)
+
+// ── begun and not finished ───────────────────────────────────────────────────────
+
+[<Theory>]
+[<InlineData(@"\sqrt", @"\sqrt has no radicand")>]
+[<InlineData(@"\frac{}", @"\frac has no denominator")>]
+[<InlineData(@"\binom{}", @"\binom has no denominator")>]
+[<InlineData(@"\color", @"\color has no argument")>]
+[<InlineData(@"\left{", "this { is never closed")>]              // \left takes a delimiter; { opens a group
+[<InlineData(@"\left{2+2\right\}", "this { is never closed")>]    // and nothing ever closes it
+[<InlineData(@"\sqrt{x^2+1", "this { is never closed")>]
+[<InlineData(@"x^{2", "this { is never closed")>]
+let ``a construct begun and not finished says which part is missing``(markup: string, reason: string): unit =
+    // Read is not the same as finished. The parser recovers - a group runs to the end of what there is,
+    // a command takes the arguments that are there - so the formula still prints back exactly and still
+    // draws, and nothing in its shape distinguishes it from one that was written out. The only trace is
+    // what is absent, so the reading has to say so itself, or whatever has to decide whether to act on a
+    // formula has no way to tell that somebody is still typing it.
+    Assert.Contains(reason, reasons markup)
 
 // ── never read at all ────────────────────────────────────────────────────────────
 

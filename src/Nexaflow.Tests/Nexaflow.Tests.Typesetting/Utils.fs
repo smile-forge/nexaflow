@@ -59,6 +59,14 @@ let unreadable (markup: string) : string list =
     |> Seq.distinct
     |> List.ofSeq
 
+/// What the reading has to say about each of those, which is what the reader is shown on hovering it.
+let reasons (markup: string) : string list =
+    let reading, _ = readAndBuild markup
+    reading.Root.SelfAndDescendants()
+    |> Seq.choose (fun part -> if isNull part.Trouble then None else Some part.Trouble)
+    |> Seq.distinct
+    |> List.ofSeq
+
 /// The stretches that were read but have no drawing, and so are set as the characters written rather
 /// than as maths. The other of the two ways — see <see cref="unreadable"/>.
 let undrawn (markup: string) : string list =

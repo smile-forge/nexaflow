@@ -354,6 +354,22 @@ public static class TexPipeline
 
         var unreadable = name is not null && !draws(name.Text);
 
+        // A brace the writer opened and has not closed. The parser reads the group as running to the end
+        // of what there is, which is the right reading — it prints back exactly and it still draws — but
+        // read is not the same as finished, and something that has to decide whether to act on a formula
+        // needs to be told the difference. Nothing else can tell: a recovered group and a closed one are
+        // the same shape, and the only trace of the fault is the closing brace that is not there.
+        var unclosed = node.Kind == TexKind.Group && node.Part(TexRole.Close) is null
+            ? node.Part(TexRole.Open)
+            : null;
+
+        // A command short of something it takes. `\frac{a}` is read as far as it goes and drawn as far as
+        // it goes, and is not yet a fraction. The table already says what each command takes, so this is
+        // asking a question that has an answer rather than inventing one.
+        var missing = name is not null && TexCommands.Lookup(name.Text) is { } declared
+            ? declared.Arguments.FirstOrDefault(role => node.Part(role) is null)
+            : null;
+
         var rebuilt = new List<TexNode>(node.Children.Count);
         var moved = false;
 
@@ -362,6 +378,23 @@ public static class TexPipeline
             if (unreadable && ReferenceEquals(child, name))
             {
                 rebuilt.Add(TexNode.Shown(child.Text, $"there is no {child.Text} to draw", TexRole.Name));
+                moved = true;
+                continue;
+            }
+
+            // Marked where the fault is, and left the piece it was: an unclosed brace is still a brace and
+            // a command short an argument is still that command, so neither becomes characters. What is
+            // added is something to say about it.
+            if (ReferenceEquals(child, unclosed))
+            {
+                rebuilt.Add(TexNode.Leaf(child.Kind, child.Text, child.Role, $"this {child.Text} is never closed"));
+                moved = true;
+                continue;
+            }
+
+            if (missing is not null && ReferenceEquals(child, name))
+            {
+                rebuilt.Add(TexNode.Leaf(child.Kind, child.Text, child.Role, $"{child.Text} has no {missing}"));
                 moved = true;
                 continue;
             }
