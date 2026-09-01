@@ -1,11 +1,12 @@
 using System;
-using System.Collections.Generic;
+
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using System.Windows.Threading;
+
+using Nexaflow.Visuals.Common.Controls;
 
 namespace Nexaflow.Core.Themes;
 
@@ -17,91 +18,17 @@ namespace Nexaflow.Core.Themes;
 /// fluttering butterflies and the occasional gliding bird. Procedural so it adapts to the region
 /// size; never participates in hit-testing.
 /// </summary>
-public partial class ForestScene : UserControl
+public partial class ForestScene : AnimatedScene
 {
-    // Frame-rate cap for the *ambient* layers only — the big, (near-)stationary decorative fills.
-    // Halving their update rate is a real saving on those large blended surfaces yet imperceptible,
-    // since the eye doesn't track them. Travelling sprites are NOT capped: DesiredFrameRate decouples a
-    // clock from vsync, so any sub-refresh rate reads as judder on motion the eye follows.
-    private const int AmbientFrameRate = 30;
-
     private readonly Random _rng = new();
-    private bool _built;
-    private readonly DispatcherTimer _resizeDebounce;
 
-    // Every animation runs through a controllable clock we retain, so a rebuild can stop the previous
-    // set (otherwise the cleared elements' Forever clocks keep ticking on the UI thread until GC) and so
-    // the whole scene can be paused when the host window is minimised.
-    private readonly List<ClockController> _clocks = new();
-    private Window? _host;
+    public ForestScene() => InitializeComponent();
 
-    public ForestScene()
+    protected override Panel SceneLayer => Layer;
+
+    protected override void BuildScene(double w, double h)
     {
-        InitializeComponent();
-        _resizeDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-        _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); Build(); };
-        SizeChanged += OnSizeChanged;
-        Loaded      += OnLoaded;
-        Unloaded    += OnUnloaded;
-    }
-
-    // Pause the scene only when the window is genuinely hidden (minimised) — NOT merely unfocused, so a
-    // window parked on a second monitor keeps animating while the user works elsewhere.
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        _host = Window.GetWindow(this);
-        if (_host is null) return;
-        _host.StateChanged -= OnHostStateChanged;   // idempotent across Loaded/Unloaded cycles
-        _host.StateChanged += OnHostStateChanged;
-        ApplyPauseState();
-    }
-
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        _resizeDebounce.Stop();
-        if (_host is not null) _host.StateChanged -= OnHostStateChanged;
-        _host = null;
-        StopClocks();
-        _built = false;
-        Layer.Children.Clear();
-    }
-
-    private void OnHostStateChanged(object? sender, EventArgs e) => ApplyPauseState();
-
-    private void ApplyPauseState()
-    {
-        bool minimised = _host?.WindowState == WindowState.Minimized;
-        foreach (var c in _clocks)
-        {
-            if (minimised) c.Pause();
-            else           c.Resume();
-        }
-    }
-
-    // Detach every live clock so the TimeManager stops ticking them immediately.
-    private void StopClocks()
-    {
-        foreach (var c in _clocks) c.Remove();
-        _clocks.Clear();
-    }
-
-    // First layout builds immediately; later resizes rebuild once the size settles, so the
-    // procedural elements re-fit the region instead of staying pinned to the original size.
-    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (!_built) { Build(); return; }
-        _resizeDebounce.Stop();
-        _resizeDebounce.Start();
-    }
-
-    private void Build()
-    {
-        if (ActualWidth < 2 || ActualHeight < 2) return;
-        _built = true;
-
-        double w = ActualWidth, h = ActualHeight, area = w * h;
-        StopClocks();
-        Layer.Children.Clear();
+        double area = w * h;
 
         AddSunWash(w, h);
         AddGodRays(w, h, Math.Clamp((int)(w / 240.0), 4, 8));
@@ -112,7 +39,7 @@ public partial class ForestScene : UserControl
         AddButterflies(w, h, Math.Clamp((int)(w / 360.0), 2, 5));
         AddBird(w, h);
 
-        ApplyPauseState();   // a rebuild starts clocks running; honour minimise if we're hidden
+           // a rebuild starts clocks running; honour minimise if we're hidden
     }
 
     // ── Sun wash: warm light pooling in from the canopy above ──────────────────
@@ -301,6 +228,7 @@ public partial class ForestScene : UserControl
             {
                 Children = { new ScaleTransform(toRight ? scale : -scale, scale, 10, 8), move },
             };
+            Cache(fly, scale);
             Layer.Children.Add(fly);
 
             double startX = toRight ? -60 : w + 60;
@@ -310,9 +238,8 @@ public partial class ForestScene : UserControl
             var cross = new DoubleAnimation(startX, endX, new Duration(TimeSpan.FromSeconds(dur)))
             {
                 RepeatBehavior = RepeatBehavior.Forever,
-                BeginTime      = TimeSpan.FromSeconds(_rng.NextDouble() * dur),
-            };
-            Animate(move, TranslateTransform.XProperty, cross);
+                };
+                Animate(move, TranslateTransform.XProperty, cross, phaseSeconds: _rng.NextDouble() * dur);
             // Bobbing flight path — larger, more erratic than a fish.
             Loop(move, TranslateTransform.YProperty, -26, 26, 1.8 + _rng.NextDouble() * 1.6, _rng.NextDouble());
         }
@@ -383,34 +310,5 @@ public partial class ForestScene : UserControl
         Animate(move, TranslateTransform.XProperty, cross);
         Loop(move, TranslateTransform.YProperty, -10, 10, 5, 0);
         Loop(beat, ScaleTransform.ScaleYProperty, 0.5, 1.0, 0.4, 0);
-    }
-
-    // ── Shared: a forever, auto-reversing eased oscillation ────────────────────
-    private void Loop(IAnimatable target, DependencyProperty prop,
-                      double from, double to, double seconds, double beginSeconds, int? fps = null)
-        => Animate(target, prop, new DoubleAnimation(from, to, new Duration(TimeSpan.FromSeconds(seconds)))
-        {
-            AutoReverse    = true,
-            RepeatBehavior = RepeatBehavior.Forever,
-            BeginTime      = TimeSpan.FromSeconds(beginSeconds),
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-        }, fps);
-
-    // Start the animation through a controllable clock (retained so the scene can be stopped on rebuild
-    // or paused on minimise). An optional fps caps the update rate — passed only for ambient layers.
-    private void Animate(IAnimatable target, DependencyProperty prop, AnimationTimeline anim, int? fps = null)
-    {
-        if (fps is int rate) Timeline.SetDesiredFrameRate(anim, rate);
-        var clock = anim.CreateClock();
-        target.ApplyAnimationClock(prop, clock);
-        if (clock.Controller is { } controller) _clocks.Add(controller);
-    }
-
-    // Freeze a set-once brush/geometry so WPF can share it with the render thread and skip change
-    // tracking. Everything here is immutable after creation (only opacity/transforms animate).
-    private static T Frozen<T>(T freezable) where T : Freezable
-    {
-        if (freezable.CanFreeze) freezable.Freeze();
-        return freezable;
     }
 }
