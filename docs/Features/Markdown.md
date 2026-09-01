@@ -560,6 +560,11 @@ setting, a field belonging to another type, a missing required field, or content
   not fetched (you'll see the alt text instead).
 - **Front-matter config.** Several diagrams accept a `--- config: … ---` front-matter block to tune
   their look (colours, sizes, orientation) — see the XY, radar, Sankey and Venn examples above.
+- **What a QR code *does* is the scanner's business, not the code's.** The same Wi-Fi code joins the
+  network when scanned from Android's *add a network* screen and runs a web search when scanned from
+  a home-screen search widget; a contact card offers to create a contact from inside the phone's
+  Contacts app and to merge into an existing one from a general-purpose scanner. If a code seems not
+  to work, scan it from the app that owns the thing it describes before suspecting the code.
 
 For the engineering-level breakdown of exactly what's supported, see
 [Markdown support](../MarkdownSupport.md).
