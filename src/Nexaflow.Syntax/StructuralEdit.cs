@@ -761,14 +761,14 @@ public static class StructuralEdit
             // The whole promise of these two is that the other half is untouched, so it is checked rather
             // than trusted: a caller who supplies a body as a "signature" would otherwise land a mangled file.
             case Op.Signature:
-                if (Part(grammar, updated, name, x => x.BodyStart, x => x.BodyEnd) is not { } newBody
+                if (Part(grammar, updated, astPath, name, x => x.BodyStart, x => x.BodyEnd) is not { } newBody
                     || newBody != original[before.BodyStart!.Value..before.BodyEnd!.Value])
                     return "The body changed while replacing the signature, so the edit was not applied. The "
                          + "replacement should be the signature alone, with no body.";
                 break;
 
             case Op.Body:
-                if (Part(grammar, updated, name, x => x.Start, x => x.BodyStart) is not { } newHeader
+                if (Part(grammar, updated, astPath, name, x => x.Start, x => x.BodyStart) is not { } newHeader
                     || newHeader.TrimEnd() != original[before.Start..before.BodyStart!.Value].TrimEnd())
                     return "The signature changed while replacing the body, so the edit was not applied. The "
                          + "replacement should be the body alone, braces included.";
@@ -777,15 +777,26 @@ public static class StructuralEdit
         return null;
     }
 
-    /// <summary>Re-finds the declaration in the edited text and returns one of its parts, for a
-    /// before/after comparison.</summary>
-    private static string? Part(string grammar, string updated, string name,
+    /// <summary>
+    /// Re-finds the declaration in the edited text and returns one of its parts, for a before/after
+    /// comparison.
+    /// <para>
+    /// The path is what identifies it, and the name is only the fallback for when the edit moved it. Asking by
+    /// name first was wrong for the two cases where a name is not unique: a constructor carries its type's
+    /// name, so the lookup returned the whole CLASS and its body never matched — <c>signature</c> and
+    /// <c>body</c> each refused a correct edit to a constructor, with mirror-image messages. Overloads collide
+    /// the same way, all of them answering to one name.
+    /// </para>
+    /// </summary>
+    private static string? Part(string grammar, string updated, string astPath, string name,
                                 Func<DeclarationAnchor, int?> from, Func<DeclarationAnchor, int?> to)
     {
-        var outline = new CodeStructureExtractor().Extract(grammar, updated);
-        if (SpanOf(outline, name) is not { } span) return null;
+        var extractor = new CodeStructureExtractor();
+        var span      = extractor.ResolveSpan(grammar, updated, astPath)
+                     ?? SpanOf(extractor.Extract(grammar, updated), name);
+        if (span is not { } at) return null;
 
-        var anchor = new DeclarationAnchors().Find(grammar, updated, name, span.Line, span.EndLine);
+        var anchor = new DeclarationAnchors().Find(grammar, updated, name, at.Line, at.EndLine);
         if (anchor is null) return null;
 
         var a = from(anchor);

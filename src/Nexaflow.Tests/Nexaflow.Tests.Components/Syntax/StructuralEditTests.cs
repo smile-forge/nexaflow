@@ -830,6 +830,62 @@ public class StructuralEditTests
         StringAssert.Contains(result.Message, "List the declarations");
     }
 
+    // ── Names that are not unique ───────────────────────────────────────────
+
+    /// <summary>
+    /// A constructor carries its type's name, so the after-the-edit check — which re-found the declaration by
+    /// name — kept finding the CLASS and comparing its body against the constructor's. Both halves of the
+    /// signature/body pair refused a correct edit, each blaming the other half, and the only way through was
+    /// substitute. Overloads collide for the same reason, all of them answering to one name.
+    /// </summary>
+    private const string Colliding = """
+        public class Thing
+        {
+            // a plain comment above the constructor
+            public Thing(int n)
+            {
+                Count = n;
+            }
+
+            public int Add(int a) => a;
+
+            public int Add(int a, int b) => a + b;
+
+            public int Count { get; }
+        }
+        """;
+
+    [TestMethod]
+    public void Signature_OfAConstructor_IsNotRefusedBecauseItSharesItsTypesName()
+    {
+        var text = Applied(StructuralEdit.Apply("c-sharp", Colliding, "T:Thing/M:Thing",
+                                                StructuralEdit.Op.Signature, "public Thing(long n)"));
+
+        AssertLine(text, "    public Thing(long n)");
+        AssertLine(text, "        Count = n;");
+    }
+
+    [TestMethod]
+    public void Body_OfAConstructor_IsNotRefusedBecauseItSharesItsTypesName()
+    {
+        var text = Applied(StructuralEdit.Apply("c-sharp", Colliding, "T:Thing/M:Thing",
+                                                StructuralEdit.Op.Body, "{\n    Count = n + 1;\n}"));
+
+        AssertLine(text, "    public Thing(int n)");
+        AssertLine(text, "        Count = n + 1;");
+    }
+
+    /// <summary>The overload actually named, not whichever one the name found first.</summary>
+    [TestMethod]
+    public void Signature_OfAnOverload_ChangesThatOverloadAndLeavesItsSiblingAlone()
+    {
+        var text = Applied(StructuralEdit.Apply("c-sharp", Colliding, "T:Thing/M:Add#1",
+                                                StructuralEdit.Op.Signature, "public long Add(int a, int b)"));
+
+        AssertLine(text, "    public long Add(int a, int b) => a + b;");
+        AssertLine(text, "    public int Add(int a) => a;");
+    }
+
     // ── Line endings ────────────────────────────────────────────────────────
 
     /// <summary>
