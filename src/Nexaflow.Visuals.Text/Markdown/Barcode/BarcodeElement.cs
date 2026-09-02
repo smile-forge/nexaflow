@@ -39,9 +39,28 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     private BarcodePattern? _pattern;
     private string? _encodeError;
 
-    /// <summary>The x of every place the caret can stand, from before the first character to after the last.</summary>
-    private double[] _caretEdges = [0];
-    private FormattedText? _label;
+    /// <summary>The human-readable text as placed: each group, and where on the symbol it goes.</summary>
+    private readonly List<(FormattedText Glyphs, Point At, BarcodeTextPlacement Where)> _runs = [];
+
+    /// <summary>
+    /// Every place the caret can stand, from before the first character to after the last — the x it is
+    /// drawn at, and the row it belongs to.
+    /// <para>
+    /// The row travels with it because the text is not always one row: a retail number is broken across the
+    /// two halves of the symbol and a digit of it sits out beside the bars, so two neighbouring offsets can
+    /// be a long way apart and an add-on's digits are above the bars rather than below them.
+    /// </para>
+    /// </summary>
+    private (double X, double Top, double Height)[] _caretEdges = [(0, 0, 0)];
+
+    /// <summary>The caption over the whole symbol, for the numbering schemes that print one.</summary>
+    private FormattedText? _caption;
+    private Point _captionAt;
+
+    /// <summary>Where the bars themselves start, and how far down a guard runs past the digits.</summary>
+    private double _barsLeft, _barsTop, _guardDrop;
+
+    /// <summary>The text row, for hit-testing a click that landed near it.</summary>
     private Rect _labelBounds;
 
     private readonly List<(int Start, int Length)> _selection = [];
@@ -59,6 +78,12 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         // The host owns the keyboard and forwards to whichever block holds the caret, exactly as it does
         // for a formula — an embedded element that took focus for itself would fight the document for it.
         Focusable = false;
+
+        // Air between one barcode and the next. The quiet zone inside the symbol is part of the symbol —
+        // it is what a scanner needs either side of the bars — and being the same white as the ground it
+        // separates nothing to the eye: a page of barcodes ran together into one field with bars in it.
+        HorizontalAlignment = HorizontalAlignment.Left;
+        Margin = new Thickness(0, 6, 0, 10);
 
         Encode();
     }
@@ -209,16 +234,37 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         return true;
     }
 
-    /// <summary>The caret offset nearest a point — clamped to the label, so a click on the bars still lands.</summary>
+    /// <summary>
+    /// The caret offset nearest a point — clamped to the value, so a click on the bars still lands.
+    /// <para>
+    /// Measured in the element's own coordinates against every place the caret can be, rather than along
+    /// one row: the printed number can be in three pieces on two rows, and the nearest character to a
+    /// click is not always in the group the click was over.
+    /// </para>
+    /// </summary>
     private int OffsetAt(Point point)
     {
         if (_caretEdges.Length <= 1) return 0;
 
-        double x = point.X - _labelBounds.X;
-
         int nearest = 0;
-        for (int i = 1; i < _caretEdges.Length; i++)
-            if (Math.Abs(_caretEdges[i] - x) < Math.Abs(_caretEdges[nearest] - x)) nearest = i;
+        double best = double.MaxValue;
+
+        for (int i = 0; i < _caretEdges.Length; i++)
+        {
+            var edge = _caretEdges[i];
+
+            // Vertical distance to the row, horizontal distance along it. Weighted so a click level
+            // with a group prefers that group over a nearer x on the row above or below.
+            double dy = point.Y < edge.Top ? edge.Top - point.Y
+                      : point.Y > edge.Top + edge.Height ? point.Y - edge.Top - edge.Height
+                      : 0;
+
+            double distance = Math.Abs(edge.X - point.X) + dy * 4;
+            if (distance >= best) continue;
+
+            best = distance;
+            nearest = i;
+        }
 
         return nearest;
     }
@@ -377,32 +423,152 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
-    /// Lays the label out: the text, and the x of every place the caret can stand.
+    /// Places the human-readable text against the bars, and works out every position the caret can take.
     ///
     /// <para>
     /// No layout tree. A tree earns itself where the content has structure a caret has to be told about —
     /// which part of a fraction it is in, whether it is inside a script or past it — and a barcode's value
-    /// has none of that. It is one run of characters on one line, so the whole of its geometry is the
-    /// offsets between them, and building nodes to hold that would be inventing structure to describe a
-    /// flat string.
+    /// has none of that. It is one run of characters, and the whole of its geometry is where each of them
+    /// landed; building nodes to hold that would be inventing structure to describe a flat string.
     /// </para>
     /// <para>
-    /// The edges come from the width of each prefix, which is exact at precisely the boundaries a caret can
-    /// occupy: any kerning between two characters is already inside the wider of the two prefixes.
+    /// Where they land is not always one row, which is the whole of the complication here. A retail
+    /// number is broken at the guard bars into groups that sit in the wells between them, with a digit
+    /// out beside the symbol and an add-on's digits above it. So a caret offset carries its row as well
+    /// as its x, and the offsets either side of a break are simply far apart.
     /// </para>
     /// </summary>
     private void BuildLabel()
     {
-        // What goes under a real barcode is what was encoded — several of these formats add a check digit.
-        // While the value will not encode there is nothing to show but what was typed.
+        _runs.Clear();
+        _caption = null;
+
+        // What goes under a real barcode is what was encoded — several of these formats add a check
+        // digit. While the value will not encode there is nothing to show but what was typed.
         string text = _pattern?.Text ?? _block.Value;
 
-        _label = Text(text);
+        double barsWidth = PatternWidth * _block.BarWidth;
+        double gap       = _block.FontSize * 0.35;   // between the bars and a digit set outside them
 
-        _caretEdges = new double[_block.Value.Length + 1];
-        for (int i = 1; i < _caretEdges.Length; i++)
-            _caretEdges[i] = i <= text.Length ? Text(text[..i]).Width : _caretEdges[i - 1];
+        var groups = Groups(text);
+
+        // The outside digits widen the symbol; everything else sits within the bars.
+        double leftPad  = Width(groups, BarcodeTextPlacement.LeftOfBars,  gap);
+        double rightPad = Width(groups, BarcodeTextPlacement.RightOfBars, gap);
+
+        _caption = _pattern?.Caption is { Length: > 0 } caption ? Text(caption) : null;
+
+        double content = Math.Max(leftPad + barsWidth + rightPad, _caption?.Width ?? 0);
+
+        double captionHeight = _caption is null ? 0 : _block.FontSize * 1.35;
+        double aboveHeight   = groups.Any(g => g.Placement == BarcodeTextPlacement.Above)
+                             ? _block.FontSize * 1.35 : 0;
+
+        _barsLeft  = _block.Margin + (content - (leftPad + barsWidth + rightPad)) / 2 + leftPad;
+        _barsTop   = _block.Margin + captionHeight;
+        _guardDrop = LabelHeight * 0.75;
+
+        if (_caption is not null)
+            _captionAt = new Point(_block.Margin + (content - _caption.Width) / 2, _block.Margin);
+
+        double belowTop = _barsTop + _block.BarHeight;
+        double aboveTop = _barsTop;
+
+        foreach (var group in groups)
+        {
+            var glyphs = Text(group.Text);
+
+            var at = group.Placement switch
+            {
+                BarcodeTextPlacement.LeftOfBars =>
+                    new Point(_barsLeft - gap - glyphs.Width, belowTop),
+
+                BarcodeTextPlacement.RightOfBars =>
+                    new Point(_barsLeft + barsWidth + gap, belowTop),
+
+                BarcodeTextPlacement.Above =>
+                    new Point(Centred(group, glyphs, barsWidth), aboveTop),
+
+                _ => new Point(Centred(group, glyphs, barsWidth), belowTop),
+            };
+
+            _runs.Add((glyphs, at, group.Placement));
+        }
+
+        MeasuredSize = new Size(
+            content + _block.Margin * 2,
+            captionHeight + _block.BarHeight + LabelHeight + _block.Margin * 2);
+
+        BuildCaretEdges(groups);
+
+        // The rows the caret can be on, taken together — what a click near the text is measured against.
+        _labelBounds = _runs.Count == 0
+            ? new Rect(_barsLeft, belowTop, barsWidth, LabelHeight)
+            : new Rect(
+                _runs.Min(r => r.At.X), belowTop,
+                Math.Max(1, _runs.Max(r => r.At.X + r.Glyphs.Width) - _runs.Min(r => r.At.X)), LabelHeight);
+
+        double Centred(BarcodeTextRun group, FormattedText glyphs, double bars) =>
+            group.Modules > 0
+                ? _barsLeft + (group.StartModule + group.Modules / 2.0) * _block.BarWidth - glyphs.Width / 2
+                : _barsLeft + (bars - glyphs.Width) / 2;
     }
+
+    /// <summary>
+    /// The text broken into the groups this symbology prints, or one group holding all of it — which is
+    /// what every format outside the retail family wants, and what a value that will not encode gets.
+    /// </summary>
+    private IReadOnlyList<BarcodeTextRun> Groups(string text) =>
+        _pattern?.TextRuns is { Count: > 0 } runs
+            ? runs
+            : [new BarcodeTextRun(text, 0, PatternWidth, BarcodeTextPlacement.Below)];
+
+    private double Width(IReadOnlyList<BarcodeTextRun> groups, BarcodeTextPlacement where, double gap)
+    {
+        double widest = 0;
+        foreach (var group in groups)
+            if (group.Placement == where) widest = Math.Max(widest, Text(group.Text).Width + gap);
+        return widest;
+    }
+
+    /// <summary>
+    /// Where the caret can stand, walking the groups in the order they were printed.
+    /// <para>
+    /// The groups concatenate back to the encoded text, so an offset into the value is an offset into
+    /// that walk — up to wherever the two stop agreeing, which is what a computed check digit does to
+    /// the end of the string. Past the last character the caret rests at the end of the last group,
+    /// which is where typing appends.
+    /// </para>
+    /// </summary>
+    private void BuildCaretEdges(IReadOnlyList<BarcodeTextRun> groups)
+    {
+        var edges = new List<(double, double, double)>(_block.Value.Length + 1);
+
+        for (int i = 0; i < _runs.Count; i++)
+        {
+            var (glyphs, at, _) = _runs[i];
+            string run = groups[i].Text;
+            double height = glyphs.Height;
+
+            for (int c = 0; c < run.Length; c++)
+                edges.Add((at.X + Text(run[..c]).Width, at.Y, height));
+
+            // The far end of the last group is a place to stand; the far end of any other is the near
+            // end of the next one, and adding both would give the reader two carets for one offset.
+            if (i == _runs.Count - 1) edges.Add((at.X + glyphs.Width, at.Y, height));
+        }
+
+        if (edges.Count == 0) edges.Add((_barsLeft, _barsTop + _block.BarHeight, _block.FontSize));
+
+        // One per place the caret can be in the *value*, which is what the offsets index. A value longer
+        // than what was drawn (it will not encode, so nothing was) rests at the end.
+        _caretEdges = new (double, double, double)[_block.Value.Length + 1];
+        for (int i = 0; i < _caretEdges.Length; i++)
+            _caretEdges[i] = edges[Math.Min(i, edges.Count - 1)];
+    }
+
+    /// <summary>What <see cref="MeasureOverride"/> reports — worked out once, while the text is placed.</summary>
+    private Size MeasuredSize { get; set; }
 
     private FormattedText Text(string text) => new(
         text,
@@ -430,110 +596,160 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
     private double LabelHeight => _block.DisplayValue ? _block.FontSize * 1.4 : 0;
 
-    protected override Size MeasureOverride(Size availableSize)
-    {
-        double bars = PatternWidth * _block.BarWidth;
-        double width = Math.Max(bars, _label?.Width ?? 0) + _block.Margin * 2;
-        double height = _block.BarHeight + LabelHeight + _block.Margin * 2;
-
-        return new Size(width, height);
-    }
+    protected override Size MeasureOverride(Size availableSize) => MeasuredSize;
 
     // ── Drawing ───────────────────────────────────────────────────────────
 
     protected override void OnRender(DrawingContext dc)
     {
         var pattern = _pattern ?? Placeholder;
-        double barsWidth = PatternWidth * _block.BarWidth;
-        double contentWidth = Math.Max(barsWidth, _label?.Width ?? 0);
 
-        var size = new Size(contentWidth + _block.Margin * 2, _block.BarHeight + LabelHeight + _block.Margin * 2);
-        dc.DrawRectangle(Brush(_block.Background, _palette.BarcodeLight), null, new Rect(size));
+        dc.DrawRectangle(Brush(_block.Background, _palette.BarcodeLight), null, new Rect(MeasuredSize));
 
-        double left = _block.Margin + (contentWidth - barsWidth) / 2;
-        double top  = _block.Margin;
+        var ink = Brush(_block.LineColor, _palette.BarcodeDark);
+
+        if (_caption is not null)
+        {
+            _caption.SetForegroundBrush(ink);
+            dc.DrawText(_caption, _captionAt);
+        }
 
         // The bars. Faint when they are a stand-in, so the error reads as the subject and they read as
         // the shape it would have taken.
-        if (pattern is not null)
-        {
-            var ink = Brush(_block.LineColor, _palette.BarcodeDark);
-            if (_pattern is null) ink = Faded(ink);
+        if (pattern is not null) DrawBars(dc, pattern, _pattern is null ? Faded(ink) : ink);
 
-            foreach (var (start, length) in pattern.InkRuns())
+        if (_block.DisplayValue)
+        {
+            DrawSelection(dc);
+
+            foreach (var (glyphs, at, _) in _runs)
             {
-                dc.DrawRectangle(ink, null, new Rect(
-                    left + start * _block.BarWidth, top, length * _block.BarWidth, _block.BarHeight));
+                glyphs.SetForegroundBrush(ink);
+                dc.DrawText(glyphs, at);
             }
-        }
 
-        if (_block.DisplayValue && _label is not null)
-        {
-            double labelLeft = _block.TextAlign switch
-            {
-                BarcodeTextAlign.Left  => _block.Margin,
-                BarcodeTextAlign.Right => size.Width - _block.Margin - _label.Width,
-                _                      => (size.Width - _label.Width) / 2,
-            };
-            double labelTop = top + _block.BarHeight + LabelHeight * 0.1;
-            _labelBounds = new Rect(labelLeft, labelTop, _label.Width, _label.Height);
-
-            DrawSelection(dc, labelLeft, labelTop);
-
-            _label.SetForegroundBrush(Brush(_block.LineColor, _palette.BarcodeDark));
-            dc.DrawText(_label, new Point(labelLeft, labelTop));
-
-            DrawDiagnostics(dc, labelLeft, labelTop);
-            DrawCaret(dc, labelLeft, labelTop);
+            DrawDiagnostics(dc);
+            DrawCaret(dc);
         }
 
         // The strike across the symbol. Last, so it sits over the bars it is about.
         if (_encodeError is not null && pattern is not null)
         {
-            double y = top + _block.BarHeight / 2;
-            var bar = new Rect(left, y - Math.Max(_block.BarHeight * 0.04, 1.5),
-                               barsWidth, Math.Max(_block.BarHeight * 0.08, 3));
+            double y = _barsTop + _block.BarHeight / 2;
+            var bar = new Rect(_barsLeft, y - Math.Max(_block.BarHeight * 0.04, 1.5),
+                               PatternWidth * _block.BarWidth, Math.Max(_block.BarHeight * 0.08, 3));
             dc.DrawRectangle(_palette.Danger, null, bar);
         }
     }
 
-    private void DrawSelection(DrawingContext dc, double left, double top)
+    /// <summary>
+    /// Draws the bars, dropping the guards past the digits and lifting an add-on clear of its own.
+    /// <para>
+    /// Both are what makes a retail symbol recognisable at a glance: the guards frame the two halves of
+    /// the number, and the add-on stands apart and higher so it reads as a second symbol rather than as
+    /// more of the first.
+    /// </para>
+    /// </summary>
+    private void DrawBars(DrawingContext dc, BarcodePattern pattern, Brush ink)
     {
-        foreach (var (start, length) in _selection)
-        {
-            double from = EdgeAt(start);
-            double to = EdgeAt(start + length);
-            if (to <= from) continue;
+        double addOnFrom = AddOnStartModule();
+        double lift      = addOnFrom < int.MaxValue ? _block.FontSize * 1.35 : 0;
 
-            dc.DrawRectangle(Faded(_palette.Accent), null,
-                new Rect(left + from, top, to - from, _label?.Height ?? _block.FontSize));
+        foreach (var (start, length) in pattern.InkRuns())
+        {
+            bool addOn = start >= addOnFrom;
+
+            double top    = _barsTop + (addOn ? lift : 0);
+            double height = _block.BarHeight - (addOn ? lift : 0) + (IsGuard(pattern, start) ? _guardDrop : 0);
+
+            dc.DrawRectangle(ink, null, new Rect(
+                _barsLeft + start * _block.BarWidth, top, length * _block.BarWidth, height));
         }
     }
 
-    private void DrawDiagnostics(DrawingContext dc, double left, double top)
+    /// <summary>Whether a run of ink begins inside one of the symbol's guard patterns.</summary>
+    private static bool IsGuard(BarcodePattern pattern, int start)
+    {
+        foreach (var (from, length) in pattern.Guards)
+            if (start >= from && start < from + length) return true;
+        return false;
+    }
+
+    /// <summary>The first module of the add-on, or <see cref="int.MaxValue"/> when there is none.</summary>
+    private int AddOnStartModule()
+    {
+        if (_pattern is null) return int.MaxValue;
+
+        int first = int.MaxValue;
+        foreach (var run in _pattern.TextRuns)
+            if (run.Placement == BarcodeTextPlacement.Above && run.Modules > 0 && run.StartModule > 0)
+                first = Math.Min(first, run.StartModule);
+
+        return first;
+    }
+
+    private void DrawSelection(DrawingContext dc)
+    {
+        foreach (var (start, length) in _selection)
+        {
+            // A selection that spans a break in the printed number is washed group by group, because
+            // between the groups there is nothing selected — there is a guard bar.
+            for (int i = start; i < start + length; i++)
+            {
+                var from = EdgeAt(i);
+                var to   = EdgeAt(i + 1);
+                if (to.X <= from.X || to.Top != from.Top) continue;
+
+                dc.DrawRectangle(Faded(_palette.Accent), null,
+                    new Rect(from.X, from.Top, to.X - from.X, from.Height));
+            }
+        }
+    }
+
+    private void DrawDiagnostics(DrawingContext dc)
     {
         if (_encodeError is null) return;
 
         // The wave every editor has drawn under a mistake for thirty years — it needs no explaining, and
-        // the reason is a hover away. One run under the whole value: it is all of it that is wrong, since
-        // a format rejects a value entire rather than at a character.
-        double width = Math.Max(_label?.Width ?? 0, _block.FontSize);
-        var run = new Rect(left, top, width, _label?.Height ?? _block.FontSize);
+        // the reason is a hover away. One run under each group of the value: it is all of it that is
+        // wrong, since a format rejects a value entire rather than at a character.
+        var runs = _runs
+            .Where(r => r.Where is BarcodeTextPlacement.Below or BarcodeTextPlacement.LeftOfBars
+                                or BarcodeTextPlacement.RightOfBars)
+            .Select(r => new Rect(r.At.X, r.At.Y, Math.Max(r.Glyphs.Width, _block.FontSize), r.Glyphs.Height))
+            .ToArray();
 
-        dc.DrawGeometry(null, new Pen(_palette.Danger, 1.2), Squiggle.Under([run]));
+        if (runs.Length == 0) return;
+
+        dc.DrawGeometry(null, new Pen(_palette.Danger, 1.2), Squiggle.Under(runs));
     }
 
-    private void DrawCaret(DrawingContext dc, double left, double top)
+    /// <summary>
+    /// The caret, in the same ink as the value it stands in.
+    /// <para>
+    /// Not the theme's text brush, which is what it used to be and what made it invisible: a barcode
+    /// paints its own light ground whatever the theme, because a scanner needs dark bars on a light
+    /// field — so under a dark theme the caret was drawn very nearly white on white. Whatever colour the
+    /// digits are readable in, the caret between them is readable in too.
+    /// </para>
+    /// </summary>
+    private void DrawCaret(DrawingContext dc)
     {
         if (_caret is not { } at) return;
 
-        dc.DrawRectangle(_palette.Text, null,
-            new Rect(left + EdgeAt(at), top, 1, _label?.Height ?? _block.FontSize));
+        var edge = EdgeAt(at);
+
+        // Wide enough to survive being scaled down to fit the column: at a hairline the caret thins to
+        // nothing on the first fractional scale and the reader is left typing blind.
+        dc.DrawRectangle(Brush(_block.LineColor, _palette.BarcodeDark), null,
+            new Rect(edge.X, edge.Top, Math.Max(1.5, _block.FontSize / 12), edge.Height));
     }
 
-    /// <summary>Where the caret stands at an offset, clamped to what the label actually has.</summary>
-    private double EdgeAt(int offset) =>
+    /// <summary>Where the caret stands at an offset, clamped to what was actually drawn.</summary>
+    private (double X, double Top, double Height) EdgeAt(int offset) =>
         _caretEdges[Math.Clamp(offset, 0, _caretEdges.Length - 1)];
+
+    // ── Drawing ───────────────────────────────────────────────────────────
 
     // ── Brushes ───────────────────────────────────────────────────────────
 

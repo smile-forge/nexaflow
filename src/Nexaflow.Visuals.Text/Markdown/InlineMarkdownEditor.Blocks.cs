@@ -96,6 +96,32 @@ public partial class InlineMarkdownEditor
     }
 
     /// <summary>
+    /// What is selected inside the focused block, or null when nothing is.
+    /// <para>
+    /// The document's own selection is empty while a block holds one — a flow document can only select an
+    /// embedded element whole, so the block is the only thing that knows which part of itself the reader
+    /// picked. Cut and copy have to ask it, or they act on the whole note instead of on the selection the
+    /// reader can see.
+    /// </para>
+    /// </summary>
+    private string? SelectionInBlock()
+    {
+        if (_caretBlock is not { } block || block.Selection.Count == 0) return null;
+
+        var source = block.Source;
+        var (start, length) = block.Selection[0];
+
+        start  = Math.Clamp(start, 0, source.Length);
+        length = Math.Clamp(length, 0, source.Length - start);
+
+        return length == 0 ? null : source.Substring(start, length);
+    }
+
+    /// <summary>Deletes what is selected inside the focused block. False when there was no selection.</summary>
+    private bool DeleteSelectionInBlock() =>
+        SelectionInBlock() is not null && _caretBlock!.Backspace();
+
+    /// <summary>
     /// The caret-taking element rendered for one block of the model, whatever kind it is — the seam an
     /// arrow key crosses into.
     /// </summary>
@@ -246,6 +272,9 @@ public partial class InlineMarkdownEditor
         // than in it. Every other shortcut is still the editor's.
         if (ctrl && e.Key is Key.V) return false;
         if (shift && e.Key is Key.Insert) return false;
+        // Copy and cut act on what the block has selected, so they must not blur it first — the
+        // selection would be thrown away a moment before the command came looking for it.
+        if (ctrl && e.Key is Key.C or Key.X) return false;
         if (ctrl) { BlurBlock(); return false; }
 
         switch (e.Key)
@@ -276,10 +305,20 @@ public partial class InlineMarkdownEditor
                 return false;
 
             case Key.Space:
-                // Settles a half-written command in a formula. Anywhere else a space is simply a
-                // character, and it arrives through text input like any other.
+                // Settles a half-written command in a formula. Anywhere else a space is a character like
+                // any other and is typed here rather than left to arrive as text input: handing the key
+                // back sent it to the document, which put the space in the next paragraph it could find
+                // and took the caret there with it.
                 if (block is FormulaElement spacing) { spacing.Commit(" "); return true; }
-                return false;
+                block.Type(' ');
+                return true;
+
+            case Key.Home:
+            case Key.End:
+                // The ends of this content, not of the line it sits on. A line has other things on it.
+                block.TakeCaretArriving(new CaretArrival(
+                    e.Key == Key.Home ? BlockExit.Before : BlockExit.After, CaretStep.Character, null));
+                return true;
 
             case Key.Enter:
                 if (block is FormulaElement entering) { entering.Commit(" "); return true; }
@@ -332,6 +371,12 @@ public partial class InlineMarkdownEditor
 
         var index = BlockIndexOf(element);
         if (index < 0 || index >= _blocks.Count) return;
+
+        // Before the model changes, so Ctrl+Z has somewhere to go back to. Typing into a block never
+        // recorded one — the source-mode and Word-style paths both snapshot, and this third path was
+        // added beside them without it, so an edit made inside a formula or a barcode was the one kind
+        // of edit undo could not see. Coalesced by block, so a value typed in one go is one step.
+        SnapshotAt(index, 0);
 
         if (block.SourceStart < 0)
         {

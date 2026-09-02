@@ -6,6 +6,7 @@ using System.Windows.Input;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Barcode;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 
@@ -142,6 +143,71 @@ public class BarcodeInEditorTests
     });
 
     // ── Harness ─────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void SpaceIsTypedIntoTheValueRatherThanEscapingToTheProse()
+    {
+        // Space used to be handed back to the document on the theory that it would come round again as
+        // text input. It did not: the editor took it first, put it in the next paragraph it could find,
+        // and took the caret there with it — so typing a space anywhere in a value jumped you out of it.
+        const string document = "before\n\n```barcode\nformat: CODE128\nvalue: AB\n```\n\nafter";
+
+        UiThread.Run(() => MarkdownEditorHarness.Run(document, (editor, rtb) =>
+        {
+            EnterBarcodeAtTheEnd(editor, rtb);
+            MarkdownEditorHarness.RaiseKey(rtb, Key.Space);
+
+            Assert.IsInstanceOfType<BarcodeElement>(editor.FocusedBlock, "the caret stayed in the barcode");
+            Assert.AreEqual("AB ", Barcode(editor).Value);
+            StringAssert.Contains(editor.Markdown, "value: AB ");
+            StringAssert.Contains(editor.Markdown, "\nafter", "and the prose below is untouched");
+        }));
+    }
+
+    [TestMethod]
+    public void HomeAndEndGoToTheEndsOfTheValue() => InDocument((editor, rtb) =>
+    {
+        EnterBarcode(editor, rtb);
+        MarkdownEditorHarness.RaiseKey(rtb, Key.End);
+        MarkdownEditorHarness.Type(rtb, "9");
+
+        Assert.AreEqual(Value + "9", Barcode(editor).Value, "End went to the end of the value, not of the line");
+
+        MarkdownEditorHarness.RaiseKey(rtb, Key.Home);
+        MarkdownEditorHarness.Type(rtb, "0");
+
+        Assert.AreEqual("0" + Value + "9", Barcode(editor).Value);
+    });
+
+    [TestMethod]
+    public void UndoRestoresAnEditMadeInsideTheBlock() => InDocument((editor, rtb) =>
+    {
+        // Typing into a block never recorded an undo step — the two older editing paths both snapshot and
+        // this third one was added beside them without it, so an edit made in a rendered block was the one
+        // kind of edit undo could not see.
+        EnterBarcode(editor, rtb);
+        MarkdownEditorHarness.Type(rtb, "42");
+        StringAssert.Contains(editor.Markdown, "value: 42" + Value);
+
+        editor.Undo();
+
+        StringAssert.Contains(editor.Markdown, "value: " + Value, "back to what it stood at before the typing");
+        Assert.IsFalse(editor.Markdown.Contains("value: 42"), "and the edit is gone rather than half-undone");
+    });
+
+    [TestMethod]
+    public void CutTakesWhatTheBlockHasSelected() => InDocument((editor, rtb) =>
+    {
+        // Cut wanted a source-mode session, which a value edited in place never has — so the command sat
+        // disabled over a selection the reader could see perfectly well, and the shortcut did nothing.
+        EnterBarcode(editor, rtb);
+        ((IEditableBlock)Barcode(editor)).SelectRange(0, 3);
+
+        ApplicationCommands.Cut.Execute(null, rtb);
+
+        Assert.AreEqual(Value[3..], Barcode(editor).Value, "the selected characters went");
+        StringAssert.Contains(editor.Markdown, "value: " + Value[3..], "and the source followed");
+    });
 
     private static void InDocument(Action<InlineMarkdownEditor, RichTextBox> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Document, test));

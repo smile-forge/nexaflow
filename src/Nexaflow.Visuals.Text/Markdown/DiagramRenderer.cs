@@ -7,6 +7,16 @@ using System.Windows.Media;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
+/// The panel a failed block renders as.
+/// <para>
+/// A type of its own so the host can tell it apart from what it stands in for. A diagram is a drawing at
+/// a fixed size and is scaled to fit the column; this is prose, and prose has to wrap at the width it is
+/// given. Scaled instead, its message grew and shrank with the window and never wrapped once.
+/// </para>
+/// </summary>
+internal sealed class DiagramErrorView : System.Windows.Controls.Border;
+
+/// <summary>
 /// Dispatches diagram fenced code blocks to the appropriate
 /// <see cref="IDiagramHandler"/>.  Knows only which languages are diagram
 /// languages and how to display errors.  All content parsing and rendering
@@ -96,9 +106,9 @@ public static class DiagramRenderer
             }
         });
 
-        return new Border
+        return new DiagramErrorView
         {
-            Background      = ErrorBg,
+        Background      = ErrorBg,
             BorderBrush     = ErrorBorder,
             BorderThickness = new Thickness(1),
             Padding         = new Thickness(10, 8, 10, 8),

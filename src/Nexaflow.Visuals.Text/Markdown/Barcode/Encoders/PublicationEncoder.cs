@@ -25,7 +25,7 @@ internal static class PublicationEncoder
     /// modules; twelve is what the generators leave, and the wider the safer — the whole purpose of the
     /// gap is that a scanner sees two symbols rather than one long one.
     /// </summary>
-    private const int AddOnGap = 12;
+    internal const int AddOnGap = 12;
 
     internal static bool TryEncode(BarcodeSymbology symbology, string value,
                                    out bool[]? modules, out string? text, out string? error)

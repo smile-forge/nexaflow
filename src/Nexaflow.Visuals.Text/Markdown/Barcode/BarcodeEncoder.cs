@@ -63,7 +63,15 @@ public static class BarcodeEncoder
 
         if (!ok) return false;
 
-        pattern = new BarcodePattern(symbology, modules!, text ?? value);
+        var (runs, guards, caption) =
+            BarcodeTextLayout.Describe(symbology, value, text ?? value, modules!.Length);
+
+        pattern = new BarcodePattern(symbology, modules!, text ?? value)
+        {
+            TextRuns = runs,
+            Guards   = guards,
+            Caption  = caption,
+        };
         error   = null;
         return true;
     }

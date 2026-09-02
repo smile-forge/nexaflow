@@ -4,6 +4,39 @@ using System.Text;
 
 namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 
+/// <summary>Where a run of the human-readable text sits against the bars.</summary>
+public enum BarcodeTextPlacement
+{
+    /// <summary>Under the bars, in the space the guard pattern leaves for it.</summary>
+    Below,
+
+    /// <summary>In the quiet zone to the left of the symbol — an EAN-13's first digit.</summary>
+    LeftOfBars,
+
+    /// <summary>In the quiet zone to the right — a UPC's check digit.</summary>
+    RightOfBars,
+
+    /// <summary>Over the bars, which is where an add-on prints its digits.</summary>
+    Above,
+}
+
+/// <summary>
+/// One run of the human-readable text and the stretch of bars it belongs to.
+///
+/// <para>
+/// The retail symbologies do not print their digits as one string underneath. The number is broken at
+/// the guard patterns and each group sits in the gap its half of the symbol leaves for it, with the
+/// first digit outside the bars altogether — which is why an EAN-13 printed as one centred run reads as
+/// the wrong barcode even when every module is right.
+/// </para>
+/// </summary>
+/// <param name="Text">The digits in this group.</param>
+/// <param name="StartModule">The first module the group sits over. Ignored when it sits outside the bars.</param>
+/// <param name="Modules">How many modules wide that stretch is.</param>
+/// <param name="Placement">Where the group goes.</param>
+public readonly record struct BarcodeTextRun(
+    string Text, int StartModule, int Modules, BarcodeTextPlacement Placement);
+
 /// <summary>
 /// An encoded barcode: the bars themselves, and the text printed under them.
 ///
@@ -37,6 +70,22 @@ public sealed class BarcodePattern
     /// one includes the check digit the reader will see on a real label.
     /// </summary>
     public string Text { get; }
+
+    /// <summary>
+    /// How <see cref="Text"/> is broken up against the bars, or empty when the whole of it simply goes
+    /// underneath — which is what every symbology but the retail family wants.
+    /// </summary>
+    public IReadOnlyList<BarcodeTextRun> TextRuns { get; init; } = [];
+
+    /// <summary>
+    /// Stretches of bar that run down past the text row: an EAN's start, centre and end guards. They are
+    /// what makes the two halves of the number look like halves, and a scanner uses them to find the
+    /// symbol's edges however it is held.
+    /// </summary>
+    public IReadOnlyList<(int Start, int Length)> Guards { get; init; } = [];
+
+    /// <summary>A line printed above the whole symbol — the <c>ISBN 978-…</c> over a book's barcode.</summary>
+    public string? Caption { get; init; }
 
     /// <summary>The modules as a run-length list of (start, length, isInk), for drawing.</summary>
     public IEnumerable<(int Start, int Length)> InkRuns()

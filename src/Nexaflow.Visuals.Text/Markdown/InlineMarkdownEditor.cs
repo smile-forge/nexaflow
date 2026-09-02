@@ -1060,7 +1060,7 @@ public partial class InlineMarkdownEditor : UserControl
     private void UpdateMenuState()
     {
         bool hasSel = !_rtb.Selection.IsEmpty;
-        _cutItem.IsEnabled   = hasSel && _active >= 0;
+        _cutItem.IsEnabled   = (hasSel && _active >= 0) || SelectionInBlock() is not null;
         _copyItem.IsEnabled  = true;                       // copies the selection, or the whole note
         _pasteItem.IsEnabled = (_active >= 0 || _caretBlock is not null) && ClipboardHasContent();
     }
@@ -1087,6 +1087,10 @@ public partial class InlineMarkdownEditor : UserControl
     /// copies just the selected text with the blank-line separators preserved.</summary>
     private string SelectedMarkdown()
     {
+        // A block holding its own selection is the only thing that knows what is picked; the document's
+        // selection is empty behind it.
+        if (SelectionInBlock() is { } inBlock) return inBlock;
+
         var sel = _rtb.Selection;
         if (sel.IsEmpty) return MarkdownBlocks.Join(_blocks);
 
@@ -1123,6 +1127,16 @@ public partial class InlineMarkdownEditor : UserControl
 
     private void DoCut()
     {
+        // A block holding its own selection cuts from inside itself. Cut used to want a source-mode
+        // session, which a value being edited in place never has — so the command sat disabled over a
+        // selection the reader could see perfectly well.
+        if (SelectionInBlock() is not null)
+        {
+            DoCopy();
+            DeleteSelectionInBlock();
+            return;
+        }
+
         if (_active < 0) return;
         var (from, to) = SelectionInActiveBlock();
         if (from == to) return;
@@ -1615,6 +1629,16 @@ public partial class InlineMarkdownEditor : UserControl
 
     private void OnPreviewExecuted(object? sender, ExecutedRoutedEventArgs e)
     {
+        // A block holding its own selection answers copy and cut itself. The document's selection is
+        // empty behind it, so the native commands would take the whole note or nothing at all.
+        if ((e.Command == ApplicationCommands.Copy || e.Command == ApplicationCommands.Cut)
+            && SelectionInBlock() is not null)
+        {
+            if (e.Command == ApplicationCommands.Cut) DoCut(); else DoCopy();
+            e.Handled = true;
+            return;
+        }
+
         if (_active < 0)
         {
             if (e.Command == ApplicationCommands.Cut)
