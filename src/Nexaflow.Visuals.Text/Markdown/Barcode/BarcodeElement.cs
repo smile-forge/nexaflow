@@ -39,12 +39,13 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     private BarcodePattern? _pattern;
     private string? _encodeError;
 
-    private LayoutNode? _root;
+    /// <summary>The x of every place the caret can stand, from before the first character to after the last.</summary>
+    private double[] _caretEdges = [0];
     private FormattedText? _label;
     private Rect _labelBounds;
 
     private readonly List<(int Start, int Length)> _selection = [];
-    private CaretPlace? _caret;
+    private int? _caret;
     private int? _dragAnchor;
 
     public BarcodeElement(BarcodeBlock block, MarkdownPalette palette)
@@ -81,7 +82,12 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
     string IEditableBlock.Source => _block.Value;
 
-    ILayoutNode? IEditableBlock.Root => _root;
+    /// <summary>
+    /// None. A layout tree earns itself where content has structure a caret must be told about — which
+    /// part of a fraction it is in, whether it is inside a script or past it. A barcode's value is one
+    /// run of characters on one line, so a tree would be inventing structure to describe a flat string.
+    /// </summary>
+    ILayoutNode? IEditableBlock.Root => null;
 
     IReadOnlyList<(int Start, int Length)> IEditableBlock.Selection => _selection;
 
@@ -108,8 +114,8 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         // Stepping along the text lands on the character stepped onto; stepping onto a line lands where
         // that line starts, whichever side the reader came from.
         _caret = arrival.Step == CaretStep.Character && arrival.Edge == BlockExit.After
-            ? CaretPlace.At(_block.Value.Length)
-            : CaretPlace.At(0);
+            ? _block.Value.Length
+            : 0;
 
         _selection.Clear();
         InvalidateVisual();
@@ -151,7 +157,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         InteractiveSelection.Own(this);
 
         _dragAnchor = OffsetAt(pointInElement);
-        _caret      = CaretPlace.At(_dragAnchor.Value);
+        _caret      = _dragAnchor.Value;
         _selection.Clear();
         InvalidateVisual();
     }
@@ -164,7 +170,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         _selection.Clear();
         if (here != anchor) _selection.Add((Math.Min(anchor, here), Math.Abs(here - anchor)));
 
-        _caret = CaretPlace.At(here);
+        _caret = here;
         InvalidateVisual();
     }
 
@@ -176,7 +182,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         InteractiveSelection.Own(this);
         _selection.Clear();
         if (_block.Value.Length > 0) _selection.Add((0, _block.Value.Length));
-        _caret = CaretPlace.At(_block.Value.Length);
+        _caret = _block.Value.Length;
         InvalidateVisual();
         return true;
     }
@@ -184,14 +190,15 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// <summary>The caret offset nearest a point — clamped to the label, so a click on the bars still lands.</summary>
     private int OffsetAt(Point point)
     {
-        if (_root is null || _block.Value.Length == 0) return 0;
+        if (_caretEdges.Length <= 1) return 0;
 
-        var node = _root.NodeAt(point);
-        if (node is not null) return point.X > node.Bounds.X + node.Bounds.Width / 2
-            ? node.SourceStart + node.SourceLength
-            : node.SourceStart;
+        double x = point.X - _labelBounds.X;
 
-        return point.X <= _labelBounds.X ? 0 : _block.Value.Length;
+        int nearest = 0;
+        for (int i = 1; i < _caretEdges.Length; i++)
+            if (Math.Abs(_caretEdges[i] - x) < Math.Abs(_caretEdges[nearest] - x)) nearest = i;
+
+        return nearest;
     }
 
     // ── Editing ───────────────────────────────────────────────────────────
@@ -203,7 +210,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         if (!TryPlace(out int start, out int length)) return false;
 
         Replace(start, length, character.ToString());
-        _caret = CaretPlace.At(start + 1);
+        _caret = start + 1;
         return true;
     }
 
@@ -223,9 +230,9 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             return true;
         }
 
-        if (_caret is { } place)
+        if (_caret is { } at)
         {
-            start  = Math.Clamp(place.Offset, 0, _block.Value.Length);
+            start  = Math.Clamp(at, 0, _block.Value.Length);
             length = 0;
             return true;
         }
@@ -238,11 +245,11 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     public bool Backspace()
     {
         if (!TryPlace(out int start, out int length)) return false;
-        if (length > 0) { Replace(start, length, string.Empty); _caret = CaretPlace.At(start); return true; }
+        if (length > 0) { Replace(start, length, string.Empty); _caret = start; return true; }
         if (start == 0) return false;
 
         Replace(start - 1, 1, string.Empty);
-        _caret = CaretPlace.At(start - 1);
+        _caret = start - 1;
         return true;
     }
 
@@ -250,18 +257,18 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     public bool Delete()
     {
         if (!TryPlace(out int start, out int length)) return false;
-        if (length > 0) { Replace(start, length, string.Empty); _caret = CaretPlace.At(start); return true; }
+        if (length > 0) { Replace(start, length, string.Empty); _caret = start; return true; }
         if (start >= _block.Value.Length) return false;
 
         Replace(start, 1, string.Empty);
-        _caret = CaretPlace.At(start);
+        _caret = start;
         return true;
     }
 
     /// <summary>Moves the caret, or reports that it ran off an end so the host can take it.</summary>
     public void MoveCaret(bool forward)
     {
-        int at = _caret?.Offset ?? 0;
+        int at = _caret ?? 0;
         int next = at + (forward ? 1 : -1);
 
         if (next < 0 || next > _block.Value.Length)
@@ -270,7 +277,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             return;
         }
 
-        _caret = CaretPlace.At(next);
+        _caret = next;
         _selection.Clear();
         InvalidateVisual();
     }
@@ -314,28 +321,31 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
-    /// Lays the label out, a node per character, which is all the caret and selection machinery needs to
-    /// work over it.
+    /// Lays the label out: the text, and the x of every place the caret can stand.
+    ///
+    /// <para>
+    /// No layout tree. A tree earns itself where the content has structure a caret has to be told about —
+    /// which part of a fraction it is in, whether it is inside a script or past it — and a barcode's value
+    /// has none of that. It is one run of characters on one line, so the whole of its geometry is the
+    /// offsets between them, and building nodes to hold that would be inventing structure to describe a
+    /// flat string.
+    /// </para>
+    /// <para>
+    /// The edges come from the width of each prefix, which is exact at precisely the boundaries a caret can
+    /// occupy: any kerning between two characters is already inside the wider of the two prefixes.
+    /// </para>
     /// </summary>
     private void BuildLabel()
     {
-        // What goes under a real barcode is what was encoded — several of these formats add a check
-        // digit. While the value will not encode there is nothing to show but what was typed.
+        // What goes under a real barcode is what was encoded — several of these formats add a check digit.
+        // While the value will not encode there is nothing to show but what was typed.
         string text = _pattern?.Text ?? _block.Value;
 
         _label = Text(text);
-        _root  = new LayoutNode(new Rect(0, 0, _label.Width, _label.Height), 0, _block.Value.Length, "label", false);
 
-        // Character bounds come from the width of each prefix, which is exact at the boundaries a caret
-        // can sit on — kerning between two characters is inside the wider prefix.
-        double previous = 0;
-        for (int i = 0; i < _block.Value.Length; i++)
-        {
-            double next = i + 1 <= text.Length ? Text(text[..(i + 1)]).Width : previous;
-            _root.Add(new LayoutNode(new Rect(previous, 0, Math.Max(next - previous, 1), _label.Height),
-                                     i, 1, "char", isInk: true));
-            previous = next;
-        }
+        _caretEdges = new double[_block.Value.Length + 1];
+        for (int i = 1; i < _caretEdges.Length; i++)
+            _caretEdges[i] = i <= text.Length ? Text(text[..i]).Width : _caretEdges[i - 1];
     }
 
     private FormattedText Text(string text) => new(
@@ -433,40 +443,41 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
     private void DrawSelection(DrawingContext dc, double left, double top)
     {
-        if (_root is null) return;
-
         foreach (var (start, length) in _selection)
         {
-            for (int i = start; i < start + length && i < _root.Children.Count; i++)
-            {
-                var bounds = _root.Children[i].Bounds;
-                dc.DrawRectangle(Faded(_palette.Accent), null,
-                    new Rect(left + bounds.X, top, bounds.Width, bounds.Height));
-            }
+            double from = EdgeAt(start);
+            double to = EdgeAt(start + length);
+            if (to <= from) continue;
+
+            dc.DrawRectangle(Faded(_palette.Accent), null,
+                new Rect(left + from, top, to - from, _label?.Height ?? _block.FontSize));
         }
     }
 
     private void DrawDiagnostics(DrawingContext dc, double left, double top)
     {
-        if (_encodeError is null || _root is null) return;
+        if (_encodeError is null) return;
 
         // The wave every editor has drawn under a mistake for thirty years — it needs no explaining, and
-        // the reason is a hover away.
-        var runs = _root.Children.Count > 0
-            ? _root.Children.Select(c => new Rect(left + c.Bounds.X, top, c.Bounds.Width, c.Bounds.Height))
-            : [new Rect(left, top, Math.Max(_label?.Width ?? 0, _block.FontSize), _label?.Height ?? _block.FontSize)];
+        // the reason is a hover away. One run under the whole value: it is all of it that is wrong, since
+        // a format rejects a value entire rather than at a character.
+        double width = Math.Max(_label?.Width ?? 0, _block.FontSize);
+        var run = new Rect(left, top, width, _label?.Height ?? _block.FontSize);
 
-        dc.DrawGeometry(null, new Pen(_palette.Danger, 1.2), Squiggle.Under([.. runs]));
+        dc.DrawGeometry(null, new Pen(_palette.Danger, 1.2), Squiggle.Under([run]));
     }
 
     private void DrawCaret(DrawingContext dc, double left, double top)
     {
-        if (_caret is not { } place || _root is null) return;
+        if (_caret is not { } at) return;
 
-        var rect = _root.CaretRect(place);
         dc.DrawRectangle(_palette.Text, null,
-            new Rect(left + rect.X, top, 1, rect.Height > 0 ? rect.Height : _label?.Height ?? _block.FontSize));
+            new Rect(left + EdgeAt(at), top, 1, _label?.Height ?? _block.FontSize));
     }
+
+    /// <summary>Where the caret stands at an offset, clamped to what the label actually has.</summary>
+    private double EdgeAt(int offset) =>
+        _caretEdges[Math.Clamp(offset, 0, _caretEdges.Length - 1)];
 
     // ── Brushes ───────────────────────────────────────────────────────────
 
