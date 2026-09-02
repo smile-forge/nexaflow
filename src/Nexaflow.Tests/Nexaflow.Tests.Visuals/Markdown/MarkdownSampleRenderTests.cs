@@ -159,4 +159,29 @@ public class MarkdownSampleRenderTests
                     $"render returned null in {Path.GetFileName(path)}");
         }
     });
+
+    /// <summary>
+    /// The <c>qr-codes.md</c> reference: every <c>qr</c> fence in it reaches the QR handler and draws.
+    /// The doc deliberately ends with a block that cannot be built, so this also asserts the thing a
+    /// render-without-throwing test usually misses ΓÇö that a bad block still produces an element, in
+    /// place of the picture, rather than taking the document down with it.
+    /// </summary>
+    [TestMethod]
+    public void QrSampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "qr-codes.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        var fences = doc.OfType<FencedCodeBlock>()
+                        .Where(f => "qr".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(fences.Count >= 14, $"expected the reference to show every type, found {fences.Count} qr fences");
+
+        foreach (var fence in fences)
+            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a qr fence");
+
+        foreach (var block in doc)
+            Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null");
+    });
 }

@@ -42,6 +42,18 @@ public sealed class MarkdownPalette
     public required Brush FigureBg      { get; init; }
     public required Brush FooterBg      { get; init; }
 
+    /// <summary>
+    /// The QR code's dark modules and the paper they sit on. Their own pair rather than <see cref="Text"/>
+    /// over <see cref="FigureBg"/>, because a QR code is not decoration: it has to stay dark-on-light on
+    /// every theme or scanners stop reading it. A theme may still retune them (<c>QrDarkBrush</c> /
+    /// <c>QrLightBrush</c>), and a block's own <c>dark:</c> / <c>light:</c> settings win over both.
+    /// </summary>
+    public Brush QrDark  { get; init; } = DefaultQrDark;
+    public Brush QrLight { get; init; } = DefaultQrLight;
+
+    private static readonly Brush DefaultQrDark  = Frozen(0x0B, 0x0B, 0x0F);
+    private static readonly Brush DefaultQrLight = Frozen(0xFF, 0xFF, 0xFF);
+
     /// <summary>Distinct, saturated colours for chart series / pie slices / graph accents. Read
     /// cyclically by the graph + chart renderers. Saturated enough to read on light or dark surfaces;
     /// a theme can supply its own set.</summary>
@@ -163,6 +175,8 @@ public sealed class MarkdownPalette
             FigureBorder  = R("BorderBrush",      d.FigureBorder),
             FigureBg      = R("SurfaceBrush",     d.FigureBg),
             FooterBg      = R("SurfaceBrush",     d.FooterBg),
+            QrDark        = R("QrDarkBrush",      d.QrDark),
+            QrLight       = R("QrLightBrush",     d.QrLight),
         };
     }
 }
