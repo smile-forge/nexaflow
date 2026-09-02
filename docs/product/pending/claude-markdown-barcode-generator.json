@@ -1,0 +1,88 @@
+{
+  "branch": "claude/markdown-barcode-generator",
+  "nodes": {
+    "barcode": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/BarcodeDiagramHandler.cs",
+          "class": "BarcodeDiagramHandler"
+        }
+      ]
+    },
+    "barcode-symbologies": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeEncoder.cs",
+          "class": "BarcodeEncoder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeEncoderTests.cs",
+            "class": "BarcodeEncoderTests"
+          }
+        ]
+      }
+    },
+    "barcode-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBlockParser.cs",
+          "class": "BarcodeBlockParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeBlockParserTests.cs",
+            "class": "BarcodeBlockParserTests"
+          }
+        ]
+      }
+    },
+    "barcode-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeElement.cs",
+          "class": "BarcodeElement"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeElementTests.cs",
+            "class": "BarcodeElementTests"
+          }
+        ]
+      }
+    },
+    "barcode-editing": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeElementTests.cs",
+            "class": "BarcodeElementTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 8,
+  "touched_nodes": [
+    "barcode",
+    "barcode-block-syntax",
+    "barcode-editing",
+    "barcode-render",
+    "barcode-symbologies"
+  ]
+}

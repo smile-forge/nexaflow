@@ -106,4 +106,31 @@ public static class BarcodeEncoder
         "MSI", "MSI10", "MSI11", "MSI1010", "MSI1110",
         "pharmacode", "codabar",
     ];
+
+
+    /// <summary>
+    /// A value this format is guaranteed to carry.
+    /// <para>
+    /// Used to draw a stand-in when the real value will not encode: a barcode-shaped absence reads as "this
+    /// is a barcode, and it is wrong", where an empty gap reads as a rendering fault. Each is the example
+    /// the block syntax documents, so what is drawn is the shape the format really takes.
+    /// </para>
+    /// </summary>
+    public static string SampleValue(BarcodeSymbology symbology) => symbology switch
+    {
+    BarcodeSymbology.Code128C => "12345678",
+    BarcodeSymbology.Ean13 => "5901234123457",
+    BarcodeSymbology.Ean8 => "96385074",
+    BarcodeSymbology.Ean5 => "12345",
+    BarcodeSymbology.Ean2 => "12",
+    BarcodeSymbology.Upc => "036000291452",
+    BarcodeSymbology.UpcE => "01234565",
+    BarcodeSymbology.Itf => "12345678",
+    BarcodeSymbology.Itf14 => "1234567890123",
+    BarcodeSymbology.Msi or BarcodeSymbology.Msi10 or BarcodeSymbology.Msi11
+    or BarcodeSymbology.Msi1010 or BarcodeSymbology.Msi1110 => "1234567",
+    BarcodeSymbology.Pharmacode => "1234",
+    BarcodeSymbology.Codabar => "A12345A",
+    _ => "BARCODE",
+    };
 }

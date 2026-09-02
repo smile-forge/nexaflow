@@ -19,6 +19,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 /// </para>
 /// </summary>
 [TestClass]
+[CoversNode("barcode-symbologies")]
 public class BarcodeEncoderTests
 {
     private static BarcodePattern Encode(BarcodeSymbology symbology, string value)

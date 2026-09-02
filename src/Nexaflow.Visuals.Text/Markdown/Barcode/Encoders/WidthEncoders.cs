@@ -73,13 +73,17 @@ internal static class WidthEncoders
             }
         }
 
-        // A narrow space separates characters, so the pattern of one character never runs into the next.
-        var symbols = new List<string> { Widths(Code39['*']) };
-        foreach (char c in upper) { symbols.Add("1"); symbols.Add(Widths(Code39[c])); }
-        symbols.Add("1");
-        symbols.Add(Widths(Code39['*']));
+        // One continuous run of elements, not a symbol each. The alternation between ink and paper never
+        // restarts, so the narrow gap between characters lands as a space; emitted as its own symbol it would
+        // start on ink again and separate the characters with a bar.
+        //
+        // It works out because the counts are odd: nine elements to a character and one to a gap leaves every
+        // character starting on ink, which is what its pattern is written for.
+        var elements = new StringBuilder(Widths(Code39['*']));
+        foreach (char c in upper) elements.Append('1').Append(Widths(Code39[c]));
+        elements.Append('1').Append(Widths(Code39['*']));
 
-        modules = BarcodePattern.FromWidths(symbols);
+        modules = BarcodePattern.FromWidths([elements.ToString()]);
         text    = upper;
         return true;
     }
@@ -266,11 +270,13 @@ internal static class WidthEncoders
         }
         bars.Reverse();
 
-        // A narrow space between bars, and none at either end.
+        // Laetus fixes the three widths at 0.5mm, 1.5mm and 1.0mm - a narrow bar, a wide bar, and the gap
+        // between them - so the space is two modules where a narrow bar is one. It is the only format here
+        // whose gap is not simply the narrow element.
         var widths = new StringBuilder();
         for (int i = 0; i < bars.Count; i++)
         {
-            if (i > 0) widths.Append('1');
+            if (i > 0) widths.Append('2');
             widths.Append(bars[i]);
         }
 
@@ -329,14 +335,17 @@ internal static class WidthEncoders
             }
         }
 
-        var symbols = new List<string>();
+        // One continuous run of elements, as in Code 39: the alternation must not restart, or the narrow
+        // gap between characters would be drawn as a bar. Seven elements to a character and one to a gap
+        // again leaves every character starting on ink.
+        var elements = new StringBuilder();
         for (int i = 0; i < full.Length; i++)
         {
-            if (i > 0) symbols.Add("1");
-            symbols.Add(Widths(Codabar[full[i]]));
+            if (i > 0) elements.Append('1');
+            elements.Append(Widths(Codabar[full[i]]));
         }
 
-        modules = BarcodePattern.FromWidths(symbols);
+        modules = BarcodePattern.FromWidths([elements.ToString()]);
         text    = full;
         return true;
     }

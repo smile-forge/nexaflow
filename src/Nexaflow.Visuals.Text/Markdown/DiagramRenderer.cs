@@ -23,6 +23,7 @@ public static class DiagramRenderer
         new MermaidDiagramHandler(),                           // mermaid (pie, flowchart, …)
         new GraphDiagramHandler(new NomnomlParser()),          // nomnoml
         new QrDiagramHandler(),                                // qr
+        new BarcodeDiagramHandler(),                           // barcode
     ];
 
     // ── Public API ─────────────────────────────────────────────────────────
