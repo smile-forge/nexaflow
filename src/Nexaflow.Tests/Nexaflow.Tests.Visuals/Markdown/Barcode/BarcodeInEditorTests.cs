@@ -33,6 +33,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 [TestCategory("Desktop")]
 [DoNotParallelize]   // spins an off-screen Window; concurrent WPF layout and focus make it flaky
 [CoversNode("markdown-inline-editor")]
+[CoversNode("barcode-editing")]
 public class BarcodeInEditorTests
 {
     /// <summary>Prose, a barcode, prose — a fenced block between two paragraphs.</summary>
