@@ -56,7 +56,9 @@ public class BarcodeReferenceImageTests
                 continue;
             }
 
-            string reference = Trim(ModulesFrom(path));
+            string reference;
+            try { reference = Trim(ModulesFrom(path)); }
+            catch (InvalidDataException ex) { skipped.Add($"{name}: {ex.Message}"); continue; }
 
             if (BarcodeEncoder.TryEncode(symbology, value, out var pattern, out string? error)
                 && Trim(pattern!.ToString()) == reference)
@@ -149,6 +151,9 @@ public class BarcodeReferenceImageTests
             "MSI1110"  => BarcodeSymbology.Msi1110,
             "PHARMA" or "PHARMACODE" => BarcodeSymbology.Pharmacode,
             "CODABAR"  => BarcodeSymbology.Codabar,
+            "ISBN"     => BarcodeSymbology.Isbn,
+            "ISSN"     => BarcodeSymbology.Issn,
+            "ISMN"     => BarcodeSymbology.Ismn,
             _          => null,   // ISBN, ISSN, ISMN, CODE39EXT, PDF417 — beyond what this block offers
         };
 
@@ -172,8 +177,19 @@ public class BarcodeReferenceImageTests
     /// </summary>
     private static string ModulesFrom(string path)
     {
-        var decoder = new PngBitmapDecoder(new Uri(path), BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-        var gray = new FormatConvertedBitmap(decoder.Frames[0], PixelFormats.Gray8, null, 0);
+        // Sniffed rather than assumed: a corpus gathered from several generators arrives with more than one
+        // format behind the .png, and one file the decoder cannot read must not take the whole run with it.
+        BitmapSource frame;
+        try
+        {
+            frame = BitmapDecoder.Create(new Uri(path), BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0];
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidDataException($"{Path.GetFileName(path)} could not be read as an image: {ex.Message}", ex);
+        }
+
+        var gray = new FormatConvertedBitmap(frame, PixelFormats.Gray8, null, 0);
 
         int width = gray.PixelWidth, height = gray.PixelHeight;
         var pixels = new byte[width * height];

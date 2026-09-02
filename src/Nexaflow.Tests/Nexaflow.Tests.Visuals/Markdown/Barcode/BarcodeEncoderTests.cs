@@ -171,7 +171,9 @@ public class BarcodeEncoderTests
     public void Codabar_WrapsAValueThatBroughtNoStartStopMark()
     {
         Assert.AreEqual("A40156B", Encode(BarcodeSymbology.Codabar, "A40156B").Text);
-        Assert.AreEqual("A40156A", Encode(BarcodeSymbology.Codabar, "40156").Text);
+        // Wrapped in A...B when the value brings no marks of its own — which pair is a free choice in
+        // Codabar, and this is the one the generators make.
+        Assert.AreEqual("A40156B", Encode(BarcodeSymbology.Codabar, "40156").Text);
     }
 
     [TestMethod]
@@ -197,5 +199,51 @@ public class BarcodeEncoderTests
         Assert.IsTrue(BarcodeEncoder.TryParseSymbology("upca", out var upca));
         Assert.AreEqual(BarcodeSymbology.Upc, upca);
         Assert.IsFalse(BarcodeEncoder.TryParseSymbology("qr", out _));
+    }
+
+    [TestMethod]
+    public void PublicationNumbersBecomeTheEan13TheyArePrintedAs()
+    {
+        // Each of these is a numbering scheme that reserved an EAN-13 prefix, so the test is whether the
+        // right thirteen digits come out. An ISBN-13's own check digit is the EAN check digit, and an
+        // ISMN's likewise — so reproducing the number as printed on the book is the whole assertion.
+        Assert.AreEqual("9781565812314", Encode(BarcodeSymbology.Isbn, "978-1-56581-231-4").Text);
+        Assert.AreEqual("9790260532113", Encode(BarcodeSymbology.Ismn, "979-0-2605-3211-3").Text);
+
+        // An ISSN is 977, the seven digits that identify the serial, and a two-digit issue variant. Its own
+        // trailing check character never reaches the bars — the EAN check digit replaces it, which is why an
+        // ISSN ending in X still encodes.
+        Assert.AreEqual("9770311175001", Encode(BarcodeSymbology.Issn, "0311-175X").Text);
+
+        // A ten-digit ISBN predates the EAN and is promoted: prefix 978, keep the nine identifying digits,
+        // and compute a new check digit, because the old one checked a different number.
+        StringAssert.StartsWith(Encode(BarcodeSymbology.Isbn, "0-306-40615-2").Text, "9780306406");
+    }
+
+    [TestMethod]
+    public void APublicationAddOnIsDrawnBesideTheMainSymbol()
+    {
+        // The little block of extra bars carrying a price on a book or an issue number on a journal. It is
+        // a separate symbol with its own guard, set apart by a gap wide enough that a scanner reads two
+        // symbols rather than one long one.
+        var plain = Encode(BarcodeSymbology.Isbn, "978-1-56581-231-4");
+        var priced = Encode(BarcodeSymbology.Isbn, "978-1-56581-231-4 90000");
+
+        Assert.AreEqual(95, plain.Width, "an EAN-13 on its own");
+        Assert.IsTrue(priced.Width > plain.Width + 40, "a five-digit add-on and its gap should follow it");
+        Assert.AreEqual("9781565812314 90000", priced.Text);
+
+        var issue = Encode(BarcodeSymbology.Issn, "0311-175X 00 17");
+        Assert.AreEqual("9770311175001 17", issue.Text);
+        Assert.IsTrue(issue.Width > plain.Width, "a two-digit add-on should follow it too");
+    }
+
+    [TestMethod]
+    public void PublicationNumbersRefuseWhatIsNotOne()
+    {
+        StringAssert.Contains(Rejects(BarcodeSymbology.Isbn, "123"),          "ISBN");
+        StringAssert.Contains(Rejects(BarcodeSymbology.Ismn, "978-1-2-3"),    "ISMN");
+        StringAssert.Contains(Rejects(BarcodeSymbology.Issn, "0311"),         "ISSN");
+        StringAssert.Contains(Rejects(BarcodeSymbology.Isbn, "978-1-56581-231-4 999"), "add-on");
     }
 }

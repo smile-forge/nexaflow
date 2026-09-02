@@ -54,6 +54,9 @@ public static class BarcodeEncoder
             BarcodeSymbology.Msi1010 => WidthEncoders.TryEncodeMsi(value, true,  false, true,  out modules, out text, out error),
             BarcodeSymbology.Msi1110 => WidthEncoders.TryEncodeMsi(value, false, true,  true,  out modules, out text, out error),
 
+            BarcodeSymbology.Isbn or BarcodeSymbology.Issn or BarcodeSymbology.Ismn
+                => PublicationEncoder.TryEncode(symbology, value, out modules, out text, out error),
+
             BarcodeSymbology.Pharmacode => WidthEncoders.TryEncodePharmacode(value, out modules, out text, out error),
             _                           => WidthEncoders.TryEncodeCodabar(value, out modules, out text, out error),
         };
@@ -93,6 +96,9 @@ public static class BarcodeEncoder
             case "MSI1110":   symbology = BarcodeSymbology.Msi1110;    return true;
             case "PHARMACODE": symbology = BarcodeSymbology.Pharmacode; return true;
             case "CODABAR":   symbology = BarcodeSymbology.Codabar;    return true;
+            case "ISBN":      symbology = BarcodeSymbology.Isbn;       return true;
+            case "ISSN":      symbology = BarcodeSymbology.Issn;       return true;
+            case "ISMN":      symbology = BarcodeSymbology.Ismn;       return true;
             default:          return false;
         }
     }
@@ -105,6 +111,7 @@ public static class BarcodeEncoder
         "CODE39", "ITF", "ITF14",
         "MSI", "MSI10", "MSI11", "MSI1010", "MSI1110",
         "pharmacode", "codabar",
+        "ISBN", "ISSN", "ISMN",
     ];
 
 
@@ -130,7 +137,10 @@ public static class BarcodeEncoder
     BarcodeSymbology.Msi or BarcodeSymbology.Msi10 or BarcodeSymbology.Msi11
     or BarcodeSymbology.Msi1010 or BarcodeSymbology.Msi1110 => "1234567",
     BarcodeSymbology.Pharmacode => "1234",
-    BarcodeSymbology.Codabar => "A12345A",
+    BarcodeSymbology.Codabar => "A12345B",
+    BarcodeSymbology.Isbn => "978-1-56581-231-4",
+    BarcodeSymbology.Issn => "0311-175X",
+    BarcodeSymbology.Ismn => "979-0-2605-3211-3",
     _ => "BARCODE",
     };
 }

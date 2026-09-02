@@ -23,9 +23,21 @@ internal static class WidthEncoders
 {
     private const char Narrow = '1', Wide = '3';
 
+    /// <summary>
+    /// Codabar draws its wide element at twice the narrow one rather than three times.
+    /// <para>
+    /// The standard permits anywhere from 2:1 to 3:1 and every format here takes 3:1, which is the more
+    /// forgiving to a scanner. Codabar is the exception because the generators that produce it in practice
+    /// use 2:1, and a barcode that does not look like the ones beside it on a shelf invites the question of
+    /// which is wrong.
+    /// </para>
+    /// </summary>
+    private const char CodabarWide = '2';
+
     /// <summary>Turns an n/w pattern into the element widths <see cref="BarcodePattern.FromWidths"/> reads.</summary>
-    private static string Widths(string pattern) =>
-        new([.. pattern.Select(c => c == 'w' ? Wide : Narrow)]);
+    /// <summary>Turns an n/w pattern into element widths, with a caller-chosen width for a wide element.</summary>
+private static string Widths(string pattern, char wide = Wide) =>
+    new([.. pattern.Select(c => c == 'w' ? wide : Narrow)]);
 
     // ── Code 39 ────────────────────────────────────────────────────────────
 
@@ -310,11 +322,15 @@ internal static class WidthEncoders
             return false;
         }
 
-        // A–D are the start and stop marks. A value that brought its own is used as written; one that did
-        // not is wrapped in A…A, which is what a reader expects to find and what every generator adds.
+        // A–D are the start and stop marks, and a value that brought its own pair is used as written.
+        //
+        // One that did not is wrapped in A…B. Codabar allows any of the four at either end and attaches no
+        // meaning to the choice, so there is no right answer — but A…B is what the generators produce, and a
+        // code that differs from the ones beside it invites the question of which is wrong. An author who
+        // cares writes the marks into the value.
         string body = value.ToUpperInvariant();
         bool bracketed = body.Length >= 2 && body[0] is >= 'A' and <= 'D' && body[^1] is >= 'A' and <= 'D';
-        string full = bracketed ? body : $"A{body}A";
+        string full = bracketed ? body : $"A{body}B";
 
         for (int i = 0; i < full.Length; i++)
         {
@@ -342,7 +358,7 @@ internal static class WidthEncoders
         for (int i = 0; i < full.Length; i++)
         {
             if (i > 0) elements.Append('1');
-            elements.Append(Widths(Codabar[full[i]]));
+            elements.Append(Widths(Codabar[full[i]], CodabarWide));
         }
 
         modules = BarcodePattern.FromWidths([elements.ToString()]);

@@ -41,6 +41,9 @@ internal static class Code128Encoder
 
     private const int StartA = 103, StartB = 104, StartC = 105, Stop = 106;
 
+    /// <summary>The switch symbols, which change subset for everything that follows them.</summary>
+    private const int CodeC = 99, CodeB = 100;
+
     /// <summary>Which subset a block asked for, or none — meaning choose.</summary>
     internal enum Subset { Auto, A, B, C }
 
@@ -140,22 +143,81 @@ internal static class Code128Encoder
     }
 
     /// <summary>
-    /// Picks a subset for the whole value: C when it is an even run of digits, which halves the symbol,
-    /// otherwise B, and A only when B cannot hold it.
+    /// Encodes across subsets, moving into C for runs of digits and back to B for everything else.
+    ///
     /// <para>
-    /// Switching subsets mid-value would compress a mixed string further, but only one that is mostly a
-    /// long digit run — and a switch code got wrong yields a symbol that scans as something else,
-    /// silently. Not worth it for the width.
+    /// C carries two digits in the symbol B spends on one, so a long enough run pays for the switch symbol
+    /// it costs. Four digits are worth it at either end of the value, where only one switch is needed; in
+    /// the middle it takes six, because coming back costs a symbol too.
+    /// </para>
+    /// <para>
+    /// The check character is computed over the symbol values, so it depends on these choices as much as on
+    /// the text — which is why getting a switch wrong yields a symbol that scans as something else rather
+    /// than as nothing.
     /// </para>
     /// </summary>
     private static List<int>? EncodeAuto(string value, out string? error)
     {
-        if (value.All(char.IsAsciiDigit) && value.Length % 2 == 0)
-            return EncodeC(value, out error);
+        // Anything outside subset B's range needs A, and A has no digit packing to gain from anyway.
+        if (value.Any(c => c < ' ' || c > LastPrintable))
+            return EncodeA(value, out error);
 
-        if (value.All(c => c >= ' ' && c <= LastPrintable))
-            return EncodeB(value, out error);
+        error = null;
 
-        return EncodeA(value, out error);
+        var codes = new List<int>();
+        bool inC = ShouldEnterC(value, 0, atStart: true);
+        codes.Add(inC ? StartC : StartB);
+
+        int at = 0;
+        while (at < value.Length)
+        {
+            if (inC)
+            {
+                if (at + 1 < value.Length && char.IsAsciiDigit(value[at]) && char.IsAsciiDigit(value[at + 1]))
+                {
+                    codes.Add(int.Parse(value.AsSpan(at, 2)));
+                    at += 2;
+                }
+                else
+                {
+                    codes.Add(CodeB);
+                    inC = false;
+                }
+            }
+            else if (ShouldEnterC(value, at, atStart: false))
+            {
+                codes.Add(CodeC);
+                inC = true;
+            }
+            else
+            {
+                codes.Add(value[at] - ' ');
+                at++;
+            }
+        }
+
+        return codes;
+    }
+
+    /// <summary>
+    /// Whether subset C is worth entering at this point.
+    ///
+    /// <para>
+    /// Only an even run qualifies, because C encodes whole pairs and nothing else. An odd one is left to
+    /// take its first digit in B, after which what remains is even and this says yes — which is both simpler
+    /// and shorter than entering C and having to leave it again for the odd digit at the end.
+    /// </para>
+    /// </summary>
+    private static bool ShouldEnterC(string value, int at, bool atStart)
+    {
+        int run = 0;
+        while (at + run < value.Length && char.IsAsciiDigit(value[at + run])) run++;
+
+        if (run == 0 || run % 2 != 0) return false;
+
+        // A value that is nothing but two digits is one symbol in C against two in B.
+        if (atStart && run == value.Length) return run >= 2;
+
+        return at + run == value.Length ? run >= 4 : run >= 6;
     }
 }

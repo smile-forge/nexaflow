@@ -70,4 +70,13 @@ public enum BarcodeSymbology
 
     /// <summary>Codabar — digits and <c>- $ : / . +</c>, wrapped in a start/stop letter A–D.</summary>
     Codabar,
+
+    /// <summary>A book number, as the EAN-13 it is printed as, with an optional price add-on.</summary>
+    Isbn,
+
+    /// <summary>A serial number: the 977 prefix, the ISSN, an issue variant, and an optional add-on.</summary>
+    Issn,
+
+    /// <summary>A printed-music number — the 9790 prefix — as an EAN-13.</summary>
+    Ismn,
 }
