@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Nexaflow.Visuals.Text.Markdown.Matrix;
 
 namespace Nexaflow.Visuals.Text.Markdown.Qr;
 
@@ -217,51 +218,6 @@ public static class QrEncoder
 
     // ΓöÇΓöÇ ReedΓÇôSolomon over GF(256), primitive polynomial 0x11D ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
-    /// <summary>The generator polynomial's coefficients, the product of (x ΓêÆ 2^i) for i below <paramref name="degree"/>.</summary>
-    private static byte[] ReedSolomonDivisor(int degree)
-    {
-        var result = new byte[degree];
-        result[degree - 1] = 1;
-
-        int root = 1;
-        for (int i = 0; i < degree; i++)
-        {
-            for (int j = 0; j < degree; j++)
-            {
-                result[j] = (byte)GfMultiply(result[j], root);
-                if (j + 1 < degree) result[j] ^= result[j + 1];
-            }
-            root = GfMultiply(root, 0x02);
-        }
-        return result;
-    }
-
-    /// <summary>The remainder of <paramref name="data"/> over <paramref name="divisor"/> ΓÇö one block's ECC codewords.</summary>
-    private static byte[] ReedSolomonRemainder(ReadOnlySpan<byte> data, byte[] divisor)
-    {
-        var result = new byte[divisor.Length];
-        foreach (byte b in data)
-        {
-            int factor = b ^ result[0];
-            Array.Copy(result, 1, result, 0, result.Length - 1);
-            result[^1] = 0;
-            for (int i = 0; i < result.Length; i++)
-                result[i] ^= (byte)GfMultiply(divisor[i], factor);
-        }
-        return result;
-    }
-
-    private static int GfMultiply(int x, int y)
-    {
-        int z = 0;
-        for (int i = 7; i >= 0; i--)
-        {
-            z = (z << 1) ^ ((z >>> 7) * 0x11D);
-            z ^= ((y >>> i) & 1) * x;
-        }
-        return z;
-    }
-
     /// <summary>
     /// Splits the data into blocks, appends each block's ECC codewords, then interleaves the lot.
     /// Interleaving is what makes a burst of damage land across many blocks instead of destroying one.
@@ -276,8 +232,10 @@ public static class QrEncoder
         int numShortBlocks = numBlocks - rawCodewords % numBlocks;
         int shortBlockLen  = rawCodewords / numBlocks;
 
-        var divisor = ReedSolomonDivisor(blockEccLen);
-        var blocks  = new byte[numBlocks][];
+        // QR's field and its generator start at g⁰ — the shared codec's defaults, because QR was its
+        // first user. Data Matrix and PDF417 both say otherwise, and say so at their call sites.
+        var generator = ReedSolomon.Generator(GaloisField.Qr, blockEccLen);
+        var blocks    = new byte[numBlocks][];
 
         for (int i = 0, k = 0; i < numBlocks; i++)
         {
@@ -287,7 +245,10 @@ public static class QrEncoder
 
             var block = new byte[shortBlockLen + 1];
             dat.CopyTo(block);
-            ReedSolomonRemainder(dat, divisor).CopyTo(block, block.Length - blockEccLen);
+
+            var parity = ReedSolomon.Parity(GaloisField.Qr, Widen(dat), generator);
+            for (int p = 0; p < blockEccLen; p++) block[block.Length - blockEccLen + p] = (byte)parity[p];
+
             blocks[i] = block;
         }
 
@@ -296,11 +257,19 @@ public static class QrEncoder
         {
             for (int j = 0; j < numBlocks; j++)
             {
-                // A short block has no codeword at the final data index ΓÇö step over its hole.
+                // A short block has no codeword at the final data index — step over its hole.
                 if (i != shortBlockLen - blockEccLen || j >= numShortBlocks)
                     result[k++] = blocks[j][i];
             }
         }
+        return result;
+    }
+
+    /// <summary>Codewords as the field takes them. QR's are bytes; the codec is written for fields wider than a byte.</summary>
+    private static int[] Widen(ReadOnlySpan<byte> bytes)
+    {
+        var result = new int[bytes.Length];
+        for (int i = 0; i < bytes.Length; i++) result[i] = bytes[i];
         return result;
     }
 

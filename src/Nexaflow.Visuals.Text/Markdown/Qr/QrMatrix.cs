@@ -5,7 +5,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Qr;
 /// Immutable and free of any drawing concern, so the same matrix serves a WPF surface, an export
 /// and a test that reads the modules back.
 /// </summary>
-public sealed class QrMatrix
+public sealed class QrMatrix : Matrix.IModuleMatrix
 {
     private readonly bool[] _modules;
 
@@ -26,6 +26,10 @@ public sealed class QrMatrix
     public int Size { get; }
 
     public QrErrorCorrection ErrorCorrection { get; }
+
+    /// <summary>A QR symbol is square, so both are <see cref="Size"/>.</summary>
+    public int Width => Size;
+    public int Height => Size;
 
     /// <summary>The mask pattern (0ΓÇô7) chosen for this symbol by the penalty rules.</summary>
     public int Mask { get; }
