@@ -48,6 +48,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("music-abc.md",             MusicAbc),
         SampleFile.Text("music-lilypond.md",        MusicLilyPond),
         SampleFile.Text("qr-codes.md",              Qr),
+        SampleFile.Text("barcodes.md",              Barcode),
     ];
 
     private const string LatexMathSymbols =
@@ -3451,6 +3452,204 @@ internal sealed class MarkdownSamples : ISampleSet
         ```qr
         type: wifi
         password: hunter2
+        ```
+        """";
+
+    private const string Barcode =
+        """"
+        # Barcodes
+
+        A `barcode` fence draws a scannable linear barcode, generated locally. The body is a flat list of
+        `key: value` lines: a `format:`, a `value:`, and whatever settings you want.
+
+        The `value` is editable where it is rendered — click into it and type, and the bars follow.
+
+        ## The general-purpose one
+
+        Code 128 carries any ASCII, and moves between its subsets to keep the symbol short.
+
+        ```barcode
+        format: CODE128
+        value: MARKDOWN-128
+        ```
+
+        Its subsets can be asked for by name when a scanner insists on one.
+
+        ```barcode
+        format: CODE128A
+        value: MARKDOWN128A
+        ```
+
+        ```barcode
+        format: CODE128B
+        value: Markdown 128B
+        ```
+
+        ```barcode
+        format: CODE128C
+        value: 12345678
+        ```
+
+        ## Retail
+
+        The check digit is worked out for you — leave it off, or write it and have it verified.
+
+        ```barcode
+        format: EAN13
+        value: 590123412345
+        ```
+
+        ```barcode
+        format: EAN8
+        value: 9638507
+        ```
+
+        ```barcode
+        format: UPC
+        value: 03600029145
+        ```
+
+        ```barcode
+        format: UPCE
+        value: 01234565
+        ```
+
+        The add-ons, printed beside a main code to carry a price or an issue number.
+
+        ```barcode
+        format: EAN5
+        value: 54495
+        ```
+
+        ```barcode
+        format: EAN2
+        value: 53
+        ```
+
+        ## Publications
+
+        ISBN, ISSN and ISMN are not symbologies. Each is a numbering scheme that reserved an EAN-13 prefix,
+        so what is drawn is an EAN-13 — optionally with an add-on after it.
+
+        ```barcode
+        format: ISBN
+        value: 978-1-56581-231-4 90000
+        ```
+
+        ```barcode
+        format: ISSN
+        value: 0311-175X 00 17
+        ```
+
+        ```barcode
+        format: ISMN
+        value: 979-0-2605-3211-3
+        ```
+
+        ## The older formats
+
+        Code 39 carries upper case, digits and a little punctuation. It is not dense, and it is read by
+        almost everything.
+
+        ```barcode
+        format: CODE39
+        value: MARKDOWN-39
+        ```
+
+        Interleaved 2 of 5 packs digits in pairs — one in the bars, the next in the spaces between them —
+        which is why it needs an even count.
+
+        ```barcode
+        format: ITF
+        value: 1234567890
+        ```
+
+        ```barcode
+        format: ITF14
+        value: 1540014128876
+        ```
+
+        MSI, in its four check-digit flavours.
+
+        ```barcode
+        format: MSI
+        value: 1234567
+        ```
+
+        ```barcode
+        format: MSI10
+        value: 1234567
+        ```
+
+        ```barcode
+        format: MSI11
+        value: 1234567
+        ```
+
+        ```barcode
+        format: MSI1010
+        value: 1234567
+        ```
+
+        ```barcode
+        format: MSI1110
+        value: 1234567
+        ```
+
+        Pharmacode carries a number rather than text, and is read right to left.
+
+        ```barcode
+        format: pharmacode
+        value: 1234
+        ```
+
+        Codabar wraps its value in a start and stop mark, A to D. Write your own pair or let it add one.
+
+        ```barcode
+        format: codabar
+        value: 40156
+        ```
+
+        ## Settings
+
+        Any block takes `width`, `height`, `displayValue`, `fontSize`, `textAlign`, `lineColor`,
+        `background` and `margin`. Left out, the colours follow the theme's barcode tokens — which stay
+        dark-on-light whatever the theme does, because an inverted barcode stops scanning.
+
+        ```barcode
+        format: CODE39
+        value: MARKDOWN-39
+        width: 2
+        height: 80
+        displayValue: true
+        lineColor: #1d4ed8
+        background: #ffffff
+        margin: 10
+        ```
+
+        ```barcode
+        format: CODE128
+        value: NO TEXT UNDER THIS ONE
+        displayValue: false
+        height: 50
+        ```
+
+        ## When the value will not encode
+
+        A value the format cannot carry does not take the barcode off the page. It stays, in the shape the
+        format would have taken, struck through and waved under, with the reason on hover — because while
+        you are typing a value it is invalid far more often than not.
+
+        ```barcode
+        format: EAN13
+        value: 590
+        ```
+
+        A block that cannot be understood at all is a different thing, and falls back to its source.
+
+        ```barcode
+        format: NOTAFORMAT
+        value: 12345
         ```
         """";
 }

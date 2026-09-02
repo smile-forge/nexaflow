@@ -177,6 +177,16 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
     // ── What the document around it needs (IEditableBlock) ──────────────────
 
+    /// <summary>
+    /// The seam's name for <see cref="LatexChanged"/>. A host driving every editable block alike listens
+    /// here; the pair of names costs nothing and keeps the element's own event called after its content.
+    /// </summary>
+    event EventHandler? IEditableBlock.SourceChanged
+    {
+        add    => LatexChanged += value;
+        remove => LatexChanged -= value;
+    }
+
     /// <inheritdoc />
     public string Source => _state.Latex;
 

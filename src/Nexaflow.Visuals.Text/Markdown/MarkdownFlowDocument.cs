@@ -358,7 +358,7 @@ public static class MarkdownFlowDocument
     private static WpfBlock DiagramFallback(MdBlock block, string raw, MarkdownRenderContext ctx)
     {
         var element = BlockRenderer.Render(block, raw, ctx);
-        if (ctx.FitContentToWidth)
+        if (ctx.FitContentToWidth && element is not DiagramErrorView)
         {
             // Either way the diagram renders full height (vertical overflow flows to the host page).
             UnboundDiagramHeight(element, allowHorizontalScroll: ctx.ScrollWideDiagrams);

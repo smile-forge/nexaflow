@@ -560,6 +560,90 @@ setting, a field belonging to another type, a missing required field, or content
 
 ---
 
+## Barcodes
+
+A fenced `barcode` block becomes a scannable linear barcode, generated on your machine like everything
+else here. The body is a flat list of `key: value` lines — a `format:`, a `value:`, and whatever
+settings you want:
+
+````markdown
+```barcode
+format: EAN13
+value: 590123412345
+```
+````
+
+![Barcodes: Code 128, an EAN-13 and an ISBN with its price add-on](images/markdown/barcodes.png)
+
+**The value is editable where it is drawn.** Click into the digits under the bars and type — the
+symbol re-encodes as you go, and the change goes back into the fence in your document. While the
+caret is in it you are shown the value itself rather than the number the symbol prints, because for
+several of these formats those are different strings: an ISBN's value carries hyphens the symbol
+never prints, and an EAN-13's gains the check digit you left off.
+
+### Formats
+
+| `format:` | Carries | Notes |
+|---|---|---|
+| `CODE128` | Any ASCII | Moves between its subsets to keep the symbol short |
+| `CODE128A` / `CODE128B` / `CODE128C` | One subset each | When a scanner insists on one |
+| `EAN13` / `EAN8` | 12 or 7 digits | The check digit is computed, or verified if you write it |
+| `UPC` (`UPCA`) / `UPCE` | 11 or 7 digits | `UPC` and `UPCA` are the same thing |
+| `EAN2` / `EAN5` | 2 or 5 digits | The add-on block, on its own |
+| `ISBN` / `ISSN` / `ISMN` | The number as printed | Hyphens and all; add a space and an add-on for a price or issue |
+| `CODE39` | Digits, capitals, `- . $ / + % space` | The old workhorse |
+| `ITF` / `ITF14` | An even number of digits | `ITF14` is the shipping-carton one, and adds its own check digit |
+| `MSI`, `MSI10`, `MSI11`, `MSI1010`, `MSI1110` | Digits | The suffix says which check digits to add |
+| `PHARMACODE` | 3–131070 | Read right to left, by design |
+| `CODABAR` | Digits and `- $ : / . +` | Start/stop letters `A`–`D` are added if you leave them off |
+
+The retail formats are drawn the way they are printed: the number broken at the guard bars into the
+groups that sit in the wells between them, the first digit set outside the symbol, the guards running
+down past the digits, and an add-on's digits above its own bars. The shape is how these are recognised
+at a glance, so it is worth getting right even though a scanner only reads the bars.
+
+An ISBN, ISSN or ISMN is not a symbology — each is a numbering scheme that agreed to be *printed* as
+an EAN-13 by reserving a prefix. So these work out which thirteen digits your number stands for, print
+it under the scheme's own name, and hand the bars to EAN-13. A ten-digit ISBN is promoted the way the
+standard says. Anything after a space is the add-on:
+
+````markdown
+```barcode
+format: ISBN
+value: 978-1-56581-231-4 90000
+```
+````
+
+### Settings
+
+| Setting | Values | Default |
+|---|---|---|
+| `width` | width of a **single bar** in pixels, 0.5–20 | `2` |
+| `height` | bar height in pixels, 4–1000 | `100` |
+| `displayValue` | `true` / `false` — print the number under the bars | `true` |
+| `fontSize` | pixels, 4–200 | `20` |
+| `textAlign` | `left`, `center`, `right` | `center` |
+| `lineColor` | hex colour of the bars | the theme's |
+| `background` | hex colour behind them | the theme's |
+| `margin` | quiet zone in pixels, 0–200 | `10` |
+
+`width` is the width of one bar, not of the whole symbol — that follows from the value, since a
+barcode's length is decided by what it encodes. Doubling `width` doubles the symbol.
+
+### When it can't be drawn
+
+The two ways a block can be wrong are treated differently, because only one of them is your problem
+while you are typing:
+
+- A block that can't be **understood** — an unknown setting, a format that doesn't exist, a width
+  that isn't a number — is shown as its source with the reason above it. There is nothing to draw.
+- A value the format can't **carry** still renders. The bars of a valid value in that format are
+  drawn faint with a line struck through them, and a red wave goes under the value; hovering says
+  why. This matters because a value is invalid every time you are halfway through changing it — an
+  EAN-13 has the wrong number of digits for all but the last keystroke.
+
+---
+
 ## Good to know
 
 - **It's all local.** Diagrams and math render on your machine — nothing is sent anywhere, and the
