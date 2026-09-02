@@ -4,7 +4,7 @@ namespace Nexaflow.Tests.Fixtures;
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
 /// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey,
-/// ER, Venn, architecture, swimlanes, Cynefin, timeline, journey), plus an <c>extensions.md</c> exercising the non-diagram
+/// ER, Venn, architecture, swimlanes, Cynefin, timeline, journey, block), plus an <c>extensions.md</c> exercising the non-diagram
 /// Markdig extensions (emphasis extras, abbreviations, alert blocks) and four <c>latex-math-*.md</c>
 /// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters
 /// and environments, fonts/styling, AMS symbols) — a supported construct typesets, an unsupported one
@@ -42,6 +42,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-cynefin.md",     Cynefin),
         SampleFile.Text("mermaid-timeline.md",    Timeline),
         SampleFile.Text("mermaid-journey.md",     Journey),
+        SampleFile.Text("mermaid-block.md",       Block),
         SampleFile.Text("extensions.md",          Extensions),
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
@@ -3557,6 +3558,67 @@ internal sealed class MarkdownSamples : ISampleSet
             section Enjoy
               Wait: 3: Me
               First sip: 5
+        ```
+        """;
+
+    private const string Block =
+        """
+        # Mermaid — Block diagram
+
+        A `block-beta` diagram places blocks on a grid you control: `columns N` sets the width, items fill
+        rows left to right, `id:N` spans columns, `space` leaves a cell empty, and `block:id … end` nests a
+        grid inside a block. Blocks take the flowchart bracket shapes, `id<["label"]>(right)` is a fat block
+        arrow, edges join any two items by id, and `style`/`classDef` colour individual blocks.
+
+        ## Architecture sketch
+
+        ```mermaid
+        block-beta
+          columns 3
+          Frontend blockArrowId6<[" "]>(right) Backend
+          space:2 down<[" "]>(down)
+          Disk left<[" "]>(left) Database[("Database")]
+
+          classDef front fill:#696,stroke:#333;
+          classDef back fill:#969,stroke:#333;
+          class Frontend front
+          class Backend,Database back
+        ```
+
+        ## Nested blocks and edges
+
+        ```mermaid
+        block-beta
+          columns 1
+          db(("DB"))
+          blockArrowId6<["&nbsp;&nbsp;&nbsp;"]>(down)
+          block:ID
+            A
+            B["A wide one in the middle"]
+            C
+          end
+          space
+          D
+          ID --> D
+          C --> D
+          style B fill:#969,stroke:#333,stroke-width:4px
+        ```
+
+        ## Shapes, widths and config
+
+        ```mermaid
+        ---
+        config:
+          block:
+            padding: 12
+        ---
+        block-beta
+          columns 4
+          a["Spans the whole row"]:4
+          b("round") c(["stadium"]) d[["subroutine"]] e[("cylinder")]
+          f(("circle")) g>"flag"] h{"rhombus"} i{{"hexagon"}}
+          j[/"parallelogram"/] k[\"alt"\] l[/"trapezoid"\] m[\"alt"/]
+          n((("double circle"))) both<["both"]>(x) updown<["up-down"]>(y) space
         ```
         """;
 }

@@ -530,6 +530,27 @@ journey
 
 ![A user journey with section bands, scored faces and actor dots](images/markdown/mermaid-journey.png)
 
+### Block diagram
+
+Blocks on a grid you place yourself: columns, spans, spaces, nested blocks, fat block arrows and edges by id.
+
+````markdown
+```mermaid
+block-beta
+  columns 3
+  Frontend blockArrowId6<[" "]>(right) Backend
+  space:2 down<[" "]>(down)
+  Disk left<[" "]>(left) Database[("Database")]
+
+  classDef front fill:#696,stroke:#333;
+  classDef back fill:#969,stroke:#333;
+  class Frontend front
+  class Backend,Database back
+```
+````
+
+![A block diagram with block arrows, a database cylinder and class-coloured blocks](images/markdown/mermaid-block.png)
+
 ---
 
 ## QR codes

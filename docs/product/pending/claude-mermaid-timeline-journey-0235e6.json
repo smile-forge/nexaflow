@@ -84,11 +84,54 @@
           }
         ]
       }
+    },
+    "block": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfBlockRenderer.cs",
+          "class": "WpfBlockRenderer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidBlockParser.cs",
+          "class": "MermaidBlockParser"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/block.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/DiagramParsersTests.cs",
+            "class": "DiagramParsersTests",
+            "method": "Block_ParsesRowsColumnsWidthsAndShapes"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/DiagramRendererTests.cs",
+            "class": "DiagramRendererTests",
+            "method": "Block_DispatchesToBlockRendererNotRawText"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
+    "block",
     "journey",
     "timeline"
   ]

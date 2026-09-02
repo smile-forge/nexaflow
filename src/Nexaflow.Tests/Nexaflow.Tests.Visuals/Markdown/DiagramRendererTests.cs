@@ -926,4 +926,80 @@ public class DiagramRendererTests
         var d = new MermaidJourneyParser().Parse("journey\n");
         Assert.IsNotNull(WpfJourneyRenderer.Render(d, MarkdownPalette.Dark));
     });
+
+    // ── Block diagram ─────────────────────────────────────────────────────
+
+    private const string BlockSrc =
+        """
+        block-beta
+          columns 3
+          Frontend blockArrowId6<[" "]>(right) Backend
+          space:2 down<[" "]>(down)
+          Disk left<[" "]>(left) Database[("Database")]
+
+          classDef front fill:#696,stroke:#333;
+          classDef back fill:#969,stroke:#333;
+          class Frontend front
+          class Backend,Database back
+        """;
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidBlockParser().Parse(BlockSrc);
+        Assert.IsInstanceOfType(WpfBlockRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_DispatchesToBlockRendererNotRawText() => UiThread.Run(() =>
+    {
+        var fe = DiagramRenderer.Render("mermaid", BlockSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        // The raw-source fallback wraps a TextBlock; the block renderer wraps a scrolling canvas.
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_NestedGroupsEdgesAndEveryShape_Render() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            title: Everything at once
+            config:
+              block:
+                padding: 12
+            ---
+            block-beta
+              columns 4
+              db(("DB")) blockArrowId6<["&nbsp;"]>(down) both<["x"]>(x) updown<["y"]>(y)
+              block:ID:2
+                A
+                B["A wide one in the middle"]
+                C
+              end
+              space D
+              b("round") c(["stadium"]) d[["subroutine"]] e[("cylinder")]
+              g>"flag"] h{"rhombus"} i{{"hexagon"}} n((("double circle")))
+              j[/"parallelogram"/] k[\"alt"\] l[/"trapezoid"\] m[\"alt"/]
+              ID --> D
+              C -- "label" --> D
+              A --- b
+              style B fill:#969,stroke:#333,stroke-width:4px,color:#fff,stroke-dasharray: 5 5
+            """;
+        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Light);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidBlockParser().Parse("block-beta\n");
+        Assert.IsNotNull(WpfBlockRenderer.Render(d, MarkdownPalette.Dark));
+    });
 }
