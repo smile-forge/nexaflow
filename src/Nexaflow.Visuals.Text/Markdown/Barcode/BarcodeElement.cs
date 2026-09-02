@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 
@@ -70,6 +71,18 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// <summary>Where a shift-arrow selection started, so extending it walks from there and not from the caret.</summary>
     private int? _keyAnchor;
 
+    /// <summary>Which string the text row was last laid out for — see <see cref="ShowsValue"/>.</summary>
+    private bool _showingValue;
+
+    /// <summary>
+    /// Windows' own caret rate. WPF does not surface <c>GetCaretBlinkTime</c>, and a P/Invoke for one
+    /// number is not worth the trouble; this is the default every version has shipped.
+    /// </summary>
+    private static readonly TimeSpan BlinkRate = TimeSpan.FromMilliseconds(530);
+
+    private DispatcherTimer? _blink;
+    private bool _caretVisible = true;
+
     public BarcodeElement(BarcodeBlock block, MarkdownPalette palette)
     {
         _block   = block;
@@ -84,6 +97,8 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         // separates nothing to the eye: a page of barcodes ran together into one field with bars in it.
         HorizontalAlignment = HorizontalAlignment.Left;
         Margin = new Thickness(0, 6, 0, 10);
+
+        Unloaded += (_, _) => StopBlinking();
 
         Encode();
     }
@@ -148,7 +163,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     {
         _selection.Clear();
         if (length > 0) _selection.Add((start, length));
-        InvalidateVisual();
+        Refresh();
     }
 
     void IEditableBlock.TakeCaretArriving(CaretArrival arrival)
@@ -163,7 +178,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         _keyAnchor = null;
         _selection.Clear();
-        InvalidateVisual();
+        Refresh();
     }
 
     /// <summary>
@@ -175,7 +190,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         _keyAnchor = null;
         _selection.Clear();
         InteractiveSelection.Release(this);
-        InvalidateVisual();
+        Refresh();
     }
 
     /// <summary>
@@ -194,7 +209,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         _keyAnchor = null;
         _selection.Clear();
         InteractiveSelection.Release(this);
-        InvalidateVisual();
+        Refresh();
     }
 
     // ── Pointer ───────────────────────────────────────────────────────────
@@ -206,7 +221,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         _dragAnchor = OffsetAt(pointInElement);
         _caret      = _dragAnchor.Value;
         _selection.Clear();
-        InvalidateVisual();
+        Refresh();
     }
 
     public void ExtendPointerSelect(Point pointInElement)
@@ -218,7 +233,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         if (here != anchor) _selection.Add((Math.Min(anchor, here), Math.Abs(here - anchor)));
 
         _caret = here;
-        InvalidateVisual();
+        Refresh();
     }
 
     public void EndPointerSelect() => _dragAnchor = null;
@@ -230,7 +245,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         _selection.Clear();
         if (_block.Value.Length > 0) _selection.Add((0, _block.Value.Length));
         _caret = _block.Value.Length;
-        InvalidateVisual();
+        Refresh();
         return true;
     }
 
@@ -362,7 +377,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         }
 
         _caret = next;
-        InvalidateVisual();
+        Refresh();
         return true;
     }
 
@@ -395,7 +410,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         Encode();
         InvalidateMeasure();
-        InvalidateVisual();
+        Refresh();
         ValueChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -441,11 +456,19 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     private void BuildLabel()
     {
         _runs.Clear();
+        _showingValue = ShowsValue;
         _caption = null;
 
         // What goes under a real barcode is what was encoded — several of these formats add a check
-        // digit. While the value will not encode there is nothing to show but what was typed.
-        string text = _pattern?.Text ?? _block.Value;
+        // digit, and the retail ones break the number into groups and set one of them outside the bars.
+        // While the value will not encode there is nothing to show but what was typed.
+        //
+        // Except while it is being typed into, when what is shown is the value itself. The two are
+        // different strings for most of these formats — an ISBN's value carries hyphens the symbol never
+        // prints, an EAN-13's gains a check digit it never typed — and a caret placed against one while
+        // it edits the other points at the wrong character, or at no character at all. It is the value
+        // that is being edited, so it is the value the reader is shown editing.
+        string text = ShowsValue ? _block.Value : _pattern?.Text ?? _block.Value;
 
         double barsWidth = PatternWidth * _block.BarWidth;
         double gap       = _block.FontSize * 0.35;   // between the bars and a digit set outside them
@@ -466,7 +489,9 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         _barsLeft  = _block.Margin + (content - (leftPad + barsWidth + rightPad)) / 2 + leftPad;
         _barsTop   = _block.Margin + captionHeight;
-        _guardDrop = LabelHeight * 0.75;
+        // Only under the grouped number, whose wells they make. Over the value they run through the
+        // middle of it, because the value is one run and there are no wells for them to be between.
+        _guardDrop = ShowsValue ? 0 : LabelHeight * 0.75;
 
         if (_caption is not null)
             _captionAt = new Point(_block.Margin + (content - _caption.Width) / 2, _block.Margin);
@@ -515,13 +540,84 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
+    /// Whether the text row is showing the value rather than the number the symbol prints.
+    /// <para>
+    /// Only while the reader is in it, and only when the two differ — which is most of the retail
+    /// family and none of the rest. A Code 128 prints exactly what was typed, so nothing changes under
+    /// the caret and there is no reason to swap anything out.
+    /// </para>
+    /// </summary>
+    private bool ShowsValue =>
+        (_caret is not null || _selection.Count > 0) && (_pattern?.Text ?? _block.Value) != _block.Value;
+
+    /// <summary>
     /// The text broken into the groups this symbology prints, or one group holding all of it — which is
-    /// what every format outside the retail family wants, and what a value that will not encode gets.
+    /// what every format outside the retail family wants, what a value that will not encode gets, and
+    /// what the value itself gets while it is being edited.
     /// </summary>
     private IReadOnlyList<BarcodeTextRun> Groups(string text) =>
-        _pattern?.TextRuns is { Count: > 0 } runs
+        !ShowsValue && _pattern?.TextRuns is { Count: > 0 } runs
             ? runs
             : [new BarcodeTextRun(text, 0, PatternWidth, BarcodeTextPlacement.Below)];
+
+    /// <summary>
+    /// Redraws, laying the text out again first when the caret arriving or leaving has changed which
+    /// string it shows.
+    /// <para>
+    /// A measure pass and not only a paint, because the two strings are different lengths: a value
+    /// swapped in for the number the symbol prints changes how wide the element wants to be, and a
+    /// repaint alone would draw the new text into the old box.
+    /// </para>
+    /// </summary>
+    private void Refresh()
+    {
+        if (_showingValue != ShowsValue)
+        {
+            BuildLabel();
+            InvalidateMeasure();
+        }
+
+        HoldCaretVisible();
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Blinks the caret, because a still one among a row of digits reads as part of the printing rather
+    /// than as an insertion point. It runs only while this barcode holds the caret and is torn down on
+    /// unload, so a page of barcodes leaves no timers behind.
+    /// </summary>
+    private void StartBlinking()
+    {
+        _caretVisible = true;
+        if (_blink is not null) { _blink.Stop(); _blink.Start(); return; }
+
+        _blink = new DispatcherTimer(BlinkRate, DispatcherPriority.Normal, OnBlink, Dispatcher);
+        _blink.Start();
+    }
+
+    private void StopBlinking()
+    {
+        _blink?.Stop();
+        _blink = null;
+        _caretVisible = true;
+    }
+
+    private void OnBlink(object? sender, EventArgs e)
+    {
+        if (_caret is null) { StopBlinking(); return; }
+
+        _caretVisible = !_caretVisible;
+        InvalidateVisual();
+    }
+
+    /// <summary>Shows the caret and restarts the cycle — it must never be mid-blink while you type.</summary>
+    private void HoldCaretVisible()
+    {
+        if (_caret is null) { StopBlinking(); return; }
+
+        _caretVisible = true;
+        StartBlinking();
+    }
 
     private double Width(IReadOnlyList<BarcodeTextRun> groups, BarcodeTextPlacement where, double gap)
     {
@@ -735,7 +831,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// </summary>
     private void DrawCaret(DrawingContext dc)
     {
-        if (_caret is not { } at) return;
+        if (_caret is not { } at || !_caretVisible) return;
 
         var edge = EdgeAt(at);
 

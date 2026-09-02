@@ -209,6 +209,64 @@ public class BarcodeInEditorTests
         StringAssert.Contains(editor.Markdown, "value: " + Value[3..], "and the source followed");
     });
 
+    [TestMethod]
+    public void EditingAPublicationActsOnTheValueAndNotOnWhatIsPrinted()
+    {
+        // An ISBN's value carries hyphens the symbol never prints, and the symbol carries a check digit
+        // the value never typed — so the two strings do not line up character for character. The caret
+        // was placed against the printed number, so a backspace deleted whatever happened to be at that
+        // offset in the value, which was nothing to do with where the reader could see the caret.
+        const string document = "before\n\n```barcode\nformat: ISBN\nvalue: 978-1-56581-231-4\n```\n\nafter";
+
+        UiThread.Run(() => MarkdownEditorHarness.Run(document, (editor, rtb) =>
+        {
+            EnterBarcodeAtTheEnd(editor, rtb);
+            MarkdownEditorHarness.RaiseKey(rtb, Key.Back);
+
+            Assert.AreEqual("978-1-56581-231-", Barcode(editor).Value, "the last character of the value went");
+            StringAssert.Contains(editor.Markdown, "value: 978-1-56581-231-");
+        }));
+    }
+
+    [TestMethod]
+    public void EveryCharacterOfTheValueIsReachableByArrowingThroughIt()
+    {
+        // UPC-E completes what it is given — a number system digit on the front, a check digit on the
+        // end — so what it prints is longer than what was typed. A caret walking the printed number ran
+        // past the ends of the value, which is what made deleting look like it was inventing characters.
+        const string value = "01234565";
+        const string document = "before\n\n```barcode\nformat: UPCE\nvalue: " + value + "\n```\n\nafter";
+
+        UiThread.Run(() => MarkdownEditorHarness.Run(document, (editor, rtb) =>
+        {
+            EnterBarcodeAtTheEnd(editor, rtb);
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                MarkdownEditorHarness.RaiseKey(rtb, Key.Left);
+                Assert.IsNotNull(editor.FocusedBlock, $"still inside the value after {i + 1} steps");
+            }
+
+            MarkdownEditorHarness.RaiseKey(rtb, Key.Left);
+            Assert.IsNull(editor.FocusedBlock, "and the step off the front hands the caret back");
+        }));
+    }
+
+    [TestMethod]
+    public void DeletingFromAUpcEShortensTheValueByExactlyOne()
+    {
+        const string document = "before\n\n```barcode\nformat: UPCE\nvalue: 01234565\n```\n\nafter";
+
+        UiThread.Run(() => MarkdownEditorHarness.Run(document, (editor, rtb) =>
+        {
+            EnterBarcodeAtTheEnd(editor, rtb);
+            MarkdownEditorHarness.RaiseKey(rtb, Key.Back);
+
+            Assert.AreEqual("0123456", Barcode(editor).Value);
+            StringAssert.Contains(editor.Markdown, "value: 0123456\n");
+        }));
+    }
+
     private static void InDocument(Action<InlineMarkdownEditor, RichTextBox> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Document, test));
 

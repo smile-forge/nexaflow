@@ -55,8 +55,11 @@ internal static class BarcodeTextLayout
 
             case BarcodeSymbology.Ean2:
             case BarcodeSymbology.Ean5:
-                // An add-on prints its digits over its own bars, never under them.
-                return ([new BarcodeTextRun(text, 0, modules, BarcodeTextPlacement.Above)], [], null);
+                // Nothing special. An add-on prints its digits above its bars only when it is standing beside a
+                // main symbol, where being above is what separates the two; asked for on its own it is an
+                // ordinary little barcode and prints them underneath like any other. Drawn above regardless,
+                // they landed on top of the bars and made the symbol unreadable.
+                return ([], [], null);
 
             case BarcodeSymbology.Isbn:
             case BarcodeSymbology.Issn:
