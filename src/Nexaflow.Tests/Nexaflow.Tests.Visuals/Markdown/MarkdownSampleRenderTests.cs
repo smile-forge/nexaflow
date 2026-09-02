@@ -5,6 +5,9 @@ using System.IO;
 using MdMarkdown = Markdig.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -183,5 +186,39 @@ public class MarkdownSampleRenderTests
 
         foreach (var block in doc)
             Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null");
+    });
+
+    /// <summary>
+    /// The <c>barcodes.md</c> reference: every <c>barcode</c> fence reaches the handler and draws.
+    ///
+    /// <para>
+    /// The doc deliberately ends with two blocks that cannot be drawn as asked — a value the format cannot
+    /// carry, and a format that does not exist — because those take different paths. The first stays a
+    /// barcode and is marked; the second falls back to its source. Both must produce an element, and
+    /// neither may take the document down.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void BarcodeSampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "barcodes.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        var fences = doc.OfType<FencedCodeBlock>()
+                        .Where(f => "barcode".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(fences.Count >= 23, $"expected the reference to show every format, found {fences.Count}");
+
+        foreach (var fence in fences)
+            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a barcode fence");
+
+        foreach (var block in doc)
+            Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null");
+
+        // That the reference ends with a value the format cannot carry and a format that does not exist is
+        // the point of it: both paths have to produce an element rather than take the document down, which
+        // the loop above has just established. Which element each produces is asserted where it belongs, in
+        // BarcodeElementTests.
     });
 }
