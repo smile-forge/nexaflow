@@ -36,6 +36,18 @@ public sealed class DiagramRenderOptions
 {
     public required MarkdownPalette Palette { get; init; }
 
+    /// <summary>
+    /// Where the source handed to the renderer sits inside the markdown block it was taken from.
+    /// <para>
+    /// A fenced block arrives here as its content — the fence lines stripped and the ends trimmed — so
+    /// an offset into it is not an offset into the block an editing host would splice back into. Only
+    /// the caller knows the difference, and a renderer whose element is editable adds this to whatever
+    /// it reports as its own <see cref="Editing.IEditableBlock.SourceStart"/>. Zero for a renderer that
+    /// was handed the block whole, which is why it is safe to ignore.
+    /// </para>
+    /// </summary>
+    public int SourceOffset { get; init; }
+
     /// <summary>In-app click handler for a node / class member carrying an <c>href</c>. Return true
     /// when handled; null means the host has no handler and no link affordance is drawn.</summary>
     public Func<string, bool>? OnNavigate { get; init; }

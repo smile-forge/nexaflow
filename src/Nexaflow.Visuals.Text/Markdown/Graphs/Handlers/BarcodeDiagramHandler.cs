@@ -30,8 +30,17 @@ public sealed class BarcodeDiagramHandler : IDiagramHandler
     public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
+    /// <summary>
+    /// Renders the block, rebasing the value's offset onto the markdown block the fence came from —
+    /// <see cref="DiagramRenderOptions.SourceOffset"/>. The parser is handed the fence's content and
+    /// reports offsets into that; an editing host splices into the whole block, fence lines and all, and
+    /// without the bias every edit would land a couple of lines early.
+    /// </summary>
     public FrameworkElement Render(string source, DiagramRenderOptions options)
-        => BarcodeBlockParser.TryParse(source, out var block, out string? error)
-            ? new BarcodeElement(block!, options.Palette)
-            : DiagramRenderer.ErrorElement(error!, source);
+    {
+        if (!BarcodeBlockParser.TryParse(source, out var block, out string? error))
+            return DiagramRenderer.ErrorElement(error!, source);
+
+        return new BarcodeElement(block!.At(block.ValueStart + options.SourceOffset), options.Palette);
+    }
 }

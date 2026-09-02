@@ -631,17 +631,17 @@ public partial class InlineMarkdownEditor : UserControl
             _dragArm = null;                    // a score drag must not become the RTB's copy-drag
             _pointerBlock = ib;
 
-            // A formula also takes the caret: unlike a score, it is something you type into, and the
-            // keys have to know where to go. Clicking any other kind of block gives the caret back.
-            if (ib is Latex.FormulaElement formula)
+            // A block that can be typed into also takes the caret: unlike a score, it is something you
+            // edit, and the keys have to know where to go. Clicking anything else gives the caret back.
+            if (ib is Editing.IEditableBlock editable)
             {
-                // The click is handled here, so nothing else will focus the editor — and without the
-                // keyboard the formula would draw a caret that no keystroke ever reached.
-                _rtb.Focus();
-                Keyboard.Focus(_rtb);
-                FocusFormula(formula);
+            // The click is handled here, so nothing else will focus the editor — and without the
+            // keyboard the block would draw a caret that no keystroke ever reached.
+            _rtb.Focus();
+            Keyboard.Focus(_rtb);
+            FocusBlock(editable);
             }
-            else BlurFormula();
+            else BlurBlock();
 
             ib.BeginPointerSelect(e.GetPosition(uie));
             // Capture to the RTB so the drag keeps flowing to our move/up handlers even when the pointer
@@ -654,7 +654,7 @@ public partial class InlineMarkdownEditor : UserControl
         // A plain click elsewhere on the page drops any active interactive-block (e.g. music) selection,
         // and takes the caret back out of whichever formula held it.
         InteractiveSelection.ClearActive();
-        BlurFormula();
+        BlurBlock();
 
         if (EditOnDoubleClick)
         {
@@ -859,7 +859,7 @@ public partial class InlineMarkdownEditor : UserControl
 
         // Read now rather than in the deferred insert: a drag's data object is only guaranteed for as
         // long as the drop is being handled.
-        var dropped = PastesAsFormula
+        var dropped = PastesIntoBlock
             ? AsFormula(MarkdownClipboard.ReadPlainText(data))
             : MarkdownClipboard.ReadBestMarkdown(data);
         if (string.IsNullOrEmpty(dropped)) return;
@@ -889,12 +889,13 @@ public partial class InlineMarkdownEditor : UserControl
 
         // A press and a release at that point: an embedded block owns where its own caret goes, and
         // this is the interface it already answers the pointer through.
-        if (InteractiveBlockAtPoint(pointInRtb) is Latex.FormulaElement formula)
+        if (InteractiveBlockAtPoint(pointInRtb) is Editing.IEditableBlock editable
+        && editable is UIElement element)
         {
-            FocusFormula(formula);
-            formula.BeginPointerSelect(_rtb.TranslatePoint(pointInRtb, formula));
-            formula.EndPointerSelect();
-            return;
+        FocusBlock(editable);
+        editable.BeginPointerSelect(_rtb.TranslatePoint(pointInRtb, element));
+        editable.EndPointerSelect();
+        return;
         }
 
         if (_rtb.GetPositionFromPoint(pointInRtb, snapToText: true) is { } position)
@@ -909,10 +910,16 @@ public partial class InlineMarkdownEditor : UserControl
     {
         if (string.IsNullOrEmpty(text)) return;
 
-        if (PastesAsFormula)
+        if (PastesIntoBlock)
         {
-            if (!PasteIntoFormula(text)) InsertMarkdownAtCaret(text);
-            return;
+        if (PasteIntoFormula(text)) return;
+
+        // Any other block takes it as the characters it is — typed in one at a time, exactly as if the
+        // reader had entered them, so a value that cannot hold them says so the same way either way.
+        if (BlockHandlesText(text)) return;
+
+        InsertMarkdownAtCaret(text);
+        return;
         }
 
         if (_active < 0)
@@ -1055,7 +1062,7 @@ public partial class InlineMarkdownEditor : UserControl
         bool hasSel = !_rtb.Selection.IsEmpty;
         _cutItem.IsEnabled   = hasSel && _active >= 0;
         _copyItem.IsEnabled  = true;                       // copies the selection, or the whole note
-        _pasteItem.IsEnabled = (_active >= 0 || _caretFormula is not null) && ClipboardHasContent();
+        _pasteItem.IsEnabled = (_active >= 0 || _caretBlock is not null) && ClipboardHasContent();
     }
 
     private static bool ClipboardHasContent()
@@ -1125,7 +1132,7 @@ public partial class InlineMarkdownEditor : UserControl
 
     private void DoPaste()
     {
-        if (_active < 0 && _caretFormula is null) return;
+        if (_active < 0 && _caretBlock is null) return;
         IDataObject? data;
         try { data = Clipboard.GetDataObject(); } catch { return; }
         if (data is null) return;
@@ -1135,7 +1142,7 @@ public partial class InlineMarkdownEditor : UserControl
         // fixed: pasting a formula from the menu still went through the clipboard's HTML flavour, so a
         // formula copied from a page that showed it as code arrived wrapped in a markdown fence — and a
         // backtick is an opening quote in TeX.
-        if (PastesAsFormula) { PasteAsFormula(data); return; }
+        if (PastesIntoBlock) { PasteIntoBlock(data); return; }
 
         if (ContentPasted?.Invoke(data) == true) return;
 
@@ -1150,7 +1157,7 @@ public partial class InlineMarkdownEditor : UserControl
     /// Whether what is pasted here belongs in a formula — one that holds the caret, or a surface whose
     /// whole content is one.
     /// </summary>
-    private bool PastesAsFormula => _caretFormula is not null || SingleFormula;
+    private bool PastesIntoBlock => _caretBlock is not null || SingleFormula;
 
     /// <summary>
     /// Puts the clipboard into the formula, the way typed text goes in rather than as a block beside it.
@@ -1161,7 +1168,7 @@ public partial class InlineMarkdownEditor : UserControl
     /// exists only for a paste landing before anything has taken the caret.
     /// </para>
     /// </summary>
-    private void PasteAsFormula(IDataObject data)
+    private void PasteIntoBlock(IDataObject data)
     {
         if (ContentPasted?.Invoke(data) == true) return;
         InsertPastedText(AsFormula(MarkdownClipboard.ReadPlainText(data)));
@@ -1221,7 +1228,7 @@ public partial class InlineMarkdownEditor : UserControl
 
         // A formula holding the caret takes the keystroke: it cannot be focused, so the editor types
         // into it on its behalf.
-        if (FormulaHandlesText(text)) { e.Handled = true; return; }
+        if (BlockHandlesText(text)) { e.Handled = true; return; }
 
         if (_active < 0)
         {
@@ -1259,7 +1266,7 @@ public partial class InlineMarkdownEditor : UserControl
 
         // Navigation and editing inside a formula come first — it holds the caret, so these keys are
         // not the document's until it hands them back (arrowing off an end, or emptying itself).
-        if (FormulaHandlesKey(e)) { e.Handled = true; return; }
+        if (BlockHandlesKey(e)) { e.Handled = true; return; }
 
         // …and an arrow that would step over a block which takes a caret steps into it instead.
         if (ArrowCrossesIntoBlock(e)) { e.Handled = true; return; }
@@ -1646,9 +1653,9 @@ public partial class InlineMarkdownEditor : UserControl
         var data = e.DataObject;
         e.CancelCommand();
 
-        if (PastesAsFormula)
+        if (PastesIntoBlock)
         {
-            Dispatcher.BeginInvoke(() => PasteAsFormula(data), DispatcherPriority.Background);
+            Dispatcher.BeginInvoke(() => PasteIntoBlock(data), DispatcherPriority.Background);
             return;
         }
 
@@ -1756,7 +1763,7 @@ public partial class InlineMarkdownEditor : UserControl
             if (element.Element is not Editing.IEditableBlock block) continue;
 
             // The caret's own formula is left alone: it is mid-edit and owns what is selected inside it.
-            if (ReferenceEquals(block, _caretFormula)) continue;
+            if (ReferenceEquals(block, _caretBlock)) continue;
 
             if (!selection.IsEmpty
                 && selection.Start.CompareTo(element.Container.ContentStart) <= 0
@@ -1928,8 +1935,8 @@ public partial class InlineMarkdownEditor : UserControl
         // The element drawing the caret is about to be replaced by an equivalent one. Where the caret
         // was is worth more than the object holding it — a rebuild the reader did not ask for (the tab
         // being shown, the host pushing the same text back) must not look like the caret vanishing.
-        var caretWas = _caretFormula?.Caret;
-        BlurFormula();
+        var caretWas = FocusedFormula?.Caret;
+        BlurBlock();
 
         int focal     = _active;                            // the block being left — keep it pinned across the rebuild
         double offset = _rtb.VerticalOffset;
@@ -1959,7 +1966,7 @@ public partial class InlineMarkdownEditor : UserControl
         if (EditAsSource || !SingleFormula) return;
         if (caretWas is null && !_rtb.IsKeyboardFocusWithin) return;
 
-        if (FocusFormulaAtCaret() && caretWas is { } at) _caretFormula!.TakeCaret(at);
+        if (FocusFormulaAtCaret() && caretWas is { } at) FocusedFormula!.TakeCaret(at);
     }
 
     /// <param name="anchorTopY">When set (a double-click entering edit), the screen-Y the activated block's
@@ -1974,7 +1981,7 @@ public partial class InlineMarkdownEditor : UserControl
 
         SyncNativeModel();                                  // entering source mode commits a Word-style edit
         ClearNativeSession();
-        BlurFormula();                                      // the element drawing the caret is about to go
+        BlurBlock();                                      // the element drawing the caret is about to go
         if (_blocks.Count == 0) _blocks.Add(string.Empty);
         index = Math.Clamp(index, 0, _blocks.Count - 1);
 

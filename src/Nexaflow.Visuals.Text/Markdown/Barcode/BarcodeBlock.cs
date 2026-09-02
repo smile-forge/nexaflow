@@ -72,4 +72,23 @@ public sealed class BarcodeBlock
         Background   = Background,
         Margin       = Margin,
     };
+
+    /// <summary>
+    /// The same block with the value's offset rebased onto a larger source — how a parser handed only a
+    /// fence's content reports a position an editing host can splice against.
+    /// </summary>
+    public BarcodeBlock At(int valueStart) => new()
+    {
+        Format       = Format,
+        Value        = Value,
+        ValueStart   = valueStart,
+        BarWidth     = BarWidth,
+        BarHeight    = BarHeight,
+        DisplayValue = DisplayValue,
+        FontSize     = FontSize,
+        TextAlign    = TextAlign,
+        LineColor    = LineColor,
+        Background   = Background,
+        Margin       = Margin,
+    };
 }

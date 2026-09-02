@@ -48,6 +48,9 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     private int? _caret;
     private int? _dragAnchor;
 
+    /// <summary>Where a shift-arrow selection started, so extending it walks from there and not from the caret.</summary>
+    private int? _keyAnchor;
+
     public BarcodeElement(BarcodeBlock block, MarkdownPalette palette)
     {
         _block   = block;
@@ -81,6 +84,22 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     // ── What the document around it needs ──────────────────────────────────
 
     string IEditableBlock.Source => _block.Value;
+
+    /// <summary>
+    /// The seam's name for <see cref="ValueChanged"/> — what a host driving every editable block alike
+    /// listens to, while the element's own event stays named after the thing that changed.
+    /// </summary>
+    event EventHandler? IEditableBlock.SourceChanged
+    {
+        add    => ValueChanged += value;
+        remove => ValueChanged -= value;
+    }
+
+    /// <summary>
+    /// The value's place inside the fenced block that produced it. Never negative: a barcode is always a
+    /// run inside its fence, never the whole of the block the way a <c>$$</c> formula can be.
+    /// </summary>
+    int IEditableBlock.SourceStart => _block.ValueStart;
 
     /// <summary>
     /// None. A layout tree earns itself where content has structure a caret must be told about — which
@@ -117,6 +136,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             ? _block.Value.Length
             : 0;
 
+        _keyAnchor = null;
         _selection.Clear();
         InvalidateVisual();
     }
@@ -126,7 +146,8 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// </summary>
     public void ReleaseCaret()
     {
-        _caret = null;
+        _caret     = null;
+        _keyAnchor = null;
         _selection.Clear();
         InteractiveSelection.Release(this);
         InvalidateVisual();
@@ -145,6 +166,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     {
         if (_selection.Count == 0) return;
 
+        _keyAnchor = null;
         _selection.Clear();
         InteractiveSelection.Release(this);
         InvalidateVisual();
@@ -265,8 +287,11 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         return true;
     }
 
-    /// <summary>Moves the caret, or reports that it ran off an end so the host can take it.</summary>
-    public void MoveCaret(bool forward)
+    /// <summary>
+    /// Moves the caret one character, extending the selection behind it when asked. False when it ran off
+    /// an end, having raised <see cref="Exited"/> so the host can put the caret in the text beside us.
+    /// </summary>
+    public bool MoveCaret(bool forward, bool extend = false)
     {
         int at = _caret ?? 0;
         int next = at + (forward ? 1 : -1);
@@ -274,13 +299,43 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         if (next < 0 || next > _block.Value.Length)
         {
             Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
-            return;
+            return false;
+        }
+
+        if (extend)
+        {
+            // The anchor is where extending started, not where the caret is now — that is what lets a
+            // selection be walked back to nothing and out the other side without a second gesture.
+            _keyAnchor ??= at;
+            SelectBetween(_keyAnchor.Value, next);
+        }
+        else
+        {
+            _keyAnchor = null;
+            _selection.Clear();
         }
 
         _caret = next;
-        _selection.Clear();
         InvalidateVisual();
+        return true;
     }
+
+    /// <summary>Selects the stretch between two caret offsets, whichever way round they came.</summary>
+    private void SelectBetween(int a, int b)
+    {
+        _selection.Clear();
+        if (a == b) return;
+
+        InteractiveSelection.Own(this);
+        _selection.Add((Math.Min(a, b), Math.Abs(a - b)));
+    }
+
+    /// <summary>
+    /// The seam's typing verb. The public <see cref="Type(char)"/> reports whether the key was ours to
+    /// take; by the time the host calls this it already knows we hold the caret, so there is nothing to
+    /// report back.
+    /// </summary>
+    void IEditableBlock.Type(char character) => Type(character);
 
     private void Replace(int start, int length, string with)
     {
@@ -289,6 +344,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         length = Math.Clamp(length, 0, value.Length - start);
 
         _block = _block.With(string.Concat(value.AsSpan(0, start), with, value.AsSpan(start + length)));
+        _keyAnchor = null;
         _selection.Clear();
 
         Encode();
