@@ -26,6 +26,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>venn-beta</c>        → <see cref="MermaidVennParser"/>    + <see cref="WpfVennRenderer"/>
+///   • <c>timeline</c>         → <see cref="MermaidTimelineParser"/> + <see cref="WpfTimelineRenderer"/>
+///   • <c>journey</c>          → <see cref="MermaidJourneyParser"/>  + <see cref="WpfJourneyRenderer"/>
 ///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///
 /// Adding a new Mermaid diagram type means adding a branch in <see cref="SubtypeOf"/>
@@ -53,6 +55,8 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidCynefinParser  CynefinParser  = new();
     private static readonly MermaidArchitectureParser ArchitectureParser = new();
     private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
+    private static readonly MermaidTimelineParser  TimelineParser = new();
+    private static readonly MermaidJourneyParser   JourneyParser  = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -88,6 +92,8 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Cynefin      => RenderCynefin(source, body, title, palette),
             MermaidSubtype.Architecture => RenderArchitecture(source, body, title, palette),
             MermaidSubtype.Swimlane     => RenderSwimlane(body, title, palette),
+            MermaidSubtype.Timeline     => RenderTimeline(source, body, title, palette),
+            MermaidSubtype.Journey      => RenderJourney(source, body, title, palette),
             MermaidSubtype.Graph       => RenderGraphFamily(FlowParser.Parse(body), source, title, options, 900),
             _                       => RenderSourceText(body),
         };
@@ -99,7 +105,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Cynefin, Architecture, Swimlane, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Cynefin, Architecture, Swimlane, Timeline, Journey, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -151,10 +157,9 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
                 "mindmap"                          => MermaidSubtype.Mindmap,
                 "kanban"                           => MermaidSubtype.Kanban,
                 "graph" or "flowchart"             => MermaidSubtype.Graph,
-                "timeline"
-                    or "journey"
-                    or "c4context"
-                    or "block-beta" => MermaidSubtype.Unknown,
+                "timeline"                         => MermaidSubtype.Timeline,
+                "journey"                          => MermaidSubtype.Journey,
+                "c4context" or "block-beta"        => MermaidSubtype.Unknown,
                 _                          => MermaidSubtype.Unknown,
             };
         }
@@ -296,6 +301,22 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var graph = SwimlaneParser.Parse(source);
         graph.Title = Titled(graph.Title, title);
         return WpfSwimlaneRenderer.Render(graph, palette);
+    }
+
+    private static FrameworkElement RenderTimeline(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = TimelineParser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);
+        diagram.Config = TimelineConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfTimelineRenderer.Render(diagram, palette);
+    }
+
+    private static FrameworkElement RenderJourney(string source, string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = JourneyParser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);
+        diagram.Config = JourneyConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return WpfJourneyRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>

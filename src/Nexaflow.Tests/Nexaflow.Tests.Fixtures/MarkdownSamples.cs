@@ -4,7 +4,7 @@ namespace Nexaflow.Tests.Fixtures;
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
 /// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey,
-/// ER, Venn, architecture, swimlanes, Cynefin), plus an <c>extensions.md</c> exercising the non-diagram
+/// ER, Venn, architecture, swimlanes, Cynefin, timeline, journey), plus an <c>extensions.md</c> exercising the non-diagram
 /// Markdig extensions (emphasis extras, abbreviations, alert blocks) and four <c>latex-math-*.md</c>
 /// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters
 /// and environments, fonts/styling, AMS symbols) — a supported construct typesets, an unsupported one
@@ -40,6 +40,8 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-architecture.md", Architecture),
         SampleFile.Text("mermaid-swimlane.md",    Swimlane),
         SampleFile.Text("mermaid-cynefin.md",     Cynefin),
+        SampleFile.Text("mermaid-timeline.md",    Timeline),
+        SampleFile.Text("mermaid-journey.md",     Journey),
         SampleFile.Text("extensions.md",          Extensions),
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
@@ -3453,4 +3455,108 @@ internal sealed class MarkdownSamples : ISampleSet
         password: hunter2
         ```
         """";
+
+    private const string Timeline =
+        """
+        # Mermaid — Timeline
+
+        A `timeline` lays periods along a spine with their events stacked beneath. Several events share a
+        period on one line (`2004 : Facebook : Google`) or on continuation lines starting with `:`, and
+        `<br>` breaks a label. With `section`s every period in a section shares that section's colour;
+        without them each period takes the next colour. `direction TD` turns the spine vertical.
+
+        ## History of social media
+
+        ```mermaid
+        timeline
+            title History of Social Media Platform
+            2002 : LinkedIn
+            2004 : Facebook
+                 : Google
+            2005 : YouTube
+            2006 : Twitter
+        ```
+
+        ## Sections, one colour, and theme slots
+
+        ```mermaid
+        ---
+        config:
+          timeline:
+            disableMulticolor: true
+          themeVariables:
+            cScale0: "#4e79a7"
+            cScaleLabel0: "#ffffff"
+        ---
+        timeline
+            title Timeline of Industrial Revolution
+            section 17th-20th century
+                Industry 1.0 : Machinery, Water power, Steam <br>power
+                Industry 2.0 : Electricity, Internal combustion engine, Mass production
+                Industry 3.0 : Electronics, Computers, Automation
+            section 21st century
+                Industry 4.0 : Internet, Robotics, Internet of Things
+                Industry 5.0 : Artificial intelligence, Big data, 3D printing
+        ```
+
+        ## Top-down
+
+        ```mermaid
+        timeline
+            direction TD
+            title Release train
+            section Q1
+                January : Kick-off : Planning
+                February : Alpha
+            section Q2
+                April : Beta
+                June : Launch
+        ```
+        """;
+
+    private const string Journey =
+        """
+        # Mermaid — User journey
+
+        A `journey` diagram walks through the steps of a task as sections of scored tasks
+        (`Task name: score: actor, actor`). Each score from 1 to 5 draws a face — sad, neutral or happy —
+        floating higher for a better experience, and every actor gets a colour shown in the legend and as a
+        dot on the tasks they take part in.
+
+        ## My working day
+
+        ```mermaid
+        journey
+            title My working day
+            section Go to work
+              Make tea: 5: Me
+              Go upstairs: 3: Me
+              Do work: 1: Me, Cat
+            section Go home
+              Go downstairs: 5: Me
+              Sit down: 5: Me
+        ```
+
+        ## With colours from the config
+
+        ```mermaid
+        ---
+        config:
+          journey:
+            width: 130
+            actorColours: ["#e15759", "#4e79a7", "#59a14f"]
+            sectionFills: ["#f28e2b", "#76b7b2"]
+        ---
+        journey
+            title Buying a coffee
+            Wake up: 2: Me
+            section Order
+              Queue: 2: Me
+              Order: 4: Me, Barista
+              Pay: 3: Me, Barista, Card reader
+            section Enjoy
+              Wait: 3: Me
+              First sip: 5
+        ```
+        """;
 }
