@@ -53,6 +53,9 @@ public static class WpfSequenceDiagramRenderer
         FrameStroke = Brushes.Gray, FrameTabBg = Brushes.DimGray, ActBg = Brushes.DimGray, OnAccent = Brushes.White;
     private static Color AccentColor = Colors.SteelBlue;
 
+    /// <summary>Element-card colours, used only by participants carrying a <see cref="SequenceParticipant.Card"/>.</summary>
+    private static C4Palette C4 = C4Palette.Resolve(MarkdownPalette.Dark);
+
     private static void SetTheme(MarkdownPalette p)
     {
         Bg = p.CodeBg; Border = p.CodeBorder; Title = p.Heading;
@@ -61,6 +64,7 @@ public static class WpfSequenceDiagramRenderer
         FrameTabBg = p.TableHeaderBg; ActBg = p.QuoteBg;
         AccentColor = (p.Accent as SolidColorBrush)?.Color ?? Colors.SteelBlue;
         OnAccent = DiagramBrushes.Luminance(AccentColor) > 140 ? Brushes.Black : Brushes.White;
+        C4 = C4Palette.Resolve(p);
     }
 
     private sealed class FragPlace
@@ -92,10 +96,7 @@ public static class WpfSequenceDiagramRenderer
         {
             var pt = diagram.Participants[i];
             index[pt.Id] = i;
-            var (tw, lines) = DiagramText.MeasureBlock(pt.Label, FontSize);
-            double glyphAllow = pt.Kind is ParticipantKind.Participant or ParticipantKind.Actor ? 0 : 24;
-            widths[i] = Math.Clamp(tw + BoxPadX * 2 + glyphAllow, BoxMinW, BoxMaxW);
-            headHs[i] = pt.Kind == ParticipantKind.Actor ? ActorH : Math.Max(BoxH, lines * LineH + 14);
+            (widths[i], headHs[i]) = MeasureHead(pt);
             if (!pt.Created) headerH = Math.Max(headerH, headHs[i]);   // created heads appear mid-diagram
         }
         centers[0] = Outer + widths[0] / 2;
@@ -129,7 +130,7 @@ public static class WpfSequenceDiagramRenderer
                 case SequenceMessage m:
                 {
                     bool self = string.Equals(m.FromId, m.ToId, StringComparison.Ordinal);
-                    int lines = m.Text.Length == 0 ? 0 : m.Text.Split('\n').Length;
+                    int lines = LabelLines(m);
                     double arrowY = y + Math.Max(0, lines) * LineH + 6;
                     double fromX = Cx(m.FromId), toX = Cx(m.ToId);
 
@@ -148,7 +149,10 @@ public static class WpfSequenceDiagramRenderer
                     yOf[m] = arrowY; lastMsgY = arrowY;
                     draw.Add(new MsgPlace(m, fromX, toX, headX, arrowY, self));
 
-                    double selfRight = fromX + LoopW + 6 + DiagramText.MeasureBlock(m.Text, MsgFontSize).w;
+                    double labelW = Math.Max(
+                        DiagramText.MeasureBlock(m.Text, MsgFontSize).w,
+                        HasTech(m) ? DiagramText.Measure($"[{m.Technology!.Trim()}]", MsgFontSize - 1) : 0);
+                    double selfRight = fromX + LoopW + 6 + labelW;
                     if (self) { TouchOpen(fromX, selfRight); maxRight = Math.Max(maxRight, selfRight + 12); }
                     else TouchOpen(Math.Min(fromX, toX), Math.Max(fromX, toX));
                     y = arrowY + (self ? SelfGap : MsgGap) + Math.Max(0, lines - 1) * LineH;
@@ -211,7 +215,9 @@ public static class WpfSequenceDiagramRenderer
 
         var bars = ComputeActivationBars(diagram, yOf, lifeBot);
 
-        double bandH   = headHs.Max();                 // tallest head — bottom band must fit it
+        // Tallest head — the bottom band must fit it. Zero when the foot boxes are off, which is
+        // the only thing that changes: nothing above this line consults it.
+        double bandH   = diagram.ShowFootBoxes ? headHs.Max() : 0;
         double canvasW = maxRight + Outer;
         double canvasH = botBoxY + bandH + Outer;
         var canvas = new Canvas { Width = canvasW, Height = canvasH, Background = Bg };
@@ -244,7 +250,7 @@ public static class WpfSequenceDiagramRenderer
 
             if (pt.Destroyed && destroyY.TryGetValue(pt.Id, out double dy))
                 DrawDestroyMark(canvas, centers[i], dy);
-            else
+            else if (diagram.ShowFootBoxes)
                 DrawHead(canvas, pt, centers[i], botBoxY, widths[i], headHs[i]);
         }
 
@@ -328,8 +334,35 @@ public static class WpfSequenceDiagramRenderer
 
     // ── Participant heads ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The footprint one lifeline's head needs. The whole timeline below is laid out from these two
+    /// numbers and nothing else, which is why a C4 element card can stand in for a box or an actor
+    /// without the rest of the renderer knowing: measure differently, draw differently, lay out the
+    /// same.
+    /// </summary>
+    private static (double w, double h) MeasureHead(SequenceParticipant p)
+    {
+        if (p.Card is C4ElementInfo card)
+        {
+            var (cw, ch) = C4ElementMetrics.Measure(p.Label, card);
+            return (Math.Clamp(cw, BoxMinW, C4ElementMetrics.MaxW), Math.Max(BoxH, ch));
+        }
+
+        var (tw, lines) = DiagramText.MeasureBlock(p.Label, FontSize);
+        double glyphAllow = p.Kind is ParticipantKind.Participant or ParticipantKind.Actor ? 0 : 24;
+        return (
+            Math.Clamp(tw + BoxPadX * 2 + glyphAllow, BoxMinW, BoxMaxW),
+            p.Kind == ParticipantKind.Actor ? ActorH : Math.Max(BoxH, lines * LineH + 14));
+    }
+
     private static void DrawHead(Canvas canvas, SequenceParticipant p, double cx, double topY, double w, double headH)
     {
+        if (p.Card is C4ElementInfo card)
+        {
+            canvas.Children.Add(C4ElementPainter.Build(p.Label, card, w, headH, C4).Place(cx - w / 2, topY));
+            return;
+        }
+
         if (p.Kind == ParticipantKind.Actor) { DrawActor(canvas, p.Label, cx, topY, headH); return; }
 
         double boxH = Math.Min(headH, Math.Max(BoxH, p.Label.Split('\n').Length * LineH + 14));
@@ -485,7 +518,7 @@ public static class WpfSequenceDiagramRenderer
         if (m.Number is int num) DrawNumberBullet(canvas, mp.FromX, mp.ArrowY, num);
 
         if (m.Text.Length > 0)
-            AddLabel(canvas, m.Text, (mp.FromX + mp.HeadX) / 2, mp.ArrowY - 4, center: true);
+            AddLabel(canvas, m.Text, m.Technology, (mp.FromX + mp.HeadX) / 2, mp.ArrowY - 4, center: true);
     }
 
     private static void DrawSelfMessage(Canvas canvas, MsgPlace mp)
@@ -501,7 +534,7 @@ public static class WpfSequenceDiagramRenderer
         DrawArrowHead(canvas, x, y + LoopH, right: false, m.Head);
         if (m.Number is int num) DrawNumberBullet(canvas, x, y, num);
 
-        if (m.Text.Length > 0) AddLabel(canvas, m.Text, x + LoopW + 6, y - 1, center: false);
+        if (m.Text.Length > 0 || HasTech(m)) AddLabel(canvas, m.Text, m.Technology, x + LoopW + 6, y - 1, center: false);
     }
 
     private static void DrawArrowHead(Canvas canvas, double tipX, double tipY, bool right, SequenceArrowHead head)
@@ -557,17 +590,44 @@ public static class WpfSequenceDiagramRenderer
         canvas.Children.Add(new Line { X1 = cx - r, Y1 = y + r, X2 = cx + r, Y2 = y - r, Stroke = Line, StrokeThickness = 2 });
     }
 
-    private static void AddLabel(Canvas canvas, string text, double x, double bottomY, bool center)
+    /// <summary>Rendered lines a message's label occupies — its text plus the technology line, if any.</summary>
+    private static int LabelLines(SequenceMessage m) =>
+        (m.Text.Length == 0 ? 0 : DiagramText.LineCount(m.Text)) + (HasTech(m) ? 1 : 0);
+
+    private static bool HasTech(SequenceMessage m) => !string.IsNullOrWhiteSpace(m.Technology);
+
+    /// <summary>
+    /// Draws a message label so its block sits directly above <paramref name="bottomY"/>. With no
+    /// technology this is a single TextBlock at exactly the position it always had; a C4 relationship
+    /// adds a smaller muted <c>[HTTPS]</c> line beneath it.
+    /// </summary>
+    private static void AddLabel(Canvas canvas, string text, string? technology, double x, double bottomY, bool center)
     {
         var (w, lines) = DiagramText.MeasureBlock(text, MsgFontSize);
+        bool hasTech = !string.IsNullOrWhiteSpace(technology);
+        int rows = lines + (hasTech ? 1 : 0);
+
         var tb = new TextBlock
         {
             Text = text, Foreground = Text, FontFamily = BodyFont, FontSize = MsgFontSize,
             Background = Bg, Padding = new Thickness(3, 0, 3, 0), TextAlignment = center ? TextAlignment.Center : TextAlignment.Left,
         };
         Canvas.SetLeft(tb, center ? x - (w + 6) / 2 : x);
-        Canvas.SetTop(tb, bottomY - lines * LineH);
+        Canvas.SetTop(tb, bottomY - rows * LineH);
         canvas.Children.Add(tb);
+
+        if (!hasTech) return;
+
+        string tech = $"[{technology!.Trim()}]";
+        double techW = DiagramText.Measure(tech, MsgFontSize - 1);
+        var tt = new TextBlock
+        {
+            Text = tech, Foreground = Muted, FontFamily = BodyFont, FontSize = MsgFontSize - 1,
+            Background = Bg, Padding = new Thickness(3, 0, 3, 0), TextAlignment = center ? TextAlignment.Center : TextAlignment.Left,
+        };
+        Canvas.SetLeft(tt, center ? x - (techW + 6) / 2 : x);
+        Canvas.SetTop(tt, bottomY - LineH);
+        canvas.Children.Add(tt);
     }
 
 }

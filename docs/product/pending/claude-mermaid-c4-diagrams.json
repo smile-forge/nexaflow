@@ -37,11 +37,31 @@
           }
         ]
       }
+    },
+    "c4-sequence": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs",
+          "class": "WpfSequenceDiagramRenderer",
+          "method": "MeasureHead"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SequenceSharedRendererTests.cs",
+            "class": "SequenceSharedRendererTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 4,
   "touched_nodes": [
-    "c4-elements"
+    "c4-elements",
+    "c4-sequence"
   ]
 }
