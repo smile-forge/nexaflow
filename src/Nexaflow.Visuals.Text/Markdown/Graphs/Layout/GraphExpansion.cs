@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 
@@ -284,6 +284,8 @@ public static class GraphExpansion
         StartLabel = e.StartLabel,
         EndLabel   = e.EndLabel,
         SubLabel   = e.SubLabel,
+        LineColor  = e.LineColor,
+        TextColor  = e.TextColor,
         Href       = e.Href,
         Tooltip    = e.Tooltip,
     };

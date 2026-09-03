@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,7 +17,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfTimelineRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double Outer      = 16;
     private const double TitleH     = 28;
@@ -124,7 +124,7 @@ public static class WpfTimelineRenderer
                 {
                     double left = X(i), right = X(j - 1) + ColW;
                     var c = rows[i].slot.Colour;
-                    canvas.Children.Add(new Rectangle { Width = right - left, Height = SectionH, RadiusX = 4, RadiusY = 4, Fill = Tint(c, 0x2A), Stroke = Tint(c, 0x80), StrokeThickness = 1 }.At(left, sectionTop));
+                    canvas.Children.Add(new Rectangle { Width = right - left, Height = SectionH, RadiusX = 4, RadiusY = 4, Fill = DiagramBrushes.Tint(c, 0x2A), Stroke = DiagramBrushes.Tint(c, 0x80), StrokeThickness = 1 }.At(left, sectionTop));
                     var name = MakeLabel(sec.Name, right - left - 2 * pad, 12, FontWeights.SemiBold, palette.Heading, TextAlignment.Center);
                     canvas.Children.Add(name.At(left + pad, sectionTop + (SectionH - name.DesiredSize.Height) / 2));
                 }
@@ -155,15 +155,15 @@ public static class WpfTimelineRenderer
             bottom = Math.Max(bottom, lastBottom);
 
             if (boxes.Count > 0)
-                canvas.Children.Add(new Line { X1 = cx, Y1 = periodTop + periodH, X2 = cx, Y2 = boxes[^1].top, Stroke = Tint(c, 0x80), StrokeThickness = 1.5 });
+                canvas.Children.Add(new Line { X1 = cx, Y1 = periodTop + periodH, X2 = cx, Y2 = boxes[^1].top, Stroke = DiagramBrushes.Tint(c, 0x80), StrokeThickness = 1.5 });
 
-            canvas.Children.Add(new Rectangle { Width = ColW, Height = periodH, RadiusX = 5, RadiusY = 5, Fill = Tint(c, 0xCC), Stroke = Solid(c), StrokeThickness = 1.2 }.At(x, periodTop));
+            canvas.Children.Add(new Rectangle { Width = ColW, Height = periodH, RadiusX = 5, RadiusY = 5, Fill = DiagramBrushes.Tint(c, 0xCC), Stroke = DiagramBrushes.Frozen(c), StrokeThickness = 1.2 }.At(x, periodTop));
             canvas.Children.Add(periodLabels[i].At(x + pad, periodTop + (periodH - periodLabels[i].DesiredSize.Height) / 2));
-            canvas.Children.Add(new Ellipse { Width = 2 * DotR, Height = 2 * DotR, Fill = Solid(c), Stroke = palette.CodeBg, StrokeThickness = 1 }.At(cx - DotR, periodTop + periodH - DotR));
+            canvas.Children.Add(new Ellipse { Width = 2 * DotR, Height = 2 * DotR, Fill = DiagramBrushes.Frozen(c), Stroke = palette.CodeBg, StrokeThickness = 1 }.At(cx - DotR, periodTop + periodH - DotR));
 
             foreach (var (label, top, h) in boxes)
             {
-                canvas.Children.Add(new Rectangle { Width = ColW, Height = h, RadiusX = 4, RadiusY = 4, Fill = Tint(c, 0x33), Stroke = Solid(c), StrokeThickness = 1 }.At(x, top));
+                canvas.Children.Add(new Rectangle { Width = ColW, Height = h, RadiusX = 4, RadiusY = 4, Fill = DiagramBrushes.Tint(c, 0x33), Stroke = DiagramBrushes.Frozen(c), StrokeThickness = 1 }.At(x, top));
                 canvas.Children.Add(label.At(x + pad, top + pad));
             }
         }
@@ -228,7 +228,7 @@ public static class WpfTimelineRenderer
                 {
                     double top = rowTops[i], bot = rowTops[j - 1] + rowHs[j - 1];
                     var c = rows[i].slot.Colour;
-                    canvas.Children.Add(new Rectangle { Width = SectionW, Height = bot - top, RadiusX = 4, RadiusY = 4, Fill = Tint(c, 0x2A), Stroke = Tint(c, 0x80), StrokeThickness = 1 }.At(Outer, top));
+                    canvas.Children.Add(new Rectangle { Width = SectionW, Height = bot - top, RadiusX = 4, RadiusY = 4, Fill = DiagramBrushes.Tint(c, 0x2A), Stroke = DiagramBrushes.Tint(c, 0x80), StrokeThickness = 1 }.At(Outer, top));
                     var name = MakeLabel(sec.Name, SectionW - 2 * pad, 12, FontWeights.SemiBold, palette.Heading, TextAlignment.Center);
                     canvas.Children.Add(name.At(Outer + pad, top + (bot - top - name.DesiredSize.Height) / 2));
                 }
@@ -250,17 +250,17 @@ public static class WpfTimelineRenderer
             if (evs.Count > 0)
             {
                 double lastLeft = eventsX + (evs.Count - 1) * (ColW + EventGap);
-                canvas.Children.Add(new Line { X1 = periodX + ColW, Y1 = cy, X2 = lastLeft, Y2 = cy, Stroke = Tint(c, 0x80), StrokeThickness = 1.5 });
+                canvas.Children.Add(new Line { X1 = periodX + ColW, Y1 = cy, X2 = lastLeft, Y2 = cy, Stroke = DiagramBrushes.Tint(c, 0x80), StrokeThickness = 1.5 });
             }
 
-            canvas.Children.Add(new Rectangle { Width = ColW, Height = h, RadiusX = 5, RadiusY = 5, Fill = Tint(c, 0xCC), Stroke = Solid(c), StrokeThickness = 1.2 }.At(periodX, top));
+            canvas.Children.Add(new Rectangle { Width = ColW, Height = h, RadiusX = 5, RadiusY = 5, Fill = DiagramBrushes.Tint(c, 0xCC), Stroke = DiagramBrushes.Frozen(c), StrokeThickness = 1.2 }.At(periodX, top));
             canvas.Children.Add(periodLabels[i].At(periodX + pad, top + (h - periodLabels[i].DesiredSize.Height) / 2));
-            canvas.Children.Add(new Ellipse { Width = 2 * DotR, Height = 2 * DotR, Fill = Solid(c), Stroke = palette.CodeBg, StrokeThickness = 1 }.At(periodX + ColW - DotR, cy - DotR));
+            canvas.Children.Add(new Ellipse { Width = 2 * DotR, Height = 2 * DotR, Fill = DiagramBrushes.Frozen(c), Stroke = palette.CodeBg, StrokeThickness = 1 }.At(periodX + ColW - DotR, cy - DotR));
 
             double ex = eventsX;
             foreach (var (label, eh) in evs)
             {
-                canvas.Children.Add(new Rectangle { Width = ColW, Height = eh, RadiusX = 4, RadiusY = 4, Fill = Tint(c, 0x33), Stroke = Solid(c), StrokeThickness = 1 }.At(ex, cy - eh / 2));
+                canvas.Children.Add(new Rectangle { Width = ColW, Height = eh, RadiusX = 4, RadiusY = 4, Fill = DiagramBrushes.Tint(c, 0x33), Stroke = DiagramBrushes.Frozen(c), StrokeThickness = 1 }.At(ex, cy - eh / 2));
                 canvas.Children.Add(label.At(ex + pad, cy - eh / 2 + pad));
                 ex += ColW + EventGap;
             }
@@ -276,7 +276,7 @@ public static class WpfTimelineRenderer
 
     private static void AddTitle(Canvas canvas, string title, MarkdownPalette palette, double canvasW)
     {
-        double tw = MeasureText(title, 15);
+        double tw = DiagramText.Measure(title, 15);
         canvas.Children.Add(new TextBlock { Text = title, Foreground = palette.Heading, FontFamily = BodyFont, FontSize = 15, FontWeight = FontWeights.SemiBold }.At((canvasW - tw) / 2, Outer - 2));
     }
 
@@ -292,20 +292,12 @@ public static class WpfTimelineRenderer
         return tb;
     }
 
-    private static Brush Tint(Color c, byte a) { var b = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B)); b.Freeze(); return b; }
-    private static Brush Solid(Color c)        { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     /// <summary>Readable text colour over a tinted fill of colour <paramref name="c"/>.</summary>
     private static Brush OnColor(Color c, byte a)
     {
         double lum = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) * (a / 255.0);
-        return lum > 110 ? Solid(Colors.Black) : Solid(Colors.White);
+        return lum > 110 ? DiagramBrushes.Frozen(Colors.Black) : DiagramBrushes.Frozen(Colors.White);
     }
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 }

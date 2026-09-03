@@ -1,4 +1,4 @@
-using Nexaflow.Tests.Fixtures;
+﻿using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Graphs;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -223,6 +224,66 @@ public class C4ProjectionTests
             """);
         Assert.AreEqual(EdgeStyle.Dotted, g.Edges.Single().Style);
     }
+
+    [TestMethod]
+    [CoversNode("c4-styling")]
+    public void Relationships_ColoursReachTheEdge()
+    {
+        var g = Project("""
+            C4Container
+            AddRelTag("async", $textColor="#0f0", $lineColor="#f00", $lineStyle="DottedLine")
+            Rel(a, b, "Publishes", $tags="async")
+            Rel(c, d, "Direct")
+            UpdateRelStyle(c, d, $textColor="#00f", $lineColor="#00f")
+            """);
+        var tagged = g.Edges[0];
+        Assert.AreEqual("#f00", tagged.LineColor);
+        Assert.AreEqual("#0f0", tagged.TextColor);
+        Assert.AreEqual(EdgeStyle.Dotted, tagged.Style);
+
+        var byPair = g.Edges[1];
+        Assert.AreEqual("#00f", byPair.LineColor);
+        Assert.AreEqual("#00f", byPair.TextColor);
+    }
+
+    [TestMethod]
+    [CoversNode("c4-styling")]
+    public void EdgeColours_SurviveTheExpansionCopy()
+    {
+        var projected = Project("""
+            C4Container
+            Container(a, "A")
+            Container(b, "B")
+            Rel(a, b, "Calls")
+            UpdateRelStyle(a, b, $lineColor="#f00", $textColor="#0f0")
+            """);
+        var view = GraphExpansion.Apply(projected, null);
+        Assert.AreEqual("#f00", view.Edges.Single().LineColor);
+        Assert.AreEqual("#0f0", view.Edges.Single().TextColor);
+    }
+
+    [TestMethod]
+    [TestCategory("UI")]
+    [CoversNode("c4-styling")]
+    public void Render_EdgeLineColourIsUsed() => UiThread.Run(() =>
+    {
+        const string body = """
+            C4Container
+            Container(a, "A")
+            Container(b, "B")
+            Rel(a, b, "Calls")
+            """;
+        var plain   = WpfGraphRenderer.RenderCanvas(SugiyamaLayout.Compute(Project(body), 900), MarkdownPalette.Dark);
+        var colored = WpfGraphRenderer.RenderCanvas(
+            SugiyamaLayout.Compute(Project(body + "\nUpdateRelStyle(a, b, $lineColor=\"#ff0000\")\n"), 900),
+            MarkdownPalette.Dark);
+
+        static System.Windows.Media.Color StrokeOf(Canvas c) =>
+            DiagramBrushes.ColorOf(c.Children.OfType<System.Windows.Shapes.Path>().First().Stroke, Colors.Transparent);
+
+        Assert.AreNotEqual(StrokeOf(plain), StrokeOf(colored));
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), StrokeOf(colored));
+    });
 
     [TestMethod]
     [CoversNode("c4-relationships")]

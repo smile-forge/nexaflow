@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 
@@ -202,6 +202,8 @@ public static class C4GraphProjector
                 LineStyle = byPair.LineStyle ?? style.LineStyle,
             };
         if (style.LineStyle is EdgeStyle ls) edge.Style = ls;
+        edge.LineColor = style.LineColor;
+        edge.TextColor = style.TextColor;
     }
 
     /// <summary>The edge's first line: the label, prefixed with its number when the diagram counts.</summary>

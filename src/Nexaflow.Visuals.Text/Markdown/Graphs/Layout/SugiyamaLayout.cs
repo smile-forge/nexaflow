@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 
@@ -279,6 +279,8 @@ public static class SugiyamaLayout
                 var levelEdge = level.AddEdge(s, t, e.Label, e.Style, e.Arrow);
                 levelEdge.StartArrow = e.StartArrow;
                 levelEdge.SubLabel   = e.SubLabel;
+                levelEdge.LineColor  = e.LineColor;
+                levelEdge.TextColor  = e.TextColor;
                 levelEdge.Href       = e.Href;
                 levelEdge.Tooltip    = e.Tooltip;
             }

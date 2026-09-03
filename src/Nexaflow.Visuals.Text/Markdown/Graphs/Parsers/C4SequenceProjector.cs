@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 
@@ -131,13 +131,29 @@ public static class C4SequenceProjector
         if (rel.Description is { Length: > 0 } descr && descr != text)
             text = text.Length > 0 ? $"{text}\n{descr}" : descr;
 
+        // Same resolution order as the structural projector: a tag first, then a style naming this
+        // exact pair of endpoints.
+        var style = new C4RelStyle();
+        foreach (var tag in rel.Tags)
+            if (d.RelTags.TryGetValue(tag, out var byTag))
+                style = new C4RelStyle { TextColor = byTag.TextColor, LineColor = byTag.LineColor, LineStyle = byTag.LineStyle };
+        if (d.RelStyles.TryGetValue((rel.From, rel.To), out var byPair))
+            style = new C4RelStyle
+            {
+                TextColor = byPair.TextColor ?? style.TextColor,
+                LineColor = byPair.LineColor ?? style.LineColor,
+                LineStyle = byPair.LineStyle ?? style.LineStyle,
+            };
+
         diagram.Items.Add(new SequenceMessage
         {
             FromId = from,
             ToId = to,
             Text = text,
             Technology = rel.Technology,
-            Line = SequenceLineStyle.Solid,
+            LineColor = style.LineColor,
+            TextColor = style.TextColor,
+            Line = style.LineStyle is EdgeStyle.Dashed or EdgeStyle.Dotted ? SequenceLineStyle.Dashed : SequenceLineStyle.Solid,
             Head = SequenceArrowHead.Filled,
             Bidirectional = rel.Bidirectional,
             // An explicit $index wins; otherwise the diagram counts its own messages, so

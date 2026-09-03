@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfCynefinRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double Outer    = 16;
     private const double TitleH   = 28;
@@ -202,7 +202,7 @@ public static class WpfCynefinRenderer
 
         if (!string.IsNullOrWhiteSpace(t.Label))
         {
-            double w = MeasureText(t.Label, 10);
+            double w = DiagramText.Measure(t.Label, 10);
             AddText(canvas, t.Label, textBrush, (fx + tx) / 2 - w / 2, (fy + ty) / 2 - 7, semibold: false, size: 10);
         }
     }
@@ -266,7 +266,7 @@ public static class WpfCynefinRenderer
     private static void AddCentredText(Canvas canvas, string text, Brush brush, double cx, double top, bool semibold, double size)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
-        double w = MeasureText(text, size);
+        double w = DiagramText.Measure(text, size);
         AddText(canvas, text, brush, cx - w / 2, top, semibold, size);
     }
 
@@ -299,14 +299,6 @@ public static class WpfCynefinRenderer
         canvas.Children.Add(new Path { Data = geo, Stroke = brush, StrokeThickness = 1.3 });
     }
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(
-            text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-            fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 
     /// <summary>A translucent tint of a series colour for a domain background.</summary>
     private static Brush Tint(IReadOnlyList<Brush> series, int idx)

@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 /// <summary>Line texture of a sequence message (solid <c>-&gt;</c> vs. dashed <c>--&gt;</c>).</summary>
 public enum SequenceLineStyle { Solid, Dashed }
@@ -63,6 +63,12 @@ public sealed class SequenceMessage : SequenceItem
     /// <summary>The <c>$techn</c> of a C4 relationship, drawn as a smaller muted <c>[HTTPS]</c> line
     /// under the message text. Null on a native message, which then keeps its single label line.</summary>
     public string? Technology    { get; set; }
+
+    /// <summary>Explicit arrow colour (a C4 <c>UpdateRelStyle</c>/<c>AddRelTag</c>); null keeps the theme's.</summary>
+    public string? LineColor     { get; set; }
+
+    /// <summary>Explicit label colour; null keeps the theme's.</summary>
+    public string? TextColor     { get; set; }
 }
 
 /// <summary>A free-floating note beside, or spanning, one or more lifelines.</summary>

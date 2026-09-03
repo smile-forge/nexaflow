@@ -507,44 +507,50 @@ public static class WpfSequenceDiagramRenderer
 
     // ── Messages ──────────────────────────────────────────────────────────────
 
+    /// <summary>A message's own line colour, or the theme's when it has none.</summary>
+    private static Brush InkOf(SequenceMessage m) =>
+        DiagramBrushes.ParseCss(m.LineColor) is System.Windows.Media.Color c ? DiagramBrushes.Frozen(c) : Line;
+
     private static void DrawMessage(Canvas canvas, MsgPlace mp)
     {
         var m = mp.M;
+        var ink = InkOf(m);
         bool right = mp.HeadX >= mp.FromX;
         double tipX = mp.HeadX + (right ? -1 : 1) * 0.5;
         double startX = mp.FromX + (m.Bidirectional ? (right ? ArrowLen : -ArrowLen) : 0);
 
-        var seg = new Line { X1 = startX, Y1 = mp.ArrowY, X2 = tipX, Y2 = mp.ArrowY, Stroke = Line, StrokeThickness = 1.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
+        var seg = new Line { X1 = startX, Y1 = mp.ArrowY, X2 = tipX, Y2 = mp.ArrowY, Stroke = ink, StrokeThickness = 1.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
         if (m.Line == SequenceLineStyle.Dashed) seg.StrokeDashArray = new DoubleCollection([5, 3]);
         canvas.Children.Add(seg);
 
-        DrawArrowHead(canvas, mp.HeadX, mp.ArrowY, right, m.Head);
-        if (m.Bidirectional) DrawArrowHead(canvas, mp.FromX, mp.ArrowY, !right, m.Head);
-        if (m.DotSource) DrawDot(canvas, mp.FromX, mp.ArrowY);
-        if (m.DotTarget) DrawDot(canvas, mp.HeadX, mp.ArrowY);
+        DrawArrowHead(canvas, mp.HeadX, mp.ArrowY, right, m.Head, ink);
+        if (m.Bidirectional) DrawArrowHead(canvas, mp.FromX, mp.ArrowY, !right, m.Head, ink);
+        if (m.DotSource) DrawDot(canvas, mp.FromX, mp.ArrowY, ink);
+        if (m.DotTarget) DrawDot(canvas, mp.HeadX, mp.ArrowY, ink);
         if (m.Number is int num) DrawNumberBullet(canvas, mp.FromX, mp.ArrowY, num);
 
         if (m.Text.Length > 0)
-            AddLabel(canvas, m.Text, m.Technology, (mp.FromX + mp.HeadX) / 2, mp.ArrowY - 4, center: true);
+            AddLabel(canvas, m.Text, m.Technology, m.TextColor, (mp.FromX + mp.HeadX) / 2, mp.ArrowY - 4, center: true);
     }
 
     private static void DrawSelfMessage(Canvas canvas, MsgPlace mp)
     {
         var m = mp.M; double x = mp.FromX, y = mp.ArrowY;
+        var ink = InkOf(m);
         var fig = new PathFigure { StartPoint = new Point(x, y), IsFilled = false };
         fig.Segments.Add(new LineSegment(new Point(x + LoopW, y), true));
         fig.Segments.Add(new LineSegment(new Point(x + LoopW, y + LoopH), true));
         fig.Segments.Add(new LineSegment(new Point(x, y + LoopH), true));
-        var path = new Path { Data = new PathGeometry([fig]), Stroke = Line, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round };
+        var path = new Path { Data = new PathGeometry([fig]), Stroke = ink, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round };
         if (m.Line == SequenceLineStyle.Dashed) path.StrokeDashArray = new DoubleCollection([5, 3]);
         canvas.Children.Add(path);
-        DrawArrowHead(canvas, x, y + LoopH, right: false, m.Head);
+        DrawArrowHead(canvas, x, y + LoopH, right: false, m.Head, ink);
         if (m.Number is int num) DrawNumberBullet(canvas, x, y, num);
 
-        if (m.Text.Length > 0 || HasTech(m)) AddLabel(canvas, m.Text, m.Technology, x + LoopW + 6, y - 1, center: false);
+        if (m.Text.Length > 0 || HasTech(m)) AddLabel(canvas, m.Text, m.Technology, m.TextColor, x + LoopW + 6, y - 1, center: false);
     }
 
-    private static void DrawArrowHead(Canvas canvas, double tipX, double tipY, bool right, SequenceArrowHead head)
+    private static void DrawArrowHead(Canvas canvas, double tipX, double tipY, bool right, SequenceArrowHead head, Brush ink)
     {
         if (head == SequenceArrowHead.None) return;
         double dx = right ? -ArrowLen : ArrowLen;
@@ -552,23 +558,23 @@ public static class WpfSequenceDiagramRenderer
         switch (head)
         {
             case SequenceArrowHead.Filled:
-                canvas.Children.Add(new Polygon { Points = new PointCollection([tip, top, bot]), Fill = Line, Stroke = Line, StrokeThickness = 0.5 });
+                canvas.Children.Add(new Polygon { Points = new PointCollection([tip, top, bot]), Fill = ink, Stroke = ink, StrokeThickness = 0.5 });
                 break;
             case SequenceArrowHead.Open:
-                canvas.Children.Add(new Polyline { Points = new PointCollection([top, tip, bot]), Stroke = Line, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round });
+                canvas.Children.Add(new Polyline { Points = new PointCollection([top, tip, bot]), Stroke = ink, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round });
                 break;
             case SequenceArrowHead.Cross:
                 const double cr = 4.5;
-                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY - cr, X2 = tipX + cr, Y2 = tipY + cr, Stroke = Line, StrokeThickness = 1.4 });
-                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY + cr, X2 = tipX + cr, Y2 = tipY - cr, Stroke = Line, StrokeThickness = 1.4 });
+                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY - cr, X2 = tipX + cr, Y2 = tipY + cr, Stroke = ink, StrokeThickness = 1.4 });
+                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY + cr, X2 = tipX + cr, Y2 = tipY - cr, Stroke = ink, StrokeThickness = 1.4 });
                 break;
         }
     }
 
-    private static void DrawDot(Canvas canvas, double x, double y)
+    private static void DrawDot(Canvas canvas, double x, double y, Brush ink)
     {
         const double r = 3.6;
-        canvas.Children.Add(new Ellipse { Width = r * 2, Height = r * 2, Fill = Line }.Place(x - r, y - r));
+        canvas.Children.Add(new Ellipse { Width = r * 2, Height = r * 2, Fill = ink }.Place(x - r, y - r));
     }
 
     private static void DrawNumberBullet(Canvas canvas, double x, double y, int number)
@@ -608,15 +614,16 @@ public static class WpfSequenceDiagramRenderer
     /// technology this is a single TextBlock at exactly the position it always had; a C4 relationship
     /// adds a smaller muted <c>[HTTPS]</c> line beneath it.
     /// </summary>
-    private static void AddLabel(Canvas canvas, string text, string? technology, double x, double bottomY, bool center)
+    private static void AddLabel(Canvas canvas, string text, string? technology, string? textColor, double x, double bottomY, bool center)
     {
         var (w, lines) = DiagramText.MeasureBlock(text, MsgFontSize);
         bool hasTech = !string.IsNullOrWhiteSpace(technology);
+        Brush ink = DiagramBrushes.ParseCss(textColor) is System.Windows.Media.Color tc ? DiagramBrushes.Frozen(tc) : Text;
         int rows = lines + (hasTech ? 1 : 0);
 
         var tb = new TextBlock
         {
-            Text = text, Foreground = Text, FontFamily = BodyFont, FontSize = MsgFontSize,
+            Text = text, Foreground = ink, FontFamily = BodyFont, FontSize = MsgFontSize,
             Background = Bg, Padding = new Thickness(3, 0, 3, 0), TextAlignment = center ? TextAlignment.Center : TextAlignment.Left,
         };
         Canvas.SetLeft(tb, center ? x - (w + 6) / 2 : x);

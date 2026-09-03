@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using System.Globalization;
 using System.Text;
 
@@ -100,8 +100,39 @@ public static class SvgGraphRenderer
             }
         }
 
-        // Label
+        // Label. A C4 card carries more than a name, so it writes its own rows; every other shape
+        // takes the single centred label.
+        if (ln.Source is { Shape: NodeShape.C4Element, C4: not null } c4Node)
+        {
+            RenderC4Label(sb, ln, c4Node.C4!, text);
+            return;
+        }
+
         sb.AppendLine($"""  <text x="{F(tx)}" y="{F(ty)}" text-anchor="middle" font-family="Segoe UI,Arial" font-size="12" fill="{TextColor}">{text}</text>""");
+    }
+
+    /// <summary>
+    /// The three rows of a C4 element card. The SVG renderer draws the card as the default rectangle
+    /// — it has no geometry for the person and cylinder outlines — but writing only the title would
+    /// lose the stereotype and description, which is most of what a C4 diagram says.
+    /// </summary>
+    private static void RenderC4Label(StringBuilder sb, LayoutNode ln, C4ElementInfo info, string title)
+    {
+        double y = ln.Y - ln.Height / 2 + 18;
+        sb.AppendLine($"""  <text x="{F(ln.X)}" y="{F(y)}" text-anchor="middle" font-family="Segoe UI,Arial" font-size="12" font-weight="600" fill="{TextColor}">{title}</text>""");
+
+        string stereotype = info.Stereotype();
+        if (stereotype.Length > 0)
+        {
+            y += 14;
+            sb.AppendLine($"""  <text x="{F(ln.X)}" y="{F(y)}" text-anchor="middle" font-family="Segoe UI,Arial" font-size="10" fill="{LabelColor}">{Esc(stereotype)}</text>""");
+        }
+
+        if (!string.IsNullOrWhiteSpace(info.Description))
+        {
+            y += 15;
+            sb.AppendLine($"""  <text x="{F(ln.X)}" y="{F(y)}" text-anchor="middle" font-family="Segoe UI,Arial" font-size="10" fill="{LabelColor}">{Esc(info.Description!)}</text>""");
+        }
     }
 
     // ── Edge rendering ─────────────────────────────────────────────────────

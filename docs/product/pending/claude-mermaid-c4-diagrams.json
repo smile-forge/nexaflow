@@ -26,6 +26,11 @@
             "Rule: a feature never hard-codes a colour",
             "Diagram tokens (markdown)"
           ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/DiagramText.cs",
+          "class": "DiagramText"
         }
       ],
       "concerns": {
@@ -159,6 +164,13 @@
       }
     },
     "c4-styling": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4LegendPainter.cs",
+          "class": "C4LegendPainter"
+        }
+      ],
       "concerns": {
         "tests": [
           {
@@ -172,7 +184,7 @@
     }
   },
   "is_empty": false,
-  "changed_sets": 11,
+  "changed_sets": 12,
   "touched_nodes": [
     "c4",
     "c4-boundaries",

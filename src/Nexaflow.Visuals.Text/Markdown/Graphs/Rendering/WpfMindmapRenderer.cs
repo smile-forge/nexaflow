@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,7 +15,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfMindmapRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double LevelGap = 44;
     private const double VGap     = 16;
@@ -67,7 +67,7 @@ public static class WpfMindmapRenderer
         // 3. title
         if (hasTitle)
         {
-            double tw = MeasureText(map.Title, 15);
+            double tw = DiagramText.Measure(map.Title, 15);
             canvas.Children.Add(new TextBlock { Text = map.Title, Foreground = RootBorder, FontFamily = BodyFont, FontSize = 15, FontWeight = FontWeights.SemiBold }.At((canvasW - tw) / 2, Outer - 2));
         }
 
@@ -209,7 +209,7 @@ public static class WpfMindmapRenderer
     {
         Brush color = ColorOf(n);
         Color c = (color as SolidColorBrush)?.Color ?? RootColor;
-        Brush fill = Tint(c, n.Parent is null ? (byte)0x3A : (byte)0x22);
+        Brush fill = DiagramBrushes.Tint(c, n.Parent is null ? (byte)0x3A : (byte)0x22);
         double left = n.X - n.W / 2, top = n.Y - n.H / 2;
 
         switch (n.Shape)
@@ -277,20 +277,13 @@ public static class WpfMindmapRenderer
 
     // ── Colour & text helpers ─────────────────────────────────────────────────
 
-    private static Brush Tint(Color c, byte a) { var b = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B)); b.Freeze(); return b; }
 
     private static (double w, int lines) MeasureBlock(string text)
     {
         var parts = text.Split('\n');
         double w = 0;
-        foreach (var p in parts) w = Math.Max(w, MeasureText(p, 12.5));
+        foreach (var p in parts) w = Math.Max(w, DiagramText.Measure(p, 12.5));
         return (w, parts.Length);
     }
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 }

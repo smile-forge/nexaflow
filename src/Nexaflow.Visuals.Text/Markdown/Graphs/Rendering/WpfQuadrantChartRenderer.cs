@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,7 +17,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfQuadrantChartRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     // ── Geometry constants ─────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ public static class WpfQuadrantChartRenderer
             canvas.Children.Add(dot);
 
             // Label — to the right of the dot, flipped left if it would overflow the plot.
-            double labelW = MeasureText(p.Label, 11);
+            double labelW = DiagramText.Measure(p.Label, 11);
             bool flip = px + r + 4 + labelW > plotLeft + PlotSize;
             var lbl = new TextBlock
             {
@@ -129,7 +129,7 @@ public static class WpfQuadrantChartRenderer
         AddText(canvas, chart.XAxisLeft, mutedBrush, plotLeft, xRowY, false);
         if (!string.IsNullOrWhiteSpace(chart.XAxisRight))
         {
-            double w = MeasureText(chart.XAxisRight, 11);
+            double w = DiagramText.Measure(chart.XAxisRight, 11);
             AddText(canvas, chart.XAxisRight, mutedBrush, plotLeft + PlotSize - w, xRowY, false);
         }
 
@@ -137,7 +137,7 @@ public static class WpfQuadrantChartRenderer
         AddRotatedText(canvas, chart.YAxisBottom, mutedBrush, Outer + 4, plotTop + PlotSize);
         if (!string.IsNullOrWhiteSpace(chart.YAxisTop))
         {
-            double w = MeasureText(chart.YAxisTop, 11);
+            double w = DiagramText.Measure(chart.YAxisTop, 11);
             AddRotatedText(canvas, chart.YAxisTop, mutedBrush, Outer + 4, plotTop + w);
         }
 
@@ -170,7 +170,7 @@ public static class WpfQuadrantChartRenderer
     private static void AddQuadrantCaption(Canvas canvas, string text, Brush brush, double cx, double cy)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
-        double w = MeasureText(text, 12);
+        double w = DiagramText.Measure(text, 12);
         var tb = new TextBlock
         {
             Text          = text,
@@ -228,14 +228,6 @@ public static class WpfQuadrantChartRenderer
         });
     }
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(
-            text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-            fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 
     /// <summary>Parses a CSS/hex colour to a frozen brush, falling back to <paramref name="fallback"/> on failure.</summary>
     private static Brush ParseBrush(string color, Brush fallback)

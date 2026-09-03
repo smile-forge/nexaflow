@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,7 +17,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfJourneyRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double Outer      = 16;
     private const double TitleH     = 28;
@@ -77,7 +77,7 @@ public static class WpfJourneyRenderer
         double taskTop     = laneTop + LaneH;
         double bottom      = taskTop + H;
 
-        double legendW = actors.Count == 0 ? 0 : actors.Max(a => 2 * LegendR + 6 + MeasureText(a, 11));
+        double legendW = actors.Count == 0 ? 0 : actors.Max(a => 2 * LegendR + 6 + DiagramText.Measure(a, 11));
         double canvasW = 2 * Outer + Math.Max(legendW, n * W + (n - 1) * gap);
         var canvas = new Canvas { Width = canvasW, Height = bottom + Outer, Background = palette.CodeBg };
 
@@ -85,7 +85,7 @@ public static class WpfJourneyRenderer
         for (int k = 0; k < actors.Count; k++)
         {
             double y = legendTop + k * LegendRowH;
-            canvas.Children.Add(new Ellipse { Width = 2 * LegendR, Height = 2 * LegendR, Fill = Solid(ActorColour(k)), Stroke = palette.CodeBorder, StrokeThickness = 1 }.At(Outer, y + (LegendRowH - 2 * LegendR) / 2));
+            canvas.Children.Add(new Ellipse { Width = 2 * LegendR, Height = 2 * LegendR, Fill = DiagramBrushes.Frozen(ActorColour(k)), Stroke = palette.CodeBorder, StrokeThickness = 1 }.At(Outer, y + (LegendRowH - 2 * LegendR) / 2));
             canvas.Children.Add(new TextBlock { Text = actors[k], Foreground = palette.Text, FontFamily = BodyFont, FontSize = 11 }.At(Outer + 2 * LegendR + 6, y + 2));
         }
 
@@ -101,7 +101,7 @@ public static class WpfJourneyRenderer
                 {
                     double left = X(i), right = X(j - 1) + W;
                     var sc = SectionColour(si);
-                    canvas.Children.Add(new Rectangle { Width = right - left, Height = SectionH, RadiusX = 4, RadiusY = 4, Fill = Tint(sc, 0x66), Stroke = Solid(sc), StrokeThickness = 1 }.At(left, sectionTop));
+                    canvas.Children.Add(new Rectangle { Width = right - left, Height = SectionH, RadiusX = 4, RadiusY = 4, Fill = DiagramBrushes.Tint(sc, 0x66), Stroke = DiagramBrushes.Frozen(sc), StrokeThickness = 1 }.At(left, sectionTop));
                     // Heading ink rather than a fill-derived colour: the band is a light tint over whichever theme is active.
                     var name = MakeLabel(sec.Name, right - left - 12, 12, FontWeights.SemiBold, palette.Heading, TextAlignment.Center);
                     canvas.Children.Add(name.At(left + 6, sectionTop + (SectionH - name.DesiredSize.Height) / 2));
@@ -119,11 +119,11 @@ public static class WpfJourneyRenderer
 
             // face in the score lane — score 5 at the top, 1 just above the task box
             double cy = laneTop + (5 - task.Score) * LaneStep + FaceR + 2;
-            canvas.Children.Add(new Line { X1 = cx, Y1 = cy + FaceR, X2 = cx, Y2 = taskTop, Stroke = Tint(textC, 0x50), StrokeThickness = 1, StrokeDashArray = new DoubleCollection([2, 3]) });
+            canvas.Children.Add(new Line { X1 = cx, Y1 = cy + FaceR, X2 = cx, Y2 = taskTop, Stroke = DiagramBrushes.Tint(textC, 0x50), StrokeThickness = 1, StrokeDashArray = new DoubleCollection([2, 3]) });
             DrawFace(canvas, cx, cy, task.Mood, MoodColour(task.Mood), textC);
 
             // task box
-            canvas.Children.Add(new Rectangle { Width = W, Height = H, RadiusX = 3, RadiusY = 3, Fill = Tint(sc, 0x33), Stroke = Solid(sc), StrokeThickness = 1 }.At(x, taskTop));
+            canvas.Children.Add(new Rectangle { Width = W, Height = H, RadiusX = 3, RadiusY = 3, Fill = DiagramBrushes.Tint(sc, 0x33), Stroke = DiagramBrushes.Frozen(sc), StrokeThickness = 1 }.At(x, taskTop));
             var label = MakeLabel(task.Name, W - 12, cfg.TaskFontSize, FontWeights.Normal, palette.Text, TextAlignment.Center);
             canvas.Children.Add(label.At(x + 6, taskTop + Math.Max(2, (H - label.DesiredSize.Height) / 2)));
 
@@ -131,14 +131,14 @@ public static class WpfJourneyRenderer
             for (int a = 0; a < task.Actors.Count; a++)
             {
                 int k = IndexOf(actors, task.Actors[a]);
-                canvas.Children.Add(new Ellipse { Width = 2 * ActorR, Height = 2 * ActorR, Fill = Solid(ActorColour(k)), Stroke = palette.CodeBg, StrokeThickness = 1.2 }.At(x + 4 + a * (ActorR + 3), taskTop - ActorR));
+                canvas.Children.Add(new Ellipse { Width = 2 * ActorR, Height = 2 * ActorR, Fill = DiagramBrushes.Frozen(ActorColour(k)), Stroke = palette.CodeBg, StrokeThickness = 1.2 }.At(x + 4 + a * (ActorR + 3), taskTop - ActorR));
             }
         }
 
         // 4. title
         if (hasTitle)
         {
-            double tw = MeasureText(diagram.Title, 15);
+            double tw = DiagramText.Measure(diagram.Title, 15);
             canvas.Children.Add(new TextBlock { Text = diagram.Title, Foreground = palette.Heading, FontFamily = BodyFont, FontSize = 15, FontWeight = FontWeights.SemiBold }.At((canvasW - tw) / 2, Outer - 2));
         }
 
@@ -162,8 +162,8 @@ public static class WpfJourneyRenderer
     /// down (smile), an arc bulging up (frown) or a flat line.</summary>
     private static void DrawFace(Canvas canvas, double cx, double cy, JourneyMood mood, Color moodC, Color inkC)
     {
-        var ink = Solid(inkC);
-        canvas.Children.Add(new Ellipse { Width = 2 * FaceR, Height = 2 * FaceR, Fill = Tint(moodC, 0xB0), Stroke = ink, StrokeThickness = 1.2 }.At(cx - FaceR, cy - FaceR));
+        var ink = DiagramBrushes.Frozen(inkC);
+        canvas.Children.Add(new Ellipse { Width = 2 * FaceR, Height = 2 * FaceR, Fill = DiagramBrushes.Tint(moodC, 0xB0), Stroke = ink, StrokeThickness = 1.2 }.At(cx - FaceR, cy - FaceR));
         foreach (double dx in new[] { -4.5, 4.5 })
             canvas.Children.Add(new Ellipse { Width = 3.6, Height = 3.6, Fill = ink }.At(cx + dx - 1.8, cy - 3.5 - 1.8));
 
@@ -204,19 +204,11 @@ public static class WpfJourneyRenderer
         return tb;
     }
 
-    private static Brush Tint(Color c, byte a) { var b = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B)); b.Freeze(); return b; }
-    private static Brush Solid(Color c)        { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     private static Brush OnColor(Color c, byte a)
     {
         double lum = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) * (a / 255.0);
-        return lum > 110 ? Solid(Colors.Black) : Solid(Colors.White);
+        return lum > 110 ? DiagramBrushes.Frozen(Colors.Black) : DiagramBrushes.Frozen(Colors.White);
     }
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 }

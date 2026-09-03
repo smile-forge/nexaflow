@@ -430,7 +430,7 @@ and `Deployment_Node`/`Node`/`Node_L`/`Node_R`, nested by braces or closed with 
 `_U`/`_D`/`_L`/`_R`/`_Neighbor`/`_Back`/`BiRel` variants and `RelIndex`; `$techn`, `$descr`, `$tags`, `$link` and
 `$index=Index()`/`LastIndex()`/`SetIndex()`/`increment()`; `UpdateElementStyle` (by element *type* as C4-PlantUML writes
 it **or** by *alias* as Mermaid does), `AddElementTag`/`AddBoundaryTag`/`AddRelTag` with `UpdateRelStyle` and
-`UpdateBoundaryStyle`; `SHOW_LEGEND`, `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`/`LAYOUT_LANDSCAPE`, the
+`UpdateBoundaryStyle` — a relationship's `$lineColor`/`$textColor`/`$lineStyle` colour its edge in both the structural and the sequence renderers; `SHOW_LEGEND`, `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`/`LAYOUT_LANDSCAPE`, the
 `SHOW_PERSON_OUTLINE`/`SHOW_PERSON_PORTRAIT` shape variants; `<br/>` and HTML entities in labels; and both `%%` and
 PlantUML `'` comments. **Colours map C4's scheme onto the theme** rather than copying its hex — what carries the meaning
 is the grading (depth tracks abstraction level, grey means external), so it is reproduced from the active accent and a
@@ -439,8 +439,8 @@ theme can retune it (see [theming.md](theming.md) → *Diagram tokens*). **The f
 [`C4Config`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/C4Diagram.cs)): `config: c4` `wrap`, `width`, `height`,
 with `c4ShapeInRow`/`c4BoundaryInRow` recorded but not obeyed. **Limitations:** `Lay_*`, the `_U`/`_D`/`_L`/`_R`
 direction suffixes, `$sprite` and `UpdateRelStyle`'s pixel offsets are parsed and ignored — they exist to nudge
-graphviz, and placement here belongs to the shared layout; `SvgGraphRenderer` draws a C4 element as a plain rectangle,
- as it already does for class boxes.
+graphviz, and placement here belongs to the shared layout; `SvgGraphRenderer` draws a C4 element as a plain rectangle
+(it has no geometry for the person and cylinder outlines) though it does write all three of the card's text rows.
 
 **C4 sequence** ([`C4SequenceProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4SequenceProjector.cs)).
 `C4Sequence` is a **Nexaflow extension** — it mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword

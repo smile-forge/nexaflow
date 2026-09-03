@@ -1036,6 +1036,11 @@ public static class WpfGraphRenderer
             EdgeStyle.Dotted => EdgeDashedBrush,
             _                => EdgeBrush,
         };
+        // An explicit line colour (a C4 UpdateRelStyle/AddRelTag) wins over the style's own brush —
+        // but never over the selection highlight, which exists to be the loudest thing on screen.
+        if (!highlighted && DiagramBrushes.ParseCss(edge?.LineColor) is Color lc)
+            brush = DiagramBrushes.Frozen(lc);
+
         double thickness = edge?.Style == EdgeStyle.Thick ? 2.5 : 1.5;
         if (highlighted) thickness += 1.0;
 
@@ -1081,7 +1086,7 @@ public static class WpfGraphRenderer
                 ?? (pts.Count == 2
                     ? new Point((pts[0].X + pts[1].X) / 2.0, (pts[0].Y + pts[1].Y) / 2.0)
                     : pts[pts.Count / 2]);
-            DrawEdgeLabel(canvas, edge!.Label, edge.SubLabel, mid);
+            DrawEdgeLabel(canvas, edge!.Label, edge.SubLabel, edge.TextColor, mid);
         }
     }
 
@@ -1134,17 +1139,18 @@ public static class WpfGraphRenderer
     /// line — a C4 relationship's <c>[technology]</c>. The box is sized from the measured text
     /// rather than from layout, so a label carrying <c>\n</c> is measured as the block it is.
     /// </summary>
-    private static void DrawEdgeLabel(Canvas canvas, string text, string? subLabel, Point mid)
+    private static void DrawEdgeLabel(Canvas canvas, string text, string? subLabel, string? textColor, Point mid)
     {
         const double labelFont = 10.5;
         const double subFont   = 9.5;
         bool hasSub = !string.IsNullOrWhiteSpace(subLabel);
+        Brush ink = DiagramBrushes.ParseCss(textColor) is Color tc ? DiagramBrushes.Frozen(tc) : LabelText;
 
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock
         {
             Text          = text,
-            Foreground    = LabelText,
+            Foreground    = ink,
             FontFamily    = BodyFont,
             FontSize      = labelFont,
             TextAlignment = TextAlignment.Center,
@@ -1153,7 +1159,7 @@ public static class WpfGraphRenderer
             stack.Children.Add(new TextBlock
             {
                 Text          = subLabel,
-                Foreground    = LabelText,
+                Foreground    = ink,
                 FontFamily    = BodyFont,
                 FontSize      = subFont,
                 Opacity       = 0.8,

@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Text.Markdown.Graphs;
+﻿namespace Nexaflow.Visuals.Text.Markdown.Graphs;
 
 // ── Enumerations ──────────────────────────────────────────────────────────────
 
@@ -219,6 +219,13 @@ public sealed class Edge
     /// <summary>A smaller, muted second line under <see cref="Label"/> — a C4 relationship's
     /// <c>[technology]</c>. Null leaves the label as the single line it has always been.</summary>
     public string? SubLabel { get; set; }
+
+    /// <summary>Explicit line colour (a C4 <c>UpdateRelStyle</c>/<c>AddRelTag</c>); null keeps the
+    /// colour the edge's <see cref="Style"/> implies.</summary>
+    public string? LineColor { get; set; }
+
+    /// <summary>Explicit label colour; null keeps the theme's muted label ink.</summary>
+    public string? TextColor { get; set; }
 
     /// <summary>Where a click on this edge's label goes. See <see cref="Node.Href"/>.</summary>
     public string? Href { get; set; }
