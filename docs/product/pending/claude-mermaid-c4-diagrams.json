@@ -34,6 +34,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4ElementTests.cs",
             "class": "C4ElementTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4ProjectionTests.cs",
+            "class": "C4ProjectionTests"
           }
         ]
       }
@@ -89,16 +94,76 @@
         {
           "type": "url",
           "target": "https://mermaid.js.org/syntax/c4.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4GraphProjector.cs",
+          "class": "C4GraphProjector"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
         }
       ]
+    },
+    "c4-boundaries": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Layout/GraphExpansion.cs",
+          "class": "GraphExpansion",
+          "method": "Apply"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4ProjectionTests.cs",
+            "class": "C4ProjectionTests",
+            "method": "Boundaries_BecomeNestedStyledSubgraphs"
+          }
+        ]
+      }
+    },
+    "c4-relationships": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4ProjectionTests.cs",
+            "class": "C4ProjectionTests",
+            "method": "Relationships_TechnologyBecomesTheEdgeSubLabel"
+          }
+        ]
+      }
+    },
+    "c4-styling": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4ProjectionTests.cs",
+            "class": "C4ProjectionTests",
+            "method": "Elements_StyleResolvesTypeThenTagThenAlias"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 7,
+  "changed_sets": 11,
   "touched_nodes": [
     "c4",
+    "c4-boundaries",
     "c4-elements",
     "c4-macro-syntax",
-    "c4-sequence"
+    "c4-relationships",
+    "c4-sequence",
+    "c4-styling"
   ]
 }

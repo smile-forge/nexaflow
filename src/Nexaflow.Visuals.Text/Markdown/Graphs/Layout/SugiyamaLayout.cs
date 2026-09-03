@@ -185,7 +185,15 @@ public static class SugiyamaLayout
 
     // ── Clustered layout (subgraphs) ──────────────────────────────────────
 
-    private const double ClusterPad = 14, ClusterLabelH = 26;
+    private const double ClusterPad = 14, ClusterLabelH = 26, ClusterSubLabelH = 14;
+
+    /// <summary>
+    /// The header band reserved at the top of a subgraph box. A C4 boundary puts a second line
+    /// (<c>[Container]</c>) under its title and needs the extra room; everything else keeps the
+    /// height it always had.
+    /// </summary>
+    private static double HeaderH(Subgraph sg) =>
+        sg.Style?.SubLabel is { Length: > 0 } ? ClusterLabelH + ClusterSubLabelH : ClusterLabelH;
 
     /// <summary>
     /// Lays out a graph with subgraphs by recursively collapsing each subgraph (and its nested
@@ -249,7 +257,7 @@ public static class SugiyamaLayout
                 var cl = LayoutLevel(child.Id);
                 inner[child.Id] = cl;
                 var cb = ContentBounds(cl);
-                sizes[child.Id] = (cb.Width + 2 * ClusterPad, cb.Height + ClusterLabelH + ClusterPad);
+                sizes[child.Id] = (cb.Width + 2 * ClusterPad, cb.Height + HeaderH(child) + ClusterPad);
             }
 
             var level = new Graph { Direction = graph.Direction, Title = levelId is null ? graph.Title : string.Empty };
@@ -265,7 +273,14 @@ public static class SugiyamaLayout
                 string? s = LevelEntity(e.SourceId, levelId);
                 string? t = LevelEntity(e.TargetId, levelId);
                 if (s is null || t is null || s == t) continue;
-                level.AddEdge(s, t, e.Label, e.Style, e.Arrow).StartArrow = e.StartArrow;
+                // Every level rebuilds its edges, so anything the renderer reads off an Edge has to
+                // be carried across here or it silently disappears the moment a diagram has a
+                // boundary — which is exactly the case C4 diagrams are always in.
+                var levelEdge = level.AddEdge(s, t, e.Label, e.Style, e.Arrow);
+                levelEdge.StartArrow = e.StartArrow;
+                levelEdge.SubLabel   = e.SubLabel;
+                levelEdge.Href       = e.Href;
+                levelEdge.Tooltip    = e.Tooltip;
             }
 
             var lg = level.Nodes.Count > 0
@@ -289,8 +304,8 @@ public static class SugiyamaLayout
                 // Align the whole content block (nodes + nested boxes) so it gets a Pad gap on the
                 // left/right/bottom and the header band on top.
                 var cb = ContentBounds(cl);
-                double dx = boxLeft + ClusterPad    - cb.Left;
-                double dy = boxTop  + ClusterLabelH - cb.Top;
+                double dx = boxLeft + ClusterPad     - cb.Left;
+                double dy = boxTop  + HeaderH(child) - cb.Top;
 
                 foreach (var n in ms) { n.X += dx; n.Y += dy; }
                 foreach (var e in cl.Edges)
@@ -298,14 +313,17 @@ public static class SugiyamaLayout
                         e.Waypoints[i] = new Point(e.Waypoints[i].X + dx, e.Waypoints[i].Y + dy);
                 for (int i = 0; i < cl.SubgraphBoxes.Count; i++)
                 {
-                    var (lbl, b) = cl.SubgraphBoxes[i];
-                    cl.SubgraphBoxes[i] = (lbl, new Rect(b.Left + dx, b.Top + dy, b.Width, b.Height));
+                    var box = cl.SubgraphBoxes[i];
+                    cl.SubgraphBoxes[i] = box with
+                    {
+                        Bounds = new Rect(box.Bounds.Left + dx, box.Bounds.Top + dy, box.Bounds.Width, box.Bounds.Height),
+                    };
                 }
 
                 extra.AddRange(ms.Where(n => !n.IsDummy));
                 lg.Edges.AddRange(cl.Edges);
                 lg.SubgraphBoxes.AddRange(cl.SubgraphBoxes);
-                lg.SubgraphBoxes.Add((child.Label, new Rect(boxLeft, boxTop, superLn.Width, superLn.Height)));
+                lg.SubgraphBoxes.Add(new SubgraphBox(child.Label, new Rect(boxLeft, boxTop, superLn.Width, superLn.Height), child));
             }
 
             foreach (var layer in lg.Layers) layer.RemoveAll(supers.Contains);
@@ -633,6 +651,11 @@ public static class SugiyamaLayout
             // reserved footprint matches what gets drawn).
             if (n.Shape == NodeShape.ClassBox && n.Class is not null)
                 (w, h) = ClassBoxMetrics.Measure(n.Label, n.Class);
+
+            // A C4 element card the same way — one metrics class shared with the painter, so the
+            // footprint reserved here is exactly the one drawn into.
+            if (n.Shape == NodeShape.C4Element && n.C4 is not null)
+                (w, h) = C4ElementMetrics.Measure(n.Label, n.C4);
 
             // State-diagram pseudostates have no label and a fixed footprint.
             if (n.Shape is NodeShape.StateStart or NodeShape.StateEnd) { w = h = 20; }

@@ -155,7 +155,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `cynefin-beta` | ✅ (five-domain grid) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (period spine, LR or TD) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (scored faces, actor legend) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
-| `C4Context` | ❌ raw source | ❌ |
+| `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
 | `block-beta` | ✅ (author-placed grid, nested blocks) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 
 **State-diagram sub-features** ([`MermaidStateParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs)).
@@ -410,6 +410,36 @@ item. **The front-matter `config:` block is applied**
 [`BlockConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/BlockConfig.cs)): `config: block` `padding`.
 **Limitations:** edges are straight centre-to-centre lines (Mermaid routes around blocks); `useMaxWidth` is ignored (the
 canvas is sized to its content and scrolls); a label containing `--` outside quotes reads as an edge.
+
+**C4 sub-features** ([`MermaidC4Parser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs)
++ [`C4GraphProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4GraphProjector.cs)
++ [`C4ElementPainter`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4ElementPainter.cs)).
+A C4 diagram is a node-and-edge graph with richer boxes, so it is **projected onto the shared graph pipeline** — the same
+Sugiyama layout, `WpfGraphRenderer`, viewport, panning, selection and expandable nodes as a flowchart — rather than
+getting a layout engine of its own. Elements become `NodeShape.C4Element` nodes carrying a
+[`C4ElementInfo`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/C4Element.cs) card (bold title, a `[Kind: technology]`
+stereotype, a wrapped description), boundaries and deployment nodes become nested styled subgraph boxes with a `[type]`
+line under their title, and relationships become edges whose second label line is the `[technology]`.
+
+**The body is C4-PlantUML's macro set, not Mermaid's subset** — Mermaid supports a fraction of what people write, the two
+agree wherever Mermaid has an opinion, so accepting the larger language rejects far less. Supported: the headers
+`C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment`; `Person`, `System`, `Container`, `Component`
+with every `_Ext`, `Db` and `Queue` variant; `Boundary`, `Enterprise_Boundary`, `System_Boundary`, `Container_Boundary`
+and `Deployment_Node`/`Node`/`Node_L`/`Node_R`, nested by braces or closed with `Boundary_End()`; `Rel` with its
+`_U`/`_D`/`_L`/`_R`/`_Neighbor`/`_Back`/`BiRel` variants and `RelIndex`; `$techn`, `$descr`, `$tags`, `$link` and
+`$index=Index()`/`LastIndex()`/`SetIndex()`/`increment()`; `UpdateElementStyle` (by element *type* as C4-PlantUML writes
+it **or** by *alias* as Mermaid does), `AddElementTag`/`AddBoundaryTag`/`AddRelTag` with `UpdateRelStyle` and
+`UpdateBoundaryStyle`; `SHOW_LEGEND`, `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`/`LAYOUT_LANDSCAPE`, the
+`SHOW_PERSON_OUTLINE`/`SHOW_PERSON_PORTRAIT` shape variants; `<br/>` and HTML entities in labels; and both `%%` and
+PlantUML `'` comments. **Colours map C4's scheme onto the theme** rather than copying its hex — what carries the meaning
+is the grading (depth tracks abstraction level, grey means external), so it is reproduced from the active accent and a
+theme can retune it (see [theming.md](theming.md) → *Diagram tokens*). **The front-matter `config:` block is applied**
+([`C4ConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4ConfigParser.cs) →
+[`C4Config`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/C4Diagram.cs)): `config: c4` `wrap`, `width`, `height`,
+with `c4ShapeInRow`/`c4BoundaryInRow` recorded but not obeyed. **Limitations:** `Lay_*`, the `_U`/`_D`/`_L`/`_R`
+direction suffixes, `$sprite` and `UpdateRelStyle`'s pixel offsets are parsed and ignored — they exist to nudge
+graphviz, and placement here belongs to the shared layout; `SvgGraphRenderer` draws a C4 element as a plain rectangle,
+as it already does for class boxes.
 
 ### Expandable nodes + the viewport (graph-family diagrams)
 
@@ -832,7 +862,7 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):
 the `mermaid-*` diagram docs (pie, flowchart, quadrant, sequence, gantt, git graph, mindmap, state, class,
-requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, swimlane, cynefin, timeline, journey, block) and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
+requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, swimlane, cynefin, timeline, journey, block, C4) and `extensions.md` (YAML front matter, emphasis extras, abbreviations, alert blocks).
 
 **Where coverage is thin:**
 
@@ -852,7 +882,7 @@ requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, s
 - **Raw HTML is not rendered** — inline HTML is dropped, HTML blocks show as raw text.
 - **No emoji shortcodes** (`:tada:`).
 - **Task list checkboxes are display-only** — not clickable to toggle.
-- **One Mermaid family falls back to raw text** (C4).
+- **Every Mermaid family now renders** — nothing falls back to raw source.
 
 If any of the disabled extensions are wanted, the change is usually a one-line
 `.UseX()` in `MarkdownPipelineFactory` **plus** renderer cases in both `BlockRenderer`

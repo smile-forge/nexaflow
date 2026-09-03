@@ -551,6 +551,37 @@ block-beta
 
 ![A block diagram with block arrows, a database cylinder and class-coloured blocks](images/markdown/mermaid-block.png)
 
+### C4 diagrams
+
+Software architecture at C4's zoom levels — context, containers, components — plus deployment and dynamic views.
+Elements are cards carrying their kind, technology and description; boundaries nest; relationships name the protocol
+they run over.
+
+````markdown
+```mermaid
+C4Container
+title Container diagram for the Internet Banking System
+
+Person(customer, "Personal Banking Customer", "A customer of the bank.")
+
+System_Boundary(c1, "Internet Banking", "System") {
+  Container(spa, "Single-Page App", "JavaScript, Angular", "Provides banking functionality in the browser.")
+  Container(api, "API Application", "Java, Docker", "Provides banking functionality via a JSON/HTTPS API.")
+  ContainerDb(db, "Database", "SQL Database", "Stores user registration information and access logs.")
+}
+
+Rel(customer, spa, "Visits bigbank.com/ib using", "HTTPS")
+Rel(spa, api, "Makes API calls to", "JSON/HTTPS")
+Rel(api, db, "Reads from and writes to", "JDBC")
+```
+````
+
+![A C4 container diagram with a system boundary, element cards and technology-labelled relationships](images/markdown/mermaid-c4.png)
+
+The body accepts the fuller [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) macro vocabulary — `$tags`
+with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`, `Deployment_Node` nesting, `RelIndex` numbering — not just
+Mermaid's subset.
+
 ---
 
 ## QR codes

@@ -95,7 +95,7 @@ public static class GraphExpansion
                        folded);
 
         var hiddenBySibling = folded.SelectMany(kv => kv.Value).ToHashSet(StringComparer.Ordinal);
-        var view = new Graph { Title = graph.Title, Direction = graph.Direction };
+        var view = new Graph { Title = graph.Title, Direction = graph.Direction, Legend = graph.Legend };
 
         foreach (var node in graph.Nodes)
         {
@@ -141,12 +141,36 @@ public static class GraphExpansion
         foreach (var parentId in folded.Keys)
             view.AddEdge(parentId, OverflowPrefix + parentId, style: EdgeStyle.Dotted, arrow: EdgeArrow.None);
 
+        // A group survives when it still holds a visible node — or when a group inside it does.
+        // The second half matters for deployment diagrams, whose outer nodes contain nothing but
+        // more nodes: dropping a group for having no *direct* members deleted the outermost box of
+        // every one of them.
+        var keptNodes = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var sub in graph.Subgraphs)
+            keptNodes[sub.Id] = sub.NodeIds.Where(id => visible.Contains(id) && !hiddenBySibling.Contains(id)).ToList();
+
+        var survives = new HashSet<string>(
+            keptNodes.Where(kv => kv.Value.Count > 0).Select(kv => kv.Key), StringComparer.Ordinal);
+
+        // Walk parents upward until nothing new survives (a chain of empty groups is only as deep
+        // as the subgraph list, so one pass per subgraph is always enough).
+        for (bool grew = true; grew;)
+        {
+            grew = false;
+            foreach (var sub in graph.Subgraphs)
+                if (sub.ParentId is string pid && survives.Contains(sub.Id) && survives.Add(pid))
+                    grew = true;
+        }
+
         foreach (var sub in graph.Subgraphs)
         {
-            var kept = sub.NodeIds.Where(id => visible.Contains(id) && !hiddenBySibling.Contains(id)).ToList();
-            if (kept.Count == 0) continue;
-            var copy = new Subgraph { Id = sub.Id, Label = sub.Label, ParentId = sub.ParentId, Href = sub.Href, Tooltip = sub.Tooltip };
-            copy.NodeIds.AddRange(kept);
+            if (!survives.Contains(sub.Id)) continue;
+            var copy = new Subgraph
+            {
+                Id = sub.Id, Label = sub.Label, ParentId = sub.ParentId,
+                Href = sub.Href, Tooltip = sub.Tooltip, Style = sub.Style?.Copy(),
+            };
+            copy.NodeIds.AddRange(keptNodes[sub.Id]);
             view.Subgraphs.Add(copy);
         }
 
@@ -259,6 +283,7 @@ public static class GraphExpansion
         StartArrow = e.StartArrow,
         StartLabel = e.StartLabel,
         EndLabel   = e.EndLabel,
+        SubLabel   = e.SubLabel,
         Href       = e.Href,
         Tooltip    = e.Tooltip,
     };

@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
@@ -29,6 +29,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>timeline</c>         → <see cref="MermaidTimelineParser"/> + <see cref="WpfTimelineRenderer"/>
 ///   • <c>journey</c>          → <see cref="MermaidJourneyParser"/>  + <see cref="WpfJourneyRenderer"/>
 ///   • <c>block-beta</c>       → <see cref="MermaidBlockParser"/>    + <see cref="WpfBlockRenderer"/>
+///   • <c>C4Context / …</c>    → <see cref="MermaidC4Parser"/> + <see cref="C4GraphProjector"/> + the graph family
 ///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///
 /// Adding a new Mermaid diagram type means adding a branch in <see cref="SubtypeOf"/>
@@ -59,6 +60,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidTimelineParser  TimelineParser = new();
     private static readonly MermaidJourneyParser   JourneyParser  = new();
     private static readonly MermaidBlockParser     BlockParser    = new();
+    private static readonly MermaidC4Parser       C4Parser       = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -97,6 +99,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Timeline     => RenderTimeline(source, body, title, palette),
             MermaidSubtype.Journey      => RenderJourney(source, body, title, palette),
             MermaidSubtype.Block        => RenderBlock(source, body, title, palette),
+            MermaidSubtype.C4           => RenderC4(source, body, title, options),
             MermaidSubtype.Graph       => RenderGraphFamily(FlowParser.Parse(body), source, title, options, 900),
             _                       => RenderSourceText(body),
         };
@@ -108,7 +111,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Cynefin, Architecture, Swimlane, Timeline, Journey, Block, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Cynefin, Architecture, Swimlane, Timeline, Journey, Block, C4, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -164,7 +167,8 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
                 "graph" or "flowchart"             => MermaidSubtype.Graph,
                 "timeline"                         => MermaidSubtype.Timeline,
                 "journey"                          => MermaidSubtype.Journey,
-                "c4context"                        => MermaidSubtype.Unknown,
+                "c4context" or "c4container" or "c4component"
+                    or "c4dynamic" or "c4deployment" => MermaidSubtype.C4,
                 _                          => MermaidSubtype.Unknown,
             };
         }
@@ -330,6 +334,18 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         diagram.Title  = Titled(diagram.Title, title);
         diagram.Config = BlockConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
         return WpfBlockRenderer.Render(diagram, palette);
+    }
+
+    /// <summary>
+    /// C4 structural diagrams reuse the shared graph model, layout and renderer — a C4 diagram is a
+    /// node-and-edge graph with richer boxes, so it needs a parser and a projection, not a layout engine.
+    /// </summary>
+    private static FrameworkElement RenderC4(string source, string body, string? title, DiagramRenderOptions options)
+    {
+        var diagram = C4Parser.Parse(body);
+        diagram.Title  = Titled(diagram.Title, title);
+        diagram.Config = C4ConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
+        return RenderGraphFamily(C4GraphProjector.ToGraph(diagram), source, title, options, 1100);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>

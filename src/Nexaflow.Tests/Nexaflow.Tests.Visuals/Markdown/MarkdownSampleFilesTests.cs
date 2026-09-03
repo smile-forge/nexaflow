@@ -1,4 +1,4 @@
-using Nexaflow.Tests.Fixtures;
+﻿using Nexaflow.Tests.Fixtures;
 using System.IO;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
@@ -15,7 +15,7 @@ public class MarkdownSampleFilesTests
     public void Dataset_MaterialisesAllMarkdownSamples()
     {
         var files = TestSampleData.Files("markdown");
-        Assert.AreEqual(32, files.Count);   // 23 mermaid + extensions + 4 latex-math + 2 music + qr + barcode
+        Assert.AreEqual(33, files.Count);   // 24 mermaid + extensions + 4 latex-math + 2 music + qr + barcode
 
         foreach (var path in files)
         {
