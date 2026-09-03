@@ -5,7 +5,6 @@
       "[AtomType]": "AccentedAtom",
       "AccentAtom": {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "hat",
@@ -14,20 +13,17 @@
       },
       "BaseAtom": {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "T",
         "IsTextSymbol": false,
         "Slots": [],
         "TextStyle": null,
         "Type": "Ordinary"
       },
-      "Borrowed": false,
       "Slots": [
         {
           "Column": -1,
           "Node": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "T",
             "IsTextSymbol": false,
             "Slots": [],
@@ -40,7 +36,6 @@
       ],
       "Type": "Ordinary"
     },
-    "Borrowed": false,
     "LeftType": "Ordinary",
     "RightType": "Ordinary",
     "Slots": [
@@ -50,7 +45,6 @@
           "[AtomType]": "AccentedAtom",
           "AccentAtom": {
             "[AtomType]": "SymbolAtom",
-            "Borrowed": false,
             "IsDelimeter": false,
             "IsTextSymbol": false,
             "Name": "hat",
@@ -59,20 +53,17 @@
           },
           "BaseAtom": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "T",
             "IsTextSymbol": false,
             "Slots": [],
             "TextStyle": null,
             "Type": "Ordinary"
           },
-          "Borrowed": false,
           "Slots": [
             {
               "Column": -1,
               "Node": {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "T",
                 "IsTextSymbol": false,
                 "Slots": [],

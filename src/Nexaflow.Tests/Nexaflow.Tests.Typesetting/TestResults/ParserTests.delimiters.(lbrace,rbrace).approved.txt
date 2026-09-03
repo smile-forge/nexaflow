@@ -3,17 +3,14 @@
     "[AtomType]": "FencedAtom",
     "BaseAtom": {
       "[AtomType]": "CharAtom",
-      "Borrowed": false,
       "Character": "a",
       "IsTextSymbol": false,
       "Slots": [],
       "TextStyle": null,
       "Type": "Ordinary"
     },
-    "Borrowed": false,
     "LeftDelimeter": {
       "[AtomType]": "SymbolAtom",
-      "Borrowed": false,
       "IsDelimeter": true,
       "IsTextSymbol": false,
       "Name": "{",
@@ -22,7 +19,6 @@
     },
     "RightDelimeter": {
       "[AtomType]": "SymbolAtom",
-      "Borrowed": false,
       "IsDelimeter": true,
       "IsTextSymbol": false,
       "Name": "}",
@@ -34,7 +30,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],

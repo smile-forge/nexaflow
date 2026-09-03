@@ -1,4 +1,4 @@
-using Nexaflow.Maths.Latex;
+﻿using Nexaflow.Maths.Latex;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,8 +25,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// <para>
 /// This needs no cooperation from WpfMath beyond what is already public.
 /// <see cref="IElementRenderer.RenderElement"/> is called for every box of the formula, parents before
-/// children, and each <see cref="Box"/> carries the <see cref="SourceSpan"/> the parser gave the atom that
-/// built it. Rendering with a renderer that draws nothing and only remembers therefore yields the whole
+/// children, and each <see cref="Box"/> carries the part of the parse tree it was built from.
+/// Rendering with a renderer that draws nothing and only remembers therefore yields the whole
 /// structure — the recursion in <see cref="RenderElement"/> <em>is</em> the tree, so parentage is kept
 /// rather than inferred afterwards from rectangles.
 /// </para>
@@ -42,8 +42,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 internal sealed class LatexLayoutCapture : IElementRenderer
 {
     private readonly Stack<LatexNode> _open = new();
-    private readonly List<string> _rejected = [];
-    private readonly List<string> _disowned = [];
     private readonly double _scale;
     private readonly string _latex;
 
@@ -62,30 +60,6 @@ internal sealed class LatexLayoutCapture : IElementRenderer
 
     /// <summary>The formula's whole layout, or null when nothing was drawn at all.</summary>
     public LatexNode? Root { get; private set; }
-
-    /// <summary>
-    /// How many boxes claimed a span reaching outside the very text it indexes.
-    /// <para>
-    /// Always zero for a sound parser, and the reason it is counted rather than merely skipped: this is a
-    /// typesetter fault that costs a symbol its selectability, and it has already appeared four separate
-    /// times in WpfMath's escape-sequence handling. Dropping such a span quietly leaves the control usable
-    /// and every test green while a symbol silently stops working, so a test asserts this stays at zero.
-    /// </para>
-    /// </summary>
-    public int Rejected => _rejected.Count;
-    /// <summary>
-    /// What each rejected span claimed, as <c>start+length</c> against a source of the stated length —
-    /// enough to name the offending construct without re-running the parser by hand.
-    /// </summary>
-    public IReadOnlyList<string> RejectedSpans => _rejected;
-
-    /// <summary>
-    /// Names taken off a piece because they reached outside the piece containing it — a typesetter fault
-    /// the tree repairs rather than trusts. Not fatal the way a rejected span is: the piece is still drawn
-    /// and still pointable, it just resolves to whatever encloses it instead of naming its own text. Kept
-    /// countable so the tail of these stays visible instead of quietly costing a term its selectability.
-    /// </summary>
-    public IReadOnlyList<string> Disowned => _disowned;
 
     public void RenderElement(Box box, double x, double y)
     {
@@ -221,35 +195,8 @@ internal sealed class LatexLayoutCapture : IElementRenderer
             Root.SourceLength = _latex.Length;
         }
 
-        // Backslashes first, then duplicates. The other order compares names that are about to become
-        // equal and finds them different: an integral's glyph names `int` while the operator box holding
-        // it names `\int`, so the duplicate only appears once the command has claimed its backslash.
-        Claim(Root);
         Detach(Root, [(Root.SourceStart, Root.SourceLength)]);
         MarkInk(Root);
-    }
-
-    /// <summary>
-    /// Gives each command the backslash that introduces it.
-    /// <para>
-    /// WpfMath hands a command's atom the span of its <em>name</em> — <c>alpha</c>, not <c>\alpha</c>.
-    /// Left as is the backslash belongs to nothing: it becomes a caret stop in the same place as the one
-    /// after it, and backspace would un-render <c>α</c> to <c>alpha</c>.
-    /// </para>
-    /// </summary>
-    private void Claim(LayoutNode node)
-    {
-        if (node.SourceLength > 0
-            && node.SourceStart > 0
-            && node.SourceStart <= _latex.Length
-            && _latex[node.SourceStart - 1] == '\\'
-            && (node.SourceStart < 2 || _latex[node.SourceStart - 2] != '\\'))   // `\\` is a token already
-        {
-            node.SourceStart--;
-            node.SourceLength++;
-        }
-
-        foreach (var child in node.Children.OfType<LayoutNode>()) Claim(child);
     }
 
     /// <summary>
@@ -293,10 +240,6 @@ internal sealed class LatexLayoutCapture : IElementRenderer
                     // Whether anything below it still names a part of the source decides how much this
                     // costs: a level with named children keeps them, and promotion simply skips the level.
                     // A leaf has nothing to roll up from, so its own granularity is what goes.
-                    var below = child.SelfAndDescendants().Skip(1).Any(n => n.SourceLength > 0);
-                    _disowned.Add($"{(below ? "level" : "leaf")} {child.Kind} named "
-                                  + $"{child.SourceStart}+{child.SourceLength}, "
-                                  + $"outside its {enclosing.Start}+{enclosing.Length}");
                     child.SourceLength = 0;
                 }
                 else
@@ -338,50 +281,36 @@ internal sealed class LatexLayoutCapture : IElementRenderer
     }
 
     /// <summary>
-    /// Which characters of the formula produced this box, or nothing.
+    /// Which characters of the formula this box was laid out from, or nothing.
     /// <para>
-    /// A box out of a macro body carries offsets into <em>its own</em> source text, which say nothing about
-    /// where the user's formula is; a strut or a piece of glue came from no character at all; and a rule —
-    /// a fraction's bar, a radical's overline — is drawn for a construct rather than for any text within
-    /// it. None of those is a fault. They are parts of their parent's layout, so they stay in the tree,
-    /// carry no source of their own, and are painted and washed with whatever encloses them.
+    /// A box built from a part knows, because the part knows where it stands. A strut or a piece of
+    /// glue came from no character at all, and a rule — a fraction's bar, a radical's overline — is
+    /// drawn for a construct rather than for any text within it. None of those is a fault: they are
+    /// parts of their parent's layout, so they stay in the tree, name nothing of their own, and are
+    /// painted and washed with whatever encloses them.
+    /// </para>
+    /// <para>
+    /// Named the way the reading this replaced named it, though, and deliberately: a braced argument's
+    /// contents, a cell's ink, where the <em>part</em> is the whole <c>{a+b}</c> and the whole cell.
+    /// Everything downstream still works in offsets and was written against that convention, and
+    /// handing over the honest span instead re-braces an argument that is already braced. This goes
+    /// when the editor asks the part.
     /// </para>
     /// </summary>
     private (int Start, int Length) SourceOf(Box box)
     {
-        // Built from a reading rather than parsed: the atom carries the part it was made from, and a
-        // part knows where it stands. Nothing to match and nothing to repair.
-        //
-        // Named the way the other reading named it, though, and deliberately: everything downstream
-        // still works in offsets and was written against that convention. A braced argument's box
-        // covered what was between the braces and a cell's covered the ink, where the *part* is the
-        // whole `{a+b}` and the whole cell. Handing over the honest span instead re-braces an argument
-        // that is already braced, because what reads the characters around it finds a `}` where it
-        // expected a letter. This goes when the editor asks the part rather than the offsets.
-        if (box.Node?.Origin is { } part
-            && box.GetType().Name is not ("StrutBox" or "GlueBox"))
-            return part.Kind switch
-            {
-                TexKind.Group => part.Contents,
-                TexKind.Cell => part.Written,
-                _ => (part.Start, part.Length),
-            };
-
-        if (box.Source is not { } source
-            || !string.Equals(source.Source, _latex, StringComparison.Ordinal)
-            || box.GetType().Name is "StrutBox" or "GlueBox")
+        if (box.Node?.Origin is not { } part || box.GetType().Name is "StrutBox" or "GlueBox")
             return (Anchor, 0);
 
-        if (source.Start < 0 || source.End > _latex.Length)
+        return part.Kind switch
         {
-            _rejected.Add($"{box.GetType().Name} claims {source.Start}+{source.Length} of {_latex.Length}");
-            return (Anchor, 0);
-        }
-
-        return (source.Start, source.Length);
+            TexKind.Group => part.Contents,
+            TexKind.Cell => part.Written,
+            _ => (part.Start, part.Length),
+        };
     }
 
     /// <summary>Where a source-less node sits in the text: wherever the thing containing it starts.</summary>
     private int Anchor => _open.Count > 0 ? _open.Peek().SourceStart : 0;
 
-}
+    }

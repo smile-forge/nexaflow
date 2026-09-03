@@ -145,7 +145,11 @@ internal sealed record BigOperatorAtom(
             var opChar = texFont.GetCharInfo(symbolAtom.Name, style).Value;
             if (style < TexStyle.Text && texFont.HasNextLarger(opChar))
                 opChar = texFont.GetNextLargerCharInfo(opChar, style);
-            var charBox = new CharBox(environment, opChar) { Source = BaseAtom.Source };
+            // The sign is the operator's own drawing of itself, built here by hand from a character and a
+            // size rather than by Atom.CreateBox, which is the one place a box is handed the atom it came
+            // from. Said here for the same reason FencedAtom says it of a delimiter: without it a \sum's
+            // own glyph knows nothing about what it came from, and only the scripts either side of it do.
+            var charBox = new CharBox(environment, opChar) { Node = BaseAtom };
             charBox.Shift = -(charBox.Height + charBox.Depth) / 2 -
                 environment.MathFont.GetAxisHeight(environment.Style);
             Box baseBox = new HorizontalBox(charBox);

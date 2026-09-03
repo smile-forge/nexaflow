@@ -1,27 +1,23 @@
 {
   "RootAtom": {
     "[AtomType]": "RowAtom",
-    "Borrowed": false,
     "Elements": [
       {
         "[AtomType]": "BigOperatorAtom",
         "BaseAtom": {
           "[AtomType]": "SymbolAtom",
-          "Borrowed": false,
           "IsDelimeter": false,
           "IsTextSymbol": false,
           "Name": "int",
           "Slots": [],
           "Type": "BigOperator"
         },
-        "Borrowed": false,
         "LowerLimitAtom": null,
         "Slots": [
           {
             "Column": -1,
             "Node": {
               "[AtomType]": "SymbolAtom",
-              "Borrowed": false,
               "IsDelimeter": false,
               "IsTextSymbol": false,
               "Name": "int",
@@ -38,7 +34,6 @@
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "f",
         "IsTextSymbol": false,
         "Slots": [],
@@ -54,21 +49,18 @@
           "[AtomType]": "BigOperatorAtom",
           "BaseAtom": {
             "[AtomType]": "SymbolAtom",
-            "Borrowed": false,
             "IsDelimeter": false,
             "IsTextSymbol": false,
             "Name": "int",
             "Slots": [],
             "Type": "BigOperator"
           },
-          "Borrowed": false,
           "LowerLimitAtom": null,
           "Slots": [
             {
               "Column": -1,
               "Node": {
                 "[AtomType]": "SymbolAtom",
-                "Borrowed": false,
                 "IsDelimeter": false,
                 "IsTextSymbol": false,
                 "Name": "int",
@@ -90,7 +82,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "f",
           "IsTextSymbol": false,
           "Slots": [],

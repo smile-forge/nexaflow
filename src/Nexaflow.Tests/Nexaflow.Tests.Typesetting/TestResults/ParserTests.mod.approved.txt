@@ -1,17 +1,14 @@
 {
   "RootAtom": {
     "[AtomType]": "RowAtom",
-    "Borrowed": false,
     "Elements": [
       {
         "[AtomType]": "SpaceAtom",
-        "Borrowed": false,
         "Slots": [],
         "Type": "Ordinary"
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "\\",
         "IsTextSymbol": false,
         "Slots": [],
@@ -20,7 +17,6 @@
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "m",
         "IsTextSymbol": false,
         "Slots": [],
@@ -29,7 +25,6 @@
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "o",
         "IsTextSymbol": false,
         "Slots": [],
@@ -38,7 +33,6 @@
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "d",
         "IsTextSymbol": false,
         "Slots": [],
@@ -47,7 +41,6 @@
       },
       {
         "[AtomType]": "SpaceAtom",
-        "Borrowed": false,
         "Slots": [],
         "Type": "Ordinary"
       }
@@ -58,7 +51,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "SpaceAtom",
-          "Borrowed": false,
           "Slots": [],
           "Type": "Ordinary"
         },
@@ -69,7 +61,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "\\",
           "IsTextSymbol": false,
           "Slots": [],
@@ -83,7 +74,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "m",
           "IsTextSymbol": false,
           "Slots": [],
@@ -97,7 +87,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "o",
           "IsTextSymbol": false,
           "Slots": [],
@@ -111,7 +100,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "d",
           "IsTextSymbol": false,
           "Slots": [],
@@ -125,7 +113,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "SpaceAtom",
-          "Borrowed": false,
           "Slots": [],
           "Type": "Ordinary"
         },

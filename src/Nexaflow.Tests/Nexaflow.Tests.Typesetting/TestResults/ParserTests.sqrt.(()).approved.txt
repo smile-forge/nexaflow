@@ -3,18 +3,15 @@
     "[AtomType]": "Radical",
     "BaseAtom": {
       "[AtomType]": "NullAtom",
-      "Borrowed": false,
       "Slots": [],
       "Type": "Ordinary"
     },
-    "Borrowed": false,
     "DegreeAtom": null,
     "Slots": [
       {
         "Column": -1,
         "Node": {
           "[AtomType]": "NullAtom",
-          "Borrowed": false,
           "Slots": [],
           "Type": "Ordinary"
         },

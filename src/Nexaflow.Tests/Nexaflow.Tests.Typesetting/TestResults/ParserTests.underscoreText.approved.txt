@@ -1,7 +1,6 @@
 {
   "RootAtom": {
     "[AtomType]": "CharAtom",
-    "Borrowed": false,
     "Character": "_",
     "IsTextSymbol": false,
     "Slots": [],

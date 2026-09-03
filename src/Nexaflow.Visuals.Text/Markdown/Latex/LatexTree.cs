@@ -182,6 +182,18 @@ public sealed class LatexTree
     }
 
     /// <summary>
+    /// Where in the source this piece of the typesetting tree was written, asked of the part it was
+    /// built from.
+    /// <para>
+    /// Asked rather than read. A formula carries the part and no offsets at all, deliberately: an
+    /// offset kept beside a tree is a second copy of what the tree already holds, and the two part
+    /// company as soon as anything is edited.
+    /// </para>
+    /// </summary>
+    private static (int Start, int Length)? Written(XamlMath.IFormulaNode? formula) =>
+        formula?.Origin is { } part ? (part.Start, part.Length) : null;
+
+    /// <summary>
     /// Where <paramref name="point"/> falls in a matrix: on a cell, or at a boundary between columns or
     /// rows — including the margin inside the brackets, past the last column or under the last row.
     /// <para>
@@ -192,21 +204,6 @@ public sealed class LatexTree
     /// land in the cell it happens to be nearest.
     /// </para>
     /// </summary>
-    /// <summary>
-    /// Where in the source this piece of the typesetting tree was written — from the part it was built
-    /// from where there is one, and from the span its parser gave it otherwise.
-    /// <para>
-    /// Both readings answer the same question and only one of them stores the answer. A formula built
-    /// from the parse tree carries the part and no span at all, deliberately: an offset kept beside a
-    /// tree is a second copy of what the tree already holds, and the two part company as soon as
-    /// anything is edited. So this asks rather than reads, and the second arm goes when the parser does.
-    /// </para>
-    /// </summary>
-    private static (int Start, int Length)? Written(XamlMath.IFormulaNode? formula) =>
-        formula?.Origin is { } part ? (part.Start, part.Length)
-        : formula?.Source is { } span ? (span.Start, span.Length)
-        : null;
-
     public GridDrop? GridDropAt(Point point)
     {
         foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))

@@ -1,7 +1,6 @@
 {
   "RootAtom": {
     "[AtomType]": "NullAtom",
-    "Borrowed": false,
     "Slots": [],
     "Type": "Ordinary"
   },

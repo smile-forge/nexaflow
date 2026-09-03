@@ -173,34 +173,6 @@ public class TexFormulaParser
     { }
 
     /// <summary>
-    /// Resolves the text of a delimiter argument - <c>(</c>, <c>\{</c>, <c>\lVert</c> - to its symbol.
-    /// </summary>
-    /// <param name="delimiter">The argument itself.</param>
-    /// <param name="delimiterSource">What to record as the resulting atom's source.</param>
-    internal static SymbolAtom GetDelimiterAtom(SourceSpan delimiter, SourceSpan delimiterSource)
-    {
-        string delimiterName;
-        if (delimiter.Length == 1)
-            delimiterName = GetDelimeterMapping(delimiter[0]);
-        else
-        {
-            if (delimiter[0] != escapeChar)
-                throw new TexParseException($"A delimiter should start from {escapeChar}, but got {delimiter}", delimiter);
-
-            // Here goes the fancy business: for non-alphanumeric commands (e.g. \{, \\ etc.) we need to pass them
-            // through GetDelimeterMapping, but for alphanumeric ones, we don't.
-            delimiterName = delimiter.Segment(1).ToString(); // skip an escape character
-            if (delimiterName.Length == 1 && !char.IsLetterOrDigit(delimiterName[0]))
-                delimiterName = GetDelimeterMapping(delimiterName[0]);
-        }
-
-        if (delimiterName == null || !SymbolAtom.TryGetAtom(delimiterName, delimiterSource, out var atom) || !atom.IsDelimeter)
-            throw new TexParseException($"Cannot find delimiter {delimiter}", delimiter);
-
-        return atom;
-    }
-
-    /// <summary>
     /// A big operator, set the way this operator is set: <c>\sum</c> and <c>\prod</c> stack their limits
     /// in display style, an integral never does whatever the style, and that is why <c>\int_0^\infty</c>
     /// reads the way it does in every published paper.
@@ -243,14 +215,22 @@ public class TexFormulaParser
     }
 
     /// <summary>
+    /// What each command expanded to, worked out once. <c>\,</c> is in a fifth of the formulas anyone
+    /// writes and always means the same thing, so re-reading its definition for every one of them is
+    /// work done a hundred thousand times to get the same answer.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, Atom?> _expansions = new();
+
+    /// <summary>
     /// The atom this command is shorthand for, when it is shorthand for exactly one — <c>\,</c> and the
     /// rest of TeX's written-down spaces.
     /// <para>
     /// These are macros, not commands: <c>\quad</c> is defined as a formula in
-    /// <c>PredefinedTexFormulas.xml</c> and parsed from that definition. Which means the atoms it comes
-    /// back as carry offsets into text nobody wrote — the definition's, not the reader's. So the whole
-    /// expansion is marked <see cref="Atom.Borrowed"/> as it is cached, and a borrowed atom never lends a
-    /// box its source: the offsets stay where they are and cannot reach a layout.
+    /// <c>PredefinedTexFormulas.xml</c> and parsed from that definition — text nobody wrote. That used to
+    /// matter, because the atoms came back carrying offsets into it, and an expansion of more than one
+    /// atom would have put a point in the layout naming a document the reader has never seen. Nothing
+    /// carries an offset now: what an atom came from is its <see cref="Atom.Origin"/>, and an expansion
+    /// has none until whoever asked for it hangs one on.
     /// </para>
     /// <para>
     /// Which is what lets an expansion be more than one atom. <c>\cdots</c> is three dots and <c>\neq</c>
@@ -258,13 +238,6 @@ public class TexFormulaParser
     /// and the rest of their family that was some eighteen thousand formulas.
     /// </para>
     /// </summary>
-    /// <summary>
-    /// What each command expanded to, worked out once. <c>\,</c> is in a fifth of the formulas anyone
-    /// writes and always means the same thing, so re-reading its definition for every one of them is
-    /// work done a hundred thousand times to get the same answer.
-    /// </summary>
-    private readonly ConcurrentDictionary<string, Atom?> _expansions = new();
-
     internal Atom? ExpansionOf(string command)
     {
         var expansion = _expansions.GetOrAdd(command, name =>
@@ -273,15 +246,7 @@ public class TexFormulaParser
 
             // The definition text stands in for the source, because the source is not this method's to
             // have and nothing that comes out of here keeps it anyway.
-            var root = factory(new SourceSpan(name, name, 0, name.Length))?.RootAtom;
-            if (root is null) return null;
-
-            // Marked once, here, before anyone can use it: everything in this subtree was parsed from a
-            // definition, so none of it may lend a box an offset. That is what lets an expansion be
-            // several atoms — `\cdots` is three dots, `\neq` is a slash over an equals — rather than only
-            // the ones small enough to have nothing inside them to go wrong.
-            Borrow(root);
-            return root;
+            return factory(new SourceSpan(name, name, 0, name.Length))?.RootAtom;
         });
 
         // A copy each time, never the one in the table: what comes back has a part hung on it by whoever
@@ -328,14 +293,6 @@ public class TexFormulaParser
     internal bool Draws(string written) =>
         written.Length > 1 && written[0] == '\\' && Knows(written[1..]);
 
-    /// <summary>Marks a whole expansion as the definition's rather than the reader's.</summary>
-    private static void Borrow(Atom atom)
-    {
-        atom.Borrowed = true;
-        foreach (var slot in atom.Slots)
-            if (slot.Node is Atom inner) Borrow(inner);
-    }
-
     /// <summary>
     /// The style this command sets its contents in — <c>mathrm</c>, <c>mathbf</c> — or null when it sets
     /// none. Which commands those are is read from the settings file rather than listed, so a build that
@@ -371,16 +328,5 @@ public class TexFormulaParser
         return string.IsNullOrEmpty(symbolName)
             ? new CharAtom(source, character, textStyle)
             : SymbolAtom.GetAtom(symbolName, source);
-    }
-
-    internal readonly record struct AfterReadingInfo(SourceSpan source, int position);
-
-    /// <returns>New position after space skipped</returns>
-    internal static int WithSkippedWhiteSpace(SourceSpan value, int position)
-    {
-        while (position < value.Length && IsWhiteSpace(value[position]))
-            position++;
-
-        return position;
     }
 }

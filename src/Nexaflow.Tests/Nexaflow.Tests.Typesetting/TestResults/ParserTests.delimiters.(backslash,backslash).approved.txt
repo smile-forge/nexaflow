@@ -3,14 +3,12 @@
     "[AtomType]": "FencedAtom",
     "BaseAtom": {
       "[AtomType]": "CharAtom",
-      "Borrowed": false,
       "Character": "a",
       "IsTextSymbol": false,
       "Slots": [],
       "TextStyle": null,
       "Type": "Ordinary"
     },
-    "Borrowed": false,
     "LeftDelimeter": null,
     "RightDelimeter": null,
     "Slots": [
@@ -18,7 +16,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],

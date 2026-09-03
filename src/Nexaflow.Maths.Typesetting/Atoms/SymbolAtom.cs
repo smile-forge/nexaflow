@@ -53,11 +53,6 @@ internal sealed record SymbolAtom : CharSymbol
     public static SymbolAtom GetAtom(string name, SourceSpan? source) =>
         TryGetAtom(name, source, out var atom) ? atom : throw new SymbolNotFoundException(name);
 
-    public static bool TryGetAtom(SourceSpan name, [NotNullWhen(true)] out SymbolAtom? atom)
-    {
-        return TryGetAtom(name.ToString(), name, out atom);
-    }
-
     public SymbolAtom(SourceSpan? source, SymbolAtom symbolAtom, TexAtomType type)
         : base(source, type)
     {

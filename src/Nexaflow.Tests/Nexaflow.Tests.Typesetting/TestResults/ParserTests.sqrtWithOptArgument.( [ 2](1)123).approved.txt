@@ -1,23 +1,19 @@
 {
   "RootAtom": {
     "[AtomType]": "RowAtom",
-    "Borrowed": false,
     "Elements": [
       {
         "[AtomType]": "Radical",
         "BaseAtom": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "1",
           "IsTextSymbol": false,
           "Slots": [],
           "TextStyle": null,
           "Type": "Ordinary"
         },
-        "Borrowed": false,
         "DegreeAtom": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "2",
           "IsTextSymbol": false,
           "Slots": [],
@@ -29,7 +25,6 @@
             "Column": -1,
             "Node": {
               "[AtomType]": "CharAtom",
-              "Borrowed": false,
               "Character": "2",
               "IsTextSymbol": false,
               "Slots": [],
@@ -43,7 +38,6 @@
             "Column": -1,
             "Node": {
               "[AtomType]": "CharAtom",
-              "Borrowed": false,
               "Character": "1",
               "IsTextSymbol": false,
               "Slots": [],
@@ -58,7 +52,6 @@
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "1",
         "IsTextSymbol": false,
         "Slots": [],
@@ -67,7 +60,6 @@
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "2",
         "IsTextSymbol": false,
         "Slots": [],
@@ -76,7 +68,6 @@
       },
       {
         "[AtomType]": "CharAtom",
-        "Borrowed": false,
         "Character": "3",
         "IsTextSymbol": false,
         "Slots": [],
@@ -92,17 +83,14 @@
           "[AtomType]": "Radical",
           "BaseAtom": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "1",
             "IsTextSymbol": false,
             "Slots": [],
             "TextStyle": null,
             "Type": "Ordinary"
           },
-          "Borrowed": false,
           "DegreeAtom": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "2",
             "IsTextSymbol": false,
             "Slots": [],
@@ -114,7 +102,6 @@
               "Column": -1,
               "Node": {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "2",
                 "IsTextSymbol": false,
                 "Slots": [],
@@ -128,7 +115,6 @@
               "Column": -1,
               "Node": {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "1",
                 "IsTextSymbol": false,
                 "Slots": [],
@@ -148,7 +134,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "1",
           "IsTextSymbol": false,
           "Slots": [],
@@ -162,7 +147,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "2",
           "IsTextSymbol": false,
           "Slots": [],
@@ -176,7 +160,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "3",
           "IsTextSymbol": false,
           "Slots": [],

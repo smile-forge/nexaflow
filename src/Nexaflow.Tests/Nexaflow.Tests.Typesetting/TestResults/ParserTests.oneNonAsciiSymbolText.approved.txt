@@ -3,20 +3,17 @@
     "[AtomType]": "ScriptsAtom",
     "BaseAtom": {
       "[AtomType]": "CharAtom",
-      "Borrowed": false,
       "Character": "А",
       "IsTextSymbol": false,
       "Slots": [],
       "TextStyle": "text",
       "Type": "Ordinary"
     },
-    "Borrowed": false,
     "Slots": [
       {
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "А",
           "IsTextSymbol": false,
           "Slots": [],
@@ -30,7 +27,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "CharAtom",
-          "Borrowed": false,
           "Character": "И",
           "IsTextSymbol": false,
           "Slots": [],
@@ -43,7 +39,6 @@
     ],
     "SubscriptAtom": {
       "[AtomType]": "CharAtom",
-      "Borrowed": false,
       "Character": "И",
       "IsTextSymbol": false,
       "Slots": [],

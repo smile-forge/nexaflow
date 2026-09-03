@@ -7,7 +7,6 @@
   "Italic": 0.0,
   "Node": {
     "[AtomType]": "SpaceAtom",
-    "Borrowed": false,
     "Slots": [],
     "Type": "Ordinary"
   },

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 
 using System.Collections.Generic;
@@ -48,8 +48,7 @@ internal sealed record Radical : Atom
         // Create box for radical sign.
         var totalHeight = baseBox.Height + baseBox.Depth;
         var radicalSignBox = DelimiterFactory.CreateBox(sqrtSymbol, totalHeight + clearance + defaultRuleThickness,
-            environment, Source);
-        radicalSignBox.Source = Source;
+            environment);
 
         // Add half of excess height to clearance.
         var delta = radicalSignBox.Depth - (totalHeight + clearance);

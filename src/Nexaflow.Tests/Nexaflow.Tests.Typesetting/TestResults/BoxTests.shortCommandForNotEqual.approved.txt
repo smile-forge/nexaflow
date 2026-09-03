@@ -22,7 +22,6 @@
       "Italic": 0.0,
       "Node": {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "not",
@@ -70,7 +69,6 @@
       "Italic": 0.0,
       "Node": {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "equals",
@@ -89,11 +87,9 @@
   "Italic": 0.0,
   "Node": {
     "[AtomType]": "RowAtom",
-    "Borrowed": false,
     "Elements": [
       {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "not",
@@ -102,7 +98,6 @@
       },
       {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "equals",
@@ -116,7 +111,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "SymbolAtom",
-          "Borrowed": false,
           "IsDelimeter": false,
           "IsTextSymbol": false,
           "Name": "not",
@@ -130,7 +124,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "SymbolAtom",
-          "Borrowed": false,
           "IsDelimeter": false,
           "IsTextSymbol": false,
           "Name": "equals",
