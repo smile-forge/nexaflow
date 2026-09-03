@@ -95,6 +95,13 @@ public interface IVirtualFileSystem
     /// throws if no registered handler can create it.</summary>
     void CreateArchive(string archivePath, string sourceDir);
 
+    /// <summary>Creates a new archive at <paramref name="archivePath"/> holding every item in
+    /// <paramref name="sourcePaths"/> — the several items of a multi-selection, in one archive. Each source
+    /// keeps its own name: a file is stored at the root under its file name, a directory recursively beneath
+    /// a folder of that name, so same-named entries from two different folders cannot collide. The format is
+    /// chosen by the archive file's extension; throws if no registered handler can create it.</summary>
+    void CreateArchive(string archivePath, IReadOnlyList<string> sourcePaths);
+
     /// <summary>True if a registered handler can <b>create</b> an archive of the given file name's format.</summary>
     bool CanCreate(string archiveFileName);
 
