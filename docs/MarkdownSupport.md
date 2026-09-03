@@ -127,6 +127,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `nomnoml` | ✅ | ❌ — no test or sample fixture |
 | `mermaid` | ⚠️ Partial | ✅ — see sub-types below |
 | `qr` | ✅ | ✅ — see [QR codes](#qr-codes--sub-support) below |
+| `barcode` | ✅ | ✅ — see [Barcodes](#barcodes--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
 
@@ -551,6 +552,92 @@ centres (including version 32, the one that breaks the spacing rule), and the Ta
 
 ---
 
+## Barcodes — sub-support
+
+A **`barcode`** fence ([syntax](https://markdown.org/tools/diagrams/barcode/)) generates a linear
+barcode. Like `qr` it is not a diagram but arrives as one, so it is registered as an
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/BarcodeDiagramHandler.cs)
+and reaches both markdown surfaces through the one dispatcher.
+
+The body is a flat `key: value` list, and **unrecognised keys are refused rather than ignored** — the
+same reasoning as `qr`.
+
+**Twenty-three formats, all encoded here**, in
+[`Markdown/Barcode/Encoders`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/Encoders):
+
+| Encoder | Formats |
+|---|---|
+| `Code128Encoder` | `CODE128` (auto subset switching), `CODE128A`, `CODE128B`, `CODE128C` |
+| `EanEncoder` | `EAN13`, `EAN8`, `EAN5`, `EAN2`, `UPC`/`UPCA`, `UPCE` |
+| `WidthEncoders` | `CODE39`, `ITF`, `ITF14`, `MSI` ×4, `PHARMACODE`, `CODABAR` |
+| `PublicationEncoder` | `ISBN`, `ISSN`, `ISMN` — each works out the thirteen digits its number stands for and hands them to `EanEncoder`, plus an optional add-on set apart by a 12-module gap |
+
+Every symbology reduces to the same thing — a row of equal-width modules, each ink or paper — so
+[`BarcodePattern`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePattern.cs) carries all of them
+and the renderer never learns what an EAN is.
+
+**The parser does not encode.** That split is the whole design:
+
+- A **structural** fault (unknown key, no such format, a width that isn't a number) means the block
+  cannot be understood, and it falls back to its source with the reason — `DiagramRenderer.ErrorElement`.
+- A value the format **cannot carry** is not structural. The block is well formed and the value is the
+  part being edited, so it must keep rendering: a valid sample value's bars are drawn faint, struck
+  through, with a red wave under the value and the reason on hover. A value is invalid for every
+  keystroke but the last while an EAN-13 is being typed.
+
+**Human-readable layout is a property of the format, not of the encoding**, so it is worked out in one
+place — [`BarcodeTextLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeTextLayout.cs) —
+from the symbology and the encoded text, rather than threaded back through each encoder. It returns
+the text broken into `BarcodeTextRun`s (each with the modules it sits over and whether it goes below,
+outside, or above the bars), the guard runs that drop past the digits, and a caption. Everything
+outside the retail family returns nothing and is centred underneath.
+
+This matters more than it sounds: an EAN printed as one centred string reads as the wrong barcode even
+when every module is right, which is exactly what the reference images caught.
+
+**Editing.** `BarcodeElement` implements
+[`IEditableBlock`](../src/Nexaflow.Visuals.Text/Editing/IEditableBlock.cs), so the caret crosses into
+it, selects, types and leaves through the same host code that drives a formula — see
+[`InlineMarkdownEditor.Blocks.cs`](../src/Nexaflow.Visuals.Text/Markdown/InlineMarkdownEditor.Blocks.cs).
+It contributes **no layout tree** (`Root` is null): the value is one run of characters, and a tree would
+be inventing structure to describe a flat string. What it keeps instead is the x, row and height of
+every place the caret can stand.
+
+While the caret is in it the text row shows the **value**, not the number the symbol prints. For most
+of the retail family those are different strings — an ISBN's value carries hyphens the symbol never
+prints, an EAN-13's gains a computed check digit, a UPC-E completes both ends — and a caret measured
+against one while the keys edit the other points at the wrong character. *This is the known rough
+edge*: the honest fix is a parse tree with a layout tree mapping onto it (as LaTeX has), which would
+let the caret sit in the printed number and still know which value characters it edits, and would make
+the caption editable. It waits on `ILayoutNode` losing its source offsets.
+
+`BarcodeBlock.ValueStart` is relative to the fence's **content**, while the editing host splices into
+the whole block — `DiagramRenderOptions.SourceOffset` carries the difference, set by `BlockRenderer`,
+which is the only place that holds both strings.
+
+**Settings**: `width` (0.5–20, default 2 — the width of one *bar*, not of the symbol), `height`
+(4–1000, default 100), `displayValue` (default true), `fontSize` (4–200, default 20), `textAlign`
+(`left`/`center`/`right`), `lineColor`, `background` (`#RGB`, `#RRGGBB`, `#AARRGGBB`), `margin`
+(0–200, default 10).
+
+**Colour follows the same rule as QR**: `MarkdownPalette.BarcodeDark` / `BarcodeLight` are their own
+pair (`BarcodeDarkBrush` / `BarcodeLightBrush` to retune), because bars that inverted with a dark theme
+would stop scanning. A block's `lineColor:` / `background:` win over both.
+
+**Testing it.** The encoders are checked two ways. `BarcodeEncoderTests` pins the module strings against
+the published tables and check-digit rules; `BarcodeReferenceImageTests` reads **externally generated
+PNGs** back to modules and compares — point `NEXAFLOW_BARCODE_IMAGES` at a folder of
+`barcode_<value>_<format>.png` files. That second one earned its keep immediately: it found four real
+faults (Code 39 and Codabar drawing gaps as bars, pharmacode's one-module gap, and Code 128 not
+switching subsets), and it is what showed the retail formats were printing their digits wrong.
+
+19 of 20 reference images match at module level. The three publication images do not, and the cause is
+the harness rather than the encoder: their readings are off by a module and parse as no valid EAN
+symbol code, while ours decode correctly against the digits printed on those same images (the ISSN's
+`0111011` then `0010001` are the L- and G-codes for 7, matching body 9770311175001).
+
+---
+
 ## Musical Notation — sub-support
 
 Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
@@ -736,6 +823,11 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Qr/QrEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrEncoderTests.cs) | The QR encoder: round trips through every version and level via `QrTestDecoder`, non-ASCII, the capacity boundary, and the published capacity / alignment-centre / format-code-word tables. |
 | [`Markdown/Qr/QrBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockParserTests.cs) | The `qr` block body: the exact payload each `type:` builds (escaping included), every setting, and each diagnostic — unknown type, mistyped setting, foreign field, missing field, bad value. |
 | [`Markdown/Qr/QrRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrRendererTests.cs) | QR dispatch through `DiagramRenderer`, geometry area = the dark modules, `cellSize`/`margin` measurement, palette vs. block colours, and both failure paths rendering their reason. (UI category.) |
+| [`Markdown/Barcode/BarcodeEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeEncoderTests.cs) | Every one of the twenty-three formats down to the module: published symbol tables, computed and verified check digits, Code 128 subset switching, and each value a format refuses. |
+| [`Markdown/Barcode/BarcodeReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeReferenceImageTests.cs) | Reads externally generated PNGs back to modules and compares. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; inconclusive without it. |
+| [`Markdown/Barcode/BarcodeBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeBlockParserTests.cs) | The `barcode` block body: every setting and its bounds, the value offset, and each structural diagnostic — separately from a value the format cannot carry, which is not one. |
+| [`Markdown/Barcode/BarcodeElementTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeElementTests.cs) | The element itself: measurement, the error presentation, caret placement, selection and the typing verbs. (UI category.) |
+| [`Markdown/Barcode/BarcodeInEditorTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeInEditorTests.cs) | The barcode driven through the editor's block seam — arrowing in and out, typing, space, Home/End, undo, cut, and editing a value whose printed form differs from it. (Desktop category.) |
 
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):

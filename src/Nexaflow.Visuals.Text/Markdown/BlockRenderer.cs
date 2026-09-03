@@ -73,19 +73,7 @@ public static class BlockRenderer
                 Music.MusicBlock   mus => Aligned(Music.MusicRenderer.Render(mus, ctx), ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
-                                       => Aligned(DiagramRenderer.Render(fc.Info!, ExtractFencedContent(fc, rawMarkdown),
-                                              new DiagramRenderOptions
-                                              {
-                                                  Palette           = p,
-                                                  OnNavigate        = ctx.OnNavigate,
-                                                  OnExpand          = ctx.OnDiagramExpand,
-                                                  OnSelect          = ctx.OnDiagramSelect,
-                                                  FitToWidth        = ctx.FitContentToWidth,
-                                                  OpenOnDoubleClick = ctx.DiagramOpenOnDoubleClick,
-                                                  ZoomOnWheel       = ctx.DiagramZoomOnWheel,
-                                                  MaxHeight         = ctx.MaxDiagramHeight,
-                                                  ViewState         = ctx.DiagramStates?.Next(),
-                                              }), ctx),
+                => Aligned(RenderDiagramBlock(fc, rawMarkdown, ctx), ctx),
                 FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString(), ctx),
                 CodeBlock          cb  => RenderCode(cb.Lines.ToString(), ctx),
                 MdTable            t   => RenderTable(t, ctx),
@@ -883,6 +871,51 @@ public static class BlockRenderer
     }
 
     // ── Fenced-content extraction ─────────────────────────────────────────
+
+    /// <summary>
+    /// Renders a fenced block whose info string names a diagram language.
+    ///
+    /// <para>
+    /// The content is extracted once and its place in the block worked out from it, because a renderer
+    /// producing something editable needs both: an offset into the content is not an offset into the block
+    /// an editing host splices back into, and the fence lines between them are known only here.
+    /// </para>
+    /// </summary>
+    private static FrameworkElement RenderDiagramBlock(FencedCodeBlock fc, string rawMarkdown, MarkdownRenderContext ctx)
+    {
+        var content = ExtractFencedContent(fc, rawMarkdown);
+
+        return DiagramRenderer.Render(fc.Info!, content, new DiagramRenderOptions
+        {
+            Palette           = ctx.Palette,
+            SourceOffset      = FencedContentOffset(rawMarkdown, content),
+            OnNavigate        = ctx.OnNavigate,
+            OnExpand          = ctx.OnDiagramExpand,
+            OnSelect          = ctx.OnDiagramSelect,
+            FitToWidth        = ctx.FitContentToWidth,
+            OpenOnDoubleClick = ctx.DiagramOpenOnDoubleClick,
+            ZoomOnWheel       = ctx.DiagramZoomOnWheel,
+            MaxHeight         = ctx.MaxDiagramHeight,
+            ViewState         = ctx.DiagramStates?.Next(),
+        });
+    }
+
+    /// <summary>
+    /// Where the extracted content begins inside the raw block — the opening fence line, plus whatever the
+    /// trim took off the front.
+    /// <para>
+    /// Found by searching rather than counted, so it stays right however the extraction is written. Zero
+    /// when the content is empty or cannot be located, which puts an edit at the start of the block instead
+    /// of somewhere invented.
+    /// </para>
+    /// </summary>
+    private static int FencedContentOffset(string rawMarkdown, string content)
+    {
+        if (string.IsNullOrEmpty(rawMarkdown) || string.IsNullOrEmpty(content)) return 0;
+
+        var at = rawMarkdown.IndexOf(content, StringComparison.Ordinal);
+        return at < 0 ? 0 : at;
+    }
 
     /// <summary>
     /// Extracts the content lines of a fenced code block from the raw markdown

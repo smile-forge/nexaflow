@@ -49,13 +49,20 @@ public readonly record struct CaretArrival(BlockExit Edge, CaretStep Step, doubl
 
 /// <summary>
 /// What a piece of rendered content offers the document holding it, beyond owning its own pointer
-/// gestures: its source, its layout, what is selected inside it, what could not be read, and a caret that
-/// can be handed in at an edge or handed back out.
+/// gestures: its source, its layout, what is selected inside it, what could not be read, a caret that can
+/// be handed in at an edge or handed back out, and the keys that change it.
 /// <para>
 /// This is the whole of the seam between prose and rendered content. A document that can drive it can
-/// select across a formula, arrow into and out of one, and show what is wrong inside it — without knowing
-/// what a formula is. When the score and the diagrams implement it they inherit all of that unchanged,
-/// which is the point of writing it here rather than in the formula.
+/// select across a formula, arrow into and out of one, type into it, and show what is wrong inside it —
+/// without knowing what a formula is. A barcode implements the same members and is driven by the same
+/// host code unchanged, which is the point of writing it here rather than in the formula.
+/// </para>
+/// <para>
+/// What stays behind the host's <c>is FormulaElement</c> tests is only what is genuinely not shared:
+/// moving between the parts of a fraction, tabbing through the holes of a half-written construct,
+/// settling a command with a space. A block whose content is one run of characters has none of those to
+/// want, so those keys fall back to the document rather than being swallowed by a block with no use
+/// for them.
 /// </para>
 /// </summary>
 public interface IEditableBlock : IInteractiveBlock
@@ -71,6 +78,41 @@ public interface IEditableBlock : IInteractiveBlock
 
     /// <summary>Whatever could not be read — what the host draws a wave under.</summary>
     IReadOnlyList<Diagnostic> Diagnostics { get; }
+
+    /// <summary>
+    /// Raised when the reader's own editing changed <see cref="Source"/>. The host answers by putting the
+    /// new source back into the markdown the block came from — see <see cref="SourceStart"/>.
+    /// <para>
+    /// A block names this whatever its content is called (a formula's <c>LatexChanged</c>, a barcode's
+    /// <c>ValueChanged</c>); this is the seam's name for it, and what the host listens to.
+    /// </para>
+    /// </summary>
+    event EventHandler? SourceChanged;
+
+    /// <summary>
+    /// Where <see cref="Source"/> sits inside the markdown block that produced this one — what the host
+    /// needs to splice an edit back where it came from. Negative when the whole block <em>is</em> this
+    /// content, as a <c>$$…$$</c> block is, and there is nothing to splice around.
+    /// </summary>
+    int SourceStart { get; }
+
+    /// <summary>Types a character at the caret, replacing whatever is selected.</summary>
+    void Type(char character);
+
+    /// <summary>
+    /// Deletes backwards from the caret, or deletes the selection. False when there was nothing to
+    /// delete, which is the block saying the key was never its to take.
+    /// </summary>
+    bool Backspace();
+
+    /// <summary>Deletes forwards, or deletes the selection. False when there was nothing to delete.</summary>
+    bool Delete();
+
+    /// <summary>
+    /// Moves the caret one stop, extending the selection behind it when asked. False when it ran off an
+    /// end, having raised <see cref="Exited"/> — the host then decides where the caret really goes.
+    /// </summary>
+    bool MoveCaret(bool forward, bool extend);
 
     /// <summary>
     /// Selects a stretch of its source. How a selection sweeping across the document reaches inside a

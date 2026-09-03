@@ -15,7 +15,7 @@ public class MarkdownSampleFilesTests
     public void Dataset_MaterialisesAllMarkdownSamples()
     {
         var files = TestSampleData.Files("markdown");
-        Assert.AreEqual(31, files.Count);   // 23 mermaid + extensions + 4 latex-math + 2 music + qr
+        Assert.AreEqual(32, files.Count);   // 23 mermaid + extensions + 4 latex-math + 2 music + qr + barcode
 
         foreach (var path in files)
         {

@@ -54,6 +54,16 @@ public sealed class MarkdownPalette
     private static readonly Brush DefaultQrDark  = Frozen(0x0B, 0x0B, 0x0F);
     private static readonly Brush DefaultQrLight = Frozen(0xFF, 0xFF, 0xFF);
 
+
+    /// <summary>
+    /// A barcode's bars and the label stock behind them. Their own pair for the same reason the QR ones
+    /// are: a scannable mark has to stay dark-on-light whatever the theme does. Separate from the QR pair
+    /// rather than shared with it because a barcode is routinely printed in a brand colour and a QR code
+    /// rarely is - the block syntax's own example sets lineColor to a blue.
+    /// </summary>
+    public Brush BarcodeDark  { get; init; } = DefaultQrDark;
+    public Brush BarcodeLight { get; init; } = DefaultQrLight;
+
     /// <summary>Distinct, saturated colours for chart series / pie slices / graph accents. Read
     /// cyclically by the graph + chart renderers. Saturated enough to read on light or dark surfaces;
     /// a theme can supply its own set.</summary>
@@ -177,6 +187,8 @@ public sealed class MarkdownPalette
             FooterBg      = R("SurfaceBrush",     d.FooterBg),
             QrDark        = R("QrDarkBrush",      d.QrDark),
             QrLight       = R("QrLightBrush",     d.QrLight),
+            BarcodeDark   = R("BarcodeDarkBrush",  d.BarcodeDark),
+            BarcodeLight  = R("BarcodeLightBrush", d.BarcodeLight),
         };
     }
 }

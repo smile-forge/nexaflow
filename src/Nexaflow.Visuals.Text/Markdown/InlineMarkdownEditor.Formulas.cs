@@ -1,84 +1,24 @@
 using System;
-using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-
-using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// The seam between the document and a formula inside it: which formula holds the caret, where its keys
-/// come from, and how an edit to it gets back into the block model.
+/// What LaTeX specifically asks of the editor, over and above the block seam every editable block
+/// shares: the palette's insertions, and a paste normalised into a formula rather than a paragraph.
 /// <para>
-/// A formula is the one part of the rendered document that is not text — so the caret has to be able to
-/// cross into it and back out, and typing has to reach it. It cannot take focus (a focusable element
-/// inside a <c>RichTextBox</c> faults its caret reconciliation), so the editor keeps focus and forwards
-/// the keys itself. Mouse input already arrives through <see cref="IInteractiveBlock"/>, which the
-/// formula implements alongside the music score.
-/// </para>
-/// <para>
-/// Kept apart from the main editor file because it is a self-contained conversation with one kind of
-/// embedded element, not another chapter of how the editor edits text.
+/// Focus, keys, caret crossing and the write-back into the block model are not here — they are the same
+/// for every embedded block and live in <c>InlineMarkdownEditor.Blocks.cs</c>. What remains is the part
+/// that only makes sense for maths: adopting the formula under the caret so a palette key works without
+/// clicking into it first, and taking off whatever wrapper a copied formula arrived in.
 /// </para>
 /// </summary>
 public partial class InlineMarkdownEditor
 {
-    private FormulaElement? _caretFormula;
-
     /// <summary>The formula the caret is inside, if any — the target for keys and palette insertions.</summary>
-    internal FormulaElement? FocusedFormula => _caretFormula;
-
-    /// <summary>
-    /// Hands the caret to <paramref name="formula"/>, taking it off whichever one had it. Called when a
-    /// click lands inside a formula, and when the caret arrows in from the text beside it.
-    /// </summary>
-    private void FocusFormula(FormulaElement formula)
-    {
-        if (ReferenceEquals(_caretFormula, formula)) return;
-
-        BlurFormula();
-        _caretFormula = formula;
-        formula.LatexChanged += OnFormulaLatexChanged;
-        formula.Exited += OnFormulaExited;
-
-        // There is one caret, and the formula is now drawing it. The RichTextBox keeps a caret of its
-        // own at whatever text position the formula's block occupies, and left visible it blinks beside
-        // the real one — two carets, neither of which the keys are going to.
-        _rtb.CaretBrush = Brushes.Transparent;
-
-        // Same for the selection. The document selects an embedded element whole — it has no way to
-        // say "part of that formula" — so the block wash sits under the formula's own, and the reader
-        // sees the piece they picked highlighted inside a highlighted line.
-        ClearDocumentSelection();
-    }
-
-    /// <summary>Collapses the document's selection, leaving whatever the block itself has selected.</summary>
-    private void ClearDocumentSelection()
-    {
-        if (_rtb.Selection.IsEmpty) return;
-
-        _suppress = true;
-        try { _rtb.Selection.Select(_rtb.Selection.Start, _rtb.Selection.Start); }
-        finally { _suppress = false; }
-    }
-
-    /// <summary>Takes the caret back out of whichever formula holds it.</summary>
-    private void BlurFormula()
-    {
-        if (_caretFormula is not { } formula) return;
-        _caretFormula = null;
-
-        formula.LatexChanged -= OnFormulaLatexChanged;
-        formula.Exited -= OnFormulaExited;
-        formula.ReleaseCaret();
-
-        // The document draws the caret again — through the same call that decided how it looks, so it
-        // comes back theme-aware or palette-frozen exactly as it was.
-        ApplyEditorBrushes();
-    }
+    internal FormulaElement? FocusedFormula => _caretBlock as FormulaElement;
 
     /// <summary>
     /// Types LaTeX into the formula holding the caret — how a symbol palette inserts. When no formula
@@ -99,7 +39,7 @@ public partial class InlineMarkdownEditor
         if (string.IsNullOrEmpty(latex)) return false;
         if (!AdoptFormulaAtCaret()) return false;
 
-        _caretFormula!.Insert(latex, caretBack);
+        FocusedFormula!.Insert(latex, caretBack);
         return true;
     }
 
@@ -111,7 +51,7 @@ public partial class InlineMarkdownEditor
     {
         if (!AdoptFormulaAtCaret()) return false;
 
-        _caretFormula!.Wrap(before, after);
+        FocusedFormula!.Wrap(before, after);
         return true;
     }
 
@@ -123,9 +63,9 @@ public partial class InlineMarkdownEditor
     /// </summary>
     public bool PasteIntoFormula(string? text)
     {
-        if (string.IsNullOrEmpty(text) || _caretFormula is null) return false;
+        if (string.IsNullOrEmpty(text) || FocusedFormula is not { } formula) return false;
 
-        _caretFormula.Insert(AsFormula(text));
+        formula.Insert(AsFormula(text));
         return true;
     }
 
@@ -270,115 +210,19 @@ public partial class InlineMarkdownEditor
     /// </summary>
     private bool AdoptFormulaAtCaret()
     {
-        if (_caretFormula is not null) return true;
+        if (FocusedFormula is not null) return true;
 
         var index = _rtb.CaretPosition is { } caret ? BlockIndexAtPointer(caret) : -1;
         var found = (index >= 0 ? FormulaInBlock(index) : null) ?? FirstFormula();
         if (found is null) return false;
 
-        FocusFormula(found);
+        FocusBlock(found);
         found.TakeCaret(found.Latex.Length);
         return true;
     }
 
     /// <summary>The formula rendered for one block of the model, if it holds one.</summary>
     private FormulaElement? FormulaInBlock(int index) => EditableInBlock(index) as FormulaElement;
-
-    /// <summary>
-    /// The caret-taking element rendered for one block of the model, whatever kind it is — the seam an
-    /// arrow key crosses into. A formula today; a score or a diagram the moment either implements
-    /// <see cref="IEditableBlock"/>, with nothing here to change.
-    /// </summary>
-    private IEditableBlock? EditableInBlock(int index)
-    {
-        if (index < 0) return null;
-
-        foreach (var block in _rtb.Document.Blocks)
-        {
-            if (block.Tag is not int tagged || tagged != index) continue;
-            if (EditableIn(block) is { } found) return found;
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Steps the caret out of the text and into the block on the other side of it, when an arrow key
-    /// would otherwise skip straight over that block.
-    /// <para>
-    /// An embedded element is a single indivisible position to a flow document, so left-arrowing back
-    /// along a line hops the whole formula as if it were one character. Crossing into it deliberately —
-    /// and at the place the reader was coming from — is what makes the boundary invisible: right into
-    /// its start, left into its end, and down into whatever sits under the column the caret was already
-    /// in.
-    /// </para>
-    /// Returns true when the caret was handed over and the document's own handling should stand down.
-    /// </summary>
-    private bool ArrowCrossesIntoBlock(KeyEventArgs e)
-    {
-        if (_caretFormula is not null) return false;   // already inside something; its keys, not ours
-        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down)) return false;
-
-        // Shift is extending a selection across the block and Ctrl is a word/document jump; neither is
-        // "step into this thing", and a selection sweeping over a block is handled whole (see SweepBlocks).
-        if ((Keyboard.Modifiers & (ModifierKeys.Shift | ModifierKeys.Control)) != 0) return false;
-
-        var forward = e.Key is Key.Right or Key.Down;
-        var vertical = e.Key is Key.Up or Key.Down;
-
-        var (block, offset) = CaretLocation();
-        if (block < 0 || !AtBlockEdge(block, offset, forward, vertical)) return false;
-
-        if (EditableInBlock(block + (forward ? 1 : -1)) is not { } target) return false;
-
-        // Coming in forward means entering over the block's leading edge, and vice versa.
-        var edge = forward ? BlockExit.Before : BlockExit.After;
-        var step = vertical ? CaretStep.Line : CaretStep.Character;
-        var column = vertical && target is UIElement element ? CaretColumnIn(element) : null;
-
-        // Only a formula's keys are routed for now — it is the only block that takes any. The crossing
-        // above is already whole: a score or a diagram implementing IEditableBlock gets the caret here
-        // without a line changing, and grows key handling when it has keys of its own to want.
-        if (target is FormulaElement formula) FocusFormula(formula);
-        _rtb.Focus();
-        target.TakeCaretArriving(new CaretArrival(edge, step, column));
-        return true;
-    }
-
-    /// <summary>
-    /// Whether the caret is against the edge the key is pushing at — the far end of the block for a
-    /// sideways move, its first or last line for a vertical one, since those are the only positions
-    /// from which the next step leaves the block at all.
-    /// </summary>
-    private bool AtBlockEdge(int block, int offset, bool forward, bool vertical)
-    {
-        if (block < 0 || block >= _blocks.Count) return false;
-        var text = _blocks[block];
-
-        if (!vertical) return forward ? offset >= text.Length : offset <= 0;
-
-        if (forward)
-        {
-            var lastLine = text.LastIndexOf('\n');
-            return offset > lastLine;
-        }
-
-        var firstLine = text.IndexOf('\n');
-        return firstLine < 0 || offset <= firstLine;
-    }
-
-    /// <summary>
-    /// Where the document's caret sits horizontally, in <paramref name="target"/>'s own coordinates —
-    /// the column a vertical step has to keep.
-    /// </summary>
-    private double? CaretColumnIn(UIElement target)
-    {
-        try
-        {
-            var caret = _rtb.CaretPosition.GetCharacterRect(LogicalDirection.Forward);
-            return _rtb.TranslatePoint(new Point(caret.X, 0), target).X;
-        }
-        catch { return null; }   // no rect yet — the edge is a good enough answer
-    }
 
     /// <summary>The first formula anywhere in the document — the fallback when the caret names none.</summary>
     private FormulaElement? FirstFormula()
@@ -389,171 +233,4 @@ public partial class InlineMarkdownEditor
     }
 
     private static FormulaElement? FormulaIn(Block block) => EditableIn(block) as FormulaElement;
-
-    private static IEditableBlock? EditableIn(Block block) =>
-        block switch
-        {
-            BlockUIContainer { Child: IEditableBlock child } => child,
-            Paragraph paragraph => FirstIn(paragraph),
-            _ => null,
-        };
-
-    private static IEditableBlock? FirstIn(Paragraph paragraph)
-    {
-        foreach (var inline in paragraph.Inlines)
-            if (inline is InlineUIContainer { Child: IEditableBlock child }) return child;
-        return null;
-    }
-
-    /// <summary>
-    /// Routes a keystroke to the focused formula. Returns true when the formula dealt with it and the
-    /// editor's own text handling should stand down.
-    /// </summary>
-    private bool FormulaHandlesKey(KeyEventArgs e)
-    {
-        if (_caretFormula is not { } formula) return false;
-
-        bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
-        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
-
-        // Paste keeps the caret where it is. The text itself arrives later, through DataObject.Pasting,
-        // and goes into the formula — so giving the caret back here would hand it to the document a beat
-        // before the paste landed, and a pasted formula would appear beside the one being edited rather
-        // than in it. Every other shortcut is still the editor's.
-        if (ctrl && e.Key is Key.V) return false;
-        if (shift && e.Key is Key.Insert) return false;
-        if (ctrl) { BlurFormula(); return false; }
-
-        switch (e.Key)
-        {
-            case Key.Left:
-            case Key.Right:
-                // Running off an end raises Exited, which puts the caret in the text beside the formula.
-                formula.MoveCaret(forward: e.Key == Key.Right, extend: shift);
-                return true;
-
-            case Key.Up:
-            case Key.Down:
-                // Inside a fraction or a script there is somewhere to go; otherwise let the editor move
-                // the caret to another line, which means leaving the formula.
-                if (formula.MoveCaretVertically(up: e.Key == Key.Up, extend: shift)) return true;
-                BlurFormula();
-                return false;
-
-            case Key.Back:
-                if (formula.Backspace()) return true;
-                BlurFormula();      // nothing left in it — the next backspace is the document's
-                return false;
-
-            case Key.Delete:
-                if (formula.Delete()) return true;
-                BlurFormula();
-                return false;
-
-            case Key.Space:
-            case Key.Enter:
-                // Settles a half-written command. Enter inside a formula is never a block split — you
-                // are inside one expression, not between two paragraphs.
-                formula.Commit(e.Key == Key.Space ? " " : " ");
-                return true;
-
-            case Key.Tab:
-                // Through the holes of whatever was just inserted, so a construct is filled by typing
-                // and tabbing. Only while there are holes left; otherwise Tab is the document's.
-                return formula.SelectNextPlaceholder(forward: !shift);
-
-            case Key.Escape:
-                BlurFormula();
-                return true;
-
-            default:
-                return false;   // printable keys arrive through OnPreviewTextInput
-        }
-    }
-
-    /// <summary>Routes typed text to the focused formula. Returns true when it took it.</summary>
-    private bool FormulaHandlesText(string text)
-    {
-        if (_caretFormula is not { } formula || string.IsNullOrEmpty(text)) return false;
-
-        foreach (var character in text)
-        {
-            if (character is '\r' or '\n') { formula.Commit(); continue; }
-            formula.Type(character);
-        }
-        return true;
-    }
-
-    /// <summary>
-    /// Puts a formula's edit back into the block it came from, without re-rendering: rebuilding the
-    /// document on every keystroke would destroy the very element being typed into.
-    /// </summary>
-    private void OnFormulaLatexChanged(object? sender, EventArgs e)
-    {
-        if (sender is not FormulaElement formula) return;
-
-        var index = BlockIndexOf(formula);
-        if (index < 0 || index >= _blocks.Count) return;
-
-        if (formula.IsWholeBlock)
-        {
-            // Bare when the editor owns the fence — it puts one back on to typeset, and a fence stored
-            // here as well would be re-fenced on every keystroke until the block was nothing but $$.
-            _blocks[index] = SingleFormula ? formula.Latex : $"$$\n{formula.Latex}\n$$";
-        }
-        else
-        {
-            var source = _blocks[index];
-            var start = Math.Clamp(formula.SourceStart, 0, source.Length);
-            var length = Math.Clamp(formula.SourceLength, 0, source.Length - start);
-            _blocks[index] = string.Concat(source.AsSpan(0, start), formula.Latex, source.AsSpan(start + length));
-            formula.SourceLength = formula.Latex.Length;   // the run just changed size
-        }
-
-        PushMarkdown();
-    }
-
-    /// <summary>The caret walked off one end of a formula — put it in the text on that side.</summary>
-    private void OnFormulaExited(object? sender, BlockExit side)
-    {
-        if (sender is not FormulaElement formula) return;
-
-        // When the formula is the whole editor there is nowhere to step out to. Handing the caret to
-        // the document anyway let the RichTextBox take it somewhere of its own choosing — the start of
-        // the line, then off the right-hand edge, then down — for a key that should have done nothing.
-        if (SingleFormula) { formula.TakeCaretArriving(new CaretArrival(side, CaretStep.Character, null)); return; }
-
-        var container = ContainerOf(formula);
-        BlurFormula();
-        if (container is null) return;
-
-        var landing = side == BlockExit.Before
-            ? container.ContentStart.GetNextInsertionPosition(LogicalDirection.Backward)
-            : container.ContentEnd.GetNextInsertionPosition(LogicalDirection.Forward);
-
-        if (landing is null) return;
-        _suppress = true;
-        try { _rtb.CaretPosition = landing; }
-        finally { _suppress = false; }
-    }
-
-    /// <summary>Which block of the model a formula belongs to, via the Tag every rendered block carries.</summary>
-    private int BlockIndexOf(FormulaElement formula)
-    {
-        for (DependencyObject? d = formula; d is not null; d = LogicalTreeHelper.GetParent(d))
-            if (d is TextElement { Tag: int index }) return index;
-
-        // An inline formula sits in an InlineUIContainer whose logical parent chain reaches the
-        // paragraph; a block one sits in a BlockUIContainer. Either way the pointer route is a backstop.
-        var container = ContainerOf(formula);
-        return container is null ? -1 : BlockIndexAtPointer(container.ContentStart);
-    }
-
-    /// <summary>The text element hosting a formula — its <c>BlockUIContainer</c> or <c>InlineUIContainer</c>.</summary>
-    private static TextElement? ContainerOf(FormulaElement formula)
-    {
-        for (DependencyObject? d = formula; d is not null; d = LogicalTreeHelper.GetParent(d))
-            if (d is BlockUIContainer or InlineUIContainer) return (TextElement)d;
-        return null;
-    }
 }
