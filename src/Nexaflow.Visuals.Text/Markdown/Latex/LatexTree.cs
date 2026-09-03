@@ -36,11 +36,20 @@ public sealed class LatexTree
     private readonly int[] _stops;
 
     /// <param name="latex">The source the tree refers into.</param>
+    /// <param name="reading">
+    /// The parse tree the layout was built from — the same one, handed over rather than read again.
+    /// Reading the source a second time here produced a different tree: this is asked for a formula
+    /// whose layout came out of <c>TexPipeline.Read</c>, which gathers runs and may have been told to
+    /// show a stretch as written or to stand a hole in an empty argument, and none of that is in a bare
+    /// parse. So a piece's part and the tree it was looked up in belonged to two different readings.
+    /// </param>
     /// <param name="root">The formula's whole layout, parents holding children.</param>
     /// <param name="size">The formula's painted size.</param>
-    public LatexTree(string latex, ILayoutNode root, Size size, IReadOnlyList<Diagnostic>? trouble = null)
+    public LatexTree(string latex, TexReading reading, ILayoutNode root, Size size,
+                     IReadOnlyList<Diagnostic>? trouble = null)
     {
         Latex = latex ?? string.Empty;
+        Reading = reading;
         Root = root;
         Size = size;
         Diagnostics = trouble ?? [];
@@ -109,16 +118,15 @@ public sealed class LatexTree
         return null;
     }
 
-    private TexReading? _reading;
-
     /// <summary>
-    /// The formula read as a parse tree, with every part's place and parent worked out.
+    /// The formula as a parse tree, with every part's place and parent worked out — the reading the
+    /// layout was built from, handed over rather than worked out again here.
     /// <para>
-    /// Read once and kept. This object is a reading of one string, and changed source is a different
-    /// <see cref="LatexTree"/> — so there is no moment at which this could be out of date.
+    /// This object is a reading of one string, and changed source is a different
+    /// <see cref="LatexTree"/>, so there is no moment at which it could be out of date.
     /// </para>
     /// </summary>
-    private TexReading Reading => _reading ??= TexReading.Of(Latex);
+    private TexReading Reading { get; }
 
     /// <summary>Roles that name a place content goes, as against the punctuation that holds it.</summary>
     private static bool IsPart(string role) =>
@@ -170,28 +178,16 @@ public sealed class LatexTree
     /// had a single letter in each cell.
     /// </para>
     /// </summary>
-    private LatexGrid? GridFrom(int offset)
-    {
-        if (TexGrid.At(Reading.Root.Node, offset) is not { } grid) return null;
+    private LatexGrid? GridFrom(int offset) =>
+        TexGrid.At(Reading.Root.Node, offset) is { } grid ? Shaped(grid) : null;
 
-        var cells = grid.Cells
-            .Select(cell => (cell.Row, cell.Column, cell.Start, cell.Length))
-            .ToList();
-
-        return LatexGrid.From(Latex, grid.Start, grid.Length, cells);
-    }
-
-    /// <summary>
-    /// Where in the source this piece of the typesetting tree was written, asked of the part it was
-    /// built from.
-    /// <para>
-    /// Asked rather than read. A formula carries the part and no offsets at all, deliberately: an
-    /// offset kept beside a tree is a second copy of what the tree already holds, and the two part
-    /// company as soon as anything is edited.
-    /// </para>
-    /// </summary>
-    private static (int Start, int Length)? Written(XamlMath.IFormulaNode? formula) =>
-        formula?.Origin is { } part ? (part.Start, part.Length) : null;
+    /// <summary>That table as the editor's own model of it, which rewrites LaTeX by character.</summary>
+    private LatexGrid Shaped(TexGrid grid) =>
+        LatexGrid.From(
+            Latex,
+            grid.Start,
+            grid.Length,
+            [.. grid.Cells.Select(cell => (cell.Row, cell.Column, cell.Start, cell.Length))]);
 
     /// <summary>
     /// Where <paramref name="point"/> falls in a matrix: on a cell, or at a boundary between columns or
@@ -203,56 +199,64 @@ public sealed class LatexTree
     /// the geometry has it. It is what tells a block dropped there to become new columns rather than to
     /// land in the cell it happens to be nearest.
     /// </para>
+    /// <para>
+    /// The shape comes from the parse tree and the extents from the layout, and the two are joined by
+    /// identity: a drawn piece belongs to the cell whose node its part was built from. Nothing here
+    /// compares an offset with an offset.
+    /// </para>
     /// </summary>
     public GridDrop? GridDropAt(Point point)
     {
         foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
         {
-            if (node is not LatexNode { Formula: { } formula } || Written(formula) is not { } span) continue;
-
-            var slots = formula.Slots
-                .Where(s => s.Row >= 0 && s.Column >= 0 && Written(s.Node) is not null)
-                .ToList();
-            if (slots.Count == 0) continue;
+            if (node is not LatexNode { Part: { Kind: TexKind.Environment } part }) continue;
+            if (TexGrid.Read(part.Node, part.Start) is not { } grid) continue;
 
             // How far the matrix reaches, brackets included. The cells' box stops at the cells: the
             // delimiters are drawn by the fence around them, which is a separate piece of the same
             // construct — so the margin a reader aims at when offering a column to the matrix belongs to
-            // the fence, not to the box being asked. Anything laid out from the same stretch of source is
-            // that same construct drawn in another part, so its extent counts as this one's.
+            // the fence, not to the box being asked. Anything drawn from the same part is that same
+            // construct drawn in another part, so its extent counts as this one's.
             var reach = node.Bounds;
             foreach (var ancestor in node.Ancestors())
-                if (ancestor is LatexNode { Formula: { } outer } && Written(outer) == span)
+                if (ancestor is LatexNode { Part: { } outer } && ReferenceEquals(outer, part))
                     reach.Union(ancestor.Bounds);
 
             if (!reach.Contains(point)) continue;
 
-            // The shape from the parse tree, the boxes from the layout: which cell is which is a fact
-            // about what was written, and where it landed is a fact about how it was drawn.
-            if (GridFrom(span.Start) is not { } grid) continue;
-
-            // Each cell's extent on the page, taken from the pieces laid out for its parse node.
+            // Each cell's extent on the page, taken from the pieces drawn for its node.
             var boxes = new Dictionary<(int, int), Rect>();
-            foreach (var slot in slots)
+            foreach (var cell in grid.Cells)
             {
+                if (cell.Node is not { } written) continue;
+
                 var drawn = node.SelfAndDescendants()
                     .OfType<LatexNode>()
-                    .Where(n => ReferenceEquals(n.Formula, slot.Node) && n.Bounds.Width > 0)
+                    .Where(n => n.Bounds.Width > 0 && Inside(n.Part, written))
                     .Select(n => n.Bounds)
                     .ToList();
                 if (drawn.Count == 0) continue;
 
                 var box = drawn[0];
                 foreach (var rect in drawn.Skip(1)) box.Union(rect);
-                boxes[(slot.Row, slot.Column)] = box;
+                boxes[(cell.Row, cell.Column)] = box;
             }
 
             if (boxes.Count == 0) continue;
-            return Land(grid, boxes, point);
+            return Land(Shaped(grid), boxes, point);
         }
 
         return null;
     }
+
+    /// <summary>
+    /// Whether a piece was drawn from what is written in one cell: from the cell itself, or from
+    /// anything under it. Identity all the way down — a cell holding one term is often laid out from
+    /// that term rather than from the cell, and a cell holding a matrix has that whole matrix under it.
+    /// </summary>
+    private static bool Inside(TexPart? part, TexNode cell) =>
+        part is not null
+        && (ReferenceEquals(part.Node, cell) || part.Ancestors().Any(up => ReferenceEquals(up.Node, cell)));
 
     /// <summary>Reads a point against a grid's drawn cells: on one of them, or between/past columns or rows.</summary>
     private static GridDrop Land(LatexGrid grid, Dictionary<(int, int), Rect> boxes, Point point)
@@ -841,10 +845,19 @@ public sealed class LatexTree
         role is "superscript" or "subscript" or "numerator" or "denominator"
              or "degree" or "radicand" or "over" or "under";
 
-    /// <summary>Whether the writer already wrapped this argument, in which case it can hold anything.</summary>
+    /// <summary>
+    /// Whether this piece is a braced group — asked of the parse tree, which said so when it read the
+    /// braces, rather than of the characters either side of where the piece was drawn.
+    /// <para>
+    /// The one thing written in a group counts as the group, the same promotion <see cref="RoleOf"/>
+    /// makes: a typesetter names the contents of <c>{a+b}</c> where the part that <em>is</em> the
+    /// argument is the whole of it, so the piece pointed at is often the one inside.
+    /// </para>
+    /// </summary>
     private bool IsBraced(ILayoutNode node) =>
-        node.SourceStart > 0 && Latex[node.SourceStart - 1] == '{'
-        && node.SourceEnd() < Latex.Length && Latex[node.SourceEnd()] == '}';
+        Innermost(node) is { } part
+        && (part.Kind == TexKind.Group
+            || (part.Parent is { Kind: TexKind.Group } group && ReferenceEquals(Alone(group), part)));
 
     /// <summary>
     /// Whether <paramref name="content"/> is one token, and so can stand as an argument bare. A single

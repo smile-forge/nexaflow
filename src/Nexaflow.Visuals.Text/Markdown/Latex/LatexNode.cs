@@ -25,20 +25,10 @@ internal sealed class LatexNode : LayoutNode
 {
     private readonly List<LatexMark> _marks = [];
 
-    public LatexNode(Rect bounds, int sourceStart, int sourceLength, string kind, bool isInk)
-        : base(bounds, sourceStart, sourceLength, kind, isInk)
+    public LatexNode(Rect bounds, string kind, bool isInk)
+        : base(bounds, sourceStart: 0, sourceLength: 0, kind, isInk)
     {
     }
-
-    /// <summary>
-    /// The typesetter's own reading of what this piece was laid out from. Kept because the geometry of a
-    /// matrix's cells is still matched up through it, and for nothing else.
-    /// <para>
-    /// It is a typesetting tree: built to decide box sizes, so it drops braces and spacing, and a style
-    /// atom names no parts at all. What a piece <em>is</em> comes from <see cref="Part"/>.
-    /// </para>
-    /// </summary>
-    public XamlMath.IFormulaNode? Formula { get; set; }
 
     /// <summary>
     /// The part of the parse tree this piece was drawn from — the link back that says what it <em>is</em>
@@ -62,12 +52,50 @@ internal sealed class LatexNode : LayoutNode
     /// then outside it is a question about the construct, and the part is the only thing that can
     /// answer it — so it is answered here rather than anywhere that happens to need it.
     /// </para>
+    /// <para>
+    /// <see cref="ILayoutNode.SourceStart"/> and <see cref="ILayoutNode.SourceLength"/> are the other:
+    /// they are a <em>projection</em> of the part, written here and nowhere else, so that the day the
+    /// editing seam stops working in offsets they are one method to delete rather than a mechanism to
+    /// unpick. <paramref name="anchor"/> is where a piece that stands for nothing sits in the text —
+    /// wherever the thing containing it starts — and is part of the same projection.
+    /// </para>
     /// </summary>
-    public void Owns(Nexaflow.Maths.Latex.TexPart? part)
+    public void Owns(Nexaflow.Maths.Latex.TexPart? part, int anchor)
     {
         Part = part;
         IsEnclosure = part is { } piece && piece.Parts.Any() && !IsRun(piece);
+
+        var (start, length) = Named(part);
+        SourceStart = part is null ? anchor : start;
+        SourceLength = length;
     }
+
+    /// <summary>Takes this piece's part away, leaving it standing for nothing.</summary>
+    public void Disown()
+    {
+        Part = null;
+        SourceLength = 0;
+    }
+
+    /// <summary>
+    /// Which characters a part is named by, in the projection.
+    /// <para>
+    /// Named the way the reading this replaced named it, and deliberately: a braced argument's
+    /// contents, a cell's ink, where the <em>part</em> is the whole <c>{a+b}</c> and the whole cell.
+    /// Everything downstream still works in offsets and was written against that convention, and
+    /// handing over the honest span instead re-braces an argument that is already braced. This is the
+    /// last place an answer from the parse tree is narrowed to suit an offset, and it goes when the
+    /// editor asks the part.
+    /// </para>
+    /// </summary>
+    private static (int Start, int Length) Named(Nexaflow.Maths.Latex.TexPart? part) =>
+        part is null ? (0, 0)
+        : part.Kind switch
+        {
+            Nexaflow.Maths.Latex.TexKind.Group => part.Contents,
+            Nexaflow.Maths.Latex.TexKind.Cell => part.Written,
+            _ => (part.Start, part.Length),
+        };
 
     /// <summary>
     /// Whether a part is a run of things rather than one thing made of parts. A row names every piece

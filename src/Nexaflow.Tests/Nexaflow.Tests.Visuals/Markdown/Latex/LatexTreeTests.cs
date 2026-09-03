@@ -3,6 +3,7 @@ using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Maths.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -57,7 +58,7 @@ public class LatexTreeTests
         return root;
     }
 
-    private static LatexTree Latex() => new(Fraction, Tree(), new Size(78.7, 43.5));
+    private static LatexTree Latex() => new(Fraction, TexReading.Of(Fraction), Tree(), new Size(78.7, 43.5));
 
     // ── Where a caret may rest ──────────────────────────────────────────────
 
