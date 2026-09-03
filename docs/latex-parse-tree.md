@@ -1,4 +1,4 @@
-# The LaTeX parse tree
+﻿# The LaTeX parse tree
 
 A tree that owns the text, prints back exactly what was read, and answers what a construct's parts
 *are* — so that editing a formula is an operation on the tree and the source is only how the tree is
@@ -156,13 +156,28 @@ out, not on how it was written — and it caught two things on its first run tha
 not: a `\sum` whose own glyph did not know it was the sum, and a bracketed matrix whose grid knew
 nothing because only the fence round it had been told.
 
-**The other half is not done.** `LatexNode` still carries `SourceStart`/`SourceLength`, and
-`LatexTree`, `FormulaElement` and `LatexLayoutCapture` still work in them — about thirty sites. They
-cannot move yet, because the offsets are what the *parser* path has, and the parser path is still the
-one that runs. Marking them obsolete now would tell every site to use `Part` while `Part` is filled in
-by `Attribute` — the span matching being deleted. The order is: wire the builder in, so `Part` arrives
-from `Origin`; then the marker fires on a real to-do list rather than on code doing the only thing
-available to it.
+**And `SourceSpan` is gone**, along with `Box.Source`, `Atom.Source`, `IFormulaNode.Source` and the
+guard that existed only to police them: a macro's atoms carry offsets into their own definition, so
+`Atom.Borrowed` had to stop an expansion of more than one atom lending a box a point in a document the
+reader has never seen. Nothing lends anything now. The whole removal changed no pixel, because every
+call site had been passing null since the builder took over reading.
+
+**The layout records the part, and the offsets are a projection of it.** `LatexLayoutCapture` used to
+turn a part back into a `(start, length)` the moment a box arrived, and its three passes then reasoned
+in pairs of numbers; each is now a question about the tree. `Detach` disowns a piece whose part is
+already claimed above it — reference identity, where it compared spans — and one whose part is neither
+the enclosing part nor anything under it, which is the honest form of "a piece drawn inside another
+cannot have been written outside it". `MarkInk` asks `TexPart.Derived`, which says outright that a
+macro's insides stand for nothing written. `LatexNode.Formula` went with them: the layout no longer
+holds the typesetting tree at all, only the parse-tree part.
+
+**The other half is smaller than it was, and named.** `ILayoutNode.SourceStart`/`SourceLength` are
+still what `LayoutQuery`, `ContentSelection`, `FormulaElement` and `LatexTree`'s editing verbs work in
+— but they are written in exactly one place now, `LatexNode.Owns`, projected from the part. That
+method also holds the last narrowing of an answer to suit an offset (a group named by its contents, a
+cell by its ink), so when the editing seam moves off offsets — which is the same move that will
+harmonise the formula with the barcode, the score and every other custom-drawn block — it is a
+projection to delete rather than a mechanism to unpick.
 
 ## The sweep is the inner loop, so it runs in forty seconds
 
@@ -353,19 +368,20 @@ rather than as a recipe interpreted out of XML at run time:
 
 All thirteen moved without shifting a single box, on the corpus and on the hand-written constructs.
 
-**Three did not move**, and the reason is worth keeping:
+**Three did not move at first**, and the reason is worth keeping:
 
 - **the `\iint` family** — several integral signs squeezed together and typed as one big operator.
   Built directly it changed the typesetting, because an integral sign is not a plain symbol: it is
   promoted to a big operator on the way past, so reproducing the pile means reproducing that too.
-  Tried, caught by `TypesettingUnchangedTests`, reverted. The corpus names `\iint` twenty times,
-  `\iiint` once and the other four never, so there is nothing to check a second attempt against.
+  Tried, caught by `TypesettingUnchangedTests`, reverted. What settled it was `\mathop`, which says
+  "type this row as a big operator" in LaTeX and so lets the pile be a macro after all —
+  `\mathop{\int\!\!\!\int}` — leaving the promotion to the reading rather than reproducing it.
 - **`\mod`**, which the command table already claims, and which takes its modulus after it.
 
-Which is why `TexFormulaParser.ExpansionOf` is still there, and now has exactly one caller and six
-names to serve. It is not what stands between us and deleting the old reader — `ParseWithRecovery`
-is, for the stretch shown as written while it is being edited and for the holes an empty argument
-gets, neither of which the builder does.
+So `TexFormulaParser.ExpansionOf` had nothing left to serve, and the table it read has gone with it:
+no predefined formulas, no XML of them, no `Func<TexFormula?>` threaded through two constructors to
+carry an empty dictionary. What is not a macro is a length in mu with no LaTeX spelling, and those
+are built beside the symbols by `StandardCommands.PrimitiveOf`.
 
 `TexMacroTableTests` holds every row against what the parser does with it, and the first thing it
 asks is whether the row fires at all. A row for a name the command table already claims is invisible
@@ -374,25 +390,28 @@ already, to `\mod`.
 
 ## It is wired in
 
-`LatexLayout.Build` tries the builder first and falls back to the recovering parser — which it still
-needs, for a stretch being shown as written and for the holes an empty argument gets, both of which are
-that parser's and neither of which the builder does. Seven formulas in ten now come out of our own
-reading, and `Attribute` never runs for them: `Own` hands each piece the part its atom already carried,
-which is what all of this was for. `Attribute` stays for the other three in ten and goes when they do.
+`LatexLayout.Build` reads every formula itself. What cannot be set as maths is shown as the characters
+it was written with — the same answer a stretch under the caret gets — so there is no second reader to
+fall back to, and `Attribute`, the method that matched a box to a part by comparing spans, went with
+the parser it existed for. Each piece is handed the part its atom already carried, which is what all of
+this was for.
 
 Three things had to move for it, and each was the rule showing where it was not yet obeyed:
 
-- **`LatexLayoutCapture.SourceOf` asks the atom's part** before falling back to the span. It names the
-  span the way the other reading named it — a braced argument's contents, a cell's ink — because
-  everything downstream still works in offsets and was written against that convention. Handing over
-  the honest span instead re-braced an argument that was already braced. The shim goes when the editor
-  asks the part.
+- **The span a piece is named by is the part's, narrowed.** A braced argument's contents, a cell's ink
+  — because everything downstream works in offsets and was written against that convention, and handing
+  over the honest span instead re-braced an argument that was already braced. It began life as a
+  fallback arm in `LatexLayoutCapture.SourceOf` and is now the whole of `LatexNode.Owns`: one method,
+  which is what makes it one edit to delete when the editor asks the part.
 - **`LatexTree.GridDropAt` read `Formula.Source`** — an offset, on an atom that deliberately has none —
-  so every grid gesture silently stopped working. It asks `Origin` first now.
+  so every grid gesture silently stopped working. It holds no atom at all now: the table's shape comes
+  from the parse tree and each cell is joined to what was drawn for it by identity.
 - **`FencedAtom` never gave its delimiter boxes their atom.** Every other box gets one in
   `Atom.CreateBox`; a delimiter is built by hand from a name and a height, so a bracket knew nothing
   about what it came from. Invisible for as long as an offset was enough, and it cost `\right]` its
-  selectability the moment one was not.
+  selectability the moment one was not. `BigOperatorAtom` had the same fault and kept it longer, because
+  a `\sum`'s glyph still had an offset to fall back on: `BoxTests` recorded it as a failure for as long
+  as that was true, and it went green the moment the offset did.
 
 **And `TypesettingUnchangedTests` hashed the spans along with the geometry**, so a change of *naming*
 read as "the typesetting moved" — the one thing that guard exists to say. It hashes where the pieces

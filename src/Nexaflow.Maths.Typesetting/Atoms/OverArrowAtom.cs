@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 using System.Collections.Generic;
 
@@ -13,8 +13,7 @@ internal sealed record OverArrowAtom : Atom
     private readonly ArrowDecoration _decoration;
     private readonly bool _over;
 
-    public OverArrowAtom(SourceSpan? source, Atom? baseAtom, ArrowDecoration decoration, bool over)
-        : base(source)
+    public OverArrowAtom(Atom? baseAtom, ArrowDecoration decoration, bool over)
     {
         this.BaseAtom = baseAtom;
         _decoration = decoration;

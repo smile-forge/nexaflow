@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -12,8 +12,8 @@ internal sealed record BigDelimiterAtom : Atom
     private readonly string _symbolName;
     private readonly double _minHeight;
 
-    public BigDelimiterAtom(SourceSpan? source, string symbolName, double minHeight, TexAtomType type)
-        : base(source, type)
+    public BigDelimiterAtom(string symbolName, double minHeight, TexAtomType type)
+        : base(type)
     {
         _symbolName = symbolName;
         _minHeight = minHeight;
@@ -21,7 +21,7 @@ internal sealed record BigDelimiterAtom : Atom
 
     protected override Box CreateBoxCore(TexEnvironment environment)
     {
-        var box = DelimiterFactory.CreateBox(_symbolName, _minHeight, environment, this.Source);
+        var box = DelimiterFactory.CreateBox(_symbolName, _minHeight, environment);
 
         // Centred on the maths axis, the way a fenced delimiter is.
         var axis = environment.MathFont.GetAxisHeight(environment.Style);

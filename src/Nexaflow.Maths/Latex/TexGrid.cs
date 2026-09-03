@@ -3,8 +3,14 @@ namespace Nexaflow.Maths.Latex;
 /// <summary>One cell of a grid: where it is in the table, and which characters are written in it.</summary>
 /// <param name="Start">Where the contents begin, past any space after the separator.</param>
 /// <param name="Length">How many characters they run to — zero for a cell with nothing in it.</param>
-public readonly record struct TexCell(int Row, int Column, int Start, int Length)
+public readonly record struct TexCell(int Row, int Column, int Start, int Length, TexNode? Node = null)
 {
+    /// <summary>
+    /// The node the cell was read from, or null for a cell nobody wrote - one squared off so that "the
+    /// third column" means the same thing in every row. It is what lets a drawn piece be matched to the
+    /// cell holding it by identity rather than by comparing offsets.
+    /// </summary>
+
     /// <summary>One past the last character written in the cell.</summary>
     public int End => this.Start + this.Length;
 
@@ -204,7 +210,7 @@ public sealed class TexGrid
         }
 
         return written < 0
-            ? new TexCell(row, column, blank, 0)
-            : new TexCell(row, column, written, end - written);
+        ? new TexCell(row, column, blank, 0, cell)
+        : new TexCell(row, column, written, end - written, cell);
     }
 }

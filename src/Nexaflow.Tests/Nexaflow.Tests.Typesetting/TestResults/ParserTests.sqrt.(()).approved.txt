@@ -3,30 +3,23 @@
     "[AtomType]": "Radical",
     "BaseAtom": {
       "[AtomType]": "NullAtom",
-      "Borrowed": false,
       "Slots": [],
-      "Source": null,
       "Type": "Ordinary"
     },
-    "Borrowed": false,
     "DegreeAtom": null,
     "Slots": [
       {
         "Column": -1,
         "Node": {
           "[AtomType]": "NullAtom",
-          "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "radicand",
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

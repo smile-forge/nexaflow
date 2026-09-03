@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 
 using System.Collections.Generic;
@@ -10,18 +10,16 @@ internal sealed record AccentedAtom : Atom
 {
     public override IReadOnlyList<FormulaSlot> Slots => Parts(("base", BaseAtom));
 
-    public AccentedAtom(SourceSpan? source, Atom? baseAtom, string accentName)
-        : base(source)
+    public AccentedAtom(Atom? baseAtom, string accentName)
     {
         this.BaseAtom = baseAtom;
-        this.AccentAtom = SymbolAtom.GetAtom(accentName, null);
+        this.AccentAtom = SymbolAtom.GetAtom(accentName);
 
         if (this.AccentAtom.Type != TexAtomType.Accent)
             throw new ArgumentException("The specified symbol name is not an accent.", "accent");
     }
 
-    public AccentedAtom(SourceSpan? source, Atom? baseAtom, TexFormula accent)
-        : base(source)
+    public AccentedAtom(Atom? baseAtom, TexFormula accent)
     {
         if (accent.RootAtom is not SymbolAtom rootSymbol)
             throw new ArgumentException("The formula for the accent is not a single symbol.", nameof(accent));

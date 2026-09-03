@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using XamlMath.Fonts;
@@ -16,7 +16,7 @@ internal sealed record SymbolAtom : CharSymbol
     internal const string EmptyDelimiterName = "_emptyDelimiter";
 
     // Dictionary of definitions of all symbols, keyed by name.
-    private static readonly IReadOnlyDictionary<string, Func<SourceSpan?, SymbolAtom>> symbols;
+    private static readonly IReadOnlyDictionary<string, Func<SymbolAtom>> symbols;
 
     // Set of all valid symbol types.
     private static readonly BitArray validSymbolTypes;
@@ -37,7 +37,7 @@ internal sealed record SymbolAtom : CharSymbol
         validSymbolTypes.Set((int)TexAtomType.Accent, true);
     }
 
-    public static bool TryGetAtom(string name, SourceSpan? source, [NotNullWhen(true)] out SymbolAtom? atom)
+    public static bool TryGetAtom(string name, [NotNullWhen(true)] out SymbolAtom? atom)
     {
         if (!symbols.TryGetValue(name, out var factory))
         {
@@ -45,21 +45,16 @@ internal sealed record SymbolAtom : CharSymbol
             return false;
         }
 
-        var symbol = factory(source);
-        atom = new SymbolAtom(source, symbol, symbol.Type);
+        var symbol = factory();
+        atom = new SymbolAtom(symbol, symbol.Type);
         return true;
     }
 
-    public static SymbolAtom GetAtom(string name, SourceSpan? source) =>
-        TryGetAtom(name, source, out var atom) ? atom : throw new SymbolNotFoundException(name);
+    public static SymbolAtom GetAtom(string name) =>
+        TryGetAtom(name, out var atom) ? atom : throw new SymbolNotFoundException(name);
 
-    public static bool TryGetAtom(SourceSpan name, [NotNullWhen(true)] out SymbolAtom? atom)
-    {
-        return TryGetAtom(name.ToString(), name, out atom);
-    }
-
-    public SymbolAtom(SourceSpan? source, SymbolAtom symbolAtom, TexAtomType type)
-        : base(source, type)
+    public SymbolAtom(SymbolAtom symbolAtom, TexAtomType type)
+        : base(type)
     {
         if (!validSymbolTypes[(int)type])
             throw new ArgumentException("The specified type is not a valid symbol type.", nameof(type));
@@ -67,8 +62,8 @@ internal sealed record SymbolAtom : CharSymbol
         this.IsDelimeter = symbolAtom.IsDelimeter;
     }
 
-    public SymbolAtom(SourceSpan? source, string name, TexAtomType type, bool isDelimeter)
-        : base(source, type)
+    public SymbolAtom(string name, TexAtomType type, bool isDelimeter)
+        : base(type)
     {
         this.Name = name;
         this.IsDelimeter = isDelimeter;

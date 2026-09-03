@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 using XamlMath.Fonts;
 
@@ -9,11 +9,10 @@ namespace XamlMath.Atoms;
 /// <summary>Atom representing big operator with optional limits.</summary>
 /// <param name="UseVerticalLimits">True if limits should be drawn over and under the base atom; false if they should be drawn as scripts.</param>
 internal sealed record BigOperatorAtom(
-    SourceSpan? Source,
     Atom? BaseAtom,
     Atom? LowerLimitAtom,
     Atom? UpperLimitAtom,
-    bool? UseVerticalLimits = null) : Atom(Source, TexAtomType.BigOperator)
+    bool? UseVerticalLimits = null) : Atom(TexAtomType.BigOperator)
 {
     public override IReadOnlyList<FormulaSlot> Slots =>
         Parts(("base", BaseAtom), ("lower limit", LowerLimitAtom), ("upper limit", UpperLimitAtom));
@@ -39,7 +38,7 @@ internal sealed record BigOperatorAtom(
                 return CreateBoxForBaseAtom(environment).BaseBox;
 
             // Attach atoms for limits as scripts.
-            return new ScriptsAtom(this.Source, this.BaseAtom, this.LowerLimitAtom, this.UpperLimitAtom)
+            return new ScriptsAtom(this.BaseAtom, this.LowerLimitAtom, this.UpperLimitAtom)
                 .CreateBox(environment);
         }
 
@@ -145,7 +144,11 @@ internal sealed record BigOperatorAtom(
             var opChar = texFont.GetCharInfo(symbolAtom.Name, style).Value;
             if (style < TexStyle.Text && texFont.HasNextLarger(opChar))
                 opChar = texFont.GetNextLargerCharInfo(opChar, style);
-            var charBox = new CharBox(environment, opChar) { Source = BaseAtom.Source };
+            // The sign is the operator's own drawing of itself, built here by hand from a character and a
+            // size rather than by Atom.CreateBox, which is the one place a box is handed the atom it came
+            // from. Said here for the same reason FencedAtom says it of a delimiter: without it a \sum's
+            // own glyph knows nothing about what it came from, and only the scripts either side of it do.
+            var charBox = new CharBox(environment, opChar) { Node = BaseAtom };
             charBox.Shift = -(charBox.Height + charBox.Depth) / 2 -
                 environment.MathFont.GetAxisHeight(environment.Style);
             Box baseBox = new HorizontalBox(charBox);

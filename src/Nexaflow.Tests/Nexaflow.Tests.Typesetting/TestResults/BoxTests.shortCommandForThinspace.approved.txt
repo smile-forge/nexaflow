@@ -7,13 +7,10 @@
   "Italic": 0.0,
   "Node": {
     "[AtomType]": "SpaceAtom",
-    "Borrowed": false,
     "Slots": [],
-    "Source": null,
     "Type": "Ordinary"
   },
   "Shift": 0.0,
-  "Source": null,
   "TotalHeight": 0.0,
   "TotalWidth": 0.166667166666667,
   "Width": 0.166667166666667

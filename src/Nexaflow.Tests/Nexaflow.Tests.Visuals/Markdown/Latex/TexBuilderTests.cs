@@ -358,9 +358,9 @@ public class TexBuilderTests
     /// Different ink is a disagreement about the picture, and fails until somebody looks at it.
     /// </para>
     /// </summary>
-    private static string Drawn(TexFormula formula, string latex)
+    private static string Drawn(TexFormula formula, TexReading reading)
     {
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, latex);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
@@ -538,15 +538,15 @@ public class TexBuilderTests
     /// subset of the tree, so nothing about it needs a second rendering.
     /// </para>
     /// </summary>
-    private static (ulong Tree, ulong Ink) Landed(TexFormula formula, string latex)
+    private static (ulong Tree, ulong Ink) Landed(TexFormula formula, TexReading reading)
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, latex);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull(capture.Root, $"nothing was drawn for {latex}");
+        Assert.IsNotNull(capture.Root, $"nothing was drawn for {reading.Latex}");
 
         var tree = 14695981039346656037UL;
         var ink = 14695981039346656037UL;
@@ -575,15 +575,15 @@ public class TexBuilderTests
 
     private static ulong Fold(ulong so, ulong next) => (so ^ next) * 1099511628211UL;
 
-    private static string Settled(TexFormula formula, string latex)
+    private static string Settled(TexFormula formula, TexReading reading)
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, latex);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull(capture.Root, $"nothing was drawn for {latex}");
+        Assert.IsNotNull(capture.Root, $"nothing was drawn for {reading.Latex}");
 
         var text = new StringBuilder();
 

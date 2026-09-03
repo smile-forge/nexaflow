@@ -37,12 +37,6 @@ public abstract class Box
     /// </summary>
     public IFormulaNode? Node { get; set; }
 
-    public SourceSpan? Source
-    {
-        get;
-        set;
-    }
-
     public IBrush? Foreground
     {
         get;

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Pipes;
 using XamlMath.Atoms;
@@ -38,7 +38,7 @@ internal static class StandardCommands
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
-                ? new OverArrowAtom(null, arguments[0], _decoration, _over) { Origin = origin }
+                ? new OverArrowAtom(arguments[0], _decoration, _over) { Origin = origin }
                 : null;
     }
 
@@ -56,7 +56,7 @@ internal static class StandardCommands
         }
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
-            arguments.Count == 0 ? new DotsAtom(null, _shape) { Origin = origin } : null;
+            arguments.Count == 0 ? new DotsAtom(_shape) { Origin = origin } : null;
     }
 
     // \hspace{<length>} inserts horizontal space of an explicit length, e.g. \hspace{2em} or \hspace{-3pt}.
@@ -131,7 +131,7 @@ internal static class StandardCommands
         try
         {
             ParseLength(written, command, out var unit, out var value);
-            return new SpaceAtom(null, unit, value, 0, 0);
+            return new SpaceAtom(unit, value, 0, 0);
         }
         catch
         {
@@ -154,7 +154,7 @@ internal static class StandardCommands
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 2
-                ? new FractionAtom(null, arguments[0], arguments[1], true) { OverrideStyle = _style, Origin = origin }
+                ? new FractionAtom(arguments[0], arguments[1], true) { OverrideStyle = _style, Origin = origin }
                 : null;
     }
 
@@ -170,7 +170,7 @@ internal static class StandardCommands
             if (arguments.Count is not (2 or 3)) return null;
             var half = arguments.Count == 3 ? 1 : 0;   // the alignment, where written, comes first
 
-            return new FractionAtom(null, arguments[half], arguments[half + 1], true, Leaning(origin), TexAlignment.Center)
+            return new FractionAtom(arguments[half], arguments[half + 1], true, Leaning(origin), TexAlignment.Center)
             {
                 OverrideStyle = TexStyle.Display,
                 KeepContentStyle = true,
@@ -197,7 +197,7 @@ internal static class StandardCommands
     {
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 2
-                ? new SlashFractionAtom(null, arguments[0], arguments[1]) { Origin = origin }
+                ? new SlashFractionAtom(arguments[0], arguments[1]) { Origin = origin }
                 : null;
     }
 
@@ -233,14 +233,14 @@ internal static class StandardCommands
         {
             if (arguments.Count != 1) return null;
 
-            var inside = new RowAtom(null);
+            var inside = new RowAtom();
 
             // The same pieces the written-out form would have produced, asked for by name rather than
             // guessed at. `\quad` and `\;` are macros with definitions; inventing two space atoms of
             // roughly the right size instead moved every \pmod in the corpus a fraction of an em.
             if (_withMod)
             {
-                foreach (var letter in "mod") inside = inside.Add(new CharAtom(null, letter, "mathrm"));
+                foreach (var letter in "mod") inside = inside.Add(new CharAtom(letter, "mathrm"));
 
                 if (PrimitiveOf("thickspace") is { } thin) inside = inside.Add(thin);
             }
@@ -250,7 +250,7 @@ internal static class StandardCommands
             // Without the parentheses, the word and its argument are the whole of it.
             if (!_fenced)
             {
-                var bare = new RowAtom(null);
+                var bare = new RowAtom();
                 if (PrimitiveOf("quad") is { } lead) bare = bare.Add(lead);
                 bare = bare.Add(inside);
                 bare.Origin = origin;
@@ -258,15 +258,14 @@ internal static class StandardCommands
             }
 
             var fenced = new FencedAtom(
-                null,
                 inside,
-                new SymbolAtom(null, "(", TexAtomType.Opening, true) { Origin = origin },
-                new SymbolAtom(null, ")", TexAtomType.Closing, true) { Origin = origin })
+                new SymbolAtom("(", TexAtomType.Opening, true) { Origin = origin },
+                new SymbolAtom(")", TexAtomType.Closing, true) { Origin = origin })
             {
                 Origin = origin,
             };
 
-            var whole = new RowAtom(null);
+            var whole = new RowAtom();
             if (PrimitiveOf("quad") is { } gap) whole = whole.Add(gap);
             whole = whole.Add(fenced);
 
@@ -303,13 +302,13 @@ internal static class StandardCommands
             SymbolAtom? Delimiter(Atom written) =>
                 written is SymbolAtom symbol ? symbol : null;
 
-            var fraction = new FractionAtom(null, arguments[4], arguments[5], true) { Origin = origin };
+            var fraction = new FractionAtom(arguments[4], arguments[5], true) { Origin = origin };
 
             var left = Delimiter(arguments[0]);
             var right = Delimiter(arguments[1]);
             if (left is null && right is null) return fraction;
 
-            return new FencedAtom(null, fraction, left, right) { Origin = origin };
+            return new FencedAtom(fraction, left, right) { Origin = origin };
         }
     }
 
@@ -371,15 +370,15 @@ internal static class StandardCommands
         /// </para>
         /// </summary>
         internal Atom Assemble(
-            Atom annotation, Atom on, SourceSpan? source, Nexaflow.Maths.Latex.TexPart? origin)
+            Atom annotation, Atom on, Nexaflow.Maths.Latex.TexPart? origin)
         {
-            Atom atom = new UnderOverAtom(source, on, annotation, TexUnit.Mu, AnnotationSpace, true, _over)
+            Atom atom = new UnderOverAtom(on, annotation, TexUnit.Mu, AnnotationSpace, true, _over)
             {
                 Origin = origin,
             };
 
             return _asRelation
-                ? new TypedAtom(source, atom, TexAtomType.Relation, TexAtomType.Relation) { Origin = origin }
+                ? new TypedAtom(atom, TexAtomType.Relation, TexAtomType.Relation) { Origin = origin }
                 : atom;
         }
     }
@@ -403,7 +402,7 @@ internal static class StandardCommands
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
-                ? new PhantomAtom(null, arguments[0], _useWidth, _useHeight, _useHeight) { Origin = origin }
+                ? new PhantomAtom(arguments[0], _useWidth, _useHeight, _useHeight) { Origin = origin }
                 : null;
     }
 
@@ -427,15 +426,15 @@ internal static class StandardCommands
             arguments.Count != 1
                 ? null
                 : _lapAlignment is { } alignment
-                    ? new LapAtom(null, arguments[0], alignment) { Origin = origin }
-                    : new SmashAtom(null, arguments[0]) { Origin = origin };
+                    ? new LapAtom(arguments[0], alignment) { Origin = origin }
+                    : new SmashAtom(arguments[0]) { Origin = origin };
     }
 
     // \boxed{x} and \fbox{x}: the content inside a rectangular frame.
     private sealed class BoxedCommand : IAssembleCommand
     {
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
-            arguments.Count == 1 ? new BoxedAtom(null, arguments[0]) { Origin = origin } : null;
+            arguments.Count == 1 ? new BoxedAtom(arguments[0]) { Origin = origin } : null;
     }
 
     // \xrightarrow[under]{over} and friends: an arrow stretched to fit the labels written over (and optionally
@@ -466,7 +465,6 @@ internal static class StandardCommands
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count is 1 or 2
                 ? new ExtensibleArrowAtom(
-                    null,
                     arguments[^1],
                     arguments.Count == 2 ? arguments[0] : null,
                     _decoration)
@@ -519,13 +517,11 @@ internal static class StandardCommands
             on is null
                 ? null
                 : new OverUnderDelimiter(
-                    null,
                     on,
                     label,
                     SymbolAtom.GetAtom(
                         TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][
-                            (int)(_over ? TexDelimeterType.Over : TexDelimeterType.Under)],
-                        null),
+                            (int)(_over ? TexDelimeterType.Over : TexDelimeterType.Under)]),
                     TexUnit.Ex,
                     LabelKern,
                     _over)
@@ -540,7 +536,7 @@ internal static class StandardCommands
     private sealed class BoldSymbolCommand : IAssembleCommand
     {
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
-            arguments.Count == 1 ? new BoldAtom(null, arguments[0]) { Origin = origin } : null;
+            arguments.Count == 1 ? new BoldAtom(arguments[0]) { Origin = origin } : null;
     }
 
     // \operatorname{name} sets a function name upright and, more importantly, types it as an
@@ -560,7 +556,7 @@ internal static class StandardCommands
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
-                ? new BigOperatorAtom(null, arguments[0], null, null, this._starred ? null : (bool?)false) { Origin = origin }
+                ? new BigOperatorAtom(arguments[0], null, null, this._starred ? null : (bool?)false) { Origin = origin }
                 : null;
     }
 
@@ -583,7 +579,7 @@ internal static class StandardCommands
         {
             if (arguments.Count != 2) return null;
 
-            var fraction = new FractionAtom(null, arguments[0], arguments[1], TexUnit.Point, 0)
+            var fraction = new FractionAtom(arguments[0], arguments[1], TexUnit.Point, 0)
             {
                 SuppressNullDelimiterSpace = true,
             };
@@ -596,10 +592,9 @@ internal static class StandardCommands
             fraction.Origin = origin;
 
             return new FencedAtom(
-                null,
                 fraction,
-                new SymbolAtom(null, "(", TexAtomType.Opening, true) { Origin = origin },
-                new SymbolAtom(null, ")", TexAtomType.Closing, true) { Origin = origin })
+                new SymbolAtom("(", TexAtomType.Opening, true) { Origin = origin },
+                new SymbolAtom(")", TexAtomType.Closing, true) { Origin = origin })
             {
                 Origin = origin,
             };
@@ -640,10 +635,9 @@ internal static class StandardCommands
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
                 ? new FencedAtom(
-                    null,
                     arguments[0],
-                    new SymbolAtom(null, _open, TexAtomType.Opening, true) { Origin = origin },
-                    new SymbolAtom(null, _close, TexAtomType.Closing, true) { Origin = origin })
+                    new SymbolAtom(_open, TexAtomType.Opening, true) { Origin = origin },
+                    new SymbolAtom(_close, TexAtomType.Closing, true) { Origin = origin })
                 {
                     Origin = origin,
                 }
@@ -665,7 +659,7 @@ internal static class StandardCommands
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
-                ? new CancelAtom(null, arguments[0], _strokeBoxMode) { Origin = origin }
+                ? new CancelAtom(arguments[0], _strokeBoxMode) { Origin = origin }
                 : null;
     }
 
@@ -700,7 +694,7 @@ internal static class StandardCommands
 
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 1
-                ? new TypedAtom(null, arguments[0], _type, _type) { Origin = origin }
+                ? new TypedAtom(arguments[0], _type, _type) { Origin = origin }
                 : null;
     }
 
@@ -723,7 +717,7 @@ internal static class StandardCommands
         /// </remarks>
         public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin) =>
             arguments.Count == 0
-                ? new RuleAtom(null, TexUnit.Ex, Width: 0.7, Thickness: 0.1, Shift: 0.3) { Origin = origin }
+                ? new RuleAtom(TexUnit.Ex, Width: 0.7, Thickness: 0.1, Shift: 0.3) { Origin = origin }
                 : null;
     }
 
@@ -803,7 +797,7 @@ internal static class StandardCommands
     internal static Atom? StackedOf(
         string command, Atom annotation, Atom on, Nexaflow.Maths.Latex.TexPart? origin) =>
         Dictionary.TryGetValue(command, out var parser) && parser is StackedAnnotationCommand stacked
-            ? stacked.Assemble(annotation, on, null, origin)
+            ? stacked.Assemble(annotation, on, origin)
             : null;
 
     /// <summary>
@@ -817,7 +811,7 @@ internal static class StandardCommands
     internal static Atom? BigDelimiterOf(
         string command, string delimiter, Nexaflow.Maths.Latex.TexPart? origin) =>
         Dictionary.TryGetValue(command, out var parser) && parser is BigDelimiterCommand big
-            ? big.Assemble(delimiter, null, origin)
+            ? big.Assemble(delimiter, origin)
             : null;
 
     private sealed class BigDelimiterCommand
@@ -843,8 +837,8 @@ internal static class StandardCommands
         /// answers, and a second copy of them would be two tables to keep in step.
         /// </para>
         /// </summary>
-        internal Atom Assemble(string delimiter, SourceSpan? source, Nexaflow.Maths.Latex.TexPart? origin) =>
-            new BigDelimiterAtom(source, delimiter, SmallestHeight + HeightStep * _size, _type)
+        internal Atom Assemble(string delimiter, Nexaflow.Maths.Latex.TexPart? origin) =>
+            new BigDelimiterAtom(delimiter, SmallestHeight + HeightStep * _size, _type)
             {
                 Origin = origin,
             };
@@ -1166,12 +1160,12 @@ internal static class StandardCommands
     /// </summary>
     internal static Atom? PrimitiveOf(string name)
     {
-        if (Struts.TryGetValue(name, out var mu)) return new SpaceAtom(null, TexUnit.Mu, mu, 0, 0);
+        if (Struts.TryGetValue(name, out var mu)) return new SpaceAtom(TexUnit.Mu, mu, 0, 0);
 
         return name switch
         {
             // A radical sign with nothing under it, lifted so it sits about the axis.
-            "surd" => new VerticalCenteredAtom(null, SymbolAtom.GetAtom("surdsign", null)),
+            "surd" => new VerticalCenteredAtom(SymbolAtom.GetAtom("surdsign")),
 
             // A dot and a tilde set over an equals sign. TeX builds both the same way — `\doteq` is
             // `\buildrel\textstyle.\over=` — and the height is fixed rather than scaled, which is what
@@ -1182,9 +1176,8 @@ internal static class StandardCommands
             // The \iint family is deliberately not here. It is several integral signs squeezed together
             // and typed as one big operator, and an integral sign is not a plain symbol — it is promoted
             // to a big operator on the way past, so reproducing the pile exactly means reproducing that
-            // too. Tried, and it moved the typesetting. The corpus names \iint twenty times, \iiint once
-            // and the other four never, so there is nothing to check a second attempt against; it stays
-            // in the table it was already in until something needs it to move.
+            // too. Tried, and it moved the typesetting. It is a macro instead: \mathop{\int\!\!\!\int} says
+            // the same thing in LaTeX, so it belongs to the reader rather than here.
             _ => null,
         };
     }
@@ -1193,8 +1186,7 @@ internal static class StandardCommands
     /// <summary>One glyph over another, at a fixed height and full size, and a relation either side.</summary>
     private static Atom Over(string under, string over, double mu) =>
         new TypedAtom(
-            null,
-            new UnderOverAtom(null, SymbolAtom.GetAtom(under, null), SymbolAtom.GetAtom(over, null),
+            new UnderOverAtom(SymbolAtom.GetAtom(under), SymbolAtom.GetAtom(over),
                               TexUnit.Mu, mu, false, true),
             TexAtomType.Relation,
             TexAtomType.Relation);

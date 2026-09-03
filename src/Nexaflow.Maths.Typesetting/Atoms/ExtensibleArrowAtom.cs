@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
@@ -14,11 +14,10 @@ internal sealed record ExtensibleArrowAtom : Atom
     private const double LabelPaddingInQuads = 0.25;
 
     public ExtensibleArrowAtom(
-        SourceSpan? source,
         Atom? overAtom,
         Atom? underAtom,
         ArrowDecoration decoration)
-        : base(source, TexAtomType.Relation)
+        : base(TexAtomType.Relation)
     {
         this.OverAtom = overAtom;
         this.UnderAtom = underAtom;

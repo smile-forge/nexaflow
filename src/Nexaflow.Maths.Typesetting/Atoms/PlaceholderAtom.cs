@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -17,7 +17,7 @@ namespace XamlMath.Atoms;
 /// reader saves, copies or solves ever carries a placeholder command.
 /// </para>
 /// </summary>
-internal sealed record PlaceholderAtom(SourceSpan? Source) : Atom(Source)
+internal sealed record PlaceholderAtom : Atom
 {
     protected override Box CreateBoxCore(TexEnvironment environment) => new PlaceholderBox(environment);
 }

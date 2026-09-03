@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 using System.Diagnostics.CodeAnalysis;
 
@@ -22,14 +22,12 @@ internal sealed record UnderOverAtom : Atom
     }
 
     public UnderOverAtom(
-        SourceSpan? source,
         Atom? baseAtom,
         Atom? underOver,
         TexUnit underOverUnit,
         double underOverSpace,
         bool underOverScriptSize,
         bool over)
-        : base(source)
     {
         SpaceAtom.CheckUnit(underOverUnit);
 
@@ -60,7 +58,6 @@ internal sealed record UnderOverAtom : Atom
     }
 
     public UnderOverAtom(
-        SourceSpan? source,
         Atom? baseAtom,
         Atom? under,
         TexUnit underUnit,
@@ -70,7 +67,6 @@ internal sealed record UnderOverAtom : Atom
         TexUnit overUnit,
         double overSpace,
         bool overScriptSize)
-        : base(source)
     {
         SpaceAtom.CheckUnit(underUnit);
         SpaceAtom.CheckUnit(overUnit);
@@ -136,7 +132,7 @@ internal sealed record UnderOverAtom : Atom
         if (this.OverAtom != null)
         {
             resultBox.Add(ChangeWidth(overBox!, maxWidth));
-            resultBox.Add(new SpaceAtom(null, this.OverSpaceUnit, 0, this.OverSpace, 0).CreateBox(environment));
+            resultBox.Add(new SpaceAtom(this.OverSpaceUnit, 0, this.OverSpace, 0).CreateBox(environment));
         }
 
         // Add box for base atom.
@@ -147,7 +143,7 @@ internal sealed record UnderOverAtom : Atom
         // Create and add box for under atom.
         if (this.UnderAtom != null)
         {
-            resultBox.Add(new SpaceAtom(null, this.UnderSpaceUnit, 0, this.UnderSpace, 0).CreateBox(environment));
+            resultBox.Add(new SpaceAtom(this.UnderSpaceUnit, 0, this.UnderSpace, 0).CreateBox(environment));
             resultBox.Add(ChangeWidth(underBox!, maxWidth));
         }
 

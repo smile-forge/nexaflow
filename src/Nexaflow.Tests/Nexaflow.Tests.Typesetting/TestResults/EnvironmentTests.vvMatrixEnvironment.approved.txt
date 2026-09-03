@@ -3,7 +3,6 @@
     "[AtomType]": "FencedAtom",
     "BaseAtom": {
       "[AtomType]": "MatrixAtom",
-      "Borrowed": false,
       "ColumnSpec": null,
       "HorizontalPadding": 1.0,
       "HorizontalRules": null,
@@ -12,21 +11,17 @@
         [
           {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "a",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
           {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "b",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           }
@@ -34,21 +29,17 @@
         [
           {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "c",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
           {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "d",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           }
@@ -61,11 +52,9 @@
           "Column": 0,
           "Node": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "a",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -76,11 +65,9 @@
           "Column": 1,
           "Node": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "b",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -91,11 +78,9 @@
           "Column": 0,
           "Node": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "c",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -106,11 +91,9 @@
           "Column": 1,
           "Node": {
             "[AtomType]": "CharAtom",
-            "Borrowed": false,
             "Character": "d",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -118,30 +101,24 @@
           "Row": 1
         }
       ],
-      "Source": null,
       "SuppressOuterPadding": true,
       "Type": "Ordinary",
       "VerticalPadding": 0.0
     },
-    "Borrowed": false,
     "LeftDelimeter": {
       "[AtomType]": "SymbolAtom",
-      "Borrowed": false,
       "IsDelimeter": true,
       "IsTextSymbol": false,
       "Name": "Vert",
       "Slots": [],
-      "Source": null,
       "Type": "Ordinary"
     },
     "RightDelimeter": {
       "[AtomType]": "SymbolAtom",
-      "Borrowed": false,
       "IsDelimeter": true,
       "IsTextSymbol": false,
       "Name": "Vert",
       "Slots": [],
-      "Source": null,
       "Type": "Ordinary"
     },
     "Slots": [
@@ -149,7 +126,6 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "MatrixAtom",
-          "Borrowed": false,
           "ColumnSpec": null,
           "HorizontalPadding": 1.0,
           "HorizontalRules": null,
@@ -158,21 +134,17 @@
             [
               {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "a",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
               {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "b",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               }
@@ -180,21 +152,17 @@
             [
               {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "c",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
               {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "d",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               }
@@ -207,11 +175,9 @@
               "Column": 0,
               "Node": {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "a",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -222,11 +188,9 @@
               "Column": 1,
               "Node": {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "b",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -237,11 +201,9 @@
               "Column": 0,
               "Node": {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "c",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -252,11 +214,9 @@
               "Column": 1,
               "Node": {
                 "[AtomType]": "CharAtom",
-                "Borrowed": false,
                 "Character": "d",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -264,7 +224,6 @@
               "Row": 1
             }
           ],
-          "Source": null,
           "SuppressOuterPadding": true,
           "Type": "Ordinary",
           "VerticalPadding": 0.0
@@ -273,9 +232,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

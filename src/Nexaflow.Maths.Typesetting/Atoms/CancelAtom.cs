@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -7,7 +7,7 @@ internal sealed record CancelAtom : Atom
     private readonly Atom? _contentAtom;
     private readonly StrokeBoxMode _strokeBoxMode;
 
-    public CancelAtom(SourceSpan atomSource, Atom? contentAtom, StrokeBoxMode strokeBoxMode) : base(atomSource)
+    public CancelAtom(Atom? contentAtom, StrokeBoxMode strokeBoxMode)
     {
         _contentAtom = contentAtom;
         _strokeBoxMode = strokeBoxMode;

@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -6,8 +6,8 @@ namespace XamlMath.Atoms;
 // and a lowered, script-size denominator — the look of \nicefrac and \sfrac (e.g. ³/₄).
 internal sealed record SlashFractionAtom : Atom
 {
-    public SlashFractionAtom(SourceSpan? source, Atom? numerator, Atom? denominator)
-        : base(source, TexAtomType.Ordinary)
+    public SlashFractionAtom(Atom? numerator, Atom? denominator)
+        : base(TexAtomType.Ordinary)
     {
         this.Numerator = numerator;
         this.Denominator = denominator;
@@ -23,7 +23,7 @@ internal sealed record SlashFractionAtom : Atom
         var scriptEnvironment = environment.GetSubscriptStyle();
         var numeratorBox = this.Numerator == null ? StrutBox.Empty : this.Numerator.CreateBox(scriptEnvironment);
         var denominatorBox = this.Denominator == null ? StrutBox.Empty : this.Denominator.CreateBox(scriptEnvironment);
-        var slashBox = SymbolAtom.GetAtom("slash", null).CreateBox(environment);
+        var slashBox = SymbolAtom.GetAtom("slash").CreateBox(environment);
 
         var xHeight = environment.MathFont.GetXHeight(environment.Style, environment.LastFontId);
 

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace XamlMath;
 
@@ -26,8 +26,8 @@ namespace XamlMath;
 public readonly record struct FormulaSlot(string Role, IFormulaNode Node, int Row = -1, int Column = -1);
 
 /// <summary>
-/// A node of the parse tree, in as much of it as a reader of a formula needs: where it came from, and
-/// what it is made of.
+/// A node of the parse tree, in as much of it as a reader of a formula needs: what it was built
+/// from, and what it is made of.
 /// <para>
 /// This exists so a consumer can answer "what is this piece <em>to</em> the thing holding it" — which
 /// cannot be answered from geometry, or from source offsets, or from anything the layout knows. Copying
@@ -44,21 +44,19 @@ public readonly record struct FormulaSlot(string Role, IFormulaNode Node, int Ro
 /// </summary>
 public interface IFormulaNode
 {
-    /// <summary>Which characters of the input produced it.</summary>
-    SourceSpan? Source { get; }
-
     /// <summary>What it is made of, in reading order. Empty for anything that is made of nothing.</summary>
     IReadOnlyList<FormulaSlot> Slots { get; }
 
     /// <summary>
-    /// The part of the parse tree this was built from, when it was built from one — which is to say, by
-    /// <see cref="TexFormulaBuilder"/> rather than by <see cref="TexFormulaParser"/>.
-    ///
+    /// The part of the parse tree this was built from, and the only thing here that says where it came
+    /// from. There is no offset beside it: an offset stored beside a tree is a second copy of what the
+    /// tree already holds, and the two part company the moment anything is edited.
     /// <para>
-    /// A formula read by the parser has none: that reading has no braces and no spacing left in it by the
-    /// time an atom exists, so there is nothing to point at. A formula built from a parse tree has one on
-    /// every atom, and every box that comes out of it therefore knows which part of the source it was set
-    /// from — without anything having to match spans up afterwards.
+    /// Every atom <see cref="TexFormulaBuilder"/> makes from a reading carries one, so every box that
+    /// comes out of it knows which part of the source it was set from without anything having to match
+    /// spans up afterwards. The ones that carry none are the atoms nobody wrote: a short row's cells,
+    /// squared off so that "the third column" means the same thing in every row, and the insides of a
+    /// macro's expansion, which belong to a definition rather than to the formula.
     /// </para>
     /// <para>
     /// The whole part, because this is the backlink an editor follows and an editor needs where things

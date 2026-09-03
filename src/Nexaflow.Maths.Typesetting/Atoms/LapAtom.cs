@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -6,8 +6,7 @@ namespace XamlMath.Atoms;
 // (\mathllap to the left, \mathrlap to the right, \mathclap to both sides).
 internal sealed record LapAtom : Atom
 {
-    public LapAtom(SourceSpan? source, Atom? baseAtom, TexAlignment alignment)
-        : base(source)
+    public LapAtom(Atom? baseAtom, TexAlignment alignment)
     {
         this.BaseAtom = baseAtom;
         this.Alignment = alignment;

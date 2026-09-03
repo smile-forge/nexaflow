@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
@@ -15,19 +15,17 @@ internal sealed record OverUnderDelimiter : Atom
     }
 
     public OverUnderDelimiter(
-        SourceSpan? source,
         Atom? baseAtom,
         Atom? script,
         SymbolAtom symbol,
         TexUnit kernUnit,
         double kern,
         bool over)
-        : base(source)
     {
         this.BaseAtom = baseAtom;
         this.Script = script;
         this.Symbol = symbol;
-        this.Kern = new SpaceAtom(null, kernUnit, 0, kern, 0);
+        this.Kern = new SpaceAtom(kernUnit, 0, kern, 0);
         this.Over = over;
     }
 

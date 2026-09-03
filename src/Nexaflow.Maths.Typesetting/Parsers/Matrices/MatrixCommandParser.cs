@@ -77,14 +77,12 @@ internal sealed class MatrixCommandParser
     /// walking into one from outside to find what it holds.
     /// </param>
     internal Atom Assemble(
-        SourceSpan? source,
         IEnumerable<IEnumerable<Atom?>> cells,
         Nexaflow.Maths.Latex.TexPart? origin = null)
     {
         // A matrix has no outer gap - its brackets sit against its contents - but an aligned block is
         // not bracketed and its columns are its own business, so it keeps what it had.
         var matrix = new MatrixAtom(
-            source,
             cells,
             _cellAlignment,
             _verticalPadding,
@@ -99,7 +97,7 @@ internal sealed class MatrixCommandParser
         SymbolAtom? GetDelimiter(string? name) =>
             name == null
                 ? null
-                : TexFormulaParser.GetDelimiterSymbol(name, null) ??
+                : TexFormulaParser.GetDelimiterSymbol(name) ??
                   throw new TexParseException($"The delimiter {name} could not be found");
 
         SymbolAtom? leftDelimiter = GetDelimiter(_leftDelimiterSymbolName);
@@ -107,10 +105,10 @@ internal sealed class MatrixCommandParser
 
         var atom = leftDelimiter == null && rightDelimiter == null
             ? (Atom)matrix
-            : new FencedAtom(source, matrix, leftDelimiter, rightDelimiter) { Origin = origin };
+            : new FencedAtom(matrix, leftDelimiter, rightDelimiter) { Origin = origin };
 
         if (_style is { } style)
-            atom = new StyleAtom(source, atom, style) { Origin = origin };
+            atom = new StyleAtom(atom, style) { Origin = origin };
 
         return atom;
     }

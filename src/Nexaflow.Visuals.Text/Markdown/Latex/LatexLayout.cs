@@ -106,7 +106,7 @@ public sealed class LatexLayout
                 scale: scale,
                 systemTextFontName: systemFont);
 
-            var capture = new LatexLayoutCapture(scale, latex);
+            var capture = new LatexLayoutCapture(scale, reading);
             formula.RenderTo(capture, environment, 0, 0);
             capture.FinishRendering();
             if (capture.Root is not { } root) return null;
@@ -116,7 +116,6 @@ public sealed class LatexLayout
             var union = Extent(root);
             var offset = new Vector(-union.X, -union.Y);
             Settle(root, offset);
-            Own(root);
 
             // Asked of the tree rather than collected on the way through it. A piece that could not be
             // read carries the reason it could not, so there is one place the answer lives and no second
@@ -131,7 +130,7 @@ public sealed class LatexLayout
                     "This was read, and nothing here knows how to draw it.")))
                 .ToList();
 
-            var tree = new LatexTree(latex, root, new Size(union.Width, union.Height), trouble);
+            var tree = new LatexTree(latex, reading, root, new Size(union.Width, union.Height), trouble);
             return new LatexLayout(tree) { PaintOffset = offset };
         }
         catch
@@ -139,23 +138,6 @@ public sealed class LatexLayout
             // Every reading failure is the same answer to the caller: there is no formula to map.
             return null;
         }
-    }
-
-    /// <summary>
-    /// The same thing <see cref="Attribute"/> does, for a formula built from the reading — where it is
-    /// a hand-over rather than a search, because every box came out of an atom that already knew.
-    /// <para>
-    /// This is what the exercise was for. <see cref="Attribute"/> exists only because the boxes were
-    /// built by somebody else's reading of the same LaTeX, so the one thing the two shared was offsets
-    /// and matching on them needed rules. Here there is nothing to match: the whole of it is a walk and
-    /// an assignment, and it is right by construction rather than by rule.
-    /// </para>
-    /// </summary>
-    private static void Own(LayoutNode root)
-    {
-        foreach (var node in root.SelfAndDescendants())
-            if (node is LatexNode piece)
-                piece.Owns(piece.Formula?.Origin);
     }
 
     /// <summary>

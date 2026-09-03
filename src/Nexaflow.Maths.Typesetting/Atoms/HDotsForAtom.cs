@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
@@ -17,7 +17,7 @@ internal sealed record HDotsForAtom : Atom, ISpanningMatrixCell
 
     private readonly double _spacing;
 
-    public HDotsForAtom(SourceSpan? source, int columnSpan, double spacing) : base(source)
+    public HDotsForAtom(int columnSpan, double spacing)
     {
         ColumnSpan = columnSpan;
         _spacing = spacing;
@@ -54,7 +54,7 @@ internal sealed record HDotsForAtom : Atom, ISpanningMatrixCell
     }
 
     private static Box CreateDot(TexEnvironment environment) =>
-        SymbolAtom.GetAtom(DotSymbolName, null).CreateBox(environment);
+        SymbolAtom.GetAtom(DotSymbolName).CreateBox(environment);
 
     private readonly record struct DotMetrics(double DotWidth, double Quad);
 

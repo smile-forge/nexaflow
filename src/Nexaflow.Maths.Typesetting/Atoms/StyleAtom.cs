@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -6,8 +6,7 @@ namespace XamlMath.Atoms;
 // (\displaystyle, \textstyle, \scriptstyle and \scriptscriptstyle).
 internal sealed record StyleAtom : Atom
 {
-    public StyleAtom(SourceSpan? source, Atom? baseAtom, TexStyle targetStyle)
-        : base(source)
+    public StyleAtom(Atom? baseAtom, TexStyle targetStyle)
     {
         this.BaseAtom = baseAtom;
         this.TargetStyle = targetStyle;

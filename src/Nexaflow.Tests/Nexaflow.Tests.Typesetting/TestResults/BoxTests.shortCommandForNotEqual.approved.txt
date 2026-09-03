@@ -22,16 +22,13 @@
       "Italic": 0.0,
       "Node": {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "not",
         "Slots": [],
-        "Source": null,
         "Type": "Relation"
       },
       "Shift": 0.0,
-      "Source": null,
       "TotalHeight": 0.888888,
       "TotalWidth": 0.0,
       "Width": 0.0
@@ -46,7 +43,6 @@
       "Node": null,
       "Shift": 0.0,
       "Shrink": 0.0,
-      "Source": null,
       "Stretch": 0.0,
       "TotalHeight": 0.0,
       "TotalWidth": 0.0,
@@ -73,16 +69,13 @@
       "Italic": 0.0,
       "Node": {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "equals",
         "Slots": [],
-        "Source": null,
         "Type": "Relation"
       },
       "Shift": 0.0,
-      "Source": null,
       "TotalHeight": 0.23375,
       "TotalWidth": 0.777781,
       "Width": 0.777781
@@ -94,26 +87,21 @@
   "Italic": 0.0,
   "Node": {
     "[AtomType]": "RowAtom",
-    "Borrowed": false,
     "Elements": [
       {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "not",
         "Slots": [],
-        "Source": null,
         "Type": "Relation"
       },
       {
         "[AtomType]": "SymbolAtom",
-        "Borrowed": false,
         "IsDelimeter": false,
         "IsTextSymbol": false,
         "Name": "equals",
         "Slots": [],
-        "Source": null,
         "Type": "Relation"
       }
     ],
@@ -123,12 +111,10 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "SymbolAtom",
-          "Borrowed": false,
           "IsDelimeter": false,
           "IsTextSymbol": false,
           "Name": "not",
           "Slots": [],
-          "Source": null,
           "Type": "Relation"
         },
         "Role": "element",
@@ -138,23 +124,19 @@
         "Column": -1,
         "Node": {
           "[AtomType]": "SymbolAtom",
-          "Borrowed": false,
           "IsDelimeter": false,
           "IsTextSymbol": false,
           "Name": "equals",
           "Slots": [],
-          "Source": null,
           "Type": "Relation"
         },
         "Role": "element",
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
   "Shift": 0.0,
-  "Source": null,
   "TotalHeight": 0.888888,
   "TotalWidth": 0.777781,
   "Width": 0.777781

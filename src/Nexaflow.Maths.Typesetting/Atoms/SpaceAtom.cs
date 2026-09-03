@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
@@ -46,14 +46,12 @@ internal sealed record SpaceAtom : Atom
     private readonly TexUnit depthUnit;
 
     public SpaceAtom(
-        SourceSpan? source,
         TexUnit widthUnit,
         double width,
         TexUnit heightUnit,
         double height,
         TexUnit depthUnit,
         double depth)
-        : base(source)
     {
         CheckUnit(widthUnit);
         CheckUnit(heightUnit);
@@ -68,8 +66,7 @@ internal sealed record SpaceAtom : Atom
         this.depth = depth;
     }
 
-    public SpaceAtom(SourceSpan? source, TexUnit unit, double width, double height, double depth)
-        : base(source)
+    public SpaceAtom(TexUnit unit, double width, double height, double depth)
     {
         CheckUnit(unit);
 
@@ -82,8 +79,7 @@ internal sealed record SpaceAtom : Atom
         this.depth = depth;
     }
 
-    public SpaceAtom(SourceSpan? source)
-        : base(source)
+    public SpaceAtom()
     {
         this.isHardSpace = true;
     }

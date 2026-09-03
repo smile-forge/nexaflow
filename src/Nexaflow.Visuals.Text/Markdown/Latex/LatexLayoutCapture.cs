@@ -1,4 +1,4 @@
-using Nexaflow.Maths.Latex;
+﻿using Nexaflow.Maths.Latex;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,8 +25,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// <para>
 /// This needs no cooperation from WpfMath beyond what is already public.
 /// <see cref="IElementRenderer.RenderElement"/> is called for every box of the formula, parents before
-/// children, and each <see cref="Box"/> carries the <see cref="SourceSpan"/> the parser gave the atom that
-/// built it. Rendering with a renderer that draws nothing and only remembers therefore yields the whole
+/// children, and each <see cref="Box"/> carries the part of the parse tree it was built from.
+/// Rendering with a renderer that draws nothing and only remembers therefore yields the whole
 /// structure — the recursion in <see cref="RenderElement"/> <em>is</em> the tree, so parentage is kept
 /// rather than inferred afterwards from rectangles.
 /// </para>
@@ -42,10 +42,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 internal sealed class LatexLayoutCapture : IElementRenderer
 {
     private readonly Stack<LatexNode> _open = new();
-    private readonly List<string> _rejected = [];
-    private readonly List<string> _disowned = [];
     private readonly double _scale;
-    private readonly string _latex;
+    private readonly TexReading _reading;
 
     // OverUnderBox (\overrightarrow and friends) draws through RenderTransformed, so a box can be shifted
     // away from the coordinates it is handed. Translations are accumulated; a rotation is deliberately not
@@ -54,43 +52,18 @@ internal sealed class LatexLayoutCapture : IElementRenderer
     private double _offsetY;
     private IReadOnlyList<Transform> _pending = [];
 
-    public LatexLayoutCapture(double scale, string latex)
+    public LatexLayoutCapture(double scale, TexReading reading)
     {
         _scale = scale;
-        _latex = latex;
+        _reading = reading;
     }
 
     /// <summary>The formula's whole layout, or null when nothing was drawn at all.</summary>
     public LatexNode? Root { get; private set; }
 
-    /// <summary>
-    /// How many boxes claimed a span reaching outside the very text it indexes.
-    /// <para>
-    /// Always zero for a sound parser, and the reason it is counted rather than merely skipped: this is a
-    /// typesetter fault that costs a symbol its selectability, and it has already appeared four separate
-    /// times in WpfMath's escape-sequence handling. Dropping such a span quietly leaves the control usable
-    /// and every test green while a symbol silently stops working, so a test asserts this stays at zero.
-    /// </para>
-    /// </summary>
-    public int Rejected => _rejected.Count;
-    /// <summary>
-    /// What each rejected span claimed, as <c>start+length</c> against a source of the stated length —
-    /// enough to name the offending construct without re-running the parser by hand.
-    /// </summary>
-    public IReadOnlyList<string> RejectedSpans => _rejected;
-
-    /// <summary>
-    /// Names taken off a piece because they reached outside the piece containing it — a typesetter fault
-    /// the tree repairs rather than trusts. Not fatal the way a rejected span is: the piece is still drawn
-    /// and still pointable, it just resolves to whatever encloses it instead of naming its own text. Kept
-    /// countable so the tail of these stays visible instead of quietly costing a term its selectability.
-    /// </summary>
-    public IReadOnlyList<string> Disowned => _disowned;
-
     public void RenderElement(Box box, double x, double y)
     {
         var parent = _open.Count > 0 ? _open.Peek() : null;
-        var (start, length) = SourceOf(box);
 
         // From two corners rather than an origin and a size, because a box's extent is signed: TeX kerns
         // backwards to tuck a root's degree over its sign, so that strut is genuinely three-quarters of a
@@ -107,24 +80,26 @@ internal sealed class LatexLayoutCapture : IElementRenderer
                 Math.Min(top, bottom),
                 Math.Abs(right - left),
                 Math.Abs(bottom - top)),
-            start,
-            length,
             box.GetType().Name,
             isInk: false)   // decided in Finish, once it is known what lies beneath
         {
-            Formula = box.Node,
             Transforms = _pending,
             Guidelines = Snap(box, x, y),
             Background = (box.Background as WpfBrush)?.Value,
             BackgroundBounds = Raw(box, x, y),
         };
 
+        // What it was drawn from, handed over rather than searched for: the atom that made this box was
+        // built from a part and carries it. A strut and a piece of glue are the exception — they are room
+        // rather than ink, and were written by nobody.
+        node.Owns(box is StrutBox or GlueBox ? null : box.Node?.Origin, Anchor);
+
         _pending = [];
         if (parent is null) Root = node;
         else parent.Add(node);
 
         _open.Push(node);
-        box.RenderTo(this, x, y);   // the recursion — children report themselves through RenderElement
+        box.RenderTo(this, x, y);   // the recursion - children report themselves through RenderElement
         _open.Pop();
     }
 
@@ -213,95 +188,55 @@ internal sealed class LatexLayoutCapture : IElementRenderer
     {
         if (Root is null) return;
 
-        // The whole layout stands for the whole formula, whatever the outermost box happened to say it
-        // came from. Without this a selection that grew all the way out would stand for nothing at all.
-        if (Root.SourceLength <= 0)
-        {
-            Root.SourceStart = 0;
-            Root.SourceLength = _latex.Length;
-        }
+        // The whole layout stands for the whole formula, whatever the outermost box happened to be built
+        // from. Without this a selection that grew all the way out would stand for nothing at all.
+        if (Root.Part is null) Root.Owns(_reading.Root, 0);
 
-        // Backslashes first, then duplicates. The other order compares names that are about to become
-        // equal and finds them different: an integral's glyph names `int` while the operator box holding
-        // it names `\int`, so the duplicate only appears once the command has claimed its backslash.
-        Claim(Root);
-        Detach(Root, [(Root.SourceStart, Root.SourceLength)]);
+        Detach(Root, [Root.Part!]);
         MarkInk(Root);
     }
 
     /// <summary>
-    /// Gives each command the backslash that introduces it.
+    /// Takes its part away from any node that repeats the one enclosing it, or claims one from outside it.
     /// <para>
-    /// WpfMath hands a command's atom the span of its <em>name</em> — <c>alpha</c>, not <c>\alpha</c>.
-    /// Left as is the backslash belongs to nothing: it becomes a caret stop in the same place as the one
-    /// after it, and backspace would un-render <c>α</c> to <c>alpha</c>.
+    /// Each piece of layout must stand for a <em>different</em> part, or the link back stops being an
+    /// answer and becomes a question. A root is the case that proves it: the radical sign is built from
+    /// the radical atom, which is the whole <c>\sqrt[3]{x+1}</c> — the same part the node holding the
+    /// whole root already carries. Left alone, a reader pointing at the sign and a reader selecting the
+    /// root arrive at the same link and something downstream has to guess which was meant, and every
+    /// version of that guess has been wrong somewhere. The sign is the root's own drawing, so it stands
+    /// for nothing; the degree stands for the degree, the contents for the contents, and the node above
+    /// them for the whole. Nothing then has to be resolved.
+    /// </para>
+    /// <para>
+    /// Against every part above it, not merely the nearest: an integral sign is a box inside a
+    /// big-operator box built from the same atom, and something in between can be a different part
+    /// again, so comparing one level up leaves the duplicate standing two.
+    /// </para>
+    /// <para>
+    /// And a piece drawn inside another cannot have been written outside it, so a part that is not the
+    /// enclosing one nor anything under it is not true of this piece and is taken away rather than
+    /// trusted. The typesetter still builds a box or two that way — a style wraps a run and hands back a
+    /// box holding a neighbour's — and the fault is contained: the piece keeps its place in the tree and
+    /// its drawing, and simply stands for nothing, so a press on it resolves to whatever encloses it.
+    /// Believing it instead would let a selection come back as a range that does not contain what was
+    /// selected.
     /// </para>
     /// </summary>
-    private void Claim(LayoutNode node)
+    private static void Detach(LatexNode node, List<Nexaflow.Maths.Latex.TexPart> above)
     {
-        if (node.SourceLength > 0
-            && node.SourceStart > 0
-            && node.SourceStart <= _latex.Length
-            && _latex[node.SourceStart - 1] == '\\'
-            && (node.SourceStart < 2 || _latex[node.SourceStart - 2] != '\\'))   // `\\` is a token already
-        {
-            node.SourceStart--;
-            node.SourceLength++;
-        }
-
-        foreach (var child in node.Children.OfType<LayoutNode>()) Claim(child);
-    }
-
-    /// <summary>
-    /// Takes a span away from any node that merely repeats the one enclosing it.
-    /// <para>
-    /// Each piece of layout must name a <em>different</em> part of the source, or the link back stops
-    /// being an answer and becomes a question. A root is the case that proves it: WpfMath gives the
-    /// radical <em>sign</em> the span of the entire <c>\sqrt[3]{x+1}</c>, the same span the node holding
-    /// the whole root already carries. Left alone, a reader pointing at the sign and a reader selecting
-    /// the root arrive at the same link and something downstream has to guess which was meant — and every
-    /// version of that guess has been wrong somewhere. The sign is the root's own drawing, so it names
-    /// nothing; the degree names the degree, the contents name the contents, and the node above them names
-    /// the whole. Nothing then has to be resolved.
-    /// </para>
-    /// </summary>
-    private void Detach(LayoutNode node, List<(int Start, int Length)> above)
-    {
-        foreach (var child in node.Children.OfType<LayoutNode>())
+        foreach (var child in node.Children.OfType<LatexNode>())
         {
             var taken = false;
-            if (child.SourceLength > 0)
+            if (child.Part is { } part)
             {
-                var enclosing = above[^1];
-
-                // Against every name above it, not merely the nearest. An integral sign is a box inside a
-                // big-operator box that carries the same `\int`, and something in between can name a
-                // different stretch again — so comparing one level up leaves the duplicate standing two.
-                if (above.Contains((child.SourceStart, child.SourceLength)))
+                if (above.Any(seen => ReferenceEquals(seen, part)) || !Within(part, above[^1]))
                 {
-                    child.SourceLength = 0;
-                }
-                else if (child.SourceStart < enclosing.Start
-                         || child.SourceEnd() > enclosing.Start + enclosing.Length)
-                {
-                    // A name reaching outside the thing containing it cannot be true — the piece is drawn
-                    // inside its parent, so it cannot have come from text outside it. WpfMath still does
-                    // this for a construct or two, and the fault is contained rather than trusted: the
-                    // piece keeps its place in the tree and its drawing, and simply names nothing, so a
-                    // press on it resolves to whatever encloses it. Believing it instead would let a
-                    // selection come back as a range that does not contain what was selected.
-                    // Whether anything below it still names a part of the source decides how much this
-                    // costs: a level with named children keeps them, and promotion simply skips the level.
-                    // A leaf has nothing to roll up from, so its own granularity is what goes.
-                    var below = child.SelfAndDescendants().Skip(1).Any(n => n.SourceLength > 0);
-                    _disowned.Add($"{(below ? "level" : "leaf")} {child.Kind} named "
-                                  + $"{child.SourceStart}+{child.SourceLength}, "
-                                  + $"outside its {enclosing.Start}+{enclosing.Length}");
-                    child.SourceLength = 0;
+                    child.Disown();
                 }
                 else
                 {
-                    above.Add((child.SourceStart, child.SourceLength));
+                    above.Add(part);
                     taken = true;
                 }
             }
@@ -311,77 +246,37 @@ internal sealed class LatexLayoutCapture : IElementRenderer
         }
     }
 
+    /// <summary>Whether one part is the other, or written somewhere inside it.</summary>
+    private static bool Within(Nexaflow.Maths.Latex.TexPart part, Nexaflow.Maths.Latex.TexPart enclosing) =>
+        ReferenceEquals(part, enclosing) || part.Ancestors().Any(up => ReferenceEquals(up, enclosing));
+
     /// <summary>
-    /// A node is ink when it names a piece of the source and nothing beneath it names a smaller one — the
-    /// leaves of the source-bearing subtree, which are exactly the things a reader can point at.
+    /// A node is ink when it stands for a part and nothing beneath it stands for a smaller one — the
+    /// leaves of the part-bearing subtree, which are exactly the things a reader can point at.
     /// <para>
     /// Leaf-of-the-box-tree would be the obvious rule and is wrong: an operator name such as <c>\sin</c>
-    /// is a box holding a run of letter boxes, and those letters index the macro's own text rather than
-    /// the user's — so the letters name nothing and <c>\sin</c> itself is the unit, container or not.
+    /// is a box holding a run of letter boxes, and those letters were built from no part of the reading
+    /// at all — so the letters stand for nothing and <c>\sin</c> itself is the unit, container or not.
     /// </para>
     /// </summary>
-    private static bool MarkInk(LayoutNode node)
+    private static bool MarkInk(LatexNode node)
     {
         var below = false;
-        foreach (var child in node.Children.OfType<LayoutNode>())
+        foreach (var child in node.Children.OfType<LatexNode>())
             below |= MarkInk(child);
 
-        // Standing for some of the source is normally what makes a piece worth pointing at. A hole is
-        // the exception the rule needs: it stands for nothing written — that is what a hole is — and it
-        // is nonetheless the most pointable thing on the page, being the one place the reader has been
-        // told to write. So it counts as ink on the strength of being a hole rather than of covering
-        // anything, and everything that finds, hit-tests, selects or carries a symbol then finds it.
-        var stands = node.SourceLength > 0 || node.IsPlaceholder();
+        // Standing for a part is normally what makes a piece worth pointing at. A hole is the exception
+        // the rule needs: it stands for nothing written — that is what a hole is — and it is nonetheless
+        // the most pointable thing on the page, being the one place the reader has been told to write. So
+        // it counts as ink on the strength of being a hole rather than of standing for anything, and
+        // everything that finds, hit-tests, selects or carries a symbol then finds it.
+        var stands = node.Part is { Derived: false } || node.IsPlaceholder();
 
         node.IsInk = stands && !below;
         return below || stands;
     }
 
-    /// <summary>
-    /// Which characters of the formula produced this box, or nothing.
-    /// <para>
-    /// A box out of a macro body carries offsets into <em>its own</em> source text, which say nothing about
-    /// where the user's formula is; a strut or a piece of glue came from no character at all; and a rule —
-    /// a fraction's bar, a radical's overline — is drawn for a construct rather than for any text within
-    /// it. None of those is a fault. They are parts of their parent's layout, so they stay in the tree,
-    /// carry no source of their own, and are painted and washed with whatever encloses them.
-    /// </para>
-    /// </summary>
-    private (int Start, int Length) SourceOf(Box box)
-    {
-        // Built from a reading rather than parsed: the atom carries the part it was made from, and a
-        // part knows where it stands. Nothing to match and nothing to repair.
-        //
-        // Named the way the other reading named it, though, and deliberately: everything downstream
-        // still works in offsets and was written against that convention. A braced argument's box
-        // covered what was between the braces and a cell's covered the ink, where the *part* is the
-        // whole `{a+b}` and the whole cell. Handing over the honest span instead re-braces an argument
-        // that is already braced, because what reads the characters around it finds a `}` where it
-        // expected a letter. This goes when the editor asks the part rather than the offsets.
-        if (box.Node?.Origin is { } part
-            && box.GetType().Name is not ("StrutBox" or "GlueBox"))
-            return part.Kind switch
-            {
-                TexKind.Group => part.Contents,
-                TexKind.Cell => part.Written,
-                _ => (part.Start, part.Length),
-            };
-
-        if (box.Source is not { } source
-            || !string.Equals(source.Source, _latex, StringComparison.Ordinal)
-            || box.GetType().Name is "StrutBox" or "GlueBox")
-            return (Anchor, 0);
-
-        if (source.Start < 0 || source.End > _latex.Length)
-        {
-            _rejected.Add($"{box.GetType().Name} claims {source.Start}+{source.Length} of {_latex.Length}");
-            return (Anchor, 0);
-        }
-
-        return (source.Start, source.Length);
-    }
-
-    /// <summary>Where a source-less node sits in the text: wherever the thing containing it starts.</summary>
+    /// <summary>Where a piece that stands for nothing sits in the text: wherever the thing containing it starts.</summary>
     private int Anchor => _open.Count > 0 ? _open.Peek().SourceStart : 0;
 
-}
+    }

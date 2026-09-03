@@ -7,15 +7,12 @@
   "Italic": 0.0,
   "Node": {
     "[AtomType]": "RowAtom",
-    "Borrowed": false,
     "Elements": [],
     "PreviousAtom": null,
     "Slots": [],
-    "Source": null,
     "Type": "Ordinary"
   },
   "Shift": 0.0,
-  "Source": null,
   "TotalHeight": 0.0,
   "TotalWidth": 0.0,
   "Width": 0.0

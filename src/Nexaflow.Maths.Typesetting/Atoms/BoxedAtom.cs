@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 using System.Collections.Generic;
 
@@ -13,8 +13,7 @@ internal sealed record BoxedAtom : Atom
     // the one the standard classes use (0.4pt to 3pt), expressed against the current rule thickness.
     private const double PaddingPerThickness = 7.5;
 
-    public BoxedAtom(SourceSpan? source, Atom? baseAtom)
-        : base(source)
+    public BoxedAtom(Atom? baseAtom)
     {
         this.BaseAtom = baseAtom;
     }

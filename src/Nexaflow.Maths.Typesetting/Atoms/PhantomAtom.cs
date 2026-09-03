@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -10,14 +10,12 @@ internal sealed record PhantomAtom : Atom, IRow
     private readonly bool useDepth;
 
     public PhantomAtom(
-        SourceSpan? source,
         Atom? baseAtom,
         bool useWidth = true,
         bool useHeight = true,
         bool useDepth = true)
-        : base(source)
     {
-        this.RowAtom = baseAtom == null ? new RowAtom(null) : new RowAtom(null, baseAtom);
+        this.RowAtom = baseAtom == null ? new RowAtom() : new RowAtom(baseAtom);
         this.useWidth = useWidth;
         this.useHeight = useHeight;
         this.useDepth = useDepth;

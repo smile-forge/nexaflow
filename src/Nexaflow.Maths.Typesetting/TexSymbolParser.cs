@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Xml.Linq;
 using XamlMath.Atoms;
@@ -38,9 +38,9 @@ internal sealed class TexSymbolParser
         this.rootElement = doc.Root;
     }
 
-    public IReadOnlyDictionary<string, Func<SourceSpan?, SymbolAtom>> GetSymbols()
+    public IReadOnlyDictionary<string, Func<SymbolAtom>> GetSymbols()
     {
-        var result = new Dictionary<string, Func<SourceSpan?, SymbolAtom>>();
+        var result = new Dictionary<string, Func<SymbolAtom>>();
 
         foreach (var symbolElement in rootElement.Elements("Symbol"))
         {
@@ -50,7 +50,7 @@ internal sealed class TexSymbolParser
 
             result.Add(
                 symbolName,
-                source => new SymbolAtom(source, symbolName, typeMappings[symbolType], symbolIsDelimeter));
+                () => new SymbolAtom(symbolName, typeMappings[symbolType], symbolIsDelimeter));
         }
 
         return result;

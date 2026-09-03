@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using XamlMath.Boxes;
@@ -81,7 +81,6 @@ internal sealed record MatrixAtom : Atom
 
 
     public MatrixAtom(
-        SourceSpan? source,
         IEnumerable<IEnumerable<Atom?>> cells,
         MatrixCellAlignment matrixCellAlignment,
         double verticalPadding = DefaultPadding,
@@ -90,7 +89,7 @@ internal sealed record MatrixAtom : Atom
         IReadOnlyCollection<int>? horizontalRules = null,
         bool suppressOuterPadding = false,
         double rowStrutHeight = 0,
-        double rowStrutDepth = 0) : base(source)
+        double rowStrutDepth = 0)
     {
         MatrixCells = ToImmutableCollection(cells.Select(ToImmutableCollection));
         MatrixCellAlignment = matrixCellAlignment;

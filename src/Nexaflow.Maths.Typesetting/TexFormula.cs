@@ -34,8 +34,6 @@ public sealed class TexFormula
     /// </summary>
     public IFormulaNode? Root => this.RootAtom;
 
-    public SourceSpan? Source { get; set; }
-
     /// <summary>
     /// The commands this was built from that nothing had a reading for, as the parts they were written
     /// as. Empty unless it came from <see cref="TexFormulaBuilder"/>, which draws nothing for one.
@@ -50,40 +48,6 @@ public sealed class TexFormula
     public IReadOnlyList<Nexaflow.Maths.Latex.TexPart> Ignored { get; internal set; } =
         new List<Nexaflow.Maths.Latex.TexPart>();
 
-    public void Add(TexFormula formula, SourceSpan? source = null)
-    {
-        Debug.Assert(formula != null);
-        Debug.Assert(formula.RootAtom != null);
-
-        this.Add(
-            formula.RootAtom is RowAtom rowAtom
-                ? new RowAtom(source, rowAtom)
-                : formula.RootAtom,
-            source);
-    }
-
-    /// <summary>
-    /// Adds an atom to the formula. If the <see cref="RootAtom"/> exists and is not a <see cref="RowAtom"/>, it
-    /// will become one.
-    /// </summary>
-    /// <param name="atom">The atom to add.</param>
-    /// <param name="rowSource">The source that will be set for the resulting row atom.</param>
-    internal void Add(Atom atom, SourceSpan? rowSource)
-    {
-        if (this.RootAtom == null)
-        {
-            this.RootAtom = atom;
-        }
-        else
-        {
-            var elements = (this.RootAtom is RowAtom r
-                ? (IEnumerable<Atom>)r.Elements
-                : new[] { this.RootAtom }).ToList();
-            elements.Add(atom);
-            this.RootAtom = new RowAtom(rowSource, elements);
-        }
-    }
-
     public void SetForeground(IBrush brush)
     {
         if (this.RootAtom is StyledAtom sa)
@@ -92,7 +56,7 @@ public sealed class TexFormula
         }
         else
         {
-            RootAtom = new StyledAtom(RootAtom?.Source, RootAtom, null, brush);
+            RootAtom = new StyledAtom(RootAtom, null, brush);
         }
     }
 
@@ -104,7 +68,7 @@ public sealed class TexFormula
         }
         else
         {
-            this.RootAtom = new StyledAtom(this.RootAtom?.Source, this.RootAtom, brush, null);
+            this.RootAtom = new StyledAtom(this.RootAtom, brush, null);
         }
     }
 

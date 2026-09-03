@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using XamlMath.Boxes;
 
 using System.Collections.Generic;
@@ -19,10 +19,9 @@ internal sealed record FencedAtom : Atom
         box.Shift = -(totalHeight / 2 - box.Height) - axis;
     }
 
-    public FencedAtom(SourceSpan? source, Atom? baseAtom, SymbolAtom? leftDelimeter, SymbolAtom? rightDelimeter)
-        : base(source)
+    public FencedAtom(Atom? baseAtom, SymbolAtom? leftDelimeter, SymbolAtom? rightDelimeter)
     {
-        this.BaseAtom = baseAtom ?? new RowAtom(null);
+        this.BaseAtom = baseAtom ?? new RowAtom();
         this.LeftDelimeter = leftDelimeter;
         this.RightDelimeter = rightDelimeter;
     }
@@ -51,9 +50,7 @@ internal sealed record FencedAtom : Atom
         if (this.LeftDelimeter != null && this.LeftDelimeter.Name != SymbolAtom.EmptyDelimiterName)
         {
             var leftDelimeterBox = DelimiterFactory.CreateBox(this.LeftDelimeter.Name, minHeight, environment);
-            leftDelimeterBox.Source = this.LeftDelimeter.Source;
-
-            // And which atom drew it. Every other box gets this in Atom.CreateBox; a delimiter is built
+            // Which atom drew it. Every other box gets this in Atom.CreateBox; a delimiter is built
             // by hand here, from a name and a height, so it has to be said. Without it a bracket knows
             // nothing about what it came from — pointable only for as long as an offset was enough.
             leftDelimeterBox.Node ??= this.LeftDelimeter;
@@ -76,7 +73,6 @@ internal sealed record FencedAtom : Atom
         if (this.RightDelimeter != null && this.RightDelimeter.Name != SymbolAtom.EmptyDelimiterName)
         {
             var rightDelimeterBox = DelimiterFactory.CreateBox(this.RightDelimeter.Name, minHeight, environment);
-            rightDelimeterBox.Source = this.RightDelimeter.Source;
             rightDelimeterBox.Node ??= this.RightDelimeter;
             CentreBox(rightDelimeterBox, axis);
             resultBox.Add(rightDelimeterBox);
