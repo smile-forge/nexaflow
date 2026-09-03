@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using XamlMath.Atoms;
@@ -83,9 +82,6 @@ public class TexFormulaParser
         "texttt",
     };
 
-    // TODO[#339]: Architectural solution to make this work faster.
-    private readonly IReadOnlyDictionary<string, Func<TexFormula?>> predefinedFormulas;
-
     private static readonly IReadOnlyList<IReadOnlyList<string>> delimiterNames = new[]
     {
         new[] { "lbrace", "rbrace" },
@@ -150,26 +146,19 @@ public class TexFormulaParser
     private readonly IBrushFactory _brushFactory;
 
     internal TexFormulaParser(
-
         IReadOnlyDictionary<string, IColorParser> colorModelParsers,
         IColorParser defaultColorParser,
-        IBrushFactory brushFactory,
-        IReadOnlyDictionary<string, Func<TexFormula?>> predefinedFormulae)
+        IBrushFactory brushFactory)
     {
-
         _colorModelParsers = colorModelParsers;
         _defaultColorParser = defaultColorParser;
         _brushFactory = brushFactory;
-        predefinedFormulas = predefinedFormulae;
     }
 
-    public TexFormulaParser(
-        IBrushFactory brushFactory,
-        IReadOnlyDictionary<string, Func<TexFormula?>> predefinedFormulae) : this(
+    public TexFormulaParser(IBrushFactory brushFactory) : this(
         StandardColorParsers.Dictionary,
         PredefinedColorParser.Instance,
-        brushFactory,
-        predefinedFormulae)
+        brushFactory)
     { }
 
     /// <summary>
@@ -215,47 +204,6 @@ public class TexFormulaParser
     }
 
     /// <summary>
-    /// What each command expanded to, worked out once. <c>\,</c> is in a fifth of the formulas anyone
-    /// writes and always means the same thing, so re-reading its definition for every one of them is
-    /// work done a hundred thousand times to get the same answer.
-    /// </summary>
-    private readonly ConcurrentDictionary<string, Atom?> _expansions = new();
-
-    /// <summary>
-    /// The atom this command is shorthand for, when it is shorthand for exactly one — <c>\,</c> and the
-    /// rest of TeX's written-down spaces.
-    /// <para>
-    /// These are macros, not commands: <c>\quad</c> is defined as a formula in
-    /// <c>PredefinedTexFormulas.xml</c> and parsed from that definition — text nobody wrote. That used to
-    /// matter, because the atoms came back carrying offsets into it, and an expansion of more than one
-    /// atom would have put a point in the layout naming a document the reader has never seen. Nothing
-    /// carries an offset now: what an atom came from is its <see cref="Atom.Origin"/>, and an expansion
-    /// has none until whoever asked for it hangs one on.
-    /// </para>
-    /// <para>
-    /// Which is what lets an expansion be more than one atom. <c>\cdots</c> is three dots and <c>\neq</c>
-    /// is a slash over an equals; both used to be declined for fear of those offsets, and between them
-    /// and the rest of their family that was some eighteen thousand formulas.
-    /// </para>
-    /// </summary>
-    internal Atom? ExpansionOf(string command)
-    {
-        var expansion = _expansions.GetOrAdd(command, name =>
-        {
-            if (!predefinedFormulas.TryGetValue(name, out var factory)) return null;
-
-            // The definition text stands in for the source, because the source is not this method's to
-            // have and nothing that comes out of here keeps it anyway.
-            return factory()?.RootAtom;
-        });
-
-        // A copy each time, never the one in the table: what comes back has a part hung on it by whoever
-        // asked, and two formulas asking for the same space must not end up sharing one atom. Only the
-        // root — what is under it is drawing and nothing points at it, so there is nothing to hang.
-        return expansion is null ? null : expansion with { };
-    }
-
-    /// <summary>
     /// Whether anything here has a reading for a command at all — a command parser, a macro, a style or a
     /// symbol.
     ///
@@ -270,7 +218,6 @@ public class TexFormulaParser
     internal bool Knows(string command)
     {
         if (StandardCommands.Dictionary.ContainsKey(command)) return true;
-        if (predefinedFormulas.ContainsKey(command)) return true;
         if (textStyles.Contains(command)) return true;
         if (embeddedCommands.Contains(command)) return true;
 

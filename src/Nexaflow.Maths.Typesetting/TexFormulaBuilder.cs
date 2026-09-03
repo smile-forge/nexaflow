@@ -41,8 +41,9 @@ namespace XamlMath;
 /// symbols from what class each atom is, not from what was typed, so <c>a+b</c> and <c>a + b</c> are set
 /// identically: the spaces are in the parse tree because they are in the source, and they produce no
 /// atom. <c>\,</c>, <c>\;</c>, <c>\quad</c> and the rest are the writer overriding that, so they do —
-/// and they are macros rather than commands, which is why they are looked up in
-/// <see cref="TexFormulaParser.ExpansionOf"/> and not in the symbol table.
+/// and they are not commands, which is why the symbol table has never heard of them. Most are
+/// macros, expanded while the formula is read; the handful that are a length in mu and have no
+/// LaTeX spelling are built beside the symbols by <see cref="StandardCommands.PrimitiveOf"/>.
 /// </para>
 /// </summary>
 public static class TexFormulaBuilder
@@ -900,7 +901,7 @@ public static class TexFormulaBuilder
                 // raise above and belongs with them. Three formulas.
                 if (DeclineUnsettled && part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
 
-                if (Symbol("not", part, style, knowledge) is not { } slash) return null;
+                if (Symbol("not", part, style) is not { } slash) return null;
 
                 // Everything written after the name, in the order it was written: the kern that puts the slash on
                 // the letter — `\not\!p` — as much as the letter itself. The reading gathered them under this one
@@ -1037,7 +1038,7 @@ public static class TexFormulaBuilder
         if (Part(part, TexRole.Expansion, style, knowledge) is { } shorthand) return Tag(shorthand, part);
 
         // A symbol standing on its own, if it is one.
-        if (!part.Parts.Any() && Symbol(name[1..], part, style, knowledge) is { } symbol) return symbol;
+        if (!part.Parts.Any() && Symbol(name[1..], part, style) is { } symbol) return symbol;
 
         // And otherwise a command nothing here knows what to do with — `\hline`, `\bbox`, `\substack`, an
         // arrow package nobody has taught this, a typo. It draws nothing of its own, and whatever it was
@@ -1066,7 +1067,7 @@ public static class TexFormulaBuilder
         }
     }
 
-    private static Atom? Symbol(string name, ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Symbol(string name, ITexPart part, string? style)
     {
         try
         {
@@ -1085,13 +1086,11 @@ public static class TexFormulaBuilder
         }
         catch (SymbolNotFoundException)
         {
-            // Not a symbol, so perhaps shorthand for one. TeX's written-down spaces — `\,`, `\;`, `\!`,
-            // `\quad` — are macros rather than commands: each is defined as a formula and expands to a
-            // single space atom. A space that was *asked for*, and so is built, unlike the space that was
-            // merely typed, which the spacing rules would have put there anyway.
-            if (StandardCommands.PrimitiveOf(name) is { } primitive) return Tag(primitive, part);
-
-            return knowledge.ExpansionOf(name) is { } expansion ? Tag(expansion, part) : null;
+            // Not a symbol, so perhaps a primitive: a thing with no LaTeX spelling, which is therefore not
+            // something the reader could have expanded for us. A strut is the common case — `\,` and `\;`
+            // are a length in mu — and it is a space that was *asked for*, and so is built, unlike the
+            // space that was merely typed, which the spacing rules would have put there anyway.
+            return StandardCommands.PrimitiveOf(name) is { } primitive ? Tag(primitive, part) : null;
         }
     }
 

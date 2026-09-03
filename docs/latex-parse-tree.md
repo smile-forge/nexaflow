@@ -368,19 +368,20 @@ rather than as a recipe interpreted out of XML at run time:
 
 All thirteen moved without shifting a single box, on the corpus and on the hand-written constructs.
 
-**Three did not move**, and the reason is worth keeping:
+**Three did not move at first**, and the reason is worth keeping:
 
 - **the `\iint` family** — several integral signs squeezed together and typed as one big operator.
   Built directly it changed the typesetting, because an integral sign is not a plain symbol: it is
   promoted to a big operator on the way past, so reproducing the pile means reproducing that too.
-  Tried, caught by `TypesettingUnchangedTests`, reverted. The corpus names `\iint` twenty times,
-  `\iiint` once and the other four never, so there is nothing to check a second attempt against.
+  Tried, caught by `TypesettingUnchangedTests`, reverted. What settled it was `\mathop`, which says
+  "type this row as a big operator" in LaTeX and so lets the pile be a macro after all —
+  `\mathop{\int\!\!\!\int}` — leaving the promotion to the reading rather than reproducing it.
 - **`\mod`**, which the command table already claims, and which takes its modulus after it.
 
-Which is why `TexFormulaParser.ExpansionOf` is still there, and now has exactly one caller and six
-names to serve. It is not what stands between us and deleting the old reader — `ParseWithRecovery`
-is, for the stretch shown as written while it is being edited and for the holes an empty argument
-gets, neither of which the builder does.
+So `TexFormulaParser.ExpansionOf` had nothing left to serve, and the table it read has gone with it:
+no predefined formulas, no XML of them, no `Func<TexFormula?>` threaded through two constructors to
+carry an empty dictionary. What is not a macro is a length in mu with no LaTeX spelling, and those
+are built beside the symbols by `StandardCommands.PrimitiveOf`.
 
 `TexMacroTableTests` holds every row against what the parser does with it, and the first thing it
 asks is whether the row fires at all. A row for a name the command table already claims is invisible

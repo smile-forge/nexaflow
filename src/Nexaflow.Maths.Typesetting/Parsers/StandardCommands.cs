@@ -1176,9 +1176,8 @@ internal static class StandardCommands
             // The \iint family is deliberately not here. It is several integral signs squeezed together
             // and typed as one big operator, and an integral sign is not a plain symbol — it is promoted
             // to a big operator on the way past, so reproducing the pile exactly means reproducing that
-            // too. Tried, and it moved the typesetting. The corpus names \iint twenty times, \iiint once
-            // and the other four never, so there is nothing to check a second attempt against; it stays
-            // in the table it was already in until something needs it to move.
+            // too. Tried, and it moved the typesetting. It is a macro instead: \mathop{\int\!\!\!\int} says
+            // the same thing in LaTeX, so it belongs to the reader rather than here.
             _ => null,
         };
     }
