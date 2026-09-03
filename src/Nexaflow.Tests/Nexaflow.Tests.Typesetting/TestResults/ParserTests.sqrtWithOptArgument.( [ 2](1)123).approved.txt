@@ -11,7 +11,6 @@
           "Character": "1",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -22,7 +21,6 @@
           "Character": "2",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -35,7 +33,6 @@
               "Character": "2",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -50,7 +47,6 @@
               "Character": "1",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -58,7 +54,6 @@
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -67,7 +62,6 @@
         "Character": "1",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       },
@@ -77,7 +71,6 @@
         "Character": "2",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       },
@@ -87,7 +80,6 @@
         "Character": "3",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       }
@@ -104,7 +96,6 @@
             "Character": "1",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -115,7 +106,6 @@
             "Character": "2",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -128,7 +118,6 @@
                 "Character": "2",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -143,7 +132,6 @@
                 "Character": "1",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -151,7 +139,6 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -165,7 +152,6 @@
           "Character": "1",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -180,7 +166,6 @@
           "Character": "2",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -195,7 +180,6 @@
           "Character": "3",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -203,9 +187,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

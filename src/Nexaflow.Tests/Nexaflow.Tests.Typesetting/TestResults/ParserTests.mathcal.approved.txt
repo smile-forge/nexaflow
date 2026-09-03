@@ -9,7 +9,6 @@
         "Character": "s",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "mathcal",
         "Type": "Ordinary"
       },
@@ -19,7 +18,6 @@
         "Character": "i",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "mathcal",
         "Type": "Ordinary"
       },
@@ -29,7 +27,6 @@
         "Character": "n",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "mathcal",
         "Type": "Ordinary"
       }
@@ -44,7 +41,6 @@
           "Character": "s",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathcal",
           "Type": "Ordinary"
         },
@@ -59,7 +55,6 @@
           "Character": "i",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathcal",
           "Type": "Ordinary"
         },
@@ -74,7 +69,6 @@
           "Character": "n",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathcal",
           "Type": "Ordinary"
         },
@@ -82,9 +76,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

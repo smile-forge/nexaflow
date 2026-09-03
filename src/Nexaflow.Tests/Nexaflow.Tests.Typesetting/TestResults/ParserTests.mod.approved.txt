@@ -7,7 +7,6 @@
         "[AtomType]": "SpaceAtom",
         "Borrowed": false,
         "Slots": [],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -16,7 +15,6 @@
         "Character": "\\",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -26,7 +24,6 @@
         "Character": "m",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -36,7 +33,6 @@
         "Character": "o",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -46,7 +42,6 @@
         "Character": "d",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -54,7 +49,6 @@
         "[AtomType]": "SpaceAtom",
         "Borrowed": false,
         "Slots": [],
-        "Source": null,
         "Type": "Ordinary"
       }
     ],
@@ -66,7 +60,6 @@
           "[AtomType]": "SpaceAtom",
           "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -80,7 +73,6 @@
           "Character": "\\",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -95,7 +87,6 @@
           "Character": "m",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -110,7 +101,6 @@
           "Character": "o",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -125,7 +115,6 @@
           "Character": "d",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -138,16 +127,13 @@
           "[AtomType]": "SpaceAtom",
           "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

@@ -7,7 +7,6 @@
       "Character": "x",
       "IsTextSymbol": false,
       "Slots": [],
-      "Source": null,
       "TextStyle": null,
       "Type": "Ordinary"
     },
@@ -21,7 +20,6 @@
           "Character": "x",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -36,7 +34,6 @@
           "Character": "z",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -51,7 +48,6 @@
           "Character": "y",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -59,14 +55,12 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "SubscriptAtom": {
       "[AtomType]": "CharAtom",
       "Borrowed": false,
       "Character": "z",
       "IsTextSymbol": false,
       "Slots": [],
-      "Source": null,
       "TextStyle": null,
       "Type": "Ordinary"
     },
@@ -76,12 +70,10 @@
       "Character": "y",
       "IsTextSymbol": false,
       "Slots": [],
-      "Source": null,
       "TextStyle": null,
       "Type": "Ordinary"
     },
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

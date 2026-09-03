@@ -11,7 +11,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           },
           {
@@ -20,7 +19,6 @@
             "Character": "\\",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -30,7 +28,6 @@
             "Character": "c",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -40,7 +37,6 @@
             "Character": "o",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -50,7 +46,6 @@
             "Character": "l",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -60,7 +55,6 @@
             "Character": "o",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -70,7 +64,6 @@
             "Character": "r",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -78,7 +71,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           },
           {
@@ -87,7 +79,6 @@
             "Character": "[",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -95,7 +86,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           }
         ],
@@ -107,7 +97,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
@@ -121,7 +110,6 @@
               "Character": "\\",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -136,7 +124,6 @@
               "Character": "c",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -151,7 +138,6 @@
               "Character": "o",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -166,7 +152,6 @@
               "Character": "l",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -181,7 +166,6 @@
               "Character": "o",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -196,7 +180,6 @@
               "Character": "r",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -209,7 +192,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
@@ -223,7 +205,6 @@
               "Character": "[",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -236,14 +217,12 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -252,7 +231,6 @@
         "Character": "c",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       },
@@ -262,7 +240,6 @@
         "Character": "m",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       },
@@ -272,7 +249,6 @@
         "Character": "y",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       },
@@ -282,7 +258,6 @@
         "Character": "k",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       },
@@ -293,7 +268,6 @@
         "IsTextSymbol": false,
         "Name": "rbrack",
         "Slots": [],
-        "Source": null,
         "Type": "Closing"
       },
       {
@@ -308,7 +282,6 @@
               "Character": "0",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -319,7 +292,6 @@
               "IsTextSymbol": false,
               "Name": "normaldot",
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -328,7 +300,6 @@
               "Character": "5",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -339,7 +310,6 @@
               "IsTextSymbol": false,
               "Name": "comma",
               "Slots": [],
-              "Source": null,
               "Type": "Punctuation"
             },
             {
@@ -348,7 +318,6 @@
               "Character": "0",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -359,7 +328,6 @@
               "IsTextSymbol": false,
               "Name": "normaldot",
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -368,7 +336,6 @@
               "Character": "5",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -379,7 +346,6 @@
               "IsTextSymbol": false,
               "Name": "comma",
               "Slots": [],
-              "Source": null,
               "Type": "Punctuation"
             },
             {
@@ -388,7 +354,6 @@
               "Character": "0",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -399,7 +364,6 @@
               "IsTextSymbol": false,
               "Name": "normaldot",
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -408,7 +372,6 @@
               "Character": "5",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -419,7 +382,6 @@
               "IsTextSymbol": false,
               "Name": "comma",
               "Slots": [],
-              "Source": null,
               "Type": "Punctuation"
             },
             {
@@ -428,7 +390,6 @@
               "Character": "0",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -439,7 +400,6 @@
               "IsTextSymbol": false,
               "Name": "normaldot",
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -448,7 +408,6 @@
               "Character": "5",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             }
@@ -463,7 +422,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -479,7 +437,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -493,7 +450,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -509,7 +465,6 @@
                 "IsTextSymbol": false,
                 "Name": "comma",
                 "Slots": [],
-                "Source": null,
                 "Type": "Punctuation"
               },
               "Role": "element",
@@ -523,7 +478,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -539,7 +493,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -553,7 +506,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -569,7 +521,6 @@
                 "IsTextSymbol": false,
                 "Name": "comma",
                 "Slots": [],
-                "Source": null,
                 "Type": "Punctuation"
               },
               "Role": "element",
@@ -583,7 +534,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -599,7 +549,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -613,7 +562,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -629,7 +577,6 @@
                 "IsTextSymbol": false,
                 "Name": "comma",
                 "Slots": [],
-                "Source": null,
                 "Type": "Punctuation"
               },
               "Role": "element",
@@ -643,7 +590,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -659,7 +605,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -673,7 +618,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -681,7 +625,6 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Borrowed": false,
@@ -700,7 +643,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -711,7 +653,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -720,7 +661,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -731,7 +671,6 @@
                   "IsTextSymbol": false,
                   "Name": "comma",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Punctuation"
                 },
                 {
@@ -740,7 +679,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -751,7 +689,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -760,7 +697,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -771,7 +707,6 @@
                   "IsTextSymbol": false,
                   "Name": "comma",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Punctuation"
                 },
                 {
@@ -780,7 +715,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -791,7 +725,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -800,7 +733,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -811,7 +743,6 @@
                   "IsTextSymbol": false,
                   "Name": "comma",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Punctuation"
                 },
                 {
@@ -820,7 +751,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -831,7 +761,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -840,7 +769,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 }
@@ -855,7 +783,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -871,7 +798,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -885,7 +811,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -901,7 +826,6 @@
                     "IsTextSymbol": false,
                     "Name": "comma",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Punctuation"
                   },
                   "Role": "element",
@@ -915,7 +839,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -931,7 +854,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -945,7 +867,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -961,7 +882,6 @@
                     "IsTextSymbol": false,
                     "Name": "comma",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Punctuation"
                   },
                   "Role": "element",
@@ -975,7 +895,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -991,7 +910,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -1005,7 +923,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1021,7 +938,6 @@
                     "IsTextSymbol": false,
                     "Name": "comma",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Punctuation"
                   },
                   "Role": "element",
@@ -1035,7 +951,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1051,7 +966,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -1065,7 +979,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1073,14 +986,12 @@
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "base",
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -1089,7 +1000,6 @@
         "Character": "x",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       }
@@ -1106,7 +1016,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -1115,7 +1024,6 @@
               "Character": "\\",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -1125,7 +1033,6 @@
               "Character": "c",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -1135,7 +1042,6 @@
               "Character": "o",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -1145,7 +1051,6 @@
               "Character": "l",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -1155,7 +1060,6 @@
               "Character": "o",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -1165,7 +1069,6 @@
               "Character": "r",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -1173,7 +1076,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -1182,7 +1084,6 @@
               "Character": "[",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -1190,7 +1091,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             }
           ],
@@ -1202,7 +1102,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -1216,7 +1115,6 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1231,7 +1129,6 @@
                 "Character": "c",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1246,7 +1143,6 @@
                 "Character": "o",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1261,7 +1157,6 @@
                 "Character": "l",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1276,7 +1171,6 @@
                 "Character": "o",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1291,7 +1185,6 @@
                 "Character": "r",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1304,7 +1197,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -1318,7 +1210,6 @@
                 "Character": "[",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1331,14 +1222,12 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -1352,7 +1241,6 @@
           "Character": "c",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -1367,7 +1255,6 @@
           "Character": "m",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -1382,7 +1269,6 @@
           "Character": "y",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -1397,7 +1283,6 @@
           "Character": "k",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -1413,7 +1298,6 @@
           "IsTextSymbol": false,
           "Name": "rbrack",
           "Slots": [],
-          "Source": null,
           "Type": "Closing"
         },
         "Role": "element",
@@ -1433,7 +1317,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1444,7 +1327,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1453,7 +1335,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1464,7 +1345,6 @@
                 "IsTextSymbol": false,
                 "Name": "comma",
                 "Slots": [],
-                "Source": null,
                 "Type": "Punctuation"
               },
               {
@@ -1473,7 +1353,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1484,7 +1363,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1493,7 +1371,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1504,7 +1381,6 @@
                 "IsTextSymbol": false,
                 "Name": "comma",
                 "Slots": [],
-                "Source": null,
                 "Type": "Punctuation"
               },
               {
@@ -1513,7 +1389,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1524,7 +1399,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1533,7 +1407,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1544,7 +1417,6 @@
                 "IsTextSymbol": false,
                 "Name": "comma",
                 "Slots": [],
-                "Source": null,
                 "Type": "Punctuation"
               },
               {
@@ -1553,7 +1425,6 @@
                 "Character": "0",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1564,7 +1435,6 @@
                 "IsTextSymbol": false,
                 "Name": "normaldot",
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1573,7 +1443,6 @@
                 "Character": "5",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               }
@@ -1588,7 +1457,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1604,7 +1472,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1618,7 +1485,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1634,7 +1500,6 @@
                   "IsTextSymbol": false,
                   "Name": "comma",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Punctuation"
                 },
                 "Role": "element",
@@ -1648,7 +1513,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1664,7 +1528,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1678,7 +1541,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1694,7 +1556,6 @@
                   "IsTextSymbol": false,
                   "Name": "comma",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Punctuation"
                 },
                 "Role": "element",
@@ -1708,7 +1569,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1724,7 +1584,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1738,7 +1597,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1754,7 +1612,6 @@
                   "IsTextSymbol": false,
                   "Name": "comma",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Punctuation"
                 },
                 "Role": "element",
@@ -1768,7 +1625,6 @@
                   "Character": "0",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1784,7 +1640,6 @@
                   "IsTextSymbol": false,
                   "Name": "normaldot",
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1798,7 +1653,6 @@
                   "Character": "5",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -1806,7 +1660,6 @@
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Borrowed": false,
@@ -1825,7 +1678,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1836,7 +1688,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -1845,7 +1696,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1856,7 +1706,6 @@
                     "IsTextSymbol": false,
                     "Name": "comma",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Punctuation"
                   },
                   {
@@ -1865,7 +1714,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1876,7 +1724,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -1885,7 +1732,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1896,7 +1742,6 @@
                     "IsTextSymbol": false,
                     "Name": "comma",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Punctuation"
                   },
                   {
@@ -1905,7 +1750,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1916,7 +1760,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -1925,7 +1768,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1936,7 +1778,6 @@
                     "IsTextSymbol": false,
                     "Name": "comma",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Punctuation"
                   },
                   {
@@ -1945,7 +1786,6 @@
                     "Character": "0",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -1956,7 +1796,6 @@
                     "IsTextSymbol": false,
                     "Name": "normaldot",
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -1965,7 +1804,6 @@
                     "Character": "5",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   }
@@ -1980,7 +1818,6 @@
                       "Character": "0",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -1996,7 +1833,6 @@
                       "IsTextSymbol": false,
                       "Name": "normaldot",
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -2010,7 +1846,6 @@
                       "Character": "5",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -2026,7 +1861,6 @@
                       "IsTextSymbol": false,
                       "Name": "comma",
                       "Slots": [],
-                      "Source": null,
                       "Type": "Punctuation"
                     },
                     "Role": "element",
@@ -2040,7 +1874,6 @@
                       "Character": "0",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -2056,7 +1889,6 @@
                       "IsTextSymbol": false,
                       "Name": "normaldot",
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -2070,7 +1902,6 @@
                       "Character": "5",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -2086,7 +1917,6 @@
                       "IsTextSymbol": false,
                       "Name": "comma",
                       "Slots": [],
-                      "Source": null,
                       "Type": "Punctuation"
                     },
                     "Role": "element",
@@ -2100,7 +1930,6 @@
                       "Character": "0",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -2116,7 +1945,6 @@
                       "IsTextSymbol": false,
                       "Name": "normaldot",
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -2130,7 +1958,6 @@
                       "Character": "5",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -2146,7 +1973,6 @@
                       "IsTextSymbol": false,
                       "Name": "comma",
                       "Slots": [],
-                      "Source": null,
                       "Type": "Punctuation"
                     },
                     "Role": "element",
@@ -2160,7 +1986,6 @@
                       "Character": "0",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -2176,7 +2001,6 @@
                       "IsTextSymbol": false,
                       "Name": "normaldot",
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -2190,7 +2014,6 @@
                       "Character": "5",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -2198,14 +2021,12 @@
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "base",
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -2219,7 +2040,6 @@
           "Character": "x",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -2227,9 +2047,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

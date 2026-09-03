@@ -9,7 +9,6 @@
         "Character": "a",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -17,7 +16,6 @@
         "[AtomType]": "SpaceAtom",
         "Borrowed": false,
         "Slots": [],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -26,7 +24,6 @@
         "Character": "b",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -34,7 +31,6 @@
         "[AtomType]": "SpaceAtom",
         "Borrowed": false,
         "Slots": [],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -43,7 +39,6 @@
         "Character": "c",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       }
@@ -58,7 +53,6 @@
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -71,7 +65,6 @@
           "[AtomType]": "SpaceAtom",
           "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -85,7 +78,6 @@
           "Character": "b",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -98,7 +90,6 @@
           "[AtomType]": "SpaceAtom",
           "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -112,7 +103,6 @@
           "Character": "c",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -120,9 +110,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

@@ -15,11 +15,9 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.0,
           "TotalWidth": 0.166667166666667,
           "Width": 0.166667166666667
@@ -49,12 +47,10 @@
             "Character": "\\",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.85306607154705,
           "TotalWidth": 0.276666666666667,
           "Width": 0.276666666666667
@@ -69,7 +65,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -100,12 +95,10 @@
             "Character": "m",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.682362013525553,
           "TotalWidth": 0.833333333333333,
           "Width": 0.833333333333333
@@ -120,7 +113,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -151,12 +143,10 @@
             "Character": "a",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.694080763525553,
           "TotalWidth": 0.556666666666667,
           "Width": 0.556666666666667
@@ -171,7 +161,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -202,12 +191,10 @@
             "Character": "t",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.824996638160638,
           "TotalWidth": 0.276666666666667,
           "Width": 0.276666666666667
@@ -222,7 +209,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -253,12 +239,10 @@
             "Character": "r",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.682362013525553,
           "TotalWidth": 0.333333333333333,
           "Width": 0.333333333333333
@@ -273,7 +257,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -304,12 +287,10 @@
             "Character": "i",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.83107527321239,
           "TotalWidth": 0.223333333333333,
           "Width": 0.223333333333333
@@ -324,7 +305,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -355,12 +335,10 @@
             "Character": "x",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.672969597124279,
           "TotalWidth": 0.5,
           "Width": 0.5
@@ -376,11 +354,9 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.0,
           "TotalWidth": 0.166667166666667,
           "Width": 0.166667166666667
@@ -398,7 +374,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           },
           {
@@ -407,7 +382,6 @@
             "Character": "\\",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -417,7 +391,6 @@
             "Character": "m",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -427,7 +400,6 @@
             "Character": "a",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -437,7 +409,6 @@
             "Character": "t",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -447,7 +418,6 @@
             "Character": "r",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -457,7 +427,6 @@
             "Character": "i",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -467,7 +436,6 @@
             "Character": "x",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -475,7 +443,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           }
         ],
@@ -487,7 +454,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
@@ -501,7 +467,6 @@
               "Character": "\\",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -516,7 +481,6 @@
               "Character": "m",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -531,7 +495,6 @@
               "Character": "a",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -546,7 +509,6 @@
               "Character": "t",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -561,7 +523,6 @@
               "Character": "r",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -576,7 +537,6 @@
               "Character": "i",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -591,7 +551,6 @@
               "Character": "x",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -604,18 +563,15 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "Ordinary"
       },
       "Shift": 0.0,
-      "Source": null,
       "TotalHeight": 0.85306607154705,
       "TotalWidth": 3.33333433333333,
       "Width": 3.33333433333333
@@ -630,7 +586,6 @@
       "Node": null,
       "Shift": 0.0,
       "Shrink": 0.0,
-      "Source": null,
       "Stretch": 0.0,
       "TotalHeight": 0.0,
       "TotalWidth": 0.0,
@@ -664,12 +619,10 @@
             "Character": "a",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.430555,
           "TotalWidth": 0.52859,
           "Width": 0.52859
@@ -684,7 +637,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -704,11 +656,9 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.0,
               "TotalWidth": 0.166667166666667,
               "Width": 0.166667166666667
@@ -723,7 +673,6 @@
               "Node": null,
               "Shift": 0.0,
               "Shrink": 0.0,
-              "Source": null,
               "Stretch": 0.0,
               "TotalHeight": 0.0,
               "TotalWidth": 0.0,
@@ -754,12 +703,10 @@
                 "Character": "&",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.85746060279705,
               "TotalWidth": 0.666666666666667,
               "Width": 0.666666666666667
@@ -775,11 +722,9 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.0,
               "TotalWidth": 0.166667166666667,
               "Width": 0.166667166666667
@@ -797,7 +742,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -806,7 +750,6 @@
                 "Character": "&",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -814,7 +757,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               }
             ],
@@ -826,7 +768,6 @@
                 "Character": "a",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -834,7 +775,6 @@
               "IsKern": false,
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "Type": "None"
             },
             "Slots": [
@@ -844,7 +784,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -858,7 +797,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -871,18 +809,15 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.85746060279705,
           "TotalWidth": 1.000001,
           "Width": 1.000001
@@ -897,7 +832,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -928,12 +862,10 @@
             "Character": "b",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.694445,
           "TotalWidth": 0.429167,
           "Width": 0.429167
@@ -948,7 +880,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -968,11 +899,9 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.0,
               "TotalWidth": 0.166667166666667,
               "Width": 0.166667166666667
@@ -987,7 +916,6 @@
               "Node": null,
               "Shift": 0.0,
               "Shrink": 0.0,
-              "Source": null,
               "Stretch": 0.0,
               "TotalHeight": 0.0,
               "TotalWidth": 0.0,
@@ -1018,12 +946,10 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.85306607154705,
               "TotalWidth": 0.276666666666667,
               "Width": 0.276666666666667
@@ -1038,7 +964,6 @@
               "Node": null,
               "Shift": 0.0,
               "Shrink": 0.0,
-              "Source": null,
               "Stretch": 0.0,
               "TotalHeight": 0.0,
               "TotalWidth": 0.0,
@@ -1069,12 +994,10 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.85306607154705,
               "TotalWidth": 0.276666666666667,
               "Width": 0.276666666666667
@@ -1090,11 +1013,9 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.0,
               "TotalWidth": 0.166667166666667,
               "Width": 0.166667166666667
@@ -1112,7 +1033,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1121,7 +1041,6 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1131,7 +1050,6 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1139,7 +1057,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               }
             ],
@@ -1151,7 +1068,6 @@
                 "Character": "b",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1159,7 +1075,6 @@
               "IsKern": false,
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "Type": "None"
             },
             "Slots": [
@@ -1169,7 +1084,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1183,7 +1097,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1198,7 +1111,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1211,18 +1123,15 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.85306607154705,
           "TotalWidth": 0.886667666666667,
           "Width": 0.886667666666667
@@ -1237,7 +1146,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -1268,12 +1176,10 @@
             "Character": "c",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.430555,
           "TotalWidth": 0.432756,
           "Width": 0.432756
@@ -1288,7 +1194,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -1308,11 +1213,9 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.0,
               "TotalWidth": 0.166667166666667,
               "Width": 0.166667166666667
@@ -1327,7 +1230,6 @@
               "Node": null,
               "Shift": 0.0,
               "Shrink": 0.0,
-              "Source": null,
               "Stretch": 0.0,
               "TotalHeight": 0.0,
               "TotalWidth": 0.0,
@@ -1358,12 +1260,10 @@
                 "Character": "&",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.85746060279705,
               "TotalWidth": 0.666666666666667,
               "Width": 0.666666666666667
@@ -1379,11 +1279,9 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Shift": 0.0,
-              "Source": null,
               "TotalHeight": 0.0,
               "TotalWidth": 0.166667166666667,
               "Width": 0.166667166666667
@@ -1401,7 +1299,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1410,7 +1307,6 @@
                 "Character": "&",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1418,7 +1314,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               }
             ],
@@ -1430,7 +1325,6 @@
                 "Character": "c",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -1438,7 +1332,6 @@
               "IsKern": false,
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "Type": "None"
             },
             "Slots": [
@@ -1448,7 +1341,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1462,7 +1354,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1475,18 +1366,15 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.85746060279705,
           "TotalWidth": 1.000001,
           "Width": 1.000001
@@ -1501,7 +1389,6 @@
           "Node": null,
           "Shift": 0.0,
           "Shrink": 0.0,
-          "Source": null,
           "Stretch": 0.0,
           "TotalHeight": 0.0,
           "TotalWidth": 0.0,
@@ -1532,12 +1419,10 @@
             "Character": "d",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
           "Shift": 0.0,
-          "Source": null,
           "TotalHeight": 0.694445,
           "TotalWidth": 0.520488,
           "Width": 0.520488
@@ -1557,7 +1442,6 @@
             "Character": "a",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -1569,7 +1453,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1578,7 +1461,6 @@
                 "Character": "&",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1586,7 +1468,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               }
             ],
@@ -1598,7 +1479,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1612,7 +1492,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1625,14 +1504,12 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           {
@@ -1641,7 +1518,6 @@
             "Character": "b",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -1653,7 +1529,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1662,7 +1537,6 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1672,7 +1546,6 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1680,7 +1553,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               }
             ],
@@ -1692,7 +1564,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1706,7 +1577,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1721,7 +1591,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1734,14 +1603,12 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           {
@@ -1750,7 +1617,6 @@
             "Character": "c",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -1762,7 +1628,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -1771,7 +1636,6 @@
                 "Character": "&",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -1779,7 +1643,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               }
             ],
@@ -1791,7 +1654,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -1805,7 +1667,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1818,14 +1679,12 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           {
@@ -1834,7 +1693,6 @@
             "Character": "d",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           }
@@ -1849,7 +1707,6 @@
               "Character": "a",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -1866,7 +1723,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -1875,7 +1731,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1883,7 +1738,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 }
               ],
@@ -1895,7 +1749,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -1909,7 +1762,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -1922,14 +1774,12 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
@@ -1943,7 +1793,6 @@
               "Character": "b",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -1960,7 +1809,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -1969,7 +1817,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1979,7 +1826,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -1987,7 +1833,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 }
               ],
@@ -1999,7 +1844,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -2013,7 +1857,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2028,7 +1871,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2041,14 +1883,12 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
@@ -2062,7 +1902,6 @@
               "Character": "c",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -2079,7 +1918,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -2088,7 +1926,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -2096,7 +1933,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 }
               ],
@@ -2108,7 +1944,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -2122,7 +1957,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2135,14 +1969,12 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
@@ -2156,7 +1988,6 @@
               "Character": "d",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -2164,11 +1995,9 @@
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "Ordinary"
       },
       "Shift": 0.0,
-      "Source": null,
       "TotalHeight": 0.85746060279705,
       "TotalWidth": 4.79767066666667,
       "Width": 4.79767066666667
@@ -2190,7 +2019,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           },
           {
@@ -2199,7 +2027,6 @@
             "Character": "\\",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -2209,7 +2036,6 @@
             "Character": "m",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -2219,7 +2045,6 @@
             "Character": "a",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -2229,7 +2054,6 @@
             "Character": "t",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -2239,7 +2063,6 @@
             "Character": "r",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -2249,7 +2072,6 @@
             "Character": "i",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -2259,7 +2081,6 @@
             "Character": "x",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "text",
             "Type": "Ordinary"
           },
@@ -2267,7 +2088,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           }
         ],
@@ -2279,7 +2099,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
@@ -2293,7 +2112,6 @@
               "Character": "\\",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -2308,7 +2126,6 @@
               "Character": "m",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -2323,7 +2140,6 @@
               "Character": "a",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -2338,7 +2154,6 @@
               "Character": "t",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -2353,7 +2168,6 @@
               "Character": "r",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -2368,7 +2182,6 @@
               "Character": "i",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -2383,7 +2196,6 @@
               "Character": "x",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -2396,14 +2208,12 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "element",
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -2418,7 +2228,6 @@
               "Character": "a",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -2430,7 +2239,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -2439,7 +2247,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -2447,7 +2254,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 }
               ],
@@ -2459,7 +2265,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -2473,7 +2278,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2486,14 +2290,12 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -2502,7 +2304,6 @@
               "Character": "b",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -2514,7 +2315,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -2523,7 +2323,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -2533,7 +2332,6 @@
                   "Character": "\\",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -2541,7 +2339,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 }
               ],
@@ -2553,7 +2350,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -2567,7 +2363,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2582,7 +2377,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2595,14 +2389,12 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -2611,7 +2403,6 @@
               "Character": "c",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -2623,7 +2414,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -2632,7 +2422,6 @@
                   "Character": "&",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "text",
                   "Type": "Ordinary"
                 },
@@ -2640,7 +2429,6 @@
                   "[AtomType]": "SpaceAtom",
                   "Borrowed": false,
                   "Slots": [],
-                  "Source": null,
                   "Type": "Ordinary"
                 }
               ],
@@ -2652,7 +2440,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -2666,7 +2453,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2679,14 +2465,12 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -2695,7 +2479,6 @@
               "Character": "d",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             }
@@ -2710,7 +2493,6 @@
                 "Character": "a",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -2727,7 +2509,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -2736,7 +2517,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2744,7 +2524,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   }
                 ],
@@ -2756,7 +2535,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -2770,7 +2548,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -2783,14 +2560,12 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -2804,7 +2579,6 @@
                 "Character": "b",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -2821,7 +2595,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -2830,7 +2603,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2840,7 +2612,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2848,7 +2619,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   }
                 ],
@@ -2860,7 +2630,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -2874,7 +2643,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -2889,7 +2657,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -2902,14 +2669,12 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -2923,7 +2688,6 @@
                 "Character": "c",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -2940,7 +2704,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -2949,7 +2712,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -2957,7 +2719,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   }
                 ],
@@ -2969,7 +2730,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -2983,7 +2743,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -2996,14 +2755,12 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -3017,7 +2774,6 @@
                 "Character": "d",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -3025,7 +2781,6 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Borrowed": false,
@@ -3044,7 +2799,6 @@
                   "Character": "a",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -3056,7 +2810,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     {
@@ -3065,7 +2818,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -3073,7 +2825,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     }
                   ],
@@ -3085,7 +2836,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
@@ -3099,7 +2849,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3112,14 +2861,12 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
                       "Row": -1
                     }
                   ],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -3128,7 +2875,6 @@
                   "Character": "b",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -3140,7 +2886,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     {
@@ -3149,7 +2894,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -3159,7 +2903,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -3167,7 +2910,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     }
                   ],
@@ -3179,7 +2921,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
@@ -3193,7 +2934,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3208,7 +2948,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3221,14 +2960,12 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
                       "Row": -1
                     }
                   ],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -3237,7 +2974,6 @@
                   "Character": "c",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -3249,7 +2985,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     {
@@ -3258,7 +2993,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -3266,7 +3000,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     }
                   ],
@@ -3278,7 +3011,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
@@ -3292,7 +3024,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3305,14 +3036,12 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
                       "Row": -1
                     }
                   ],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 {
@@ -3321,7 +3050,6 @@
                   "Character": "d",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 }
@@ -3336,7 +3064,6 @@
                     "Character": "a",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -3353,7 +3080,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       {
@@ -3362,7 +3088,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3370,7 +3095,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       }
                     ],
@@ -3382,7 +3106,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
@@ -3396,7 +3119,6 @@
                           "Character": "&",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -3409,14 +3131,12 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
                         "Row": -1
                       }
                     ],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -3430,7 +3150,6 @@
                     "Character": "b",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -3447,7 +3166,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       {
@@ -3456,7 +3174,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3466,7 +3183,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3474,7 +3190,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       }
                     ],
@@ -3486,7 +3201,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
@@ -3500,7 +3214,6 @@
                           "Character": "\\",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -3515,7 +3228,6 @@
                           "Character": "\\",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -3528,14 +3240,12 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
                         "Row": -1
                       }
                     ],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -3549,7 +3259,6 @@
                     "Character": "c",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -3566,7 +3275,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       {
@@ -3575,7 +3283,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -3583,7 +3290,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       }
                     ],
@@ -3595,7 +3301,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
@@ -3609,7 +3314,6 @@
                           "Character": "&",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -3622,14 +3326,12 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
                         "Row": -1
                       }
                     ],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   "Role": "element",
@@ -3643,7 +3345,6 @@
                     "Character": "d",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -3651,14 +3352,12 @@
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "base",
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "Ordinary"
       }
     ],
@@ -3674,7 +3373,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -3683,7 +3381,6 @@
               "Character": "\\",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -3693,7 +3390,6 @@
               "Character": "m",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -3703,7 +3399,6 @@
               "Character": "a",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -3713,7 +3408,6 @@
               "Character": "t",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -3723,7 +3417,6 @@
               "Character": "r",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -3733,7 +3426,6 @@
               "Character": "i",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -3743,7 +3435,6 @@
               "Character": "x",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "text",
               "Type": "Ordinary"
             },
@@ -3751,7 +3442,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             }
           ],
@@ -3763,7 +3453,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -3777,7 +3466,6 @@
                 "Character": "\\",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -3792,7 +3480,6 @@
                 "Character": "m",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -3807,7 +3494,6 @@
                 "Character": "a",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -3822,7 +3508,6 @@
                 "Character": "t",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -3837,7 +3522,6 @@
                 "Character": "r",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -3852,7 +3536,6 @@
                 "Character": "i",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -3867,7 +3550,6 @@
                 "Character": "x",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "text",
                 "Type": "Ordinary"
               },
@@ -3880,14 +3562,12 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -3907,7 +3587,6 @@
                 "Character": "a",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -3919,7 +3598,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -3928,7 +3606,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -3936,7 +3613,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   }
                 ],
@@ -3948,7 +3624,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -3962,7 +3637,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -3975,14 +3649,12 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -3991,7 +3663,6 @@
                 "Character": "b",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -4003,7 +3674,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -4012,7 +3682,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -4022,7 +3691,6 @@
                     "Character": "\\",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -4030,7 +3698,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   }
                 ],
@@ -4042,7 +3709,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -4056,7 +3722,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -4071,7 +3736,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -4084,14 +3748,12 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -4100,7 +3762,6 @@
                 "Character": "c",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -4112,7 +3773,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -4121,7 +3781,6 @@
                     "Character": "&",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "text",
                     "Type": "Ordinary"
                   },
@@ -4129,7 +3788,6 @@
                     "[AtomType]": "SpaceAtom",
                     "Borrowed": false,
                     "Slots": [],
-                    "Source": null,
                     "Type": "Ordinary"
                   }
                 ],
@@ -4141,7 +3799,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -4155,7 +3812,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -4168,14 +3824,12 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               {
@@ -4184,7 +3838,6 @@
                 "Character": "d",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               }
@@ -4199,7 +3852,6 @@
                   "Character": "a",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -4216,7 +3868,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     {
@@ -4225,7 +3876,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -4233,7 +3883,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     }
                   ],
@@ -4245,7 +3894,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
@@ -4259,7 +3907,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4272,14 +3919,12 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
                       "Row": -1
                     }
                   ],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -4293,7 +3938,6 @@
                   "Character": "b",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -4310,7 +3954,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     {
@@ -4319,7 +3962,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -4329,7 +3971,6 @@
                       "Character": "\\",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -4337,7 +3978,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     }
                   ],
@@ -4349,7 +3989,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
@@ -4363,7 +4002,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4378,7 +4016,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4391,14 +4028,12 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
                       "Row": -1
                     }
                   ],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -4412,7 +4047,6 @@
                   "Character": "c",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -4429,7 +4063,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     {
@@ -4438,7 +4071,6 @@
                       "Character": "&",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "text",
                       "Type": "Ordinary"
                     },
@@ -4446,7 +4078,6 @@
                       "[AtomType]": "SpaceAtom",
                       "Borrowed": false,
                       "Slots": [],
-                      "Source": null,
                       "Type": "Ordinary"
                     }
                   ],
@@ -4458,7 +4089,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
@@ -4472,7 +4102,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4485,14 +4114,12 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       "Role": "element",
                       "Row": -1
                     }
                   ],
-                  "Source": null,
                   "Type": "Ordinary"
                 },
                 "Role": "element",
@@ -4506,7 +4133,6 @@
                   "Character": "d",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": null,
                   "Type": "Ordinary"
                 },
@@ -4514,7 +4140,6 @@
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Borrowed": false,
@@ -4533,7 +4158,6 @@
                     "Character": "a",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -4545,7 +4169,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       {
@@ -4554,7 +4177,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4562,7 +4184,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       }
                     ],
@@ -4574,7 +4195,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
@@ -4588,7 +4208,6 @@
                           "Character": "&",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -4601,14 +4220,12 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
                         "Row": -1
                       }
                     ],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -4617,7 +4234,6 @@
                     "Character": "b",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -4629,7 +4245,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       {
@@ -4638,7 +4253,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4648,7 +4262,6 @@
                         "Character": "\\",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4656,7 +4269,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       }
                     ],
@@ -4668,7 +4280,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
@@ -4682,7 +4293,6 @@
                           "Character": "\\",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -4697,7 +4307,6 @@
                           "Character": "\\",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -4710,14 +4319,12 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
                         "Row": -1
                       }
                     ],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -4726,7 +4333,6 @@
                     "Character": "c",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   },
@@ -4738,7 +4344,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       },
                       {
@@ -4747,7 +4352,6 @@
                         "Character": "&",
                         "IsTextSymbol": false,
                         "Slots": [],
-                        "Source": null,
                         "TextStyle": "text",
                         "Type": "Ordinary"
                       },
@@ -4755,7 +4359,6 @@
                         "[AtomType]": "SpaceAtom",
                         "Borrowed": false,
                         "Slots": [],
-                        "Source": null,
                         "Type": "Ordinary"
                       }
                     ],
@@ -4767,7 +4370,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
@@ -4781,7 +4383,6 @@
                           "Character": "&",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -4794,14 +4395,12 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         "Role": "element",
                         "Row": -1
                       }
                     ],
-                    "Source": null,
                     "Type": "Ordinary"
                   },
                   {
@@ -4810,7 +4409,6 @@
                     "Character": "d",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": null,
                     "Type": "Ordinary"
                   }
@@ -4825,7 +4423,6 @@
                       "Character": "a",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -4842,7 +4439,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         {
@@ -4851,7 +4447,6 @@
                           "Character": "&",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -4859,7 +4454,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         }
                       ],
@@ -4871,7 +4465,6 @@
                             "[AtomType]": "SpaceAtom",
                             "Borrowed": false,
                             "Slots": [],
-                            "Source": null,
                             "Type": "Ordinary"
                           },
                           "Role": "element",
@@ -4885,7 +4478,6 @@
                             "Character": "&",
                             "IsTextSymbol": false,
                             "Slots": [],
-                            "Source": null,
                             "TextStyle": "text",
                             "Type": "Ordinary"
                           },
@@ -4898,14 +4490,12 @@
                             "[AtomType]": "SpaceAtom",
                             "Borrowed": false,
                             "Slots": [],
-                            "Source": null,
                             "Type": "Ordinary"
                           },
                           "Role": "element",
                           "Row": -1
                         }
                       ],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -4919,7 +4509,6 @@
                       "Character": "b",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -4936,7 +4525,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         {
@@ -4945,7 +4533,6 @@
                           "Character": "\\",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -4955,7 +4542,6 @@
                           "Character": "\\",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -4963,7 +4549,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         }
                       ],
@@ -4975,7 +4560,6 @@
                             "[AtomType]": "SpaceAtom",
                             "Borrowed": false,
                             "Slots": [],
-                            "Source": null,
                             "Type": "Ordinary"
                           },
                           "Role": "element",
@@ -4989,7 +4573,6 @@
                             "Character": "\\",
                             "IsTextSymbol": false,
                             "Slots": [],
-                            "Source": null,
                             "TextStyle": "text",
                             "Type": "Ordinary"
                           },
@@ -5004,7 +4587,6 @@
                             "Character": "\\",
                             "IsTextSymbol": false,
                             "Slots": [],
-                            "Source": null,
                             "TextStyle": "text",
                             "Type": "Ordinary"
                           },
@@ -5017,14 +4599,12 @@
                             "[AtomType]": "SpaceAtom",
                             "Borrowed": false,
                             "Slots": [],
-                            "Source": null,
                             "Type": "Ordinary"
                           },
                           "Role": "element",
                           "Row": -1
                         }
                       ],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -5038,7 +4618,6 @@
                       "Character": "c",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -5055,7 +4634,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         },
                         {
@@ -5064,7 +4642,6 @@
                           "Character": "&",
                           "IsTextSymbol": false,
                           "Slots": [],
-                          "Source": null,
                           "TextStyle": "text",
                           "Type": "Ordinary"
                         },
@@ -5072,7 +4649,6 @@
                           "[AtomType]": "SpaceAtom",
                           "Borrowed": false,
                           "Slots": [],
-                          "Source": null,
                           "Type": "Ordinary"
                         }
                       ],
@@ -5084,7 +4660,6 @@
                             "[AtomType]": "SpaceAtom",
                             "Borrowed": false,
                             "Slots": [],
-                            "Source": null,
                             "Type": "Ordinary"
                           },
                           "Role": "element",
@@ -5098,7 +4673,6 @@
                             "Character": "&",
                             "IsTextSymbol": false,
                             "Slots": [],
-                            "Source": null,
                             "TextStyle": "text",
                             "Type": "Ordinary"
                           },
@@ -5111,14 +4685,12 @@
                             "[AtomType]": "SpaceAtom",
                             "Borrowed": false,
                             "Slots": [],
-                            "Source": null,
                             "Type": "Ordinary"
                           },
                           "Role": "element",
                           "Row": -1
                         }
                       ],
-                      "Source": null,
                       "Type": "Ordinary"
                     },
                     "Role": "element",
@@ -5132,7 +4704,6 @@
                       "Character": "d",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": null,
                       "Type": "Ordinary"
                     },
@@ -5140,25 +4711,21 @@
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "base",
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
   "Shift": 0.0,
-  "Source": null,
   "TotalHeight": 0.85746060279705,
   "TotalWidth": 8.131005,
   "Width": 8.131005

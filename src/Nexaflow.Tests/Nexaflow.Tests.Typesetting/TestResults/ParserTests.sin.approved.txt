@@ -15,7 +15,6 @@
               "Character": "s",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             },
@@ -25,7 +24,6 @@
               "Character": "i",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             },
@@ -35,7 +33,6 @@
               "Character": "n",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             }
@@ -50,7 +47,6 @@
                 "Character": "s",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -65,7 +61,6 @@
                 "Character": "i",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -80,7 +75,6 @@
                 "Character": "n",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -88,7 +82,6 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Borrowed": false,
@@ -106,7 +99,6 @@
                   "Character": "s",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "mathrm",
                   "Type": "Ordinary"
                 },
@@ -116,7 +108,6 @@
                   "Character": "i",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "mathrm",
                   "Type": "Ordinary"
                 },
@@ -126,7 +117,6 @@
                   "Character": "n",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "mathrm",
                   "Type": "Ordinary"
                 }
@@ -141,7 +131,6 @@
                     "Character": "s",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "mathrm",
                     "Type": "Ordinary"
                   },
@@ -156,7 +145,6 @@
                     "Character": "i",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "mathrm",
                     "Type": "Ordinary"
                   },
@@ -171,7 +159,6 @@
                     "Character": "n",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "mathrm",
                     "Type": "Ordinary"
                   },
@@ -179,7 +166,6 @@
                   "Row": -1
                 }
               ],
-              "Source": null,
               "Type": "Ordinary"
             },
             "Role": "base",
@@ -193,7 +179,6 @@
               "Character": "n",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -201,7 +186,6 @@
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "BigOperator",
         "UpperLimitAtom": {
           "[AtomType]": "CharAtom",
@@ -209,7 +193,6 @@
           "Character": "n",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -221,7 +204,6 @@
         "Character": "x",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       }
@@ -242,7 +224,6 @@
                 "Character": "s",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -252,7 +233,6 @@
                 "Character": "i",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -262,7 +242,6 @@
                 "Character": "n",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               }
@@ -277,7 +256,6 @@
                   "Character": "s",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "mathrm",
                   "Type": "Ordinary"
                 },
@@ -292,7 +270,6 @@
                   "Character": "i",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "mathrm",
                   "Type": "Ordinary"
                 },
@@ -307,7 +284,6 @@
                   "Character": "n",
                   "IsTextSymbol": false,
                   "Slots": [],
-                  "Source": null,
                   "TextStyle": "mathrm",
                   "Type": "Ordinary"
                 },
@@ -315,7 +291,6 @@
                 "Row": -1
               }
             ],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Borrowed": false,
@@ -333,7 +308,6 @@
                     "Character": "s",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "mathrm",
                     "Type": "Ordinary"
                   },
@@ -343,7 +317,6 @@
                     "Character": "i",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "mathrm",
                     "Type": "Ordinary"
                   },
@@ -353,7 +326,6 @@
                     "Character": "n",
                     "IsTextSymbol": false,
                     "Slots": [],
-                    "Source": null,
                     "TextStyle": "mathrm",
                     "Type": "Ordinary"
                   }
@@ -368,7 +340,6 @@
                       "Character": "s",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "mathrm",
                       "Type": "Ordinary"
                     },
@@ -383,7 +354,6 @@
                       "Character": "i",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "mathrm",
                       "Type": "Ordinary"
                     },
@@ -398,7 +368,6 @@
                       "Character": "n",
                       "IsTextSymbol": false,
                       "Slots": [],
-                      "Source": null,
                       "TextStyle": "mathrm",
                       "Type": "Ordinary"
                     },
@@ -406,7 +375,6 @@
                     "Row": -1
                   }
                 ],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "base",
@@ -420,7 +388,6 @@
                 "Character": "n",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -428,7 +395,6 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "BigOperator",
           "UpperLimitAtom": {
             "[AtomType]": "CharAtom",
@@ -436,7 +402,6 @@
             "Character": "n",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -453,7 +418,6 @@
           "Character": "x",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -461,9 +425,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

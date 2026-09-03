@@ -9,7 +9,6 @@
         "Character": "\\",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -19,7 +18,6 @@
         "Character": "a",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -29,7 +27,6 @@
         "Character": "l",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -39,7 +36,6 @@
         "Character": "p",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -49,7 +45,6 @@
         "Character": "h",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -59,7 +54,6 @@
         "Character": "a",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -67,7 +61,6 @@
         "[AtomType]": "SpaceAtom",
         "Borrowed": false,
         "Slots": [],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -76,7 +69,6 @@
         "Character": "\\",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -86,7 +78,6 @@
         "Character": "b",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -96,7 +87,6 @@
         "Character": "e",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -106,7 +96,6 @@
         "Character": "t",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -116,7 +105,6 @@
         "Character": "a",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -124,7 +112,6 @@
         "[AtomType]": "SpaceAtom",
         "Borrowed": false,
         "Slots": [],
-        "Source": null,
         "Type": "Ordinary"
       },
       {
@@ -133,7 +120,6 @@
         "Character": "\\",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -143,7 +129,6 @@
         "Character": "u",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -153,7 +138,6 @@
         "Character": "n",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -163,7 +147,6 @@
         "Character": "k",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -173,7 +156,6 @@
         "Character": "n",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -183,7 +165,6 @@
         "Character": "o",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -193,7 +174,6 @@
         "Character": "w",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -203,7 +183,6 @@
         "Character": "n",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -213,7 +192,6 @@
         "Character": "c",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -223,7 +201,6 @@
         "Character": "o",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -233,7 +210,6 @@
         "Character": "m",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -243,7 +219,6 @@
         "Character": "m",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -253,7 +228,6 @@
         "Character": "a",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -263,7 +237,6 @@
         "Character": "n",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       },
@@ -273,7 +246,6 @@
         "Character": "d",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": "text",
         "Type": "Ordinary"
       }
@@ -288,7 +260,6 @@
           "Character": "\\",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -303,7 +274,6 @@
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -318,7 +288,6 @@
           "Character": "l",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -333,7 +302,6 @@
           "Character": "p",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -348,7 +316,6 @@
           "Character": "h",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -363,7 +330,6 @@
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -376,7 +342,6 @@
           "[AtomType]": "SpaceAtom",
           "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -390,7 +355,6 @@
           "Character": "\\",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -405,7 +369,6 @@
           "Character": "b",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -420,7 +383,6 @@
           "Character": "e",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -435,7 +397,6 @@
           "Character": "t",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -450,7 +411,6 @@
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -463,7 +423,6 @@
           "[AtomType]": "SpaceAtom",
           "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "element",
@@ -477,7 +436,6 @@
           "Character": "\\",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -492,7 +450,6 @@
           "Character": "u",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -507,7 +464,6 @@
           "Character": "n",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -522,7 +478,6 @@
           "Character": "k",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -537,7 +492,6 @@
           "Character": "n",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -552,7 +506,6 @@
           "Character": "o",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -567,7 +520,6 @@
           "Character": "w",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -582,7 +534,6 @@
           "Character": "n",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -597,7 +548,6 @@
           "Character": "c",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -612,7 +562,6 @@
           "Character": "o",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -627,7 +576,6 @@
           "Character": "m",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -642,7 +590,6 @@
           "Character": "m",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -657,7 +604,6 @@
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -672,7 +618,6 @@
           "Character": "n",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -687,7 +632,6 @@
           "Character": "d",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "text",
           "Type": "Ordinary"
         },
@@ -695,9 +639,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

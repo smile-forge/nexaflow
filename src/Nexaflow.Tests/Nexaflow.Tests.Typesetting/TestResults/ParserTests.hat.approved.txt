@@ -10,7 +10,6 @@
         "IsTextSymbol": false,
         "Name": "hat",
         "Slots": [],
-        "Source": null,
         "Type": "Accent"
       },
       "BaseAtom": {
@@ -19,7 +18,6 @@
         "Character": "T",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       },
@@ -33,7 +31,6 @@
             "Character": "T",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -41,7 +38,6 @@
           "Row": -1
         }
       ],
-      "Source": null,
       "Type": "Ordinary"
     },
     "Borrowed": false,
@@ -59,7 +55,6 @@
             "IsTextSymbol": false,
             "Name": "hat",
             "Slots": [],
-            "Source": null,
             "Type": "Accent"
           },
           "BaseAtom": {
@@ -68,7 +63,6 @@
             "Character": "T",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -82,7 +76,6 @@
                 "Character": "T",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -90,16 +83,13 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "base",
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

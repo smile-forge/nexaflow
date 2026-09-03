@@ -12,7 +12,6 @@
           "IsTextSymbol": false,
           "Name": "int",
           "Slots": [],
-          "Source": null,
           "Type": "BigOperator"
         },
         "Borrowed": false,
@@ -27,14 +26,12 @@
               "IsTextSymbol": false,
               "Name": "int",
               "Slots": [],
-              "Source": null,
               "Type": "BigOperator"
             },
             "Role": "base",
             "Row": -1
           }
         ],
-        "Source": null,
         "Type": "BigOperator",
         "UpperLimitAtom": null,
         "UseVerticalLimits": false
@@ -45,7 +42,6 @@
         "Character": "f",
         "IsTextSymbol": false,
         "Slots": [],
-        "Source": null,
         "TextStyle": null,
         "Type": "Ordinary"
       }
@@ -63,7 +59,6 @@
             "IsTextSymbol": false,
             "Name": "int",
             "Slots": [],
-            "Source": null,
             "Type": "BigOperator"
           },
           "Borrowed": false,
@@ -78,14 +73,12 @@
                 "IsTextSymbol": false,
                 "Name": "int",
                 "Slots": [],
-                "Source": null,
                 "Type": "BigOperator"
               },
               "Role": "base",
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "BigOperator",
           "UpperLimitAtom": null,
           "UseVerticalLimits": false
@@ -101,7 +94,6 @@
           "Character": "f",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -109,9 +101,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

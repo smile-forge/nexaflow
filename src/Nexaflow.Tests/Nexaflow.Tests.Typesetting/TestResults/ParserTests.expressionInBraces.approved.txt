@@ -11,7 +11,6 @@
           "Character": "2",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -22,7 +21,6 @@
           "IsTextSymbol": false,
           "Name": "plus",
           "Slots": [],
-          "Source": null,
           "Type": "BinaryOperator"
         },
         {
@@ -31,7 +29,6 @@
           "Character": "2",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         }
@@ -46,7 +43,6 @@
             "Character": "2",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -62,7 +58,6 @@
             "IsTextSymbol": false,
             "Name": "plus",
             "Slots": [],
-            "Source": null,
             "Type": "BinaryOperator"
           },
           "Role": "element",
@@ -76,7 +71,6 @@
             "Character": "2",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": null,
             "Type": "Ordinary"
           },
@@ -84,7 +78,6 @@
           "Row": -1
         }
       ],
-      "Source": null,
       "Type": "Ordinary"
     },
     "Borrowed": false,
@@ -95,7 +88,6 @@
       "IsTextSymbol": false,
       "Name": "(",
       "Slots": [],
-      "Source": null,
       "Type": "Opening"
     },
     "RightDelimeter": {
@@ -105,7 +97,6 @@
       "IsTextSymbol": false,
       "Name": ")",
       "Slots": [],
-      "Source": null,
       "Type": "Closing"
     },
     "Slots": [
@@ -121,7 +112,6 @@
               "Character": "2",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             },
@@ -132,7 +122,6 @@
               "IsTextSymbol": false,
               "Name": "plus",
               "Slots": [],
-              "Source": null,
               "Type": "BinaryOperator"
             },
             {
@@ -141,7 +130,6 @@
               "Character": "2",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": null,
               "Type": "Ordinary"
             }
@@ -156,7 +144,6 @@
                 "Character": "2",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -172,7 +159,6 @@
                 "IsTextSymbol": false,
                 "Name": "plus",
                 "Slots": [],
-                "Source": null,
                 "Type": "BinaryOperator"
               },
               "Role": "element",
@@ -186,7 +172,6 @@
                 "Character": "2",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": null,
                 "Type": "Ordinary"
               },
@@ -194,16 +179,13 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "base",
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

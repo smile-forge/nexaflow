@@ -7,7 +7,6 @@
       "Character": "a",
       "IsTextSymbol": false,
       "Slots": [],
-      "Source": null,
       "TextStyle": null,
       "Type": "Ordinary"
     },
@@ -19,7 +18,6 @@
       "IsTextSymbol": false,
       "Name": "(",
       "Slots": [],
-      "Source": null,
       "Type": "Opening"
     },
     "RightDelimeter": {
@@ -29,7 +27,6 @@
       "IsTextSymbol": false,
       "Name": ")",
       "Slots": [],
-      "Source": null,
       "Type": "Closing"
     },
     "Slots": [
@@ -41,7 +38,6 @@
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -49,9 +45,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

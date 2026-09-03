@@ -1,4 +1,4 @@
-module WpfMath.Tests.ApprovalTestUtils
+﻿module WpfMath.Tests.ApprovalTestUtils
 
 open System
 open System.Globalization
@@ -62,7 +62,12 @@ type private InnerPropertyContractResolver() =
             // Nothing is lost by leaving Ignored out. What could not be drawn is a question with one
             // answer and one place that asks it — Utils.undrawn, and the tests written on it — rather
             // than a second copy folded into a hundred and forty-eight recordings of something else.
-            |> Seq.filter(fun p -> p.Name <> "Origin" && p.Name <> "Ignored")
+            //
+            // Source is the offsets the engine's own reader hung on an atom and on every box it
+            // made. Nothing has set one since the builder took over reading — it is null in all
+            // 40,642 places these files record it — and it is on its way out. Excluded before the
+            // deletion rather than after, so that removing the property rewrites none of these.
+            |> Seq.filter(fun p -> p.Name <> "Origin" && p.Name <> "Ignored" && p.Name <> "Source")
             |> Seq.sortBy(fun p -> p.Name)
             |> Seq.map(fun p -> this.DoCreateProperty(p, memberSerialization))
 

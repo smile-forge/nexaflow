@@ -11,7 +11,6 @@
           "Character": "l",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathrm",
           "Type": "Ordinary"
         },
@@ -21,7 +20,6 @@
           "Character": "i",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathrm",
           "Type": "Ordinary"
         },
@@ -31,7 +29,6 @@
           "Character": "m",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathrm",
           "Type": "Ordinary"
         },
@@ -39,7 +36,6 @@
           "[AtomType]": "SpaceAtom",
           "Borrowed": false,
           "Slots": [],
-          "Source": null,
           "Type": "Ordinary"
         },
         {
@@ -48,7 +44,6 @@
           "Character": "s",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathrm",
           "Type": "Ordinary"
         },
@@ -58,7 +53,6 @@
           "Character": "u",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathrm",
           "Type": "Ordinary"
         },
@@ -68,7 +62,6 @@
           "Character": "p",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": "mathrm",
           "Type": "Ordinary"
         }
@@ -83,7 +76,6 @@
             "Character": "l",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "mathrm",
             "Type": "Ordinary"
           },
@@ -98,7 +90,6 @@
             "Character": "i",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "mathrm",
             "Type": "Ordinary"
           },
@@ -113,7 +104,6 @@
             "Character": "m",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "mathrm",
             "Type": "Ordinary"
           },
@@ -126,7 +116,6 @@
             "[AtomType]": "SpaceAtom",
             "Borrowed": false,
             "Slots": [],
-            "Source": null,
             "Type": "Ordinary"
           },
           "Role": "element",
@@ -140,7 +129,6 @@
             "Character": "s",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "mathrm",
             "Type": "Ordinary"
           },
@@ -155,7 +143,6 @@
             "Character": "u",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "mathrm",
             "Type": "Ordinary"
           },
@@ -170,7 +157,6 @@
             "Character": "p",
             "IsTextSymbol": false,
             "Slots": [],
-            "Source": null,
             "TextStyle": "mathrm",
             "Type": "Ordinary"
           },
@@ -178,7 +164,6 @@
           "Row": -1
         }
       ],
-      "Source": null,
       "Type": "Ordinary"
     },
     "Borrowed": false,
@@ -196,7 +181,6 @@
               "Character": "l",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             },
@@ -206,7 +190,6 @@
               "Character": "i",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             },
@@ -216,7 +199,6 @@
               "Character": "m",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             },
@@ -224,7 +206,6 @@
               "[AtomType]": "SpaceAtom",
               "Borrowed": false,
               "Slots": [],
-              "Source": null,
               "Type": "Ordinary"
             },
             {
@@ -233,7 +214,6 @@
               "Character": "s",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             },
@@ -243,7 +223,6 @@
               "Character": "u",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             },
@@ -253,7 +232,6 @@
               "Character": "p",
               "IsTextSymbol": false,
               "Slots": [],
-              "Source": null,
               "TextStyle": "mathrm",
               "Type": "Ordinary"
             }
@@ -268,7 +246,6 @@
                 "Character": "l",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -283,7 +260,6 @@
                 "Character": "i",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -298,7 +274,6 @@
                 "Character": "m",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -311,7 +286,6 @@
                 "[AtomType]": "SpaceAtom",
                 "Borrowed": false,
                 "Slots": [],
-                "Source": null,
                 "Type": "Ordinary"
               },
               "Role": "element",
@@ -325,7 +299,6 @@
                 "Character": "s",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -340,7 +313,6 @@
                 "Character": "u",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -355,7 +327,6 @@
                 "Character": "p",
                 "IsTextSymbol": false,
                 "Slots": [],
-                "Source": null,
                 "TextStyle": "mathrm",
                 "Type": "Ordinary"
               },
@@ -363,18 +334,15 @@
               "Row": -1
             }
           ],
-          "Source": null,
           "Type": "Ordinary"
         },
         "Role": "base",
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "BigOperator",
     "UpperLimitAtom": null,
     "UseVerticalLimits": null
   },
-  "Source": null,
   "TextStyle": null
 }

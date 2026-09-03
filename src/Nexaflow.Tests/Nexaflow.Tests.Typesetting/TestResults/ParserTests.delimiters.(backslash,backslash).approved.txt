@@ -7,7 +7,6 @@
       "Character": "a",
       "IsTextSymbol": false,
       "Slots": [],
-      "Source": null,
       "TextStyle": null,
       "Type": "Ordinary"
     },
@@ -23,7 +22,6 @@
           "Character": "a",
           "IsTextSymbol": false,
           "Slots": [],
-          "Source": null,
           "TextStyle": null,
           "Type": "Ordinary"
         },
@@ -31,9 +29,7 @@
         "Row": -1
       }
     ],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }

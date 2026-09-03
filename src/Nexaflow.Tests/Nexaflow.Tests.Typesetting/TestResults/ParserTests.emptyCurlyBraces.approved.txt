@@ -3,9 +3,7 @@
     "[AtomType]": "NullAtom",
     "Borrowed": false,
     "Slots": [],
-    "Source": null,
     "Type": "Ordinary"
   },
-  "Source": null,
   "TextStyle": null
 }
