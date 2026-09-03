@@ -221,4 +221,52 @@ public class MarkdownSampleRenderTests
         // the loop above has just established. Which element each produces is asserted where it belongs, in
         // BarcodeElementTests.
     });
+
+    [TestMethod]
+    public void DataMatrixSampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "datamatrix.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        var fences = doc.OfType<FencedCodeBlock>()
+                        .Where(f => "datamatrix".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(fences.Count >= 9, $"expected the reference to show every type, found {fences.Count}");
+
+        foreach (var fence in fences)
+            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a datamatrix fence");
+    });
+
+    [TestMethod]
+    public void Pdf417SampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "pdf417.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        var fences = doc.OfType<FencedCodeBlock>()
+                        .Where(f => "pdf417".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(fences.Count >= 8, $"expected the reference to show every setting, found {fences.Count}");
+
+        foreach (var fence in fences)
+            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a pdf417 fence");
+    });
+
+    [TestMethod]
+    public void AztecSampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "aztec.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        var fences = doc.OfType<FencedCodeBlock>()
+                        .Where(f => "aztec".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(fences.Count >= 12, $"expected the reference to show both families, found {fences.Count}");
+
+        foreach (var fence in fences)
+            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for an aztec fence");
+    });
 }

@@ -1,5 +1,6 @@
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Qr;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 
@@ -251,8 +252,8 @@ public class QrBlockParserTests
         Assert.AreEqual(QrErrorCorrection.Medium, block.ErrorCorrection);
         Assert.AreEqual(QrBlock.DefaultCellSize, block.CellSize);
         Assert.AreEqual(QrBlock.DefaultMargin, block.Margin);
-        Assert.IsNull(block.Dark);
-        Assert.IsNull(block.Light);
+        Assert.IsNull(block.Settings.Dark);
+        Assert.IsNull(block.Settings.Light);
     }
 
     [TestMethod]
@@ -272,8 +273,8 @@ public class QrBlockParserTests
         Assert.AreEqual(QrErrorCorrection.Medium, block.ErrorCorrection);
         Assert.AreEqual(4, block.CellSize);
         Assert.AreEqual(4, block.Margin);
-        Assert.AreEqual(new QrColor(0xFF, 0x00, 0x00, 0x00), block.Dark);
-        Assert.AreEqual(new QrColor(0xFF, 0xFF, 0xFF, 0xFF), block.Light);
+        Assert.AreEqual(new HexColor(0xFF, 0x00, 0x00, 0x00), block.Settings.Dark);
+        Assert.AreEqual(new HexColor(0xFF, 0xFF, 0xFF, 0xFF), block.Settings.Light);
     }
 
     [TestMethod]
@@ -294,9 +295,9 @@ public class QrBlockParserTests
     [TestMethod]
     public void Colour_AcceptsShortHexAndAnAlphaChannel()
     {
-        Assert.AreEqual(new QrColor(0xFF, 0xAA, 0xBB, 0xCC), Parse("type: text\ntext: x\ndark: #abc").Dark);
-        Assert.AreEqual(new QrColor(0x80, 0x11, 0x22, 0x33), Parse("type: text\ntext: x\nlight: #80112233").Light);
-        Assert.AreEqual(new QrColor(0xFF, 0x00, 0x00, 0x00), Parse("type: text\ntext: x\ndark: 000000").Dark);
+        Assert.AreEqual(new HexColor(0xFF, 0xAA, 0xBB, 0xCC), Parse("type: text\ntext: x\ndark: #abc").Settings.Dark);
+        Assert.AreEqual(new HexColor(0x80, 0x11, 0x22, 0x33), Parse("type: text\ntext: x\nlight: #80112233").Settings.Light);
+        Assert.AreEqual(new HexColor(0xFF, 0x00, 0x00, 0x00), Parse("type: text\ntext: x\ndark: 000000").Settings.Dark);
     }
 
     [TestMethod]

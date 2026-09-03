@@ -52,6 +52,9 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("music-lilypond.md",        MusicLilyPond),
         SampleFile.Text("qr-codes.md",              Qr),
         SampleFile.Text("barcodes.md",              Barcode),
+        SampleFile.Text("datamatrix.md",            DataMatrix),
+        SampleFile.Text("pdf417.md",                Pdf417),
+        SampleFile.Text("aztec.md",                 Aztec),
     ];
 
     private const string LatexMathSymbols =
@@ -3817,6 +3820,301 @@ internal sealed class MarkdownSamples : ISampleSet
         ```barcode
         format: NOTAFORMAT
         value: 12345
+        ```
+        """";
+
+    private const string DataMatrix =
+        """"
+        # Data Matrix
+
+        A `datamatrix` fence draws a Data Matrix symbol — ECC 200 — generated locally. It takes the same
+        `type:` lines a `qr` fence does, because a Wi-Fi descriptor or a vCard decodes the same from any
+        symbol, plus the formats that exist only as Data Matrix.
+
+        ## The shared types
+
+        ```datamatrix
+        type: url
+        url: https://markdown.org
+        ```
+
+        ```datamatrix
+        type: wifi
+        ssid: MyNetwork
+        password: s3cr3t-pass
+        security: WPA
+        ```
+
+        ## Shape and size
+
+        The smallest symbol that fits is chosen. `shape:` keeps it square or rectangular; `size:` fixes it.
+
+        ```datamatrix
+        type: text
+        text: RECTANGULAR
+        shape: rectangle
+        ```
+
+        ```datamatrix
+        type: text
+        text: Fixed at 26 by 26
+        size: 26x26
+        cellSize: 5
+        ```
+
+        ## GS1
+
+        Write the element string with each application identifier in brackets. The symbol starts with
+        FNC1, the brackets come off, and a separator goes after each variable-length element that is
+        followed by another.
+
+        ```datamatrix
+        type: gs1
+        data: (01)04150012345623(17)271231(10)LOT7(21)SN1
+        ```
+
+        ## Pharmacy packs
+
+        A PPN is derived from the pack's PZN — the check characters are the part nobody gets right by hand —
+        and wrapped in Macro 06 with the batch, expiry and serial as data identifiers.
+
+        ```datamatrix
+        type: ppn
+        pzn: 01234562
+        lot: A1B2
+        expiry: 271231
+        serial: 0001
+        ```
+
+        The same pack as GS1 sees it: an NTIN under AI 01.
+
+        ```datamatrix
+        type: ntin
+        pzn: 01234562
+        expiry: 271231
+        lot: A1B2
+        serial: 0001
+        ```
+
+        ## Royal Mail Mailmark
+
+        A Mailmark 2D is a fixed-length message in the symbol size its format mandates — format 7 is 51
+        characters in 24×24, format 9 is 90 in 32×32, format 29 is 70 in 16×48.
+
+        ```datamatrix
+        type: mailmark
+        format: 7
+        message: JGB 0111A123456712345678SW1A1AA  1       MARKDOWN12
+        ```
+
+        ## Styled
+
+        ```datamatrix
+        type: text
+        text: styled
+        cellSize: 6
+        margin: 2
+        dark: #1D4ED8
+        light: #EFF6FF
+        ```
+
+        ## One the format cannot carry
+
+        ```datamatrix
+        type: ppn
+        pzn: 01234563
+        ```
+        """";
+
+    private const string Pdf417 =
+        """"
+        # PDF417
+
+        A `pdf417` fence draws a PDF417 symbol — the stacked barcode on driving licences, boarding passes
+        and shipping labels. It takes the same `type:` lines a `qr` fence does.
+
+        ## The shared types
+
+        ```pdf417
+        type: url
+        url: https://markdown.org
+        ```
+
+        ```pdf417
+        type: text
+        text: PDF417 carries a lot of text for its size.
+        ```
+
+        ## Shape
+
+        Columns and error correction are yours to set; left alone the encoder picks a symbol about three
+        times as wide as it is tall, with the parity the standard recommends for the payload.
+
+        ```pdf417
+        type: text
+        text: Two columns, high error correction
+        columns: 2
+        ec: 5
+        ```
+
+        ```pdf417
+        type: text
+        text: Eight columns makes a wider, shorter symbol
+        columns: 8
+        ```
+
+        Rows are drawn three module widths tall by default — the standard's floor, so a scanner sweeping
+        across the symbol stays inside one row.
+
+        ```pdf417
+        type: text
+        text: Taller rows
+        rowHeight: 5
+        cellSize: 3
+        ```
+
+        ## Truncated
+
+        Dropping the right row indicator and the stop pattern saves eighteen modules a row. Worth it on a
+        document that will not be damaged at its right edge; not on a parcel.
+
+        ```pdf417
+        type: text
+        text: Truncated symbol
+        truncated: true
+        ```
+
+        ## Styled
+
+        ```pdf417
+        type: text
+        text: styled
+        cellSize: 3
+        margin: 2
+        dark: #1D4ED8
+        light: #EFF6FF
+        ```
+
+        ## One that cannot be drawn
+
+        ```pdf417
+        type: text
+        text: x
+        columns: 99
+        ```
+        """";
+
+    private const string Aztec =
+        """"
+        # Aztec Code
+
+        An `aztec` fence draws an Aztec Code — the symbology on rail and air tickets, which puts its
+        finder pattern in the middle rather than the corners and so needs almost no quiet zone. It takes
+        the same `type:` lines a `qr` fence does, and GS1 element strings besides.
+
+        ## The shared types
+
+        ```aztec
+        type: url
+        url: https://markdown.org
+        ```
+
+        ```aztec
+        type: text
+        text: An Aztec Code
+        ```
+
+        ```aztec
+        type: wifi
+        ssid: Guest
+        password: welcome
+        security: WPA
+        ```
+
+        ## Compact and full range
+
+        There are two families. A compact symbol is smaller for the same message and stops at four
+        layers; the full range goes to thirty-two and carries a reference grid through its larger sizes.
+        Left alone the encoder takes the compact family while the message fits it, which is what you
+        want; `format:` is there for a reader that insists on one or the other.
+
+        ```aztec
+        type: text
+        text: Compact by default
+        ```
+
+        ```aztec
+        type: text
+        text: The same message, full range
+        format: full
+        ```
+
+        A long message reaches the full range on its own.
+
+        ```aztec
+        type: text
+        text: An Aztec symbol grows a layer at a time rather than jumping between versions, so a message of any length lands in a symbol barely larger than it needs. This one is well past what the compact family can hold, so it is drawn in the full range, where a reference grid runs through the larger sizes to keep a reader registered.
+        ```
+
+        ## Size and error correction
+
+        `layers:` fixes the size outright — for a printed form with a box to fill — and fails rather than
+        growing if the message will not fit. `ecc:` is the least share of the symbol that must be error
+        correction; whatever the message leaves over becomes error correction anyway, so the number you
+        set is a floor and not a target.
+
+        ```aztec
+        type: text
+        text: Four layers, fixed
+        format: compact
+        layers: 4
+        ```
+
+        ```aztec
+        type: text
+        text: Half of this symbol is error correction
+        ecc: 50
+        ```
+
+        ## GS1
+
+        A `gs1` block takes the element string as people write it and puts the wire form in the symbol —
+        brackets off, FNC1 in front, and a separator after each variable-length element that needs one.
+
+        ```aztec
+        type: gs1
+        data: (01)04150123456782(10)LOT7(21)SN9
+        ```
+
+        ## Declaring a character set
+
+        `eci:` writes an ECI number at the head of the message. Without it the bytes are UTF-8 and a
+        reader is left to assume so, which nearly all of them do.
+
+        ```aztec
+        type: text
+        text: Grüße aus Köln
+        eci: 26
+        ```
+
+        ## Styled
+
+        ```aztec
+        type: text
+        text: styled
+        cellSize: 6
+        margin: 2
+        dark: #1D4ED8
+        light: #EFF6FF
+        ```
+
+        ## One that cannot be drawn
+
+        ```aztec
+        type: text
+        text: This message is far longer than a single-layer compact symbol can hold, and the block asks for one anyway.
+        format: compact
+        layers: 1
         ```
         """";
 }

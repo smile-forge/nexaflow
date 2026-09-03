@@ -11,11 +11,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// Kept apart from WPF's <c>Color</c> so a block model, and everything that parses into one, stays free
 /// of a UI thread — the renderer is where this becomes a brush.
 /// </para>
-/// <para>
-/// The QR block has its own <c>QrColor</c> saying the same thing, written before this existed. The two
-/// should be one; folding them together is left until that work has merged, so this change need not
-/// reach into it.
-/// </para>
+
 /// </summary>
 public readonly record struct HexColor(byte A, byte R, byte G, byte B)
 {
