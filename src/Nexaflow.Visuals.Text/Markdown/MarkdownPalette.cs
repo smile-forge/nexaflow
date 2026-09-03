@@ -64,6 +64,24 @@ public sealed class MarkdownPalette
     public Brush BarcodeDark  { get; init; } = DefaultQrDark;
     public Brush BarcodeLight { get; init; } = DefaultQrLight;
 
+    /// <summary>
+    /// The C4 diagram element colours, by abstraction level. Unlike every other member these are
+    /// <b>nullable</b> and default to null: C4's scheme is a *grading* (the deeper the colour, the
+    /// higher the abstraction; grey means external), and the grading is derived from this palette's
+    /// own <see cref="Accent"/> and <see cref="TextMuted"/> rather than fixed — so a C4 diagram reads
+    /// as C4 on every theme instead of staying cornflower blue when the theme changes. A theme sets
+    /// <c>C4PersonBrush</c>…<c>C4DeploymentNodeBrush</c> to pin any level (including to
+    /// C4-PlantUML's canonical hex), and a diagram's own <c>UpdateElementStyle($bgColor=…)</c> wins
+    /// over both. Resolved by <c>C4Palette</c>.
+    /// </summary>
+    public Brush? C4Person         { get; init; }
+    public Brush? C4System         { get; init; }
+    public Brush? C4Container      { get; init; }
+    public Brush? C4Component      { get; init; }
+    public Brush? C4External       { get; init; }
+    public Brush? C4Boundary       { get; init; }
+    public Brush? C4DeploymentNode { get; init; }
+
     /// <summary>Distinct, saturated colours for chart series / pie slices / graph accents. Read
     /// cyclically by the graph + chart renderers. Saturated enough to read on light or dark surfaces;
     /// a theme can supply its own set.</summary>
@@ -189,6 +207,16 @@ public sealed class MarkdownPalette
             QrLight       = R("QrLightBrush",     d.QrLight),
             BarcodeDark   = R("BarcodeDarkBrush",  d.BarcodeDark),
             BarcodeLight  = R("BarcodeLightBrush", d.BarcodeLight),
+
+            // Null unless the theme pins one — see the C4* members: absent means "derive the C4
+            // grading from Accent/TextMuted", which is the wanted default, not a missing value.
+            C4Person         = res?["C4PersonBrush"]         as Brush,
+            C4System         = res?["C4SystemBrush"]         as Brush,
+            C4Container      = res?["C4ContainerBrush"]      as Brush,
+            C4Component      = res?["C4ComponentBrush"]      as Brush,
+            C4External       = res?["C4ExternalBrush"]       as Brush,
+            C4Boundary       = res?["C4BoundaryBrush"]       as Brush,
+            C4DeploymentNode = res?["C4DeploymentNodeBrush"] as Brush,
         };
     }
 }

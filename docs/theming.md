@@ -300,6 +300,34 @@ Theme switching restarts the window, so a fresh read per paint always reflects t
 **Genuinely-not-a-colour exceptions** (leave as literals): `Transparent`; drop-shadow `Color="Black"`;
 modal scrims (`#CC000000`); and scene art (`OceanReefScene` etc., which *is* the theme).
 
+### Diagram tokens (markdown)
+
+Markdown diagrams resolve their colours from `MarkdownPalette` (built by `MarkdownPalette.FromTheme()`),
+not from `Application.Resources` directly — the renderers run against a palette so they also work on the
+light scratchpad surface. Three families there answer to the theme by string key:
+
+| Keys | Default when the theme is silent |
+|---|---|
+| `QrDarkBrush` / `QrLightBrush`, `BarcodeDarkBrush` / `BarcodeLightBrush` | Fixed dark-on-light. **Not** theme-derived on purpose: a scannable mark stops scanning if a theme inverts it. |
+| `C4PersonBrush`, `C4SystemBrush`, `C4ContainerBrush`, `C4ComponentBrush`, `C4ExternalBrush`, `C4BoundaryBrush`, `C4DeploymentNodeBrush` | **Derived** — a grading of `AccentBrush` (deeper = higher abstraction) plus `TextMutedBrush` for external. |
+| `Swatch.*` → `MarkdownPalette.Series` | The shared ten-colour categorical bank. |
+
+The C4 family is the one worth understanding, because "map the standard scheme onto the theme" is the
+rule and not a compromise. C4-PlantUML's canonical colours (person `#08427b`, system `#1168bd`,
+container `#438dd5`, component `#85bbf0`, external `#999999`) carry their meaning in the *grading* —
+depth tracks abstraction level, grey means someone else owns it — so `C4Palette` reproduces the grading
+from the active accent instead of the literal blues. A diagram therefore still reads as C4 under any
+theme, and a theme retunes it rather than being overruled by it. Pin a level (to the canonical hex, or
+anything else) by contributing the key:
+
+```xml
+<SolidColorBrush x:Key="C4ContainerBrush" Color="#438DD5" />
+```
+
+A diagram's own `UpdateElementStyle($bgColor="#…")` is a literal author choice and wins over both the
+token and the derived default; card ink is then picked for contrast against whatever fill results, so a
+pale override gets dark text without the author asking.
+
 ## Keeping Dark (and the other plain themes) identical
 
 - Region tokens in `Tokens.xaml` alias the exact palette brush each region used before → no visual

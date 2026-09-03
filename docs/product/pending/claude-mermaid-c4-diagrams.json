@@ -1,0 +1,47 @@
+{
+  "branch": "claude/mermaid-c4-diagrams",
+  "nodes": {
+    "c4-elements": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/C4Element.cs",
+          "class": "C4ElementMetrics"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4ElementPainter.cs",
+          "class": "C4ElementPainter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4Palette.cs",
+          "class": "C4Palette"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Rule: a feature never hard-codes a colour",
+            "Diagram tokens (markdown)"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4ElementTests.cs",
+            "class": "C4ElementTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "c4-elements"
+  ]
+}
