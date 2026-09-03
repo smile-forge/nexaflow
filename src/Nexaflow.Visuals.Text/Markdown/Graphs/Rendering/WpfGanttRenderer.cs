@@ -228,14 +228,3 @@ public static class WpfGanttRenderer
         return ft.Width;
     }
 }
-
-/// <summary>Canvas placement sugar — sets <c>Canvas.Left/Top</c> and returns the element fluently.</summary>
-internal static class CanvasAtExtensions
-{
-    public static T At<T>(this T el, double left, double top) where T : UIElement
-    {
-        Canvas.SetLeft(el, left);
-        Canvas.SetTop(el, top);
-        return el;
-    }
-}

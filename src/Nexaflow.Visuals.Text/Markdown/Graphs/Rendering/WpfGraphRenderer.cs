@@ -18,24 +18,24 @@ public static class WpfGraphRenderer
     // Set once per render from the MarkdownPalette. Markdown renders synchronously on the UI thread,
     // so these shared statics are never touched concurrently.
 
-    private static Brush BgBrush        = Frozen(Color.FromRgb(0x0D, 0x10, 0x1A));
-    private static Brush NodeBg         = Frozen(Color.FromRgb(0x1E, 0x24, 0x38));
-    private static Brush NodeBorder     = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    private static Brush NodeText       = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
-    private static Brush DiamondBg      = Frozen(Color.FromRgb(0x2A, 0x1A, 0x3A));
-    private static Brush DiamondBorder  = Frozen(Color.FromRgb(0xA0, 0x60, 0xFF));
-    private static Brush EdgeBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    private static Brush EdgeDashedBrush= Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
-    private static Brush EdgeThickBrush = Frozen(Color.FromRgb(0xFF, 0xD0, 0x60));
-    private static Brush LabelBg        = Frozen(Color.FromRgb(0x12, 0x16, 0x24));
-    private static Brush LabelText      = Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
-    private static Brush TitleBrush     = Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
+    private static Brush BgBrush        = DiagramBrushes.Frozen(Color.FromRgb(0x0D, 0x10, 0x1A));
+    private static Brush NodeBg         = DiagramBrushes.Frozen(Color.FromRgb(0x1E, 0x24, 0x38));
+    private static Brush NodeBorder     = DiagramBrushes.Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    private static Brush NodeText       = DiagramBrushes.Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
+    private static Brush DiamondBg      = DiagramBrushes.Frozen(Color.FromRgb(0x2A, 0x1A, 0x3A));
+    private static Brush DiamondBorder  = DiagramBrushes.Frozen(Color.FromRgb(0xA0, 0x60, 0xFF));
+    private static Brush EdgeBrush      = DiagramBrushes.Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    private static Brush EdgeDashedBrush= DiagramBrushes.Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
+    private static Brush EdgeThickBrush = DiagramBrushes.Frozen(Color.FromRgb(0xFF, 0xD0, 0x60));
+    private static Brush LabelBg        = DiagramBrushes.Frozen(Color.FromRgb(0x12, 0x16, 0x24));
+    private static Brush LabelText      = DiagramBrushes.Frozen(Color.FromRgb(0x78, 0x80, 0xA0));
+    private static Brush TitleBrush     = DiagramBrushes.Frozen(Color.FromRgb(0xA8, 0xD4, 0xFF));
     private static Color AccentColor    = Color.FromRgb(0x4F, 0x8E, 0xF7);
     // State-diagram extras: solid pseudostate fill (start/end/fork) + dashed note callout.
-    private static Brush StateFill      = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
-    private static Brush NoteBg         = Frozen(Color.FromArgb(0x33, 0xF5, 0x9E, 0x0B));
-    private static Brush NoteBorder     = Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
-    private static Brush LinkBrush      = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));   // clickable class-member rows
+    private static Brush StateFill      = DiagramBrushes.Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
+    private static Brush NoteBg         = DiagramBrushes.Frozen(Color.FromArgb(0x33, 0xF5, 0x9E, 0x0B));
+    private static Brush NoteBorder     = DiagramBrushes.Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
+    private static Brush LinkBrush      = DiagramBrushes.Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));   // clickable class-member rows
 
     // The interaction hooks are NOT statics like the theme above: every element that gets a click
     // captures the callback from the options it was drawn with, so a click arriving after a later
@@ -43,18 +43,17 @@ public static class WpfGraphRenderer
 
     // Expand chip. Its colours come from the palette like every other surface here, so a theme
     // retunes it rather than the chip staying blue on a parchment background.
-    private static Brush ChipBg     = Frozen(Color.FromRgb(0x12, 0x16, 0x24));
-    private static Brush ChipBorder = Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
-    private static Brush ChipGlyph  = Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
+    private static Brush ChipBg     = DiagramBrushes.Frozen(Color.FromRgb(0x12, 0x16, 0x24));
+    private static Brush ChipBorder = DiagramBrushes.Frozen(Color.FromRgb(0x4F, 0x8E, 0xF7));
+    private static Brush ChipGlyph  = DiagramBrushes.Frozen(Color.FromRgb(0xE8, 0xEA, 0xF2));
 
     // Selection. Deliberately not the accent — the accent is already what every ordinary edge and
     // border is drawn in, so picking a node out with it would pick out nothing.
-    private static Brush SelectBrush = Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
+    private static Brush SelectBrush = DiagramBrushes.Frozen(Color.FromRgb(0xF5, 0x9E, 0x0B));
 
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
     private const double FontSize = 12.0;
 
-    private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     private static void SetTheme(MarkdownPalette p)
     {
@@ -75,7 +74,7 @@ public static class WpfGraphRenderer
         StateFill   = p.Text;
         NoteBorder  = p.Warning;
         var nc      = (p.Warning as SolidColorBrush)?.Color ?? Color.FromRgb(0xF5, 0x9E, 0x0B);
-        NoteBg      = Frozen(Color.FromArgb(0x33, nc.R, nc.G, nc.B));
+        NoteBg      = DiagramBrushes.Frozen(Color.FromArgb(0x33, nc.R, nc.G, nc.B));
         LinkBrush   = p.Accent;
 
         ChipBg      = p.CodeBg;
@@ -158,7 +157,7 @@ public static class WpfGraphRenderer
                 FontSize   = 14,
                 FontWeight = FontWeights.SemiBold,
             };
-            double titleW = MeasureText(lg.Source.Title, 14);
+            double titleW = DiagramText.Measure(lg.Source.Title, 14);
             Canvas.SetLeft(tb, Math.Max(SugiyamaLayout.MarginX, (lg.Width - titleW) / 2.0));   // centred across the image
             Canvas.SetTop(tb, 6);
             canvas.Children.Add(tb);
@@ -338,21 +337,25 @@ public static class WpfGraphRenderer
     }
 
     private static Brush NodeFill(LayoutNode ln, Brush def) =>
-        ln.Source?.FillColor is string fc ? Frozen(ParseColor(fc)) : def;
+        ln.Source?.FillColor is string fc ? DiagramBrushes.Frozen(ParseColor(fc)) : def;
     private static Brush NodeStroke(LayoutNode ln, Brush def) =>
-        ln.Source?.StrokeColor is string sc ? Frozen(ParseColor(sc)) : def;
+        ln.Source?.StrokeColor is string sc ? DiagramBrushes.Frozen(ParseColor(sc)) : def;
 
     private static Brush GetTextBrush(LayoutNode ln)
     {
         if (ln.Source?.FillColor is not string fc) return NodeText;
-        try
-        {
-            var c   = (System.Windows.Media.Color)ColorConverter.ConvertFromString(fc)!;
-            double lum = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
-            return lum > 140 ? Frozen(Colors.Black) : NodeText;
-        }
-        catch { return NodeText; }
+        return DiagramBrushes.ParseCss(fc) is Color c
+            ? DiagramBrushes.OnColor(c, DiagramBrushes.Frozen(Colors.Black), NodeText)
+            : NodeText;
     }
+
+    /// <summary>
+    /// A colour from a mermaid <c>style</c>/<c>classDef</c> declaration.  Unlike
+    /// <see cref="DiagramBrushes.ParseCss"/> this never fails: an unparseable colour falls back to
+    /// the graph's own accent, because a node with a broken fill should still be drawn.
+    /// </summary>
+    private static Color ParseColor(string hex) =>
+        DiagramBrushes.ParseCss(hex) ?? Color.FromRgb(0x4F, 0x8E, 0xF7);
 
     private static UIElement DrawRectShape(LayoutNode ln)
     {
@@ -811,7 +814,7 @@ public static class WpfGraphRenderer
                 Text = lollipops[i].Name, Foreground = NodeText, FontFamily = BodyFont, FontSize = 11,
                 TextAlignment = TextAlignment.Center,
             };
-            double lw = MeasureText(lollipops[i].Name, 11);
+            double lw = DiagramText.Measure(lollipops[i].Name, 11);
             Canvas.SetLeft(lbl, cx - lw / 2.0);
             Canvas.SetTop(lbl, above ? cy - r - 2 - 14 : cy + r + 2);
             cell.Children.Add(lbl);
@@ -913,7 +916,7 @@ public static class WpfGraphRenderer
             FontSize   = 11,
             FontWeight = FontWeights.SemiBold,
         };
-        double w = MeasureText(label, 11);
+        double w = DiagramText.Measure(label, 11);
         Canvas.SetLeft(tb, bounds.Left + (bounds.Width - w) / 2.0);   // centred on the header
         Canvas.SetTop(tb,  bounds.Top  + (headerH - 14) / 2.0);
         canvas.Children.Add(tb);
@@ -1071,7 +1074,7 @@ public static class WpfGraphRenderer
             },
         };
         // Centre the box on the midpoint using the measured text size (padding 4+4, border 1+1).
-        double w = MeasureText(text, labelFont) + 10;
+        double w = DiagramText.Measure(text, labelFont) + 10;
         double h = labelFont * 1.35 + 4;
         Canvas.SetLeft(border, mid.X - w / 2.0);
         Canvas.SetTop(border,  mid.Y - h / 2.0);
@@ -1089,7 +1092,7 @@ public static class WpfGraphRenderer
         double ux = dx / len, uy = dy / len, px = -uy, py = ux;
 
         var tb = new TextBlock { Text = text, Foreground = LabelText, FontFamily = BodyFont, FontSize = f };
-        double w = MeasureText(text, f), h = f * 1.35;
+        double w = DiagramText.Measure(text, f), h = f * 1.35;
         double cx = tip.X + ux * 13 + px * 8;
         double cy = tip.Y + uy * 13 + py * 8;
         Canvas.SetLeft(tb, cx - w / 2.0);
@@ -1253,21 +1256,4 @@ public static class WpfGraphRenderer
         }
     }
 
-    // ── Text helpers ───────────────────────────────────────────────────────
-
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(
-            text, System.Globalization.CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-            fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
-
-    private static Color ParseColor(string hex)
-    {
-        try { return (Color)ColorConverter.ConvertFromString(hex)!; }
-        catch { return Color.FromRgb(0x4F, 0x8E, 0xF7); }
-    }
 }
