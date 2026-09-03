@@ -116,48 +116,70 @@ public sealed class GraphWorkspace
     }
 
     /// <summary>
-    /// Brings the held snapshot back in line with the files on disk: re-extract what changed, add what
-    /// appeared, leave alone what this tree simply does not have.
+    /// Brings the held snapshot back in line with the files on disk: re-extract what changed, leave alone what
+    /// this tree simply does not have, and refuse to quietly turn into a rebuild.
     /// <para>
-    /// A file is judged by its stamp — length and write time, one stat, no read — and only a disagreement
-    /// costs a parse. A stamp of nothing means the archive predates stamps being recorded, and that case has
-    /// to be handled rather than defaulted: treating unknown as changed asks for a full re-extract of every
-    /// file in the repository on the first call after an upgrade, which is a rebuild wearing a scan's clothes
-    /// and it is how this first hung. Unknown falls back to what the freshness report has always used — the
-    /// archive's own write time as the baseline — and the flush that follows records real stamps, so it
-    /// happens once.
+    /// A file is judged by its stamp — length and write time, one stat, no read — and only a disagreement costs
+    /// a parse. A stamp of nothing means the archive predates stamps being recorded, and unknown falls back to
+    /// what the freshness report has always used: the archive's own write time as the baseline.
+    /// </para>
+    /// <para>
+    /// The cap is the part that matters. A worktree seeded from the main checkout has every file stamped at
+    /// checkout time and an archive built before that, so <i>everything</i> reads as changed — and refreshing
+    /// it all is a full build, taking minutes, triggered by someone asking for one node. This repo's rule for
+    /// that situation is already written down elsewhere and is the right one: drift is <b>reported, never acted
+    /// on</b>. So a handful of edits — a working session — is folded in, and anything larger is left for the
+    /// freshness line to describe and for <c>graph build</c> to fix, deliberately.
     /// </para>
     /// </summary>
     private void Reconcile(GraphSnapshot snapshot)
     {
-        var known = snapshot.Cache.Files.Keys.ToList();
-        if (known.Count == 0) return;
+        if (snapshot.Cache.Files.Count == 0) return;
 
         DateTime baseline;
         try { baseline = File.GetLastWriteTimeUtc(Store.GraphFilePath); }
         catch (IOException) { return; }
 
-        foreach (var rel in known)
+        // Collected before anything is parsed, because the count is what decides whether parsing is the right
+        // thing to do at all. Stats only: this is the cheap half.
+        var stale = new List<string>();
+        foreach (var rel in snapshot.Cache.Files.Keys)
         {
-            var full = Path.Combine(SourceRoot, rel.Replace('/', Path.DirectorySeparatorChar));
-            var info = Info(full);
+            var info = Info(Path.Combine(SourceRoot, rel.Replace('/', Path.DirectorySeparatorChar)));
 
             // Absent is not deleted. The archive is shared with checkouts that have files this one does not —
             // a submodule, another branch's work — and forgetting on sight would have each tree quietly erase
             // the others' code from a graph they all read.
             if (info is null) continue;
 
-            var stamp   = snapshot.Files.TryGetValue(rel, out var s) ? s : default;
-            var current = stamp.IsKnown
+            var stamp = snapshot.Files.TryGetValue(rel, out var s) ? s : default;
+            var ok    = stamp.IsKnown
                 ? stamp.Matches(info.Length, info.LastWriteTimeUtc)
                 : info.LastWriteTimeUtc <= baseline;
 
-            if (current) continue;
+            if (!ok) stale.Add(rel);
+        }
 
+        Drifted = stale.Count;
+        if (stale.Count == 0 || stale.Count > RefreshLimit) return;
+
+        foreach (var rel in stale)
             if (GraphBuilder.RefreshFile(snapshot.Graph, snapshot.Cache, ProductRoot, rel, CodeRoot))
                 _dirty = true;
-        }
+
+        Drifted = 0;
     }
+
+    /// <summary>
+    /// How many changed files this will fold in before deciding the graph wants rebuilding instead. Set to a
+    /// working session rather than a branch: dozens of edits is someone working, thousands is a checkout that
+    /// was seeded from somewhere else, and re-parsing thousands is the ninety-second build nobody asked for.
+    /// </summary>
+    private const int RefreshLimit = 200;
+
+    /// <summary>How many files were found changed and NOT folded in — zero whenever the held graph is current.
+    /// Non-zero means the graph is knowingly behind, which the freshness report is there to say out loud.</summary>
+    public int Drifted { get; private set; }
 
     private static FileInfo? Info(string fullPath)
     {

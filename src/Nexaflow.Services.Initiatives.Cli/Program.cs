@@ -73,11 +73,6 @@ internal static class Program
         return TryFindMainCheckout(caller, out var main) && PathsEqual(main, productRoot) ? caller : null;
     }
 
-    /// <summary>Clears the state a one-shot process would have started without — notes that are shown once,
-    /// and nothing else. Called by the daemon before each command so its output does not depend on how many
-    /// commands preceded it.</summary>
-    internal static void ResetPerCommandState() => _rootNoteShown = false;
-
     /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
     /// read it from. Null in a one-shot process, where <see cref="ReadStdin"/> reads the real thing.</summary>
     internal static string? StandardInput { get; set; }
@@ -267,11 +262,17 @@ internal static class Program
         if (ProductStore.Exists(candidate)) return candidate;
         if (TryFindMainCheckout(candidate, out var main) && ProductStore.Exists(main))
         {
+            // Once per repository, not once per command: it is orientation for someone who has just
+            // arrived in a worktree, and after that it is a line of noise in front of every answer.
+            // The resident process holds this flag, so "once" now means once, rather than once per
+            // invocation of a program that forgot everything each time.
             if (!_rootNoteShown && !PathsEqual(main, candidate))
             {
                 _rootNoteShown = true;
-                Console.Error.WriteLine($"note: using the .product/ tree in the main checkout {main} " +
-                    "(you're in a linked worktree — tree edits land there, and any dumped source is that copy).");
+                Console.Error.WriteLine(
+                    $"note: the authored product tree lives in the main checkout {main}, so tree edits "
+                  + "land there. The graph, and the source every other answer is read from, are this "
+                  + "worktree's own.");
             }
             return main;
         }

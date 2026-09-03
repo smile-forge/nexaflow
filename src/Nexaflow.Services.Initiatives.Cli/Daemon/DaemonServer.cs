@@ -129,9 +129,6 @@ internal static class DaemonServer
             Console.SetOut(stdout);
             Console.SetError(stderr);
             Program.StandardInput = request.Stdin;
-            // Each request behaves like a fresh process, or a note that is printed once per process would be
-            // printed once per DAY and its absence would read as a change in what the tool decided.
-            Program.ResetPerCommandState();
             Program.Host          = host;
 
             try { Directory.SetCurrentDirectory(request.WorkingDirectory); }
