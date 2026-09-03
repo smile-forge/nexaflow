@@ -32,10 +32,19 @@ namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 /// </summary>
 public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 {
-    private static readonly FontFamily LabelFont = new("Consolas, Menlo, monospace");
+    /// <summary>
+    /// The face the human-readable line is set in. OCR-B is what the retail standards actually specify —
+    /// it is drawn to be unambiguous to a machine as well as to a person — but it ships with no operating
+    /// system, so it is named first and the monospace stack catches the commoner case where it is absent.
+    /// WPF resolves the list left to right, so this line is the whole of "use it when it is installed".
+    /// </summary>
+    private static readonly FontFamily LabelFont = new("OCR-B, OCRB, OCR B, Consolas, Menlo, monospace");
 
     private BarcodeBlock _block;
     private MarkdownPalette _palette;
+
+    /// <summary>How far a guard bar runs past the others, in modules — the standard's figure.</summary>
+    private const double GuardExtensionModules = 5;
 
     private BarcodePattern? _pattern;
     private string? _encodeError;
@@ -60,6 +69,12 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
     /// <summary>Where the bars themselves start, and how far down a guard runs past the digits.</summary>
     private double _barsLeft, _barsTop, _guardDrop;
+
+    /// <summary>
+    /// The size the human-readable line is actually set at: the block's <c>fontSize</c>, reduced when
+    /// that will not fit the space the bars leave for it. See <see cref="FittedLabelSize"/>.
+    /// </summary>
+    private double _labelSize;
 
     /// <summary>The text row, for hit-testing a click that landed near it.</summary>
     private Rect _labelBounds;
@@ -471,9 +486,11 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         string text = ShowsValue ? _block.Value : _pattern?.Text ?? _block.Value;
 
         double barsWidth = PatternWidth * _block.BarWidth;
-        double gap       = _block.FontSize * 0.35;   // between the bars and a digit set outside them
 
         var groups = Groups(text);
+
+        _labelSize = FittedLabelSize(groups, barsWidth);
+        double gap = _labelSize * 0.35;   // between the bars and a digit set outside them
 
         // The outside digits widen the symbol; everything else sits within the bars.
         double leftPad  = Width(groups, BarcodeTextPlacement.LeftOfBars,  gap);
@@ -483,15 +500,20 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         double content = Math.Max(leftPad + barsWidth + rightPad, _caption?.Width ?? 0);
 
-        double captionHeight = _caption is null ? 0 : _block.FontSize * 1.35;
+        double captionHeight = _caption is null ? 0 : _labelSize * 1.35;
         double aboveHeight   = groups.Any(g => g.Placement == BarcodeTextPlacement.Above)
-                             ? _block.FontSize * 1.35 : 0;
+                             ? _labelSize * 1.35 : 0;
 
         _barsLeft  = _block.Margin + (content - (leftPad + barsWidth + rightPad)) / 2 + leftPad;
         _barsTop   = _block.Margin + captionHeight;
         // Only under the grouped number, whose wells they make. Over the value they run through the
         // middle of it, because the value is one run and there are no wells for them to be between.
-        _guardDrop = ShowsValue ? 0 : LabelHeight * 0.75;
+        //
+        // Five modules is the figure the retail standards give, and it is in modules rather than in
+        // font size on purpose: everything else about a symbol's geometry is a multiple of the module,
+        // and tying this to the label instead made the guards grow whenever the text did. The digits
+        // are free to reach below the guards, which is what they do on a real pack.
+        _guardDrop = ShowsValue ? 0 : _block.BarWidth * GuardExtensionModules;
 
         if (_caption is not null)
             _captionAt = new Point(_block.Margin + (content - _caption.Width) / 2, _block.Margin);
@@ -663,6 +685,54 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             _caretEdges[i] = edges[Math.Min(i, edges.Count - 1)];
     }
 
+    /// <summary>
+    /// The size to set the human-readable line at: what the block asked for, reduced until every run
+    /// fits the space its bars leave for it.
+    ///
+    /// <para>
+    /// A retail number is not one line of text but a run per group, each belonging under a stretch of
+    /// bars — the wells the guards make. A point size is the wrong thing to state that in, because
+    /// whether it fits depends on the module width and on the face: OCR-B, which is what these symbols
+    /// are meant to be set in, is appreciably wider than a programmer's monospace at the same size, so
+    /// a number that fitted in one spills across the guards in the other. Fitting to the wells makes
+    /// the label a property of the symbol's geometry, which is what it is on a real pack, and leaves
+    /// <c>fontSize</c> meaning "no larger than this".
+    /// </para>
+    /// </summary>
+    private double FittedLabelSize(IReadOnlyList<BarcodeTextRun> groups, double barsWidth)
+    {
+        _labelSize = 0;                       // measure at the asked-for size, then scale
+        double scale = 1;
+
+        foreach (var group in groups)
+        {
+            // A group set outside the bars has the margin to itself and constrains nothing.
+            if (group.Modules <= 0 || group.Placement is BarcodeTextPlacement.LeftOfBars
+                                                      or BarcodeTextPlacement.RightOfBars) continue;
+
+            double natural = Text(group.Text).Width;
+            if (natural <= 0) continue;
+
+            double room = group.Modules * _block.BarWidth * WellFill;
+            scale = Math.Min(scale, room / natural);
+        }
+
+        // The caption spans the whole symbol rather than a well, and is held to the same width.
+        if (_pattern?.Caption is { Length: > 0 } caption && barsWidth > 0)
+        {
+            double natural = Text(caption).Width;
+            if (natural > 0) scale = Math.Min(scale, barsWidth / natural);
+        }
+
+        return Math.Max(_block.FontSize * scale, MinimumLabelSize);
+    }
+
+    /// <summary>How much of a well its digits may fill, leaving the guards and the neighbours clear.</summary>
+    private const double WellFill = 0.92;
+
+    /// <summary>Below this the line is unreadable, and a symbol with no legible number is worse than a wide one.</summary>
+    private const double MinimumLabelSize = 4;
+
     /// <summary>What <see cref="MeasureOverride"/> reports — worked out once, while the text is placed.</summary>
     private Size MeasuredSize { get; set; }
 
@@ -671,7 +741,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         CultureInfo.CurrentCulture,
         FlowDirection.LeftToRight,
         new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-        _block.FontSize,
+        _labelSize > 0 ? _labelSize : _block.FontSize,
         Brushes.Black,
         VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
@@ -690,7 +760,10 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             ? sample
             : null;
 
-    private double LabelHeight => _block.DisplayValue ? _block.FontSize * 1.4 : 0;
+    private double LabelHeight => _block.DisplayValue ? LabelSize * 1.4 : 0;
+
+    /// <summary>The size the label is set at, before it has been fitted.</summary>
+    private double LabelSize => _labelSize > 0 ? _labelSize : _block.FontSize;
 
     protected override Size MeasureOverride(Size availableSize) => MeasuredSize;
 
@@ -749,7 +822,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     private void DrawBars(DrawingContext dc, BarcodePattern pattern, Brush ink)
     {
         double addOnFrom = AddOnStartModule();
-        double lift      = addOnFrom < int.MaxValue ? _block.FontSize * 1.35 : 0;
+        double lift      = addOnFrom < int.MaxValue ? LabelSize * 1.35 : 0;
 
         foreach (var (start, length) in pattern.InkRuns())
         {
