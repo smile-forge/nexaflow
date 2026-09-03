@@ -41,6 +41,7 @@ under the license noted below.
 | [VideoLAN libVLC](https://www.videolan.org/vlc/libvlc.html) (native, via VideoLAN.LibVLC.Windows) | LGPL-2.1-or-later |
 | [Whisper.net](https://github.com/sandrohanea/whisper.net) | MIT |
 | [XAML-Math / WpfMath](https://github.com/ForNeVeR/xaml-math) (vendored — see below) | MIT |
+| [PDF417 Barcode Encoder](https://github.com/Uzi-Granot/PDF417BarcodeEncoder) (ingested — see below) | CPOL-1.02 |
 | [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | MIT |
 | [.NET runtime libraries](https://github.com/dotnet/runtime) | MIT |
 
@@ -58,3 +59,17 @@ The syntax-highlighting consistency tests use a reference corpus vendored from
 [bat](https://github.com/sharkdp/bat) (MIT / Apache-2.0) under
 `src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/syntax-tests/`. It is test-only reference data — not
 compiled into any assembly and not shipped in the product.
+
+**The PDF417 symbol-character table is ingested, not referenced.** PDF417 cannot be encoded without it
+and it cannot be derived: every legal character is 17 modules of four bars and four spaces each one to
+six wide, but that admits 1,484 characters in cluster 0 where the standard uses 929, and the ones it
+picks are in no order that can be computed. The table — 3 clusters × 929 patterns — was taken from Uzi
+Granot's PDF417 Barcode Encoder, which is licensed under CPOL 1.02, and is held as
+`src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417Codewords.cs`. Nothing else was taken: the
+compaction, the Reed–Solomon parity, the row indicators and the layout are Nexaflow's own, written
+against ISO/IEC 15438.
+
+CPOL 1.02 permits use in commercial applications, redistribution, and derivative works. The data is
+verified rather than trusted — `Pdf417EncoderTests` asserts every one of the 2,787 entries really is a
+legal symbol character in the cluster it is filed under, and symbols produced by two other generators
+decode straight out of it.

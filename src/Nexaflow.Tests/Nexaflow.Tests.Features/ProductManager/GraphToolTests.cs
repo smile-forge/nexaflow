@@ -11,6 +11,7 @@ using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Services.Initiatives.Graph;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 
@@ -124,7 +125,7 @@ public class GraphToolTests
                 new GraphEdge { Source = "code:src/Sprocket.cs#T:Sprocket", Target = "code:src/Sprocket.cs#T:Sprocket/M:Ratchet", Relationship = EdgeRelationship.Contains },
             ],
         };
-        store.SaveGraph(graph);
+        store.SaveSnapshot(graph, new GraphCache());
     }
 
     [TestCleanup]

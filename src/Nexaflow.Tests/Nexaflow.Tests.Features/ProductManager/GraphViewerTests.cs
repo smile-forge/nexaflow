@@ -10,11 +10,12 @@ using Nexaflow.Features.ProductManager.Graph.ViewModels;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Services.Initiatives.Graph.Store;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 
 /// <summary>
-/// The Graph viewer reads a <c>graph.json</c> into a <see cref="KnowledgeGraph"/> (same serializer the builder
+/// The Graph viewer reads a graph archive into a <see cref="KnowledgeGraph"/> (same reader the builder
 /// writes with) and the view-model builds bound node/edge collections + a deterministic layout. These headless
 /// tests cover that load/build/layout contract; on-screen render + pan/zoom are covered by the UI smoke.
 /// </summary>
@@ -36,8 +37,8 @@ public class GraphViewerTests
 
     private static string WriteTemp(KnowledgeGraph g)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"graph-{Guid.NewGuid():N}.json");
-        File.WriteAllText(path, JsonSerializer.Serialize(g, ProductJson.Options));
+        var path = Path.Combine(Path.GetTempPath(), $"graph-{Guid.NewGuid():N}.bin");
+        GraphArchive.Write(path, new GraphSnapshot { Graph = g });
         return path;
     }
 

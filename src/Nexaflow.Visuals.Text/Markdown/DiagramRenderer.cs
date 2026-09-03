@@ -34,6 +34,9 @@ public static class DiagramRenderer
         new GraphDiagramHandler(new NomnomlParser()),          // nomnoml
         new QrDiagramHandler(),                                // qr
         new BarcodeDiagramHandler(),                           // barcode
+        new DataMatrixDiagramHandler(),                        // datamatrix
+        new Pdf417DiagramHandler(),                            // pdf417
+        new AztecDiagramHandler(),                             // aztec
     ];
 
     // ── Public API ─────────────────────────────────────────────────────────

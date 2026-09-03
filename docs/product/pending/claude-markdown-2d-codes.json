@@ -1,0 +1,365 @@
+{
+  "branch": "claude/markdown-2d-codes",
+  "nodes": {
+    "matrix-renderer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/WpfMatrixRenderer.cs",
+          "class": "WpfMatrixRenderer"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBlockReader.cs",
+          "class": "MatrixBlockReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/ReedSolomon.cs",
+          "class": "ReedSolomon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/IModuleMatrix.cs",
+          "class": "IModuleMatrix"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixRendererTests.cs",
+            "class": "DataMatrixRendererTests"
+          }
+        ]
+      }
+    },
+    "datamatrix": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/DataMatrixDiagramHandler.cs",
+          "class": "DataMatrixDiagramHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSampleRenderTests.cs",
+            "class": "MarkdownSampleRenderTests",
+            "method": "DataMatrixSampleRenders"
+          }
+        ]
+      }
+    },
+    "datamatrix-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/DataMatrixEncoder.cs",
+          "class": "DataMatrixEncoder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixEncoderTests.cs",
+            "class": "DataMatrixEncoderTests"
+          }
+        ]
+      }
+    },
+    "datamatrix-payloads": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/DataMatrixPayload.cs",
+          "class": "DataMatrixPayload"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBlockParserTests.cs",
+            "class": "DataMatrixBlockParserTests"
+          }
+        ]
+      }
+    },
+    "datamatrix-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/DataMatrixBlockParser.cs",
+          "class": "DataMatrixBlockParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBlockParserTests.cs",
+            "class": "DataMatrixBlockParserTests"
+          }
+        ]
+      }
+    },
+    "datamatrix-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/WpfDataMatrixRenderer.cs",
+          "class": "WpfDataMatrixRenderer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixRendererTests.cs",
+            "class": "DataMatrixRendererTests"
+          }
+        ]
+      }
+    },
+    "qr-code": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSampleRenderTests.cs",
+            "class": "MarkdownSampleRenderTests",
+            "method": "QrSampleRenders"
+          }
+        ]
+      }
+    },
+    "barcode": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSampleRenderTests.cs",
+            "class": "MarkdownSampleRenderTests",
+            "method": "BarcodeSampleRenders"
+          }
+        ]
+      }
+    },
+    "pdf417": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/Pdf417DiagramHandler.cs",
+          "class": "Pdf417DiagramHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSampleRenderTests.cs",
+            "class": "MarkdownSampleRenderTests",
+            "method": "Pdf417SampleRenders"
+          }
+        ]
+      }
+    },
+    "pdf417-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417Encoder.cs",
+          "class": "Pdf417Encoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417Codewords.cs",
+          "class": "Pdf417Codewords"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417EncoderTests.cs",
+            "class": "Pdf417EncoderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417ReferenceImageTests.cs",
+            "class": "Pdf417ReferenceImageTests"
+          }
+        ]
+      }
+    },
+    "pdf417-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417BlockParser.cs",
+          "class": "Pdf417BlockParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417RendererTests.cs",
+            "class": "Pdf417RendererTests"
+          }
+        ]
+      }
+    },
+    "pdf417-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/WpfPdf417Renderer.cs",
+          "class": "WpfPdf417Renderer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417RendererTests.cs",
+            "class": "Pdf417RendererTests"
+          }
+        ]
+      }
+    },
+    "aztec": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/AztecDiagramHandler.cs",
+          "class": "AztecDiagramHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSampleRenderTests.cs",
+            "class": "MarkdownSampleRenderTests",
+            "method": "AztecSampleRenders"
+          }
+        ]
+      }
+    },
+    "aztec-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecEncoder.cs",
+          "class": "AztecEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecHighLevelEncoder.cs",
+          "class": "AztecHighLevelEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecCharacterSets.cs",
+          "class": "AztecCharacterSets"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecEncoderTests.cs",
+            "class": "AztecEncoderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecTestDecoder.cs",
+            "class": "AztecTestDecoder"
+          }
+        ]
+      }
+    },
+    "aztec-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecLayout.cs",
+          "class": "AztecLayout"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs",
+            "class": "AztecReferenceImageTests"
+          }
+        ]
+      }
+    },
+    "aztec-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecBlockParser.cs",
+          "class": "AztecBlockParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecRendererTests.cs",
+            "class": "AztecRendererTests",
+            "method": "ReadsItsOwnShapeSettings"
+          }
+        ]
+      }
+    },
+    "aztec-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/WpfAztecRenderer.cs",
+          "class": "WpfAztecRenderer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecRendererTests.cs",
+            "class": "AztecRendererTests",
+            "method": "ThePictureReadsBack"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 32,
+  "touched_nodes": [
+    "aztec",
+    "aztec-block-syntax",
+    "aztec-encoder",
+    "aztec-layout",
+    "aztec-render",
+    "barcode",
+    "datamatrix",
+    "datamatrix-block-syntax",
+    "datamatrix-encoder",
+    "datamatrix-payloads",
+    "datamatrix-render",
+    "matrix-renderer",
+    "pdf417",
+    "pdf417-block-syntax",
+    "pdf417-encoder",
+    "pdf417-render",
+    "qr-code"
+  ]
+}

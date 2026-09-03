@@ -16,7 +16,7 @@ namespace Nexaflow.Services.Initiatives.Graph;
 /// <para>
 /// Timestamps, not hashes. Re-hashing the repository costs 1.8s warm and <b>169s cold</b> — reading half a
 /// gigabyte is the dominant cost of a full build, and paying it per query would be absurd. And the baseline
-/// needs no new stored field: <c>graph.json</c>'s own write time is when the graph last described the world,
+/// needs no new stored field: the archive's own write time is when the graph last described the world,
 /// so anything modified since is what it has not seen.
 /// </para>
 /// <para>
@@ -27,7 +27,7 @@ namespace Nexaflow.Services.Initiatives.Graph;
 /// without a deliberate pin bump. Project-scoped it is 4,009 files, and the whole check lands around 100ms.
 /// </para>
 /// <para>
-/// <b>Absent is reported, never acted on.</b> <c>graph.json</c> is shared with every worktree, and a branch
+/// <b>Absent is reported, never acted on.</b> The graph is shared with every worktree, and a branch
 /// that runs a build publishes its own files into it — so a file the graph knows and this tree does not is
 /// as likely to be a parallel session's work in progress as it is to be deleted. Nothing here can tell those
 /// apart, and guessing wrong deletes someone else's feature from the shared graph. A full <c>graph build</c>
@@ -44,7 +44,7 @@ public static class GraphFreshness
     /// <param name="Known">How many files the graph was built from.</param>
     /// <param name="Available">False when the check could not run — nothing was built, so nothing is claimed.</param>
     /// <param name="Absent">Files the graph describes that are not in this tree. NOT the same as deleted —
-    /// <c>graph.json</c> is shared, and a branch that runs a build publishes its own files into it, so these
+    /// The graph is shared, and a branch that runs a build publishes its own files into it, so these
     /// are as likely to be another session's work in progress. Reported, never acted on.</param>
     /// <param name="OtherBranch">The graph was built from a different working tree than the one queried —
     /// so most of the difference is the branch, not edits since.</param>
@@ -109,7 +109,7 @@ public static class GraphFreshness
     /// </summary>
     /// <param name="known">Repo-relative paths the graph parsed — <c>GraphCache.Files.Keys</c>.</param>
     /// <param name="codeRoot">Where source is read from: the caller's worktree, or the product root.</param>
-    /// <param name="graphFile">The built <c>graph.json</c>, whose write time is the baseline.</param>
+    /// <param name="graphFile">The built graph archive, whose write time is the baseline.</param>
     public static Report Check(IReadOnlyCollection<string> known, string codeRoot, string graphFile,
                                bool otherBranch = false)
     {

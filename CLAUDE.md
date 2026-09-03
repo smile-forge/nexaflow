@@ -78,7 +78,7 @@ $nfi = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe"   #
 **Code discovery is graph-first, always — there is no case in this repo where discovery starts with
 Read/Grep/Glob.** Query the graph FIRST; then Read only the specific block it names. Same before spawning an
 Explore/Plan agent — and require any sub-agent you do spawn to use it too. The `graph` command builds
-`.product/graph.json` — the product tree ⊕ whole-repo AST ⊕ their snaplinks — and queries it headlessly. It's more
+`.product/graph.bin` — the product tree ⊕ whole-repo AST ⊕ their snaplinks — and queries it headlessly. It's more
 token-efficient than reading files and surfaces relationships grep can't (who calls/instantiates a type, a project's
 `depends_on`, a view's `view_of` code-behind, the file a member `mentions`, the product feature that owns a code
 node). Regenerate with `graph build` (incremental) after code changes, then explore (`graph help` lists the full set):
@@ -92,7 +92,7 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph grep <regex> --from product:<slug> --scope owned --mode content   # grep a whole FEATURE
 & $nfi graph grep <regex> --mode content                             # grep EVERY code node (~3s, 64k nodes)
 & $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
-& $nfi graph build             # regenerate .product/graph.json after code changes (incremental)
+& $nfi graph build             # regenerate .product/graph.bin after code changes (incremental)
 ```
 
 **The graph edits too, and structurally — `graph edit <op> <node-id>`.** Addressing a change by *what it is*
@@ -128,7 +128,7 @@ rather than by which lines it currently occupies:
 `graph build` is for the cross-file passes — call/inheritance resolution, communities — not for editing.
 
 **Every graph query tells you whether its answer is current**, so you never have to guess. It compares
-`graph.json`'s own write time against the files the graph recorded (a stat each — no re-reading, which is the
+the archive's own write time against the files the graph recorded (a stat each — no re-reading, which is the
 90s) and the directories the solution's projects live in (4,009 files, not the 17,038 the whole repo holds,
 because 14,849 of those are pinned submodule corpora). Roughly 0.2s, and it always says one of:
 
@@ -140,10 +140,10 @@ graph: 2 changed, 5 added vs this working tree — this answer may be out of dat
 `--refresh` (on `search`/`list`/`node`/`walk`/`context`/`grep`/`code`) folds those files in *before* answering.
 
 **Each working tree has its own graph.** A graph is a function of source, and source differs per branch, so a
-worktree gets `.product/worktrees/<name>/graph.json`, cloned from the main checkout's on first use and
+worktree gets `.product/worktrees/<name>/graph.bin`, cloned from the main checkout's on first use and
 brought onto your branch by one `--refresh` (~10s, then queries are current). The **authored tree**
 (`tree.json` — nodes, concerns, snaplinks) is unchanged by this and stays shared: it is written rather than
-derived, and it is deliberately forward-looking. Nothing a worktree does writes to the shared `graph.json`,
+derived, and it is deliberately forward-looking. Nothing a worktree does writes to the shared graph,
 so a parallel session's view of the code is never overwritten by yours — which is also what makes it safe for
 a refresh to *drop* files that aren't in your tree, since they can only be your branch's.
 
@@ -243,7 +243,7 @@ for it**, so the anchor never has to be guessed. The two are mutually exclusive 
 Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. **`graph` is
 worktree-aware**: run from a linked worktree and both `graph build` and the source-dumping queries (`code`/`context`/
 `grep --mode content`) use THAT branch's code — the build re-parses only the files that differ from the main checkout
-(the cache is content-addressed), so it's cheap. The product tree + `graph.json` still live in the main checkout.
+(the cache is content-addressed), so it's cheap. The product tree + the graph archive still live in the main checkout.
 `--main` forces the main-checkout source; `graph --code-root <dir>` points it anywhere. (`describe --code` is likewise
 working-tree-first.) For repo discovery you can also spawn the **`nexaflow-explorer`** sub-agent, which drives this exe.
 

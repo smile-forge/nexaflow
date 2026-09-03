@@ -12,6 +12,7 @@ using Nexaflow.Features.ProductManager.Graph.ViewModels;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Services.Initiatives.Graph.Store;
 
 namespace Nexaflow.Tests.Features.ProductManager;
 
@@ -19,7 +20,7 @@ namespace Nexaflow.Tests.Features.ProductManager;
 /// Covers the GraphViewer AI surface: the read-only client tools (<c>read_graph</c> dumps the visible
 /// neighbourhood — focus, summary, neighbours with their kind + relationship to the focus; <c>focus_node</c>
 /// re-centres on a node by id or label substring), plus the file-scoped security context. Driven over a tiny
-/// real <c>graph.json</c> so <see cref="GraphViewModel.LoadAsync"/> indexes and focuses exactly as in the app.
+/// real archive so <see cref="GraphViewModel.LoadAsync"/> indexes and focuses exactly as in the app.
 /// UI-marshalled focus mutation runs inline via <see cref="RunningShell"/>.
 /// </summary>
 [TestClass]
@@ -35,7 +36,7 @@ public class GraphViewerAiTests
         return shell;
     }
 
-    /// <summary>Writes a minimal graph.json — a product root that contains a code file (which contains a type)
+    /// <summary>Writes a minimal archive — a product root that contains a code file (which contains a type)
     /// and a sub-product — using the same <see cref="ProductJson.Options"/> the real loader reads with.</summary>
     private static string WriteGraph(out string dir)
     {
@@ -59,8 +60,8 @@ public class GraphViewerAiTests
             ],
         };
 
-        var path = Path.Combine(dir, "graph.json");
-        File.WriteAllText(path, JsonSerializer.Serialize(graph, ProductJson.Options));
+        var path = Path.Combine(dir, "graph.bin");
+        GraphArchive.Write(path, new GraphSnapshot { Graph = graph });
         return path;
     }
 
@@ -78,7 +79,7 @@ public class GraphViewerAiTests
             Assert.IsTrue(vm.IsLoaded);
             Assert.IsFalse(vm.HasError, vm.ErrorMessage);
 
-            // ── scope is the PRODUCT ROOT, not graph.json ──
+            // ── scope is the PRODUCT ROOT, not the archive ──
             // The sunburst, the integrity page and this canvas are three views of one tree, so they share a
             // scope; pinning two of them must not read as two unrelated datasets.
             Assert.AreEqual(vm.ProductRoot, vm.GetSecurityContext());
