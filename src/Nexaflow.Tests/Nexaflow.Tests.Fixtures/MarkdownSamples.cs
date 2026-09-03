@@ -51,6 +51,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("barcodes.md",              Barcode),
         SampleFile.Text("datamatrix.md",            DataMatrix),
         SampleFile.Text("pdf417.md",                Pdf417),
+        SampleFile.Text("aztec.md",                 Aztec),
     ];
 
     private const string LatexMathSymbols =
@@ -3833,6 +3834,120 @@ internal sealed class MarkdownSamples : ISampleSet
         type: text
         text: x
         columns: 99
+        ```
+        """";
+
+    private const string Aztec =
+        """"
+        # Aztec Code
+
+        An `aztec` fence draws an Aztec Code — the symbology on rail and air tickets, which puts its
+        finder pattern in the middle rather than the corners and so needs almost no quiet zone. It takes
+        the same `type:` lines a `qr` fence does, and GS1 element strings besides.
+
+        ## The shared types
+
+        ```aztec
+        type: url
+        url: https://markdown.org
+        ```
+
+        ```aztec
+        type: text
+        text: An Aztec Code
+        ```
+
+        ```aztec
+        type: wifi
+        ssid: Guest
+        password: welcome
+        security: WPA
+        ```
+
+        ## Compact and full range
+
+        There are two families. A compact symbol is smaller for the same message and stops at four
+        layers; the full range goes to thirty-two and carries a reference grid through its larger sizes.
+        Left alone the encoder takes the compact family while the message fits it, which is what you
+        want; `format:` is there for a reader that insists on one or the other.
+
+        ```aztec
+        type: text
+        text: Compact by default
+        ```
+
+        ```aztec
+        type: text
+        text: The same message, full range
+        format: full
+        ```
+
+        A long message reaches the full range on its own.
+
+        ```aztec
+        type: text
+        text: An Aztec symbol grows a layer at a time rather than jumping between versions, so a message of any length lands in a symbol barely larger than it needs. This one is well past what the compact family can hold, so it is drawn in the full range, where a reference grid runs through the larger sizes to keep a reader registered.
+        ```
+
+        ## Size and error correction
+
+        `layers:` fixes the size outright — for a printed form with a box to fill — and fails rather than
+        growing if the message will not fit. `ecc:` is the least share of the symbol that must be error
+        correction; whatever the message leaves over becomes error correction anyway, so the number you
+        set is a floor and not a target.
+
+        ```aztec
+        type: text
+        text: Four layers, fixed
+        format: compact
+        layers: 4
+        ```
+
+        ```aztec
+        type: text
+        text: Half of this symbol is error correction
+        ecc: 50
+        ```
+
+        ## GS1
+
+        A `gs1` block takes the element string as people write it and puts the wire form in the symbol —
+        brackets off, FNC1 in front, and a separator after each variable-length element that needs one.
+
+        ```aztec
+        type: gs1
+        data: (01)04150123456782(10)LOT7(21)SN9
+        ```
+
+        ## Declaring a character set
+
+        `eci:` writes an ECI number at the head of the message. Without it the bytes are UTF-8 and a
+        reader is left to assume so, which nearly all of them do.
+
+        ```aztec
+        type: text
+        text: Grüße aus Köln
+        eci: 26
+        ```
+
+        ## Styled
+
+        ```aztec
+        type: text
+        text: styled
+        cellSize: 6
+        margin: 2
+        dark: #1D4ED8
+        light: #EFF6FF
+        ```
+
+        ## One that cannot be drawn
+
+        ```aztec
+        type: text
+        text: This message is far longer than a single-layer compact symbol can hold, and the block asks for one anyway.
+        format: compact
+        layers: 1
         ```
         """";
 }

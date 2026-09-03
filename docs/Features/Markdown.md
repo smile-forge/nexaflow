@@ -723,6 +723,53 @@ mode automatically. Anything that will not fit either goes as bytes.
 
 ---
 
+## Aztec Code
+
+A fenced `aztec` block becomes an Aztec Code — the symbology on rail and air tickets. It takes the same
+`type:` lines a `qr` block does, plus GS1 element strings:
+
+````markdown
+```aztec
+type: url
+url: https://markdown.org
+```
+````
+
+![Aztec symbols: a compact URL, the same URL in the full range, a GS1 item and a styled one](images/markdown/aztec.png)
+
+Its finder pattern is a bullseye in the middle rather than three squares in the corners, which is why an
+Aztec code needs almost no quiet zone around it — handy on a ticket where there is no room to spare. It
+also has no version table: a symbol grows one two-module ring at a time, so a message of any length gets
+a symbol barely larger than it needs.
+
+There are two families. A **compact** symbol has an eleven-module core and up to four rings; the **full
+range** has a fifteen-module core, up to thirty-two rings, and a reference grid running through its
+larger sizes to keep a reader registered across a big symbol. Compact is smaller for the same message,
+so that is what you get unless you say otherwise or the message outgrows it.
+
+| Setting | Values | Default |
+|---|---|---|
+| `format` | `compact`, `full` or `auto` | `auto` — compact while the message fits |
+| `layers` | rings around the core: 1–4 compact, 1–32 full | the smallest that fits |
+| `ecc` | least share of the symbol that is error correction, 0–95 | `23`, which is what the standard advises |
+| `eci` | an ECI number declaring the character set | none — bytes are UTF-8 |
+
+plus the `cellSize` / `margin` / `dark` / `light` a `qr` block takes.
+
+`ecc` is a floor rather than a target: whatever capacity the message leaves over becomes error correction
+too, so a short message in a symbol sized for it often ends up eighty per cent parity. Raising `ecc`
+therefore changes the answer only when it forces a larger symbol. `layers` is the other way about — it
+fixes the size outright, for a printed form with a box to fill, and fails rather than growing when the
+message will not fit.
+
+A `gs1` block takes an element string as people write it — `(01)04150123456782(10)LOT7(21)SN9` — and puts
+the wire form in the symbol: brackets off, FNC1 in front, and a group separator after each
+variable-length element that needs one.
+
+Not supported: Aztec Runes, reader-initialisation symbols, and structured append across several symbols.
+
+---
+
 ## Good to know
 
 - **It's all local.** Diagrams and math render on your machine — nothing is sent anywhere, and the

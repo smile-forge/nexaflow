@@ -27,11 +27,9 @@ public static class WpfDataMatrixRenderer
 
         string tooltip = $"{block.Type} · Data Matrix {symbol.Size}{flavour}, {symbol.Encodation}, "
                        + $"{symbol.DataCodewordsUsed} of {symbol.Size.DataCodewords} codewords\n\n"
-                       + WpfMatrixRenderer.Abridged(Readable(block.Payload));
+                       + WpfMatrixRenderer.Abridged(Gs1ElementString.Readable(block.Payload));
 
         return WpfMatrixRenderer.Render(symbol, block.Settings, palette, tooltip);
     }
 
-    /// <summary>The payload with its separators shown, since a GS is invisible and is the point of the format.</summary>
-    private static string Readable(string payload) => payload.Replace("", "⟨GS⟩");
 }

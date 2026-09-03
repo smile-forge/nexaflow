@@ -62,18 +62,6 @@ internal static class DataMatrixPayload
     // ── GS1 ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Application identifiers whose data is a fixed length, and so takes no separator after it. Every
-    /// other AI is variable and is closed by FNC1 when another follows.
-    /// </summary>
-    private static readonly Dictionary<string, int> FixedLengthAis = new()
-    {
-        ["00"] = 18, ["01"] = 14, ["02"] = 14, ["03"] = 14,
-        ["11"] = 6,  ["12"] = 6,  ["13"] = 6,  ["15"] = 6, ["16"] = 6, ["17"] = 6,
-        ["20"] = 2,
-        ["410"] = 13, ["411"] = 13, ["412"] = 13, ["413"] = 13, ["414"] = 13, ["415"] = 13, ["416"] = 13, ["417"] = 13,
-    };
-
-    /// <summary>
     /// A GS1 element string written the human way — <c>(01)04150123456782(17)261231(10)LOT7</c> — turned
     /// into the wire form: brackets off, FNC1 first, and a separator after each variable-length element
     /// that is not the last.
@@ -91,77 +79,10 @@ internal static class DataMatrixPayload
             return false;
         }
 
-        var elements = ParseElements(data, out error);
-        if (elements is null) return false;
+        if (!Gs1ElementString.TryParse(data, out payload, out error)) return false;
 
-        payload = JoinElements(elements);
         options = baseline with { Gs1 = true };
         return true;
-    }
-
-    /// <summary>Splits <c>(ai)value(ai)value…</c> into pairs, or explains where it stopped being that.</summary>
-    private static List<(string Ai, string Value)>? ParseElements(string data, out string? error)
-    {
-        error = null;
-        var elements = new List<(string, string)>();
-        int at = 0;
-
-        while (at < data.Length)
-        {
-            if (data[at] != '(')
-            {
-                error = $"GS1 data must be a run of (AI)value pairs; at '{data[at..]}' there is no opening bracket.";
-                return null;
-            }
-
-            int close = data.IndexOf(')', at);
-            if (close < 0)
-            {
-                error = "A GS1 application identifier's bracket is never closed.";
-                return null;
-            }
-
-            string ai = data[(at + 1)..close];
-            if (ai.Length is < 2 or > 4 || !ai.All(char.IsAsciiDigit))
-            {
-                error = $"'{ai}' is not a GS1 application identifier — two to four digits.";
-                return null;
-            }
-
-            int next  = data.IndexOf('(', close);
-            string value = next < 0 ? data[(close + 1)..] : data[(close + 1)..next];
-
-            if (value.Length == 0)
-            {
-                error = $"AI ({ai}) has no value.";
-                return null;
-            }
-
-            if (FixedLengthAis.TryGetValue(ai, out int fixedLength) && value.Length != fixedLength)
-            {
-                error = $"AI ({ai}) takes exactly {fixedLength} characters; '{value}' is {value.Length}.";
-                return null;
-            }
-
-            elements.Add((ai, value));
-            at = next < 0 ? data.Length : next;
-        }
-
-        return elements;
-    }
-
-    private static string JoinElements(List<(string Ai, string Value)> elements)
-    {
-        var sb = new StringBuilder();
-        for (int i = 0; i < elements.Count; i++)
-        {
-            var (ai, value) = elements[i];
-            sb.Append(ai).Append(value);
-
-            bool last = i == elements.Count - 1;
-            if (!last && !FixedLengthAis.ContainsKey(ai)) sb.Append('');
-        }
-        return sb.ToString();
     }
 
     // ── PPN — the Pharmacy Product Number ──────────────────────────────────
@@ -197,7 +118,7 @@ internal static class DataMatrixPayload
         }
         if (Optional(fields, "serial") is { } serial) parts.Add("S" + serial);
 
-        payload = string.Join('', parts);
+        payload = string.Join(Gs1ElementString.Separator, parts);
         options = baseline with { Macro = DataMatrixMacro.Macro06 };
         return true;
     }
@@ -274,7 +195,7 @@ internal static class DataMatrixPayload
         if (Optional(fields, "lot")    is { } lot)    elements.Add(("10", lot));
         if (Optional(fields, "serial") is { } serial) elements.Add(("21", serial));
 
-        payload = JoinElements(elements);
+        payload = Gs1ElementString.Join(elements);
         options = baseline with { Gs1 = true };
         return true;
     }

@@ -7,10 +7,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Matrix;
 ///
 /// <para>
 /// Every matrix symbology protects its codewords this way and every one of them picks a different
-/// field: QR and Aztec's largest symbols work in GF(256) under 0x11D, Data Matrix in GF(256) under
-/// 0x12D, PDF417 in GF(929) — a prime field, not a binary one — and Aztec's smaller symbols in GF(16),
-/// GF(64) and GF(1024). The arithmetic is identical; only the modulus and the size differ, so the field
-/// is a parameter and the codec is written once.
+/// field: QR works in GF(256) under 0x11D, Data Matrix in GF(256) under 0x12D, PDF417 in GF(929) — a
+/// prime field, not a binary one — and Aztec in GF(16) for its mode message and one of GF(64),
+/// GF(256), GF(1024) or GF(4096) for its data, by size. The arithmetic is identical; only the modulus
+/// and the size differ, so the field is a parameter and the codec is written once.
 /// </para>
 /// <para>
 /// Both binary and prime fields are handled by the same two tables. Multiplication is a table lookup
@@ -23,7 +23,7 @@ public sealed class GaloisField
     private readonly int[] _exp;
     private readonly int[] _log;
 
-    /// <summary>GF(256) under x⁸+x⁴+x³+x²+1 — QR, and Aztec above 8 layers.</summary>
+    /// <summary>GF(256) under x⁸+x⁴+x³+x²+1 — QR.</summary>
     public static readonly GaloisField Qr = Binary(0x11D, 256);
 
     /// <summary>GF(256) under x⁸+x⁵+x³+x²+1 — Data Matrix ECC 200.</summary>
@@ -31,6 +31,24 @@ public sealed class GaloisField
 
     /// <summary>The prime field GF(929), generator 3 — PDF417.</summary>
     public static readonly GaloisField Pdf417 = Prime(929, 3);
+
+    /// <summary>GF(16) under x⁴+x+1 — the Aztec mode message, which is protected on its own.</summary>
+    public static readonly GaloisField AztecMode = Binary(0x13, 16);
+
+    /// <summary>GF(64) under x⁶+x+1 — Aztec's six-bit codewords, up to two layers.</summary>
+    public static readonly GaloisField Aztec6 = Binary(0x43, 64);
+
+    /// <summary>
+    /// GF(256) — Aztec's eight-bit codewords, three to eight layers. The same polynomial Data Matrix
+    /// works in, so one table serves both; declared after it for that reason.
+    /// </summary>
+    public static readonly GaloisField Aztec8 = DataMatrix;
+
+    /// <summary>GF(1024) under x¹⁰+x³+1 — Aztec's ten-bit codewords, nine to twenty-two layers.</summary>
+    public static readonly GaloisField Aztec10 = Binary(0x409, 1024);
+
+    /// <summary>GF(4096) under x¹²+x⁶+x⁵+x³+1 — Aztec's twelve-bit codewords, the largest symbols.</summary>
+    public static readonly GaloisField Aztec12 = Binary(0x1069, 4096);
 
     private GaloisField(int size, int[] exp, int[] log, bool binary)
     {
@@ -109,7 +127,7 @@ public static class ReedSolomon
     /// (x − gᶦ) for i from <paramref name="firstRoot"/> below <paramref name="firstRoot"/> + <paramref name="degree"/>.
     /// </summary>
     /// <param name="firstRoot">
-    /// QR and Aztec start at g⁰; Data Matrix and PDF417 start at g¹. It is the one thing the standards
+    /// QR starts at g⁰; Data Matrix, PDF417 and Aztec start at g¹. It is the one thing the standards
     /// disagree about, and getting it wrong produces parity that is perfectly consistent and reads back
     /// as garbage.
     /// </param>

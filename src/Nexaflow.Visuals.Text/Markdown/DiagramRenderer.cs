@@ -36,6 +36,7 @@ public static class DiagramRenderer
         new BarcodeDiagramHandler(),                           // barcode
         new DataMatrixDiagramHandler(),                        // datamatrix
         new Pdf417DiagramHandler(),                            // pdf417
+        new AztecDiagramHandler(),                             // aztec
     ];
 
     // ── Public API ─────────────────────────────────────────────────────────

@@ -130,6 +130,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `barcode` | ✅ | ✅ — see [Barcodes](#barcodes--sub-support) below |
 | `datamatrix` | ✅ | ✅ — see [Data Matrix](#data-matrix--sub-support) below |
 | `pdf417` | ✅ | ✅ — see [PDF417](#pdf417--sub-support) below |
+| `aztec` | ✅ | ✅ — see [Aztec Code](#aztec-code--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
 
@@ -602,7 +603,7 @@ some Galois field. Those live in [`Markdown/Matrix`](../src/Nexaflow.Visuals.Tex
 | [`IModuleMatrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/IModuleMatrix.cs) | any finished symbol: `Width`, `Height`, and whether a module is dark. Rectangular, because Data Matrix is |
 | [`MatrixSettings`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixSettings.cs) + [`MatrixBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBlockReader.cs) | the drawing settings every 2D block takes, and the line reader that produces them; a symbology's parser reads the fields these hand back and adds its own keys |
 | [`WpfMatrixRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/WpfMatrixRenderer.cs) | the one drawing: aliased module edges so no seam reads as a light line, the quiet-zone `Border`, the tooltip. Takes a row-height multiplier for stacked symbologies |
-| [`GaloisField` + `ReedSolomon`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/ReedSolomon.cs) | parity over a field chosen per symbology — `0x11D` for QR, `0x12D` for Data Matrix, the prime field 929 for PDF417 — with the generator's first root a parameter, because the standards disagree about it and getting it wrong is silent |
+| [`GaloisField` + `ReedSolomon`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/ReedSolomon.cs) | parity over a field chosen per symbology — `0x11D` for QR, `0x12D` for Data Matrix, the prime field 929 for PDF417, and one of `0x13`/`0x43`/`0x12D`/`0x409`/`0x1069` for Aztec by symbol size — with the generator's first root a parameter, because the standards disagree about it and getting it wrong is silent |
 
 The QR code is re-pointed at all of it; its suite is what proves the shared codec. `QrColor` folded into
 `HexColor`. The palette's `QrDark` / `QrLight` pair is what every 2D symbol draws in — a theme retuning
@@ -691,6 +692,54 @@ reads a symbol back: the table reversed, the row indicators cross-checked agains
 (and against each other — the three clusters each carry part of it, so a disagreement is caught rather
 than averaged), every Reed–Solomon syndrome evaluated at its root rather than re-divided, and the
 compaction decoded. The rendered picture is rasterised and read back too.
+
+---
+
+## Aztec Code — sub-support
+
+An **`aztec`** fence generates an Aztec Code (ISO/IEC 24778), registered as an
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/AztecDiagramHandler.cs) beside
+`qr`, `datamatrix` and `pdf417`. Both families are supported: **compact** (11-module core, 1–4 layers,
+15×15 to 27×27) and the **full range** (15-module core, 1–32 layers, 19×19 to 151×151, with a reference
+grid through the larger sizes). `format:` picks one; left alone the encoder takes compact while the
+message fits, because at any given side length a compact symbol carries more.
+
+**The high-level encoder is a shortest path, not a scan**
+([`AztecHighLevelEncoder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecHighLevelEncoder.cs)).
+Every character can be reached several ways — latch into the set it lives in, shift into it for one
+character, or drop a run into a byte shift — and which is cheapest depends on what follows. So it is a
+dynamic program over (position, character set in force). A greedy encoder fails this invisibly: the
+symbol it makes still scans, it is just bigger than it needed to be. `DigitRunsCostLessThanLetterRuns`
+and `ALoneCapitalIsShiftedIntoRatherThanLatched` are the two tests that would catch that. The latch
+table itself is derived by Floyd–Warshall over the ten direct latches rather than written out, because
+the transitive routes are where a hand-copied table is wrong (`Digit → Lower` goes through `Upper`, and
+the cheap way there is not the obvious one).
+
+**Bit stuffing.** A codeword whose leading *width − 1* bits are all equal gets a forced complementary
+bit, so no codeword can be all ones or all zeros — a run that wide would read as reference grid rather
+than as data. `StuffingLeavesNoUniformCodeword` runs 800 run-heavy bit streams through all four widths.
+
+**The geometry was derived from reference images, and is verified against them**
+([`AztecLayout`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecLayout.cs)). This matters more
+here than for the other symbologies: an encoder and a decoder that share a placement walk agree with
+each other whether or not the walk is right, so a round trip proves nothing about the layout. The
+orientation marks (three dark modules then two, one and none, clockwise from the top left), the
+mode-message ring, the data spiral's direction and starting corner, the first Reed–Solomon root, and the
+leading pad bits were all settled by comparing against symbols from two other generators —
+[`AztecReferenceImageTests`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs)
+keeps that check in the suite, and asserts equality module for module, not merely that the text decodes.
+
+**Two closed forms replace two tables.** The symbol size is `(compact ? 11 : 14) + 4·layers`, plus, for
+the full range, the reference-grid lines (`+ 1 + 2·((base/2 − 1) / 15)`); the capacity is
+`((compact ? 88 : 112) + 16·layers) · layers`, which is just the area of the ring the layers occupy.
+Both are asserted against the standard's published tables — all 32 full-range sizes and all 32
+codeword counts — rather than against what the code computes, because a formula that is right for the
+sizes you happened to try is the failure mode here.
+
+Not implemented: **Aztec Runes**, **reader-initialisation symbols**, and **structured append**. The
+first two are defined in the standard's annexes, whose bit-level detail is not public, and there is no
+reference symbol to validate an implementation against; guessing at them would produce symbols that look
+right and carry nothing. Structured append spans several symbols, which a single fenced block is not.
 
 ---
 
@@ -890,6 +939,9 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Matrix/Pdf417EncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417EncoderTests.cs) | The PDF417 encoder: all 2,787 table entries checked against the standard's structural rules, another generator's codewords as a golden vector, text/numeric/byte compaction round-trips, every error-correction level, shapes and truncation. |
 | [`Markdown/Matrix/Pdf417RendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417RendererTests.cs) | The `pdf417` block body and its drawing: dispatch, the shape settings, rows drawn taller than they are wide through the shared renderer's row-height multiplier, and the picture read back. (UI category.) |
 | [`Markdown/Matrix/Pdf417ReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417ReferenceImageTests.cs) | Decodes PDF417 symbols made by other generators. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; this is what proves the ingested table. |
+| [`Markdown/Matrix/AztecEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecEncoderTests.cs) | The Aztec encoder: both published size and codeword-count tables, the data cells of every one of the 36 symbol sizes covering their capacity exactly once, bit stuffing, the choice of family and layer count, forced sizes, error-correction levels, GS1 and ECI, and round trips through the test decoder. |
+| [`Markdown/Matrix/AztecRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecRendererTests.cs) | The `aztec` block body and its drawing: dispatch, `format` / `layers` / `ecc` / `eci`, the GS1 wire form, and the picture read back. (UI category.) |
+| [`Markdown/Matrix/AztecReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs) | Decodes Aztec symbols made by other generators **and** asserts our encoder reproduces them module for module. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; this is the only check that can catch a self-consistent but unreadable layout. |
 
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):

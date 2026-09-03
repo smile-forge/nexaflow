@@ -231,11 +231,124 @@
           }
         ]
       }
+    },
+    "aztec": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/AztecDiagramHandler.cs",
+          "class": "AztecDiagramHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSampleRenderTests.cs",
+            "class": "MarkdownSampleRenderTests",
+            "method": "AztecSampleRenders"
+          }
+        ]
+      }
+    },
+    "aztec-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecEncoder.cs",
+          "class": "AztecEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecHighLevelEncoder.cs",
+          "class": "AztecHighLevelEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecCharacterSets.cs",
+          "class": "AztecCharacterSets"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecEncoderTests.cs",
+            "class": "AztecEncoderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecTestDecoder.cs",
+            "class": "AztecTestDecoder"
+          }
+        ]
+      }
+    },
+    "aztec-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecLayout.cs",
+          "class": "AztecLayout"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs",
+            "class": "AztecReferenceImageTests"
+          }
+        ]
+      }
+    },
+    "aztec-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecBlockParser.cs",
+          "class": "AztecBlockParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecRendererTests.cs",
+            "class": "AztecRendererTests",
+            "method": "ReadsItsOwnShapeSettings"
+          }
+        ]
+      }
+    },
+    "aztec-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/WpfAztecRenderer.cs",
+          "class": "WpfAztecRenderer"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecRendererTests.cs",
+            "class": "AztecRendererTests",
+            "method": "ThePictureReadsBack"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 22,
+  "changed_sets": 32,
   "touched_nodes": [
+    "aztec",
+    "aztec-block-syntax",
+    "aztec-encoder",
+    "aztec-layout",
+    "aztec-render",
     "barcode",
     "datamatrix",
     "datamatrix-block-syntax",
