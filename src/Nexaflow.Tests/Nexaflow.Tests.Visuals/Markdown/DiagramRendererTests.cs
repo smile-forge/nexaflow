@@ -785,4 +785,221 @@ public class DiagramRendererTests
         var d = new MermaidCynefinParser().Parse("cynefin-beta\n");
         Assert.IsNotNull(WpfCynefinRenderer.Render(d, MarkdownPalette.Dark));
     });
+
+    // ── Timeline ──────────────────────────────────────────────────────────
+
+    private const string TimelineSrc =
+        """
+        timeline
+            title History of Social Media Platform
+            2002 : LinkedIn
+            2004 : Facebook
+                 : Google
+            2005 : YouTube
+            2006 : Twitter
+        """;
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidTimelineParser().Parse(TimelineSrc);
+        Assert.IsInstanceOfType(WpfTimelineRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_DispatchesToTimelineRendererNotRawText() => UiThread.Run(() =>
+    {
+        var fe = DiagramRenderer.Render("mermaid", TimelineSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        // The raw-source fallback wraps a TextBlock; the timeline renderer wraps a scrolling canvas.
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_SectionsDisableMulticolorAndFrontmatterTitle_Render() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            title: Ages of industry
+            config:
+              timeline:
+                disableMulticolor: true
+              themeVariables:
+                cScale0: "#4e79a7"
+                cScaleLabel0: "#ffffff"
+            ---
+            timeline
+                section Stone Age
+                    7000 BC : Stone tools
+                section Bronze Age
+                    2000 BC : Bronze tools<br>Wheel
+            """;
+        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Light);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_TopDownDirection_Renders() => UiThread.Run(() =>
+    {
+        var d = new MermaidTimelineParser().Parse("timeline\n  direction TD\n  title Down\n  section S\n  2020 : a : b\n  2021\n");
+        Assert.IsInstanceOfType(WpfTimelineRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidTimelineParser().Parse("timeline\n");
+        Assert.IsNotNull(WpfTimelineRenderer.Render(d, MarkdownPalette.Dark));
+    });
+
+    // ── Journey ───────────────────────────────────────────────────────────
+
+    private const string JourneySrc =
+        """
+        journey
+            title My working day
+            section Go to work
+              Make tea: 5: Me
+              Go upstairs: 3: Me
+              Do work: 1: Me, Cat
+            section Go home
+              Go downstairs: 5: Me
+              Sit down: 5: Me
+        """;
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidJourneyParser().Parse(JourneySrc);
+        Assert.IsInstanceOfType(WpfJourneyRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_DispatchesToJourneyRendererNotRawText() => UiThread.Run(() =>
+    {
+        var fe = DiagramRenderer.Render("mermaid", JourneySrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_AllFiveScoresAndConfig_Render() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            config:
+              journey:
+                width: 120
+                actorColours: ["#e15759", "#4e79a7"]
+                sectionFills: ["#f28e2b"]
+            ---
+            journey
+                title Every face
+                Before: 3
+                section Scores
+                  One: 1: Me
+                  Two: 2: Me, Cat
+                  Three: 3: Cat
+                  Four: 4: Me
+                  Five: 5: Me, Cat, Dog
+            """;
+        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Light);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidJourneyParser().Parse("journey\n");
+        Assert.IsNotNull(WpfJourneyRenderer.Render(d, MarkdownPalette.Dark));
+    });
+
+    // ── Block diagram ─────────────────────────────────────────────────────
+
+    private const string BlockSrc =
+        """
+        block-beta
+          columns 3
+          Frontend blockArrowId6<[" "]>(right) Backend
+          space:2 down<[" "]>(down)
+          Disk left<[" "]>(left) Database[("Database")]
+
+          classDef front fill:#696,stroke:#333;
+          classDef back fill:#969,stroke:#333;
+          class Frontend front
+          class Backend,Database back
+        """;
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_RendersBorder() => UiThread.Run(() =>
+    {
+        var d = new MermaidBlockParser().Parse(BlockSrc);
+        Assert.IsInstanceOfType(WpfBlockRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
+    });
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_DispatchesToBlockRendererNotRawText() => UiThread.Run(() =>
+    {
+        var fe = DiagramRenderer.Render("mermaid", BlockSrc, MarkdownPalette.Dark);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        // The raw-source fallback wraps a TextBlock; the block renderer wraps a scrolling canvas.
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_NestedGroupsEdgesAndEveryShape_Render() => UiThread.Run(() =>
+    {
+        const string src =
+            """
+            ---
+            title: Everything at once
+            config:
+              block:
+                padding: 12
+            ---
+            block-beta
+              columns 4
+              db(("DB")) blockArrowId6<["&nbsp;"]>(down) both<["x"]>(x) updown<["y"]>(y)
+              block:ID:2
+                A
+                B["A wide one in the middle"]
+                C
+              end
+              space D
+              b("round") c(["stadium"]) d[["subroutine"]] e[("cylinder")]
+              g>"flag"] h{"rhombus"} i{{"hexagon"}} n((("double circle")))
+              j[/"parallelogram"/] k[\"alt"\] l[/"trapezoid"\] m[\"alt"/]
+              ID --> D
+              C -- "label" --> D
+              A --- b
+              style B fill:#969,stroke:#333,stroke-width:4px,color:#fff,stroke-dasharray: 5 5
+            """;
+        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Light);
+        Assert.IsInstanceOfType(fe, typeof(Border));
+        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
+    });
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    {
+        var d = new MermaidBlockParser().Parse("block-beta\n");
+        Assert.IsNotNull(WpfBlockRenderer.Render(d, MarkdownPalette.Dark));
+    });
 }

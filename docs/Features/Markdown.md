@@ -492,6 +492,65 @@ venn-beta
 
 ![A three-circle Venn diagram with a central intersection](images/markdown/mermaid-venn.png)
 
+### Timeline
+
+Periods along a spine, each with its events stacked beneath; sections band the periods they group.
+
+````markdown
+```mermaid
+timeline
+    title History of Social Media Platform
+    2002 : LinkedIn
+    2004 : Facebook
+         : Google
+    2005 : YouTube
+    2006 : Twitter
+```
+````
+
+![A timeline of periods on a spine with events stacked beneath each](images/markdown/mermaid-timeline.png)
+
+### User journey
+
+Scored steps of a task: a face per score floats higher for a better experience, and each actor gets a colour.
+
+````markdown
+```mermaid
+journey
+    title My working day
+    section Go to work
+      Make tea: 5: Me
+      Go upstairs: 3: Me
+      Do work: 1: Me, Cat
+    section Go home
+      Go downstairs: 5: Me
+      Sit down: 5: Me
+```
+````
+
+![A user journey with section bands, scored faces and actor dots](images/markdown/mermaid-journey.png)
+
+### Block diagram
+
+Blocks on a grid you place yourself: columns, spans, spaces, nested blocks, fat block arrows and edges by id.
+
+````markdown
+```mermaid
+block-beta
+  columns 3
+  Frontend blockArrowId6<[" "]>(right) Backend
+  space:2 down<[" "]>(down)
+  Disk left<[" "]>(left) Database[("Database")]
+
+  classDef front fill:#696,stroke:#333;
+  classDef back fill:#969,stroke:#333;
+  class Frontend front
+  class Backend,Database back
+```
+````
+
+![A block diagram with block arrows, a database cylinder and class-coloured blocks](images/markdown/mermaid-block.png)
+
 ---
 
 ## QR codes
