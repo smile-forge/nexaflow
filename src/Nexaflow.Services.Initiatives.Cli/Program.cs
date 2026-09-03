@@ -6,6 +6,8 @@ using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
+using Nexaflow.Services.Initiatives.Cli.Daemon;
+using Nexaflow.Services.Initiatives.Hosting;
 
 namespace Nexaflow.Services.Initiatives.Cli;
 
@@ -23,6 +25,12 @@ internal static class Program
     private const int Clean = 0, Broken = 1, Error = 2;
     private const int WholeFilePreview = 40;   // describe --code: cap for a whole-file (no class/method) snaplink
 
+    /// <summary>
+    /// Every invocation hands its command to the resident process for this tree, which holds the graph in
+    /// memory. That is the whole of the difference: the verbs below are unchanged, and a caller sees what it
+    /// always saw. The one exception is the hidden mode that <i>is</i> that process — see
+    /// <see cref="DaemonServer"/>, which cannot be started any other way.
+    /// </summary>
     private static int Main(string[] args)
     {
         // Say what the output actually is. The console's default code page cannot represent the em dashes and
@@ -31,8 +39,56 @@ internal static class Program
         // wrong. Guarded because a redirected or absent console rejects the assignment.
         try { Console.OutputEncoding = new UTF8Encoding(false); } catch { /* not a console we can set */ }
 
+        if (args.Length > 0 && args[0] == DaemonServer.ModeArgument) return DaemonServer.Run(args);
+
         WarnIfPublishedExeIsStale();
 
+        // Usage needs no tree and no graph, so it is answered here rather than paying to start a process.
+        if (args.Length == 0 || args[0] is "-h" or "--help" or "help") return Usage();
+
+        try
+        {
+            // Silently here: the client resolves the root only to key the pipe, and the daemon prints the note
+            // itself when it runs the command. Saying it in both places said it twice.
+            _rootNoteShown = true;
+            var productRoot = ResolveRoot(args.Skip(1));
+            return DaemonClient.Run(args, productRoot, CallerWorkingTree(productRoot));
+        }
+        catch (DaemonUnavailableException ex)
+        {
+            Console.Error.WriteLine($"error: {ex.Message}");
+            return Error;
+        }
+    }
+
+    /// <summary>
+    /// The caller's own working tree when it is a worktree of this product, else null for the main checkout.
+    /// The daemon cannot work this out for itself — it is started once and asked from everywhere — so the
+    /// client states it, using the same rule every verb already applies to decide whose source it is reading.
+    /// </summary>
+    private static string? CallerWorkingTree(string productRoot)
+    {
+        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
+        return TryFindMainCheckout(caller, out var main) && PathsEqual(main, productRoot) ? caller : null;
+    }
+
+    /// <summary>Clears the state a one-shot process would have started without — notes that are shown once,
+    /// and nothing else. Called by the daemon before each command so its output does not depend on how many
+    /// commands preceded it.</summary>
+    internal static void ResetPerCommandState() => _rootNoteShown = false;
+
+    /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
+    /// read it from. Null in a one-shot process, where <see cref="ReadStdin"/> reads the real thing.</summary>
+    internal static string? StandardInput { get; set; }
+
+    /// <summary>The warm host, when running inside the daemon. Null in a one-shot process, which builds its
+    /// own for the length of the command — same object, shorter life.</summary>
+    internal static InitiativesHost? Host { get; set; }
+
+    /// <summary>The verb dispatch. Called by the daemon per request, and by nothing else.</summary>
+    internal static int Execute(string[] args)
+    {
         if (args.Length == 0 || args[0] is "-h" or "--help" or "help") return Usage();
 
         return args[0] switch
@@ -526,18 +582,38 @@ internal static class Program
         return Clean;
     }
 
+    /// <summary>
+    /// The graph for this root, from the warm host when there is one and from disk when there is not.
+    /// <para>
+    /// The two are the same object either way — <see cref="GraphWorkspace"/> holds exactly what
+    /// <c>LoadGraph</c> would have returned, and checks it against the files on disk before handing it over. So
+    /// a command answers identically whether it ran inside the resident process or a one-shot one; the only
+    /// difference is that the resident one already had it.
+    /// </para>
+    /// </summary>
     private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code, bool main = false)
     {
         graph = null!;
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
-        var loaded = GraphStore(root, main).LoadGraph();
+
+        var store  = GraphStore(root, main);
+        var loaded = Workspace(root, main, store)?.Graph ?? store.LoadGraph();
+
         if (loaded is null)
         {
-            Console.Error.WriteLine($"error: no graph at {GraphStore(root, main).GraphFilePath} — build it first with: graph {root}");
+            Console.Error.WriteLine($"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
             code = Error; return false;
         }
         graph = loaded; code = Clean; return true;
     }
+
+    /// <summary>
+    /// This root's warm workspace, or null when nothing is holding one — a one-shot process, or a test calling
+    /// straight into a verb. The store is passed in already resolved because working out <i>which</i> archive a
+    /// worktree reads, and seeding it from the main checkout the first time, is the CLI's rule and stays here.
+    /// </summary>
+    private static GraphWorkspace? Workspace(string root, bool main, ProductStore store) =>
+        Host is { } host ? host.Workspace(CodeRootOrNull(root, main), store) : null;
 
     // TypeRank / NodeLine / BlockEnd / BuildAdjacency / Bfs were once declared here as private copies of the
     // GraphQuery and GraphReport originals. They are gone, and call sites use the library directly: this file
@@ -1208,6 +1284,9 @@ internal static class Program
     /// </summary>
     private static string ReadStdin()
     {
+        // Inside the daemon there is no console to open: the client read the pipe's worth and carried it.
+        if (StandardInput is { } carried) return carried;
+
         using var reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         return reader.ReadToEnd();
     }

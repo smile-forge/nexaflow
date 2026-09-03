@@ -42,4 +42,9 @@ public readonly record struct FileStamp(string Hash, long Length, DateTime Modif
     /// and a miss only means "read it and hash it", never "assume it changed".</summary>
     public bool Matches(long length, DateTime modifiedUtc) =>
         Length == length && ModifiedUtc == modifiedUtc;
+
+    /// <summary>Whether this stamp says anything. An archive written before stamps were recorded carries
+    /// one of these for every file, and "unknown" has to mean unknown rather than changed — the difference
+    /// between a scan and an accidental rebuild of the whole repository.</summary>
+    public bool IsKnown => Length > 0 || ModifiedUtc != default;
 }

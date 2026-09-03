@@ -66,11 +66,15 @@ public sealed class InitiativesHost : IDisposable
     }
 
     /// <summary>
-    /// The warm graph for one working tree. <paramref name="codeRoot"/> is that tree's path, or null for the
-    /// main checkout — the same distinction every caller of this domain already makes, so the daemon's
-    /// protocol carries it verbatim rather than inventing a second vocabulary for it.
+    /// The warm graph for one working tree. <paramref name="codeRoot"/> is that tree, or null for the main
+    /// checkout — the same distinction every caller of this domain already makes, so the daemon carries it
+    /// verbatim rather than inventing a second vocabulary for it.
+    /// <para>
+    /// The store is supplied rather than derived: which archive a worktree reads, and whether to seed it from
+    /// the main checkout on first use, is a policy its caller owns. The host owns the lifetime, not the rule.
+    /// </para>
     /// </summary>
-    public GraphWorkspace Workspace(string? codeRoot)
+    public GraphWorkspace Workspace(string? codeRoot, ProductStore? store = null)
     {
         var key = codeRoot is { Length: > 0 } ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)) : "";
 
@@ -79,8 +83,8 @@ public sealed class InitiativesHost : IDisposable
             if (_workspaces.TryGetValue(key, out var existing)) return existing;
 
             var scope = key.Length == 0 ? null : Path.GetFileName(key);
-            var store = scope is null ? _store : new ProductStore(ProductRoot, scope);
-            return _workspaces[key] = new GraphWorkspace(store, ProductRoot, key.Length == 0 ? null : key);
+            var bound = store ?? (scope is null ? _store : new ProductStore(ProductRoot, scope));
+            return _workspaces[key] = new GraphWorkspace(bound, ProductRoot, key.Length == 0 ? null : key);
         }
     }
 

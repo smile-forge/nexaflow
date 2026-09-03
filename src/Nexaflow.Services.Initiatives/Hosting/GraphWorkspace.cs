@@ -117,11 +117,15 @@ public sealed class GraphWorkspace
 
     /// <summary>
     /// Brings the held snapshot back in line with the files on disk: re-extract what changed, add what
-    /// appeared, forget what went.
+    /// appeared, leave alone what this tree simply does not have.
     /// <para>
     /// A file is judged by its stamp — length and write time, one stat, no read — and only a disagreement
-    /// costs a parse. An archive written before stamps existed has none, and every file then looks changed,
-    /// which is correct but slow exactly once: the flush that follows records them.
+    /// costs a parse. A stamp of nothing means the archive predates stamps being recorded, and that case has
+    /// to be handled rather than defaulted: treating unknown as changed asks for a full re-extract of every
+    /// file in the repository on the first call after an upgrade, which is a rebuild wearing a scan's clothes
+    /// and it is how this first hung. Unknown falls back to what the freshness report has always used — the
+    /// archive's own write time as the baseline — and the flush that follows records real stamps, so it
+    /// happens once.
     /// </para>
     /// </summary>
     private void Reconcile(GraphSnapshot snapshot)
@@ -129,21 +133,26 @@ public sealed class GraphWorkspace
         var known = snapshot.Cache.Files.Keys.ToList();
         if (known.Count == 0) return;
 
+        DateTime baseline;
+        try { baseline = File.GetLastWriteTimeUtc(Store.GraphFilePath); }
+        catch (IOException) { return; }
+
         foreach (var rel in known)
         {
             var full = Path.Combine(SourceRoot, rel.Replace('/', Path.DirectorySeparatorChar));
             var info = Info(full);
 
-            if (info is null)
-            {
-                // Absent is not deleted. The archive is shared with checkouts that have files this one does
-                // not — a submodule, another branch's work — and forgetting on sight would have each tree
-                // quietly erase the others' code from a graph they all read.
-                continue;
-            }
+            // Absent is not deleted. The archive is shared with checkouts that have files this one does not —
+            // a submodule, another branch's work — and forgetting on sight would have each tree quietly erase
+            // the others' code from a graph they all read.
+            if (info is null) continue;
 
-            if (snapshot.Files.TryGetValue(rel, out var stamp) && stamp.Matches(info.Length, info.LastWriteTimeUtc))
-                continue;
+            var stamp   = snapshot.Files.TryGetValue(rel, out var s) ? s : default;
+            var current = stamp.IsKnown
+                ? stamp.Matches(info.Length, info.LastWriteTimeUtc)
+                : info.LastWriteTimeUtc <= baseline;
+
+            if (current) continue;
 
             if (GraphBuilder.RefreshFile(snapshot.Graph, snapshot.Cache, ProductRoot, rel, CodeRoot))
                 _dirty = true;
