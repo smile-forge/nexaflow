@@ -31,6 +31,10 @@ public sealed class InitiativesHost : IDisposable
     private readonly ProductStore _store;
     private FileChangeWatcher? _treeWatcher;
     private ProductState? _tree;
+
+    /// <summary>The file as this process last wrote it, so the notification that write causes can be told
+    /// apart from someone else's edit. Cleared by the one event it accounts for.</summary>
+    private (long Length, DateTime Modified)? _selfWrite;
     private bool _disposed;
 
     /// <param name="productRoot">The checkout that holds <c>.product</c> — the main one, always.</param>
@@ -100,6 +104,48 @@ public sealed class InitiativesHost : IDisposable
             try { workspace.Flush(); } catch (IOException) { /* a tree that cannot be written is not worth failing shutdown over */ }
     }
 
+    /// <summary>
+    /// Records a tree written by this process: updates the copy held here, folds the change into every graph,
+    /// and stops the watcher rediscovering what we already know.
+    /// <para>
+    /// The watcher exists for edits made elsewhere — a person with the file open, another checkout's tooling.
+    /// For our own writes it is pure rediscovery: re-reading a file we just produced, re-hashing a tree we just
+    /// held, to reach a conclusion we already had. Worse, it arrives a debounce later, so a command could return
+    /// before the graph it just changed agreed with it.
+    /// </para>
+    /// </summary>
+    public void TreeSaved(ProductState state)
+    {
+        GraphWorkspace[] workspaces;
+        lock (_gate)
+        {
+            if (_disposed) return;
+
+            _tree = state;
+
+            // Armed from the file as it now stands, so the notification this write is about to cause is matched
+            // by what it wrote rather than by a timer. An edit that lands in the same millisecond from somewhere
+            // else is indistinguishable and would be skipped — which is why this is only armed for one event.
+            _selfWrite = Stamp();
+            workspaces = [.. _workspaces.Values];
+        }
+
+        foreach (var workspace in workspaces)
+            try { workspace.RebuildProductLayer(state); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// <summary>The authored tree's file as it stands, for telling our own write apart from someone else's.</summary>
+    private (long Length, DateTime Modified)? Stamp()
+    {
+        try
+        {
+            var info = new FileInfo(_store.TreeFilePath);
+            return info.Exists ? (info.Length, info.LastWriteTimeUtc) : null;
+        }
+        catch (IOException) { return null; }
+    }
+
     private void Watch()
     {
         if (_treeWatcher is not null || !File.Exists(_store.TreeFilePath)) return;
@@ -113,6 +159,16 @@ public sealed class InitiativesHost : IDisposable
         lock (_gate)
         {
             if (_disposed) return;
+
+            // Our own write, already folded in by TreeSaved. Re-reading it would reach the same answer a
+            // debounce late and for nothing.
+            if (_selfWrite is { } mine && Stamp() is { } now
+                && mine.Length == now.Length && mine.Modified == now.Modified)
+            {
+                _selfWrite = null;
+                return;
+            }
+
             _tree = _store.Load();
         }
 

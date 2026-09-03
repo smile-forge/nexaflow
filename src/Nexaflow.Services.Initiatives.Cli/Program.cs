@@ -103,6 +103,27 @@ internal static class Program
         else store.SaveSnapshot(graph, cache);
     }
 
+    /// <summary>
+    /// The authored tree. From the warm host when one is holding it — it keeps its copy current itself,
+    /// watching the file for edits made anywhere else — and from disk when nothing is.
+    /// </summary>
+    private static ProductState LoadTree(string root, ProductStore store) =>
+        Host is { } host && PathsEqual(host.ProductRoot, root) ? host.Tree : store.Load();
+
+    /// <summary>
+    /// Writes the tree and tells whoever is holding one what it now says.
+    /// <para>
+    /// Telling it directly, rather than letting the file watcher discover the write, is the difference
+    /// between the graph agreeing with the command that just ran and agreeing a debounce later — and it
+    /// skips re-reading a file we produced to learn something we already knew.
+    /// </para>
+    /// </summary>
+    private static void SaveTree(string root, ProductStore store, ProductState state)
+    {
+        store.SaveTree(state.Nodes);
+        if (Host is { } host && PathsEqual(host.ProductRoot, root)) host.TreeSaved(state);
+    }
+
     /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
     /// read it from. Null in a one-shot process, where <see cref="ReadStdin"/> reads the real thing.</summary>
     internal static string? StandardInput { get; set; }
@@ -373,7 +394,7 @@ internal static class Program
         try
         {
             var store = new ProductStore(root);
-            var state = store.Load();
+            var state = LoadTree(root, store);
             // The coverage manifest gates [CoversNode] ids that no longer exist. It is derived, gitignored
             // state, so LoadTestCoverage() returning null (clean CI checkout, or scan-tests never run) simply
             // means that check is skipped — never a failure, and never a false all-clear either.
@@ -523,7 +544,7 @@ internal static class Program
         try
         {
             var store = GraphStore(root, a.Has("--main"));
-            var state = store.Load();
+            var state = LoadTree(root, store);
             var options = new GraphBuildOptions
             {
                 Scope = wholeRepo ? GraphScope.WholeRepo : GraphScope.ProductAnchored,
@@ -2536,11 +2557,11 @@ internal static class Program
 
         try
         {
-            var state   = new ProductStore(root).Load();
+            var state   = LoadTree(root, new ProductStore(root));
             var applied = sets.Sum(p => p.ApplyTo(state));
             var paths   = store.RelativePaths(PendingRoot(root), sets);
 
-            new ProductStore(root).SaveTree(state.Nodes);
+            SaveTree(root, new ProductStore(root), state);
             foreach (var pending in sets) store.Delete(pending.Branch);
 
             var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
@@ -2639,7 +2660,7 @@ internal static class Program
             return Clean;
         }
 
-        new ProductStore(root).SaveTree(state.Nodes);
+        SaveTree(root, new ProductStore(root), state);
 
         var paths = store.RelativePaths(PendingRoot(root), sets);
         foreach (var pending in sets) store.Delete(pending.Branch);
@@ -2683,7 +2704,7 @@ internal static class Program
         // unmerged branch that claim is not true anywhere but here. So a link change on a branch goes to the
         // branch's pending set and not into the shared tree. In the main checkout there is no branch to
         // defer to and the write happens normally.
-        if (branch is null) store.SaveTree(state.Nodes);
+        if (branch is null) SaveTree(root, store, state);
         else
         {
             var pending = CapturePending(state, root, branch, touchedLinks!);
@@ -2692,7 +2713,7 @@ internal static class Program
             // Restoring rather than skipping the write is what lets one batch add a node and change a
             // snaplink: the node lands, the link stays with the branch. Skipping would lose the node.
             RestoreSharedLinks(state, store.Load(), touchedLinks!);
-            store.SaveTree(state.Nodes);
+            SaveTree(root, store, state);
 
             pending.ApplyTo(state);   // back to the branch's view, so the validation below reports on it
         }
@@ -3107,7 +3128,7 @@ internal static class Program
         }
 
         var store = new ProductStore(root);
-        store.SaveTree(state.Nodes);
+        SaveTree(root, store, state);
         var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         store.SaveIntegrity(report);
         Console.WriteLine($"Repaired {repairs.Count} parent(s) and re-rooted {worktreeLinks.Count} worktree snaplink(s)."
@@ -3161,7 +3182,7 @@ internal static class Program
         if (!ProductStore.Exists(root)) { Console.Error.WriteLine($"error: no .product/ under {root}."); code = Error; return false; }
         try
         {
-            state = new ProductStore(root).Load();
+            state = LoadTree(root, new ProductStore(root));
             if (applyPending && PendingBranch(root) is { } branch)
                 PendingStoreFor(root).Load(branch).ApplyTo(state);
             code = Clean;
