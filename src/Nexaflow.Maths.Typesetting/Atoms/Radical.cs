@@ -17,8 +17,7 @@ internal sealed record Radical : Atom
 
     private const double scale = 0.55;
 
-    public Radical(SourceSpan? source, Atom baseAtom, Atom? degreeAtom = null)
-        : base(source)
+    public Radical(Atom baseAtom, Atom? degreeAtom = null)
     {
         this.BaseAtom = baseAtom;
         this.DegreeAtom = degreeAtom;
@@ -76,7 +75,7 @@ internal sealed record Radical : Atom
         var resultBox = new HorizontalBox();
 
         // Add box for negative kern.
-        var negativeKern = new SpaceAtom(null, TexUnit.Mu, -10, 0, 0).CreateBox(environment);
+        var negativeKern = new SpaceAtom(TexUnit.Mu, -10, 0, 0).CreateBox(environment);
         var xPos = rootBox.Width + negativeKern.Width;
         if (xPos < 0)
             resultBox.Add(new StrutBox(-xPos, 0, 0, 0));

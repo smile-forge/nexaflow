@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 using System.Collections.Generic;
 
@@ -9,8 +9,7 @@ internal sealed record TypedAtom : Atom
 {
     public override IReadOnlyList<FormulaSlot> Slots => Parts(("base", Atom));
 
-    public TypedAtom(SourceSpan? source, Atom? atom, TexAtomType leftType, TexAtomType rightType)
-        : base(source)
+    public TypedAtom(Atom? atom, TexAtomType leftType, TexAtomType rightType)
     {
         this.Atom = atom;
         this.LeftType = leftType;

@@ -1,4 +1,4 @@
-module WpfMath.Tests.BoxTests
+﻿module WpfMath.Tests.BoxTests
 
 open System
 
@@ -12,8 +12,6 @@ open WpfMath.Tests.Utils
 open XamlMath
 open XamlMath.Atoms
 open XamlMath.Boxes
-
-let private src (string: string) (start: int) (len: int) = SourceSpan("User input", string, start, len)
 
 let private environment = WpfTeXEnvironment.Create()
 
@@ -51,8 +49,8 @@ let ``Box for \text{æ,} should be created successfully``() =
 let ``ScriptsAtom should set Shift on the created box when creating box without any sub- or superscript``() =
     Utils.initializeFontResourceLoading()
 
-    let baseAtom = CharAtom(src "x" 0 1, 'x')
-    let scriptsAtom = ScriptsAtom(null, baseAtom, null, null)
+    let baseAtom = CharAtom('x')
+    let scriptsAtom = ScriptsAtom(baseAtom, null, null)
 
     let box = scriptsAtom.CreateBox(environment)
 

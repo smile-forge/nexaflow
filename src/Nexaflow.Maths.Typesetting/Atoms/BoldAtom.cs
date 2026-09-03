@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -7,8 +7,7 @@ namespace XamlMath.Atoms;
 // because it acts when the character is resolved rather than when it is chosen.
 internal sealed record BoldAtom : Atom
 {
-    public BoldAtom(SourceSpan? source, Atom? baseAtom)
-        : base(source)
+    public BoldAtom(Atom? baseAtom)
     {
         this.BaseAtom = baseAtom;
     }

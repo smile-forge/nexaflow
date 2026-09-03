@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 using XamlMath.Rendering;
 
 namespace XamlMath.Atoms;
@@ -7,13 +7,11 @@ namespace XamlMath.Atoms;
 internal sealed record StyledAtom : Atom, IRow
 {
     public StyledAtom(
-        SourceSpan? source,
         Atom? atom,
         IBrush? backgroundColor,
         IBrush? foregroundColor)
-        : base(source)
     {
-        this.RowAtom = new RowAtom(source, atom);
+        this.RowAtom = new RowAtom(atom);
         this.Background = backgroundColor;
         this.Foreground = foregroundColor;
     }

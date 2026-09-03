@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 using System.Collections.Generic;
 
@@ -28,62 +28,58 @@ internal sealed record FractionAtom : Atom
     private readonly double? lineRelativeThickness;
 
     public FractionAtom(
-        SourceSpan? source,
         Atom? numerator,
         Atom? denominator,
         double relativeThickness,
         TexAlignment numeratorAlignment,
         TexAlignment denominatorAlignment)
-        : this(source, numerator, denominator, true, numeratorAlignment, denominatorAlignment)
+        : this(numerator, denominator, true, numeratorAlignment, denominatorAlignment)
     {
         this.lineRelativeThickness = relativeThickness;
     }
 
     public FractionAtom(
-        SourceSpan? source,
         Atom? numerator,
         Atom? denominator,
         bool drawLine,
         TexAlignment numeratorAlignment,
         TexAlignment denominatorAlignment)
-        : this(source, numerator, denominator, drawLine)
+        : this(numerator, denominator, drawLine)
     {
         this.numeratorAlignment = CheckAlignment(numeratorAlignment);
         this.denominatorAlignment = CheckAlignment(denominatorAlignment);
     }
 
-    public FractionAtom(SourceSpan? source, Atom? numerator, Atom? denominator, bool drawLine)
-        : this(source, numerator, denominator, drawLine, TexUnit.Pixel, 0d)
+    public FractionAtom(Atom? numerator, Atom? denominator, bool drawLine)
+        : this(numerator, denominator, drawLine, TexUnit.Pixel, 0d)
     {
     }
 
     public FractionAtom(
-        SourceSpan? source,
         Atom? numerator,
         Atom? denominator,
         TexUnit unit,
         double thickness,
         TexAlignment numeratorAlignment,
         TexAlignment denominatorAlignment)
-        : this(source, numerator, denominator, unit, thickness)
+        : this(numerator, denominator, unit, thickness)
     {
         this.numeratorAlignment = CheckAlignment(numeratorAlignment);
         this.denominatorAlignment = CheckAlignment(denominatorAlignment);
     }
 
-    public FractionAtom(SourceSpan? source, Atom? numerator, Atom? denominator, TexUnit unit, double thickness)
-        : this(source, numerator, denominator, false, unit, thickness)
+    public FractionAtom(Atom? numerator, Atom? denominator, TexUnit unit, double thickness)
+        : this(numerator, denominator, false, unit, thickness)
     {
     }
 
     private FractionAtom(
-        SourceSpan? source,
         Atom? numerator,
         Atom? denominator,
         bool useDefaultThickness,
         TexUnit unit,
         double thickness)
-        : base(source, TexAtomType.Inner)
+        : base(TexAtomType.Inner)
     {
         SpaceAtom.CheckUnit(unit);
 
@@ -281,7 +277,7 @@ internal sealed record FractionAtom : Atom
         }
         else
         {
-            double lineHeight = (new SpaceAtom(null, this.lineThicknessUnit, 0, this.lineThickness, 0)).CreateBox(environment).Height;
+            double lineHeight = (new SpaceAtom(this.lineThicknessUnit, 0, this.lineThickness, 0)).CreateBox(environment).Height;
             return new(defaultLineThickness, lineHeight);
         }
     }

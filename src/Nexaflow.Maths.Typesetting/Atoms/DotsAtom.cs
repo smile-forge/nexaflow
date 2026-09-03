@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -17,8 +17,7 @@ internal sealed record DotsAtom : Atom
 
     private readonly DotsShape _shape;
 
-    public DotsAtom(SourceSpan? source, DotsShape shape)
-        : base(source)
+    public DotsAtom(DotsShape shape)
     {
         _shape = shape;
     }
@@ -28,7 +27,7 @@ internal sealed record DotsAtom : Atom
         var font = environment.MathFont;
         var style = environment.Style;
 
-        Box CreateDot() => SymbolAtom.GetAtom(DotSymbolName, null).CreateBox(environment);
+        Box CreateDot() => SymbolAtom.GetAtom(DotSymbolName).CreateBox(environment);
 
         var firstDot = CreateDot();
         var quad = font.GetQuad(firstDot.GetLastFontId(), style);

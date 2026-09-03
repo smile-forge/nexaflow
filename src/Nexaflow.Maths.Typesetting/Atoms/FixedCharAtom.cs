@@ -1,4 +1,4 @@
-using XamlMath.Fonts;
+﻿using XamlMath.Fonts;
 using XamlMath.Utils;
 
 namespace XamlMath.Atoms;
@@ -6,8 +6,7 @@ namespace XamlMath.Atoms;
 // Atom representing character that does not depend on text style.
 internal sealed record FixedCharAtom : CharSymbol
 {
-    public FixedCharAtom(SourceSpan? source, CharFont charFont)
-        : base(source)
+    public FixedCharAtom(CharFont charFont)
     {
         this.CharFont = charFont;
     }

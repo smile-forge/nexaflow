@@ -1,4 +1,4 @@
-using XamlMath.Fonts;
+﻿using XamlMath.Fonts;
 using XamlMath.Utils;
 
 namespace XamlMath.Atoms;
@@ -6,8 +6,7 @@ namespace XamlMath.Atoms;
 // Atom representing single character in specific text style.
 internal sealed record CharAtom : CharSymbol
 {
-    public CharAtom(SourceSpan? source, char character, string? textStyle = null)
-        : base(source)
+    public CharAtom(char character, string? textStyle = null)
     {
         this.TextStyle = textStyle;
         this.Character = character;

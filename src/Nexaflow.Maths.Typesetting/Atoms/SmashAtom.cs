@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 using System.Collections.Generic;
 
@@ -10,8 +10,7 @@ internal sealed record SmashAtom : Atom
 {
     public override IReadOnlyList<FormulaSlot> Slots => Parts(("base", BaseAtom));
 
-    public SmashAtom(SourceSpan? source, Atom? baseAtom)
-        : base(source)
+    public SmashAtom(Atom? baseAtom)
     {
         this.BaseAtom = baseAtom;
     }

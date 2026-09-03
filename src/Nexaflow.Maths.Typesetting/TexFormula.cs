@@ -56,7 +56,7 @@ public sealed class TexFormula
         }
         else
         {
-            RootAtom = new StyledAtom(RootAtom?.Source, RootAtom, null, brush);
+            RootAtom = new StyledAtom(RootAtom, null, brush);
         }
     }
 
@@ -68,7 +68,7 @@ public sealed class TexFormula
         }
         else
         {
-            this.RootAtom = new StyledAtom(this.RootAtom?.Source, this.RootAtom, brush, null);
+            this.RootAtom = new StyledAtom(this.RootAtom, brush, null);
         }
     }
 

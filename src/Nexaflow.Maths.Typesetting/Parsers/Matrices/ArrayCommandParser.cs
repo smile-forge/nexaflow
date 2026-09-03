@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using XamlMath.Atoms;
 using XamlMath.Exceptions;
@@ -23,13 +23,11 @@ internal sealed class ArrayCommandParser
     /// <see cref="MatrixCommandParser.Assemble"/>, which this is the <c>array</c> half of.
     /// </summary>
     internal static Atom Assemble(
-        SourceSpan? source,
         IEnumerable<IEnumerable<Atom?>> cells,
         ArrayColumnSpec spec,
         IReadOnlyCollection<int>? horizontalRules,
         Nexaflow.Maths.Latex.TexPart? origin = null) =>
         new MatrixAtom(
-            source,
             cells,
             MatrixCellAlignment.Center,
             // Rows a line apart, struts rather than padding — the same as any other table, and the half of

@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -38,30 +38,26 @@ internal sealed record RowAtom : Atom, IRow
         ligatureKernChangeSet.Set((int)TexAtomType.Punctuation, true);
     }
 
-    public RowAtom(SourceSpan? source, Atom? baseAtom)
+    public RowAtom(Atom? baseAtom)
         : this(
-            source,
             baseAtom is RowAtom rowAtom
                 ? (IEnumerable<Atom>)rowAtom.Elements
                 : new[] { baseAtom! }) // Nullable: Seems to require some sort of non-null assertion to make the analyzer happy
     {
     }
 
-    public RowAtom(SourceSpan? source)
-        : base(source)
+    public RowAtom()
     {
         this.Elements = new List<Atom>().AsReadOnly();
     }
 
-    private RowAtom(SourceSpan? source, DummyAtom? previousAtom, ReadOnlyCollection<Atom> elements)
-        : base(source)
+    private RowAtom(DummyAtom? previousAtom, ReadOnlyCollection<Atom> elements)
     {
         this.PreviousAtom = previousAtom;
         this.Elements = elements;
     }
 
-    internal RowAtom(SourceSpan? source, IEnumerable<Atom?> elements)
-        : base(source) =>
+    internal RowAtom(IEnumerable<Atom?> elements) =>
         this.Elements = elements.Where(x => x != null).ToList().AsReadOnly()!;
     // TODO[F]: Fix this with C# 8 migration: there shouldn't be nullable atoms in this collection
 
@@ -76,7 +72,7 @@ internal sealed record RowAtom : Atom, IRow
     {
         var newElements = this.Elements.ToList();
         newElements.Add(atom);
-        return new RowAtom(this.Source, this.PreviousAtom, newElements.AsReadOnly());
+        return new RowAtom(this.PreviousAtom, newElements.AsReadOnly());
     }
 
     private static DummyAtom ChangeAtomToOrdinary(DummyAtom currentAtom, DummyAtom? previousAtom, Atom? nextAtom)
@@ -136,7 +132,7 @@ internal sealed record RowAtom : Atom, IRow
                         else
                         {
                             // Atom is part of ligature.
-                            curAtom = DummyAtom.CreateLigature(new FixedCharAtom(null, ligatureCharFont));
+                            curAtom = DummyAtom.CreateLigature(new FixedCharAtom(ligatureCharFont));
                             i++;
                         }
                     }

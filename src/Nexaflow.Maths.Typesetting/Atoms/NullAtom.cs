@@ -1,10 +1,10 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
 internal sealed record NullAtom : Atom
 {
-    public NullAtom(SourceSpan? source = null, TexAtomType type = TexAtomType.Ordinary) : base(source, type)
+    public NullAtom(TexAtomType type = TexAtomType.Ordinary) : base(type)
     {
     }
 

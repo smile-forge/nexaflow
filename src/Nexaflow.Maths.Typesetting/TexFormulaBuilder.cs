@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Maths.Latex;
 using XamlMath.Atoms;
@@ -142,7 +142,7 @@ public static class TexFormulaBuilder
         {
             TexKind.Char => Character(part, style, knowledge),
             TexKind.Verbatim => Shown(part, style),
-            TexKind.Hole => Tag(new PlaceholderAtom(null), part),
+            TexKind.Hole => Tag(new PlaceholderAtom(), part),
             TexKind.Sequence => Run(part.Parts, part, style, knowledge),
             TexKind.Group when !part.Parts.Any() => Empty(part),
             TexKind.Group when Written(part) => Group(part, style, knowledge),
@@ -212,7 +212,7 @@ public static class TexFormulaBuilder
             // fraction's box and its bar are, and every one of them came from this \begin. Tagging the
             // outermost alone would leave the grid itself knowing nothing, and there is no reaching in
             // from outside to fix that: a style atom names no parts, so a walk stops at it.
-            MatrixCommandParser matrix => matrix.Assemble(null, cells, Whole(part)),
+            MatrixCommandParser matrix => matrix.Assemble(cells, Whole(part)),
             ArrayCommandParser => Array(part, cells, style, knowledge),
 
             // \begin{equation} and the counted alignments — \begin{alignat}{2} and its family, whose
@@ -274,7 +274,7 @@ public static class TexFormulaBuilder
             }
         }
 
-        return ArrayCommandParser.Assemble(null, cells, spec, Ruled(part), Whole(part));
+        return ArrayCommandParser.Assemble(cells, spec, Ruled(part), Whole(part));
     }
 
     /// <summary>
@@ -410,7 +410,7 @@ public static class TexFormulaBuilder
         // settled".
 
         return Tag(
-            new FencedAtom(null, inside, Delimiter(open), Delimiter(close)),
+            new FencedAtom(inside, Delimiter(open), Delimiter(close)),
             part);
     }
 
@@ -432,9 +432,9 @@ public static class TexFormulaBuilder
         // bars were simply missing rather than drawn wrongly.
         var symbol = text switch
         {
-            @"\|" => TexFormulaParser.DelimiterOf("Vert", null),
-            { Length: 1 } => TexFormulaParser.DelimiterOf(text[0], null),
-            _ => TexFormulaParser.DelimiterOf(text.TrimStart('\\'), null),
+            @"\|" => TexFormulaParser.DelimiterOf("Vert"),
+            { Length: 1 } => TexFormulaParser.DelimiterOf(text[0]),
+            _ => TexFormulaParser.DelimiterOf(text.TrimStart('\\')),
         };
 
         // The whole `\right]` it was written as, and not merely the bracket. A delimiter is a piece the
@@ -460,9 +460,9 @@ public static class TexFormulaBuilder
 
         // A tie is an inter-word space that a line may not be broken at. Written as a character and not
         // one: nothing is drawn, and the spacing TeX would give a symbol of its class does not apply.
-        if (character == '~') return Tag(new SpaceAtom(null), part);
+        if (character == '~') return Tag(new SpaceAtom(), part);
 
-        return Tag(TexFormulaParser.CharacterOf(character, null, style), part);
+        return Tag(TexFormulaParser.CharacterOf(character, style), part);
     }
 
     /// <summary>
@@ -508,7 +508,7 @@ public static class TexFormulaBuilder
         if (Run(part.Parts, part, style, knowledge) is not { } inner) return null;
 
         return Tag(
-            new TypedAtom(null, inner, TexAtomType.Ordinary, TexAtomType.Ordinary),
+            new TypedAtom(inner, TexAtomType.Ordinary, TexAtomType.Ordinary),
             part);
     }
 
@@ -573,7 +573,7 @@ public static class TexFormulaBuilder
                 };
 
                 built.Add(switched.Style is { } size
-                    ? Tag(new StyleAtom(null, scope, size), run[at])
+                    ? Tag(new StyleAtom(scope, size), run[at])
                     : scope);
 
                 break;
@@ -617,7 +617,7 @@ public static class TexFormulaBuilder
 
     private static Atom Rowed(List<Atom> built, ITexPart whole)
     {
-        var row = new RowAtom(null);
+        var row = new RowAtom();
         foreach (var atom in built) row = row.Add(atom);
 
         return Tag(row, whole);
@@ -682,7 +682,7 @@ public static class TexFormulaBuilder
             var carried = Scripts(part, Tag(new NullAtom(), part), style, knowledge);
             if (carried is null) return null;
 
-            var both = new RowAtom(null).Add(Tag(carried, part)).Add(baseAtom);
+            var both = new RowAtom().Add(Tag(carried, part)).Add(baseAtom);
             return Tag(both, part);
         }
 
@@ -693,13 +693,13 @@ public static class TexFormulaBuilder
 
         if (marks.Count > 0)
         {
-            var row = new RowAtom(null);
-            foreach (var mark in marks) row = row.Add(Tag(SymbolAtom.GetAtom("prime", null), mark));
+            var row = new RowAtom();
+            foreach (var mark in marks) row = row.Add(Tag(SymbolAtom.GetAtom("prime"), mark));
 
             // Both name the whole of it, which is now a thing the reading names: `f''` is one node, so
             // there is no longer a run here for an atom to stand for and nothing to understate.
             Tag(row, part);
-            baseAtom = Tag(new ScriptsAtom(null, baseAtom, null, row), part);
+            baseAtom = Tag(new ScriptsAtom(baseAtom, null, row), part);
         }
 
         var superscript = Part(part, TexRole.Superscript, style, knowledge);
@@ -729,7 +729,7 @@ public static class TexFormulaBuilder
 
         if (baseAtom is BigOperatorAtom big)
             return Tag(
-                new BigOperatorAtom(null, big.BaseAtom, subscript, superscript, asked ?? big.UseVerticalLimits),
+                new BigOperatorAtom(big.BaseAtom, subscript, superscript, asked ?? big.UseVerticalLimits),
                 part);
 
         // And so are scripts on anything else that has been *typed* as one. `\mathop{X}` makes a big
@@ -737,9 +737,9 @@ public static class TexFormulaBuilder
         // kind of atom this is set `\mathop{{\sum}^{\prime}}_{n=0}^{n=\infty}` with its limits beside the
         // sign instead of over and under it.
         if (baseAtom.GetLeftType() == TexAtomType.BigOperator)
-            return Tag(new BigOperatorAtom(null, baseAtom, subscript, superscript, asked), part);
+            return Tag(new BigOperatorAtom(baseAtom, subscript, superscript, asked), part);
 
-        return Tag(new ScriptsAtom(null, baseAtom, subscript, superscript), part);
+        return Tag(new ScriptsAtom(baseAtom, subscript, superscript), part);
     }
 
     /// <summary>
@@ -755,7 +755,7 @@ public static class TexFormulaBuilder
         if (part.Part(TexRole.Subscript) is not null && subscript is null) return null;
         if (superscript is null && subscript is null) return null;
 
-        return new ScriptsAtom(null, on, subscript, superscript);
+        return new ScriptsAtom(on, subscript, superscript);
     }
 
     /// <summary>
@@ -823,7 +823,7 @@ public static class TexFormulaBuilder
                 if (Part(part, TexRole.Numerator, style, knowledge) is not { } numerator) return null;
                 if (Part(part, TexRole.Denominator, style, knowledge) is not { } denominator) return null;
 
-                return Tag(new FractionAtom(null, numerator, denominator, true), part);
+                return Tag(new FractionAtom(numerator, denominator, true), part);
             }
 
             case @"\sqrt":
@@ -836,7 +836,7 @@ public static class TexFormulaBuilder
                 var degree = asked is null ? null : Part(part, TexRole.Degree, style, knowledge);
                 if (asked is not null && degree is null) return null;
 
-                return Tag(new Radical(null, radicand, degree), part);
+                return Tag(new Radical(radicand, degree), part);
             }
 
             case @"\substack":
@@ -848,21 +848,21 @@ public static class TexFormulaBuilder
                 if (part.Part(TexRole.Base) is not { } lines) return null;
                 if (Cells(lines, style, knowledge) is not { } stack) return null;
 
-                return MatrixCommandParser.SubStack.Assemble(null, stack, Whole(part));
+                return MatrixCommandParser.SubStack.Assemble(stack, Whole(part));
             }
 
             case @"\overline":
             {
                 if (Part(part, TexRole.Base, style, knowledge) is not { } inner) return null;
 
-                return Tag(new OverlinedAtom(null, inner), part);
+                return Tag(new OverlinedAtom(inner), part);
             }
 
             case @"\underline":
             {
                 if (Part(part, TexRole.Base, style, knowledge) is not { } inner) return null;
 
-                return Tag(new UnderlinedAtom(null, inner), part);
+                return Tag(new UnderlinedAtom(inner), part);
             }
 
             // The control space, and the non-breaking one: an ordinary inter-word space, and the writer
@@ -905,7 +905,7 @@ public static class TexFormulaBuilder
                 // Everything written after the name, in the order it was written: the kern that puts the slash on
                 // the letter — `\not\!p` — as much as the letter itself. The reading gathered them under this one
                 // node, so setting them is a walk over its children and not a hunt for a neighbour.
-                var sign = new RowAtom(null).Add(slash);
+                var sign = new RowAtom().Add(slash);
                 foreach (var written in part.Children)
                 {
                     if (written.Role is not (TexRole.Element or TexRole.Base)) continue;
@@ -935,7 +935,7 @@ public static class TexFormulaBuilder
 
             case @"\ ":
             case @"\nbsp":
-                return part.Parts.Any() ? null : Tag(new SpaceAtom(null), part);
+                return part.Parts.Any() ? null : Tag(new SpaceAtom(), part);
         }
 
         // A sized delimiter — \big( , \Bigl\{ , \biggr] . Not a fence: nothing pairs it with anything, and
@@ -1007,7 +1007,7 @@ public static class TexFormulaBuilder
         {
             if (Of(accented, style, knowledge) is not { } inner) return null;
 
-            return Tag(new AccentedAtom(null, inner, accent.Name), part);
+            return Tag(new AccentedAtom(inner, accent.Name), part);
         }
 
         // Any other command the table can make from arguments already built — \binom, \phantom,
@@ -1057,7 +1057,7 @@ public static class TexFormulaBuilder
     {
         try
         {
-            var symbol = SymbolAtom.GetAtom(name.TrimStart('\\'), null);
+            var symbol = SymbolAtom.GetAtom(name.TrimStart('\\'));
             return symbol.Type == TexAtomType.Accent ? symbol : null;
         }
         catch (SymbolNotFoundException)
@@ -1070,7 +1070,7 @@ public static class TexFormulaBuilder
     {
         try
         {
-            var symbol = SymbolAtom.GetAtom(name, null);
+            var symbol = SymbolAtom.GetAtom(name);
             Tag(symbol, part);
 
             // A big operator is never merely a symbol: every sum and integral gets its own atom whether
@@ -1080,7 +1080,7 @@ public static class TexFormulaBuilder
             // operator round it, so a sign that knew nothing would come out of \sum_{i=0}^{n} knowing
             // nothing still.
             return symbol.Type == TexAtomType.BigOperator
-                ? Tag(TexFormulaParser.BigOperatorOf(symbol, null), part)
+                ? Tag(TexFormulaParser.BigOperatorOf(symbol), part)
                 : symbol;
         }
         catch (SymbolNotFoundException)
@@ -1277,15 +1277,15 @@ public static class TexFormulaBuilder
         // and a spacing of its own, and `\text{x}` is an x — as the typesetter's own tests say when they
         // ask a `\text{∅}` for its glyph and are handed a box of boxes instead of a character box.
         if (!spaced && text.Length == 1 && !char.IsWhiteSpace(text[0]))
-            return new CharAtom(null, text[0], style);
+            return new CharAtom(text[0], style);
 
-        var row = new RowAtom(null);
-        if (spaced) row = row.Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0));
+        var row = new RowAtom();
+        if (spaced) row = row.Add(new SpaceAtom(TexUnit.Mu, 3, 0, 0));
 
         foreach (var letter in text)
-            row = row.Add(char.IsWhiteSpace(letter) ? new SpaceAtom(null) : (Atom)new CharAtom(null, letter, style));
+            row = row.Add(char.IsWhiteSpace(letter) ? new SpaceAtom() : (Atom)new CharAtom(letter, style));
 
-        return spaced ? row.Add(new SpaceAtom(null, TexUnit.Mu, 3, 0, 0)) : row;
+        return spaced ? row.Add(new SpaceAtom(TexUnit.Mu, 3, 0, 0)) : row;
     }
 
     /// <summary>

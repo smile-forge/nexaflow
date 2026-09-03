@@ -19,10 +19,9 @@ internal sealed record FencedAtom : Atom
         box.Shift = -(totalHeight / 2 - box.Height) - axis;
     }
 
-    public FencedAtom(SourceSpan? source, Atom? baseAtom, SymbolAtom? leftDelimeter, SymbolAtom? rightDelimeter)
-        : base(source)
+    public FencedAtom(Atom? baseAtom, SymbolAtom? leftDelimeter, SymbolAtom? rightDelimeter)
     {
-        this.BaseAtom = baseAtom ?? new RowAtom(null);
+        this.BaseAtom = baseAtom ?? new RowAtom();
         this.LeftDelimeter = leftDelimeter;
         this.RightDelimeter = rightDelimeter;
     }

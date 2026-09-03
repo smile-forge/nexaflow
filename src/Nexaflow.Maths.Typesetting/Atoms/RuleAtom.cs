@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 
 namespace XamlMath.Atoms;
 
@@ -11,16 +11,15 @@ namespace XamlMath.Atoms;
 /// <param name="Thickness">How thick, in the same unit.</param>
 /// <param name="Shift">How far below the baseline to sit, in the same unit.</param>
 internal sealed record RuleAtom(
-    SourceSpan? Source,
     TexUnit Unit,
     double Width,
     double Thickness,
-    double Shift) : Atom(Source)
+    double Shift) : Atom
 {
     protected override Box CreateBoxCore(TexEnvironment environment)
     {
         double Measure(double value) =>
-            new SpaceAtom(null, this.Unit, value, 0, 0).CreateBox(environment).Width;
+            new SpaceAtom(this.Unit, value, 0, 0).CreateBox(environment).Width;
 
         return new HorizontalRule(environment, Measure(this.Thickness), Measure(this.Width), Measure(this.Shift));
     }

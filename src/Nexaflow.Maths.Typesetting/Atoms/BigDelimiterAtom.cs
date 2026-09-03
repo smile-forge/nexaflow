@@ -12,8 +12,8 @@ internal sealed record BigDelimiterAtom : Atom
     private readonly string _symbolName;
     private readonly double _minHeight;
 
-    public BigDelimiterAtom(SourceSpan? source, string symbolName, double minHeight, TexAtomType type)
-        : base(source, type)
+    public BigDelimiterAtom(string symbolName, double minHeight, TexAtomType type)
+        : base(type)
     {
         _symbolName = symbolName;
         _minHeight = minHeight;

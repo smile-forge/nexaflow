@@ -4,9 +4,8 @@ using XamlMath.Boxes;
 namespace XamlMath.Atoms;
 
 /// <summary>Atom (smallest unit) of TexFormula.</summary>
-/// <param name="Source"></param>
 /// <param name="Type"></param>
-internal abstract record Atom(SourceSpan? Source, TexAtomType Type = TexAtomType.Ordinary) : IFormulaNode
+internal abstract record Atom(TexAtomType Type = TexAtomType.Ordinary) : IFormulaNode
 {
     /// <summary>
     /// What this is made of, under the names its own construct gives the parts. Nothing, unless the atom

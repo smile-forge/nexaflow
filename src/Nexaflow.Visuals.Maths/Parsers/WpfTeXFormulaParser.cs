@@ -20,5 +20,5 @@ public static class WpfTeXFormulaParser
     /// </para>
     /// </summary>
     public static TexFormulaParser Instance { get; } =
-        new(WpfBrushFactory.Instance, new Dictionary<string, Func<SourceSpan, TexFormula?>>());
+        new(WpfBrushFactory.Instance, new Dictionary<string, Func<TexFormula?>>());
 }

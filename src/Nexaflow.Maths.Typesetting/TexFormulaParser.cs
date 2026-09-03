@@ -84,7 +84,7 @@ public class TexFormulaParser
     };
 
     // TODO[#339]: Architectural solution to make this work faster.
-    private readonly IReadOnlyDictionary<string, Func<SourceSpan, TexFormula?>> predefinedFormulas;
+    private readonly IReadOnlyDictionary<string, Func<TexFormula?>> predefinedFormulas;
 
     private static readonly IReadOnlyList<IReadOnlyList<string>> delimiterNames = new[]
     {
@@ -123,12 +123,12 @@ public class TexFormulaParser
         }
     }
 
-    internal static SymbolAtom? GetDelimiterSymbol(string? name, SourceSpan? source)
+    internal static SymbolAtom? GetDelimiterSymbol(string? name)
     {
         if (name == null)
             return null;
 
-        var result = SymbolAtom.GetAtom(name, source);
+        var result = SymbolAtom.GetAtom(name);
         if (!result.IsDelimeter)
             return null;
         return result;
@@ -154,7 +154,7 @@ public class TexFormulaParser
         IReadOnlyDictionary<string, IColorParser> colorModelParsers,
         IColorParser defaultColorParser,
         IBrushFactory brushFactory,
-        IReadOnlyDictionary<string, Func<SourceSpan, TexFormula?>> predefinedFormulae)
+        IReadOnlyDictionary<string, Func<TexFormula?>> predefinedFormulae)
     {
 
         _colorModelParsers = colorModelParsers;
@@ -165,7 +165,7 @@ public class TexFormulaParser
 
     public TexFormulaParser(
         IBrushFactory brushFactory,
-        IReadOnlyDictionary<string, Func<SourceSpan, TexFormula?>> predefinedFormulae) : this(
+        IReadOnlyDictionary<string, Func<TexFormula?>> predefinedFormulae) : this(
         StandardColorParsers.Dictionary,
         PredefinedColorParser.Instance,
         brushFactory,
@@ -181,11 +181,11 @@ public class TexFormulaParser
     /// asks rather than deciding, for the same reason it asks about a character's class.
     /// </para>
     /// </summary>
-    internal static BigOperatorAtom BigOperatorOf(SymbolAtom symbol, SourceSpan? source) =>
-        new(source, symbol, null, null, sideLimitOperators.Contains(symbol.Name) ? false : (bool?)null);
+    internal static BigOperatorAtom BigOperatorOf(SymbolAtom symbol) =>
+        new(symbol, null, null, sideLimitOperators.Contains(symbol.Name) ? false : (bool?)null);
 
     /// <summary>The delimiter this character stands for, or null when it stands for none.</summary>
-    internal static SymbolAtom? DelimiterOf(char character, SourceSpan? source)
+    internal static SymbolAtom? DelimiterOf(char character)
     {
         // `.` is how a fence is written with one end left open — \left. \right) — so no delimiter is
         // the right answer rather than a failure.
@@ -193,7 +193,7 @@ public class TexFormulaParser
 
         try
         {
-            return GetDelimiterSymbol(GetDelimeterMapping(character), source);
+            return GetDelimiterSymbol(GetDelimeterMapping(character));
         }
         catch (DelimiterMappingNotFoundException)
         {
@@ -202,11 +202,11 @@ public class TexFormulaParser
     }
 
     /// <summary>The delimiter this command names, or null when it names none.</summary>
-    internal static SymbolAtom? DelimiterOf(string name, SourceSpan? source)
+    internal static SymbolAtom? DelimiterOf(string name)
     {
         try
         {
-            return GetDelimiterSymbol(name, source);
+            return GetDelimiterSymbol(name);
         }
         catch (SymbolNotFoundException)
         {
@@ -246,13 +246,13 @@ public class TexFormulaParser
 
             // The definition text stands in for the source, because the source is not this method's to
             // have and nothing that comes out of here keeps it anyway.
-            return factory(new SourceSpan(name, name, 0, name.Length))?.RootAtom;
+            return factory()?.RootAtom;
         });
 
         // A copy each time, never the one in the table: what comes back has a part hung on it by whoever
         // asked, and two formulas asking for the same space must not end up sharing one atom. Only the
         // root — what is under it is drawing and nothing points at it, so there is nothing to hang.
-        return expansion is null ? null : expansion with { Source = null };
+        return expansion is null ? null : expansion with { };
     }
 
     /// <summary>
@@ -276,7 +276,7 @@ public class TexFormulaParser
 
         try
         {
-            SymbolAtom.GetAtom(command, null);
+            SymbolAtom.GetAtom(command);
             return true;
         }
         catch (SymbolNotFoundException)
@@ -318,15 +318,15 @@ public class TexFormulaParser
     /// business knowing how they should be set.
     /// </para>
     /// </summary>
-    internal static Atom CharacterOf(char character, SourceSpan? source, string? textStyle = null)
+    internal static Atom CharacterOf(char character, string? textStyle = null)
     {
         if (!IsSymbol(character) || textStyle == TexUtilities.TextStyleName)
-            return new CharAtom(source, character, textStyle);
+            return new CharAtom(character, textStyle);
 
         var symbolName = symbols.ElementAtOrDefault(character);
 
         return string.IsNullOrEmpty(symbolName)
-            ? new CharAtom(source, character, textStyle)
-            : SymbolAtom.GetAtom(symbolName, source);
+            ? new CharAtom(character, textStyle)
+            : SymbolAtom.GetAtom(symbolName);
     }
 }

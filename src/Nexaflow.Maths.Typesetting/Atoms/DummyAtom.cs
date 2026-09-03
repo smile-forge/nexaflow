@@ -1,4 +1,4 @@
-using XamlMath.Boxes;
+﻿using XamlMath.Boxes;
 using XamlMath.Fonts;
 using XamlMath.Utils;
 
@@ -8,7 +8,7 @@ namespace XamlMath.Atoms;
 internal sealed record DummyAtom : Atom
 {
     public DummyAtom(TexAtomType type, Atom atom, bool isTextSymbol)
-        : base(atom.Source, type)
+        : base(type)
     {
         this.Atom = atom;
         this.IsTextSymbol = isTextSymbol;
