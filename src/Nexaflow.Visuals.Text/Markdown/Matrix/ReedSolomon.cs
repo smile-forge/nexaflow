@@ -115,19 +115,30 @@ public static class ReedSolomon
     /// </param>
     public static int[] Generator(GaloisField field, int degree, int firstRoot = 0)
     {
-        var result = new int[degree];
-        result[degree - 1] = 1;
+        // Built up root by root as the product of (x − gⁱ), highest power first, with the monic
+        // leading term dropped at the end because the division never needs it.
+        //
+        // The subtraction is the whole point. Written the way every GF(2ⁿ) implementation writes it —
+        // multiply and XOR — this produces ∏(x + gⁱ), which is the same polynomial only because −1 ≡ 1
+        // in a binary field. Over GF(929) it is a different polynomial, and the parity it makes is
+        // self-consistent, verifies against itself, and is rejected by every real scanner.
+        var coefficients = new int[] { 1 };
 
         for (int i = 0; i < degree; i++)
         {
             int root = field.Exp(firstRoot + i);
-            for (int j = 0; j < degree; j++)
+            var next = new int[coefficients.Length + 1];
+
+            for (int j = 0; j < coefficients.Length; j++)
             {
-                result[j] = field.Multiply(result[j], root);
-                if (j + 1 < degree) result[j] = field.Add(result[j], result[j + 1]);
+                next[j]     = field.Add(next[j], coefficients[j]);
+                next[j + 1] = field.Subtract(next[j + 1], field.Multiply(coefficients[j], root));
             }
+
+            coefficients = next;
         }
-        return result;
+
+        return coefficients[1..];
     }
 
     /// <summary>The remainder of <paramref name="data"/> over <paramref name="generator"/> — the parity codewords.</summary>
@@ -139,8 +150,11 @@ public static class ReedSolomon
             int factor = field.Add(d, result[0]);
             Array.Copy(result, 1, result, 0, result.Length - 1);
             result[^1] = 0;
+            // Subtract, not add: this is polynomial division. The two are the same operation in a
+            // binary field, which is why every GF(2^n) implementation writes it as XOR and why the
+            // difference only shows up over a prime field.
             for (int i = 0; i < result.Length; i++)
-                result[i] = field.Add(result[i], field.Multiply(generator[i], factor));
+                result[i] = field.Subtract(result[i], field.Multiply(generator[i], factor));
         }
         return result;
     }
