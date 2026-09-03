@@ -285,7 +285,18 @@ public static class WpfSequenceDiagramRenderer
             }
         }
 
-        // 8. title
+        // 8. legend, below everything the timeline produced (it grows the canvas rather than
+        //    reserving space up front, so a diagram without one is laid out exactly as before)
+        if (diagram.Legend is { Count: > 0 } legend)
+        {
+            var block = C4LegendPainter.Build(legend, C4, palette, diagram.LegendDetails);
+            block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            canvas.Children.Add(block.Place(Outer, canvasH - Outer + 4));
+            canvas.Height = canvasH - Outer + 4 + block.DesiredSize.Height + Outer;
+            canvas.Width  = Math.Max(canvas.Width, 2 * Outer + block.DesiredSize.Width);
+        }
+
+        // 9. title
         if (hasTitle)
         {
             var tb = new TextBlock { Text = diagram.Title, Foreground = Title, FontFamily = BodyFont, FontSize = 14, FontWeight = FontWeights.SemiBold };

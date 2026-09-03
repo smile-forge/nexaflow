@@ -169,6 +169,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4LegendPainter.cs",
           "class": "C4LegendPainter"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4LegendBuilder.cs",
+          "class": "C4LegendBuilder"
         }
       ],
       "concerns": {
@@ -181,10 +186,27 @@
           }
         ]
       }
+    },
+    "mermaid": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SugiyamaLayoutTests.cs",
+            "class": "SugiyamaLayoutTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/DiagramSnapshotTests.cs",
+            "class": "DiagramSnapshotTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 13,
   "touched_nodes": [
     "c4",
     "c4-boundaries",
@@ -192,6 +214,7 @@
     "c4-macro-syntax",
     "c4-relationships",
     "c4-sequence",
-    "c4-styling"
+    "c4-styling",
+    "mermaid"
   ]
 }

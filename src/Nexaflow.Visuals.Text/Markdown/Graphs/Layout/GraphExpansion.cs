@@ -95,7 +95,7 @@ public static class GraphExpansion
                        folded);
 
         var hiddenBySibling = folded.SelectMany(kv => kv.Value).ToHashSet(StringComparer.Ordinal);
-        var view = new Graph { Title = graph.Title, Direction = graph.Direction, Legend = graph.Legend };
+        var view = new Graph { Title = graph.Title, Direction = graph.Direction, Legend = graph.Legend, LegendDetails = graph.LegendDetails };
 
         foreach (var node in graph.Nodes)
         {

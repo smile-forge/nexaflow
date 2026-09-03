@@ -174,6 +174,67 @@ public class C4SequenceProjectionTests
         Assert.IsFalse(Project("C4Sequence\nSHOW_FOOT_BOXES(false)\nRel(a, b, \"x\")\n").ShowFootBoxes);
     }
 
+    // ── Legend ────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("c4-sequence")]
+    public void ShowLegend_BuildsTheSameRowsAsAStructuralDiagram()
+    {
+        const string body = """
+            C4Sequence
+            Person(p, "P")
+            Container(c, "C")
+            ContainerDb(db, "DB")
+            """;
+        Assert.IsNull(Project(body).Legend, "no legend without the directive");
+
+        var d = Project(body + "\nSHOW_LEGEND()\n");
+        CollectionAssert.AreEqual(
+            new[] { "Person", "Container", "Container (database)" },
+            d.Legend!.Select(e => e.Label).ToArray());
+    }
+
+    [TestMethod]
+    [CoversNode("c4-sequence")]
+    public void ShowLegend_HidesStereotypesByDefault_AndDetailsAreRead()
+    {
+        // C4-PlantUML declares SHOW_LEGEND($hideStereotype="true", $details=Small()).
+        var bare = new MermaidC4Parser().Parse("C4Sequence\nPerson(p, \"P\")\nSHOW_LEGEND()\n");
+        Assert.IsTrue(bare.HideStereotype, "a bare SHOW_LEGEND() hides the stereotypes");
+        Assert.AreEqual(C4LegendDetails.Small, bare.LegendDetails);
+
+        var kept = new MermaidC4Parser().Parse("C4Sequence\nSHOW_LEGEND($hideStereotype=\"false\", $details=Normal())\n");
+        Assert.IsFalse(kept.HideStereotype);
+        Assert.AreEqual(C4LegendDetails.Normal, kept.LegendDetails);
+
+        Assert.AreEqual(C4LegendDetails.None,
+            new MermaidC4Parser().Parse("C4Context\nSHOW_LEGEND($details=None())\n").LegendDetails);
+
+        // …and the card built from it really does drop its stereotype.
+        Assert.AreEqual(string.Empty, Project("C4Sequence\nPerson(p, \"P\")\nSHOW_LEGEND()\n").Find("p")!.Card!.Stereotype());
+    }
+
+    [TestMethod]
+    [TestCategory("UI")]
+    [CoversNode("c4-sequence")]
+    public void Render_LegendGrowsTheCanvas() => UiThread.Run(() =>
+    {
+        const string body = """
+            C4Sequence
+            Person(p, "P")
+            Container(c, "C")
+            Rel(p, c, "Uses")
+            """;
+        static double HeightOf(string src)
+        {
+            var border = (Border)DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark);
+            return ((Canvas)((ScrollViewer)border.Child).Content).Height;
+        }
+
+        Assert.IsTrue(HeightOf(body + "\nSHOW_LEGEND()\n") > HeightOf(body),
+            "the legend should add height to a C4 sequence, as it does to a structural diagram");
+    });
+
     // ── The two languages meeting ─────────────────────────────────────────
 
     [TestMethod]

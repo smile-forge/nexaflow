@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
@@ -199,7 +199,10 @@ public sealed class MermaidC4Parser
             case "show_legend":
             case "layout_with_legend":
                 diagram.ShowLegend = true;
-                if (m.Flag(0, "hideStereotype", whenAbsent: false)) diagram.HideStereotype = true;
+                // C4-PlantUML declares SHOW_LEGEND($hideStereotype="true", …): asking for a legend
+                // hides the stereotypes by default, because the legend now carries what they said.
+                if (m.Flag(0, "hideStereotype", whenAbsent: true)) diagram.HideStereotype = true;
+                diagram.LegendDetails = DetailsOf(m.Arg(1, "details"));
                 return true;
             case "hide_stereotype":            diagram.HideStereotype = true; return true;
             case "layout_top_down":            diagram.Direction = GraphDirection.TopDown; return true;
@@ -379,6 +382,15 @@ public sealed class MermaidC4Parser
         LineColor  = m.Arg(first + 1, "lineColor"),
         LineStyle  = LineStyleOf(m.Named.GetValueOrDefault("lineStyle")),
         LegendText = m.Named.GetValueOrDefault("legendText"),
+    };
+
+    /// <summary>Reads <c>$details</c>: <c>None()</c>, <c>Small()</c> (the default) or <c>Normal()</c>.</summary>
+    private static C4LegendDetails DetailsOf(string? details) => details?.Trim().ToLowerInvariant() switch
+    {
+        null                          => C4LegendDetails.Small,
+        var d when d.StartsWith("none")   => C4LegendDetails.None,
+        var d when d.StartsWith("normal") => C4LegendDetails.Normal,
+        _                             => C4LegendDetails.Small,
     };
 
     private static C4ElementShape? ShapeOf(string? shape) => shape?.ToLowerInvariant() switch

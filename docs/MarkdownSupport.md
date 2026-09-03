@@ -430,7 +430,7 @@ and `Deployment_Node`/`Node`/`Node_L`/`Node_R`, nested by braces or closed with 
 `_U`/`_D`/`_L`/`_R`/`_Neighbor`/`_Back`/`BiRel` variants and `RelIndex`; `$techn`, `$descr`, `$tags`, `$link` and
 `$index=Index()`/`LastIndex()`/`SetIndex()`/`increment()`; `UpdateElementStyle` (by element *type* as C4-PlantUML writes
 it **or** by *alias* as Mermaid does), `AddElementTag`/`AddBoundaryTag`/`AddRelTag` with `UpdateRelStyle` and
-`UpdateBoundaryStyle` — a relationship's `$lineColor`/`$textColor`/`$lineStyle` colour its edge in both the structural and the sequence renderers; `SHOW_LEGEND`, `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`/`LAYOUT_LANDSCAPE`, the
+`UpdateBoundaryStyle` — a relationship's `$lineColor`/`$textColor`/`$lineStyle` colour its edge in both the structural and the sequence renderers; `SHOW_LEGEND($hideStereotype, $details)` — which, as in C4-PlantUML, **hides the stereotypes by default**, since the legend then carries what they said, and whose `$details` (`None()`/`Small()`/`Normal()`) sizes the legend rows; `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`/`LAYOUT_LANDSCAPE`, the
 `SHOW_PERSON_OUTLINE`/`SHOW_PERSON_PORTRAIT` shape variants; `<br/>` and HTML entities in labels; and both `%%` and
 PlantUML `'` comments. **Colours map C4's scheme onto the theme** rather than copying its hex — what carries the meaning
 is the grading (depth tracks abstraction level, grey means external), so it is reproduced from the active accent and a
@@ -451,6 +451,9 @@ plain boxes, a `Boundary`…`Boundary_End()` pair becomes the `box` grouping ove
 `$index`/`RelIndex` wins and the count continues from it), `SHOW_FOOT_BOXES(false)` drops the repeated heads at the
 bottom, and `SHOW_ELEMENT_DESCRIPTIONS()` puts each element's description into its card — hidden by default, because a
 lifeline head is a column header and a paragraph in every column only pushes the columns apart.
+
+`SHOW_LEGEND()` works here too, drawn below the timeline by the same painter and built from the same rows as a
+structural diagram's.
 
 **Native sequence syntax works inside it.** Any line the C4 reader does not claim is replayed through
 `MermaidSequenceParser.ParseLine`, so `alt`/`else`/`end`, `loop`, `par`, `critical`, `note over`, `activate` and even a

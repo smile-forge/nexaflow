@@ -126,6 +126,13 @@ public sealed class SequenceDiagram
     public List<SequenceItem>        Items        { get; } = [];
     public List<SequenceBox>         Boxes        { get; } = [];
 
+    /// <summary>Rows for a legend drawn below the diagram, or null for none (the default). Set by a
+    /// C4 sequence's <c>SHOW_LEGEND()</c>; a native diagram has no legend syntax.</summary>
+    public List<GraphLegendEntry>? Legend { get; set; }
+
+    /// <summary>How much each legend row says — <c>SHOW_LEGEND</c>'s <c>$details</c>.</summary>
+    public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
+
     /// <summary>
     /// Whether the participant heads are repeated at the bottom of the diagram. Mermaid always
     /// repeats them, so this defaults to true and a native diagram is unaffected; C4-PlantUML's

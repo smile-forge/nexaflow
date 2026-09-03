@@ -1,3 +1,4 @@
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -17,9 +18,21 @@ internal static class C4LegendPainter
     private const double SwatchW = 22;
     private const double SwatchH = 13;
 
+    /// <summary>
+    /// <paramref name="details"/> is <c>SHOW_LEGEND</c>'s <c>$details</c>, which in C4-PlantUML sets
+    /// the row font size (0 / 10 / 14). <c>None</c> keeps the rows but at the smallest readable size
+    /// rather than hiding them, because a legend nobody can read is not the same as no legend.
+    /// </summary>
     internal static FrameworkElement Build(
-        IReadOnlyList<GraphLegendEntry> entries, C4Palette c4, MarkdownPalette palette)
+        IReadOnlyList<GraphLegendEntry> entries, C4Palette c4, MarkdownPalette palette,
+        C4LegendDetails details = C4LegendDetails.Small)
     {
+        double fontSize = details switch
+        {
+            C4LegendDetails.None   => 9,
+            C4LegendDetails.Normal => 13,
+            _                      => 10.5,
+        };
         var rows = new WrapPanel { Orientation = Orientation.Horizontal, MaxWidth = 720 };
 
         foreach (var entry in entries)
@@ -41,7 +54,7 @@ internal static class C4LegendPainter
                 Text              = entry.Label,
                 Foreground        = palette.Text,
                 FontFamily        = DiagramText.BodyFont,
-                FontSize          = 10.5,
+                FontSize          = fontSize,
                 Margin            = new Thickness(6, 0, 16, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             };

@@ -26,6 +26,12 @@ public static class C4SequenceProjector
             ShowFootBoxes = d.ShowFootBoxes,
         };
 
+        if (d.ShowLegend)
+        {
+            diagram.Legend = C4LegendBuilder.Build(d);
+            diagram.LegendDetails = d.LegendDetails;
+        }
+
         var state = new SequenceParseState();
         var openBoxes = new Stack<SequenceBox>();
         int fallbackIndex = 0;

@@ -1,4 +1,6 @@
-﻿namespace Nexaflow.Visuals.Text.Markdown.Graphs;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+
+namespace Nexaflow.Visuals.Text.Markdown.Graphs;
 
 // ── Enumerations ──────────────────────────────────────────────────────────────
 
@@ -248,6 +250,9 @@ public sealed class Graph
 
     /// <summary>Rows for a legend drawn below the diagram, or null for no legend (the default).</summary>
     public List<GraphLegendEntry>? Legend { get; set; }
+
+    /// <summary>How much each legend row says — a C4 <c>SHOW_LEGEND($details)</c>.</summary>
+    public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
 
     public Node? FindNode(string id) =>
         Nodes.FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.Ordinal));

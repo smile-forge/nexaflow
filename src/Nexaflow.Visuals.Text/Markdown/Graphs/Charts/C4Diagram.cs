@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 /// <summary>
 /// Which C4 diagram was declared. The first five are Mermaid's keywords (and C4-PlantUML's
@@ -9,6 +9,13 @@ public enum C4DiagramKind { Context, Container, Component, Dynamic, Deployment, 
 
 /// <summary>How people are drawn, set once for the whole diagram by the <c>SHOW_PERSON_*</c> macros.</summary>
 public enum C4PersonStyle { Default, Outline, Portrait }
+
+/// <summary>
+/// How much a legend row says, from <c>SHOW_LEGEND</c>'s <c>$details</c> argument. C4-PlantUML sets a
+/// font size per level (0 / 10 / 14), so <see cref="None"/> means the row keeps its swatch and name
+/// but says nothing further.
+/// </summary>
+public enum C4LegendDetails { None, Small, Normal }
 
 /// <summary>One element declaration — a Person, System, Container, Component or their variants.</summary>
 public sealed class C4Element
@@ -162,6 +169,9 @@ public sealed class C4Diagram
     public GraphDirection? Direction { get; set; }
 
     public bool ShowLegend { get; set; }
+
+    /// <summary>Verbosity of the legend rows; only meaningful when <see cref="ShowLegend"/> is set.</summary>
+    public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
     public bool HideStereotype { get; set; }
     public C4PersonStyle PersonStyle { get; set; } = C4PersonStyle.Default;
 

@@ -1,4 +1,5 @@
-﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -93,6 +94,9 @@ public static class WpfGraphRenderer
     /// individual brushes above expose.</summary>
     private static MarkdownPalette Palette = MarkdownPalette.Dark;
 
+    /// <summary>Verbosity of the legend rows, carried on the graph by a C4 SHOW_LEGEND($details).</summary>
+    private static C4LegendDetails LegendDetails = C4LegendDetails.Small;
+
     // ── Public API ─────────────────────────────────────────────────────────
 
     public static FrameworkElement Render(LayoutedGraph lg, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
@@ -177,7 +181,8 @@ public static class WpfGraphRenderer
         // space up front, so a diagram without one is laid out exactly as before.
         if (lg.Source.Legend is { Count: > 0 } legend)
         {
-            var block = C4LegendPainter.Build(legend, C4, Palette);
+            LegendDetails = lg.Source.LegendDetails;
+            var block = C4LegendPainter.Build(legend, C4, Palette, LegendDetails);
             block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Canvas.SetLeft(block, SugiyamaLayout.MarginX);
             Canvas.SetTop(block, lg.Height + 4);

@@ -25,7 +25,11 @@ public static class C4GraphProjector
         foreach (var boundary in d.Boundaries) AddSubgraph(graph, d, boundary);
         foreach (var rel in d.Relationships) AddEdge(graph, d, rel);
 
-        if (d.ShowLegend) graph.Legend = BuildLegend(d);
+        if (d.ShowLegend)
+        {
+            graph.Legend = C4LegendBuilder.Build(d);
+            graph.LegendDetails = d.LegendDetails;
+        }
         return graph;
     }
 
@@ -53,7 +57,7 @@ public static class C4GraphProjector
         // Style resolution, weakest first: the element's type name, then its tags in order, then a
         // style naming this element's own alias (Mermaid's dialect) — the most specific wins.
         var style = new C4Style();
-        foreach (var key in TypeKeys(element))
+        foreach (var key in C4LegendBuilder.TypeKeys(element))
             if (d.ElementStyles.TryGetValue(key, out var byType)) style = style.Merge(byType);
         foreach (var tag in element.Tags)
             if (d.Tags.TryGetValue(tag, out var byTag)) style = style.Merge(byTag);
@@ -70,36 +74,6 @@ public static class C4GraphProjector
         node.C4 = info;
     }
 
-    /// <summary>
-    /// The keys an <c>UpdateElementStyle</c> may have used for this element, in C4-PlantUML's
-    /// vocabulary: <c>person</c>, <c>external_person</c>, <c>system</c>, <c>system_db</c>, …
-    /// </summary>
-    private static IEnumerable<string> TypeKeys(C4Element e)
-    {
-        string kind = e.Kind switch
-        {
-            C4ElementKind.Person         => "person",
-            C4ElementKind.System         => "system",
-            C4ElementKind.Container      => "container",
-            C4ElementKind.Component      => "component",
-            C4ElementKind.DeploymentNode => "node",
-            _                            => "element",
-        };
-        string suffix = e.Shape switch
-        {
-            C4ElementShape.Database => "_db",
-            C4ElementShape.Queue    => "_queue",
-            _                       => "",
-        };
-
-        yield return kind;
-        if (suffix.Length > 0) yield return kind + suffix;
-        if (e.External)
-        {
-            yield return "external_" + kind;
-            if (suffix.Length > 0) yield return "external_" + kind + suffix;
-        }
-    }
 
     private static C4ElementShape ShapeFor(C4Element element, C4PersonStyle personStyle)
     {
@@ -223,44 +197,4 @@ public static class C4GraphProjector
         node.C4 ??= new C4ElementInfo { Kind = C4ElementKind.System, HideStereotype = true };
     }
 
-    // ── Legend ───────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// One row per distinct element flavour actually present, plus one per tag that named its own
-    /// legend text. Listing every C4 kind regardless would describe the notation rather than the
-    /// diagram.
-    /// </summary>
-    private static List<GraphLegendEntry> BuildLegend(C4Diagram d)
-    {
-        var entries = new List<GraphLegendEntry>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var element in d.Elements)
-        {
-            string label = new C4ElementInfo
-            {
-                Kind = element.Kind, External = element.External, Shape = element.Shape,
-            }.Stereotype().Trim('[', ']');
-
-            if (element.Shape == C4ElementShape.Database) label += " (database)";
-            else if (element.Shape == C4ElementShape.Queue) label += " (queue)";
-            if (!seen.Add(label)) continue;
-
-            string? fill = null;
-            foreach (var key in TypeKeys(element))
-                if (d.ElementStyles.TryGetValue(key, out var s) && s.BgColor is not null) fill = s.BgColor;
-
-            entries.Add(new GraphLegendEntry(label, fill, null, element.Shape, element.Kind, element.External));
-        }
-
-        foreach (var (name, style) in d.Tags)
-            if (style.LegendText is { Length: > 0 } text && seen.Add(text))
-                entries.Add(new GraphLegendEntry(text, style.BgColor, style.BorderColor, null));
-
-        foreach (var (name, style) in d.RelTags)
-            if (style.LegendText is { Length: > 0 } text && seen.Add(text))
-                entries.Add(new GraphLegendEntry(text, style.LineColor, style.LineColor, null));
-
-        return entries;
-    }
 }
