@@ -2798,4 +2798,414 @@ public class DiagramParsersTests
         Assert.IsTrue(NexaflowConfigParser.Parse("").IsEmpty);
         Assert.IsTrue(NexaflowConfigParser.Parse("title: Just a title").IsEmpty);
     }
+
+    // ── Timeline — parser ─────────────────────────────────────────────────
+
+    private const string TimelineSrc =
+        """
+        timeline
+            title History of Social Media Platform
+            2002 : LinkedIn
+            2004 : Facebook
+                 : Google
+            2005 : YouTube
+            2006 : Twitter
+        """;
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_ParsesTitlePeriodsAndEvents()
+    {
+        var d = new MermaidTimelineParser().Parse("timeline\n  title T\n  2004 : Facebook : Google\n  2005 : YouTube\n");
+        Assert.AreEqual("T", d.Title);
+        Assert.AreEqual(2, d.PeriodCount);
+        var p = d.Periods.First();
+        Assert.AreEqual("2004", p.Title);
+        CollectionAssert.AreEqual(new[] { "Facebook", "Google" }, p.Events);
+        Assert.AreEqual(TimelineDirection.LeftToRight, d.Direction);
+    }
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_ContinuationColonLinesAppendToLastPeriod()
+    {
+        var d = new MermaidTimelineParser().Parse(TimelineSrc);
+        var p = d.Periods.Single(x => x.Title == "2004");
+        CollectionAssert.AreEqual(new[] { "Facebook", "Google" }, p.Events);
+        Assert.AreEqual(4, d.PeriodCount);
+    }
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_SectionsGroupPeriods_AndHasSections()
+    {
+        var d = new MermaidTimelineParser().Parse(
+            """
+            timeline
+                title Industrial ages
+                section Stone Age
+                    7000 BC : Stone tools
+                    2500 BC : Copper
+                section Bronze Age
+                    2000 BC : Bronze tools
+            """);
+        Assert.IsTrue(d.HasSections);
+        Assert.AreEqual(2, d.Sections.Count);
+        Assert.AreEqual("Stone Age", d.Sections[0].Name);
+        Assert.AreEqual(2, d.Sections[0].Periods.Count);
+        Assert.AreEqual("Bronze Age", d.Sections[1].Name);
+        Assert.AreEqual("2000 BC", d.Sections[1].Periods.Single().Title);
+
+        var flat = new MermaidTimelineParser().Parse(TimelineSrc);
+        Assert.IsFalse(flat.HasSections);
+        Assert.AreEqual(1, flat.Sections.Count);
+        Assert.AreEqual(string.Empty, flat.Sections[0].Name);
+    }
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_BrBecomesLineBreak_AndCommentsStripped()
+    {
+        var d = new MermaidTimelineParser().Parse(
+            "timeline\n%% a comment\n  2010 : Instagram<br>launched : Pinterest %% trailing\n  2011 : Time#colon; 10#colon;30\n");
+        CollectionAssert.AreEqual(new[] { "Instagram\nlaunched", "Pinterest" }, d.Periods.First().Events);
+        Assert.AreEqual("Time: 10:30", d.Periods.Last().Events.Single());
+    }
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_PeriodWithoutEvents_AndEmptyBodyHasNoPeriods()
+    {
+        var d = new MermaidTimelineParser().Parse("timeline\n  accTitle: hidden\n  2020\n  2021 : Something\n");
+        Assert.AreEqual(2, d.PeriodCount);
+        Assert.AreEqual("2020", d.Periods.First().Title);
+        Assert.AreEqual(0, d.Periods.First().Events.Count);
+
+        var empty = new MermaidTimelineParser().Parse("timeline\n");
+        Assert.AreEqual(0, empty.PeriodCount);
+        Assert.AreEqual(0, empty.Sections.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void Timeline_DirectionTd()
+    {
+        Assert.AreEqual(TimelineDirection.TopDown,     new MermaidTimelineParser().Parse("timeline\n  direction TD\n  2020 : a\n").Direction);
+        Assert.AreEqual(TimelineDirection.TopDown,     new MermaidTimelineParser().Parse("timeline TD\n  2020 : a\n").Direction);
+        Assert.AreEqual(TimelineDirection.LeftToRight, new MermaidTimelineParser().Parse("timeline\n  direction LR\n  2020 : a\n").Direction);
+    }
+
+    [TestMethod]
+    [CoversNode("timeline")]
+    public void TimelineConfig_ParsesDisableMulticolorAndCScales()
+    {
+        var cfg = TimelineConfigParser.Parse(
+            """
+            config:
+              timeline:
+                disableMulticolor: true
+                padding: 12
+              themeVariables:
+                cScale0: "#4e79a7"
+                cScale2: "#59a14f"
+                cScaleLabel0: "#ffffff"
+            """);
+        Assert.IsTrue(cfg.DisableMulticolor);
+        Assert.AreEqual(12, cfg.Padding, 1e-9);
+        Assert.IsNotNull(cfg.ScaleAt(0));
+        Assert.IsNull(cfg.ScaleAt(1));          // slots keep their index
+        Assert.IsNotNull(cfg.ScaleAt(2));
+        Assert.IsNotNull(cfg.ScaleLabelAt(0));
+        Assert.IsNull(cfg.ScaleLabelAt(2));
+        Assert.IsFalse(TimelineConfigParser.Parse(null).DisableMulticolor);
+    }
+
+    // ── Journey — parser ──────────────────────────────────────────────────
+
+    private const string JourneySrc =
+        """
+        journey
+            title My working day
+            section Go to work
+              Make tea: 5: Me
+              Go upstairs: 3: Me
+              Do work: 1: Me, Cat
+            section Go home
+              Go downstairs: 5: Me
+              Sit down: 5: Me
+        """;
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_ParsesTitleSectionsTasksScoresActors()
+    {
+        var d = new MermaidJourneyParser().Parse(JourneySrc);
+        Assert.AreEqual("My working day", d.Title);
+        Assert.AreEqual(2, d.Sections.Count);
+        Assert.AreEqual("Go to work", d.Sections[0].Name);
+        Assert.AreEqual(3, d.Sections[0].Tasks.Count);
+        Assert.AreEqual(5, d.TaskCount);
+        var work = d.Tasks.Single(t => t.Name == "Do work");
+        Assert.AreEqual(1, work.Score);
+        CollectionAssert.AreEqual(new[] { "Me", "Cat" }, work.Actors);
+    }
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_ActorsAreDistinctInFirstAppearanceOrder()
+    {
+        var d = new MermaidJourneyParser().Parse("journey\n  A: 3: Zed, Amy\n  B: 4: Amy, Bob\n  C: 2: Zed\n");
+        CollectionAssert.AreEqual(new[] { "Zed", "Amy", "Bob" }, d.Actors.ToList());
+    }
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_MissingScoreIsNeutral_AndOutOfRangeClamps()
+    {
+        var d = new MermaidJourneyParser().Parse("journey\n  A: : Me\n  B: 9: Me\n  C: 0: Me\n  D: abc: Me\n");
+        var t = d.Tasks.ToList();
+        Assert.AreEqual(3, t[0].Score);
+        Assert.AreEqual(5, t[1].Score);
+        Assert.AreEqual(1, t[2].Score);
+        Assert.AreEqual(3, t[3].Score);
+
+        Assert.AreEqual(JourneyMood.Sad,     JourneyDiagram.MoodOf(1));
+        Assert.AreEqual(JourneyMood.Sad,     JourneyDiagram.MoodOf(2));
+        Assert.AreEqual(JourneyMood.Neutral, JourneyDiagram.MoodOf(3));
+        Assert.AreEqual(JourneyMood.Happy,   JourneyDiagram.MoodOf(4));
+        Assert.AreEqual(JourneyMood.Happy,   JourneyDiagram.MoodOf(5));
+    }
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_TaskWithoutActors_AndNonTaskLinesIgnored()
+    {
+        var d = new MermaidJourneyParser().Parse("journey\n  accTitle: hidden\n  not a task\n  Sit down: 5\n  %% comment\n");
+        var t = d.Tasks.Single();
+        Assert.AreEqual("Sit down", t.Name);
+        Assert.AreEqual(5, t.Score);
+        Assert.AreEqual(0, t.Actors.Count);
+        Assert.AreEqual(0, d.Actors.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void Journey_TasksBeforeSectionLandInUnnamedSection()
+    {
+        var d = new MermaidJourneyParser().Parse("journey\n  Wake up: 3: Me\n  section Morning\n  Coffee: 5: Me\n");
+        Assert.AreEqual(2, d.Sections.Count);
+        Assert.AreEqual(string.Empty, d.Sections[0].Name);
+        Assert.AreEqual("Wake up", d.Sections[0].Tasks.Single().Name);
+        Assert.AreEqual("Morning", d.Sections[1].Name);
+    }
+
+    [TestMethod]
+    [CoversNode("journey")]
+    public void JourneyConfig_ParsesArraysSizesAndFillTypes()
+    {
+        var cfg = JourneyConfigParser.Parse(
+            """
+            config:
+              journey:
+                width: 120
+                height: 40
+                boxMargin: 6
+                taskFontSize: 11
+                actorColours: ["#e15759", "#4e79a7"]
+                sectionFills:
+                  - "#59a14f"
+                  - "#f28e2b"
+            """);
+        Assert.AreEqual(120, cfg.Width, 1e-9);
+        Assert.AreEqual(40, cfg.Height, 1e-9);
+        Assert.AreEqual(6, cfg.BoxMargin, 1e-9);
+        Assert.AreEqual(11, cfg.TaskFontSize, 1e-9);
+        Assert.AreEqual(2, cfg.ActorColours.Count);
+        Assert.AreEqual(2, cfg.SectionFills.Count);
+
+        var themed = JourneyConfigParser.Parse("config:\n  themeVariables:\n    fillType0: \"#ff0000\"\n    fillType1: \"#00ff00\"\n");
+        Assert.AreEqual(2, themed.SectionFills.Count);
+        Assert.AreEqual(0, JourneyConfigParser.Parse(null).ActorColours.Count);
+    }
+
+    // ── Block diagram — parser ────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_ParsesRowsColumnsWidthsAndShapes()
+    {
+        var d = new MermaidBlockParser().Parse(
+            """
+            block-beta
+              columns 3
+              a["A label"] b:2 c
+              d(("Disk")) e{{"Hex"}} f>"Flag"]
+            """);
+        Assert.AreEqual(3, d.Root.Columns);
+        Assert.AreEqual(6, d.Root.Items.Count);
+        var a = (BlockNode)d.Root.Items[0];
+        Assert.AreEqual("A label", a.Label);
+        Assert.AreEqual(NodeShape.Rectangle, a.Shape);
+        Assert.AreEqual(2, d.Root.Items[1].Width);
+        Assert.AreEqual("c", ((BlockNode)d.Root.Items[2]).Label);          // a bare id labels itself
+        Assert.AreEqual(NodeShape.Circle,     ((BlockNode)d.Root.Items[3]).Shape);
+        Assert.AreEqual(NodeShape.Hexagon,    ((BlockNode)d.Root.Items[4]).Shape);
+        Assert.AreEqual(NodeShape.Asymmetric, ((BlockNode)d.Root.Items[5]).Shape);
+        Assert.AreEqual("Flag", ((BlockNode)d.Root.Items[5]).Label);
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_RecognisesEveryBracketShape()
+    {
+        var d = new MermaidBlockParser().Parse(
+            "block-beta\n r1(\"a\") r2([\"b\"]) r3[[\"c\"]] r4[(\"d\")] r5((\"e\")) r6(((\"f\"))) r7{\"g\"} r8[/\"h\"/] r9[\\\"i\"\\] r10[/\"j\"\\] r11[\\\"k\"/]\n");
+        CollectionAssert.AreEqual(new[]
+        {
+            NodeShape.RoundedRect, NodeShape.Stadium, NodeShape.Subroutine, NodeShape.Cylinder, NodeShape.Circle,
+            NodeShape.DoubleCircle, NodeShape.Diamond, NodeShape.Parallelogram, NodeShape.ParallelogramAlt,
+            NodeShape.Trapezoid, NodeShape.TrapezoidAlt,
+        }, d.Nodes.Select(n => n.Shape).ToArray());
+        CollectionAssert.AreEqual(new[] { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k" }, d.Nodes.Select(n => n.Label).ToArray());
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_NestedGroupsHaveTheirOwnColumns()
+    {
+        var d = new MermaidBlockParser().Parse(
+            """
+            block-beta
+              columns 3
+              a:3
+              block:group1:2
+                columns 2
+                h i j k
+              end
+              g
+              block
+                l m
+              end
+            """);
+        Assert.AreEqual(4, d.Root.Items.Count);
+        var g1 = (BlockGroup)d.Root.Items[1];
+        Assert.AreEqual("group1", g1.Id);
+        Assert.AreEqual(2, g1.Width);
+        Assert.AreEqual(2, g1.Columns);
+        Assert.AreEqual(4, g1.Items.Count);
+        var anon = (BlockGroup)d.Root.Items[3];
+        Assert.IsNull(anon.Columns);                       // auto: one row
+        Assert.AreEqual(2, anon.Items.Count);
+        Assert.IsNotNull(d.Find("group1"));
+        Assert.IsNotNull(d.Find("k"));
+        Assert.AreEqual(10, d.ItemCount);                  // a, group1, h i j k, g, anon, l m
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_SpacesAndBlockArrows()
+    {
+        var d = new MermaidBlockParser().Parse(
+            """
+            block-beta
+              columns 3
+              a space:2
+              right<["Yes"]>(right) both<[" "]>(x, down) space
+            """);
+        Assert.IsInstanceOfType(d.Root.Items[1], typeof(BlockSpace));
+        Assert.AreEqual(2, d.Root.Items[1].Width);
+        var right = (BlockArrow)d.Root.Items[2];
+        Assert.AreEqual("Yes", right.Label);
+        Assert.AreEqual(BlockArrowDirections.Right, right.Directions);
+        var both = (BlockArrow)d.Root.Items[3];
+        Assert.AreEqual(string.Empty, both.Label);
+        Assert.AreEqual(BlockArrowDirections.Left | BlockArrowDirections.Right | BlockArrowDirections.Down, both.Directions);
+        Assert.AreEqual(5, d.Root.Items.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_EdgesWithAndWithoutLabels_AndInlineShapes()
+    {
+        var d = new MermaidBlockParser().Parse(
+            """
+            block-beta
+              A space B
+              A --> B
+              A -- "X" --> B
+              A --- B
+              id1("Start")-->id2("Stop")
+              ID --> D
+            """);
+        Assert.AreEqual(5, d.Edges.Count);
+        Assert.IsTrue(d.Edges[0].HasArrow);
+        Assert.AreEqual("A", d.Edges[0].From);
+        Assert.AreEqual("B", d.Edges[0].To);
+        Assert.AreEqual("X", d.Edges[1].Label);
+        Assert.IsFalse(d.Edges[2].HasArrow);
+        var start = (BlockNode)d.Find("id1")!;
+        Assert.AreEqual("Start", start.Label);
+        Assert.AreEqual(NodeShape.RoundedRect, start.Shape);
+        Assert.IsNotNull(d.Find("ID"));                    // an unknown endpoint is created in the current group
+        Assert.AreEqual(7, d.Root.Items.Count);            // A, space, B, id1, id2, ID, D
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_StyleClassDefAndClassApply_EvenBeforeDeclaration()
+    {
+        var d = new MermaidBlockParser().Parse(
+            """
+            block-beta
+              style late fill:#636,stroke:#333,stroke-width:4px
+              A space B late
+              classDef blue fill:#6e6ce6,stroke:#333,stroke-width:2px;
+              class A,B blue
+              style B fill:#bbf,stroke:#f66,color:#fff,stroke-dasharray: 5 5
+            """);
+        var a = d.Find("A")!.Style!;
+        Assert.AreEqual("#6e6ce6", a.Fill);
+        Assert.AreEqual(2, a.StrokeWidth);
+        var b = d.Find("B")!.Style!;
+        Assert.AreEqual("#bbf", b.Fill);                   // the explicit style wins over the class
+        Assert.AreEqual("#f66", b.Stroke);
+        Assert.AreEqual("#fff", b.TextColor);
+        Assert.IsTrue(b.Dashed);
+        Assert.AreEqual(2, b.StrokeWidth);                 // kept from the class
+        var late = d.Find("late")!.Style!;
+        Assert.AreEqual("#636", late.Fill);
+        Assert.AreEqual(4, late.StrokeWidth);
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_LabelsDecodeEntitiesAndLineBreaks_AndCommentsSkipped()
+    {
+        var d = new MermaidBlockParser().Parse(
+            "block-beta\n%% a comment\n  a[\"Line one<br>two\"] arrow<[\"&nbsp;&nbsp;\"]>(down) %% trailing\n");
+        Assert.AreEqual("Line one\ntwo", ((BlockNode)d.Root.Items[0]).Label);
+        Assert.AreEqual(string.Empty, ((BlockArrow)d.Root.Items[1]).Label);
+        Assert.AreEqual(BlockArrowDirections.Down, ((BlockArrow)d.Root.Items[1]).Directions);
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void Block_HeaderVariants_AndEmptyDiagram()
+    {
+        Assert.AreEqual(3, new MermaidBlockParser().Parse("block\n  a b c\n").Root.Items.Count);
+        Assert.AreEqual(3, new MermaidBlockParser().Parse("block-beta\n  a b c\n").Root.Items.Count);
+        var empty = new MermaidBlockParser().Parse("block-beta\n");
+        Assert.AreEqual(0, empty.ItemCount);
+        Assert.AreEqual(0, empty.Edges.Count);
+    }
+
+    [TestMethod]
+    [CoversNode("block")]
+    public void BlockConfig_ParsesPadding()
+    {
+        var cfg = BlockConfigParser.Parse("config:\n  block:\n    padding: 12\n    useMaxWidth: false\n");
+        Assert.AreEqual(12, cfg.Padding, 1e-9);
+        Assert.IsFalse(cfg.UseMaxWidth);
+        Assert.AreEqual(8, BlockConfigParser.Parse(null).Padding, 1e-9);
+    }
 }
