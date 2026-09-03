@@ -1,4 +1,4 @@
-# Markdown
+﻿# Markdown
 
 Nexaflow renders Markdown **natively** — no browser, no JavaScript, no round-trip to a web view.
 Open a `.md` file and you get a fast, scrollable, fully-styled document: headings, tables, task
@@ -550,6 +550,67 @@ block-beta
 ````
 
 ![A block diagram with block arrows, a database cylinder and class-coloured blocks](images/markdown/mermaid-block.png)
+
+### C4 diagrams
+
+Software architecture at C4's zoom levels — context, containers, components — plus deployment and dynamic views.
+Elements are cards carrying their kind, technology and description; boundaries nest; relationships name the protocol
+they run over.
+
+````markdown
+```mermaid
+C4Container
+title Container diagram for the Internet Banking System
+
+Person(customer, "Personal Banking Customer", "A customer of the bank.")
+
+System_Boundary(c1, "Internet Banking", "System") {
+  Container(spa, "Single-Page App", "JavaScript, Angular", "Provides banking functionality in the browser.")
+  Container(api, "API Application", "Java, Docker", "Provides banking functionality via a JSON/HTTPS API.")
+  ContainerDb(db, "Database", "SQL Database", "Stores user registration information and access logs.")
+}
+
+Rel(customer, spa, "Visits bigbank.com/ib using", "HTTPS")
+Rel(spa, api, "Makes API calls to", "JSON/HTTPS")
+Rel(api, db, "Reads from and writes to", "JDBC")
+```
+````
+
+![A C4 container diagram with a system boundary, element cards and technology-labelled relationships](images/markdown/mermaid-c4.png)
+
+The body accepts the fuller [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) macro vocabulary — `$tags`
+with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`, `Deployment_Node` nesting, `RelIndex` numbering — not just
+Mermaid's subset.
+
+### C4 sequence
+
+`C4Sequence` has no Mermaid equivalent — it mirrors C4-PlantUML's `C4_Sequence`, and is drawn by the *same* renderer as
+a native sequence diagram, so native control lines work inside it.
+
+````markdown
+```mermaid
+C4Sequence
+title Sign-in sequence
+SHOW_INDEX()
+
+Person(customer, "Banking Customer")
+Container(spa, "Single-Page App", "Angular")
+Boundary(b, "API Application", "Container")
+  Component(signin, "Sign In Controller", "Spring MVC")
+  ComponentDb(users, "User Store", "Spring Bean")
+Boundary_End()
+
+Rel(customer, spa, "Submits credentials", "HTTPS")
+Rel(spa, signin, "POST /signin", "JSON/HTTPS")
+alt credentials valid
+  Rel(signin, users, "Looks the user up", "JDBC")
+else rejected
+  Rel_Back(spa, signin, "401 Unauthorized")
+end
+```
+````
+
+![A C4 sequence diagram with element-card lifelines, a boundary group and an alt fragment](images/markdown/mermaid-c4-sequence.png)
 
 ---
 

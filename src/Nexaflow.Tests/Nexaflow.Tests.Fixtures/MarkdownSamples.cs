@@ -1,10 +1,10 @@
-namespace Nexaflow.Tests.Fixtures;
+﻿namespace Nexaflow.Tests.Fixtures;
 
 /// <summary>
 /// Catalog of sample markdown documents — one per Mermaid diagram type the renderer supports
 /// (pie, flowchart, quadrant chart, sequence diagram, gantt, git graph, mindmap, state diagram,
 /// class diagram, requirement diagram, kanban board, XY chart, radar chart, Ishikawa/fishbone, Sankey,
-/// ER, Venn, architecture, swimlanes, Cynefin, timeline, journey, block), plus an <c>extensions.md</c> exercising the non-diagram
+/// ER, Venn, architecture, swimlanes, Cynefin, timeline, journey, block, C4), plus an <c>extensions.md</c> exercising the non-diagram
 /// Markdig extensions (emphasis extras, abbreviations, alert blocks) and four <c>latex-math-*.md</c>
 /// references that exercise the LaTeX math renderer (symbols, structures incl. all matrix delimiters
 /// and environments, fonts/styling, AMS symbols) — a supported construct typesets, an unsupported one
@@ -43,6 +43,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-timeline.md",    Timeline),
         SampleFile.Text("mermaid-journey.md",     Journey),
         SampleFile.Text("mermaid-block.md",       Block),
+        SampleFile.Text("mermaid-c4.md",          C4),
         SampleFile.Text("extensions.md",          Extensions),
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
@@ -1663,6 +1664,25 @@ internal sealed class MarkdownSamples : ISampleSet
             }
             TechLead --> Developer : leads
             TechLead --> Designer : leads
+        ```
+
+        Multiplicity on a relationship whose ends live inside namespaces
+
+        ```mermaid
+        classDiagram
+            namespace Ordering {
+                class Order {
+                    +int id
+                }
+                class LineItem {
+                    +int quantity
+                }
+            }
+            namespace Billing {
+                class Invoice
+            }
+            Order "1" --> "*" LineItem : contains
+            Order "1" --> "0..1" Invoice : billed by
         ```
 
         Lollipop interfaces
@@ -3823,6 +3843,155 @@ internal sealed class MarkdownSamples : ISampleSet
         ```
         """";
 
+    private const string C4 =
+        """
+        # Mermaid — C4 diagrams
+
+        C4 models software at four zoom levels — context, containers, components, and the code — plus
+        deployment and dynamic views. The `C4Context`, `C4Container`, `C4Component`, `C4Dynamic` and
+        `C4Deployment` headers are Mermaid's, but the body accepts the fuller
+        [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) macro set: `$techn` and `$descr`
+        on elements and relationships, `$tags` with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`
+        and the `SHOW_PERSON_*` shape variants. Elements are laid out by the shared graph engine, so a
+        C4 diagram pans, zooms and selects like a flowchart.
+
+        ## System context
+
+        ```mermaid
+        C4Context
+        title System Context diagram for Internet Banking System
+
+        Person(customer, "Personal Banking Customer", "A customer of the bank, with personal accounts.")
+        System(banking, "Internet Banking System", "Allows customers to view information about their accounts.")
+        System_Ext(mail, "E-mail System", "The internal Microsoft Exchange e-mail system.")
+        SystemDb_Ext(mainframe, "Mainframe Banking System", "Stores all of the core banking information.")
+
+        Rel(customer, banking, "Views account balances, makes payments using")
+        Rel(banking, mail, "Sends e-mail using", "SMTP")
+        Rel_Back(customer, mail, "Sends e-mails to")
+        Rel(banking, mainframe, "Gets account information from", "XML/HTTPS")
+
+        SHOW_LEGEND()
+        ```
+
+        ## Containers, boundaries and tags
+
+        ```mermaid
+        C4Container
+        title Container diagram for the Internet Banking System
+
+        AddElementTag("critical", $bgColor="#c0392b", $fontColor="#ffffff", $legendText="Business critical")
+
+        Person(customer, "Personal Banking Customer", "A customer of the bank.")
+
+        System_Boundary(c1, "Internet Banking", "System") {
+          Container(spa, "Single-Page App", "JavaScript, Angular", "Provides banking functionality in the browser.")
+          Container(api, "API Application", "Java, Docker", "Provides banking functionality via a JSON/HTTPS API.", $tags="critical")
+          ContainerDb(db, "Database", "SQL Database", "Stores user registration information and access logs.")
+          ContainerQueue(events, "Event Bus", "Kafka", "Carries domain events between services.")
+        }
+
+        System_Ext(mail, "E-mail System", "The internal Microsoft Exchange system.")
+
+        Rel(customer, spa, "Visits bigbank.com/ib using", "HTTPS")
+        Rel(spa, api, "Makes API calls to", "JSON/HTTPS")
+        Rel(api, db, "Reads from and writes to", "JDBC")
+        Rel(api, events, "Publishes to", "Kafka protocol")
+        BiRel(api, mail, "Sends and receives e-mail using")
+        ```
+
+        ## Components, with a person outline and left-to-right layout
+
+        ```mermaid
+        C4Component
+        title Component diagram for the API Application
+
+        LAYOUT_LEFT_RIGHT()
+        SHOW_PERSON_OUTLINE()
+
+        Person(customer, "Banking Customer")
+
+        Container_Boundary(api, "API Application") {
+          Component(signin, "Sign In Controller", "MVC Rest Controller", "Allows users to sign in.")
+          Component(security, "Security Component", "Spring Bean", "Provides functionality related to signing in.")
+          ComponentDb(store, "User Store", "Spring Bean", "Reads user records from the database.")
+        }
+
+        Rel(customer, signin, "Submits credentials to", "JSON/HTTPS")
+        Rel(signin, security, "Uses")
+        Rel(security, store, "Uses")
+        ```
+
+        ## Dynamic — numbered interactions
+
+        ```mermaid
+        C4Dynamic
+        title Dynamic diagram for the Internet Banking System
+
+        Person(customer, "Banking Customer")
+        Container(spa, "Single-Page App", "Angular")
+        Container(api, "API Application", "Java")
+        ContainerDb(db, "Database", "SQL Database")
+
+        Rel(customer, spa, "Submits credentials", "HTTPS", $index=Index())
+        Rel(spa, api, "Validates credentials", "JSON/HTTPS", $index=Index())
+        Rel(api, db, "select * from users where …", "JDBC", $index=Index())
+        Rel_Back(api, db, "Returns the user record", $index=Index())
+        Rel_Back(customer, spa, "Sends back an authentication token", $index=Index())
+        ```
+
+        ## Sequence — a Nexaflow extension
+
+        `C4Sequence` mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword for. Elements
+        become participant cards, a `Boundary` groups them, and each `Rel` is a message carrying its
+        technology. Native `sequenceDiagram` control lines — `alt`, `loop`, `note over`, `activate` —
+        work inside it, because it is drawn by the very same renderer.
+
+        ```mermaid
+        C4Sequence
+        title Sign-in sequence
+
+        SHOW_INDEX()
+        SHOW_FOOT_BOXES(false)
+
+        Person(customer, "Banking Customer")
+        Container(spa, "Single-Page App", "Angular")
+        Boundary(b, "API Application", "Container")
+        Component(signin, "Sign In Controller", "Spring MVC")
+        ComponentDb(users, "User Store", "Spring Bean")
+        Boundary_End()
+
+        Rel(customer, spa, "Submits credentials", "HTTPS")
+        Rel(spa, signin, "POST /signin", "JSON/HTTPS")
+        alt credentials valid
+        Rel(signin, users, "Looks the user up", "JDBC")
+        Rel_Back(signin, users, "Returns the record")
+        else rejected
+        Rel_Back(spa, signin, "401 Unauthorized")
+        end
+        Rel_Back(customer, spa, "Shows the dashboard")
+        ```
+
+        ## Deployment — nested nodes
+
+        ```mermaid
+        C4Deployment
+        title Deployment diagram for the Internet Banking System — Live
+
+        Deployment_Node(plc, "Big Bank plc", "Big Bank plc data center") {
+          Deployment_Node(dn, "bigbank-api***", "Ubuntu 16.04 LTS", "A web server rack") {
+            Deployment_Node(apache, "Apache Tomcat", "Apache Tomcat 8.x") {
+              Container(api, "API Application", "Java, Docker", "Provides banking functionality via an API.")
+            }
+          }
+          Deployment_Node(bigbankdb, "bigbank-db01", "Oracle 12c") {
+            ContainerDb(db, "Database", "Relational database schema", "Stores user registration information.")
+          }
+        }
+
+        Rel(api, db, "Reads from and writes to", "JDBC")
+        ```
+        """;
     private const string DataMatrix =
         """"
         # Data Matrix

@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,7 +15,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfGitGraphRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double ColGap   = 50;   // spacing along the time axis (per position)
     private const double LaneGap  = 46;   // spacing across lanes (per branch)
@@ -42,7 +42,7 @@ public static class WpfGitGraphRenderer
         int  maxLane  = graph.MaxLane;
 
         // Branch label sizing.
-        double branchLabelW = graph.Branches.Max(b => MeasureText(b.Name, 11)) + 16;
+        double branchLabelW = graph.Branches.Max(b => DiagramText.Measure(b.Name, 11)) + 16;
 
         double laneAxis0 = Outer + (vertical ? 0 : branchLabelW + 8);            // origin of the lane axis
         double timeAxis0 = Outer + (hasTitle ? TitleH : 0) + (vertical ? branchLabelW + 8 : 14);
@@ -99,7 +99,7 @@ public static class WpfGitGraphRenderer
         // 4. title
         if (hasTitle)
         {
-            double tw = MeasureText(graph.Title, 15);
+            double tw = DiagramText.Measure(graph.Title, 15);
             canvas.Children.Add(new TextBlock { Text = graph.Title, Foreground = titleBrush, FontFamily = BodyFont, FontSize = 15, FontWeight = FontWeights.SemiBold }.At((canvasW - tw) / 2, Outer - 2));
         }
 
@@ -182,7 +182,7 @@ public static class WpfGitGraphRenderer
 
     private static void DrawTag(Canvas canvas, string tag, Point pt, Brush color, Brush text, Brush bg, bool vertical)
     {
-        double w = MeasureText(tag, 10) + 10;
+        double w = DiagramText.Measure(tag, 10) + 10;
         var border = new Border
         {
             Background = bg, BorderBrush = color, BorderThickness = new Thickness(1.2),
@@ -198,14 +198,14 @@ public static class WpfGitGraphRenderer
     {
         var tb = new TextBlock { Text = id, Foreground = muted, FontFamily = BodyFont, FontSize = 9.5 };
         if (vertical) { Canvas.SetLeft(tb, pt.X + R + 6); Canvas.SetTop(tb, pt.Y + 4); }
-        else          { double w = MeasureText(id, 9.5); Canvas.SetLeft(tb, pt.X - w / 2); Canvas.SetTop(tb, pt.Y + R + 4); }
+        else          { double w = DiagramText.Measure(id, 9.5); Canvas.SetLeft(tb, pt.X - w / 2); Canvas.SetTop(tb, pt.Y + R + 4); }
         canvas.Children.Add(tb);
     }
 
     private static void DrawBranchLabel(Canvas canvas, string name, Point anchor, Brush color, Brush bg,
         bool vertical, double laneAxis0, double timeAxis0)
     {
-        double w = MeasureText(name, 11) + 14;
+        double w = DiagramText.Measure(name, 11) + 14;
         var border = new Border
         {
             Background = color, CornerRadius = new CornerRadius(8), Padding = new Thickness(7, 1, 7, 1),
@@ -227,10 +227,4 @@ public static class WpfGitGraphRenderer
         return w;
     }
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 }

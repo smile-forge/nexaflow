@@ -35,6 +35,21 @@ public sealed class LayoutEdge
 }
 
 /// <summary>
+/// A laid-out subgraph box. <see cref="Source"/> is the <see cref="Subgraph"/> it came from, so a
+/// renderer can read its style — it used to be a bare (label, bounds) tuple, which meant a boundary
+/// could not say how it wanted to be drawn. The two-value deconstruction is kept so the callers
+/// that only want the geometry read the same as before.
+/// </summary>
+public sealed record SubgraphBox(string Label, Rect Bounds, Subgraph? Source)
+{
+    public void Deconstruct(out string label, out Rect bounds)
+    {
+        label = Label;
+        bounds = Bounds;
+    }
+}
+
+/// <summary>
 /// The fully computed layout: positioned nodes grouped by layer and routed edges.
 /// </summary>
 public sealed class LayoutedGraph
@@ -45,7 +60,7 @@ public sealed class LayoutedGraph
     public List<LayoutEdge> Edges            { get; } = [];
     public double Width                                  { get; set; }
     public double Height                                 { get; set; }
-    public List<(string Label, Rect Bounds)> SubgraphBoxes { get; } = [];
+    public List<SubgraphBox> SubgraphBoxes                { get; } = [];
     public IEnumerable<LayoutNode> AllNodes              => Layers.SelectMany(l => l);
 }
 

@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using System;
@@ -302,5 +302,120 @@ public class SugiyamaLayoutTests
             Assert.AreEqual(loose[i].X, tight[i].X, 0.01);
             Assert.AreEqual(loose[i].Y, tight[i].Y, 0.01);
         }
+    }
+
+    // ── The clustered rebuild is total ────────────────────────────────────
+
+    /// <summary>
+    /// Laying a graph out by levels rebuilds every edge, and for years that rebuild listed the
+    /// fields it carried by hand — so an edge kept its label and arrow but silently lost its
+    /// multiplicity the moment it sat inside a namespace or composite. Every property now travels
+    /// via <see cref="Edge.Copy"/>, and this is the test that says so.
+    /// </summary>
+    [TestMethod]
+    public void ClusteredEdges_KeepEveryProperty()
+    {
+        var g = new MermaidClassParser().Parse(
+            """
+            classDiagram
+                namespace Ordering {
+                    class Order
+                    class LineItem
+                }
+                Order "1" --> "*" LineItem : contains
+            """);
+
+        // Sanity: the parse really did produce a clustered graph with multiplicity to lose.
+        Assert.AreEqual(1, g.Subgraphs.Count, "expected a namespace box");
+        var source = g.Edges.Single();
+        Assert.AreEqual("1", source.StartLabel);
+        Assert.AreEqual("*", source.EndLabel);
+
+        var laidOut = SugiyamaLayout.Compute(g, 900).Edges.Single(e => e.Source is not null).Source!;
+        Assert.AreEqual("contains", laidOut.Label);
+        Assert.AreEqual("1", laidOut.StartLabel, "multiplicity must survive the per-level rebuild");
+        Assert.AreEqual("*", laidOut.EndLabel);
+        Assert.AreEqual(source.Arrow, laidOut.Arrow);
+        Assert.AreEqual(source.Style, laidOut.Style);
+    }
+
+    /// <summary>
+    /// The same guarantee stated against the type rather than one diagram: a copy differs from its
+    /// original only where it was asked to. A property added to <see cref="Edge"/> without being
+    /// added to <see cref="Edge.Copy"/> fails here rather than silently vanishing inside a box.
+    /// </summary>
+    [TestMethod]
+    public void EdgeCopy_CarriesEveryProperty()
+    {
+        var original = new Edge
+        {
+            SourceId = "a", TargetId = "b", Label = "label", Style = EdgeStyle.Dotted,
+            Arrow = EdgeArrow.DiamondFilled, StartArrow = EdgeArrow.TriangleHollow,
+            StartLabel = "1", EndLabel = "*", SubLabel = "[HTTPS]",
+            LineColor = "#f00", TextColor = "#0f0", IsReversed = true,
+            Href = "https://example.com", Tooltip = "tip",
+        };
+
+        var copy = original.Copy();
+        foreach (var property in typeof(Edge).GetProperties().Where(p => p.CanRead))
+            Assert.AreEqual(property.GetValue(original), property.GetValue(copy), property.Name);
+
+        var moved = original.Copy("x", "y");
+        Assert.AreEqual("x", moved.SourceId);
+        Assert.AreEqual("y", moved.TargetId);
+        Assert.AreEqual("1", moved.StartLabel, "re-pointing an edge must not drop the rest of it");
+    }
+
+    /// <summary>As above, for the group box — its style and membership are what get forgotten.</summary>
+    [TestMethod]
+    public void SubgraphCopy_CarriesEveryProperty()
+    {
+        var original = new Subgraph
+        {
+            Id = "b", Label = "Boundary", ParentId = "outer", Href = "https://example.com", Tooltip = "tip",
+            Style = new SubgraphStyle { SubLabel = "[System]", FillColor = "#111", StrokeColor = "#222", TextColor = "#333", BorderStyle = EdgeStyle.Solid },
+        };
+        original.NodeIds.AddRange(["one", "two"]);
+
+        var copy = original.Copy();
+        Assert.AreEqual(original.Id, copy.Id);
+        Assert.AreEqual(original.Label, copy.Label);
+        Assert.AreEqual(original.ParentId, copy.ParentId);
+        Assert.AreEqual(original.Href, copy.Href);
+        Assert.AreEqual(original.Tooltip, copy.Tooltip);
+        CollectionAssert.AreEqual(original.NodeIds, copy.NodeIds);
+
+        Assert.AreEqual("[System]", copy.Style!.SubLabel);
+        Assert.AreEqual("#111", copy.Style.FillColor);
+        Assert.AreEqual("#222", copy.Style.StrokeColor);
+        Assert.AreEqual("#333", copy.Style.TextColor);
+        Assert.AreEqual(EdgeStyle.Solid, copy.Style.BorderStyle);
+
+        // The style is copied, not shared — a derived view must not edit the parsed graph.
+        copy.Style.SubLabel = "changed";
+        Assert.AreEqual("[System]", original.Style!.SubLabel);
+
+        CollectionAssert.AreEqual(new[] { "only" }, original.Copy(["only"]).NodeIds);
+    }
+
+    /// <summary>The shell a derived view starts from carries the document-level properties.</summary>
+    [TestMethod]
+    public void GraphCopyShell_CarriesTheDocumentProperties()
+    {
+        var g = new Graph
+        {
+            Title = "T",
+            Direction = GraphDirection.LeftRight,
+            Legend = [new GraphLegendEntry("Person", null, null, null)],
+        };
+        g.GetOrAdd("a");
+
+        var shell = g.CopyShell();
+        Assert.AreEqual("T", shell.Title);
+        Assert.AreEqual(GraphDirection.LeftRight, shell.Direction);
+        Assert.AreSame(g.Legend, shell.Legend);
+        Assert.AreEqual(0, shell.Nodes.Count, "a shell carries no content");
+        Assert.AreEqual(0, shell.Edges.Count);
+        Assert.AreEqual(0, shell.Subgraphs.Count);
     }
 }

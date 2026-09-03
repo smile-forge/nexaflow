@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,7 +15,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfGanttRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double Outer      = 16;
     private const double TitleH     = 28;
@@ -80,7 +80,7 @@ public static class WpfGanttRenderer
         foreach (var (task, cy) in rows)
         {
             double bx = task.IsMilestone ? X(task.Start) + MsR : X(task.End);
-            maxRight = Math.Max(maxRight, bx + 8 + MeasureText(task.Name, 11));
+            maxRight = Math.Max(maxRight, bx + 8 + DiagramText.Measure(task.Name, 11));
         }
         double canvasW = maxRight + Outer;
         double canvasH = rowsBottom + Outer;
@@ -90,7 +90,7 @@ public static class WpfGanttRenderer
         foreach (var (name, top, bottom, index) in bands)
         {
             var c = (series[index % series.Count] as SolidColorBrush)?.Color ?? accentC;
-            canvas.Children.Add(new Rectangle { Width = canvasW - 2 * Outer, Height = bottom - top, Fill = Tint(c, 0x14) }.At(Outer, top));
+            canvas.Children.Add(new Rectangle { Width = canvasW - 2 * Outer, Height = bottom - top, Fill = DiagramBrushes.Tint(c, 0x14) }.At(Outer, top));
         }
 
         // 2. axis gridlines + date labels
@@ -99,7 +99,7 @@ public static class WpfGanttRenderer
             double tx = X(tick);
             canvas.Children.Add(new Line { X1 = tx, Y1 = rowsTop, X2 = tx, Y2 = rowsBottom, Stroke = gridBrush, StrokeThickness = 1, StrokeDashArray = new DoubleCollection([2, 4]) });
             string label = tick.ToString(AxisFormat(chart.AxisFormat), CultureInfo.InvariantCulture);
-            double lw = MeasureText(label, 10);
+            double lw = DiagramText.Measure(label, 10);
             canvas.Children.Add(new TextBlock { Text = label, Foreground = mutedBrush, FontFamily = BodyFont, FontSize = 10 }.At(tx - lw / 2, titleBottom + 4));
         }
 
@@ -108,7 +108,7 @@ public static class WpfGanttRenderer
         if (today >= min && today <= max)
         {
             double tx = X(today);
-            canvas.Children.Add(new Line { X1 = tx, Y1 = rowsTop, X2 = tx, Y2 = rowsBottom, Stroke = Solid(critC), StrokeThickness = 1.4, StrokeDashArray = new DoubleCollection([3, 2]) });
+            canvas.Children.Add(new Line { X1 = tx, Y1 = rowsTop, X2 = tx, Y2 = rowsBottom, Stroke = DiagramBrushes.Frozen(critC), StrokeThickness = 1.4, StrokeDashArray = new DoubleCollection([3, 2]) });
         }
 
         // 4. bars + milestones + labels
@@ -130,7 +130,7 @@ public static class WpfGanttRenderer
         // 6. title
         if (hasTitle)
         {
-            double tw = MeasureText(chart.Title, 15);
+            double tw = DiagramText.Measure(chart.Title, 15);
             canvas.Children.Add(new TextBlock { Text = chart.Title, Foreground = titleBrush, FontFamily = BodyFont, FontSize = 15, FontWeight = FontWeights.SemiBold }.At((canvasW - tw) / 2, Outer - 2));
         }
 
@@ -165,11 +165,11 @@ public static class WpfGanttRenderer
         canvas.Children.Add(new Rectangle
         {
             Width = w, Height = BarH, RadiusX = 4, RadiusY = 4,
-            Fill = Tint(c, fillA), Stroke = Solid(c), StrokeThickness = emphasised ? 1.8 : 1,
+            Fill = DiagramBrushes.Tint(c, fillA), Stroke = DiagramBrushes.Frozen(c), StrokeThickness = emphasised ? 1.8 : 1,
         }.At(x0, top));
 
         // Label: inside the bar when it fits, otherwise to the right.
-        double nameW = MeasureText(task.Name, 11);
+        double nameW = DiagramText.Measure(task.Name, 11);
         if (w >= nameW + 14)
             canvas.Children.Add(new TextBlock { Text = task.Name, Foreground = OnColor(c, fillA), FontFamily = BodyFont, FontSize = 11 }.At(x0 + 6, cy - 8));
         else
@@ -181,7 +181,7 @@ public static class WpfGanttRenderer
         canvas.Children.Add(new Polygon
         {
             Points = new PointCollection([new(x, cy - MsR), new(x + MsR, cy), new(x, cy + MsR), new(x - MsR, cy)]),
-            Fill = Solid(msC), Stroke = Solid(msC), StrokeThickness = 1,
+            Fill = DiagramBrushes.Frozen(msC), Stroke = DiagramBrushes.Frozen(msC), StrokeThickness = 1,
         });
         canvas.Children.Add(new TextBlock { Text = task.Name, Foreground = textBrush, FontFamily = BodyFont, FontSize = 11 }.At(x + MsR + 6, cy - 8));
     }
@@ -211,31 +211,12 @@ public static class WpfGanttRenderer
 
     // ── Colour & text helpers ─────────────────────────────────────────────────
 
-    private static Brush Tint(Color c, byte a) { var b = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B)); b.Freeze(); return b; }
-    private static Brush Solid(Color c)        { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     /// <summary>Readable text colour over a tinted bar fill of colour <paramref name="c"/>.</summary>
     private static Brush OnColor(Color c, byte a)
     {
         double lum = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) * (a / 255.0);
-        return lum > 110 ? Solid(Colors.Black) : Solid(Colors.White);
+        return lum > 110 ? DiagramBrushes.Frozen(Colors.Black) : DiagramBrushes.Frozen(Colors.White);
     }
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
-}
-
-/// <summary>Canvas placement sugar — sets <c>Canvas.Left/Top</c> and returns the element fluently.</summary>
-internal static class CanvasAtExtensions
-{
-    public static T At<T>(this T el, double left, double top) where T : UIElement
-    {
-        Canvas.SetLeft(el, left);
-        Canvas.SetTop(el, top);
-        return el;
-    }
 }

@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfBlockRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double Outer     = 16;
     private const double TitleH    = 28;
@@ -51,7 +51,7 @@ public static class WpfBlockRenderer
 
         if (hasTitle)
         {
-            double tw = MeasureText(diagram.Title, 15);
+            double tw = DiagramText.Measure(diagram.Title, 15);
             canvas.Children.Add(new TextBlock { Text = diagram.Title, Foreground = palette.Heading, FontFamily = BodyFont, FontSize = 15, FontWeight = FontWeights.SemiBold }.At((canvasW - tw) / 2, Outer - 2));
         }
 
@@ -234,13 +234,13 @@ public static class WpfBlockRenderer
 
         private void DrawGroupBox(Canvas canvas, BlockGroup g, Rect r)
         {
-            var (fill, stroke, thickness, dash) = Paint(g.Style, Tint(_muted, 0x16), Solid(Blend(_muted, 0x90)), 1);
+            var (fill, stroke, thickness, dash) = Paint(g.Style, DiagramBrushes.Tint(_muted, 0x16), DiagramBrushes.Frozen(Blend(_muted, 0x90)), 1);
             canvas.Children.Add(new Rectangle { Width = r.Width, Height = r.Height, RadiusX = 6, RadiusY = 6, Fill = fill, Stroke = stroke, StrokeThickness = thickness, StrokeDashArray = dash }.At(r.X, r.Y));
         }
 
         private void DrawNode(Canvas canvas, BlockNode n, Rect r, TextBlock label)
         {
-            var (fill, stroke, thickness, dash) = Paint(n.Style, Tint(_accent, 0x40), Solid(_accent), 1.2);
+            var (fill, stroke, thickness, dash) = Paint(n.Style, DiagramBrushes.Tint(_accent, 0x40), DiagramBrushes.Frozen(_accent), 1.2);
 
             var shapeRect = r;
             if (n.Shape is NodeShape.Circle or NodeShape.DoubleCircle)
@@ -253,7 +253,7 @@ public static class WpfBlockRenderer
             foreach (var extra in ShapeDecorations(n.Shape, shapeRect))
                 canvas.Children.Add(new Path { Data = extra, Stroke = stroke, StrokeThickness = thickness, StrokeDashArray = dash });
 
-            if (n.Style?.TextColor is string tc && ParseColor(tc) is Color c) label.Foreground = Solid(c);
+            if (n.Style?.TextColor is string tc && ParseColor(tc) is Color c) label.Foreground = DiagramBrushes.Frozen(c);
             double inset = n.Shape switch
             {
                 NodeShape.Diamond => r.Width * 0.25,
@@ -267,7 +267,7 @@ public static class WpfBlockRenderer
 
         private void DrawBlockArrow(Canvas canvas, BlockArrow a, Rect r, TextBlock label)
         {
-            var (fill, stroke, thickness, dash) = Paint(a.Style, Tint(_muted, 0x40), Solid(Blend(_muted, 0xB0)), 1);
+            var (fill, stroke, thickness, dash) = Paint(a.Style, DiagramBrushes.Tint(_muted, 0x40), DiagramBrushes.Frozen(Blend(_muted, 0xB0)), 1);
             Geometry? geo = null;
             foreach (var dir in new[] { BlockArrowDirections.Right, BlockArrowDirections.Left, BlockArrowDirections.Up, BlockArrowDirections.Down })
             {
@@ -278,7 +278,7 @@ public static class WpfBlockRenderer
             if (geo is not null)
                 canvas.Children.Add(new Path { Data = geo, Fill = fill, Stroke = stroke, StrokeThickness = thickness, StrokeDashArray = dash, StrokeLineJoin = PenLineJoin.Round });
 
-            if (a.Style?.TextColor is string tc && ParseColor(tc) is Color c) label.Foreground = Solid(c);
+            if (a.Style?.TextColor is string tc && ParseColor(tc) is Color c) label.Foreground = DiagramBrushes.Frozen(c);
             PlaceLabel(canvas, label, new Rect(r.X + 8, r.Y, Math.Max(10, r.Width - 16), r.Height));
         }
 
@@ -317,7 +317,7 @@ public static class WpfBlockRenderer
             var ca = Centre(ra); var cb = Centre(rb);
             if (ca == cb) return;
             var p0 = Exit(ra, cb); var p1 = Exit(rb, ca);
-            var ink = Solid(Blend(_text, 0xB0));
+            var ink = DiagramBrushes.Frozen(Blend(_text, 0xB0));
 
             canvas.Children.Add(new Line { X1 = p0.X, Y1 = p0.Y, X2 = p1.X, Y2 = p1.Y, Stroke = ink, StrokeThickness = 1.6 });
             if (edge.HasArrow)
@@ -340,8 +340,8 @@ public static class WpfBlockRenderer
         private (Brush fill, Brush stroke, double thickness, DoubleCollection? dash) Paint(BlockStyle? s, Brush fill, Brush stroke, double thickness)
         {
             if (s is null) return (fill, stroke, thickness, null);
-            if (s.Fill   is string f && ParseColor(f) is Color fc) fill   = Solid(fc);
-            if (s.Stroke is string k && ParseColor(k) is Color sc) stroke = Solid(sc);
+            if (s.Fill   is string f && ParseColor(f) is Color fc) fill   = DiagramBrushes.Frozen(fc);
+            if (s.Stroke is string k && ParseColor(k) is Color sc) stroke = DiagramBrushes.Frozen(sc);
             if (s.StrokeWidth is double sw) thickness = Math.Clamp(sw, 0.5, 8);
             return (fill, stroke, thickness, s.Dashed ? new DoubleCollection([5, 4]) : null);
         }
@@ -465,14 +465,6 @@ public static class WpfBlockRenderer
         catch { return null; }
     }
 
-    private static Brush Tint(Color c, byte a) { var b = new SolidColorBrush(Color.FromArgb(a, c.R, c.G, c.B)); b.Freeze(); return b; }
-    private static Brush Solid(Color c)        { var b = new SolidColorBrush(c); b.Freeze(); return b; }
     private static Color Blend(Color c, byte a) => Color.FromArgb(a, c.R, c.G, c.B);
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 }

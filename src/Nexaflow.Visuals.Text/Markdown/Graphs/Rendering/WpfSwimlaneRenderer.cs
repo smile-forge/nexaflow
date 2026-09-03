@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,7 +16,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfSwimlaneRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     private const double NodeW    = 128;
     private const double NodeH    = 50;
@@ -168,7 +168,7 @@ public static class WpfSwimlaneRenderer
             Text = label, Foreground = palette.TextMuted, FontFamily = BodyFont,
             FontSize = 11, FontWeight = FontWeights.SemiBold,
         };
-        double tw = MeasureText(label, 11);
+        double tw = DiagramText.Measure(label, 11);
         if (!horizontalFlow)
         {
             // Rotated label centred vertically in the band's left strip (LayoutTransform swaps the
@@ -261,7 +261,7 @@ public static class WpfSwimlaneRenderer
 
         if (!string.IsNullOrWhiteSpace(e.Label))
         {
-            double w = MeasureText(e.Label, 10);
+            double w = DiagramText.Measure(e.Label, 10);
             var lbl = new Border
             {
                 Background = palette.CodeBg, Padding = new Thickness(3, 0, 3, 0),
@@ -295,14 +295,6 @@ public static class WpfSwimlaneRenderer
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(
-            text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-            fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 
     private static Brush ParseBrush(string? color, Brush fallback)
     {

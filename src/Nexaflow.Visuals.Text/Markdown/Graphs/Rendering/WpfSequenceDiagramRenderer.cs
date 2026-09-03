@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,7 +15,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfSequenceDiagramRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     // ── Geometry constants ─────────────────────────────────────────────────
 
@@ -45,6 +45,9 @@ public static class WpfSequenceDiagramRenderer
     private const double MsgFontSize = 11;
     private const double LineH       = 14;
 
+    /// <summary>Band reserved above the participant heads for a <c>box</c> grouping's label.</summary>
+    private const double BoxLabelH   = 18;
+
     // ── Theme (set per render; markdown renders synchronously on the UI thread) ──
 
     private static Brush Bg = Brushes.Black, Border = Brushes.Gray, Title = Brushes.White,
@@ -53,6 +56,9 @@ public static class WpfSequenceDiagramRenderer
         FrameStroke = Brushes.Gray, FrameTabBg = Brushes.DimGray, ActBg = Brushes.DimGray, OnAccent = Brushes.White;
     private static Color AccentColor = Colors.SteelBlue;
 
+    /// <summary>Element-card colours, used only by participants carrying a <see cref="SequenceParticipant.Card"/>.</summary>
+    private static C4Palette C4 = C4Palette.Resolve(MarkdownPalette.Dark);
+
     private static void SetTheme(MarkdownPalette p)
     {
         Bg = p.CodeBg; Border = p.CodeBorder; Title = p.Heading;
@@ -60,7 +66,8 @@ public static class WpfSequenceDiagramRenderer
         Line = p.Accent; NoteBg = p.QuoteBg; FrameStroke = p.TextMuted;
         FrameTabBg = p.TableHeaderBg; ActBg = p.QuoteBg;
         AccentColor = (p.Accent as SolidColorBrush)?.Color ?? Colors.SteelBlue;
-        OnAccent = Luminance(AccentColor) > 140 ? Brushes.Black : Brushes.White;
+        OnAccent = DiagramBrushes.Luminance(AccentColor) > 140 ? Brushes.Black : Brushes.White;
+        C4 = C4Palette.Resolve(p);
     }
 
     private sealed class FragPlace
@@ -92,17 +99,18 @@ public static class WpfSequenceDiagramRenderer
         {
             var pt = diagram.Participants[i];
             index[pt.Id] = i;
-            var (tw, lines) = MeasureBlock(pt.Label, FontSize);
-            double glyphAllow = pt.Kind is ParticipantKind.Participant or ParticipantKind.Actor ? 0 : 24;
-            widths[i] = Math.Clamp(tw + BoxPadX * 2 + glyphAllow, BoxMinW, BoxMaxW);
-            headHs[i] = pt.Kind == ParticipantKind.Actor ? ActorH : Math.Max(BoxH, lines * LineH + 14);
+            (widths[i], headHs[i]) = MeasureHead(pt);
             if (!pt.Created) headerH = Math.Max(headerH, headHs[i]);   // created heads appear mid-diagram
         }
         centers[0] = Outer + widths[0] / 2;
         for (int i = 1; i < n; i++)
             centers[i] = centers[i - 1] + Math.Max(MinColGap, widths[i - 1] / 2 + widths[i] / 2 + MinEdgeGap);
 
-        double topBoxY = Outer + (hasTitle ? TitleH : 0);
+        // A box grouping writes its label above the participant heads, so it needs a band of its own
+        // — without one the label sits a few pixels above the tallest head and any head taller than
+        // the rest (a card, a database glyph) is drawn straight through it.
+        double boxBandH = diagram.Boxes.Any(b => !string.IsNullOrWhiteSpace(b.Label)) ? BoxLabelH : 0;
+        double topBoxY = Outer + (hasTitle ? TitleH : 0) + boxBandH;
         double lifeTop = topBoxY + headerH;
 
         double Cx(string id) => index.TryGetValue(id, out int k) ? centers[k] : centers[0];
@@ -129,7 +137,7 @@ public static class WpfSequenceDiagramRenderer
                 case SequenceMessage m:
                 {
                     bool self = string.Equals(m.FromId, m.ToId, StringComparison.Ordinal);
-                    int lines = m.Text.Length == 0 ? 0 : m.Text.Split('\n').Length;
+                    int lines = LabelLines(m);
                     double arrowY = y + Math.Max(0, lines) * LineH + 6;
                     double fromX = Cx(m.FromId), toX = Cx(m.ToId);
 
@@ -148,7 +156,10 @@ public static class WpfSequenceDiagramRenderer
                     yOf[m] = arrowY; lastMsgY = arrowY;
                     draw.Add(new MsgPlace(m, fromX, toX, headX, arrowY, self));
 
-                    double selfRight = fromX + LoopW + 6 + MeasureBlock(m.Text, MsgFontSize).w;
+                    double labelW = Math.Max(
+                        DiagramText.MeasureBlock(m.Text, MsgFontSize).w,
+                        HasTech(m) ? DiagramText.Measure($"[{m.Technology!.Trim()}]", MsgFontSize - 1) : 0);
+                    double selfRight = fromX + LoopW + 6 + labelW;
                     if (self) { TouchOpen(fromX, selfRight); maxRight = Math.Max(maxRight, selfRight + 12); }
                     else TouchOpen(Math.Min(fromX, toX), Math.Max(fromX, toX));
                     y = arrowY + (self ? SelfGap : MsgGap) + Math.Max(0, lines - 1) * LineH;
@@ -156,7 +167,7 @@ public static class WpfSequenceDiagramRenderer
                 }
                 case SequenceNote nt:
                 {
-                    var (tw, lines) = MeasureBlock(nt.Text, MsgFontSize);
+                    var (tw, lines) = DiagramText.MeasureBlock(nt.Text, MsgFontSize);
                     double noteH = lines * LineH + 2 * NotePad;
                     var ids = nt.ParticipantIds.Select(Ix).ToList();
                     double left, right;
@@ -211,14 +222,16 @@ public static class WpfSequenceDiagramRenderer
 
         var bars = ComputeActivationBars(diagram, yOf, lifeBot);
 
-        double bandH   = headHs.Max();                 // tallest head — bottom band must fit it
+        // Tallest head — the bottom band must fit it. Zero when the foot boxes are off, which is
+        // the only thing that changes: nothing above this line consults it.
+        double bandH   = diagram.ShowFootBoxes ? headHs.Max() : 0;
         double canvasW = maxRight + Outer;
         double canvasH = botBoxY + bandH + Outer;
         var canvas = new Canvas { Width = canvasW, Height = canvasH, Background = Bg };
 
         // 1. box groupings
         foreach (var box in diagram.Boxes)
-            DrawBoxGroup(canvas, box, centers, widths, index, topBoxY - 6, botBoxY + bandH + 6);
+            DrawBoxGroup(canvas, box, centers, widths, index, topBoxY - boxBandH - 6, botBoxY + bandH + 6);
 
         // 2. rect highlights
         foreach (var f in frags.Where(f => f.Kind == FragmentKind.Rect))
@@ -244,7 +257,7 @@ public static class WpfSequenceDiagramRenderer
 
             if (pt.Destroyed && destroyY.TryGetValue(pt.Id, out double dy))
                 DrawDestroyMark(canvas, centers[i], dy);
-            else
+            else if (diagram.ShowFootBoxes)
                 DrawHead(canvas, pt, centers[i], botBoxY, widths[i], headHs[i]);
         }
 
@@ -272,7 +285,18 @@ public static class WpfSequenceDiagramRenderer
             }
         }
 
-        // 8. title
+        // 8. legend, below everything the timeline produced (it grows the canvas rather than
+        //    reserving space up front, so a diagram without one is laid out exactly as before)
+        if (diagram.Legend is { Count: > 0 } legend)
+        {
+            var block = C4LegendPainter.Build(legend, C4, palette, diagram.LegendDetails);
+            block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            canvas.Children.Add(block.Place(Outer, canvasH - Outer + 4));
+            canvas.Height = canvasH - Outer + 4 + block.DesiredSize.Height + Outer;
+            canvas.Width  = Math.Max(canvas.Width, 2 * Outer + block.DesiredSize.Width);
+        }
+
+        // 9. title
         if (hasTitle)
         {
             var tb = new TextBlock { Text = diagram.Title, Foreground = Title, FontFamily = BodyFont, FontSize = 14, FontWeight = FontWeights.SemiBold };
@@ -328,8 +352,35 @@ public static class WpfSequenceDiagramRenderer
 
     // ── Participant heads ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The footprint one lifeline's head needs. The whole timeline below is laid out from these two
+    /// numbers and nothing else, which is why a C4 element card can stand in for a box or an actor
+    /// without the rest of the renderer knowing: measure differently, draw differently, lay out the
+    /// same.
+    /// </summary>
+    private static (double w, double h) MeasureHead(SequenceParticipant p)
+    {
+        if (p.Card is C4ElementInfo card)
+        {
+            var (cw, ch) = C4ElementMetrics.Measure(p.Label, card);
+            return (Math.Clamp(cw, BoxMinW, C4ElementMetrics.MaxW), Math.Max(BoxH, ch));
+        }
+
+        var (tw, lines) = DiagramText.MeasureBlock(p.Label, FontSize);
+        double glyphAllow = p.Kind is ParticipantKind.Participant or ParticipantKind.Actor ? 0 : 24;
+        return (
+            Math.Clamp(tw + BoxPadX * 2 + glyphAllow, BoxMinW, BoxMaxW),
+            p.Kind == ParticipantKind.Actor ? ActorH : Math.Max(BoxH, lines * LineH + 14));
+    }
+
     private static void DrawHead(Canvas canvas, SequenceParticipant p, double cx, double topY, double w, double headH)
     {
+        if (p.Card is C4ElementInfo card)
+        {
+            canvas.Children.Add(C4ElementPainter.Build(p.Label, card, w, headH, C4).Place(cx - w / 2, topY));
+            return;
+        }
+
         if (p.Kind == ParticipantKind.Actor) { DrawActor(canvas, p.Label, cx, topY, headH); return; }
 
         double boxH = Math.Min(headH, Math.Max(BoxH, p.Label.Split('\n').Length * LineH + 14));
@@ -338,7 +389,7 @@ public static class WpfSequenceDiagramRenderer
 
         double glyphW = p.Kind == ParticipantKind.Participant ? 0 : DrawTypeGlyph(canvas, p.Kind, cx - w / 2 + 9, boxTop + boxH / 2);
 
-        var (_, lines) = MeasureBlock(p.Label, FontSize);
+        var (_, lines) = DiagramText.MeasureBlock(p.Label, FontSize);
         var tb = new TextBlock
         {
             Text = p.Label, Foreground = Text, FontFamily = BodyFont, FontSize = FontSize,
@@ -418,7 +469,7 @@ public static class WpfSequenceDiagramRenderer
         canvas.Children.Add(new Rectangle { Width = Math.Max(40, r - l), Height = Math.Max(20, f.Bottom - f.Top), Stroke = FrameStroke, StrokeThickness = 1, Fill = Brushes.Transparent }.Place(l, f.Top));
 
         string kind = f.Kind.ToString().ToLowerInvariant();
-        double tabW = MeasureText(kind, 10) + 12;
+        double tabW = DiagramText.Measure(kind, 10) + 12;
         canvas.Children.Add(new Polygon
         {
             Fill = FrameTabBg, Stroke = FrameStroke, StrokeThickness = 1,
@@ -428,7 +479,7 @@ public static class WpfSequenceDiagramRenderer
 
         if (!string.IsNullOrWhiteSpace(f.Label))
         {
-            double w = MeasureText($"[{f.Label}]", 10);
+            double w = DiagramText.Measure($"[{f.Label}]", 10);
             double lx = Math.Max((l + r) / 2 - w / 2, l + tabW + 4);
             canvas.Children.Add(new TextBlock { Text = $"[{f.Label}]", Foreground = Muted, FontFamily = BodyFont, FontSize = 10 }.Place(lx, f.Top + 1));
         }
@@ -438,7 +489,7 @@ public static class WpfSequenceDiagramRenderer
             canvas.Children.Add(new Line { X1 = l, Y1 = sy, X2 = r, Y2 = sy, Stroke = FrameStroke, StrokeThickness = 1, StrokeDashArray = new DoubleCollection([4, 3]) });
             if (!string.IsNullOrWhiteSpace(label))
             {
-                double w = MeasureText($"[{label}]", 10);
+                double w = DiagramText.Measure($"[{label}]", 10);
                 canvas.Children.Add(new TextBlock { Text = $"[{label}]", Foreground = Muted, FontFamily = BodyFont, FontSize = 10, Background = Bg, Padding = new Thickness(3, 0, 3, 0) }.Place((l + r) / 2 - w / 2, sy + 1));
             }
         }
@@ -447,7 +498,7 @@ public static class WpfSequenceDiagramRenderer
     private static void DrawRect(Canvas canvas, FragPlace f, double[] centers, double[] widths, int n)
     {
         var (l, r) = FragSpan(f, centers, widths, n);
-        canvas.Children.Add(new Rectangle { Width = Math.Max(40, r - l), Height = Math.Max(20, f.Bottom - f.Top), Fill = TintBrush(ParseCssColor(f.Color) ?? AccentColor, 0x26) }.Place(l, f.Top));
+        canvas.Children.Add(new Rectangle { Width = Math.Max(40, r - l), Height = Math.Max(20, f.Bottom - f.Top), Fill = DiagramBrushes.Tint(DiagramBrushes.ParseCss(f.Color) ?? AccentColor, 0x26) }.Place(l, f.Top));
     }
 
     private static void DrawBoxGroup(Canvas canvas, SequenceBox box, double[] centers, double[] widths, Dictionary<string, int> index, double top, double bottom)
@@ -457,54 +508,60 @@ public static class WpfSequenceDiagramRenderer
         int lo = ids.Min(), hi = ids.Max();
         double l = centers[lo] - widths[lo] / 2 - 10, r = centers[hi] + widths[hi] / 2 + 10;
 
-        canvas.Children.Add(new Rectangle { Width = Math.Max(40, r - l), Height = Math.Max(20, bottom - top), Fill = TintBrush(ParseCssColor(box.Color) ?? AccentColor, 0x1A), Stroke = TintBrush(AccentColor, 0x55), StrokeThickness = 1, RadiusX = 6, RadiusY = 6 }.Place(l, top));
+        canvas.Children.Add(new Rectangle { Width = Math.Max(40, r - l), Height = Math.Max(20, bottom - top), Fill = DiagramBrushes.Tint(DiagramBrushes.ParseCss(box.Color) ?? AccentColor, 0x1A), Stroke = DiagramBrushes.Tint(AccentColor, 0x55), StrokeThickness = 1, RadiusX = 6, RadiusY = 6 }.Place(l, top));
         if (!string.IsNullOrWhiteSpace(box.Label))
         {
-            double w = MeasureText(box.Label, 11);
+            double w = DiagramText.Measure(box.Label, 11);
             canvas.Children.Add(new TextBlock { Text = box.Label, Foreground = Muted, FontFamily = BodyFont, FontSize = 11, FontStyle = FontStyles.Italic }.Place((l + r) / 2 - w / 2, top + 3));
         }
     }
 
     // ── Messages ──────────────────────────────────────────────────────────────
 
+    /// <summary>A message's own line colour, or the theme's when it has none.</summary>
+    private static Brush InkOf(SequenceMessage m) =>
+        DiagramBrushes.ParseCss(m.LineColor) is System.Windows.Media.Color c ? DiagramBrushes.Frozen(c) : Line;
+
     private static void DrawMessage(Canvas canvas, MsgPlace mp)
     {
         var m = mp.M;
+        var ink = InkOf(m);
         bool right = mp.HeadX >= mp.FromX;
         double tipX = mp.HeadX + (right ? -1 : 1) * 0.5;
         double startX = mp.FromX + (m.Bidirectional ? (right ? ArrowLen : -ArrowLen) : 0);
 
-        var seg = new Line { X1 = startX, Y1 = mp.ArrowY, X2 = tipX, Y2 = mp.ArrowY, Stroke = Line, StrokeThickness = 1.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
+        var seg = new Line { X1 = startX, Y1 = mp.ArrowY, X2 = tipX, Y2 = mp.ArrowY, Stroke = ink, StrokeThickness = 1.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
         if (m.Line == SequenceLineStyle.Dashed) seg.StrokeDashArray = new DoubleCollection([5, 3]);
         canvas.Children.Add(seg);
 
-        DrawArrowHead(canvas, mp.HeadX, mp.ArrowY, right, m.Head);
-        if (m.Bidirectional) DrawArrowHead(canvas, mp.FromX, mp.ArrowY, !right, m.Head);
-        if (m.DotSource) DrawDot(canvas, mp.FromX, mp.ArrowY);
-        if (m.DotTarget) DrawDot(canvas, mp.HeadX, mp.ArrowY);
+        DrawArrowHead(canvas, mp.HeadX, mp.ArrowY, right, m.Head, ink);
+        if (m.Bidirectional) DrawArrowHead(canvas, mp.FromX, mp.ArrowY, !right, m.Head, ink);
+        if (m.DotSource) DrawDot(canvas, mp.FromX, mp.ArrowY, ink);
+        if (m.DotTarget) DrawDot(canvas, mp.HeadX, mp.ArrowY, ink);
         if (m.Number is int num) DrawNumberBullet(canvas, mp.FromX, mp.ArrowY, num);
 
         if (m.Text.Length > 0)
-            AddLabel(canvas, m.Text, (mp.FromX + mp.HeadX) / 2, mp.ArrowY - 4, center: true);
+            AddLabel(canvas, m.Text, m.Technology, m.TextColor, (mp.FromX + mp.HeadX) / 2, mp.ArrowY - 4, center: true);
     }
 
     private static void DrawSelfMessage(Canvas canvas, MsgPlace mp)
     {
         var m = mp.M; double x = mp.FromX, y = mp.ArrowY;
+        var ink = InkOf(m);
         var fig = new PathFigure { StartPoint = new Point(x, y), IsFilled = false };
         fig.Segments.Add(new LineSegment(new Point(x + LoopW, y), true));
         fig.Segments.Add(new LineSegment(new Point(x + LoopW, y + LoopH), true));
         fig.Segments.Add(new LineSegment(new Point(x, y + LoopH), true));
-        var path = new Path { Data = new PathGeometry([fig]), Stroke = Line, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round };
+        var path = new Path { Data = new PathGeometry([fig]), Stroke = ink, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round };
         if (m.Line == SequenceLineStyle.Dashed) path.StrokeDashArray = new DoubleCollection([5, 3]);
         canvas.Children.Add(path);
-        DrawArrowHead(canvas, x, y + LoopH, right: false, m.Head);
+        DrawArrowHead(canvas, x, y + LoopH, right: false, m.Head, ink);
         if (m.Number is int num) DrawNumberBullet(canvas, x, y, num);
 
-        if (m.Text.Length > 0) AddLabel(canvas, m.Text, x + LoopW + 6, y - 1, center: false);
+        if (m.Text.Length > 0 || HasTech(m)) AddLabel(canvas, m.Text, m.Technology, m.TextColor, x + LoopW + 6, y - 1, center: false);
     }
 
-    private static void DrawArrowHead(Canvas canvas, double tipX, double tipY, bool right, SequenceArrowHead head)
+    private static void DrawArrowHead(Canvas canvas, double tipX, double tipY, bool right, SequenceArrowHead head, Brush ink)
     {
         if (head == SequenceArrowHead.None) return;
         double dx = right ? -ArrowLen : ArrowLen;
@@ -512,30 +569,30 @@ public static class WpfSequenceDiagramRenderer
         switch (head)
         {
             case SequenceArrowHead.Filled:
-                canvas.Children.Add(new Polygon { Points = new PointCollection([tip, top, bot]), Fill = Line, Stroke = Line, StrokeThickness = 0.5 });
+                canvas.Children.Add(new Polygon { Points = new PointCollection([tip, top, bot]), Fill = ink, Stroke = ink, StrokeThickness = 0.5 });
                 break;
             case SequenceArrowHead.Open:
-                canvas.Children.Add(new Polyline { Points = new PointCollection([top, tip, bot]), Stroke = Line, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round });
+                canvas.Children.Add(new Polyline { Points = new PointCollection([top, tip, bot]), Stroke = ink, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round });
                 break;
             case SequenceArrowHead.Cross:
                 const double cr = 4.5;
-                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY - cr, X2 = tipX + cr, Y2 = tipY + cr, Stroke = Line, StrokeThickness = 1.4 });
-                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY + cr, X2 = tipX + cr, Y2 = tipY - cr, Stroke = Line, StrokeThickness = 1.4 });
+                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY - cr, X2 = tipX + cr, Y2 = tipY + cr, Stroke = ink, StrokeThickness = 1.4 });
+                canvas.Children.Add(new Line { X1 = tipX - cr, Y1 = tipY + cr, X2 = tipX + cr, Y2 = tipY - cr, Stroke = ink, StrokeThickness = 1.4 });
                 break;
         }
     }
 
-    private static void DrawDot(Canvas canvas, double x, double y)
+    private static void DrawDot(Canvas canvas, double x, double y, Brush ink)
     {
         const double r = 3.6;
-        canvas.Children.Add(new Ellipse { Width = r * 2, Height = r * 2, Fill = Line }.Place(x - r, y - r));
+        canvas.Children.Add(new Ellipse { Width = r * 2, Height = r * 2, Fill = ink }.Place(x - r, y - r));
     }
 
     private static void DrawNumberBullet(Canvas canvas, double x, double y, int number)
     {
         const double r = 8.5;
         canvas.Children.Add(new Ellipse { Width = r * 2, Height = r * 2, Fill = Line }.Place(x - r, y - r));
-        double w = MeasureText(number.ToString(), 9);
+        double w = DiagramText.Measure(number.ToString(), 9);
         canvas.Children.Add(new TextBlock { Text = number.ToString(), Foreground = OnAccent, FontFamily = BodyFont, FontSize = 9, FontWeight = FontWeights.SemiBold }.Place(x - w / 2, y - 7.5));
     }
 
@@ -557,75 +614,45 @@ public static class WpfSequenceDiagramRenderer
         canvas.Children.Add(new Line { X1 = cx - r, Y1 = y + r, X2 = cx + r, Y2 = y - r, Stroke = Line, StrokeThickness = 2 });
     }
 
-    private static void AddLabel(Canvas canvas, string text, double x, double bottomY, bool center)
+    /// <summary>Rendered lines a message's label occupies — its text plus the technology line, if any.</summary>
+    private static int LabelLines(SequenceMessage m) =>
+        (m.Text.Length == 0 ? 0 : DiagramText.LineCount(m.Text)) + (HasTech(m) ? 1 : 0);
+
+    private static bool HasTech(SequenceMessage m) => !string.IsNullOrWhiteSpace(m.Technology);
+
+    /// <summary>
+    /// Draws a message label so its block sits directly above <paramref name="bottomY"/>. With no
+    /// technology this is a single TextBlock at exactly the position it always had; a C4 relationship
+    /// adds a smaller muted <c>[HTTPS]</c> line beneath it.
+    /// </summary>
+    private static void AddLabel(Canvas canvas, string text, string? technology, string? textColor, double x, double bottomY, bool center)
     {
-        var (w, lines) = MeasureBlock(text, MsgFontSize);
+        var (w, lines) = DiagramText.MeasureBlock(text, MsgFontSize);
+        bool hasTech = !string.IsNullOrWhiteSpace(technology);
+        Brush ink = DiagramBrushes.ParseCss(textColor) is System.Windows.Media.Color tc ? DiagramBrushes.Frozen(tc) : Text;
+        int rows = lines + (hasTech ? 1 : 0);
+
         var tb = new TextBlock
         {
-            Text = text, Foreground = Text, FontFamily = BodyFont, FontSize = MsgFontSize,
+            Text = text, Foreground = ink, FontFamily = BodyFont, FontSize = MsgFontSize,
             Background = Bg, Padding = new Thickness(3, 0, 3, 0), TextAlignment = center ? TextAlignment.Center : TextAlignment.Left,
         };
         Canvas.SetLeft(tb, center ? x - (w + 6) / 2 : x);
-        Canvas.SetTop(tb, bottomY - lines * LineH);
+        Canvas.SetTop(tb, bottomY - rows * LineH);
         canvas.Children.Add(tb);
-    }
 
-    // ── Colour & text helpers ──────────────────────────────────────────────────
+        if (!hasTech) return;
 
-    private static (double w, int lines) MeasureBlock(string text, double fs)
-    {
-        var parts = text.Split('\n');
-        double w = 0;
-        foreach (var p in parts) w = Math.Max(w, MeasureText(p, fs));
-        return (w, parts.Length);
-    }
-
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
-
-    private static double Luminance(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
-
-    private static Color? ParseCssColor(string? color)
-    {
-        if (string.IsNullOrWhiteSpace(color)) return null;
-        color = color.Trim();
-        if (color.StartsWith("rgb", StringComparison.OrdinalIgnoreCase))
+        string tech = $"[{technology!.Trim()}]";
+        double techW = DiagramText.Measure(tech, MsgFontSize - 1);
+        var tt = new TextBlock
         {
-            int o = color.IndexOf('('), c = color.IndexOf(')');
-            if (o > 0 && c > o)
-            {
-                var nums = color[(o + 1)..c].Split(',');
-                if (nums.Length >= 3
-                    && byte.TryParse(nums[0].Trim(), out byte r)
-                    && byte.TryParse(nums[1].Trim(), out byte g)
-                    && byte.TryParse(nums[2].Trim(), out byte b))
-                    return Color.FromRgb(r, g, b);
-            }
-            return null;
-        }
-        try { return (Color)ColorConverter.ConvertFromString(color)!; }
-        catch { return null; }
+            Text = tech, Foreground = Muted, FontFamily = BodyFont, FontSize = MsgFontSize - 1,
+            Background = Bg, Padding = new Thickness(3, 0, 3, 0), TextAlignment = center ? TextAlignment.Center : TextAlignment.Left,
+        };
+        Canvas.SetLeft(tt, center ? x - (techW + 6) / 2 : x);
+        Canvas.SetTop(tt, bottomY - LineH);
+        canvas.Children.Add(tt);
     }
 
-    private static Brush TintBrush(Color c, byte alpha)
-    {
-        var b = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
-        b.Freeze();
-        return b;
-    }
-}
-
-/// <summary>Canvas placement sugar — sets <c>Canvas.Left/Top</c> and returns the element fluently.</summary>
-internal static class CanvasPlacementExtensions
-{
-    public static T Place<T>(this T el, double left, double top) where T : UIElement
-    {
-        Canvas.SetLeft(el, left);
-        Canvas.SetTop(el, top);
-        return el;
-    }
 }

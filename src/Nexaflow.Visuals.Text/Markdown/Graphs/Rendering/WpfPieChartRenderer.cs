@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
@@ -17,7 +17,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 /// </summary>
 public static class WpfPieChartRenderer
 {
-    private static readonly FontFamily BodyFont = new("Segoe UI");
+    private static readonly FontFamily BodyFont = DiagramText.BodyFont;
 
     // ── Geometry constants ─────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ public static class WpfPieChartRenderer
                     TextAlignment = TextAlignment.Center,
                 };
                 // Measure to centre properly
-                var ft = MeasureText(pct, 10.5);
+                var ft = DiagramText.Measure(pct, 10.5);
                 Canvas.SetLeft(lbl, lx - ft / 2);
                 Canvas.SetTop(lbl, ly - 7);
                 canvas.Children.Add(lbl);
@@ -212,12 +212,4 @@ public static class WpfPieChartRenderer
 
     // ── Text measurement ───────────────────────────────────────────────────
 
-    private static double MeasureText(string text, double fontSize)
-    {
-        var ft = new FormattedText(
-            text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(BodyFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-            fontSize, Brushes.Black, 1.0);
-        return ft.Width;
-    }
 }

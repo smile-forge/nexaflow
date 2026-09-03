@@ -1,3 +1,5 @@
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+
 namespace Nexaflow.Visuals.Text.Markdown.Graphs;
 
 // ── Enumerations ──────────────────────────────────────────────────────────────
@@ -29,7 +31,46 @@ public enum NodeShape
 
     // ── Class-diagram ─────────────────────────────────────────────────────────
     ClassBox,          // a UML class: «stereotype» + name + attribute/method compartments (see Node.Class)
+
+    // ── C4 ────────────────────────────────────────────────────────────────────
+    C4Element,         // a C4 element card: title + [Kind: technology] + description (see Node.C4)
 }
+
+/// <summary>
+/// Optional styling for a <see cref="Subgraph"/> box. Null — the default — draws the accent-tinted
+/// dashed box every flowchart and state diagram has always drawn, byte for byte. C4 boundaries set
+/// it to carry their <c>[type]</c> sub-label and their own colours.
+/// </summary>
+public sealed class SubgraphStyle
+{
+    /// <summary>A smaller second line under the box's title, e.g. <c>[Container]</c>.</summary>
+    public string? SubLabel { get; set; }
+
+    public string? FillColor { get; set; }
+    public string? StrokeColor { get; set; }
+    public string? TextColor { get; set; }
+    public EdgeStyle BorderStyle { get; set; } = EdgeStyle.Dashed;
+
+    public SubgraphStyle Copy() => new()
+    {
+        SubLabel = SubLabel, FillColor = FillColor, StrokeColor = StrokeColor,
+        TextColor = TextColor, BorderStyle = BorderStyle,
+    };
+}
+
+/// <summary>
+/// One row of a diagram legend: a swatch and what it means. <see cref="Kind"/> and
+/// <see cref="External"/> travel alongside any literal <see cref="FillColor"/> so the painter can
+/// resolve the swatch to the very colour the cards were drawn in — a legend whose colours are not
+/// the diagram's colours is worse than none.
+/// </summary>
+public sealed record GraphLegendEntry(
+    string Label,
+    string? FillColor,
+    string? StrokeColor,
+    C4ElementShape? Shape,
+    C4ElementKind? Kind = null,
+    bool External = false);
 
 public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
 
@@ -81,11 +122,34 @@ public sealed class Subgraph
     /// level. Flowchart subgraphs leave this null and are laid out as a single level.</summary>
     public string?      ParentId { get; set; }
 
+    /// <summary>Optional per-box styling; null keeps the shared accent-tinted dashed look.</summary>
+    public SubgraphStyle? Style { get; set; }
+
     /// <summary>Where a click on this group's title goes. See <see cref="Node.Href"/>.</summary>
     public string?      Href     { get; set; }
 
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string?      Tooltip  { get; set; }
+
+    /// <summary>
+    /// A copy carrying every property, optionally with a different membership list. Every place that
+    /// rebuilds a graph goes through this rather than listing fields by hand, so a property added
+    /// here travels by construction instead of being dropped by whichever site forgot it.
+    /// </summary>
+    public Subgraph Copy(IEnumerable<string>? nodeIds = null)
+    {
+        var copy = new Subgraph
+        {
+            Id       = Id,
+            Label    = Label,
+            ParentId = ParentId,
+            Style    = Style?.Copy(),
+            Href     = Href,
+            Tooltip  = Tooltip,
+        };
+        copy.NodeIds.AddRange(nodeIds ?? NodeIds);
+        return copy;
+    }
 }
 
 /// <summary>A node in the graph.  All rendering properties are optional hints.</summary>
@@ -101,6 +165,10 @@ public sealed class Node
     /// <summary>Set only on <see cref="NodeShape.ClassBox"/> nodes — the UML class body
     /// (stereotype + attribute/method compartments). Null for every other shape.</summary>
     public ClassInfo? Class    { get; set; }
+
+    /// <summary>Set only on <see cref="NodeShape.C4Element"/> nodes — the C4 card's kind, shape,
+    /// technology and description. Null for every other shape.</summary>
+    public C4ElementInfo? C4  { get; set; }
 
     /// <summary>
     /// Where a click on this node goes, from a mermaid <c>click</c> directive. Interaction lives on
@@ -143,6 +211,7 @@ public sealed class Node
         TextColor   = TextColor,
         Classifier  = Classifier,
         Class       = Class,
+        C4          = C4,
         Href        = Href,
         Tooltip     = Tooltip,
         Expansion   = Expansion,
@@ -169,11 +238,46 @@ public sealed class Edge
     /// <summary>Set true when cycle removal reverses this edge; renderers should draw the arrowhead reversed.</summary>
     public bool IsReversed  { get; set; }
 
+    /// <summary>A smaller, muted second line under <see cref="Label"/> — a C4 relationship's
+    /// <c>[technology]</c>. Null leaves the label as the single line it has always been.</summary>
+    public string? SubLabel { get; set; }
+
+    /// <summary>Explicit line colour (a C4 <c>UpdateRelStyle</c>/<c>AddRelTag</c>); null keeps the
+    /// colour the edge's <see cref="Style"/> implies.</summary>
+    public string? LineColor { get; set; }
+
+    /// <summary>Explicit label colour; null keeps the theme's muted label ink.</summary>
+    public string? TextColor { get; set; }
+
     /// <summary>Where a click on this edge's label goes. See <see cref="Node.Href"/>.</summary>
     public string? Href { get; set; }
 
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string? Tooltip { get; set; }
+
+    /// <summary>
+    /// A copy carrying every property, optionally re-pointed at different endpoints — the clustered
+    /// layout rebuilds each edge against whichever entity represents it at that nesting level. Same
+    /// contract as <see cref="Node.Copy"/> and <see cref="Subgraph.Copy"/>, for the same reason:
+    /// this was several hand-written field lists, and each had forgotten something different.
+    /// </summary>
+    public Edge Copy(string? sourceId = null, string? targetId = null) => new()
+    {
+        SourceId   = sourceId ?? SourceId,
+        TargetId   = targetId ?? TargetId,
+        Label      = Label,
+        Style      = Style,
+        Arrow      = Arrow,
+        StartArrow = StartArrow,
+        StartLabel = StartLabel,
+        EndLabel   = EndLabel,
+        SubLabel   = SubLabel,
+        LineColor  = LineColor,
+        TextColor  = TextColor,
+        IsReversed = IsReversed,
+        Href       = Href,
+        Tooltip    = Tooltip,
+    };
 }
 
 /// <summary>
@@ -187,6 +291,24 @@ public sealed class Graph
     public List<Node>     Nodes     { get; } = [];
     public List<Edge>     Edges     { get; } = [];
     public List<Subgraph> Subgraphs { get; } = [];
+
+    /// <summary>Rows for a legend drawn below the diagram, or null for no legend (the default).</summary>
+    public List<GraphLegendEntry>? Legend { get; set; }
+
+    /// <summary>How much each legend row says — a C4 <c>SHOW_LEGEND($details)</c>.</summary>
+    public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
+
+    /// <summary>
+    /// The document-level properties with none of the content — what a derived view (expansion) or a
+    /// per-level rebuild (clustering) starts from before filling in its own nodes and edges.
+    /// </summary>
+    public Graph CopyShell() => new()
+    {
+        Title         = Title,
+        Direction     = Direction,
+        Legend        = Legend,
+        LegendDetails = LegendDetails,
+    };
 
     public Node? FindNode(string id) =>
         Nodes.FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.Ordinal));

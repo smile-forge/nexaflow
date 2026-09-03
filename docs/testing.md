@@ -1,4 +1,4 @@
-# Testing
+﻿# Testing
 
 How the Nexaflow test suite is structured, how the shared sample-file dataset works, and how to
 add coverage for a new viewer or fixture.
@@ -143,6 +143,42 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
   the layout is right — a wrong slot is an access violation, not a failed assertion. Such a test
   asserts on the *contract* (a clause came back naming the property asked for), never on what happens
   to be indexed, and calls `Assert.Inconclusive` when the service isn't running.
+
+### Reference corpora and snapshots (opt-in, never in CI)
+
+Three tests compare rendered output against material that is deliberately **not** in the repository, and
+are `Assert.Inconclusive` until an environment variable points them at it. They show up as skips in every
+normal run, which is intended.
+
+| Variable | Test | What it compares against |
+|---|---|---|
+| `NEXAFLOW_BARCODE_IMAGES` | `BarcodeReferenceImageTests` | Barcodes drawn by an unrelated generator — the only check that can catch a wrong pattern table. |
+| `NEXAFLOW_LATEX_PICTURES` | `LatexPictureSweepTests` | A LaTeX corpus. |
+| `NEXAFLOW_DIAGRAM_SNAPSHOTS` | `DiagramSnapshotTests` | *Our own* previous render of every diagram in the sample corpus. |
+
+The last is a **before/after tool, not an absolute one**, and that is why its images are not committed:
+text rasterisation depends on the machine's fonts and DPI, so a shared set would fail for reasons unrelated
+to the change under test. Use it around a change:
+
+```powershell
+# on the base commit
+$env:NEXAFLOW_DIAGRAM_SNAPSHOTS = "C:\snapshots"
+$env:NEXAFLOW_DIAGRAM_SNAPSHOTS_WRITE = "1"
+& $exe --filter "FullyQualifiedName~DiagramSnapshotTests"    # captures the "before"
+
+# after the change
+$env:NEXAFLOW_DIAGRAM_SNAPSHOTS_WRITE = ""
+& $exe --filter "FullyQualifiedName~DiagramSnapshotTests"    # names every diagram that moved
+```
+
+A failure writes the new render beside the old one as `<name>.actual.png` so the two can be compared. Snapshot names are **positional** (`<sample>-<fence index>-<theme>.png`), so inserting a fence into a sample renumbers every fence after it and they all report as differences — re-capture rather than reading anything into that. **A
+reported difference is not automatically a regression** — a deliberate improvement moves pixels too. It is a
+prompt to look and decide, which is the step that is easy to skip without something insisting on it.
+
+Reach for it whenever a change touches shared rendering rather than one diagram type. The unit tests assert
+what a renderer was *asked* to draw; they cannot see a label drawn behind a box, a legend appended below the
+visible area, or a group dropped before it reached the canvas. All three of those shipped through a green
+suite during the C4 work and were caught this way.
 
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 

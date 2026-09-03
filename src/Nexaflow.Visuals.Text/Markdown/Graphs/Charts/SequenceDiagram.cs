@@ -1,4 +1,4 @@
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 /// <summary>Line texture of a sequence message (solid <c>-&gt;</c> vs. dashed <c>--&gt;</c>).</summary>
 public enum SequenceLineStyle { Solid, Dashed }
@@ -32,6 +32,14 @@ public sealed class SequenceParticipant
     public ParticipantKind Kind { get; set; } = ParticipantKind.Participant;
     public bool Created   { get; set; }         // introduced mid-diagram via 'create'
     public bool Destroyed { get; set; }         // ended via 'destroy'
+
+    /// <summary>
+    /// When set, the lifeline's head is drawn as a C4 element card (title, stereotype, description)
+    /// instead of the plain box or actor glyph — this is what makes one renderer serve both a native
+    /// <c>sequenceDiagram</c> and a <c>C4Sequence</c>. Null for every native participant, so the
+    /// two only differ in how the head is painted, never in how the timeline is laid out.
+    /// </summary>
+    public C4ElementInfo? Card { get; set; }
 }
 
 /// <summary>Base type for anything on the diagram's vertical timeline.</summary>
@@ -51,6 +59,16 @@ public sealed class SequenceMessage : SequenceItem
     public bool ActivateTarget   { get; set; }  // '+' after the arrow → activate the target
     public bool DeactivateSource { get; set; }  // '-' after the arrow → deactivate the sender
     public int? Number           { get; set; }  // autonumber sequence number, if enabled
+
+    /// <summary>The <c>$techn</c> of a C4 relationship, drawn as a smaller muted <c>[HTTPS]</c> line
+    /// under the message text. Null on a native message, which then keeps its single label line.</summary>
+    public string? Technology    { get; set; }
+
+    /// <summary>Explicit arrow colour (a C4 <c>UpdateRelStyle</c>/<c>AddRelTag</c>); null keeps the theme's.</summary>
+    public string? LineColor     { get; set; }
+
+    /// <summary>Explicit label colour; null keeps the theme's.</summary>
+    public string? TextColor     { get; set; }
 }
 
 /// <summary>A free-floating note beside, or spanning, one or more lifelines.</summary>
@@ -107,6 +125,20 @@ public sealed class SequenceDiagram
     public List<SequenceParticipant> Participants { get; } = [];
     public List<SequenceItem>        Items        { get; } = [];
     public List<SequenceBox>         Boxes        { get; } = [];
+
+    /// <summary>Rows for a legend drawn below the diagram, or null for none (the default). Set by a
+    /// C4 sequence's <c>SHOW_LEGEND()</c>; a native diagram has no legend syntax.</summary>
+    public List<GraphLegendEntry>? Legend { get; set; }
+
+    /// <summary>How much each legend row says — <c>SHOW_LEGEND</c>'s <c>$details</c>.</summary>
+    public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
+
+    /// <summary>
+    /// Whether the participant heads are repeated at the bottom of the diagram. Mermaid always
+    /// repeats them, so this defaults to true and a native diagram is unaffected; C4-PlantUML's
+    /// <c>SHOW_FOOT_BOXES(false)</c> turns them off.
+    /// </summary>
+    public bool ShowFootBoxes { get; set; } = true;
 
     /// <summary>The messages on the timeline, in order (convenience view over <see cref="Items"/>).</summary>
     public IReadOnlyList<SequenceMessage> Messages => Items.OfType<SequenceMessage>().ToList();
