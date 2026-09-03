@@ -800,27 +800,70 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public void CreateArchive(string archivePath, string sourceDir)
     {
-        archivePath = ToReal(archivePath);
-        sourceDir   = ToReal(sourceDir);
-        var name = Path.GetFileName(archivePath);
+        var (real, handler, name) = ResolveArchiveWriter(archivePath);
+        var fullSource = Path.GetFullPath(ToReal(sourceDir));
+        WriteNewArchive(real, handler, name, EntriesUnder(fullSource, prefix: "").ToList());
+    }
+
+    public void CreateArchive(string archivePath, IReadOnlyList<string> sourcePaths)
+    {
+        if (sourcePaths is null || sourcePaths.Count == 0)
+            throw new System.ArgumentException("At least one source path is required.", nameof(sourcePaths));
+
+        var (real, handler, name) = ResolveArchiveWriter(archivePath);
+
+        // Each item is stored under its own name, so two files called the same thing in different selected
+        // folders land at different entry paths instead of one overwriting the other.
+        var entries = new List<ArchiveWriteEntry>();
+        foreach (var source in sourcePaths)
+        {
+            var full = Path.GetFullPath(ToReal(source));
+            if (Directory.Exists(full))
+                entries.AddRange(EntriesUnder(full, LeafName(full) + "/"));
+            else if (File.Exists(full))
+                entries.Add(FileEntry(full, Path.GetFileName(full)));
+            else
+                throw new FileNotFoundException($"Nothing to compress at '{source}'.", source);
+        }
+
+        WriteNewArchive(real, handler, name, entries);
+    }
+
+    /// <summary>Resolves the archive path to a real one and picks the handler that can create its format.
+    /// Runs before any source is read, so an uncreatable format fails without walking the disk.</summary>
+    private (string Path, IArchiveHandler Handler, string Name) ResolveArchiveWriter(string archivePath)
+    {
+        var real    = ToReal(archivePath);
+        var name    = Path.GetFileName(real);
         var handler = HandlerFor(name) ?? throw new System.NotSupportedException($"No archive handler for '{name}'.");
         if (!handler.CanWrite(name))
             throw new System.NotSupportedException($"{handler.Name} cannot create '{Path.GetExtension(name)}' archives.");
+        return (real, handler, name);
+    }
 
-        var fullSource = Path.GetFullPath(sourceDir);
-        var entries = new List<ArchiveWriteEntry>();
-        foreach (var file in Directory.EnumerateFiles(fullSource, "*", SearchOption.AllDirectories))
-        {
-            var rel = Path.GetRelativePath(fullSource, file).Replace('\\', '/');
-            var captured = file;
-            entries.Add(new ArchiveWriteEntry
-            {
-                Path = rel,
-                Modified = File.GetLastWriteTime(captured),
-                OpenContent = () => File.OpenRead(captured),
-            });
-        }
+    /// <summary>Every file beneath <paramref name="fullDir"/>, as entries whose paths are the directory-relative
+    /// path behind <paramref name="prefix"/> (empty to store the contents at the archive root).</summary>
+    private static IEnumerable<ArchiveWriteEntry> EntriesUnder(string fullDir, string prefix)
+    {
+        foreach (var file in Directory.EnumerateFiles(fullDir, "*", SearchOption.AllDirectories))
+            yield return FileEntry(file, prefix + Path.GetRelativePath(fullDir, file).Replace('\\', '/'));
+    }
 
+    private static ArchiveWriteEntry FileEntry(string sourcePath, string entryPath) => new()
+    {
+        Path = entryPath,
+        Modified = File.GetLastWriteTime(sourcePath),
+        OpenContent = () => File.OpenRead(sourcePath),
+    };
+
+    private static string LeafName(string path) =>
+        Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+    /// <summary>Builds the archive beside its destination and swaps it in, so a failed write never leaves a
+    /// half-built file at <paramref name="archivePath"/>.</summary>
+    private static void WriteNewArchive(
+        string archivePath, IArchiveHandler handler, string name, List<ArchiveWriteEntry> entries)
+    {
         var dir = Path.GetDirectoryName(archivePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         var tmp = archivePath + ".nexatmp";
