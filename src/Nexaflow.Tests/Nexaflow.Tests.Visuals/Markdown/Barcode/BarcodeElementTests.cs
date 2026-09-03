@@ -77,6 +77,35 @@ public class BarcodeElementTests
     });
 
     /// <summary>
+    /// An ISBN's caption names the number the main symbol carries, not the price add-on standing beside
+    /// it, so it belongs over that symbol and not over the pair. Centring it on the whole picture drifts
+    /// it towards the price by half the gap and the whole add-on, which reads as belonging to it.
+    /// </summary>
+    [TestMethod]
+    public void TheCaptionSitsOverTheMainSymbolAndIsSetSmaller() => UiThread.Run(() =>
+    {
+        var element = LaidOut("format: ISBN\nvalue: 978-1-56581-231-4 90000\nwidth: 4\nheight: 120\nfontSize: 40");
+
+        var runs    = Runs(element);
+        var caption = runs.First(r => r.Text.StartsWith("ISBN", StringComparison.Ordinal));
+        var number  = runs.First(r => r.Text is "781565");
+        var addOn   = runs.First(r => r.Text is "90000");
+
+        double captionMiddle = (caption.Left + caption.Right) / 2;
+        Assert.IsTrue(captionMiddle < addOn.Left,
+                      "the caption should sit over the main symbol, well clear of the add-on");
+
+        // The bars are 95 modules of 4px; the caption's middle belongs near the middle of those.
+        Assert.AreEqual(95 * 4.0 / 2, captionMiddle - runs.Min(r => r.Left), 95 * 4.0 * 0.12,
+                        "the caption should be centred on the main symbol");
+
+        // A title, not part of the number: set smaller than the digits under the bars.
+        double captionHeight = caption.Right - caption.Left;
+        Assert.IsTrue(captionHeight / caption.Text.Length < (number.Right - number.Left) / number.Text.Length,
+                      "the caption should be set smaller than the number");
+    });
+
+    /// <summary>
     /// Guard bars run five modules past the others — the standard's figure — rather than however far the
     /// label happens to be tall. Tying it to the text made the guards grow with the font, which is not
     /// what a retail symbol does.

@@ -76,6 +76,9 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// </summary>
     private double _labelSize;
 
+    /// <summary>The size the caption is set at — smaller than the number, and its own to fit.</summary>
+    private double _captionSize;
+
     /// <summary>The text row, for hit-testing a click that landed near it.</summary>
     private Rect _labelBounds;
 
@@ -496,11 +499,19 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         double leftPad  = Width(groups, BarcodeTextPlacement.LeftOfBars,  gap);
         double rightPad = Width(groups, BarcodeTextPlacement.RightOfBars, gap);
 
-        _caption = _pattern?.Caption is { Length: > 0 } caption ? Text(caption) : null;
+        double mainWidth = MainSymbolModules() * _block.BarWidth;
+
+        if (_pattern?.Caption is { Length: > 0 } caption)
+        {
+            _captionSize = FittedCaptionSize(caption, mainWidth);
+            _caption     = Text(caption, _captionSize);
+        }
 
         double content = Math.Max(leftPad + barsWidth + rightPad, _caption?.Width ?? 0);
 
-        double captionHeight = _caption is null ? 0 : _labelSize * 1.35;
+        double captionHeight = _caption is null
+            ? 0
+            : _captionSize * 1.35 + CaptionSeparationModules * _block.BarWidth;
         double aboveHeight   = groups.Any(g => g.Placement == BarcodeTextPlacement.Above)
                              ? _labelSize * 1.35 : 0;
 
@@ -515,8 +526,10 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         // are free to reach below the guards, which is what they do on a real pack.
         _guardDrop = ShowsValue ? 0 : _block.BarWidth * GuardExtensionModules;
 
+        // Over the main symbol's middle, not the whole picture's: with an add-on beside it those are
+        // several modules apart, and a title that drifts towards the price reads as belonging to it.
         if (_caption is not null)
-            _captionAt = new Point(_block.Margin + (content - _caption.Width) / 2, _block.Margin);
+            _captionAt = new Point(_barsLeft + (mainWidth - _caption.Width) / 2, _block.Margin);
 
         double belowTop = _barsTop + _block.BarHeight;
         double aboveTop = _barsTop;
@@ -717,14 +730,46 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             scale = Math.Min(scale, room / natural);
         }
 
-        // The caption spans the whole symbol rather than a well, and is held to the same width.
-        if (_pattern?.Caption is { Length: > 0 } caption && barsWidth > 0)
-        {
-            double natural = Text(caption).Width;
-            if (natural > 0) scale = Math.Min(scale, barsWidth / natural);
-        }
-
         return Math.Max(_block.FontSize * scale, MinimumLabelSize);
+    }
+
+    /// <summary>
+    /// The size to set the caption at. It is a title rather than part of the number, so it is set
+    /// smaller — as it is on a book's cover — and it belongs to the main symbol: an ISBN's caption names
+    /// the number the main symbol carries, not the price add-on standing beside it, so it is measured
+    /// and centred over that symbol alone rather than stretched across the pair.
+    /// </summary>
+    private double FittedCaptionSize(string caption, double mainWidth)
+    {
+        _captionSize = 0;
+        double size = LabelSize * CaptionScale;
+
+        double natural = Text(caption, size).Width;
+        if (natural > mainWidth && natural > 0) size *= mainWidth / natural;
+
+        return Math.Max(size, MinimumLabelSize);
+    }
+
+    /// <summary>How much smaller the caption is set than the number under the bars.</summary>
+    private const double CaptionScale = 0.62;
+
+    /// <summary>Clear air between the caption and the bars, in modules, on top of the line's own leading.</summary>
+    private const double CaptionSeparationModules = 1.5;
+
+    /// <summary>
+    /// How wide the main symbol is, in modules — everything before an add-on, or the lot when there is
+    /// none. The gap belongs to neither, so it is the last ink before the add-on that ends the symbol.
+    /// </summary>
+    private double MainSymbolModules()
+    {
+        int addOn = AddOnStartModule();
+        if (_pattern is null || addOn == int.MaxValue) return PatternWidth;
+
+        int end = 0;
+        foreach (var (start, length) in _pattern.InkRuns())
+            if (start < addOn) end = Math.Max(end, start + length);
+
+        return end > 0 ? end : PatternWidth;
     }
 
     /// <summary>How much of a well its digits may fill, leaving the guards and the neighbours clear.</summary>
@@ -736,12 +781,12 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// <summary>What <see cref="MeasureOverride"/> reports — worked out once, while the text is placed.</summary>
     private Size MeasuredSize { get; set; }
 
-    private FormattedText Text(string text) => new(
+    private FormattedText Text(string text, double? size = null) => new(
         text,
         CultureInfo.CurrentCulture,
         FlowDirection.LeftToRight,
         new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-        _labelSize > 0 ? _labelSize : _block.FontSize,
+        size ?? LabelSize,
         Brushes.Black,
         VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
