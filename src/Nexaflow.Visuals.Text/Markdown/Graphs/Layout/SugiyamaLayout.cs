@@ -260,7 +260,8 @@ public static class SugiyamaLayout
                 sizes[child.Id] = (cb.Width + 2 * ClusterPad, cb.Height + HeaderH(child) + ClusterPad);
             }
 
-            var level = new Graph { Direction = graph.Direction, Title = levelId is null ? graph.Title : string.Empty };
+            var level = graph.CopyShell();
+            if (levelId is not null) level.Title = string.Empty;   // only the outermost level is titled
             foreach (var n in graph.Nodes)
                 if (!sgById.ContainsKey(n.Id) &&
                     string.Equals(ownerOf.GetValueOrDefault(n.Id)?.Id, levelId, StringComparison.Ordinal))
@@ -273,16 +274,12 @@ public static class SugiyamaLayout
                 string? s = LevelEntity(e.SourceId, levelId);
                 string? t = LevelEntity(e.TargetId, levelId);
                 if (s is null || t is null || s == t) continue;
-                // Every level rebuilds its edges, so anything the renderer reads off an Edge has to
-                // be carried across here or it silently disappears the moment a diagram has a
-                // boundary — which is exactly the case C4 diagrams are always in.
-                var levelEdge = level.AddEdge(s, t, e.Label, e.Style, e.Arrow);
-                levelEdge.StartArrow = e.StartArrow;
-                levelEdge.SubLabel   = e.SubLabel;
-                levelEdge.LineColor  = e.LineColor;
-                levelEdge.TextColor  = e.TextColor;
-                levelEdge.Href       = e.Href;
-                levelEdge.Tooltip    = e.Tooltip;
+                // Every level rebuilds its edges against the entity that stands for each endpoint
+                // here, so the copy has to be total: anything left out silently disappears the
+                // moment a diagram has a boundary. Edge.Copy is what makes it total.
+                level.GetOrAdd(s);
+                level.GetOrAdd(t);
+                level.Edges.Add(e.Copy(s, t));
             }
 
             var lg = level.Nodes.Count > 0

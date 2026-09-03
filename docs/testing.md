@@ -171,7 +171,7 @@ $env:NEXAFLOW_DIAGRAM_SNAPSHOTS_WRITE = ""
 & $exe --filter "FullyQualifiedName~DiagramSnapshotTests"    # names every diagram that moved
 ```
 
-A failure writes the new render beside the old one as `<name>.actual.png` so the two can be compared. **A
+A failure writes the new render beside the old one as `<name>.actual.png` so the two can be compared. Snapshot names are **positional** (`<sample>-<fence index>-<theme>.png`), so inserting a fence into a sample renumbers every fence after it and they all report as differences — re-capture rather than reading anything into that. **A
 reported difference is not automatically a regression** — a deliberate improvement moves pixels too. It is a
 prompt to look and decide, which is the step that is easy to skip without something insisting on it.
 

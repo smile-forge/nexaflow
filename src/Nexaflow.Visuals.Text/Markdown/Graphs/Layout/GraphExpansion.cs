@@ -95,7 +95,7 @@ public static class GraphExpansion
                        folded);
 
         var hiddenBySibling = folded.SelectMany(kv => kv.Value).ToHashSet(StringComparer.Ordinal);
-        var view = new Graph { Title = graph.Title, Direction = graph.Direction, Legend = graph.Legend, LegendDetails = graph.LegendDetails };
+        var view = graph.CopyShell();
 
         foreach (var node in graph.Nodes)
         {
@@ -135,7 +135,7 @@ public static class GraphExpansion
             if (!visible.Contains(edge.SourceId) || !visible.Contains(edge.TargetId)) continue;
             // A folded sibling's edges are replaced by the single edge to its "+N more" stand-in.
             if (hiddenBySibling.Contains(edge.SourceId) || hiddenBySibling.Contains(edge.TargetId)) continue;
-            view.Edges.Add(CopyEdge(edge));
+            view.Edges.Add(edge.Copy());
         }
 
         foreach (var parentId in folded.Keys)
@@ -165,13 +165,7 @@ public static class GraphExpansion
         foreach (var sub in graph.Subgraphs)
         {
             if (!survives.Contains(sub.Id)) continue;
-            var copy = new Subgraph
-            {
-                Id = sub.Id, Label = sub.Label, ParentId = sub.ParentId,
-                Href = sub.Href, Tooltip = sub.Tooltip, Style = sub.Style?.Copy(),
-            };
-            copy.NodeIds.AddRange(keptNodes[sub.Id]);
-            view.Subgraphs.Add(copy);
+            view.Subgraphs.Add(sub.Copy(keptNodes[sub.Id]));
         }
 
         return view;
@@ -273,20 +267,4 @@ public static class GraphExpansion
         }
     }
 
-    private static Edge CopyEdge(Edge e) => new()
-    {
-        SourceId   = e.SourceId,
-        TargetId   = e.TargetId,
-        Label      = e.Label,
-        Style      = e.Style,
-        Arrow      = e.Arrow,
-        StartArrow = e.StartArrow,
-        StartLabel = e.StartLabel,
-        EndLabel   = e.EndLabel,
-        SubLabel   = e.SubLabel,
-        LineColor  = e.LineColor,
-        TextColor  = e.TextColor,
-        Href       = e.Href,
-        Tooltip    = e.Tooltip,
-    };
 }

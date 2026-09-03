@@ -130,6 +130,26 @@ public sealed class Subgraph
 
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string?      Tooltip  { get; set; }
+
+    /// <summary>
+    /// A copy carrying every property, optionally with a different membership list. Every place that
+    /// rebuilds a graph goes through this rather than listing fields by hand, so a property added
+    /// here travels by construction instead of being dropped by whichever site forgot it.
+    /// </summary>
+    public Subgraph Copy(IEnumerable<string>? nodeIds = null)
+    {
+        var copy = new Subgraph
+        {
+            Id       = Id,
+            Label    = Label,
+            ParentId = ParentId,
+            Style    = Style?.Copy(),
+            Href     = Href,
+            Tooltip  = Tooltip,
+        };
+        copy.NodeIds.AddRange(nodeIds ?? NodeIds);
+        return copy;
+    }
 }
 
 /// <summary>A node in the graph.  All rendering properties are optional hints.</summary>
@@ -234,6 +254,30 @@ public sealed class Edge
 
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string? Tooltip { get; set; }
+
+    /// <summary>
+    /// A copy carrying every property, optionally re-pointed at different endpoints — the clustered
+    /// layout rebuilds each edge against whichever entity represents it at that nesting level. Same
+    /// contract as <see cref="Node.Copy"/> and <see cref="Subgraph.Copy"/>, for the same reason:
+    /// this was several hand-written field lists, and each had forgotten something different.
+    /// </summary>
+    public Edge Copy(string? sourceId = null, string? targetId = null) => new()
+    {
+        SourceId   = sourceId ?? SourceId,
+        TargetId   = targetId ?? TargetId,
+        Label      = Label,
+        Style      = Style,
+        Arrow      = Arrow,
+        StartArrow = StartArrow,
+        StartLabel = StartLabel,
+        EndLabel   = EndLabel,
+        SubLabel   = SubLabel,
+        LineColor  = LineColor,
+        TextColor  = TextColor,
+        IsReversed = IsReversed,
+        Href       = Href,
+        Tooltip    = Tooltip,
+    };
 }
 
 /// <summary>
@@ -253,6 +297,18 @@ public sealed class Graph
 
     /// <summary>How much each legend row says — a C4 <c>SHOW_LEGEND($details)</c>.</summary>
     public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
+
+    /// <summary>
+    /// The document-level properties with none of the content — what a derived view (expansion) or a
+    /// per-level rebuild (clustering) starts from before filling in its own nodes and edges.
+    /// </summary>
+    public Graph CopyShell() => new()
+    {
+        Title         = Title,
+        Direction     = Direction,
+        Legend        = Legend,
+        LegendDetails = LegendDetails,
+    };
 
     public Node? FindNode(string id) =>
         Nodes.FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.Ordinal));

@@ -1663,6 +1663,25 @@ internal sealed class MarkdownSamples : ISampleSet
             TechLead --> Designer : leads
         ```
 
+        Multiplicity on a relationship whose ends live inside namespaces
+
+        ```mermaid
+        classDiagram
+            namespace Ordering {
+                class Order {
+                    +int id
+                }
+                class LineItem {
+                    +int quantity
+                }
+            }
+            namespace Billing {
+                class Invoice
+            }
+            Order "1" --> "*" LineItem : contains
+            Order "1" --> "0..1" Invoice : billed by
+        ```
+
         Lollipop interfaces
 
         ```mermaid

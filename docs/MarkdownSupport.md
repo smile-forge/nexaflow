@@ -188,7 +188,9 @@ off the class box with the name beside it (a decoration on the class, reserved b
 `namespace N { … }`
 with **hierarchical (dotted) nesting** (`namespace A.B.C` nests `C` inside `B` inside `A`); notes (`note "…"`,
 `note for A "…"`, with `<br>` / `\n` line breaks); `direction`; comments; and styling (`classDef`, `cssClass`,
-`style A fill:…`, inline `A:::name`). A front-matter / `title:` is centred over the diagram. **Limitations:**
+`style A fill:…`, inline `A:::name`). A front-matter / `title:` is centred over the diagram. Multiplicity survives
+`namespace` nesting — the clustered layout rebuilds each edge per level, and until recently that rebuild dropped the end
+labels, so `Order "1" --> "*" LineItem` lost its `1` and `*` as soon as either class sat in a namespace. **Limitations:**
 `hideEmptyMembersBox` and interactive `callback`/`link` directives are ignored.
 
 **Requirement-diagram sub-features** ([`MermaidRequirementParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs)).
