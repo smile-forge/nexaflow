@@ -1,17 +1,18 @@
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Nexaflow.Services.Initiatives.Hosting;
 using Nexaflow.Services.Initiatives.Hosting.Ipc;
 
 namespace Nexaflow.Services.Initiatives.Cli.Daemon;
 
 /// <summary>
-/// The resident half of <c>nfi</c>: one process per product tree, holding the graph in memory so the second
-/// command costs milliseconds instead of a second and a half of reading.
+/// The resident half of <c>nfi</c>: one process per product tree, holding each working tree's graph in
+/// memory so the second command costs milliseconds instead of a second and a half of reading.
 /// <para>
 /// <b>There is no way to start this deliberately, and that is the design.</b> It is reached only by
 /// <see cref="DaemonClient"/> spawning it, and it refuses to run without the nonce that spawn sets in the
@@ -19,6 +20,12 @@ namespace Nexaflow.Services.Initiatives.Cli.Daemon;
 /// a process that gets started twice, or started stale, or started against the wrong root, and then quietly
 /// answers questions from state nobody meant it to have. Callers use <c>nfi</c> exactly as they always did;
 /// this is not part of the interface.
+/// </para>
+/// <para>
+/// Requests run concurrently, serialised per working tree. That is the boundary the work actually has:
+/// agents run one to a worktree, so two of them are asking about different graphs and have no business
+/// queueing behind each other — while two asking about the <i>same</i> graph must queue, because a command
+/// that mutates it interleaving with one that reads it is how a warm process starts lying.
 /// </para>
 /// </summary>
 internal static class DaemonServer
@@ -33,8 +40,12 @@ internal static class DaemonServer
     internal const string SpawnNonceVariable = "NFI_DAEMON_SPAWN";
 
     /// <summary>How long the process stays up with nothing asked of it. Long enough to span the pauses in a
-    /// working session, short enough that a forgotten one is not a forgotten one for the afternoon.</summary>
+    /// working session, short enough that a forgotten one is not forgotten for the afternoon.</summary>
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(20);
+
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
+    private static long _lastActivityTicks = DateTime.UtcNow.Ticks;
+    private static int _inFlight;
 
     /// <summary>Runs until idle. <paramref name="args"/> is the hidden mode argument, the pipe, and the root.</summary>
     internal static int Run(string[] args)
@@ -58,6 +69,7 @@ internal static class DaemonServer
 
         try
         {
+            RequestScope.Install();
             using var host = new InitiativesHost(root);
             Serve(pipe, host);
             return 0;
@@ -67,52 +79,75 @@ internal static class DaemonServer
 
     private static void Serve(string pipe, InitiativesHost host)
     {
-        var lastActivity = DateTime.UtcNow;
-        var stopping     = false;
+        using var stopping = new CancellationTokenSource();
 
-        while (!stopping)
+        while (!stopping.IsCancellationRequested)
         {
-            using var server = new NamedPipeServerStream(pipe, PipeDirection.InOut, 1,
-                                                         PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            var server = new NamedPipeServerStream(pipe, PipeDirection.InOut,
+                                                   NamedPipeServerStream.MaxAllowedServerInstances,
+                                                   PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
-            // Waiting with a deadline rather than forever, so idling out is the same code path as being
-            // asked to stop rather than a timer racing the connection handler for the process.
-            var connect = server.WaitForConnectionAsync();
-            var idleFor = IdleTimeout - (DateTime.UtcNow - lastActivity);
-            if (idleFor <= TimeSpan.Zero || !connect.Wait(idleFor)) break;
-
-            try
+            // Waiting with a deadline rather than forever, so idling out is the same code path as being told
+            // to stop rather than a timer racing the connection handlers for the process.
+            var connect = server.WaitForConnectionAsync(stopping.Token);
+            if (!connect.Wait(UntilIdle()))
             {
-                if (DaemonProtocol.Read<DaemonRequest>(server) is not { } request) continue;
+                server.Dispose();
 
-                lastActivity = DateTime.UtcNow;
-                stopping     = request.Stop;
+                // Nothing knocked, but a long command may still be running: idle means idle.
+                if (Volatile.Read(ref _inFlight) > 0) continue;
+                break;
+            }
 
-                DaemonProtocol.Write(server, Execute(request, host));
-                server.Flush();
-                server.WaitForPipeDrain();
-            }
-            catch (IOException) { /* the client hung up mid-exchange; the next one is unaffected */ }
-            finally
-            {
-                if (server.IsConnected) try { server.Disconnect(); } catch (IOException) { }
-                // Whatever the command changed is on disk before the next caller can ask for it, so an
-                // abrupt end costs a load rather than a rebuild.
-                host.Flush();
-            }
+            Interlocked.Increment(ref _inFlight);
+            _ = Task.Run(() => Handle(server, host, stopping));
         }
 
+        // Let whatever is in flight finish before the state it changed goes with the process.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (Volatile.Read(ref _inFlight) > 0 && DateTime.UtcNow < deadline) Thread.Sleep(50);
         host.Flush();
+    }
+
+    /// <summary>How long the accept loop may wait before the process has been idle long enough to end.</summary>
+    private static TimeSpan UntilIdle()
+    {
+        var idle = DateTime.UtcNow - new DateTime(Volatile.Read(ref _lastActivityTicks), DateTimeKind.Utc);
+        var left = IdleTimeout - idle;
+        return left < TimeSpan.Zero ? TimeSpan.Zero : left;
+    }
+
+    private static void Handle(NamedPipeServerStream server, InitiativesHost host, CancellationTokenSource stopping)
+    {
+        try
+        {
+            if (DaemonProtocol.Read<DaemonRequest>(server) is not { } request) return;
+
+            Volatile.Write(ref _lastActivityTicks, DateTime.UtcNow.Ticks);
+            if (request.Stop) stopping.Cancel();
+
+            DaemonProtocol.Write(server, Execute(request, host));
+            server.Flush();
+            server.WaitForPipeDrain();
+        }
+        catch (IOException) { /* the client hung up mid-exchange; no other caller is affected */ }
+        catch (ObjectDisposedException) { }
+        finally
+        {
+            try { if (server.IsConnected) server.Disconnect(); } catch (IOException) { }
+            server.Dispose();
+            Volatile.Write(ref _lastActivityTicks, DateTime.UtcNow.Ticks);
+            Interlocked.Decrement(ref _inFlight);
+        }
     }
 
     /// <summary>
     /// Runs one command exactly as a one-shot process would, and captures what it printed.
     /// <para>
-    /// The verbs write to the console and read the current directory, because they were written to be a
-    /// program; rather than rewrite thirty of them onto injected streams, the console and the directory are
-    /// pointed somewhere else for the duration. That is process-global state, which is precisely why the
-    /// server answers one connection at a time — the alternative is two commands interleaving their output
-    /// into each other's response, and no amount of speed is worth that.
+    /// The verbs write to the console and read the current directory because they were written to be a
+    /// program. Rather than rewrite thirty of them onto injected streams, both now flow with the request
+    /// (see <see cref="RequestScope"/>) rather than with the process — which is what allows two callers on
+    /// different working trees to be served at once without their output landing in each other's answer.
     /// </para>
     /// </summary>
     private static DaemonResponse Execute(DaemonRequest request, InitiativesHost host)
@@ -120,21 +155,19 @@ internal static class DaemonServer
         var stdout = new StringWriter();
         var stderr = new StringWriter();
 
-        var outWas = Console.Out;
-        var errWas = Console.Error;
-        var dirWas = Directory.GetCurrentDirectory();
+        // Serialised per working tree, because that is where the shared mutable state is: one graph, which
+        // one command may read while another edits. Different trees hold different graphs and proceed
+        // together — and two callers on the same tree waiting for each other is the consistency, not a cost.
+        var gate = Locks.GetOrAdd(request.CodeRoot ?? "", _ => new SemaphoreSlim(1, 1));
+        gate.Wait();
 
         try
         {
-            Console.SetOut(stdout);
-            Console.SetError(stderr);
+            using var scope = RequestScope.Begin(stdout, stderr, request.WorkingDirectory);
             Program.StandardInput = request.Stdin;
             Program.Host          = host;
 
-            try { Directory.SetCurrentDirectory(request.WorkingDirectory); }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* keep ours */ }
-
-            var code = request.Stop && request.Args.Length == 0 ? 0 : Program.Execute(request.Args);
+            var code = request.Args.Length == 0 ? 0 : Program.Execute(request.Args);
             return new DaemonResponse(code, stdout.ToString(), stderr.ToString());
         }
         catch (Exception ex)
@@ -146,11 +179,13 @@ internal static class DaemonServer
         }
         finally
         {
-            Console.SetOut(outWas);
-            Console.SetError(errWas);
             Program.StandardInput = null;
             Program.Host          = null;
-            try { Directory.SetCurrentDirectory(dirWas); } catch (IOException) { }
+            gate.Release();
+
+            // Whatever the command changed is on disk before the next caller can ask for it, so an abrupt
+            // end costs a load rather than a rebuild.
+            try { host.Flush(); } catch (IOException) { }
         }
     }
 

@@ -205,4 +205,12 @@ public sealed class GraphWorkspace
         }
         return stamps;
     }
+
+    /// <summary>Says the held snapshot has been changed in place by a caller holding it, so the next flush
+    /// writes it. The alternative — every caller writing the archive itself — leaves the warm copy and the
+    /// file disagreeing for as long as the process lives.</summary>
+    public void MarkChanged()
+    {
+        lock (_gate) _dirty = true;
+    }
 }

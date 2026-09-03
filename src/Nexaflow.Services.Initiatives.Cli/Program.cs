@@ -68,9 +68,39 @@ internal static class Program
     /// </summary>
     private static string? CallerWorkingTree(string productRoot)
     {
-        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var caller = WorkingTreeRootOf(CallerDirectory);
         if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
         return TryFindMainCheckout(caller, out var main) && PathsEqual(main, productRoot) ? caller : null;
+    }
+
+    /// <summary>
+    /// The directory the caller ran this command in. Inside the resident process that is a property of
+    /// the request, not of the process — several callers are served at once and they are not all in the
+    /// same place. In a one-shot process it is simply the process directory, which is the same answer.
+    /// </summary>
+    private static string CallerDirectory =>
+        Daemon.RequestScope.Directory ?? System.IO.Directory.GetCurrentDirectory();
+
+    /// <summary>
+    /// The per-file material for this root, from the warm snapshot when there is one. Taking it from the
+    /// workspace matters twice over: it is the expensive half of the archive to read, and it is the same
+    /// object the warm graph was assembled from — so an edit mutates what the next caller will be handed
+    /// rather than a private copy that the workspace would later overwrite.
+    /// </summary>
+    private static GraphCache EditCache(string root, bool main, ProductStore store) =>
+        Workspace(root, main, store)?.Current()?.Cache ?? store.LoadGraphCache() ?? new GraphCache();
+
+    /// <summary>
+    /// Records a change to the graph. With a warm workspace the objects just mutated ARE its snapshot, so
+    /// this only has to say so and let it flush; without one there is nothing holding them and the write
+    /// happens here. Writing directly in both cases would leave the warm copy describing the file it had
+    /// before, which is the one way a resident process can be worse than no process at all.
+    /// </summary>
+    private static void SaveGraphChange(string root, bool main, ProductStore store,
+                                        KnowledgeGraph graph, GraphCache cache)
+    {
+        if (Workspace(root, main, store) is { } workspace) workspace.MarkChanged();
+        else store.SaveSnapshot(graph, cache);
     }
 
     /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
@@ -853,7 +883,7 @@ internal static class Program
         
         var main  = a.Has("--main");
         var store = GraphStore(root, main);
-        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var cache = EditCache(root, main, store);
         var stale = !a.Has("--no-refresh");
 
         // Bring the graph's record of the target file up to date BEFORE looking anything up. One file's
@@ -875,7 +905,7 @@ internal static class Program
         {
             // The refresh above may have learned something real — the file changed — and that is worth
             // keeping even though the edit itself is not going ahead.
-            if (dirty) store.SaveSnapshot(graph, cache);
+            if (dirty) SaveGraphChange(root, main, store, graph, cache);
             Console.Error.WriteLine($"error: {result.Message}");
             return Error;
         }
@@ -914,7 +944,7 @@ internal static class Program
                                                         CodeRootOrNull(root, main));
         if (dirty)
         {
-            store.SaveSnapshot(graph, cache);
+            SaveGraphChange(root, main, store, graph, cache);
         }
 
         // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
@@ -987,7 +1017,7 @@ internal static class Program
         if (!report.Available || report.IsCurrent) return;
 
         var store = GraphStore(root, main);
-        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var cache = EditCache(root, main, store);
         var dirty = false;
 
         foreach (var rel in report.Stale)
@@ -1003,7 +1033,7 @@ internal static class Program
 
         if (!dirty) return;
 
-        store.SaveSnapshot(graph, cache);
+        SaveGraphChange(root, main, store, graph, cache);
         Console.Error.WriteLine(
             $"graph: refreshed {report.Stale.Count} file(s)"
           + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
@@ -1637,7 +1667,7 @@ internal static class Program
     /// </summary>
     private static void PrintResolvedCodeForCaller(string root, ProductNode node)
     {
-        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var caller = WorkingTreeRootOf(CallerDirectory);
         var fileRoots = new[] { caller, root }.Where(r => r is { Length: > 0 }).Distinct().ToArray()!;
         PrintResolvedCode(fileRoots!, node);
     }
@@ -1704,7 +1734,7 @@ internal static class Program
         // Same distinction as GraphCodeRoot: the caller's tree is only a better place to look when it is a
         // worktree OF this product root. Pointed at another repository, preferring the caller's tree would
         // resolve that repo's snaplinks against this one's files and quietly validate the wrong source.
-        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var caller = WorkingTreeRootOf(CallerDirectory);
         if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return [productRoot];
         return TryFindMainCheckout(caller, out var callerMain) && PathsEqual(callerMain, productRoot)
             ? [caller, productRoot]
@@ -1748,7 +1778,7 @@ internal static class Program
     {
         if (a.Has("--main")) return null;
         if (a.Value("--code-root") is { Length: > 0 } explicitRoot) return Path.GetFullPath(explicitRoot);
-        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var caller = WorkingTreeRootOf(CallerDirectory);
         if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
 
         // "The caller's tree differs from the product root" describes two completely different situations, and
@@ -1967,7 +1997,7 @@ internal static class Program
         var range = a.Value("--from-git");
         if (string.IsNullOrWhiteSpace(range)) return Usage("--from-git needs a revision range, e.g. v1.4.0..HEAD");
 
-        var repo = GitRepoFor(Directory.GetCurrentDirectory(), root);
+        var repo = GitRepoFor(CallerDirectory, root);
         var log = RunGit(repo, "log", "--diff-filter=R", "--name-status", "--format=", "-M", range!);
         if (log is null)
         {
@@ -2414,7 +2444,7 @@ internal static class Program
     /// Snaplinks only go to a pending set when there is a branch for them to belong to.</summary>
     private static string? PendingBranch(string root)
     {
-        var here = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var here = WorkingTreeRootOf(CallerDirectory);
         return here is { Length: > 0 } && !PathsEqual(here, root) ? ProductGit.CurrentBranch(here) : null;
     }
 
@@ -2427,7 +2457,7 @@ internal static class Program
     /// </para>
     /// </summary>
     private static string PendingRoot(string productRoot) =>
-        WorkingTreeRootOf(Directory.GetCurrentDirectory()) is { Length: > 0 } here ? here : productRoot;
+        WorkingTreeRootOf(CallerDirectory) is { Length: > 0 } here ? here : productRoot;
 
     private static PendingStore PendingStoreFor(string root) =>
         new(PendingRoot(root), ExportDirFor(root));
