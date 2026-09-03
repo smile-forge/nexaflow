@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using Nexaflow.Services.Initiatives.Hosting.Ipc;
 using Nexaflow.Tests.Fixtures;
+using System.Linq;
+using System.Text;
 
 namespace Nexaflow.Tests.Initiatives.Hosting;
 
@@ -22,9 +24,12 @@ public class DaemonProtocolTests
     [TestMethod]
     public void ARequest_SurvivesTheRoundTripExactly()
     {
-        var sent = new DaemonRequest(["graph", "edit", "substitute", "--find", "a — b"],
-                                     @"D:\repo\.claude\worktrees\x", @"D:\repo\src", "piped text")
-        { Stop = true };
+        var sent = DaemonRequest.Command("tkt00000001",
+                                         ["graph", "edit", "substitute", "--find", "a — b"],
+                                         @"D:
+    epo\.claude\worktrees\x", @"D:
+    epo\src", "piped text")
+            with { Stop = true };
 
         using var stream = new MemoryStream();
         DaemonProtocol.Write(stream, sent);
@@ -33,11 +38,76 @@ public class DaemonProtocolTests
         var back = DaemonProtocol.Read<DaemonRequest>(stream);
 
         Assert.IsNotNull(back);
-        CollectionAssert.AreEqual(sent.Args, back!.Args);
+        Assert.AreEqual(DaemonAsk.Command, back!.Ask);
+        Assert.AreEqual(sent.Ticket, back.Ticket);
+        CollectionAssert.AreEqual(sent.Args, back.Args);
         Assert.AreEqual(sent.CodeRoot, back.CodeRoot);
         Assert.AreEqual(sent.WorkingDirectory, back.WorkingDirectory);
         Assert.AreEqual(sent.Stdin, back.Stdin);
         Assert.IsTrue(back.Stop);
+    }
+
+    /// <summary>
+    /// The shape of a command exchange: the request out, the acknowledgement straight back, and the answer when
+    /// there is one. The client reads them in that order and nothing labels them, so the order is the contract —
+    /// a daemon that skipped the middle frame would have its output read as an acknowledgement.
+    /// </summary>
+    [TestMethod]
+    public void ACommandExchange_ReadsBackInTheOrderItWasWritten()
+    {
+        using var stream = new MemoryStream();
+
+        DaemonProtocol.Write(stream, DaemonRequest.Command("tkt", ["graph", "build"], null, @"D:\repo", null));
+        DaemonProtocol.Write(stream, new DaemonAck("tkt", true, null));
+        DaemonProtocol.Write(stream, new DaemonResponse(0, "built", ""));
+        stream.Position = 0;
+
+        Assert.AreEqual("tkt", DaemonProtocol.Read<DaemonRequest>(stream)?.Ticket);
+        Assert.IsTrue(DaemonProtocol.Read<DaemonAck>(stream)?.Accepted);
+        Assert.AreEqual("built", DaemonProtocol.Read<DaemonResponse>(stream)?.Out);
+    }
+
+    /// <summary>A status query is a request like any other, distinguished only by what it asks for — so the
+    /// daemon can answer it on any connection without a second listener or a second frame format.</summary>
+    [TestMethod]
+    public void AStatusQuery_IsARequest_CarryingOnlyTheTicket()
+    {
+        using var stream = new MemoryStream();
+        DaemonProtocol.Write(stream, DaemonRequest.Status("tkt"));
+        stream.Position = 0;
+
+        var back = DaemonProtocol.Read<DaemonRequest>(stream);
+
+        Assert.IsNotNull(back);
+        Assert.AreEqual(DaemonAsk.Status, back!.Ask);
+        Assert.AreEqual("tkt", back.Ticket);
+        Assert.AreEqual(0, back.Args.Length);
+    }
+
+    /// <summary>The one time anyone reads these bytes is when something has gone wrong, and at that moment
+    /// "Queued" answers the question that a 1 does not.</summary>
+    [TestMethod]
+    public void AWorkStatus_NamesItsStateInThePayload()
+    {
+        using var stream = new MemoryStream();
+        DaemonProtocol.Write(stream, new DaemonWorkStatus("tkt", WorkState.Queued, "graph stats", 2, 0, "graph build (9s)"));
+
+        StringAssert.Contains(Encoding.UTF8.GetString(stream.ToArray()), "Queued");
+
+        stream.Position = 0;
+        var back = DaemonProtocol.Read<DaemonWorkStatus>(stream);
+
+        Assert.AreEqual(WorkState.Queued, back!.State);
+        Assert.AreEqual("graph build (9s)", back.Behind);
+    }
+
+    /// <summary>Two commands must never share a name, or a status query answers about the wrong one.</summary>
+    [TestMethod]
+    public void Tickets_AreNotRepeated()
+    {
+        var tickets = Enumerable.Range(0, 500).Select(_ => DaemonRequest.NewTicket()).ToHashSet();
+
+        Assert.AreEqual(500, tickets.Count);
     }
 
     /// <summary>The em dash is not decoration: the tool quotes source back at you, and a transport that

@@ -52,6 +52,10 @@ internal static class Program
             // itself when it runs the command. Saying it in both places said it twice.
             _rootNoteShown = true;
             var productRoot = ResolveRoot(args.Skip(1));
+
+            // Answered by the client rather than sent to the daemon: it is a question about that process, and
+            // it has to be answerable when the process is busy, wedged, or not there at all.
+            if (args[0] == "daemon") return DaemonClient.Report(productRoot, stop: args.Contains("stop"));
             return DaemonClient.Run(args, productRoot, CallerWorkingTree(productRoot));
         }
         catch (DaemonUnavailableException ex)
@@ -289,6 +293,12 @@ internal static class Program
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
                        Sub-commands explore a built graph: stats / search / list / node / walk / code — see `graph help`.
+            daemon     Says what the resident process for this tree is doing: whether one is answering, every
+                       command it has on the books with how long each has waited and run, and the path of its
+                       log. Nothing else needs it — commands start and reuse one on their own — but when one
+                       seems stuck this answers immediately, because it reads a dictionary and never queues
+                       behind the work it is reporting on. `daemon stop` ends it; the next command starts
+                       another.
 
             <root> defaults to the current directory. exit: 0 = ok, 1 = broken snaplinks, 2 = usage/IO error
             """);
