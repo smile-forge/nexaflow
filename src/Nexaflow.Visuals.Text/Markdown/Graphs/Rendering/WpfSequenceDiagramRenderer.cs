@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -44,6 +44,9 @@ public static class WpfSequenceDiagramRenderer
     private const double FontSize    = 12;
     private const double MsgFontSize = 11;
     private const double LineH       = 14;
+
+    /// <summary>Band reserved above the participant heads for a <c>box</c> grouping's label.</summary>
+    private const double BoxLabelH   = 18;
 
     // ── Theme (set per render; markdown renders synchronously on the UI thread) ──
 
@@ -103,7 +106,11 @@ public static class WpfSequenceDiagramRenderer
         for (int i = 1; i < n; i++)
             centers[i] = centers[i - 1] + Math.Max(MinColGap, widths[i - 1] / 2 + widths[i] / 2 + MinEdgeGap);
 
-        double topBoxY = Outer + (hasTitle ? TitleH : 0);
+        // A box grouping writes its label above the participant heads, so it needs a band of its own
+        // — without one the label sits a few pixels above the tallest head and any head taller than
+        // the rest (a card, a database glyph) is drawn straight through it.
+        double boxBandH = diagram.Boxes.Any(b => !string.IsNullOrWhiteSpace(b.Label)) ? BoxLabelH : 0;
+        double topBoxY = Outer + (hasTitle ? TitleH : 0) + boxBandH;
         double lifeTop = topBoxY + headerH;
 
         double Cx(string id) => index.TryGetValue(id, out int k) ? centers[k] : centers[0];
@@ -224,7 +231,7 @@ public static class WpfSequenceDiagramRenderer
 
         // 1. box groupings
         foreach (var box in diagram.Boxes)
-            DrawBoxGroup(canvas, box, centers, widths, index, topBoxY - 6, botBoxY + bandH + 6);
+            DrawBoxGroup(canvas, box, centers, widths, index, topBoxY - boxBandH - 6, botBoxY + bandH + 6);
 
         // 2. rect highlights
         foreach (var f in frags.Where(f => f.Kind == FragmentKind.Rect))

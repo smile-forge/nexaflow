@@ -122,6 +122,34 @@ public class SequenceSharedRendererTests
         Assert.IsTrue(CanvasOf(withTech).Children.Count > bare);
     });
 
+    // ── Box groupings ─────────────────────────────────────────────────────
+
+    [TestMethod]
+    [TestCategory("UI")]
+    [CoversNode("c4-sequence")]
+    public void LabelledBox_ReservesABandAboveTheHeads() => UiThread.Run(() =>
+    {
+        // The label used to sit three pixels above the tallest head, so any head taller than the
+        // rest — a C4 card, a database glyph — was drawn straight through it.
+        var plain = new MermaidSequenceParser().Parse("sequenceDiagram\n  participant A\n  A->>A: x\n");
+        var boxed = new MermaidSequenceParser().Parse("sequenceDiagram\n  box Group\n  participant A\n  end\n  A->>A: x\n");
+
+        Assert.IsTrue(CanvasOf(boxed).Height > CanvasOf(plain).Height,
+            "a labelled box should reserve a band for its label");
+    });
+
+    [TestMethod]
+    [TestCategory("UI")]
+    [CoversNode("c4-sequence")]
+    public void UnlabelledBox_ReservesNothing() => UiThread.Run(() =>
+    {
+        var plain     = new MermaidSequenceParser().Parse("sequenceDiagram\n  participant A\n  A->>A: x\n");
+        var unlabeled = new MermaidSequenceParser().Parse("sequenceDiagram\n  box transparent\n  participant A\n  end\n  A->>A: x\n");
+
+        Assert.AreEqual(CanvasOf(plain).Height, CanvasOf(unlabeled).Height, 1e-9,
+            "there is no label to make room for");
+    });
+
     // ── Card participants ─────────────────────────────────────────────────
 
     [TestMethod]

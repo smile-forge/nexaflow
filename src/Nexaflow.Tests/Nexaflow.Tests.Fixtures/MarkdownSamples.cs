@@ -3918,6 +3918,38 @@ internal sealed class MarkdownSamples : ISampleSet
         Rel_Back(customer, spa, "Sends back an authentication token", $index=Index())
         ```
 
+        ## Sequence — a Nexaflow extension
+
+        `C4Sequence` mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword for. Elements
+        become participant cards, a `Boundary` groups them, and each `Rel` is a message carrying its
+        technology. Native `sequenceDiagram` control lines — `alt`, `loop`, `note over`, `activate` —
+        work inside it, because it is drawn by the very same renderer.
+
+        ```mermaid
+        C4Sequence
+        title Sign-in sequence
+
+        SHOW_INDEX()
+        SHOW_FOOT_BOXES(false)
+
+        Person(customer, "Banking Customer")
+        Container(spa, "Single-Page App", "Angular")
+        Boundary(b, "API Application", "Container")
+        Component(signin, "Sign In Controller", "Spring MVC")
+        ComponentDb(users, "User Store", "Spring Bean")
+        Boundary_End()
+
+        Rel(customer, spa, "Submits credentials", "HTTPS")
+        Rel(spa, signin, "POST /signin", "JSON/HTTPS")
+        alt credentials valid
+        Rel(signin, users, "Looks the user up", "JDBC")
+        Rel_Back(signin, users, "Returns the record")
+        else rejected
+        Rel_Back(spa, signin, "401 Unauthorized")
+        end
+        Rel_Back(customer, spa, "Shows the dashboard")
+        ```
+
         ## Deployment — nested nodes
 
         ```mermaid

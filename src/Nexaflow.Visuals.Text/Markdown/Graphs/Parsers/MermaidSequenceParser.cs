@@ -1,7 +1,21 @@
-using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
+﻿using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using System.Text.RegularExpressions;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
+
+/// <summary>
+/// The running state of a sequence parse — what a line needs to know about the lines before it.
+/// Held by the caller so a C4 sequence can feed its own unclaimed lines through
+/// <see cref="MermaidSequenceParser.ParseLine"/> one at a time and get the same fragment nesting,
+/// box grouping and autonumbering a native diagram gets.
+/// </summary>
+public sealed class SequenceParseState
+{
+    internal bool Autonumber;
+    internal int Counter;
+    internal int FragDepth;
+    internal SequenceBox? Box;
+}
 
 /// <summary>
 /// Parses Mermaid <c>sequenceDiagram</c> diagrams into a <see cref="SequenceDiagram"/>.
@@ -52,36 +66,43 @@ public sealed class MermaidSequenceParser
 
     private static void ParseInto(string source, SequenceDiagram diagram)
     {
-        bool autonumber = false;
-        int  counter    = 0;
-        int  fragDepth  = 0;
-        SequenceBox? box = null;
-
+        var state = new SequenceParseState();
         foreach (var rawLine in source.Split('\n'))
+            ParseLine(rawLine, diagram, state);
+    }
+
+    /// <summary>
+    /// Parses one line into <paramref name="diagram"/>, carrying the running
+    /// <paramref name="state"/> across calls. Public so a C4 sequence can replay the lines its own
+    /// reader did not claim - alt, loop, note over, activate - through exactly this grammar rather
+    /// than a second copy of it.
+    /// </summary>
+    public static void ParseLine(string rawLine, SequenceDiagram diagram, SequenceParseState state)
+    {
         {
             var line = StripComment(rawLine).Trim().TrimEnd(';');
-            if (line.Length == 0) continue;
+            if (line.Length == 0) return;
 
             var first = line.Split(' ', '\t')[0].ToLowerInvariant();
             string rest = WordRest(line);
 
             switch (first)
             {
-                case "sequencediagram": continue;
-                case "title": diagram.Title = line[5..].TrimStart(':', ' ').Trim(); continue;
+                case "sequencediagram": return;
+                case "title": diagram.Title = line[5..].TrimStart(':', ' ').Trim(); return;
 
                 case "participant":
                 case "actor":
                     ParseParticipant(rest, first == "actor" ? ParticipantKind.Actor : ParticipantKind.Participant,
-                                     diagram, box);
-                    continue;
+                                     diagram, state.Box);
+                    return;
 
-                case "create": ParseCreate(rest, diagram); continue;
+                case "create": ParseCreate(rest, diagram); return;
                 case "destroy":
                 {
                     var id = CleanRef(rest);
                     if (id.Length > 0) { diagram.GetOrAdd(id).Destroyed = true; diagram.Items.Add(new SequenceDestroy { ParticipantId = id }); }
-                    continue;
+                    return;
                 }
 
                 case "activate":
@@ -89,41 +110,41 @@ public sealed class MermaidSequenceParser
                 {
                     var id = CleanRef(rest);
                     if (id.Length > 0) { diagram.GetOrAdd(id); diagram.Items.Add(new SequenceActivation { ParticipantId = id, Activate = first == "activate" }); }
-                    continue;
+                    return;
                 }
 
-                case "autonumber": autonumber = true; continue;
+                case "autonumber": state.Autonumber = true; return;
 
-                case "note" when RxNote.IsMatch(line): ParseNote(line, diagram); continue;
+                case "note" when RxNote.IsMatch(line): ParseNote(line, diagram); return;
 
-                case "box": box = OpenBox(rest, diagram); continue;
+                case "box": state.Box = OpenBox(rest, diagram); return;
 
-                case "alt":      OpenFragment(FragmentKind.Alt,      rest, diagram, ref fragDepth); continue;
-                case "opt":      OpenFragment(FragmentKind.Opt,      rest, diagram, ref fragDepth); continue;
-                case "loop":     OpenFragment(FragmentKind.Loop,     rest, diagram, ref fragDepth); continue;
-                case "par":      OpenFragment(FragmentKind.Par,      rest, diagram, ref fragDepth); continue;
-                case "critical": OpenFragment(FragmentKind.Critical, rest, diagram, ref fragDepth); continue;
-                case "break":    OpenFragment(FragmentKind.Break,    rest, diagram, ref fragDepth); continue;
-                case "rect":     OpenRect(rest, diagram, ref fragDepth); continue;
+                case "alt":      OpenFragment(FragmentKind.Alt,      rest, diagram, ref state.FragDepth); return;
+                case "opt":      OpenFragment(FragmentKind.Opt,      rest, diagram, ref state.FragDepth); return;
+                case "loop":     OpenFragment(FragmentKind.Loop,     rest, diagram, ref state.FragDepth); return;
+                case "par":      OpenFragment(FragmentKind.Par,      rest, diagram, ref state.FragDepth); return;
+                case "critical": OpenFragment(FragmentKind.Critical, rest, diagram, ref state.FragDepth); return;
+                case "break":    OpenFragment(FragmentKind.Break,    rest, diagram, ref state.FragDepth); return;
+                case "rect":     OpenRect(rest, diagram, ref state.FragDepth); return;
 
                 case "else":
                 case "and":
                 case "option":
-                    if (fragDepth > 0)
+                    if (state.FragDepth > 0)
                         diagram.Items.Add(new SequenceFragment { Boundary = FragmentBoundary.Section, Label = Br(rest) });
-                    continue;
+                    return;
 
                 case "end":
-                    if (fragDepth > 0) { diagram.Items.Add(new SequenceFragment { Boundary = FragmentBoundary.End }); fragDepth--; }
-                    else if (box is not null) box = null;
-                    continue;
+                    if (state.FragDepth > 0) { diagram.Items.Add(new SequenceFragment { Boundary = FragmentBoundary.End }); state.FragDepth--; }
+                    else if (state.Box is not null) state.Box = null;
+                    return;
 
                 case "link":
-                case "links": continue;
+                case "links": return;
             }
 
             // Otherwise: a message line, or an unknown line we ignore.
-            if (TryParseMessage(line, diagram, autonumber, ref counter)) continue;
+            TryParseMessage(line, diagram, state.Autonumber, ref state.Counter);
         }
     }
 

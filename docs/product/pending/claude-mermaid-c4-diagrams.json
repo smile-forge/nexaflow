@@ -50,6 +50,17 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs",
           "class": "WpfSequenceDiagramRenderer",
           "method": "MeasureHead"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4SequenceProjector.cs",
+          "class": "C4SequenceProjector"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSequenceParser.cs",
+          "class": "MermaidSequenceParser",
+          "method": "ParseLine"
         }
       ],
       "concerns": {
@@ -58,6 +69,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SequenceSharedRendererTests.cs",
             "class": "SequenceSharedRendererTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4SequenceProjectionTests.cs",
+            "class": "C4SequenceProjectionTests"
           }
         ]
       }

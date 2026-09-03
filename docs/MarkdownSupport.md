@@ -1,4 +1,4 @@
-# Markdown Support
+﻿# Markdown Support
 
 What the Nexaflow markdown renderer (`Nexaflow.Visuals.Text`) currently supports,
 checked against the Markdig [CommonMark](https://xoofx.github.io/markdig/docs/commonmark/)
@@ -156,6 +156,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `timeline` | ✅ (period spine, LR or TD) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (scored faces, actor legend) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
+| `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
 | `block-beta` | ✅ (author-placed grid, nested blocks) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 
 **State-diagram sub-features** ([`MermaidStateParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs)).
@@ -439,7 +440,22 @@ theme can retune it (see [theming.md](theming.md) → *Diagram tokens*). **The f
 with `c4ShapeInRow`/`c4BoundaryInRow` recorded but not obeyed. **Limitations:** `Lay_*`, the `_U`/`_D`/`_L`/`_R`
 direction suffixes, `$sprite` and `UpdateRelStyle`'s pixel offsets are parsed and ignored — they exist to nudge
 graphviz, and placement here belongs to the shared layout; `SvgGraphRenderer` draws a C4 element as a plain rectangle,
-as it already does for class boxes.
+ as it already does for class boxes.
+
+**C4 sequence** ([`C4SequenceProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4SequenceProjector.cs)).
+`C4Sequence` is a **Nexaflow extension** — it mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword
+for. It is drawn by the *same* [`WpfSequenceDiagramRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs)
+as a native `sequenceDiagram`: element macros become participant lifelines whose heads are C4 element cards instead of
+plain boxes, a `Boundary`…`Boundary_End()` pair becomes the `box` grouping over the participants it spans, and each
+`Rel` becomes a message carrying its `[technology]` under the label. `SHOW_INDEX()` numbers the messages (an explicit
+`$index`/`RelIndex` wins and the count continues from it), `SHOW_FOOT_BOXES(false)` drops the repeated heads at the
+bottom, and `SHOW_ELEMENT_DESCRIPTIONS()` puts each element's description into its card — hidden by default, because a
+lifeline head is a column header and a paragraph in every column only pushes the columns apart.
+
+**Native sequence syntax works inside it.** Any line the C4 reader does not claim is replayed through
+`MermaidSequenceParser.ParseLine`, so `alt`/`else`/`end`, `loop`, `par`, `critical`, `note over`, `activate` and even a
+plain `participant` sit alongside C4 macros in one diagram and nest around them correctly — it is the native grammar
+itself, not a second copy of it.
 
 ### Expandable nodes + the viewport (graph-family diagrams)
 

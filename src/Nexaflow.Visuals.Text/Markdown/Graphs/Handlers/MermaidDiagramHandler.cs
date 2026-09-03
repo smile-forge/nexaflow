@@ -30,6 +30,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>journey</c>          → <see cref="MermaidJourneyParser"/>  + <see cref="WpfJourneyRenderer"/>
 ///   • <c>block-beta</c>       → <see cref="MermaidBlockParser"/>    + <see cref="WpfBlockRenderer"/>
 ///   • <c>C4Context / …</c>    → <see cref="MermaidC4Parser"/> + <see cref="C4GraphProjector"/> + the graph family
+///   • <c>C4Sequence</c>       → <see cref="MermaidC4Parser"/> + <see cref="C4SequenceProjector"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>graph / flowchart</c> → <see cref="MermaidParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///
 /// Adding a new Mermaid diagram type means adding a branch in <see cref="SubtypeOf"/>
@@ -100,6 +101,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidSubtype.Journey      => RenderJourney(source, body, title, palette),
             MermaidSubtype.Block        => RenderBlock(source, body, title, palette),
             MermaidSubtype.C4           => RenderC4(source, body, title, options),
+            MermaidSubtype.C4Sequence   => RenderC4Sequence(body, title, palette),
             MermaidSubtype.Graph       => RenderGraphFamily(FlowParser.Parse(body), source, title, options, 900),
             _                       => RenderSourceText(body),
         };
@@ -111,7 +113,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     // ── Subtype detection ──────────────────────────────────────────────────
 
-    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Cynefin, Architecture, Swimlane, Timeline, Journey, Block, C4, Unknown }
+    private enum MermaidSubtype { Graph, Pie, Quadrant, Sequence, Gantt, Git, Mindmap, State, Class, Requirement, Kanban, XyChart, Radar, Ishikawa, Sankey, Er, Venn, Cynefin, Architecture, Swimlane, Timeline, Journey, Block, C4, C4Sequence, Unknown }
 
     /// <summary>
     /// Reads the first non-blank, non-comment keyword to identify the diagram
@@ -167,6 +169,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
                 "graph" or "flowchart"             => MermaidSubtype.Graph,
                 "timeline"                         => MermaidSubtype.Timeline,
                 "journey"                          => MermaidSubtype.Journey,
+                "c4sequence"                       => MermaidSubtype.C4Sequence,
                 "c4context" or "c4container" or "c4component"
                     or "c4dynamic" or "c4deployment" => MermaidSubtype.C4,
                 _                          => MermaidSubtype.Unknown,
@@ -346,6 +349,17 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         diagram.Title  = Titled(diagram.Title, title);
         diagram.Config = C4ConfigParser.Parse(MermaidFrontmatter.RawBlock(source));
         return RenderGraphFamily(C4GraphProjector.ToGraph(diagram), source, title, options, 1100);
+    }
+
+    /// <summary>
+    /// A C4 sequence goes through the same renderer as a native sequenceDiagram — the participants just
+    /// carry element cards instead of plain boxes. See <see cref="C4SequenceProjector"/>.
+    /// </summary>
+    private static FrameworkElement RenderC4Sequence(string body, string? title, MarkdownPalette palette)
+    {
+        var diagram = C4SequenceProjector.ToSequence(C4Parser.Parse(body));
+        diagram.Title = Titled(diagram.Title, title);
+        return WpfSequenceDiagramRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderSourceText(string source) =>
