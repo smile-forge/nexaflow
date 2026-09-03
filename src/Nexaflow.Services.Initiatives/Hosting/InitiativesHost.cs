@@ -4,6 +4,7 @@ using System.IO;
 using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Services.Initiatives.Hosting;
 
@@ -84,7 +85,7 @@ public sealed class InitiativesHost : IDisposable
 
             var scope = key.Length == 0 ? null : Path.GetFileName(key);
             var bound = store ?? (scope is null ? _store : new ProductStore(ProductRoot, scope));
-            return _workspaces[key] = new GraphWorkspace(bound, ProductRoot, key.Length == 0 ? null : key);
+            return _workspaces[key] = new GraphWorkspace(bound, ProductRoot, key.Length == 0 ? null : key, () => Tree);
         }
     }
 
@@ -114,7 +115,33 @@ public sealed class InitiativesHost : IDisposable
             if (_disposed) return;
             _tree = _store.Load();
         }
+
+        // Off the request path, deliberately. Re-deriving the product layer takes seconds on a large graph, and
+        // whoever asks a question next did not cause this and should not pay for it — they answer from the layer
+        // as it stands, which is what they did before any of this existed, and the next query is current.
+        _ = Task.Run(RebuildProductLayers);
         TreeChanged?.Invoke();
+    }
+
+    /// <summary>Brings every held graph's product half back in line with the tree that has just changed.</summary>
+    private void RebuildProductLayers()
+    {
+        ProductState tree;
+        GraphWorkspace[] workspaces;
+        lock (_gate)
+        {
+            if (_disposed || _tree is null) return;
+            tree       = _tree;
+            workspaces = [.. _workspaces.Values];
+        }
+
+        foreach (var workspace in workspaces)
+            try { workspace.RebuildProductLayer(tree); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // A tree we cannot rewrite stays behind, and its next currency check says so again. Losing the
+                // whole watcher over one locked file would be the worse failure.
+            }
     }
 
     public void Dispose()

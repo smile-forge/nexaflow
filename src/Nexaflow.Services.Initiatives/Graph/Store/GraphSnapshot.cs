@@ -22,6 +22,17 @@ public sealed class GraphSnapshot
     /// not changed, which is what makes a rebuild proportional to the edit rather than to the repo.</summary>
     public GraphCache Cache { get; set; } = new();
 
+    /// <summary>
+    /// What <c>tree.json</c> looked like when the graph's product layer was derived from it.
+    /// <para>
+    /// The archive holds both layers — the authored tree's nodes and the code's — but only the code half
+    /// was ever checked for drift, so an edit to the tree left the graph describing a product that had
+    /// moved on, invisibly, until someone ran a full build. Stamping it puts the tree on the same footing
+    /// as every source file: one stat says whether the derived layer still holds.
+    /// </para>
+    /// </summary>
+    public FileStamp Tree { get; set; }
+
     /// <summary>Repo-relative path → what that file looked like when it was last extracted.</summary>
     public Dictionary<string, FileStamp> Files { get; set; } = new(StringComparer.Ordinal);
 }

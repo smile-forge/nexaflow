@@ -34,12 +34,18 @@ public sealed class GraphWorkspace
     /// <param name="store">Where this tree's archive lives — the main checkout's, or a worktree's own.</param>
     /// <param name="productRoot">The checkout holding <c>.product</c>: always the main one.</param>
     /// <param name="codeRoot">Where source is read from — this branch's tree, or null to mean the product root.</param>
-    public GraphWorkspace(ProductStore store, string productRoot, string? codeRoot)
-    {
-        Store       = store;
-        ProductRoot = productRoot;
-        CodeRoot    = codeRoot;
-    }
+    public GraphWorkspace(ProductStore store, string productRoot, string? codeRoot,
+                      Func<ProductState>? tree = null)
+{
+    Store       = store;
+    ProductRoot = productRoot;
+    CodeRoot    = codeRoot;
+    _tree       = tree;
+}
+
+/// <summary>The authored tree, when someone is holding one. Supplied rather than loaded here because the
+/// host already keeps it current, and two copies of it would be one too many.</summary>
+private readonly Func<ProductState>? _tree;
 
     public ProductStore Store { get; }
     public string ProductRoot { get; }
@@ -68,6 +74,7 @@ public sealed class GraphWorkspace
             _snapshot ??= GraphArchive.Read(Store.GraphFilePath);
             if (_snapshot is null) return null;
 
+            NoteTreeStamp(_snapshot);
             Reconcile(_snapshot);
             return _snapshot;
         }
@@ -110,8 +117,50 @@ public sealed class GraphWorkspace
             if (!_dirty || _snapshot is null) return;
 
             _snapshot.Files = Stamps(_snapshot.Cache);
-            Store.SaveSnapshot(_snapshot.Graph, _snapshot.Cache, _snapshot.Files);
+            Store.SaveSnapshot(_snapshot);
             _dirty = false;
+        }
+    }
+
+    /// <summary>
+    /// Notes that the authored tree has moved on, without doing anything about it here.
+    /// <para>
+    /// Re-deriving takes seconds on a repository this size — seeding a hundred thousand code nodes back in,
+    /// re-resolving every snaplink, rewriting the archive — so doing it on the path of whoever happens to ask
+    /// next turns one person's <c>set-concern</c> into someone else's twenty-second query. The host watches the
+    /// file and does the work off the request path instead; a query in the meantime answers from the product
+    /// layer as it was, which is exactly what it did before any of this existed, and self-heals within seconds.
+    /// </para>
+    /// </summary>
+    private void NoteTreeStamp(GraphSnapshot snapshot)
+    {
+        var info = Info(Store.TreeFilePath);
+        if (info is null) return;
+
+        if (!snapshot.Tree.IsKnown || !snapshot.Tree.Matches(info.Length, info.LastWriteTimeUtc))
+            TreeIsBehind = true;
+    }
+
+    /// <summary>Whether the product half of the graph predates the tree it was derived from. Set by the
+    /// currency check, cleared by <see cref="RebuildProductLayer"/>.</summary>
+    public bool TreeIsBehind { get; private set; }
+
+    /// <summary>
+    /// Re-derives the product half from the authored tree. Called by the host off the request path — on the
+    /// watcher, or once after a load that found the stamp behind — never by a query.
+    /// </summary>
+    public void RebuildProductLayer(ProductState tree)
+    {
+        lock (_gate)
+        {
+            if (_snapshot is null) return;
+
+            var changed = GraphBuilder.ApplyTreeDelta(_snapshot.Graph, tree, ProductRoot);
+
+            var info = Info(Store.TreeFilePath);
+            _snapshot.Tree = info is null ? default : new FileStamp(string.Empty, info.Length, info.LastWriteTimeUtc);
+            TreeIsBehind   = false;
+            _dirty         |= changed;
         }
     }
 

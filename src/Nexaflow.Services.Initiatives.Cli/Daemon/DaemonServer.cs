@@ -71,6 +71,10 @@ internal static class DaemonServer
         {
             RequestScope.Install();
             using var host = new InitiativesHost(root);
+
+            // Read once, up front, because that is what starts the watcher: the tree is small, and without this
+            // nothing here would ever notice it change — the verbs each load their own copy and tell no one.
+            _ = host.Tree;
             Serve(pipe, host);
             return 0;
         }
