@@ -56,12 +56,49 @@
           }
         ]
       }
+    },
+    "c4-macro-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4MacroReader.cs",
+          "class": "C4MacroReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs",
+          "class": "MermaidC4Parser"
+        },
+        {
+          "type": "url",
+          "target": "https://github.com/plantuml-stdlib/C4-PlantUML"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/C4ParserTests.cs",
+            "class": "C4ParserTests"
+          }
+        ]
+      }
+    },
+    "c4": {
+      "links": [
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/c4.html"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 7,
   "touched_nodes": [
+    "c4",
     "c4-elements",
+    "c4-macro-syntax",
     "c4-sequence"
   ]
 }
