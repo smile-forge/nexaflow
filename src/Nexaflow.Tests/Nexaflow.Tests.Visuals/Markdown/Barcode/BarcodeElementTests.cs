@@ -53,6 +53,82 @@ public class BarcodeElementTests
         Assert.IsInstanceOfType(DiagramRenderer.Render("barcode", Code128, MarkdownPalette.Dark),
                                 typeof(BarcodeElement)));
 
+    /// <summary>
+    /// The human-readable line belongs to the symbol's geometry, not to a point size: each group has to
+    /// sit inside the well its bars make, whatever face is installed and whatever module width is asked
+    /// for. OCR-B — which these symbols are meant to be set in, and which the label asks for first — is
+    /// appreciably wider than a monospace at the same size, so a number that fitted in one spilled
+    /// across the guards in the other.
+    /// </summary>
+    [TestMethod]
+    public void TheNumberIsFittedInsideTheWellsItsBarsMake() => UiThread.Run(() =>
+    {
+        foreach (string width in (string[])["1", "2", "4", "8"])
+        {
+            var element = LaidOut($"format: EAN13\nvalue: 9781565812314\nwidth: {width}\nfontSize: 40");
+
+            var runs = Runs(element);
+            Assert.IsTrue(runs.Count >= 2, $"width {width}: expected the number in groups, got {runs.Count} run(s)");
+
+            for (int i = 1; i < runs.Count; i++)
+                Assert.IsTrue(runs[i - 1].Right <= runs[i].Left + 0.5,
+                              $"width {width}: '{runs[i - 1].Text}' overlaps '{runs[i].Text}'");
+        }
+    });
+
+    /// <summary>
+    /// An ISBN's caption names the number the main symbol carries, not the price add-on standing beside
+    /// it, so it belongs over that symbol and not over the pair. Centring it on the whole picture drifts
+    /// it towards the price by half the gap and the whole add-on, which reads as belonging to it.
+    /// </summary>
+    [TestMethod]
+    public void TheCaptionSitsOverTheMainSymbolAndIsSetSmaller() => UiThread.Run(() =>
+    {
+        var element = LaidOut("format: ISBN\nvalue: 978-1-56581-231-4 90000\nwidth: 4\nheight: 120\nfontSize: 40");
+
+        var runs    = Runs(element);
+        var caption = runs.First(r => r.Text.StartsWith("ISBN", StringComparison.Ordinal));
+        var number  = runs.First(r => r.Text is "781565");
+        var addOn   = runs.First(r => r.Text is "90000");
+
+        double captionMiddle = (caption.Left + caption.Right) / 2;
+        Assert.IsTrue(captionMiddle < addOn.Left,
+                      "the caption should sit over the main symbol, well clear of the add-on");
+
+        // The bars are 95 modules of 4px; the caption's middle belongs near the middle of those.
+        Assert.AreEqual(95 * 4.0 / 2, captionMiddle - runs.Min(r => r.Left), 95 * 4.0 * 0.12,
+                        "the caption should be centred on the main symbol");
+
+        // A title, not part of the number: set smaller than the digits under the bars.
+        double captionHeight = caption.Right - caption.Left;
+        Assert.IsTrue(captionHeight / caption.Text.Length < (number.Right - number.Left) / number.Text.Length,
+                      "the caption should be set smaller than the number");
+    });
+
+    /// <summary>
+    /// Guard bars run five modules past the others — the standard's figure — rather than however far the
+    /// label happens to be tall. Tying it to the text made the guards grow with the font, which is not
+    /// what a retail symbol does.
+    /// </summary>
+    [TestMethod]
+    public void GuardBarsRunFiveModulesPastTheRest() => UiThread.Run(() =>
+    {
+        var element = LaidOut("format: EAN13\nvalue: 9781565812314\nwidth: 4\nheight: 100\nfontSize: 40");
+
+        // Most of a symbol's bars are plain, so the commonest height is the plain one; the guards are
+        // the only ones longer than it.
+        // Bars only: nothing in a symbol is wider than four modules, which excludes the washes and
+        // bounds the element also paints.
+        var bars = Bars(element).Where(b => b.Width <= 4 * 4.0 + 0.5).ToList();
+        double plain = bars.GroupBy(b => Math.Round(b.Height, 3))
+                           .OrderByDescending(g => g.Count())
+                           .First().Key;
+        double guard = bars.Max(b => b.Height);
+
+        Assert.AreEqual(100, plain, 0.51, "the plain bars should be the asked-for height");
+        Assert.AreEqual(5 * 4.0, guard - plain, 0.51, "guards should drop five modules past the plain bars");
+    });
+
     [TestMethod]
     public void MeasuresToTheSymbolPlusItsQuietZone() => UiThread.Run(() =>
     {
@@ -224,5 +300,61 @@ public class BarcodeElementTests
 
         Walk(root);
         return text.ToString();
+    }
+
+    // ── Reading what was painted ──────────────────────────────────────────
+
+    /// <summary>An element measured and arranged, so that it has actually drawn itself.</summary>
+    private static BarcodeElement LaidOut(string source)
+    {
+        var element = Element(source);
+        element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+        element.UpdateLayout();
+        return element;
+    }
+
+    /// <summary>The text runs the element painted, left to right.</summary>
+    private static List<(string Text, double Left, double Right)> Runs(BarcodeElement element)
+    {
+        var runs = new List<(string, double, double)>();
+        var drawing = VisualTreeHelper.GetDrawing(element);
+        if (drawing is not null) Walk(drawing);
+        runs.Sort((a, b) => a.Item2.CompareTo(b.Item2));
+        return runs;
+
+        void Walk(DrawingGroup group)
+        {
+            foreach (var child in group.Children)
+            {
+                if (child is DrawingGroup nested) Walk(nested);
+                else if (child is GlyphRunDrawing { GlyphRun: { } run })
+                {
+                    var box = run.ComputeAlignmentBox();
+                    runs.Add((string.Concat(run.Characters),
+                              run.BaselineOrigin.X + box.Left,
+                              run.BaselineOrigin.X + box.Right));
+                }
+            }
+        }
+    }
+
+    /// <summary>The bar rectangles the element painted.</summary>
+    private static List<Rect> Bars(BarcodeElement element)
+    {
+        var bars = new List<Rect>();
+        var drawing = VisualTreeHelper.GetDrawing(element);
+        if (drawing is not null) Walk(drawing);
+        return bars;
+
+        void Walk(DrawingGroup group)
+        {
+            foreach (var child in group.Children)
+            {
+                if (child is DrawingGroup nested) Walk(nested);
+                else if (child is GeometryDrawing { Geometry: RectangleGeometry rectangle, Brush: not null })
+                    bars.Add(rectangle.Rect);
+            }
+        }
     }
 }
