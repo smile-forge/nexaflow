@@ -31,7 +31,6 @@ public sealed class BuildGraphTask(ProductState state, string productRoot) : IBa
             GeneratedAt = DateTime.Now.ToString("o"),
         }, cache);
         ct.ThrowIfCancellationRequested();
-        store.SaveGraph(built.Graph);
-        store.SaveGraphCache(built.Cache);
+        store.SaveSnapshot(built.Graph, built.Cache);
     }, ct);
 }

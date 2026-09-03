@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Graph.Store;
 
 namespace Nexaflow.Services.Initiatives.Product.Services;
 
@@ -138,24 +139,44 @@ public sealed class ProductStore
         ? Path.Combine(_dir, "worktrees", scope)
         : _dir;
 
-    /// <summary>On-disk path of the generated knowledge graph (the file the Graph viewer opens).</summary>
-    public string GraphFilePath => Path.Combine(GraphDir, "graph.json");
+    /// <summary>On-disk path of the generated knowledge graph — one binary archive holding the assembled
+    /// graph, the per-file material it was built from, and a stamp per file. The Graph viewer opens it.</summary>
+    public string GraphFilePath => Path.Combine(GraphDir, "graph.bin");
 
-    /// <summary>Per-file incremental build state (content hashes + cached contributions). Derived — safe to delete.</summary>
-    public string GraphCacheFilePath => Path.Combine(GraphDir, "graph-cache.json");
+    /// <summary>Everything the graph layer knows for this tree, or null when it has never been built.</summary>
+    public GraphSnapshot? LoadSnapshot() => GraphArchive.Read(GraphFilePath);
 
-    /// <summary>The last generated graph, or null when <c>graph</c> has never run for this product.</summary>
-    public KnowledgeGraph? LoadGraph() => Read<KnowledgeGraph>(GraphFilePath);
+    /// <summary>The assembled graph alone — what every query wants, and two thirds cheaper than the whole
+    /// archive because the per-file material is a section it can skip.</summary>
+    public KnowledgeGraph? LoadGraph() => GraphArchive.ReadGraph(GraphFilePath);
 
-    /// <summary>Writes the graph atomically — a whole-repo graph is large enough that a torn mid-scan write matters.</summary>
-    public void SaveGraph(KnowledgeGraph graph) => WriteAtomic(GraphFilePath, graph);
-
-    /// <summary>The last incremental build cache, or null when it has never been written (→ a full first scan).</summary>
+    /// <summary>The per-file extraction alone, for a rebuild that will reuse what has not changed.</summary>
     public Nexaflow.Services.Initiatives.Graph.GraphCache? LoadGraphCache() =>
-        Read<Nexaflow.Services.Initiatives.Graph.GraphCache>(GraphCacheFilePath);
+        GraphArchive.ReadCache(GraphFilePath);
 
-    /// <summary>Writes the incremental build cache atomically alongside the graph.</summary>
-    public void SaveGraphCache(Nexaflow.Services.Initiatives.Graph.GraphCache cache) => WriteAtomic(GraphCacheFilePath, cache);
+    /// <summary>What each file looked like when it was last extracted, for a caller deciding what to
+    /// re-read before it commits to loading anything else.</summary>
+    public IReadOnlyDictionary<string, FileStamp>? LoadFileIndex() => GraphArchive.ReadFileIndex(GraphFilePath);
+
+    /// <summary>
+    /// Writes the graph and the material it came from as one archive, atomically.
+    /// <para>
+    /// One call rather than two because they are one fact and every caller already saved them together;
+    /// splitting them let a crash between the two leave a graph describing an extraction that was never
+    /// recorded. <paramref name="files"/> is optional: a caller that did not stamp the files it read leaves
+    /// the lengths and times empty, and a later scan simply falls back to hashing, which is what it did
+    /// before stamps existed.
+    /// </para>
+    /// </summary>
+    public void SaveSnapshot(KnowledgeGraph graph, Nexaflow.Services.Initiatives.Graph.GraphCache cache,
+                             IReadOnlyDictionary<string, FileStamp>? files = null) =>
+        GraphArchive.Write(GraphFilePath, new GraphSnapshot
+        {
+            Graph = graph,
+            Cache = cache,
+            Files = files as Dictionary<string, FileStamp>
+                 ?? (files is null ? [] : new Dictionary<string, FileStamp>(files, StringComparer.Ordinal)),
+        });
 
     // ── Snapshots (committed, in the export dir) ──────────────────────────────
 
@@ -214,15 +235,6 @@ public sealed class ProductStore
     {
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         File.WriteAllText(fullPath, JsonSerializer.Serialize(value, Json));
-    }
-
-    /// <summary>Serialize to a sibling <c>.tmp</c> then atomically replace — no half-written file on crash.</summary>
-    private static void WriteAtomic(string fullPath, object value)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        var tmp = fullPath + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(value, Json));
-        File.Move(tmp, fullPath, overwrite: true);
     }
 
     private static string Slug(string s)

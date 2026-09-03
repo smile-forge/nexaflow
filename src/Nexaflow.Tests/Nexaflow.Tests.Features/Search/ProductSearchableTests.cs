@@ -13,6 +13,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using Nexaflow.Services.Initiatives.Graph;
 
 namespace Nexaflow.Tests.Features.Search;
 
@@ -61,7 +62,7 @@ internal sealed class GraphFixture : IDisposable
             ["alpha42-widget"] = new() { Title = "alpha42 widget", Parent = "root", Children = [] },
         });
 
-        store.SaveGraph(new KnowledgeGraph
+        store.SaveSnapshot(new KnowledgeGraph
         {
             Nodes =
             [
@@ -78,7 +79,7 @@ internal sealed class GraphFixture : IDisposable
                 },
             ],
             Edges = [new GraphEdge { Source = ProductNode, Target = TypeNode, Relationship = "implemented_by" }],
-        });
+        }, new GraphCache());
     }
 
     public string GraphFilePath => new ProductStore(Root).GraphFilePath;

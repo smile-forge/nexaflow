@@ -60,8 +60,7 @@ public class ProductStoreWriteScopeTests
         store.SaveTree(new Dictionary<string, ProductNode> { ["n"] = new() { Title = "Node" } });
         store.SaveIntegrity(new IntegrityReport());
         store.SaveTestCoverage(new TestCoverageManifest());
-        store.SaveGraph(new KnowledgeGraph());
-        store.SaveGraphCache(new GraphCache());
+        store.SaveSnapshot(new KnowledgeGraph(), new GraphCache());
 
         var strays = FilesUnderRoot()
             .Where(f => !f.StartsWith(".product/", StringComparison.Ordinal) && f != ".gitignore")
@@ -72,17 +71,17 @@ public class ProductStoreWriteScopeTests
     }
 
     [TestMethod]
-    public void TheGraphAndItsCacheGoToDotProduct_HoweverWidelyTheBuildHadToRead()
+    public void TheGraphArchiveGoesToDotProduct_HoweverWidelyTheBuildHadToRead()
     {
         var store = new ProductStore(_root);
         store.Initialize("ScopeTest");
 
-        store.SaveGraph(new KnowledgeGraph());
-        store.SaveGraphCache(new GraphCache());
+        store.SaveSnapshot(new KnowledgeGraph(), new GraphCache());
 
-        Assert.IsTrue(File.Exists(Path.Combine(_root, ".product", "graph.json")));
-        Assert.IsTrue(File.Exists(Path.Combine(_root, ".product", "graph-cache.json")));
-        StringAssert.Contains(store.GraphFilePath.Replace('\\', '/'), "/.product/graph.json");
+        Assert.IsTrue(File.Exists(Path.Combine(_root, ".product", "graph.bin")));
+        Assert.IsFalse(File.Exists(Path.Combine(_root, ".product", "graph.json")),
+                       "the graph and the material it was built from are one archive now, not two files");
+        StringAssert.Contains(store.GraphFilePath.Replace('\\', '/'), "/.product/graph.bin");
     }
 
     [TestMethod]

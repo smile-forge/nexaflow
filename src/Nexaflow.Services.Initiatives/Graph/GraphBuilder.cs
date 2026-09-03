@@ -89,7 +89,7 @@ public sealed class GraphBuilder
         var full = Path.Combine(builder._codeRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
         var text = SnaplinkTargets.ReadText(full);
 
-        // A file that is not here is NOT evidence that it should leave the graph. graph.json is shared with
+        // A file that is not here is NOT evidence that it should leave the graph. the graph is shared with
         // every worktree, and a branch that runs `graph build` publishes its own files into it — so a file
         // absent from this tree is just as likely to be another branch's work in progress as it is to be
         // deleted. Pruning on that guess would quietly destroy a parallel session's contribution, which is

@@ -5,7 +5,7 @@ using Nexaflow.Syntax;
 namespace Nexaflow.Services.Initiatives.Graph;
 
 /// <summary>
-/// Per-file incremental build state, persisted to the gitignored <c>.product/graph-cache.json</c> sidecar. A code
+/// Per-file incremental build state, persisted into the gitignored graph archive alongside the graph it built. A code
 /// file that hasn't changed (same content hash) never gets re-parsed — its cached <see cref="FileContribution"/>
 /// (the tree-sitter-extracted nodes, structural edges, unresolved bases, and raw relation sites) is reused verbatim.
 /// The <b>global</b> passes — inheritance/reference/hyperedge resolution and community detection — always re-run over

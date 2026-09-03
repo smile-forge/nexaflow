@@ -385,8 +385,7 @@ public static class GraphTools
             // Incremental: unchanged files keep their cached extraction, so a rebuild after a small edit is
             // cheap. The cache is content-addressed, so reusing it cannot go stale.
             var built = GraphBuilder.BuildWithCache(state, root, new GraphBuildOptions(), store.LoadGraphCache());
-            store.SaveGraph(built.Graph);
-            store.SaveGraphCache(built.Cache);
+            store.SaveSnapshot(built.Graph, built.Cache);
 
             var g = built.Graph;
             return ToolResult.Ok($"rebuilt - {g.Nodes.Count} node(s)",

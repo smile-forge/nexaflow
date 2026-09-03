@@ -183,7 +183,7 @@ internal static class Program
                        snaplink whose doc goes through a linked git worktree (.claude/worktrees/<name>/…) back
                        onto the repo's own copy. Use it after any tree corruption, or after linking work done
                        in a worktree. exit: 0 clean/fixed, 1 issues found without --fix.
-            graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.json,
+            graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.bin,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
                        Sub-commands explore a built graph: stats / search / list / node / walk / code — see `graph help`.
@@ -376,7 +376,7 @@ internal static class Program
         return (mine, theirs);
     }
 
-    // ── graph: product ⊕ code AST ⊕ snaplinks → .product/graph.json (the Graph viewer opens it) ──
+    // ── graph: product ⊕ code AST ⊕ snaplinks → .product/graph.bin (the Graph viewer opens it) ──
 
     // ── graph: build, then explore (walk / query / fetch code) the generated knowledge graph ──
 
@@ -429,7 +429,7 @@ internal static class Program
         var codeRoot = GraphCodeRoot(root, a);
         if (codeRoot is not null && !json)
             Console.Error.WriteLine($"note: building the code layer from the working tree {codeRoot} (the branch " +
-                "you're on); the product tree + graph.json stay in the main checkout, and the content-addressed " +
+                "you're on); the product tree + the graph archive stay in the main checkout, and the content-addressed " +
                 "cache re-parses only the files that differ from it.");
 
         KnowledgeGraph graph;
@@ -449,8 +449,7 @@ internal static class Program
             graph = built.Graph;
             if (!json)
             {
-                store.SaveGraph(graph);
-                store.SaveGraphCache(built.Cache);
+                store.SaveSnapshot(graph, built.Cache);
             }
         }
         catch (Exception ex)
@@ -476,7 +475,7 @@ internal static class Program
     private static int GraphUsage()
     {
         Console.WriteLine("""
-            graph — build + explore the knowledge graph (.product/graph.json)
+            graph — build + explore the knowledge graph (.product/graph.bin)
 
               graph [<root>] [--no-incremental] [--product-anchored] [--main|--code-root <dir>] [--json]   (re)build the graph
               graph stats  [<root>]                                             counts + type/edge/community breakdown
@@ -799,7 +798,7 @@ internal static class Program
         {
             // The refresh above may have learned something real — the file changed — and that is worth
             // keeping even though the edit itself is not going ahead.
-            if (dirty) { store.SaveGraph(graph); store.SaveGraphCache(cache); }
+            if (dirty) store.SaveSnapshot(graph, cache);
             Console.Error.WriteLine($"error: {result.Message}");
             return Error;
         }
@@ -838,8 +837,7 @@ internal static class Program
                                                         CodeRootOrNull(root, main));
         if (dirty)
         {
-            store.SaveGraph(graph);
-            store.SaveGraphCache(cache);
+            store.SaveSnapshot(graph, cache);
         }
 
         // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
@@ -861,7 +859,7 @@ internal static class Program
     /// <summary>
     /// Kicks the check off against the graph the verb has already loaded, so it costs a stat per known file
     /// and a walk of the project directories — and nothing is read twice. Taking the file list from the
-    /// cache index instead would mean loading <c>graph-cache.json</c>, which holds every file's extracted
+    /// cache index instead would mean reading the archive's per-file section, which holds every file's extracted
     /// nodes and costs more than the query it was meant to be describing.
     /// </summary>
     private static void BeginFreshness(string root, bool main, KnowledgeGraph graph)
@@ -928,8 +926,7 @@ internal static class Program
 
         if (!dirty) return;
 
-        store.SaveGraph(graph);
-        store.SaveGraphCache(cache);
+        store.SaveSnapshot(graph, cache);
         Console.Error.WriteLine(
             $"graph: refreshed {report.Stale.Count} file(s)"
           + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
@@ -985,8 +982,6 @@ internal static class Program
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(scoped.GraphFilePath)!);
                 File.Copy(shared.GraphFilePath, scoped.GraphFilePath);
-                if (File.Exists(shared.GraphCacheFilePath))
-                    File.Copy(shared.GraphCacheFilePath, scoped.GraphCacheFilePath);
                 Console.Error.WriteLine(
                     "graph: this worktree had none, so the main checkout's was cloned for it — `--refresh` "
                   + "brings it onto your branch, and nothing here writes to the shared one.");
