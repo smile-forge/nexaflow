@@ -198,8 +198,7 @@ public static class FileTransferEngine
 
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private TimeSpan? _lastReportAt;
-        private long     _lastReportBytes;
-        private double   _bytesPerSecond;
+
 
         private long    _bytesDone;
         private int     _itemsDone;
@@ -694,6 +693,14 @@ public static class FileTransferEngine
         /// <summary>
         /// Rate-limited inside the engine so no sink needs a throttle of its own: at most one report
         /// every <see cref="ReportInterval"/> while bytes move, plus one on every item boundary.
+        /// <para>
+        /// Throughput is the average over the whole run, not the rate of the last moment. A recent-window
+        /// average reads the write cache rather than the disk: the first seconds report several GB/s while
+        /// Windows buffers, and then the copy appears to hang at that impossible number while the cache
+        /// drains to a mechanical disk at a fraction of it. Averaging over the run converges on the speed
+        /// the copy is actually achieving, and — because it keeps falling while nothing is being written —
+        /// a stall shows up as a number going down rather than a frozen one.
+        /// </para>
         /// </summary>
         private void Report(TransferPhase phase, bool force = false, PauseReason? paused = null)
         {
@@ -702,28 +709,20 @@ public static class FileTransferEngine
             TimeSpan now = _clock.Elapsed;
             if (!force && _lastReportAt is { } gate && now - gate < ReportInterval) return;
 
-            if (_lastReportAt is { } previous)
-            {
-                double seconds = (now - previous).TotalSeconds;
-                if (seconds > 0)
-                {
-                    double sample = (_bytesDone - _lastReportBytes) / seconds;
-                    _bytesPerSecond = _bytesPerSecond <= 0 ? sample : (_bytesPerSecond * 0.7) + (sample * 0.3);
-                }
-            }
+            _lastReportAt = now;
 
-            _lastReportAt    = now;
-            _lastReportBytes = _bytesDone;
+            double elapsed = now.TotalSeconds;
+            double perSecond = elapsed > 0.25 ? _bytesDone / elapsed : 0;
 
             long total = BytesTotal;
-            TimeSpan? left = _bytesPerSecond > 1 && total > _bytesDone
-                ? TimeSpan.FromSeconds(Math.Min((total - _bytesDone) / _bytesPerSecond, TimeSpan.MaxValue.TotalSeconds - 1))
+            TimeSpan? left = perSecond > 1 && total > _bytesDone
+                ? TimeSpan.FromSeconds(Math.Min((total - _bytesDone) / perSecond, TimeSpan.MaxValue.TotalSeconds - 1))
                 : null;
 
             progress.Report(new TransferProgress(
                 phase, _bytesDone, total, _itemsDone, ItemsTotal,
                 _currentItem is null ? null : Name(_currentItem),
-                (long)Math.Max(0, _bytesPerSecond), left, paused));
+                (long)Math.Max(0, perSecond), left, paused));
         }
     }
 }
