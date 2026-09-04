@@ -193,7 +193,11 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
         ItemsDone   = p.ItemsDone;
         ItemsTotal  = p.ItemsTotal;
         CurrentItem = p.CurrentItem ?? string.Empty;
-        Fraction    = p.BytesTotal > 0 ? Math.Clamp((double)p.BytesDone / p.BytesTotal, 0, 1) : -1;
+        // Bytes when there are bytes to move, items when there are not — a delete moves none, and
+        // measuring it against the size of what it is deleting pins the bar at nought throughout.
+        Fraction    = p.BytesTotal > 0 ? Math.Clamp((double)p.BytesDone / p.BytesTotal, 0, 1)
+                    : p.ItemsTotal > 0 ? Math.Clamp((double)p.ItemsDone / p.ItemsTotal, 0, 1)
+                    : -1;
         Detail      = DescribeProgress(p);
     }
 

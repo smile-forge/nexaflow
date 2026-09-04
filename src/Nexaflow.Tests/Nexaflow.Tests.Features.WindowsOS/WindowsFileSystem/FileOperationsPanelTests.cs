@@ -7,6 +7,7 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using System.Collections.Generic;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -221,5 +222,76 @@ public class FileOperationsPanelTests
         await op.Completion;
         started.Detach();
         opened.Detach();
+    }
+
+    /// <summary>
+    /// A delete moves no bytes, and neither does a same-volume move — that one is a rename. Measuring
+    /// either against a byte total taken from the source leaves the bar frozen at nought for the whole
+    /// operation, under the words "0 bytes of 3.3 GB", which reads exactly like the hang this panel
+    /// exists to rule out.
+    /// </summary>
+    [TestMethod]
+    public void AnOperationThatMovesNoBytesShowsItemProgress()
+    {
+        var request = new FileTransferRequest(TransferKind.Delete,
+            [new TransferItem("x", "x")], ConflictPolicy.Fail);
+        var op = new FileOperation(TransferKind.Delete, request, targetLabel: string.Empty, recycle: false);
+
+        op.Publish(new TransferProgress(TransferPhase.Running,
+            BytesDone: 0, BytesTotal: 0, ItemsDone: 3, ItemsTotal: 12,
+            CurrentItem: "a.txt", BytesPerSecond: 0, Remaining: null, Paused: null));
+
+        Assert.AreEqual(0.25, op.Fraction, 0.001, "progress is counted in items when there are no bytes");
+        StringAssert.Contains(op.Detail, "3 of 12");
+    }
+
+    [TestMethod]
+    public async Task DeletingAFolderNeverClaimsAByteTotalItWillNotMove()
+    {
+        var doomed = Folder("doomed", "a.txt", "b.txt", "c.txt");
+
+        var (queue, panel) = Panel();
+        panel.Attach();
+
+        var totals = new List<long>();
+        queue.Changed += () =>
+        {
+            foreach (var o in queue.Operations) totals.Add(o.BytesTotal);
+        };
+
+        var op = queue.EnqueueDelete([doomed], permanent: true);
+        await op!.Completion;
+
+        Assert.AreEqual(FileOperationState.Completed, op.State, string.Join("; ", op.Problems));
+        Assert.IsFalse(Directory.Exists(doomed), "the folder is gone");
+        Assert.IsTrue(totals.Count > 0, "the panel was told about it");
+        Assert.IsTrue(totals.TrueForAll(t => t == 0),
+            $"a delete must not measure itself in bytes it never moves (saw {string.Join(",", totals)})");
+
+        panel.Detach();
+    }
+
+    /// <summary>
+    /// Recycling still goes through shell32 — only it produces a Recycle Bin entry — but it now runs on
+    /// the background queue instead of blocking the UI thread inside <c>SHFileOperation</c> with the
+    /// error UI suppressed, which is how a large delete used to stop the window dead with nothing on
+    /// screen to explain it.
+    /// </summary>
+    [TestMethod]
+    public async Task RecyclingGoesThroughTheQueueAndReportsWhenItIsDone()
+    {
+        var doomed = Path.Combine(Folder("bin-bound"), "recycle-me.txt");
+        File.WriteAllText(doomed, "x");
+
+        var (queue, _) = Panel();
+
+        var op = queue.EnqueueDelete([doomed], permanent: false);
+        Assert.IsNotNull(op);
+        Assert.IsTrue(op.Verb.Contains("Recycl", StringComparison.OrdinalIgnoreCase), op.Verb);
+
+        await op.Completion;
+
+        Assert.AreEqual(FileOperationState.Completed, op.State, string.Join("; ", op.Problems));
+        Assert.IsFalse(File.Exists(doomed), "the file left the folder");
     }
 }

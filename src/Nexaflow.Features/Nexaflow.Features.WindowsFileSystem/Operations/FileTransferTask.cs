@@ -40,7 +40,13 @@ internal sealed class FileTransferTask(
             var sources = op.Request.Items.Select(i => i.Source).ToList();
 
             queue.PublishOnUi(() => op.SetState(FileOperationState.Scanning));
-            TransferScan? scan = await FileTransferEngine.ScanAsync(sources, ct);
+            var measured = await FileTransferEngine.ScanAsync(sources, ct);
+
+            // A delete keeps the counts but not the byte total: it never moves a byte, so a progress bar
+            // measured against the size of what it is removing would sit at nought until the moment it ended.
+            TransferScan? scan = op.Kind == TransferKind.Delete
+                ? measured with { TotalBytes = 0 }
+                : measured;
 
             if (op.Kind == TransferKind.Delete && op.Recycle)
             {
