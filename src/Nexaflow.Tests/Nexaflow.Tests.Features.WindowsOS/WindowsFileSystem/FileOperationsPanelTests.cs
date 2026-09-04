@@ -294,4 +294,59 @@ public class FileOperationsPanelTests
         Assert.AreEqual(FileOperationState.Completed, op.State, string.Join("; ", op.Problems));
         Assert.IsFalse(File.Exists(doomed), "the file left the folder");
     }
+
+    /// <summary>
+    /// A tab that arrives while a copy is already running shows it immediately. Waiting out a second
+    /// debounce is what made the panel look as though it only existed on the tab that started the work.
+    /// </summary>
+    [TestMethod]
+    public void ATabOpenedMidCopyShowsThePanelStraightAway()
+    {
+        var src  = Folder("src", "a.txt");
+        var dest = Folder("dest");
+        FileTransferEngine.FreeSpaceProbe = _ => 0;   // parks it so it is still running
+
+        var shell = Substitute.For<IShellServices>().Runs();
+        var queue = FileOperationQueue.For(shell);
+
+        var op = queue.EnqueueDrop([src], dest, move: false);
+
+        var arriving = new FileOperationsPanelViewModel(queue, shell);
+        arriving.Attach();
+
+        Assert.IsTrue(arriving.IsVisible, "no second countdown for work that is already under way");
+        StringAssert.Contains(arriving.Summary, "operation");
+
+        op!.Cancel();
+        arriving.Detach();
+    }
+
+    /// <summary>
+    /// Switching away from a tab and back is the same journey: WPF unloads the background tab, which
+    /// detaches its panel, and selecting it again re-attaches. The copy carries on throughout and the
+    /// panel has to come back with it.
+    /// </summary>
+    [TestMethod]
+    public async Task SwitchingAwayFromATabAndBackKeepsThePanel()
+    {
+        var src  = Folder("src", "a.txt");
+        var dest = Folder("dest");
+        FileTransferEngine.FreeSpaceProbe = _ => 0;
+
+        var (queue, panel) = Panel();
+        panel.Attach();
+
+        var op = queue.EnqueueDrop([src], dest, move: false);
+        await Task.Delay(FileOperationsPanelViewModel.ExpandDelayMs + 500);
+        Assert.IsTrue(panel.IsVisible, "it showed while the tab was in front");
+
+        panel.Detach();    // tab goes to the background
+        panel.Attach();    // …and is selected again
+
+        Assert.IsTrue(panel.IsVisible, "and it is still there when the tab comes back");
+
+        op!.Cancel();
+        await op.Completion;
+        panel.Detach();
+    }
 }

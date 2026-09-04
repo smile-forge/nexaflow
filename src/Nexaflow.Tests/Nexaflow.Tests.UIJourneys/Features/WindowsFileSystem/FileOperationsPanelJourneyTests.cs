@@ -247,4 +247,61 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         Wait.UntilInputIsProcessed();
         return true;
     }
+
+    /// <summary>
+    /// A copy belongs to the workspace, not to the tab that started it. Opening a second file browser
+    /// while one is running has to show the same work — otherwise the panel looks like a property of
+    /// whichever tab you happened to be on when you started it.
+    /// </summary>
+    [TestMethod]
+    public void ASecondFileBrowserOpenedMidCopyShowsTheSameWork()
+    {
+        MakePayload(Path.Combine(_source, "payload"), defaultGb: 2.5);
+
+        NavigateFileBrowserTo(_source);
+        Assert.IsTrue(SelectInFileList("payload"), "The folder to copy is not in the file list.");
+
+        var copy = WaitForId("Copy", 30);
+        Assert.IsNotNull(copy, "No Copy action.");
+        copy!.AsButton().Invoke();
+        Wait.UntilInputIsProcessed();
+
+        NavigateFileBrowserTo(_destination);
+        var paste = WaitForId("Paste", 30);
+        Assert.IsNotNull(paste, "No Paste action.");
+        paste!.AsButton().Invoke();
+
+        Check("the panel is up on the tab that started the copy",
+              () => WaitForId("FileOps_Progress", 15) is not null);
+
+        // Open another file browser from the ribbon while the copy is still going.
+        // Ribbon buttons are "Ribbon_" + label. Searching by the bare name would match the folder
+        // tree\x27s own "This PC" root, which is not a button and has no Invoke pattern.
+        var thisPc = WaitForId("Ribbon_This PC", 10);
+        if (thisPc is null)
+        {
+            Assert.Inconclusive("no ribbon route to a second file browser on this layout");
+            return;
+        }
+
+        thisPc.AsButton().Invoke();
+        Wait.UntilInputIsProcessed();
+
+        // The panel has to be laid out in whichever browser is now in front — above its tree, not drawn
+        // over it, which is the check that catches a panel that is present but invisible.
+        var bar  = WaitForId("FileOps_Progress", 15);
+        var tree = WaitForId("DirectoryTree", 10);
+        Check("the second file browser shows the copy it did not start",
+              () => bar is not null && tree is not null
+                 && bar.BoundingRectangle.Bottom <= tree.BoundingRectangle.Top);
+
+        try { MainWindow.Capture().Save(Path.Combine(Path.GetTempPath(), "nexaflow-fileops-second-tab.png")); }
+        catch { }
+
+        Check("and the copy still lands",
+              () => WaitForFs(() => File.Exists(Path.Combine(_destination, "payload",
+                      File.ReadAllText(Path.Combine(_source, "payload", "last.txt")))), 300));
+
+        AssertJourney();
+    }
 }

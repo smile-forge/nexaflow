@@ -54,12 +54,30 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
 
     [ObservableProperty] private string _summary = string.Empty;
 
-    /// <summary>Starts watching the queue. Called by the view on load — the queue outlives the tab, so
-    /// a permanent subscription would retain this view-model.</summary>
+    /// <summary>
+    /// Starts watching the queue. Called by the view on load — the queue outlives the tab, so a permanent
+    /// subscription would retain this view-model.
+    /// <para>
+    /// Work that is already in flight is shown at once rather than after another countdown. The debounce
+    /// exists so that work too brief to care about never flashes the panel open; a copy still running
+    /// when this tab arrives has already outlived that concern, and making someone wait a further 600 ms
+    /// to find out what their machine is busy with is the opposite of the point. It is why a tab opened
+    /// or switched to mid-copy could look as though it had no panel at all.
+    /// </para>
+    /// </summary>
     public void Attach()
     {
-        
         _queue.Changed += OnQueueChanged;
+
+        Summary = DescribeQueue();
+
+        if (_queue.IsBusy)
+        {
+            CancelPending();
+            IsVisible = true;
+            return;
+        }
+
         OnQueueChanged();
     }
 
