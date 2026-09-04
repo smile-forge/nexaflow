@@ -39,4 +39,22 @@ internal sealed class TexSourcePart(TexPart of) : ISourcePart
     };
 
     public override string ToString() => $"{Of.Role}[{Start},{Length}]";
+
+    /// <summary>
+    /// A diagnostic about this part, covering what was <em>written</em>.
+    ///
+    /// <para>
+    /// Which is not what <see cref="Start"/> and <see cref="Length"/> report. Those are narrowed for an
+    /// editor — a braced argument named by its contents, so replacing it does not re-brace what is already
+    /// braced — and a squiggle asks the other question. It goes under what the reader wrote, braces and
+    /// all, because the braces are part of what is wrong with it.
+    /// </para>
+    /// <para>
+    /// The two spans being different is the whole reason this exists. Handing the narrowed one to a
+    /// diagnostic moved every squiggle that sat on a group in two characters at each end, which no test
+    /// caught and the corpus did.
+    /// </para>
+    /// </summary>
+    internal static Diagnostic Trouble(TexPart part, DiagnosticSeverity severity, string message) =>
+        new(part.Start, part.Length, severity, message) { Part = new TexSourcePart(part) };
 }

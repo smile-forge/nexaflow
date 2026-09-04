@@ -121,12 +121,25 @@ public sealed class LatexTree
     /// <summary>
     /// The formula as a parse tree, with every part's place and parent worked out — the reading the
     /// layout was built from, handed over rather than worked out again here.
+    ///
+    /// <para>
+    /// <b>Not the parser's tree.</b> It is what <see cref="TexPipeline.Read"/> handed back: the parse
+    /// gathered into the shapes a builder can act on, possibly with holes put in the empty arguments, with
+    /// undrawable commands marked, and with whatever is under the caret shown as it was written. Those
+    /// stages can move the tree without moving the source or the picture, so this is a third thing worth
+    /// looking at and not a restatement of either.
+    /// </para>
+    /// <para>
+    /// It can also be a tree the parser never produced at all. Where nothing could be set as maths, the
+    /// layout falls back to showing the source as typed, and this is that fallback — which is the honest
+    /// record of what the builder was given.
+    /// </para>
     /// <para>
     /// This object is a reading of one string, and changed source is a different
     /// <see cref="LatexTree"/>, so there is no moment at which it could be out of date.
     /// </para>
     /// </summary>
-    private TexReading Reading { get; }
+    public TexReading Reading { get; }
 
     /// <summary>Roles that name a place content goes, as against the punctuation that holds it.</summary>
     private static bool IsPart(string role) =>

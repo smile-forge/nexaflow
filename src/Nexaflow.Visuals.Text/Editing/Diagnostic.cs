@@ -48,10 +48,6 @@ public sealed record Diagnostic(int Start, int Length, DiagnosticSeverity Severi
     /// </summary>
     public ISourcePart? Part { get; init; }
 
-    /// <summary>The trouble a part of the content is in, pointing at the part rather than at a span.</summary>
-    public static Diagnostic Of(ISourcePart part, DiagnosticSeverity severity, string message) =>
-        new(part.Start, part.Length, severity, message) { Part = part };
-
     /// <summary>One past the last character it covers.</summary>
     public int End => Start + Length;
 
