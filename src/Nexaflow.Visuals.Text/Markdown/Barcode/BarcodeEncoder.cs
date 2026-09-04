@@ -71,7 +71,7 @@ public static class BarcodeEncoder
             TextRuns = runs,
             Guards   = guards,
             Caption  = caption,
-            Symbol   = BarcodeTextLayout.Read(value, text ?? value, modules!.Length, runs, guards, caption),
+            Symbol   = BarcodeTextLayout.Read(value, text ?? value, runs, caption),
         };
         error   = null;
         return true;

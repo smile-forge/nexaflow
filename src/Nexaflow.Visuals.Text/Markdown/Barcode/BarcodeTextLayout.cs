@@ -188,11 +188,11 @@ internal static class BarcodeTextLayout
             runs.Add(new BarcodeTextRun(main[1], start, modules - start, BarcodeTextPlacement.Above));
         }
 
-        return (runs, guards, Caption(symbology, value));
+        return (runs, guards, CaptionFor(symbology, value));
     }
 
     /// <summary>The caption line: the scheme's name and the number as written, hyphens and all.</summary>
-    private static string Caption(BarcodeSymbology symbology, string value)
+    internal static string CaptionFor(BarcodeSymbology symbology, string value)
     {
         string name = symbology switch
         {
@@ -209,46 +209,41 @@ internal static class BarcodeTextLayout
 
     // ── Reading the symbol as a tree ───────────────────────────────────────
 
+    // ── Reading the symbol's text ──────────────────────────────────────────
+
     /// <summary>
-    /// The whole symbol as a tree of parts: the caption, the bars and their guards, and each printed run
-    /// of the number, every one of them saying which characters of the value it came from.
+    /// What the symbol's text says: the caption, and each printed run of the number, every one of them
+    /// saying which characters of the value it came from.
+    ///
+    /// <para>
+    /// The text only. The bars and their guards are not read into anything, because no piece of what an
+    /// author typed is a guard — the guards are how a value is drawn, not part of what it says — and text
+    /// is the only place where "which characters of the value is this" has an answer at all.
+    /// </para>
     /// <para>
     /// Built on top of <see cref="Describe"/> rather than instead of it, because that is where each
-    /// family's structure is already worked out and checked. This only decides, for each run, whether what
-    /// is printed <em>is</em> the value or was worked out from it.
+    /// family's structure is already worked out and checked. This only decides where, inside all of that,
+    /// the value itself is.
     /// </para>
     /// </summary>
-    internal static BarcodePart Read(
-        string value, string text, int modules,
-        IReadOnlyList<BarcodeTextRun> runs,
-        IReadOnlyList<(int Start, int Length)> guards,
-        string? caption)
+    internal static BarcodePart Read(string value, string text,
+                                     IReadOnlyList<BarcodeTextRun> runs, string? caption)
     {
         var parts = new List<BarcodePart>();
 
         if (caption is { Length: > 0 }) parts.Add(ReadCaption(caption, value));
 
-        // The bars stand for the whole value — they are the value, encoded — while the guards inside them
-        // stand for none of it, being the format's own punctuation rather than anything anybody typed. So a
-        // press on a guard resolves outwards to the bars, and means the number.
-        parts.Add(BarcodePart.Spanning(
-            BarcodeKind.Bars, BarcodeRole.Bars, 0, value.Length,
-            guards.Select(guard => BarcodePart.Leaf(
-                BarcodeKind.Guard, BarcodeRole.Guard, string.Empty, 0, 0, guard)),
-            (0, modules)));
-
         // Every format that does not break its number up prints it as one run underneath, which is what
         // the caller would otherwise have to remember to do for it.
         IReadOnlyList<BarcodeTextRun> printed = runs.Count > 0
             ? runs
-            : [new BarcodeTextRun(text, 0, modules, BarcodeTextPlacement.Below)];
+            : [new BarcodeTextRun(text, 0, 0, BarcodeTextPlacement.Below)];
 
-        // Asked once, of the whole printed number, rather than of each group. The groups are how the number
-        // is laid out and not what it is made of: an EAN-13 whose value is missing its check digit prints
-        // six digits that happen to match what was typed and six that are one character out of step, and
-        // calling the first six editable would be an accident of where the guard bars fall. Either the
-        // printed number is the value or it is a rendering of it.
-        var verbatim = string.Equals(text, value, StringComparison.Ordinal);
+        // Where the value is inside what is printed, found once for the whole number and then cut across
+        // the groups it is drawn in. The groups are where the guard bars fall and not what the number is
+        // made of, so a group can be part typed and part worked out — an EAN-13's last six digits are five
+        // of the reader's and then the check digit.
+        var window = Window(text, value);
 
         var at = 0;
         foreach (var run in printed)
@@ -256,10 +251,8 @@ internal static class BarcodeTextLayout
             parts.Add(BarcodePart.Read(
                 run.Placement == BarcodeTextPlacement.Above ? BarcodeRole.AddOn : BarcodeRole.Label,
                 run.Text,
-                value,
-                verbatim ? at : -1,
-                (run.StartModule, run.Modules),
-                run.Placement));
+                at,
+                window));
 
             at += run.Text.Length;
         }
@@ -268,24 +261,37 @@ internal static class BarcodeTextLayout
     }
 
     /// <summary>
-    /// The caption, read as the two different things it is made of: a scheme's name, which is ours and
-    /// which nobody typed, and the number as the author wrote it, hyphens and all, which is theirs.
+    /// Where the value sits inside a string that was printed from it, and how long the value is. A
+    /// negative start means it is not in there at all — which is what taking an ISBN's hyphens out, or
+    /// upper-casing a Code 39, or dropping a Pharmacode's leading zero does.
     /// <para>
-    /// That split is what makes a publication the one format whose value can be edited where it is drawn.
-    /// The digits under the bars are the number with its hyphens taken out and a check digit added, so
-    /// they are a rendering; the caption is the value itself.
+    /// One <c>IndexOf</c> is the whole of the rule, and it is worth saying why that is enough. Every one
+    /// of these formats either prints the value or prints it with something of its own on an end: a start
+    /// mark, a number system, a check digit. Whatever it adds, the value is still in there in one piece,
+    /// so finding it finds exactly the stretch an edit could be applied to — and a format that rearranges
+    /// its input instead is simply not found, and is treated as printing something worked out, which it is.
+    /// </para>
+    /// </summary>
+    private static (int At, int Length) Window(string printed, string value) =>
+        value.Length == 0
+            ? (-1, 0)
+            : (printed.IndexOf(value, StringComparison.Ordinal), value.Length);
+
+    /// <summary>
+    /// The caption, read the same way as anything else printed: a scheme's name that nobody typed, and
+    /// then the number as the author wrote it, hyphens and all.
+    /// <para>
+    /// It is the one place a publication's value appears as itself. The digits under the bars are that
+    /// number with the hyphens taken out and a check digit added, so they are a rendering of it, and the
+    /// caption is the thing to edit.
     /// </para>
     /// </summary>
     private static BarcodePart ReadCaption(string caption, string value)
     {
-        var split = caption.IndexOf(' ');
-        if (split < 0)
-            return BarcodePart.Leaf(BarcodeKind.EncodedText, BarcodeRole.Scheme, caption, 0, value.Length);
+        var read = BarcodePart.Read(BarcodeRole.Caption, caption, 0, Window(caption, value));
 
-        return BarcodePart.Branch(BarcodeKind.Caption, BarcodeRole.Caption,
-        [
-            BarcodePart.Leaf(BarcodeKind.EncodedText, BarcodeRole.Scheme, caption[..(split + 1)], 0, value.Length),
-            BarcodePart.Read(BarcodeRole.Number, caption[(split + 1)..], value, 0),
-        ]);
+        return BarcodePart.Branch(
+            BarcodeKind.Caption, BarcodeRole.Caption,
+            read.Children.Count > 0 ? read.Children : [read]);
     }
 }
