@@ -96,11 +96,13 @@ Each stage stands on its own and leaves the app working.
    parsed. `\begin{matrix} \alpha & \beta \\ \gamma & \delta \end{matrix}` came back from a column move
    as `\begin{matrix} beta & alpha \\ delta & gamma \end{matrix}`. It had shipped, and nothing caught
    it, because every grid test written until then had a single letter in each cell.
-4. 🔄 **Swap `LatexTree`'s remaining questions over.** `RoleOf`, `IsComposite` and `IsSequence` answered
-   from the parse tree; the layout tree keeps geometry, which is all it was ever good for. The
-   `IFormulaNode` projection comes off `LatexNode` once nothing asks it anything. This is what makes a
-   fraction inside `\displaystyle` selectable, draggable and copyable as a fraction — today it is not,
-   because as far as the tree the editor asks is concerned it has no parts.
+4. ✅ **Swap `LatexTree`'s remaining questions over.** `RoleOf`, `IsComposite` and `IsSequence` answer
+   from the parse tree. Each of them is `Innermost`, which is the part the piece carries rather than a
+   search of the reading for whatever happened to stand at its offsets; the layout tree keeps geometry,
+   which is all it was ever good for, and `IFormulaNode` is off `LatexNode`. What it bought is
+   `APartInsideAStyledGroupStillKnowsWhatItIs`: a style atom names no parts at all, so the numerator of
+   a fraction written inside `\displaystyle` — or `\mathrm`, `{\bf …}`, `\cancel` — used to be the
+   numerator of nothing as far as the editor could tell, and is a numerator again.
 5. **Edits become tree operations.** `Write` and `Move` build a new tree and print it. The character
    peeking (`IsBraced`, `IsOneToken`, `EndsWithControlWord`, `Separated`) is deleted rather than
    ported, and the matrix body stops being reformatted, because untouched subtrees are reused as they

@@ -37,15 +37,19 @@ public sealed record Diagnostic(int Start, int Length, DiagnosticSeverity Severi
     ///
     /// <para>
     /// A diagnostic raised while <em>reading</em> text has only offsets to point with, because the tree
-    /// does not exist yet. One raised while <em>building</em> from a tree has the node itself, which is
-    /// the better pointer: a node survives an edit somewhere else in the formula and an offset does not.
-    /// So the node is what is kept, and <see cref="Start"/> and <see cref="Length"/> come from it.
+    /// does not exist yet. One raised while <em>building</em> from a tree has the part itself, which is
+    /// the better pointer: a part survives an edit somewhere else in the content and an offset does not.
+    /// So the part is what is kept, and <see cref="Start"/> and <see cref="Length"/> come from it.
+    /// </para>
+    /// <para>
+    /// Which part, in whose vocabulary, is the content's own business — the seam knows only that it can be
+    /// pointed at. A formula was the first to raise one of these and is not the only thing that can.
     /// </para>
     /// </summary>
-    public Nexaflow.Maths.Latex.TexPart? Part { get; init; }
+    public ISourcePart? Part { get; init; }
 
-    /// <summary>The trouble a part of the parse tree is in, pointing at the part rather than at a span.</summary>
-    public static Diagnostic Of(Nexaflow.Maths.Latex.TexPart part, DiagnosticSeverity severity, string message) =>
+    /// <summary>The trouble a part of the content is in, pointing at the part rather than at a span.</summary>
+    public static Diagnostic Of(ISourcePart part, DiagnosticSeverity severity, string message) =>
         new(part.Start, part.Length, severity, message) { Part = part };
 
     /// <summary>One past the last character it covers.</summary>

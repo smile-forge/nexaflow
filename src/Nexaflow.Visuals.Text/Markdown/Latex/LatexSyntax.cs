@@ -44,7 +44,7 @@ public static class LatexSyntax
 
             return reading.Root.SelfAndDescendants()
                 .Where(part => part.Node.Trouble is not null)
-                .Select(part => Diagnostic.Of(part, DiagnosticSeverity.Error, part.Node.Trouble!))
+                .Select(part => Diagnostic.Of(new TexSourcePart(part), DiagnosticSeverity.Error, part.Node.Trouble!))
                 .ToList();
         }
         catch
