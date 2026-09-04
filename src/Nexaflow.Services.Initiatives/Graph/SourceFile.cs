@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Nexaflow.Syntax;
+using System.Collections.Generic;
 
 namespace Nexaflow.Services.Initiatives.Graph;
 
@@ -57,9 +58,61 @@ public static class SourceFile
         if (!string.Equals(current.Value.Text, expected, StringComparison.Ordinal))
             return $"{fullPath} changed while the edit was being prepared — nothing written.";
 
+        if (Smuggled(expected, text) is { } smuggled) return smuggled;
+
         try { File.WriteAllText(fullPath, text, encoding); return null; }
         catch (Exception ex) { return $"Could not write {fullPath}: {ex.Message}"; }
     }
+
+    /// <summary>
+    /// Refuses a write that would put a kind of control character into the file which is not already there.
+    /// <para>
+    /// This exists because it happened. Two NUL bytes went into a committed source file where spaces belonged,
+    /// written by a script whose payload a shell had mangled. Nothing caught it: inside a string literal a NUL
+    /// is valid C#, so it compiled; the parser accepted it, so the structural edit that followed accepted it
+    /// too; and it survived review because it is invisible. It was found weeks later, by accident, because
+    /// <c>grep</c> said "Binary file matches".
+    /// </para>
+    /// <para>
+    /// Every other check here asks whether the edit is the one that was asked for. This one asks whether the
+    /// bytes are ones anybody could have meant — and a raw control character in source is essentially never
+    /// that, because the ways of writing one deliberately are escape sequences, which are ordinary text. Judged
+    /// by kind rather than by count, so a file already using form feeds as page breaks keeps working while a new
+    /// kind of character appearing is still refused.
+    /// </para>
+    /// </summary>
+    private static string? Smuggled(string before, string after)
+    {
+        var known = new HashSet<char>();
+        foreach (var c in before) if (Suspect(c)) known.Add(c);
+
+        for (var i = 0; i < after.Length; i++)
+        {
+            if (!Suspect(after[i]) || known.Contains(after[i])) continue;
+
+            var line = 1;
+            for (var j = 0; j < i; j++) if (after[j] == '\n') line++;
+
+            return $"the replacement would write {Name(after[i])} into the file at line {line}, and nothing like "
+                 + "it is there now. That is almost always a shell or a script mangling the payload rather than "
+                 + "anything anybody meant — a control character written on purpose is an escape sequence, which "
+                 + "is ordinary text. Nothing written.";
+        }
+        return null;
+    }
+
+    /// <summary>Tab, carriage return and newline are how text is shaped; every other control character in a
+    /// source file is a mistake that has not been noticed yet.</summary>
+    private static bool Suspect(char c) => char.IsControl(c) && c is not ('\t' or '\n' or '\r');
+
+    /// <summary>Named where a name helps, and by code point otherwise — the point is that the reader can tell
+    /// which invisible thing it was.</summary>
+    private static string Name(char c) => c switch
+    {
+        '\0' => "a NUL byte (U+0000)",
+        '\f' => "a form feed (U+000C)",
+        _    => $"U+{(int)c:X4}",
+    };
 
     /// <summary>
     /// The line ending a file that does not exist yet should be written with: the one its neighbours already

@@ -100,7 +100,7 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph grep <regex> --from <id> --hops 2 --mode content        # grep source NEAR a code node
 & $nfi graph grep <regex> --from product:<slug> --scope owned --mode content   # grep a whole FEATURE
 & $nfi graph grep <regex> --mode content                             # grep EVERY code node (~3s, 64k nodes)
-& $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file
+& $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file, --lines A-B = a slice
 & $nfi graph build             # regenerate .product/graph.bin after code changes (incremental)
 ```
 
@@ -191,6 +191,28 @@ path — alone), `--file`, or `--stdin`; `--find` mirrors all four — `--find-e
 `--find-stdin` — so a fragment carrying apostrophes never has to be squeezed through a POSIX shell.
 `--dry-run` prints the hunk and writes nothing; `--expect S` refuses unless the block still contains `S`,
 pinning the edit to what you read. Rebuild the graph afterwards so its record matches.
+
+**`--show` prints the declaration as it now stands, so checking an edit is part of making it rather than the
+next command** (`--quiet` is the opposite trade — the confirmation without the diff, and they compose). Reach
+for `--show` instead of following an edit with `graph code`.
+
+Three things it refuses or warns about, each because they cost real time before:
+
+- **A whole file handed to a declaration op.** `replace` with the contents of a file nests its imports and
+  namespace *inside* the declaration, which tree-sitter parses happily — error tolerance is the point of it —
+  so "does it still parse" says yes and the compiler is the first to object. The payload is parsed on its own
+  and refused if it declares imports, naming `graph edit create` instead.
+- **A control character that was not already in the file.** A raw NUL where a space belonged once shipped in
+  a commit: inside a string literal it is valid C#, so it compiled and was invisible until `grep` called the
+  file binary. A control character written on purpose is an escape sequence, which is ordinary text — so a
+  raw one arriving in a payload is a shell mangling it, and the write is refused.
+- **A substitution landing inside a string literal.** The indentation promise still holds there, but what is
+  indented is the string's *value* rather than the file's text, so a payload copied out of the file arrives
+  with the literal's own baseline applied twice. Asked of the parser (which already knows what a string is,
+  since it colours them), so it covers plain, verbatim, raw and interpolated forms in every grammar.
+
+And when `--find` misses, the refusal says where the text actually is — the declaration that has it, or
+failing that the line — rather than only that it is not here.
 
 **In Git Bash, `export MSYS2_ARG_CONV_EXCL='*'` before you use this at all.** MSYS rewrites arguments it
 reads as POSIX paths, and the damaging half is silent: a leading `//` collapses to `/`, so `--text '// x'`
@@ -374,7 +396,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 
 - **Discovery goes through `nfi.exe` — never Grep/Glob/Read-first.** "Where is X / what is X / who calls or instantiates X / what feature owns X / how does X relate to Y" is answered by `graph search`, `graph context`, `find` or `describe` (see above) **before any file is opened**; Read is for the specific block the graph names. Reach for it as reflexively as for Grep — it is cheaper and it surfaces call/ownership/dependency edges grep cannot. Sub-agents follow the same rule: point them at the exe, or spawn `nexaflow-explorer`.
   - **This covers searching for a code *pattern*, not just a named thing.** "Which code looks like Y" feels like a different job from "where is X" and is the same verb: `graph grep <regex> --mode content` (scope it per the table above). That split is how the rule gets abandoned in practice — the entity lookup goes through the graph, then the pattern hunt falls back to `grep -rn`. It shouldn't: the graph answers it, faster, and names the owning member and feature of every hit instead of just a line.
-  - **Read a block with `graph code <id>`, a whole file with `graph cat file:<relpath>`** — never `sed -n A,Bp` on line numbers guessed from a search hit. Both are worktree-aware; hand-sliced ranges are not.
+  - **Read a block with `graph code <id>`, a whole file with `graph cat file:<relpath>`** — never `sed -n A,Bp` on line numbers guessed from a search hit. Both take `--lines A-B` for a slice, and both are worktree-aware; hand-sliced ranges are neither.
 - **Before calling a change complete, ask the graph who else depends on what you touched.** Discovery-first finds the thing; this finds the *rest* of it. A package bump is `graph node external:<Name>` (its `depends_on` edges list every consuming project); a type or member is `graph node <id>` / `graph walk <id> --hops 2` for the incoming callers. Do this before you say a fix is done — grep answers "where is this token", the graph answers "what else breaks", and only the second one closes a change.
   > Worked example: the NAudio 3.0 bump renamed `WaveOutEvent`→`WaveOut` and `WaveInEvent`→`WaveIn`. Fixing the Audio feature's playback looked complete and wasn't — Core's `VoiceManager` captures audio and broke the same way. `graph node external:NAudio` names both `Nexaflow.Core.csproj` and `Nexaflow.Features.Audio.csproj` in one query; a grep of the feature you happen to be in names neither.
 - Features depend only on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) — never on Core, rarely on each other

@@ -316,6 +316,8 @@ public static class StructuralEdit
         if (o.Expect is { Length: > 0 } expect && !declaration.Contains(expect, StringComparison.Ordinal))
             return Result.Fail($"The declaration at line {span.Line} does not contain the expected text {Quote(expect)}.");
 
+        if (WholeFileGivenToDeclarationEdit(grammarId, op, text) is { } misuse) return Result.Fail(misuse);
+
         var shape   = SourceText.Of(source);
         var newline = shape.Newline;
         var indent  = IndentAt(source, anchor.Start);
@@ -551,6 +553,8 @@ public static class StructuralEdit
             if (matches > 1 && !o.AllOccurrences) return (null, Ambiguous(find, matches));
             if (matches > 1) notes.Add($"replaced {matches} occurrences");
 
+            NoteIfInsideString(grammarId, src, a.Start + regex.Match(body).Index, notes);
+
             var replaced = regex.Replace(body, m => Indented(body, m.Index, m.Result(replacement), newline),
                                          o.AllOccurrences ? int.MaxValue : 1);
             return (src[..a.Start] + replaced + src[a.End..], null);
@@ -563,6 +567,7 @@ public static class StructuralEdit
         if (exact > 0)
         {
             if (exact > 1) notes.Add($"replaced {exact} occurrences");
+            NoteIfInsideString(grammarId, src, a.Start + body.IndexOf(find, StringComparison.Ordinal), notes);
             return (src[..a.Start] + ReplaceIndented(body, find, replacement, o.AllOccurrences, newline)
                   + src[a.End..], null);
         }
@@ -579,6 +584,8 @@ public static class StructuralEdit
             ? "matched ignoring indentation"
             : $"replaced {loose.Count} occurrences, matched ignoring indentation");
 
+        NoteIfInsideString(grammarId, src, a.Start + loose[0].Item1, notes);
+
         // Back to front, so an earlier match's offsets are still valid after a later one is replaced.
         var edited = body;
         foreach (var (start, end) in loose.AsEnumerable().Reverse())
@@ -587,6 +594,71 @@ public static class StructuralEdit
             edited = edited[..start] + Block(replacement, indent, newline) + edited[end..];
         }
         return (src[..a.Start] + edited + src[a.End..], null);
+    }
+
+    /// <summary>
+    /// Says so when a substitution lands inside a string literal, because the payload means something different
+    /// there.
+    /// <para>
+    /// The tool's one promise about whitespace is that the caller does not handle it: text written flush-left
+    /// arrives indented for where it lands. Inside a raw or verbatim string that promise still holds, but what
+    /// is being indented is the string's <i>value</i> rather than the file's text — so a payload copied out of
+    /// the file, carrying the literal's own baseline indentation, arrives with that baseline applied twice. It
+    /// compiles, it reads correctly in the diff, and it is wrong on screen. Working that out from the result
+    /// took four attempts once; this note is instead of a fifth.
+    /// </para>
+    /// <para>
+    /// Asked of the parser rather than worked out here. tree-sitter already knows what a string is — knowing is
+    /// what lets it colour them — and its answer covers plain, verbatim, raw and interpolated forms across every
+    /// grammar, where scanning for triple quotes would be a second and worse answer to a settled question. It
+    /// costs a parse of the file, on an operation that has already paid for several.
+    /// </para>
+    /// </summary>
+    private static void NoteIfInsideString(string grammarId, string source, int at, List<string> notes)
+    {
+        using var highlighter = CodeHighlighter.TryCreate(grammarId);
+        if (highlighter is null) return;
+
+        foreach (var span in highlighter.Highlight(source))
+            if (span.Capture == "string" && at >= span.Start && at < span.Start + span.Length)
+            {
+                notes.Add("this lands inside a string literal, so the replacement is indented as the string's "
+                        + "value — write it with the indentation you want within the string, not the indentation "
+                        + "the file shows");
+                return;
+            }
+    }
+
+    /// <summary>
+    /// Refuses a whole source file handed to an edit that expects one declaration.
+    /// <para>
+    /// This is the mistake of reaching for <c>replace</c> with the contents of a file: the imports and the
+    /// namespace go inside the declaration being replaced, which produces a second file-scoped namespace nested
+    /// in the first. Nothing downstream catches it — tree-sitter's parse is error-tolerant, so "does it still
+    /// parse" says yes, and the first sign of trouble is the compiler, one round trip later.
+    /// </para>
+    /// <para>
+    /// The payload is asked rather than pattern-matched: parsed on its own, a file declares imports and a
+    /// fragment does not. That distinction is the parser's to make, and it is free here because the same
+    /// extractor is already loaded to resolve the target.
+    /// </para>
+    /// </summary>
+    private static string? WholeFileGivenToDeclarationEdit(string grammarId, Op op, string? text)
+    {
+        if (text is not { Length: > 0 }) return null;
+        if (op is not (Op.Replace or Op.InsertBefore or Op.InsertAfter or Op.Append or Op.Doc)) return null;
+
+        IReadOnlyList<ImportRef> imports;
+        try { imports = new CodeStructureExtractor().Extract(grammarId, text).Imports; }
+        catch { return null; }   // unparseable payloads are somebody else's error to report
+
+        if (imports.Count == 0) return null;
+
+        return $"this replacement declares {imports.Count} import(s), so it looks like a whole file rather than "
+             + "one declaration — putting it here would nest its imports and namespace inside the declaration "
+             + "being edited, which compiles as a second file-scoped namespace and fails the build. Use "
+             + "`graph edit create <path>` for a new file, `graph edit import` for a using directive, or drop "
+             + "the header and pass just the declaration. Nothing written.";
     }
 
     /// <summary>
@@ -705,11 +777,44 @@ public static class StructuralEdit
                 return $"{Quote(find)} does not occur in this declaration, so nothing was changed. It does "
                      + $"occur in '{elsewhere.Name}' ({elsewhere.AstPath}, line {elsewhere.Line}) — edit that "
                      + "one instead.";
+
+            // No declaration owns it, which does not mean it is absent — it may be between declarations, or
+            // inside this one but past where the edit reaches, which is what happens to a field whose
+            // initialiser runs over several lines. Being told only "not here" leaves the caller to go and look,
+            // and looking is the round trip this tool exists to remove. So say where it actually is.
+            var hits = LinesContaining(src, probe, LinesToReport);
+            if (hits.Count > 0)
+                return $"{Quote(find)} does not occur in the part of this declaration the edit covers, so "
+                     + $"nothing was changed. It is in this file at {Lines(hits)}. If that is inside this same "
+                     + "declaration, the edit window stops short of it — a declaration whose body runs past its "
+                     + "anchor (a multi-line initialiser, say) is edited with `substitute file:<path>` instead.";
         }
 
         return $"{Quote(find)} does not occur in this declaration, so nothing was changed. Indentation is "
              + "ignored when matching, so the difference is in the text itself — re-read the declaration.";
     }
+
+    /// <summary>At most this many line numbers before the message stops being one.</summary>
+    private const int LinesToReport = 4;
+
+    /// <summary>The 1-based lines a fragment occurs on, at most <paramref name="cap"/> of them.</summary>
+    private static List<int> LinesContaining(string src, string probe, int cap)
+    {
+        var lines = new List<int>();
+        for (var at = src.IndexOf(probe, StringComparison.Ordinal);
+             at >= 0 && lines.Count < cap;
+             at = src.IndexOf(probe, at + 1, StringComparison.Ordinal))
+        {
+            var line = 1;
+            for (var i = 0; i < at; i++) if (src[i] == '\n') line++;
+            if (lines.Count == 0 || lines[^1] != line) lines.Add(line);
+        }
+        return lines;
+    }
+
+    private static string Lines(List<int> lines) =>
+        lines.Count == 1 ? $"line {lines[0]}"
+                         : "lines " + string.Join(", ", lines) + (lines.Count == LinesToReport ? " (and more)" : "");
 
     /// <summary>The offset the 1-based <paramref name="line"/> starts at, clamped to the end of the text.</summary>
     private static int OffsetOfLine(string src, int line)

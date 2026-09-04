@@ -984,4 +984,98 @@ public class StructuralEditTests
         CollectionAssert.AreEqual(new[] { "    {", "        _count += n * 2;", "    }" },
                                   lines.Skip(signature + 1).Take(3).ToArray());
     }
+
+    // ── Telling the caller what went wrong, and what to do instead ──────────────
+
+    /// <summary>
+    /// A whole file handed to an edit that expects one declaration. The mistake is easy to make and its
+    /// consequence is not visible here: the imports and namespace end up nested inside the declaration, which
+    /// tree-sitter parses happily — error tolerance is the point of it — so "does it still parse" says yes and
+    /// the first sign of trouble is the compiler, one round trip later.
+    /// </summary>
+    [TestMethod]
+    public void AWholeFileGivenToReplace_IsRefused_AndSaysWhatToUseInstead()
+    {
+        const string file = """
+            using System;
+
+            namespace N;
+
+            public class Widget
+            {
+            }
+            """;
+
+        var result = StructuralEdit.Apply("c-sharp", Widget, "T:Widget", StructuralEdit.Op.Replace, file,
+                                          new StructuralEdit.Options());
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "whole file");
+        StringAssert.Contains(result.Message, "graph edit create");
+    }
+
+    /// <summary>A payload that is genuinely one declaration must still go through — the guard keys on the
+    /// imports a file has and a fragment does not, so a declaration mentioning types is unaffected.</summary>
+    [TestMethod]
+    public void ADeclarationThatIsNotAWholeFile_StillApplies()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Widget, "T:Widget", StructuralEdit.Op.Replace,
+                                          "public class Widget\n{\n    public int Count => 1;\n}",
+                                          new StructuralEdit.Options());
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(Applied(result), "public int Count => 1;");
+    }
+
+    /// <summary>
+    /// Inside a string literal the indentation rule still holds but means something else — what is indented is
+    /// the string's value, not the file's text — so a payload copied out of the file arrives with the literal's
+    /// own baseline applied twice. Nothing catches that afterwards: it compiles and the diff looks right.
+    /// </summary>
+    [TestMethod]
+    public void ASubstitutionInsideAStringLiteral_SaysSo()
+    {
+        const string holder = """"
+            public class Holder
+            {
+                public string Text = """
+                    first
+                    second
+                    """;
+            }
+            """";
+
+        var result = StructuralEdit.Apply("c-sharp", holder, "T:Holder", StructuralEdit.Op.Substitute, "changed",
+                                          new StructuralEdit.Options(Find: "second"));
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("string literal")),
+                      "the note is the only warning a caller gets: " + string.Join(" | ", result.Notes));
+    }
+
+    /// <summary>And ordinary code must not collect the note, or it stops being read.</summary>
+    [TestMethod]
+    public void ASubstitutionInCode_SaysNothingAboutStrings()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Widget, "T:Widget/M:Add", StructuralEdit.Op.Substitute,
+                                          "_count -= n;", new StructuralEdit.Options(Find: "_count += n;"));
+
+        Assert.IsTrue(result.Ok, result.Message);
+        Assert.IsFalse(result.Notes.Any(n => n.Contains("string literal")));
+    }
+
+    /// <summary>
+    /// "Not here" on its own makes the caller go and look, which is the round trip this tool exists to remove.
+    /// When the text is in the file but in no declaration — between them, or past the anchor of one whose body
+    /// runs on — the refusal should carry the line.
+    /// </summary>
+    [TestMethod]
+    public void TextThatIsInTheFileButNotInTheDeclaration_IsLocated()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Widget, "T:Widget/M:Add", StructuralEdit.Op.Substitute, "x",
+                                          new StructuralEdit.Options(Find: "namespace N;"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "line 3");
+    }
 }
