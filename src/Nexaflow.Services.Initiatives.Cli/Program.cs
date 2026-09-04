@@ -6,6 +6,8 @@ using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
+using Nexaflow.Services.Initiatives.Cli.Daemon;
+using Nexaflow.Services.Initiatives.Hosting;
 
 namespace Nexaflow.Services.Initiatives.Cli;
 
@@ -23,6 +25,12 @@ internal static class Program
     private const int Clean = 0, Broken = 1, Error = 2;
     private const int WholeFilePreview = 40;   // describe --code: cap for a whole-file (no class/method) snaplink
 
+    /// <summary>
+    /// Every invocation hands its command to the resident process for this tree, which holds the graph in
+    /// memory. That is the whole of the difference: the verbs below are unchanged, and a caller sees what it
+    /// always saw. The one exception is the hidden mode that <i>is</i> that process — see
+    /// <see cref="DaemonServer"/>, which cannot be started any other way.
+    /// </summary>
     private static int Main(string[] args)
     {
         // Say what the output actually is. The console's default code page cannot represent the em dashes and
@@ -31,8 +39,106 @@ internal static class Program
         // wrong. Guarded because a redirected or absent console rejects the assignment.
         try { Console.OutputEncoding = new UTF8Encoding(false); } catch { /* not a console we can set */ }
 
+        if (args.Length > 0 && args[0] == DaemonServer.ModeArgument) return DaemonServer.Run(args);
+
         WarnIfPublishedExeIsStale();
 
+        // Usage needs no tree and no graph, so it is answered here rather than paying to start a process.
+        if (args.Length == 0 || args[0] is "-h" or "--help" or "help") return Usage();
+
+        try
+        {
+            // Silently here: the client resolves the root only to key the pipe, and the daemon prints the note
+            // itself when it runs the command. Saying it in both places said it twice.
+            _rootNoteShown = true;
+            var productRoot = ResolveRoot(args.Skip(1));
+
+            // Answered by the client rather than sent to the daemon: it is a question about that process, and
+            // it has to be answerable when the process is busy, wedged, or not there at all.
+            if (args[0] == "daemon") return DaemonClient.Report(productRoot, stop: args.Contains("stop"));
+            return DaemonClient.Run(args, productRoot, CallerWorkingTree(productRoot));
+        }
+        catch (DaemonUnavailableException ex)
+        {
+            Console.Error.WriteLine($"error: {ex.Message}");
+            return Error;
+        }
+    }
+
+    /// <summary>
+    /// The caller's own working tree when it is a worktree of this product, else null for the main checkout.
+    /// The daemon cannot work this out for itself — it is started once and asked from everywhere — so the
+    /// client states it, using the same rule every verb already applies to decide whose source it is reading.
+    /// </summary>
+    private static string? CallerWorkingTree(string productRoot)
+    {
+        var caller = WorkingTreeRootOf(CallerDirectory);
+        if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
+        return TryFindMainCheckout(caller, out var main) && PathsEqual(main, productRoot) ? caller : null;
+    }
+
+    /// <summary>
+    /// The directory the caller ran this command in. Inside the resident process that is a property of
+    /// the request, not of the process — several callers are served at once and they are not all in the
+    /// same place. In a one-shot process it is simply the process directory, which is the same answer.
+    /// </summary>
+    private static string CallerDirectory =>
+        Daemon.RequestScope.Directory ?? System.IO.Directory.GetCurrentDirectory();
+
+    /// <summary>
+    /// The per-file material for this root, from the warm snapshot when there is one. Taking it from the
+    /// workspace matters twice over: it is the expensive half of the archive to read, and it is the same
+    /// object the warm graph was assembled from — so an edit mutates what the next caller will be handed
+    /// rather than a private copy that the workspace would later overwrite.
+    /// </summary>
+    private static GraphCache EditCache(string root, bool main, ProductStore store) =>
+        Workspace(root, main, store)?.Current()?.Cache ?? store.LoadGraphCache() ?? new GraphCache();
+
+    /// <summary>
+    /// Records a change to the graph. With a warm workspace the objects just mutated ARE its snapshot, so
+    /// this only has to say so and let it flush; without one there is nothing holding them and the write
+    /// happens here. Writing directly in both cases would leave the warm copy describing the file it had
+    /// before, which is the one way a resident process can be worse than no process at all.
+    /// </summary>
+    private static void SaveGraphChange(string root, bool main, ProductStore store,
+                                        KnowledgeGraph graph, GraphCache cache)
+    {
+        if (Workspace(root, main, store) is { } workspace) workspace.MarkChanged();
+        else store.SaveSnapshot(graph, cache);
+    }
+
+    /// <summary>
+    /// The authored tree. From the warm host when one is holding it — it keeps its copy current itself,
+    /// watching the file for edits made anywhere else — and from disk when nothing is.
+    /// </summary>
+    private static ProductState LoadTree(string root, ProductStore store) =>
+        Host is { } host && PathsEqual(host.ProductRoot, root) ? host.Tree : store.Load();
+
+    /// <summary>
+    /// Writes the tree and tells whoever is holding one what it now says.
+    /// <para>
+    /// Telling it directly, rather than letting the file watcher discover the write, is the difference
+    /// between the graph agreeing with the command that just ran and agreeing a debounce later — and it
+    /// skips re-reading a file we produced to learn something we already knew.
+    /// </para>
+    /// </summary>
+    private static void SaveTree(string root, ProductStore store, ProductState state)
+    {
+        store.SaveTree(state.Nodes);
+        if (Host is { } host && PathsEqual(host.ProductRoot, root)) host.TreeSaved(state);
+    }
+
+    /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
+    /// read it from. Null in a one-shot process, where <see cref="ReadStdin"/> reads the real thing.</summary>
+    internal static string? StandardInput { get; set; }
+
+    /// <summary>The warm host, when running inside the daemon. Null in a one-shot process, which builds its
+    /// own for the length of the command — same object, shorter life.</summary>
+    internal static InitiativesHost? Host { get; set; }
+
+    /// <summary>The verb dispatch. Called by the daemon per request, and by nothing else.</summary>
+    internal static int Execute(string[] args)
+    {
         if (args.Length == 0 || args[0] is "-h" or "--help" or "help") return Usage();
 
         return args[0] switch
@@ -187,6 +293,12 @@ internal static class Program
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
                        Sub-commands explore a built graph: stats / search / list / node / walk / code — see `graph help`.
+            daemon     Says what the resident process for this tree is doing: whether one is answering, every
+                       command it has on the books with how long each has waited and run, and the path of its
+                       log. Nothing else needs it — commands start and reuse one on their own — but when one
+                       seems stuck this answers immediately, because it reads a dictionary and never queues
+                       behind the work it is reporting on. `daemon stop` ends it; the next command starts
+                       another.
 
             <root> defaults to the current directory. exit: 0 = ok, 1 = broken snaplinks, 2 = usage/IO error
             """);
@@ -211,11 +323,17 @@ internal static class Program
         if (ProductStore.Exists(candidate)) return candidate;
         if (TryFindMainCheckout(candidate, out var main) && ProductStore.Exists(main))
         {
+            // Once per repository, not once per command: it is orientation for someone who has just
+            // arrived in a worktree, and after that it is a line of noise in front of every answer.
+            // The resident process holds this flag, so "once" now means once, rather than once per
+            // invocation of a program that forgot everything each time.
             if (!_rootNoteShown && !PathsEqual(main, candidate))
             {
                 _rootNoteShown = true;
-                Console.Error.WriteLine($"note: using the .product/ tree in the main checkout {main} " +
-                    "(you're in a linked worktree — tree edits land there, and any dumped source is that copy).");
+                Console.Error.WriteLine(
+                    $"note: the authored product tree lives in the main checkout {main}, so tree edits "
+                  + "land there. The graph, and the source every other answer is read from, are this "
+                  + "worktree's own.");
             }
             return main;
         }
@@ -286,7 +404,7 @@ internal static class Program
         try
         {
             var store = new ProductStore(root);
-            var state = store.Load();
+            var state = LoadTree(root, store);
             // The coverage manifest gates [CoversNode] ids that no longer exist. It is derived, gitignored
             // state, so LoadTestCoverage() returning null (clean CI checkout, or scan-tests never run) simply
             // means that check is skipped — never a failure, and never a false all-clear either.
@@ -436,7 +554,7 @@ internal static class Program
         try
         {
             var store = GraphStore(root, a.Has("--main"));
-            var state = store.Load();
+            var state = LoadTree(root, store);
             var options = new GraphBuildOptions
             {
                 Scope = wholeRepo ? GraphScope.WholeRepo : GraphScope.ProductAnchored,
@@ -526,18 +644,38 @@ internal static class Program
         return Clean;
     }
 
+    /// <summary>
+    /// The graph for this root, from the warm host when there is one and from disk when there is not.
+    /// <para>
+    /// The two are the same object either way — <see cref="GraphWorkspace"/> holds exactly what
+    /// <c>LoadGraph</c> would have returned, and checks it against the files on disk before handing it over. So
+    /// a command answers identically whether it ran inside the resident process or a one-shot one; the only
+    /// difference is that the resident one already had it.
+    /// </para>
+    /// </summary>
     private static bool TryLoadGraph(string root, out KnowledgeGraph graph, out int code, bool main = false)
     {
         graph = null!;
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
-        var loaded = GraphStore(root, main).LoadGraph();
+
+        var store  = GraphStore(root, main);
+        var loaded = Workspace(root, main, store)?.Graph ?? store.LoadGraph();
+
         if (loaded is null)
         {
-            Console.Error.WriteLine($"error: no graph at {GraphStore(root, main).GraphFilePath} — build it first with: graph {root}");
+            Console.Error.WriteLine($"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
             code = Error; return false;
         }
         graph = loaded; code = Clean; return true;
     }
+
+    /// <summary>
+    /// This root's warm workspace, or null when nothing is holding one — a one-shot process, or a test calling
+    /// straight into a verb. The store is passed in already resolved because working out <i>which</i> archive a
+    /// worktree reads, and seeding it from the main checkout the first time, is the CLI's rule and stays here.
+    /// </summary>
+    private static GraphWorkspace? Workspace(string root, bool main, ProductStore store) =>
+        Host is { } host ? host.Workspace(CodeRootOrNull(root, main), store) : null;
 
     // TypeRank / NodeLine / BlockEnd / BuildAdjacency / Bfs were once declared here as private copies of the
     // GraphQuery and GraphReport originals. They are gone, and call sites use the library directly: this file
@@ -776,7 +914,7 @@ internal static class Program
         
         var main  = a.Has("--main");
         var store = GraphStore(root, main);
-        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var cache = EditCache(root, main, store);
         var stale = !a.Has("--no-refresh");
 
         // Bring the graph's record of the target file up to date BEFORE looking anything up. One file's
@@ -798,7 +936,7 @@ internal static class Program
         {
             // The refresh above may have learned something real — the file changed — and that is worth
             // keeping even though the edit itself is not going ahead.
-            if (dirty) store.SaveSnapshot(graph, cache);
+            if (dirty) SaveGraphChange(root, main, store, graph, cache);
             Console.Error.WriteLine($"error: {result.Message}");
             return Error;
         }
@@ -837,7 +975,7 @@ internal static class Program
                                                         CodeRootOrNull(root, main));
         if (dirty)
         {
-            store.SaveSnapshot(graph, cache);
+            SaveGraphChange(root, main, store, graph, cache);
         }
 
         // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
@@ -910,7 +1048,7 @@ internal static class Program
         if (!report.Available || report.IsCurrent) return;
 
         var store = GraphStore(root, main);
-        var cache = store.LoadGraphCache() ?? new GraphCache();
+        var cache = EditCache(root, main, store);
         var dirty = false;
 
         foreach (var rel in report.Stale)
@@ -926,7 +1064,7 @@ internal static class Program
 
         if (!dirty) return;
 
-        store.SaveSnapshot(graph, cache);
+        SaveGraphChange(root, main, store, graph, cache);
         Console.Error.WriteLine(
             $"graph: refreshed {report.Stale.Count} file(s)"
           + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
@@ -1208,6 +1346,9 @@ internal static class Program
     /// </summary>
     private static string ReadStdin()
     {
+        // Inside the daemon there is no console to open: the client read the pipe's worth and carried it.
+        if (StandardInput is { } carried) return carried;
+
         using var reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         return reader.ReadToEnd();
     }
@@ -1557,7 +1698,7 @@ internal static class Program
     /// </summary>
     private static void PrintResolvedCodeForCaller(string root, ProductNode node)
     {
-        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var caller = WorkingTreeRootOf(CallerDirectory);
         var fileRoots = new[] { caller, root }.Where(r => r is { Length: > 0 }).Distinct().ToArray()!;
         PrintResolvedCode(fileRoots!, node);
     }
@@ -1624,7 +1765,7 @@ internal static class Program
         // Same distinction as GraphCodeRoot: the caller's tree is only a better place to look when it is a
         // worktree OF this product root. Pointed at another repository, preferring the caller's tree would
         // resolve that repo's snaplinks against this one's files and quietly validate the wrong source.
-        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var caller = WorkingTreeRootOf(CallerDirectory);
         if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return [productRoot];
         return TryFindMainCheckout(caller, out var callerMain) && PathsEqual(callerMain, productRoot)
             ? [caller, productRoot]
@@ -1668,7 +1809,7 @@ internal static class Program
     {
         if (a.Has("--main")) return null;
         if (a.Value("--code-root") is { Length: > 0 } explicitRoot) return Path.GetFullPath(explicitRoot);
-        var caller = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var caller = WorkingTreeRootOf(CallerDirectory);
         if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
 
         // "The caller's tree differs from the product root" describes two completely different situations, and
@@ -1887,7 +2028,7 @@ internal static class Program
         var range = a.Value("--from-git");
         if (string.IsNullOrWhiteSpace(range)) return Usage("--from-git needs a revision range, e.g. v1.4.0..HEAD");
 
-        var repo = GitRepoFor(Directory.GetCurrentDirectory(), root);
+        var repo = GitRepoFor(CallerDirectory, root);
         var log = RunGit(repo, "log", "--diff-filter=R", "--name-status", "--format=", "-M", range!);
         if (log is null)
         {
@@ -2334,7 +2475,7 @@ internal static class Program
     /// Snaplinks only go to a pending set when there is a branch for them to belong to.</summary>
     private static string? PendingBranch(string root)
     {
-        var here = WorkingTreeRootOf(Directory.GetCurrentDirectory());
+        var here = WorkingTreeRootOf(CallerDirectory);
         return here is { Length: > 0 } && !PathsEqual(here, root) ? ProductGit.CurrentBranch(here) : null;
     }
 
@@ -2347,7 +2488,7 @@ internal static class Program
     /// </para>
     /// </summary>
     private static string PendingRoot(string productRoot) =>
-        WorkingTreeRootOf(Directory.GetCurrentDirectory()) is { Length: > 0 } here ? here : productRoot;
+        WorkingTreeRootOf(CallerDirectory) is { Length: > 0 } here ? here : productRoot;
 
     private static PendingStore PendingStoreFor(string root) =>
         new(PendingRoot(root), ExportDirFor(root));
@@ -2426,11 +2567,11 @@ internal static class Program
 
         try
         {
-            var state   = new ProductStore(root).Load();
+            var state   = LoadTree(root, new ProductStore(root));
             var applied = sets.Sum(p => p.ApplyTo(state));
             var paths   = store.RelativePaths(PendingRoot(root), sets);
 
-            new ProductStore(root).SaveTree(state.Nodes);
+            SaveTree(root, new ProductStore(root), state);
             foreach (var pending in sets) store.Delete(pending.Branch);
 
             var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
@@ -2529,7 +2670,7 @@ internal static class Program
             return Clean;
         }
 
-        new ProductStore(root).SaveTree(state.Nodes);
+        SaveTree(root, new ProductStore(root), state);
 
         var paths = store.RelativePaths(PendingRoot(root), sets);
         foreach (var pending in sets) store.Delete(pending.Branch);
@@ -2573,7 +2714,7 @@ internal static class Program
         // unmerged branch that claim is not true anywhere but here. So a link change on a branch goes to the
         // branch's pending set and not into the shared tree. In the main checkout there is no branch to
         // defer to and the write happens normally.
-        if (branch is null) store.SaveTree(state.Nodes);
+        if (branch is null) SaveTree(root, store, state);
         else
         {
             var pending = CapturePending(state, root, branch, touchedLinks!);
@@ -2582,7 +2723,7 @@ internal static class Program
             // Restoring rather than skipping the write is what lets one batch add a node and change a
             // snaplink: the node lands, the link stays with the branch. Skipping would lose the node.
             RestoreSharedLinks(state, store.Load(), touchedLinks!);
-            store.SaveTree(state.Nodes);
+            SaveTree(root, store, state);
 
             pending.ApplyTo(state);   // back to the branch's view, so the validation below reports on it
         }
@@ -2997,7 +3138,7 @@ internal static class Program
         }
 
         var store = new ProductStore(root);
-        store.SaveTree(state.Nodes);
+        SaveTree(root, store, state);
         var report = SnaplinkValidator.Validate(state, root, FileRootsFor(root));
         store.SaveIntegrity(report);
         Console.WriteLine($"Repaired {repairs.Count} parent(s) and re-rooted {worktreeLinks.Count} worktree snaplink(s)."
@@ -3051,7 +3192,7 @@ internal static class Program
         if (!ProductStore.Exists(root)) { Console.Error.WriteLine($"error: no .product/ under {root}."); code = Error; return false; }
         try
         {
-            state = new ProductStore(root).Load();
+            state = LoadTree(root, new ProductStore(root));
             if (applyPending && PendingBranch(root) is { } branch)
                 PendingStoreFor(root).Load(branch).ApplyTo(state);
             code = Clean;

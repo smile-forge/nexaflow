@@ -55,6 +55,15 @@ inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` /
 **product tree**. **To locate a feature's code/tests/docs, query the tree first** (it beats grepping — every
 node carries snaplinks to its source):
 
+**`nfi` keeps a resident process, and there is nothing for you to do about it.** The first call for a
+checkout starts one, holds that tree's graph in memory, and every later call answers from it — a query
+drops from ~1.1s to ~0.2s, an edit from ~2.2s to ~0.4s. It shuts itself down after twenty minutes idle,
+serves each working tree independently (two agents on different worktrees do not queue; two on the same
+one do, which is the consistency), and keys itself to the binary's build time so a rebuilt `nfi` can
+never reach a daemon running older code. **There is no verb to start, stop or inspect it, and you should
+not look for one** — it cannot be launched by hand on purpose. Call `nfi` exactly as you would have
+before; if it ever cannot start its process it says so and fails rather than quietly running slow.
+
 **`nfi.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
 the gitignored tree lives) — so run it from any checkout or worktree with NO root arg.** Build it once, then call the
 exe directly (fast; no per-call rebuild). In the main checkout a prebuilt copy also sits at `tools/graph-cli/`

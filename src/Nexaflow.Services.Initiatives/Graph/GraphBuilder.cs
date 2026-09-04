@@ -43,6 +43,14 @@ public sealed class GraphBuilder
     private readonly List<(string RelPath, RawFileRef Ref)> _fileRefs = [];
     private readonly List<(string TypeId, string Name, bool IsInterface, string Rel)> _bases = [];
 
+    /// <summary>Which product nodes this pass may emit, or null for all of them. A partial rebuild still
+    /// reads the whole tree — rolled-up status depends on descendants — but writes only what changed.</summary>
+    private IReadOnlySet<string>? _only;
+
+    /// <summary>Each node's subtree hash, stamped onto the product nodes so the next tree change can be
+    /// narrowed to the branches that actually moved.</summary>
+    private IReadOnlyDictionary<string, string>? _hashes;
+
     private readonly GraphCache _cache;   // reused across builds (in) + repopulated (out); never null internally
 
     private GraphBuilder(ProductState state, string root, GraphBuildOptions opts, GraphCache? cache)
@@ -134,6 +142,125 @@ public sealed class GraphBuilder
         return had;
     }
 
+    /// <summary>
+    /// Re-derives the product half of an existing graph from the authored tree, in place.
+    /// <para>
+    /// The archive holds two layers: what the tree says and what the code says. Only the code half was ever
+    /// checked for drift, so editing a node's title or moving a snaplink left the graph describing a product
+    /// that had moved on — invisibly, until someone ran a full build. This exists because that half is cheap to
+    /// redo: both passes are in-memory walks of the tree with no file read and no parse, so noticing the tree
+    /// changed and acting on it costs milliseconds, where noticing a source file changed costs a parse.
+    /// </para>
+    /// <para>
+    /// Everything the tree contributed is dropped, by provenance, so a node it no longer declares leaves the
+    /// graph rather than lingering as an orphan. Code nodes are seeded back untouched: snaplinks resolve against
+    /// them by id, and they are the expensive half nobody wants rebuilt for a title change.
+    /// </para>
+    /// </summary>
+    public static void RebuildProductLayer(KnowledgeGraph graph, ProductState state, string productRoot)
+    {
+        var builder = new GraphBuilder(state, productRoot, new GraphBuildOptions { Incremental = true }, null);
+
+        foreach (var node in graph.Nodes)
+            if (node.Source != "product") builder._nodes[node.Id] = node;
+
+        foreach (var edge in graph.Edges)
+            if (edge.ProvenanceFile != "product")
+                builder._edges[(edge.Source, edge.Target, edge.Relationship)] = edge;
+
+        builder.BuildProductLayer();
+        builder.BuildSnaplinkLayer();
+
+        graph.Nodes = [.. builder._nodes.Values.OrderBy(n => n.Id, StringComparer.Ordinal)];
+        graph.Edges = [.. builder._edges.Values
+                                        .OrderBy(e => e.Source, StringComparer.Ordinal)
+                                        .ThenBy(e => e.Relationship, StringComparer.Ordinal)
+                                        .ThenBy(e => e.Target, StringComparer.Ordinal)];
+
+        graph.Metadata.ProductName = state.Product?.Product;
+        graph.Metadata.NodeCount   = graph.Nodes.Count;
+        graph.Metadata.EdgeCount   = graph.Edges.Count;
+    }
+
+    /// <summary>
+    /// Brings the product half of an existing graph back in line with the tree, touching only the branches that
+    /// actually moved.
+    /// <para>
+    /// Every product node carries the hash of itself and everything beneath it, so the walk stops the moment a
+    /// subtree agrees with the tree as loaded: an edit to one node re-emits its ancestor path and nothing else.
+    /// That is the difference between seconds and nothing measurable, and it is why the hash folds children in
+    /// rather than describing a node alone — a status roll-up depends on descendants, so an ancestor whose
+    /// rolled-up status changed must be reachable by the same comparison that found the leaf.
+    /// </para>
+    /// <para>
+    /// The whole tree is still read, because rolled-up status is a function of the whole tree; only the
+    /// <i>emitting</i> is narrowed. Returns whether anything changed, so a caller with nothing to do writes
+    /// nothing.
+    /// </para>
+    /// </summary>
+    public static bool ApplyTreeDelta(KnowledgeGraph graph, ProductState state, string productRoot)
+    {
+        var fresh = ProductTreeHash.Compute(state);
+
+        var stamped = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var n in graph.Nodes)
+            if (n.Source == "product" && n.Metadata is { } m
+                && m.TryGetValue(ProductTreeHash.MetadataKey, out var h)) stamped[n.Id] = h;
+
+        var touched = new HashSet<string>(StringComparer.Ordinal);
+        void Visit(string id)
+        {
+            // The subtree agrees, so nothing under it can have moved: this is the comparison that makes the
+            // walk proportional to the edit instead of to the tree.
+            if (stamped.TryGetValue("product:" + id, out var was)
+                && fresh.TryGetValue(id, out var now) && was == now) return;
+
+            if (!touched.Add(id)) return;
+            if (state.Nodes.TryGetValue(id, out var node))
+                foreach (var child in node.Children) Visit(child);
+        }
+
+        foreach (var id in state.Nodes.Keys) Visit(id);
+
+        // Product nodes the tree no longer declares. Left behind they become orphans that queries still find.
+        var gone = new List<string>();
+        foreach (var id in stamped.Keys)
+            if (id != "product:@root" && !state.Nodes.ContainsKey(id["product:".Length..])) gone.Add(id);
+
+        if (touched.Count == 0 && gone.Count == 0) return false;
+
+        var rewrite = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in touched) rewrite.Add("product:" + id);
+        foreach (var id in gone) rewrite.Add(id);
+        rewrite.Add("product:@root");   // a forest gaining or losing a root changes the synthetic one
+
+        graph.Nodes.RemoveAll(n => n.Source == "product" && rewrite.Contains(n.Id));
+        graph.Edges.RemoveAll(e => e.ProvenanceFile == "product" && rewrite.Contains(e.Source));
+
+        var builder = new GraphBuilder(state, productRoot, new GraphBuildOptions { Incremental = true }, null)
+        {
+            _only   = touched,
+            _hashes = fresh,
+        };
+
+        foreach (var node in graph.Nodes) builder._nodes[node.Id] = node;
+        foreach (var edge in graph.Edges) builder._edges[(edge.Source, edge.Target, edge.Relationship)] = edge;
+
+        builder.BuildProductLayer();
+        builder.BuildSnaplinkLayer();
+
+        graph.Nodes = [.. builder._nodes.Values.OrderBy(n => n.Id, StringComparer.Ordinal)];
+        graph.Edges = [.. builder._edges.Values
+                                        .OrderBy(e => e.Source, StringComparer.Ordinal)
+                                        .ThenBy(e => e.Relationship, StringComparer.Ordinal)
+                                        .ThenBy(e => e.Target, StringComparer.Ordinal)];
+
+        graph.Metadata.ProductName = state.Product?.Product;
+        graph.Metadata.NodeCount   = graph.Nodes.Count;
+        graph.Metadata.EdgeCount   = graph.Edges.Count;
+        return true;
+    }
+
     /// <summary>Removes everything one file contributed, so its fresh contribution can replace it.</summary>
     private static void Prune(KnowledgeGraph graph, GraphCache cache, string relPath)
     {
@@ -157,6 +284,10 @@ public sealed class GraphBuilder
 
     private KnowledgeGraph BuildInternal()
     {
+        // Stamped on the way through, so the next tree change can be narrowed to the branches that
+        // moved. A build that skipped this would leave the first delta with nothing to compare.
+        _hashes = ProductTreeHash.Compute(_state);
+
         BuildProductLayer();
         BuildSnaplinkLayer();
         BuildCodeLayer();
@@ -203,15 +334,19 @@ public sealed class GraphBuilder
     {
         foreach (var (id, node) in _state.Nodes)
         {
+            if (_only is not null && !_only.Contains(id)) continue;
+
             var n = Node("product:" + id, NodeType.Product, string.IsNullOrEmpty(node.Title) ? id : node.Title, source: "product");
             Meta(n, "node_id", id);
+            if (_hashes is not null && _hashes.TryGetValue(id, out var subtree))
+                Meta(n, ProductTreeHash.MetadataKey, subtree);
             Meta(n, "status", ProductAggregator.EffectiveStatus(_state, id).ToString().ToLowerInvariant());
             if (!string.IsNullOrEmpty(node.Description)) Meta(n, "description", node.Description!);
         }
 
         foreach (var (id, node) in _state.Nodes)
             foreach (var child in node.Children)
-                if (_state.Nodes.ContainsKey(child))
+                if (_state.Nodes.ContainsKey(child) && (_only is null || _only.Contains(id)))
                     Edge("product:" + id, "product:" + child, EdgeRelationship.Contains, provenance: "product");
 
         // A single central start point: when the tree is a forest (several top-level nodes), add a synthetic
@@ -233,6 +368,8 @@ public sealed class GraphBuilder
     {
         foreach (var (id, node) in _state.Nodes)
         {
+            if (_only is not null && !_only.Contains(id)) continue;
+
             var productId = "product:" + id;
             if (node.Snaplinks is { } sl)
                 foreach (var link in sl) LinkSnaplink(productId, link, concernTag: null);

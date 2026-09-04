@@ -22,6 +22,17 @@ public sealed class GraphSnapshot
     /// not changed, which is what makes a rebuild proportional to the edit rather than to the repo.</summary>
     public GraphCache Cache { get; set; } = new();
 
+    /// <summary>
+    /// What <c>tree.json</c> looked like when the graph's product layer was derived from it.
+    /// <para>
+    /// The archive holds both layers — the authored tree's nodes and the code's — but only the code half
+    /// was ever checked for drift, so an edit to the tree left the graph describing a product that had
+    /// moved on, invisibly, until someone ran a full build. Stamping it puts the tree on the same footing
+    /// as every source file: one stat says whether the derived layer still holds.
+    /// </para>
+    /// </summary>
+    public FileStamp Tree { get; set; }
+
     /// <summary>Repo-relative path → what that file looked like when it was last extracted.</summary>
     public Dictionary<string, FileStamp> Files { get; set; } = new(StringComparer.Ordinal);
 }
@@ -42,4 +53,9 @@ public readonly record struct FileStamp(string Hash, long Length, DateTime Modif
     /// and a miss only means "read it and hash it", never "assume it changed".</summary>
     public bool Matches(long length, DateTime modifiedUtc) =>
         Length == length && ModifiedUtc == modifiedUtc;
+
+    /// <summary>Whether this stamp says anything. An archive written before stamps were recorded carries
+    /// one of these for every file, and "unknown" has to mean unknown rather than changed — the difference
+    /// between a scan and an accidental rebuild of the whole repository.</summary>
+    public bool IsKnown => Length > 0 || ModifiedUtc != default;
 }

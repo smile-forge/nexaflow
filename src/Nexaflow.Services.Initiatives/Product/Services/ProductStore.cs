@@ -178,6 +178,10 @@ public sealed class ProductStore
                  ?? (files is null ? [] : new Dictionary<string, FileStamp>(files, StringComparer.Ordinal)),
         });
 
+    /// <summary>Writes a snapshot whole, keeping every stamp it carries — including the authored tree's,
+    /// which reassembling from its parts would silently drop and so cost a re-derivation on every start.</summary>
+    public void SaveSnapshot(GraphSnapshot snapshot) => GraphArchive.Write(GraphFilePath, snapshot);
+
     // ── Snapshots (committed, in the export dir) ──────────────────────────────
 
     public string ExportPath(string exportDir) => Path.Combine(_root, exportDir);

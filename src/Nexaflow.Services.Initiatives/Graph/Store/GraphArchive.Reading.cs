@@ -23,6 +23,7 @@ public static partial class GraphArchive
             Graph = ReadGraphFrom(reader, sections, pool),
             Cache = ReadCacheFrom(reader, sections, pool),
             Files = ReadFilesFrom(reader, sections, pool).Stamps,
+            Tree  = ReadTreeStamp(reader, sections, pool),
         });
 
     /// <summary>
@@ -164,6 +165,17 @@ public static partial class GraphArchive
     }
 
     private readonly record struct Record(long Offset, int Length);
+
+    /// <summary>The authored tree's stamp, or nothing when the archive predates it — in which case the
+    /// caller re-derives once and records one.</summary>
+    private static FileStamp ReadTreeStamp(BinaryReader reader, Dictionary<int, SectionSpan> sections,
+                                           string?[] pool)
+    {
+        if (!Seek(reader, sections, SectionTreeStamp)) return default;
+
+        var hash = Str(reader, pool) ?? string.Empty;
+        return new FileStamp(hash, reader.ReadInt64(), new DateTime(reader.ReadInt64(), DateTimeKind.Utc));
+    }
 
     private static FileContribution ReadContribution(BinaryReader reader, string?[] pool)
     {

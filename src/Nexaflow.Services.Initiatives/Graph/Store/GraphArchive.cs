@@ -40,6 +40,11 @@ public static partial class GraphArchive
     private const int SectionFiles         = 6;
     private const int SectionContributions = 7;
 
+    /// <summary>The authored tree's own stamp. A section rather than a field so an archive written
+    /// before it existed simply lacks it and reads as unknown, which costs one re-derivation instead of
+    /// a forced rebuild of every graph on the machine.</summary>
+    private const int SectionTreeStamp     = 8;
+
     // ── Writing ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -72,13 +77,14 @@ public static partial class GraphArchive
         var hyper         = Section(w => WriteHyperEdges(w, snapshot.Graph.HyperEdges, pool));
         var contributions = WriteContributions(snapshot.Cache, pool, out var records);
         var files         = Section(w => WriteFiles(w, snapshot, records, pool));
+        var tree          = Section(w => WriteStamp(w, snapshot.Tree, pool));
         var strings       = Section(pool.WriteTo);   // built last, written first: it defines all the rest
 
         (int Id, byte[] Bytes)[] body =
         [
             (SectionStrings, strings), (SectionMetadata, metadata), (SectionNodes, nodes),
             (SectionEdges, edges), (SectionHyperEdges, hyper), (SectionFiles, files),
-            (SectionContributions, contributions),
+            (SectionContributions, contributions), (SectionTreeStamp, tree),
         ];
 
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
@@ -264,6 +270,13 @@ public static partial class GraphArchive
             w.Write(record.Offset);
             w.Write(record.Length);
         }
+    }
+
+    private static void WriteStamp(BinaryWriter w, FileStamp stamp, StringPool pool)
+    {
+        w.Write(pool.Id(stamp.Hash));
+        w.Write(stamp.Length);
+        w.Write(stamp.ModifiedUtc.Ticks);
     }
 
     private static void WriteMap(BinaryWriter w, Dictionary<string, string>? map, StringPool pool)
