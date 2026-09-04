@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Nexaflow.Services.Initiatives.Hosting;
 using Nexaflow.Services.Initiatives.Hosting.Ipc;
 using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace Nexaflow.Services.Initiatives.Cli.Daemon;
 
@@ -196,7 +197,7 @@ internal static class DaemonServer
     private static void Settle(NamedPipeServerStream server)
     {
         server.Flush();
-        server.WaitForPipeDrain();
+        if (OperatingSystem.IsWindows()) server.WaitForPipeDrain();
     }
 
     /// <summary>
@@ -255,7 +256,15 @@ internal static class DaemonServer
     /// <summary>
     /// The command line that starts one of these, for the client that is about to.
     /// <para>
-    /// stdout and stderr are redirected but the client must then <i>drain</i> them: a child whose pipe buffer
+    /// The process may not be our own executable. The installer's release gate runs the validator as
+    /// <c>dotnet nfi.dll validate …</c>, and there <see cref="Environment.ProcessPath"/> is the shared host —
+    /// so spawning "the way we were started" handed <c>__serve</c> back to <c>dotnet</c>, which read it as a
+    /// command name and said no such thing exists. What the client then saw was a daemon that had exited
+    /// immediately, which is indistinguishable from one that crashed, and the release build failed on it.
+    /// When we are hosted, the assembly goes back in front of the arguments.
+    /// </para>
+    /// <para>
+    /// stdout and stderr are redirected and the client must then <i>drain</i> them: a child whose pipe buffer
     /// fills with nobody reading blocks on its next write, and a resident process that has stopped answering
     /// because it tried to print something is a hang with no visible cause. The client keeps the tail for the
     /// one case that needs it — saying why the process died when it did.
@@ -263,7 +272,14 @@ internal static class DaemonServer
     /// </summary>
     internal static ProcessStartInfo SpawnInfo(string exe, string pipe, string root)
     {
-        var info = new ProcessStartInfo(Stage(pipe, exe))
+        var self   = Assembly.GetEntryAssembly()?.Location;
+        var hosted = self is { Length: > 0 }
+                  && !string.Equals(Path.GetFileNameWithoutExtension(exe),
+                                    Path.GetFileNameWithoutExtension(self), StringComparison.OrdinalIgnoreCase);
+
+        // Staged either way — it is our own assemblies that a build has to overwrite, and the host it runs
+        // under is the SDK's and no concern of ours.
+        var info = new ProcessStartInfo(hosted ? exe : Stage(pipe, exe))
         {
             UseShellExecute        = false,
             CreateNoWindow         = true,
@@ -271,6 +287,9 @@ internal static class DaemonServer
             RedirectStandardError  = true,
             WorkingDirectory       = root,
         };
+
+        if (hosted) info.ArgumentList.Add(Stage(pipe, self!));
+
         info.ArgumentList.Add(ModeArgument);
         info.ArgumentList.Add(pipe);
         info.ArgumentList.Add(root);
