@@ -82,8 +82,7 @@ internal static class Program
     /// the request, not of the process — several callers are served at once and they are not all in the
     /// same place. In a one-shot process it is simply the process directory, which is the same answer.
     /// </summary>
-    private static string CallerDirectory =>
-        Daemon.RequestScope.Directory ?? System.IO.Directory.GetCurrentDirectory();
+    private static string CallerDirectory => CallerPath.Directory;
 
     /// <summary>
     /// The per-file material for this root, from the warm snapshot when there is one. Taking it from the
@@ -305,10 +304,20 @@ internal static class Program
         return error is null ? Clean : Error;
     }
 
-    /// <summary>The product root from the first non-flag arg (or "."), resolved to where <c>.product/</c>
-    /// actually lives — see <see cref="ResolveProductRoot"/> (which follows a git worktree to its main checkout).</summary>
-    private static string ResolveRoot(IEnumerable<string> args) =>
-        ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith('-')) ?? ".");
+    /// <summary>
+    /// The product root from the first non-flag argument — but only when it names a directory the caller can
+    /// actually see; otherwise the caller's own directory. Resolved to where <c>.product/</c> lives, see
+    /// <see cref="ResolveProductRoot"/> (which follows a git worktree to its main checkout).
+    /// <para>
+    /// The directory test is the whole of it. <c>&lt;root&gt;</c> is a directory by definition, and taking any
+    /// first positional for one meant <c>batch</c>, whose first positional is a <b>file</b>, named its script as
+    /// the root: the daemon was then started with a file for a working directory, could not start at all, and
+    /// the command that was meant to rewrite the tree reported a process failure instead.
+    /// </para>
+    /// </summary>
+    internal static string ResolveRoot(IEnumerable<string> args) =>
+        ResolveProductRoot(args.FirstOrDefault(a => !a.StartsWith('-')) is { } first
+                        && CallerPath.IsDirectory(first) ? first : ".");
 
     private static bool _rootNoteShown;
 
@@ -319,7 +328,7 @@ internal static class Program
     /// what lets you drop the trailing <c>&lt;root&gt;</c> and call the exe directly from any checkout or worktree.</summary>
     private static string ResolveProductRoot(string candidate)
     {
-        candidate = Path.GetFullPath(candidate);
+        candidate = CallerPath.Of(candidate);
         if (ProductStore.Exists(candidate)) return candidate;
         if (TryFindMainCheckout(candidate, out var main) && ProductStore.Exists(main))
         {
@@ -1343,8 +1352,11 @@ internal static class Program
         }
         else if (a.Value(fileOpt) is { } path)
         {
-            if (!File.Exists(path)) { error = $"no such file: {path}"; return false; }
-            text = File.ReadAllText(path);
+            // Caller-relative: a payload is nearly always named as a path from where the command was typed, and
+            // the resident process serving it stands somewhere else entirely.
+            var full = CallerPath.Of(path);
+            if (!File.Exists(full)) { error = $"no such file: {path}"; return false; }
+            text = File.ReadAllText(full);
         }
         else if (a.Has(stdinOpt)) text = ReadStdin();
 
@@ -1821,7 +1833,7 @@ internal static class Program
     private static string? GraphCodeRoot(string productRoot, VerbArgs a)
     {
         if (a.Has("--main")) return null;
-        if (a.Value("--code-root") is { Length: > 0 } explicitRoot) return Path.GetFullPath(explicitRoot);
+        if (a.Value("--code-root") is { Length: > 0 } explicitRoot) return CallerPath.Of(explicitRoot);
         var caller = WorkingTreeRootOf(CallerDirectory);
         if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return null;
 
@@ -2116,7 +2128,9 @@ internal static class Program
 
         if (a.Has("--suggest-attributes")) return SuggestAttributes(root);
 
-        var explicitDlls = a.All("--test-dll");
+        // Caller-relative, like every other path typed on the command line: "--test-dll bin/x64/Debug/T.dll"
+        // is how this is written, and the resident process is not standing in the caller's directory.
+        var explicitDlls = a.All("--test-dll").Select(CallerPath.Of).ToList();
         var dlls = explicitDlls.Count > 0 ? explicitDlls : DiscoverTestDlls(root);
         if (dlls.Count == 0)
         {
@@ -2438,7 +2452,7 @@ internal static class Program
         // (code:src/Foo.cs#T:Bar), and none of them names a directory on disk.
         for (var i = 0; i < parsed.Positionals.Count; i++)
         {
-            if (!Directory.Exists(parsed.Positionals[i])) continue;
+            if (!CallerPath.IsDirectory(parsed.Positionals[i])) continue;
 
             var fixedArgs = spec.TakesRoot && parsed.Root is null
                 ? $"  did you mean:  nfi {spec.Verb} <{Slot(spec, i)}> {parsed.Positionals[i]}"
@@ -2987,8 +3001,13 @@ internal static class Program
     {
         if (!TryRead(Specs.Batch, args, out var a, out var root, out var parseCode)) return parseCode;
         var dryRun = a.Has("--dry-run");
-        var file = a[0];
-        if (!File.Exists(file)) return Usage($"no such script file: {file}");
+        // Measured from where the caller stands, not from the resident process — see CallerPath. A relative
+        // script path is the ordinary way to write this ("nfi batch tree.batch"), and it resolved against the
+        // daemon's directory, so the file the caller was looking straight at did not exist.
+        var file = CallerPath.Of(a[0]);
+        if (!File.Exists(file))
+            return VerbUsage($"batch: no such script file: {a[0]}"
+                           + (PathsEqual(file, a[0]) ? "" : $" (looked in {CallerPath.Directory})"));
         if (!TryLoad(root, out var state, out var code)) return code;
 
         var lines = File.ReadAllLines(file);
