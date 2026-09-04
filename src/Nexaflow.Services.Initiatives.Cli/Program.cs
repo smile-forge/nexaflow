@@ -941,7 +941,9 @@ internal static class Program
             return Error;
         }
 
-        foreach (var change in result.Changes) PrintHunk(change);
+        // --quiet keeps the confirmation and drops the diff, for a caller that wants the outcome and not the
+        // change; --show is the opposite trade and they compose.
+        if (!a.Has("--quiet")) foreach (var change in result.Changes) PrintHunk(change);
         foreach (var note in result.Notes) Console.Error.WriteLine($"note: {note}");
 
         if (a.Has("--dry-run"))
@@ -981,6 +983,17 @@ internal static class Program
         // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
         // saying it anyway only teaches the caller to distrust the tool between builds. A full `graph build`
         // is for the cross-file passes (call and inheritance resolution), not for editing.
+        // The declaration as it now stands, so that checking an edit is part of making it rather than the next
+        // command. Not for a delete or a rename — there is nothing at that id any more — and not for a
+        // file-level target, where "the declaration" is the whole file.
+        if (a.Has("--show") && op is not (StructuralEdit.Op.Delete or StructuralEdit.Op.Rename)
+                            && a[1].StartsWith("code:", StringComparison.Ordinal))
+        {
+            Console.WriteLine();
+            GraphCode(a.Has("--main") ? [a[1], "--main"] : [a[1]]);
+            Console.WriteLine();
+        }
+
         Console.WriteLine($"{result.Message}.");
         return Clean;
     }
@@ -2373,11 +2386,12 @@ internal static class Program
             "graph code <id> [<root>] [--lines A-B] [--main] [--refresh]");
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file"],
-            ["--stdin", "--find-stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh"],
+            ["--stdin", "--find-stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh",
+             "--show", "--quiet"],
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
           + "[--to NAME] [--find S | --find-escaped S | --find-file F | --find-stdin] [--regex] [--all] "
           + "[--expect S] [--with-trivia] "
-          + "[--dry-run] [--main]");
+          + "[--dry-run] [--main] [--show] [--quiet]");
     }
 
     /// <summary>
