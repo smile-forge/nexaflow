@@ -23,8 +23,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// </summary>
 internal sealed class LatexNode : LayoutNode
 {
-    private readonly List<LatexMark> _marks = [];
-
     public LatexNode(Rect bounds, string kind, bool isInk)
         : base(bounds, sourceStart: 0, sourceLength: 0, kind, isInk)
     {
@@ -106,9 +104,6 @@ internal sealed class LatexNode : LayoutNode
     internal static bool IsRun(Nexaflow.Maths.Latex.TexPart part) =>
         part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Maths.Latex.TexRole.Element);
 
-    /// <summary>What this piece drew, in the order it drew it.</summary>
-    public IReadOnlyList<LatexMark> Marks => _marks;
-
     /// <summary>
     /// The pixel grid this piece's edges snap to. WpfMath pushes one per box so glyph stems land on whole
     /// device pixels; without it the same formula rasterises a shade differently.
@@ -122,38 +117,4 @@ internal sealed class LatexNode : LayoutNode
     public Brush? Background { get; set; }
 
     public Rect BackgroundBounds { get; set; }
-
-    public void Drew(LatexMark mark) => _marks.Add(mark);
-}
-
-/// <summary>One thing a piece of a formula drew.</summary>
-internal abstract record LatexMark
-{
-    /// <param name="fallback">
-    /// The colour to use where the formula did not ask for one — the theme's, passed at paint time, which
-    /// is why it is not baked in: a theme can change without the formula doing so.
-    /// </param>
-    public abstract void PaintOn(DrawingContext dc, Brush fallback);
-}
-
-internal sealed record GlyphMark(GlyphRun Run, Brush? Foreground) : LatexMark
-{
-    public override void PaintOn(DrawingContext dc, Brush fallback) =>
-        dc.DrawGlyphRun(Foreground ?? fallback, Run);
-}
-
-internal sealed record LineMark(Point From, Point To, Brush? Foreground) : LatexMark
-{
-    public override void PaintOn(DrawingContext dc, Brush fallback)
-    {
-        var pen = new Pen(Foreground ?? fallback, 1.0);
-        pen.Freeze();
-        dc.DrawLine(pen, From, To);
-    }
-}
-
-internal sealed record RuleMark(Rect Bounds, Brush? Foreground) : LatexMark
-{
-    public override void PaintOn(DrawingContext dc, Brush fallback) =>
-        dc.DrawRectangle(Foreground ?? fallback, null, Bounds);
 }

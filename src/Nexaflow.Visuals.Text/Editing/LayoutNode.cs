@@ -15,6 +15,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 public class LayoutNode : ILayoutNode
 {
     private readonly List<ILayoutNode> _children = [];
+    private readonly List<LayoutMark> _marks = [];
 
     public LayoutNode(Rect bounds, int sourceStart, int sourceLength, string kind, bool isInk)
     {
@@ -41,6 +42,15 @@ public class LayoutNode : ILayoutNode
         _children.Add(child);
         return child;
     }
+
+    /// <summary>What this piece drew, in the order it drew it.</summary>
+    public IReadOnlyList<LayoutMark> Marks => _marks;
+
+    /// <summary>
+    /// Records a mark against this piece. Held here rather than in a picture of its own so that painting
+    /// and asking are the same walk over the same tree — see <see cref="LayoutMark"/>.
+    /// </summary>
+    public void Drew(LayoutMark mark) => _marks.Add(mark);
 
     public override string ToString() =>
         $"{Kind}[{SourceStart},{SourceLength}]{(IsInk ? "*" : "")} {Bounds}";
