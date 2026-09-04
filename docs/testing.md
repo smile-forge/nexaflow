@@ -88,7 +88,7 @@ That split also made the `initiatives` mutation target cheap and safe to run —
 dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj
 $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Features.exe"
 
-& $exe --filter "TestCategory!=UI&TestCategory!=Interactive"   # CI-safe, headless
+& $exe --filter "TestCategory!=Desktop&TestCategory!=Interactive"   # what CI runs
 & $exe --filter "TestCategory=UI"                        # UI tests — needs an interactive desktop
 & $exe --filter "TestCategory=Interactive"               # calls real OS services — dev machines only
 & $exe --filter "FullyQualifiedName~SampleFileDetection" # one class
@@ -98,16 +98,18 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 
 - **Unit / non-UI** — fast, headless, no desktop. The default for CI.
 - **`TestCategory("Desktop")`** *(`Tests.Visuals`, `Tests.Core`)* — **shows a real window and takes
-  focus.** Focus is a single machine-wide resource, so these must also carry **`[DoNotParallelize]`**:
+  focus.** Never run in CI: a runner can host a window, but "passes unless something else took focus" is
+  not a gate. Focus is a single machine-wide resource, so these must also carry **`[DoNotParallelize]`**:
   run two at once and they take it from each other mid-assertion, which surfaces as a *different* test
   failing on each run rather than as anything resembling a real bug. `DesktopTestCategoryGuardTests`
   enforces this — a class whose source shows a window must declare the category and opt out of
   parallelism. It reads **both** suites' sources, because the resource is machine-wide: a guard scoped to
   the assembly it happens to sit in would pass over the other one and read green while testing nothing.
-- **`TestCategory("UI")`** — needs an interactive desktop session; skip in headless/CI with
-  `--filter "TestCategory!=UI"`. In `Tests.Visuals` and `Tests.Core` this now means only *renders WPF
-  off-screen* — an STA thread, no window, safe to parallelise. Elsewhere, two kinds, and the split is the
-  point:
+- **`TestCategory("UI")`** — two different things now, which is why CI no longer filters on the category
+  and excludes `Nexaflow.Tests.UIJourneys` as a whole assembly instead. In `Tests.Visuals` and `Tests.Core`
+  it means only *renders WPF off-screen* — an STA thread, no window, safe to parallelise, and safe on a
+  runner; those had never run in CI purely because they shared a category name with the journeys.
+  Elsewhere, two kinds, and the split is the point:
   - **`Nexaflow.Tests.UIJourneys`** drives the real `Nexaflow.exe` via FlaUI. Each test launches a fresh
     app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp dir), so it neither
     depends on nor pollutes the developer's real `%APPDATA%` config. See `UITestBase`.
@@ -138,7 +140,7 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 - **`TestCategory("Interactive")`** — calls a real Windows service instead of a fake, to prove our use
   of an external API is actually correct. Read-only and safe to run on any developer machine, but the
   results depend on that machine's state, so CI never runs them (the workflow filters out both this
-  and `UI`). The worked example is `AqsTranslatorInteractiveTests`, which exercises the Windows Search
+  and `Desktop`). The worked example is `AqsTranslatorInteractiveTests`, which exercises the Windows Search
   COM interop: the interop declarations are a hand-transcribed vtable, and only a real call can prove
   the layout is right — a wrong slot is an access violation, not a failed assertion. Such a test
   asserts on the *contract* (a clause came back naming the property asked for), never on what happens
@@ -190,6 +192,30 @@ test bases need no attribute. This is enforced at author time by the `Nexaflow.A
 test assembly). `dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests . --suggest-attributes`
 prints the starter set derived from the tree's existing `tests` snaplinks. See CLAUDE.md → *Test coverage is
 declared on the test* for the full loop (scan-tests → manifest → Integrity-page reconcile → Add link).
+
+### Automation ids (`NXUI001` / `AutomationIdJourneyCoverageTests`)
+
+A journey can only click what it can find, and on this shell that means an `AutomationProperties.AutomationId`
+— the visible name is copy that changes, and most of the chrome is icon-only buttons that have no name at all.
+Two gates, at opposite ends of the same rule:
+
+- **`NXUI001`**, from `Nexaflow.Analyzers.Ui`, warns on a `<Button>` (or `ToggleButton`, `RadioButton`, any
+  control named `…Button`) with no id. Its subject is XAML, which Roslyn never compiles, so
+  `Directory.Build.targets` hands every `Page`/`ApplicationDefinition` item to the compiler as an
+  `AdditionalFile` for it — automatic for any WPF C# project, so a new feature inherits the rule by existing.
+  A button inside a `ControlTemplate` is exempt: it is another control's chrome, and UIA reports the templated
+  control instead. It is a **warning** on purpose — there is a real backlog, and an error would stop the build
+  rather than shrink it.
+- **`AutomationIdJourneyCoverageTests`** (in `Tests.Features.Architecture`) requires every id declared in a
+  view to be named somewhere in `Nexaflow.Tests.UIJourneys`. Matching is loose — the id appearing anywhere in
+  the journey sources counts — because a journey may hold it in a constant or pass it to a helper, and the
+  failure worth catching is an id no journey mentions at all. It is a **ratchet**: the ids that predate the
+  rule live in `Architecture/automation-ids-without-a-journey.txt`, and the two tests pull opposite ways — a
+  new unreferenced id fails until it is covered or listed, and a listed id fails once it *is* covered or its
+  view stops declaring it. The list can only shrink, and it cannot rot into a permanent allowlist.
+
+An id whose value is a markup extension (`{Binding AutomationId}`) is skipped by both: the real id is computed
+at run time, so there is no literal for a journey to name.
 
 ## Conformance suites — one contract, every implementor
 

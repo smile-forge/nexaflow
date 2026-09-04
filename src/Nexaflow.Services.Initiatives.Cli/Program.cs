@@ -435,41 +435,46 @@ internal static class Program
         var text = ProductReport.Validate(report);
         if (report.IsClean) { Console.WriteLine(text); return Clean; }
 
-        // In a worktree, separate what this branch broke from what it has simply never seen. A link to a
-        // file that exists in neither checkout belongs to some other branch's not-yet-merged work — it is
-        // the forward-looking state the tree is meant to hold, and failing on it makes every branch answer
-        // for every other one. A link to a file main HAS and this branch does not is the opposite: that one
-        // is yours.
+        // A snaplink whose file does not exist is an error, full stop — including from a worktree, and
+        // including a file that is in neither this tree nor the main checkout. That last case used to be
+        // exempt on the theory that it was some other branch's not-yet-merged work and no branch should
+        // answer for another. It does not hold any more: a snaplink written on a branch is deferred into
+        // docs/product/pending/<branch>.json and overlaid only for that branch (see ConsolidateMerged
+        // above), so the shared tree gets a link only once the file it names has merged. What the exemption
+        // actually bought, therefore, was silence about a link naming a file that exists nowhere at all —
+        // which is exactly the state it was meant to catch.
+        //
+        // The split is still printed, because it is the fastest way to tell "I moved this file" from "this
+        // was never here"; it just no longer changes the verdict.
         if (!a.Has("--main") && FileRootsFor(root) is [var here, var main] && !PathsEqual(here, main))
         {
-            var (mine, theirs) = Partition(report, here, main);
-            if (theirs.Count > 0)
+            var (mine, elsewhere) = Partition(report, here, main);
+            if (elsewhere.Count > 0)
             {
                 Console.Error.WriteLine(text);
                 Console.Error.WriteLine();
+                // Named, not counted. A bare tally leaves the reader to work out WHICH five out of a list of
+                // thirty-six by hand, which is the one thing they need and the one thing the partition knows.
                 Console.Error.WriteLine(
-                    $"{theirs.Count} of the above name files that are in neither this worktree nor the main "
-                  + "checkout — another branch's not-yet-merged work, not this branch's problem:");
-                foreach (var issue in theirs.Take(10))
+                    $"{elsewhere.Count} of the above name files that are in neither this worktree nor the main "
+                  + "checkout — nothing here can satisfy them:");
+                foreach (var issue in elsewhere.Take(10))
                     Console.Error.WriteLine($"  {issue.NodeId} [{issue.Scope}] #{issue.Index}  {issue.Link.Doc}");
-                if (theirs.Count > 10) Console.Error.WriteLine($"  … and {theirs.Count - 10} more");
-                Console.Error.WriteLine();
-                if (mine.Count == 0)
+                if (elsewhere.Count > 10) Console.Error.WriteLine($"  … and {elsewhere.Count - 10} more");
+                // Deliberately not "files the main checkout has and this branch does not". The partition only
+                // knows about a file being absent from both trees; everything else lands here, including a
+                // heading that moved, a method that was renamed and a stale [CoversNode] id — none of which
+                // are about a file being anywhere. Naming the bucket after the one kind it can prove sent the
+                // reader looking for a missing file that was never the problem.
+                if (mine.Count > 0)
                 {
-                    Console.Error.WriteLine(
-                        "Nothing here is broken on this branch. (`validate --main` for the main checkout's view.)");
-                }
-                else
-                {
-                    // Named, not counted. A bare "5 issue(s) ARE this branch's" leaves the reader to work out WHICH
-                    // five out of a list of thirty-six by hand, which is the one thing they need and the one thing the
-                    // partition already knows.
-                    Console.Error.WriteLine($"{mine.Count} issue(s) ARE this branch's — exit code reflects these:");
+                    Console.Error.WriteLine();
+                    Console.Error.WriteLine($"{mine.Count} name(s) this tree can still reach — the target inside is what broke:");
                     foreach (var issue in mine.Take(10))
-                        Console.Error.WriteLine($"  {issue.NodeId} [{issue.Scope}] #{issue.Index}  {issue.Link.Doc}");
+                        Console.Error.WriteLine($"  {issue.NodeId} [{issue.Scope}] #{issue.Index}  {issue.Detail}");
                     if (mine.Count > 10) Console.Error.WriteLine($"  … and {mine.Count - 10} more");
                 }
-                return mine.Count == 0 ? Clean : Broken;
+                return Broken;
             }
         }
 
@@ -477,11 +482,15 @@ internal static class Program
         return Broken;
     }
 
-    /// <summary>Splits file-missing issues into the ones this working tree caused and the ones it inherited.</summary>
-    private static (List<IntegrityIssue> Mine, List<IntegrityIssue> Theirs) Partition(
+    /// <summary>
+    /// Splits file-missing issues by where the file could still be found: the ones the main checkout has and
+    /// this working tree does not, and the ones that are absent everywhere. Both are gating — this only
+    /// orders the output, so a reader can tell a file they moved from one that exists nowhere.
+    /// </summary>
+    private static (List<IntegrityIssue> Mine, List<IntegrityIssue> Elsewhere) Partition(
         IntegrityReport report, string here, string main)
     {
-        List<IntegrityIssue> mine = [], theirs = [];
+        List<IntegrityIssue> mine = [], elsewhere = [];
         foreach (var issue in report.Issues)
         {
             var doc = issue.Link.Doc;
@@ -489,9 +498,9 @@ internal static class Program
                                 && doc is { Length: > 0 }
                                 && !File.Exists(Path.Combine(here, doc.Replace('/', Path.DirectorySeparatorChar)))
                                 && !File.Exists(Path.Combine(main, doc.Replace('/', Path.DirectorySeparatorChar)));
-            (absentEverywhere ? theirs : mine).Add(issue);
+            (absentEverywhere ? elsewhere : mine).Add(issue);
         }
-        return (mine, theirs);
+        return (mine, elsewhere);
     }
 
     // ── graph: product ⊕ code AST ⊕ snaplinks → .product/graph.bin (the Graph viewer opens it) ──

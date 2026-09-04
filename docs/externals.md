@@ -353,6 +353,18 @@ the submodule convention (org fork, `upstream` remote, `nexaflow` integration br
 - **Forks are org-owned (`smile-forge`), not personal.** If a fork is accidentally created under a personal
   account, re-fork with `--org smile-forge` and `git -C <repo> submodule set-url <path> <org-url>` +
   `git -C <repo> submodule sync`.
+- **`-t:Rebuild` used to break AngouriMath, and it was never AngouriMath's fault.** `dotnet build
+  Nexaflow.slnx -t:Rebuild` failed with 278 errors in its netstandard2.0 pass — every one a missing polyfill
+  type (`IsExternalInit`, `NotNullWhen`) from the `.cs.pp` contentFiles it takes from the IsExternalInit and
+  Nullable packages. A plain `dotnet build` was green throughout; Rebuild was just something nobody ran. It is
+  an SDK bug: the target that preprocesses those files (`RunProduceContentAssets`) is guarded on
+  `_CleaningWithoutRebuilding`, and Rebuild defeats the guard — one way for a single-TFM project (produced
+  during the Clean phase, then deleted by `CoreClean` as a FileWrite, and un-re-runnable in the Build phase),
+  another for a multi-targeting one like this (the inner TFM builds are never asked for `Rebuild`, so the
+  property stays stuck at `true` and the target is skipped in both phases, taking the `Compile` items with
+  it). **`Directory.Build.targets` → `NexaflowRestorePreprocessedContentAfterRebuildClean` puts them back**;
+  the reasoning is written out there. Nothing in the submodule was touched, and nothing should be: if another
+  external ever ships `.cs.pp` content, the same target already covers it.
 - **Never PackageReference these** and **never open a PR from `nexaflow`.**
 
 ---

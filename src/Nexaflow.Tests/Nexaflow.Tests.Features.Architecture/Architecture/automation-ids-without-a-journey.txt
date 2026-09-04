@@ -1,0 +1,199 @@
+# AutomationIds that no UI journey names yet — the ratchet for AutomationIdJourneyCoverageTests.
+#
+# Every line here is a view element that was given a stable automation id and then never clicked by a
+# test. This file exists so the rule could be turned on against a repo that already had a backlog; it
+# is not an allowlist. Adding a line is a deliberate admission, and the guard tests keep it honest in
+# both directions: a NEW unreferenced id fails until it is either covered or listed here, and a line
+# that has since been covered — or whose id no view declares any more — fails until it is deleted.
+#
+# So the right move on seeing an id here is to write the journey that clicks it and remove the line.
+# Grouped by the view that declares the id.
+
+# src/Nexaflow.Core/Controls/PageLoadErrorView.xaml
+PageLoadError
+PageLoadError_Components
+PageLoadError_Copy
+PageLoadError_Detail
+
+# src/Nexaflow.Core/Controls/ShellConfigControl.xaml
+ShellBatteryAnimationsToggle
+ShellLanguageCombo
+ShellPrestartToggle
+
+# src/Nexaflow.Core/Controls/WorkspaceIdentityControl.xaml
+identity_Color
+identity_Delete
+identity_Export
+identity_Icon
+identity_Name
+
+# src/Nexaflow.Core/MainWindow.xaml
+Chrome_NotificationsPanel
+
+# src/Nexaflow.Core/Views/PlaceholderPage.xaml
+PlaceholderPage
+PlaceholderPage_Detail
+PlaceholderPage_Headline
+
+# src/Nexaflow.Core/Views/SetupWizardWindow.xaml
+WizardBackButton
+WizardSkipButton
+
+# src/Nexaflow.Features/Nexaflow.Features.Audio/Controls/AudioMiniTransport.xaml
+Audio_Chrome_Next
+Audio_Chrome_PlayPause
+
+# src/Nexaflow.Features/Nexaflow.Features.Audio/Views/AudioView.xaml
+Audio_BackgroundToggle
+Audio_Next
+Audio_PlaylistToggle
+Audio_Previous
+
+# src/Nexaflow.Features/Nexaflow.Features.Compressed/Views/CompressedView.xaml
+CompressedView
+
+# src/Nexaflow.Features/Nexaflow.Features.Dicom/Views/DicomView.xaml
+Dicom_CinePlay
+Dicom_FrameSlider
+Dicom_NextFrame
+Dicom_Preset_Brain
+Dicom_Preset_Lung
+Dicom_Preset_Soft
+Dicom_PrevFrame
+Dicom_Tool_Angle
+Dicom_Tool_Ellipse
+Dicom_Tool_Probe
+Dicom_Tool_Rect
+
+# src/Nexaflow.Features/Nexaflow.Features.Dotnet/Viewlets/DotnetViewletView.xaml
+Dotnet_TargetButton
+
+# src/Nexaflow.Features/Nexaflow.Features.Email/Views/EmailView.xaml
+Email_AttachmentTile
+Email_HeaderRow
+Email_OpenInBrowser
+
+# src/Nexaflow.Features/Nexaflow.Features.Executable/Views/ExecutableView.xaml
+Executable_DependencyDetail
+Executable_DependencyDetailFunctions
+Executable_DependencyDetailImportsLink
+Executable_DependencyDetailInspect
+Executable_DependencyDetailName
+Executable_DependencyDetailSplitter
+
+# src/Nexaflow.Features/Nexaflow.Features.Font/Views/FontContextPreview.xaml
+FontContextPreview
+
+# src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml
+Image_AutoAdvance
+Image_AutoSpeed
+Image_DotsPageLeft
+Image_DotsPageRight
+Image_Next
+Image_Previous
+Image_ViewAlbum
+Image_ViewCarousel
+Image_ViewCollage
+Image_ViewExplore
+
+# src/Nexaflow.Features/Nexaflow.Features.Network/Views/DevicePanel.xaml
+Net_PanelTabs
+
+# src/Nexaflow.Features/Nexaflow.Features.Network/Views/NetworkView.xaml
+Net_Panel
+
+# src/Nexaflow.Features/Nexaflow.Features.Pdf/Views/PdfView.xaml
+Pdf_Contents
+Pdf_ContentsEmpty
+Pdf_FallbackOpenExternal
+Pdf_FallbackPanel
+Pdf_OpenExternal
+Pdf_Properties
+
+# src/Nexaflow.Features/Nexaflow.Features.ProductManager/Graph/Views/GraphView.xaml
+Graph_Back
+Graph_CapNote
+Graph_Depth
+Graph_MinConfidence
+Graph_ResetFocus
+Graph_ResetView
+Graph_SegmentsRail
+Graph_SegmentsToggle
+Graph_ShowAllSegments
+Graph_ToggleHyperEdges
+GraphView
+
+# src/Nexaflow.Features/Nexaflow.Features.ProductManager/Views/ProductIntegrityView.xaml
+Integrity_ClearAst
+Integrity_RepointAst
+
+# src/Nexaflow.Features/Nexaflow.Features.ProductManager/Views/ProductSearchView.xaml
+ProductSearch_Query
+ProductSearch_Results
+ProductSearch_Run
+ProductSearch_Status
+ProductSearchView
+
+# src/Nexaflow.Features/Nexaflow.Features.Projects/Views/ProjectDetailView.xaml
+Projects_Detail_AddCriterion
+Projects_Detail_Backlog
+Projects_Detail_DeleteTodo
+Projects_Detail_SaveItem
+Projects_Detail_Upgrade
+
+# src/Nexaflow.Features/Nexaflow.Features.Projects/Views/ProjectsView.xaml
+Projects_DisabledPlaceholder
+Projects_Refresh
+
+# src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Views/ScratchpadView.xaml
+Scratchpad_Canvas
+
+# src/Nexaflow.Features/Nexaflow.Features.Solver/Views/SolverView.xaml
+Solver_ClearDefinition
+Solver_SourceToggle
+
+# src/Nexaflow.Features/Nexaflow.Features.Text/Views/TextView.xaml
+Text_FindMenu_Find
+Text_FindMenu_Replace
+Text_Replace
+Text_ReplaceAll
+Text_ReplaceBox
+Text_UseWildcards
+
+# src/Nexaflow.Features/Nexaflow.Features.Video/Views/VideoControls.xaml
+Video_Subtitles
+
+# src/Nexaflow.Features/Nexaflow.Features.Video/Views/VideoView.xaml
+Video_BigPlay
+
+# src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Views/VirtualDiskView.xaml
+VirtualDiskView
+
+# src/Nexaflow.Features/Nexaflow.Features.Web/Views/HtmlView.xaml
+Web_FallbackOpenExternal
+
+# src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/AppAdvancedOptionsPane.xaml
+WindowsApps_AdvancedStatus
+WindowsApps_Move
+WindowsApps_MoveVolume
+WindowsApps_NoAddOns
+WindowsApps_RefreshAddOns
+
+# src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Views/SearchView.xaml
+DeclineNewSearch
+RescanFolder
+RunAsNewSearch
+
+# src/Nexaflow.Visuals.Terminal/Views/TerminalView.xaml
+Console_AddEnvVar
+Console_EnvEditCancel
+Console_EnvEditSave
+Console_EnvFilter
+Console_SidePanelTabs
+
+# src/Nexaflow.Visuals.Text/Editor/FileTextEditorView.xaml
+Editor_ChangeBanner
+Editor_ReadOnlyBanner
+Editor_ReadOnlyIndicator
+Editor_UnsavedIndicator
+TextEditorView

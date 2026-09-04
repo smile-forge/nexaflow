@@ -310,14 +310,18 @@ knowing which worktree, on whose machine, produced it. Its presence there *is* t
 next `validate` in the main checkout folds it in and commits the removal (`--no-promote` to skip). A branch
 that is abandoned never merges, so its set never arrives and there is nothing to clean up.
 
-**`validate` answers about the branch you are on.** From a linked worktree it resolves each snaplink against
-*that* tree — not the main checkout — because "does this file exist somewhere" is not the question a branch
-needs answered. It then splits what it finds: a link to a file that is in **neither** checkout belongs to some
-other branch's not-yet-merged work and is reported but does **not** set the exit code, while a link to a file
-main has and your branch does not **is** yours and does. `validate --main` gives the main checkout's view,
-which is what the installer's release gate runs (from the main checkout, where the two are the same anyway).
-The old fallback to the product root is what let a file you had *moved away* keep resolving through main, so a
-branch read clean while its links were stale.
+**`validate` answers about the branch you are on, and a snaplink to a file that does not exist is an error.**
+From a linked worktree it resolves each snaplink against *that* tree — not the main checkout — because "does
+this file exist somewhere" is not the question a branch needs answered. **Every** missing file sets the exit
+code, including one that is in neither this tree nor main. (That case used to be exempt, on the theory that it
+was another branch's not-yet-merged work; it no longer holds — a snaplink written on a branch is deferred into
+`docs/product/pending/<branch>.json` and overlaid only for that branch, so the shared tree gains a link only
+once the file it names has merged. All the exemption bought was silence about a link naming a file that exists
+nowhere.) The split is still *printed* — files absent everywhere, then files main has and you do not — because
+it separates "I moved this" from "this was never here", but it no longer changes the verdict. `validate --main`
+gives the main checkout's view, which is what the installer's release gate runs (from the main checkout, where
+the two are the same anyway). The old fallback to the product root is what let a file you had *moved away* keep
+resolving through main, so a branch read clean while its links were stale.
 
 When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
 
@@ -407,6 +411,7 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 - A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection at startup (each registration exposes a `static string StaticPageKind`).
 - **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
 - **Features never elevate directly.** No `Process.Start` with `runas` in a feature — route admin actions through `IShellServices.RunElevatedAsync` (a DTO in `Elevation.Contracts` + an `IElevatedOperation` in the PrivilegeBridge). See [docs/Architecture.md → Elevation](docs/Architecture.md#elevation--privilege-bridge).
+- **Every button in a view carries an `AutomationProperties.AutomationId`, and every id is named by a journey.** Two halves of one rule, enforced at opposite ends. `NXUI001` (the **`Nexaflow.Analyzers.Ui`** analyzer, wired to every WPF C# project by `Directory.Build.targets`, which hands it the views as `AdditionalFiles`) warns on a button with no id — a button is the thing a journey clicks, and the id is the only handle that survives a copy change or an icon-only label. `AutomationIdJourneyCoverageTests` then requires each declared id to appear somewhere in `Nexaflow.Tests.UIJourneys`, so an id can't be a decoration nobody uses. That one is a **ratchet**: the pre-existing gap is listed in `automation-ids-without-a-journey.txt`, a new unreferenced id fails until it is covered or listed, and a listed id fails once it *is* covered — so the file can only shrink. A button inside a `ControlTemplate` is exempt (it is another control's chrome, and UIA reports the templated control); a `{Binding …}` id is skipped, since there is no literal for a journey to name. Read the AutomationId gotcha under *Potential WPF Gotchas* before putting an id on a non-`Control`.
 - **Third-party source deps are git submodules under `external/`, consumed via `ProjectReference` from the smile-forge fork — never `PackageReference`, never vendored/copied.** The one exception is a **native grammar**: C has no `.csproj` to reference, so an MSBuild target compiles it instead — same fork/branch/pin convention, different wiring (see *Native grammar submodules* in the runbook). That covers `external/tree-sitter-xml` and the nested grammar/runtime submodules inside `external/tree-sitter-dotnet-bindings`, whose own `src/TreeSitter.csproj` **is** a normal `ProjectReference` (it replaced the `TreeSitter.DotNet` package — the package's frozen natives were silently wrong). `origin` = the org fork, `upstream` = the original; a per-repo `nexaflow` integration branch is what's pinned, and upstream PRs come only from atomic `feat/*` branches. **Before touching anything under `external/`, adding/bumping a submodule, or wiring one of these deps, read the runbook [docs/externals.md](docs/externals.md)** (also pointed to by `external/README.md`). Remember the cwd is pinned → use `git -C external/<name> …` for every submodule git op.
   - **xaml-math is no longer one of them — it was ingested and is now our code**, as `Nexaflow.Maths.Typesetting` / `Nexaflow.Visuals.Maths` (+ its own suite as `Nexaflow.Tests.Typesetting`). **Not a precedent**: the test is whether the boundary protects anything, and it had stopped — we replaced its LaTeX reader with our own parse tree, the atoms the boxes are built from are `internal`, and upstream was dormant. Reasoning in [docs/latex-parse-tree.md](docs/latex-parse-tree.md); licence in `src/Nexaflow.Core/Assets/ThirdPartyNotices.md`.
 
