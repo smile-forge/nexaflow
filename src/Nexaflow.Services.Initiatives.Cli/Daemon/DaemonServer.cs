@@ -254,6 +254,20 @@ internal static class DaemonServer
     }
 
     /// <summary>
+    /// Where the daemon is started from. The root is carried as an argument and every path a command names is
+    /// measured from the <b>caller's</b> directory (see <c>CallerPath</c>), so the process's own directory is
+    /// orientation and nothing depends on it.
+    /// <para>
+    /// It is guarded because an argument must never be the reason a daemon cannot start. A root that named a
+    /// file — which is what <c>nfi batch &lt;script&gt;</c> produced, its script being read as the root —
+    /// made Windows refuse the spawn outright, and what the caller saw was a Win32Exception about a working
+    /// directory in place of the verb's own account of a bad argument.
+    /// </para>
+    /// </summary>
+    internal static string SpawnDirectory(string root) =>
+        Directory.Exists(root) ? root : AppContext.BaseDirectory;
+
+    /// <summary>
     /// The command line that starts one of these, for the client that is about to.
     /// <para>
     /// The process may not be our own executable. The installer's release gate runs the validator as
@@ -285,7 +299,7 @@ internal static class DaemonServer
             CreateNoWindow         = true,
             RedirectStandardOutput = true,
             RedirectStandardError  = true,
-            WorkingDirectory       = root,
+            WorkingDirectory       = SpawnDirectory(root),
         };
 
         if (hosted) info.ArgumentList.Add(Stage(pipe, self!));

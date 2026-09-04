@@ -127,7 +127,7 @@ internal sealed class VerbArgs
         // untouched, and the surplus/unknown-argument strictness elsewhere is unchanged.
         if (spec.TakesRoot && positionals.Count > 0 && positionals.Count <= spec.Positionals
             && positionals.Count - 1 >= spec.Required            // moving it must not empty a REQUIRED slot
-            && Directory.Exists(positionals[^1]))
+            && CallerPath.IsDirectory(positionals[^1]))
         {
             var root = positionals[^1];
             positionals[^1] = string.Empty;                       // the optional slot goes unsupplied
