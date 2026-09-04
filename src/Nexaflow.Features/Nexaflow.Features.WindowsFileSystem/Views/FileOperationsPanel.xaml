@@ -34,9 +34,14 @@
             Background="{DynamicResource SurfaceBrush}">
         <Border.Style>
             <Style TargetType="Border">
-                <Setter Property="MaxHeight" Value="0"/>
+                <Setter Property="MaxHeight"  Value="0"/>
+                <!-- Collapsed, not merely clipped. A zero-height Border still arranges its children,
+                     so they keep a layout rect and stay in the automation tree — reachable by Tab and
+                     announced by a screen reader while nobody can see them. -->
+                <Setter Property="Visibility" Value="Collapsed"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsVisible}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
                         <DataTrigger.EnterActions>
                             <BeginStoryboard>
                                 <Storyboard>

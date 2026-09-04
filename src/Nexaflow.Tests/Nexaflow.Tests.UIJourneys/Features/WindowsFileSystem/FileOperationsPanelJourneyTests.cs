@@ -42,11 +42,11 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         Directory.CreateDirectory(_destination);
         var payload = Directory.CreateDirectory(Path.Combine(_source, "payload"));
 
-        // Big enough that the copy outlives the debounce on any disk this would run on, and small
-        // enough not to be rude about it.
+        // 2.5 GB. It has to outlive the 600 ms debounce on an NVMe with the whole thing still in the
+        // OS file cache, which a few hundred megabytes does not.
         var block = new byte[8 * 1024 * 1024];
         Random.Shared.NextBytes(block);
-        for (var i = 0; i < 96; i++)
+        for (var i = 0; i < 320; i++)
             File.WriteAllBytes(Path.Combine(payload.FullName, $"blob{i}.bin"), block);
     }
 
@@ -105,7 +105,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         }
 
         // ── The copy lands ────────────────────────────────────────────────────
-        var landed = Path.Combine(_destination, "payload", "blob95.bin");
+        var landed = Path.Combine(_destination, "payload", "blob319.bin");
         Check("the whole folder arrives", () => WaitForFs(() => File.Exists(landed), 90));
 
         // ── And the panel gets out of the way ─────────────────────────────────
