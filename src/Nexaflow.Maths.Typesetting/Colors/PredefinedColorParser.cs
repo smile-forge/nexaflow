@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 using System.Xml.Linq;
+using XamlMath.Utils;
 using static XamlMath.Utils.ColorHelpers;
 
 namespace XamlMath.Colors;
@@ -17,9 +18,7 @@ public sealed class PredefinedColorParser : IColorParser
 
     private PredefinedColorParser(string resourceName)
     {
-        using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName);
-        var doc = XDocument.Load(resource);
-        _colors = Parse(doc!.Root!);
+        _colors = Parse(Assembly.GetExecutingAssembly().ReadResourceRoot(resourceName));
     }
 
     public RgbaColor? Parse(IReadOnlyList<string> components)

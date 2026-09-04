@@ -53,10 +53,7 @@ internal sealed class GlueSettingsParser
 
     public GlueSettingsParser()
     {
-        using var resource = typeof(XamlMathResourceMarker).Assembly.ReadResource(resourceName);
-
-        var doc = XDocument.Load(resource);
-        var root = doc.Root;
+        var root = typeof(XamlMathResourceMarker).Assembly.ReadResourceRoot(resourceName);
         var parsedGlueTypes = ParseGlueTypes(root);
 
         this.rootElement = root;

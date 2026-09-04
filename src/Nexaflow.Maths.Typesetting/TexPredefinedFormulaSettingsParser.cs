@@ -16,9 +16,7 @@ internal sealed class TexPredefinedFormulaSettingsParser
 
     public TexPredefinedFormulaSettingsParser()
     {
-        using var resource = typeof(XamlMathResourceMarker).Assembly.ReadResource(resourceName);
-        var doc = XDocument.Load(resource);
-        this.rootElement = doc.Root;
+        this.rootElement = typeof(XamlMathResourceMarker).Assembly.ReadResourceRoot(resourceName);
     }
 
     private readonly record struct CharMappingPair(char Key, string Value);
