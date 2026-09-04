@@ -59,9 +59,43 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Stop every resident daemon before touching the live folder. Two separate reasons:
+#
+#   1. It is what makes displacing the folder reliable. A daemon normally runs from its own staged copy, but
+#      it falls back to running in place when staging fails — and then it holds $out open, and the step
+#      below fails for a reason that is invisible from the error.
+#   2. A daemon outlives the publish, and that is the one that actually costs something. It is keyed to the
+#      build it started from, so after a publish the old one keeps serving the OLD code until it idles out
+#      twenty minutes later — and it can still write .product/. Two daemons of different versions writing
+#      one tree is not a race anybody should have to reason about; stopping them here means the publish
+#      leaves exactly one version of nfi on the machine.
+#
+# There is deliberately no "stop" verb (the daemon is meant to be invisible), so this is a kill. Everything
+# a daemon holds is either in memory or already written, so the only work at risk is an in-flight graph
+# build — which is why this happens once, here, and not routinely.
+$running = @(Get-Process -Name 'nfi' -ErrorAction SilentlyContinue)
+if ($running) {
+    Write-Host ("stopping {0} resident nfi daemon(s)" -f $running.Count) -ForegroundColor DarkGray
+    $running | Stop-Process -Force -ErrorAction SilentlyContinue
+    # Handles do not drop the instant the process is signalled, and the rename below races that.
+    for ($i = 0; $i -lt 30 -and @(Get-Process -Name 'nfi' -ErrorAction SilentlyContinue); $i++) {
+        Start-Sleep -Milliseconds 100
+    }
+}
+
+# Their staged copies are unowned now. Clearing them stops the daemon home accumulating a directory per
+# build, and guarantees the next daemon stages fresh from what is about to be published rather than
+# resurrecting a copy of what is being replaced.
+$daemonHome = Join-Path $env:LOCALAPPDATA 'Smile\nfi\daemon'
+if (Test-Path $daemonHome) {
+    Get-ChildItem $daemonHome -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 # Rename, not delete, to displace the old folder: a rename is all-or-nothing, so a locked folder leaves the
-# working exe exactly as it was rather than half-emptied. This is the step that fails when another nfi.exe
-# is running, and it is the one that has to fail loudly.
+# working exe exactly as it was rather than half-emptied. With the daemons stopped above this should not now
+# fail, but it stays a rename because that is what keeps a surprise holder from costing you a working exe —
+# and the displaced copy is deleted a few lines further down either way, so the folder still ends up gone.
 if (Test-Path $out) {
     $displaced = Join-Path $PSScriptRoot ('graph-cli.old-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     try {

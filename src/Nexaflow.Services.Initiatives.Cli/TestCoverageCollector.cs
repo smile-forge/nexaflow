@@ -38,11 +38,20 @@ internal static class TestCoverageCollector
         using var mlc = new MetadataLoadContext(BuildResolver(dlls));
         foreach (var dll in dlls)
         {
+            // Recorded for every assembly considered, including one that then fails to load. Provenance
+            // answers "is this still the file I looked at", not "did it contribute declarations" — and a
+            // skipped assembly left unrecorded would read as a new one on the next check, so the manifest
+            // would be judged stale forever and rescan on every single validate. Some are always skipped
+            // here: the discovery walks every .csproj under the tests directory, which includes the
+            // dependency-only libraries that have no tests to find.
+            manifest.Assemblies.Add(Provenance(dll, repoRoot));
+
             try { ScanAssembly(mlc, dll, paths, manifest); manifest.ScannedAssemblies++; }
             catch (Exception ex) { Console.Error.WriteLine($"warn: skipped {Path.GetFileName(dll)}: {ex.Message}"); }
         }
 
         // Stable ordering so the manifest diffs cleanly between scans.
+        manifest.Assemblies = [.. manifest.Assemblies.OrderBy(r => r.Path, StringComparer.Ordinal)];
         manifest.Coverage = manifest.Coverage
             .OrderBy(kv => kv.Key, StringComparer.Ordinal)
             .ToDictionary(kv => kv.Key, kv => kv.Value
@@ -51,6 +60,50 @@ internal static class TestCoverageCollector
                 .ToList());
         manifest.NoCoverage = [.. manifest.NoCoverage.OrderBy(r => r.Class, StringComparer.Ordinal)];
         return manifest;
+    }
+
+    /// <summary>
+    /// How an assembly looked when it was read. Size and write time together are a cheap, stable identity:
+    /// a rebuild changes at least one of them, and — unlike a source file's write time — neither is
+    /// disturbed by git restoring content, because git does not write build output.
+    /// </summary>
+    private static ScannedAssemblyRef Provenance(string dll, string repoRoot)
+    {
+        var info = new FileInfo(dll);
+        return new ScannedAssemblyRef
+        {
+            Path         = Path.GetRelativePath(repoRoot, dll).Replace('\\', '/'),
+            Size         = info.Exists ? info.Length : 0,
+            WriteTimeUtc = info.Exists ? info.LastWriteTimeUtc.ToString("o") : string.Empty
+        };
+    }
+
+    /// <summary>
+    /// True when <paramref name="manifest"/> no longer describes what is on disk — an assembly was rebuilt
+    /// or removed, or a test project has appeared that the scan never saw. One stat per assembly, so it is
+    /// cheap enough to ask before every reconcile rather than leaving it to whoever remembers to rescan.
+    /// </summary>
+    public static bool NeedsRescan(TestCoverageManifest? manifest, IReadOnlyList<string> dlls, string repoRoot)
+    {
+        // No manifest is not staleness — coverage checks are simply skipped, as on a clean CI checkout.
+        if (manifest is null) return false;
+
+        // Written before provenance was recorded: refresh once, and it self-heals from then on.
+        if (manifest.Assemblies.Count == 0) return dlls.Count > 0;
+
+        var recorded = new Dictionary<string, ScannedAssemblyRef>(StringComparer.OrdinalIgnoreCase);
+        foreach (var a in manifest.Assemblies) recorded[a.Path] = a;
+
+        if (recorded.Count != dlls.Count) return true;
+
+        foreach (var dll in dlls)
+        {
+            var now = Provenance(dll, repoRoot);
+            if (!recorded.TryGetValue(now.Path, out var then)) return true;
+            if (then.Size != now.Size) return true;
+            if (!string.Equals(then.WriteTimeUtc, now.WriteTimeUtc, StringComparison.Ordinal)) return true;
+        }
+        return false;
     }
 
     /// <summary>
