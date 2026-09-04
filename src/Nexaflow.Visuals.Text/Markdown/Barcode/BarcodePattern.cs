@@ -87,6 +87,19 @@ public sealed class BarcodePattern
     /// <summary>A line printed above the whole symbol — the <c>ISBN 978-…</c> over a book's barcode.</summary>
     public string? Caption { get; init; }
 
+    /// <summary>
+    /// The symbol as it is understood: the caption, the bars and their guards, and each printed run of the
+    /// number, every one saying which characters of the value it came from — or, where it was worked out
+    /// rather than typed, which characters it was worked out from.
+    ///
+    /// <para>
+    /// <see cref="TextRuns"/>, <see cref="Guards"/> and <see cref="Caption"/> are the same facts flattened
+    /// for a renderer that only wants to draw. This is the shape a caret and a selection need, because it
+    /// is the only one that says which parts of what is printed an edit could safely be applied to.
+    /// </para>
+    /// </summary>
+    public BarcodePart? Symbol { get; init; }
+
     /// <summary>The modules as a run-length list of (start, length, isInk), for drawing.</summary>
     public IEnumerable<(int Start, int Length)> InkRuns()
     {

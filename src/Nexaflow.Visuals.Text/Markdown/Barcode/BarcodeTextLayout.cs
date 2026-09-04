@@ -206,4 +206,86 @@ internal static class BarcodeTextLayout
         string number = value.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? value;
         return $"{name} {number}";
     }
+
+    // ── Reading the symbol as a tree ───────────────────────────────────────
+
+    /// <summary>
+    /// The whole symbol as a tree of parts: the caption, the bars and their guards, and each printed run
+    /// of the number, every one of them saying which characters of the value it came from.
+    /// <para>
+    /// Built on top of <see cref="Describe"/> rather than instead of it, because that is where each
+    /// family's structure is already worked out and checked. This only decides, for each run, whether what
+    /// is printed <em>is</em> the value or was worked out from it.
+    /// </para>
+    /// </summary>
+    internal static BarcodePart Read(
+        string value, string text, int modules,
+        IReadOnlyList<BarcodeTextRun> runs,
+        IReadOnlyList<(int Start, int Length)> guards,
+        string? caption)
+    {
+        var parts = new List<BarcodePart>();
+
+        if (caption is { Length: > 0 }) parts.Add(ReadCaption(caption, value));
+
+        // The bars stand for the whole value — they are the value, encoded — while the guards inside them
+        // stand for none of it, being the format's own punctuation rather than anything anybody typed. So a
+        // press on a guard resolves outwards to the bars, and means the number.
+        parts.Add(BarcodePart.Spanning(
+            BarcodeKind.Bars, BarcodeRole.Bars, 0, value.Length,
+            guards.Select(guard => BarcodePart.Leaf(
+                BarcodeKind.Guard, BarcodeRole.Guard, string.Empty, 0, 0, guard)),
+            (0, modules)));
+
+        // Every format that does not break its number up prints it as one run underneath, which is what
+        // the caller would otherwise have to remember to do for it.
+        IReadOnlyList<BarcodeTextRun> printed = runs.Count > 0
+            ? runs
+            : [new BarcodeTextRun(text, 0, modules, BarcodeTextPlacement.Below)];
+
+        // Asked once, of the whole printed number, rather than of each group. The groups are how the number
+        // is laid out and not what it is made of: an EAN-13 whose value is missing its check digit prints
+        // six digits that happen to match what was typed and six that are one character out of step, and
+        // calling the first six editable would be an accident of where the guard bars fall. Either the
+        // printed number is the value or it is a rendering of it.
+        var verbatim = string.Equals(text, value, StringComparison.Ordinal);
+
+        var at = 0;
+        foreach (var run in printed)
+        {
+            parts.Add(BarcodePart.Read(
+                run.Placement == BarcodeTextPlacement.Above ? BarcodeRole.AddOn : BarcodeRole.Label,
+                run.Text,
+                value,
+                verbatim ? at : -1,
+                (run.StartModule, run.Modules),
+                run.Placement));
+
+            at += run.Text.Length;
+        }
+
+        return BarcodePart.Symbol(value, parts);
+    }
+
+    /// <summary>
+    /// The caption, read as the two different things it is made of: a scheme's name, which is ours and
+    /// which nobody typed, and the number as the author wrote it, hyphens and all, which is theirs.
+    /// <para>
+    /// That split is what makes a publication the one format whose value can be edited where it is drawn.
+    /// The digits under the bars are the number with its hyphens taken out and a check digit added, so
+    /// they are a rendering; the caption is the value itself.
+    /// </para>
+    /// </summary>
+    private static BarcodePart ReadCaption(string caption, string value)
+    {
+        var split = caption.IndexOf(' ');
+        if (split < 0)
+            return BarcodePart.Leaf(BarcodeKind.EncodedText, BarcodeRole.Scheme, caption, 0, value.Length);
+
+        return BarcodePart.Branch(BarcodeKind.Caption, BarcodeRole.Caption,
+        [
+            BarcodePart.Leaf(BarcodeKind.EncodedText, BarcodeRole.Scheme, caption[..(split + 1)], 0, value.Length),
+            BarcodePart.Read(BarcodeRole.Number, caption[(split + 1)..], value, 0),
+        ]);
+    }
 }
