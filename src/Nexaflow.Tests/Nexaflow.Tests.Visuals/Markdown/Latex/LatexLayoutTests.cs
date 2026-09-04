@@ -513,4 +513,32 @@ public class LatexLayoutTests
             "these are claimed and have no case, so the reading will pass them to a builder with no "
             + "drawing for them:\n" + string.Join("\n", unset));
     }
+
+    [TestMethod]
+    public void AHoleCarriesThePartItWillBeWrittenInto() => UiThread.Run(() =>
+    {
+        // The one piece that is drawn, stands for no characters, and still has to know exactly where it
+        // is: type into a hole and the text has to land between those braces and nowhere else. So a hole
+        // is not a piece drawn from nothing — it is drawn from an empty argument, which is a part of the
+        // parse like any other and is the whole of what says where an edit to it goes.
+        const string latex = @"\frac{3+7}{}";
+
+        // A hole is offered only to a surface being written on — a box in the middle of a formula that is
+        // only being read would simply be wrong — so this is the writing path, not the reading one.
+        var layout = LatexLayout.Build(latex, Scale, placeholders: true);
+        Assert.IsNotNull(layout);
+        var tree = layout.Tree;
+
+        var hole = tree.Root.SelfAndDescendants().Single(n => n.IsPlaceholder());
+
+        Assert.IsNotNull(hole.Part, "a hole was read from an empty argument, so it was drawn from a part");
+        Assert.AreEqual(latex.IndexOf("{}", StringComparison.Ordinal) + 1, hole.Sits().Start,
+            "and sits between the braces, which is where what replaces it belongs");
+        Assert.AreEqual(0, hole.Sits().Length, "covering nothing, because nothing has been written there");
+
+        // Which is why it is somewhere a caret can be. Standing is not the same question as covering
+        // source: a hole covers none and is the one place the reader has been told to write.
+        Assert.IsTrue(hole.Stands());
+        CollectionAssert.Contains(tree.Root.CaretStops().ToArray(), hole.Sits().Start);
+    });
 }

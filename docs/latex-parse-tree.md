@@ -200,13 +200,33 @@ by searching the reading for what stood at them — out of a part into two numbe
 part was on the piece the whole time. And `Drawn` matched a piece to a part by comparing two numbers
 against two others; it is `ReferenceEquals` now, which is what it always meant.
 
-**What the corpus said.** 3,446 of 238,132 formulas record a different reading, and every one of the
-463,432 lines that differ is a piece of **zero length** — not one piece that names any source moved,
-and the sweep's own count of formulas set in different places is zero. The difference is entirely in
-where a piece that stands for *nothing* is said to sit: an anchor used to be baked in when the piece was
-built, before `Detach` had decided that piece was not drawn from that part, and it is now read off the
-tree as it finally stands. Nothing a reader can point at, select or put a caret in is affected, because
-such a piece is neither ink nor standing.
+**What the corpus said, and what it was really saying.** The first run reported 3,446 of 238,132
+formulas as reading differently — none set in a different place, none parsed differently, and every one
+of the 463,432 differing lines a piece of zero length. The sweep had been recording a number that no
+piece of layout should ever have had.
+
+A piece drawn from nothing anybody wrote has no position of its own, but `SourceStart` was an `int` and
+had to hold something, so it was given an **anchor**: the start of whatever node was open on the
+capture's stack at the moment it was created. `FinishRendering` then ran `Detach` — which disowns a
+piece whose part is already claimed above it, or claimed from outside it — and `Disown` cleared the part
+while leaving that number behind. A disowned piece therefore kept an offset borrowed from the very part
+the layout had just decided it was not drawn from, and every part-less piece beneath it kept the copy it
+had taken during the walk. Nothing consumed them: `MarkInk` runs *after* `Detach`, so a disowned piece
+is not ink, and a piece that is neither ink nor standing takes no part in a caret stop, a hit test or a
+selection. Only the dump read them, because it printed a source link for every box.
+
+So it prints one only where there is a part, and the reference was re-blessed in that format. Held
+against the old reference line by line, over all 238,132 formulas and **62,811,861** layout lines:
+**13,193,974 lines lost their link — the anchors — and every other line is byte-identical. Zero
+mismatches.** Not one piece that names any source reports it differently.
+
+A hole is the piece that makes the distinction worth drawing: it is drawn, it stands for no characters,
+and it still has to know exactly where it is, because typing into it has to land between those braces.
+So it is not a piece drawn from nothing — it is drawn from an empty argument, which is a part like any
+other. Its part is `Derived` (`TexNode.IsDerived` counts `TexKind.Hole`), which is why `MarkInk` reads
+`node.Origin is { Derived: false } || node.IsPlaceholder()`: the first clause rejects a hole and the
+second has to rescue it. `AHoleCarriesThePartItWillBeWrittenInto` pins it, because the corpus never
+could — real LaTeX has no empty arguments, so holes appear only on a surface being written on.
 
 ## The sweep is the inner loop, so it runs in forty seconds
 

@@ -205,6 +205,12 @@ public class LatexPictureSweepTests
     /// Both readings of the formula, as text: what the parser made of the source, and what was laid out
     /// from that. This is the thing compared exactly between runs, so everything in it is something a
     /// change to would matter — and nothing in it is a pixel.
+    /// <para>
+    /// Which is why a piece drawn from nothing anybody wrote records no source at all. It used to record
+    /// wherever it happened to be parked, and that is an answer to a question such a piece was never
+    /// asked: it moves when the tree is rearranged around it, and means nothing either way, so a run
+    /// reported thousands of formulas as changed on the strength of it.
+    /// </para>
     /// </summary>
     private static string Reading(string latex, LatexLayout layout)
     {
@@ -215,13 +221,16 @@ public class LatexPictureSweepTests
 
         text.Append("layout ").Append(Round(layout.Size.Width)).Append('x').Append(Round(layout.Size.Height)).Append('\n');
         foreach (var node in layout.Tree.Root.SelfAndDescendants())
+        {
             text.Append(' ', Depth(node))
                 .Append(node.Kind).Append(' ')
                 .Append(Round(node.Bounds.X)).Append(',').Append(Round(node.Bounds.Y)).Append(' ')
-                .Append(Round(node.Bounds.Width)).Append('x').Append(Round(node.Bounds.Height))
-                .Append(Named)
-                .Append(node.Sits().Start).Append('+').Append(node.Sits().Length)
-                .Append('\n');
+                .Append(Round(node.Bounds.Width)).Append('x').Append(Round(node.Bounds.Height));
+
+            if (node.Part is { } part) text.Append(Named).Append(part.Start).Append('+').Append(part.Length);
+
+            text.Append('\n');
+        }
 
         foreach (var trouble in layout.Tree.Diagnostics)
             text.Append("! ").Append(trouble.Start).Append('+').Append(trouble.Length)
