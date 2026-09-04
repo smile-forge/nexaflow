@@ -185,9 +185,10 @@ public static class ProductReport
     /// <summary>The noun for an issue kind, so the summary tally reads as what actually has to be fixed.</summary>
     private static string Family(IntegrityIssue issue) => issue.Kind switch
     {
-        IntegrityKind.StaleCoverageNode => "stale test coverage declaration(s)",
-        IntegrityKind.UnlinkedProject   => "untracked assembly/assemblies",
-        IntegrityKind.MissingSnaplink   => "unbacked concern(s)",
-        _                               => "broken snaplink(s)"
+        IntegrityKind.StaleCoverageNode  => "stale test coverage declaration(s)",
+        IntegrityKind.StaleCoverageBuild => "test project(s) behind their source",
+        IntegrityKind.UnlinkedProject    => "untracked assembly/assemblies",
+        IntegrityKind.MissingSnaplink    => "unbacked concern(s)",
+        _                                => "broken snaplink(s)"
     };
 }

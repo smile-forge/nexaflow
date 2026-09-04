@@ -54,18 +54,37 @@ public static class DaemonProtocol
     }
 
     /// <summary>
-    /// Identity of the running binary, for <see cref="PipeName"/>. Its write time rather than its version:
-    /// the assembly version does not move between two debug builds a minute apart, and those are exactly the
-    /// two the developer needs told apart.
+    /// Identity of the running binary, for <see cref="PipeName"/>. Write times rather than the assembly
+    /// version: the version does not move between two debug builds a minute apart, and those are exactly the
+    /// two a developer needs told apart.
+    /// <para>
+    /// Every managed assembly beside the entry point counts, not just the entry point. <c>nfi.exe</c> is an
+    /// apphost stub — generated once, and its write time survives rebuilds that replace every line of code in
+    /// <c>nfi.dll</c> and the libraries next to it. Keying on it alone let a client whose <em>dependency</em>
+    /// had been rebuilt keep reaching a daemon running the old one, which is precisely the failure the
+    /// comment on <see cref="PipeName"/> says this stamp exists to prevent; the stamp asserted a guarantee it
+    /// could not see. One stat per file and no assembly loads, so it stays cheap enough for every call.
+    /// </para>
+    /// <para>
+    /// Client and daemon must agree on this, and they do: the daemon runs from a <see cref="File.Copy"/> of
+    /// the build output, which carries each file's name, length and write time across unchanged.
+    /// </para>
     /// </summary>
     public static string BuildStamp()
     {
         try
         {
-            var exe = Environment.ProcessPath;
-            return exe is { Length: > 0 }
-                ? File.GetLastWriteTimeUtc(exe).Ticks.ToString()
-                : AppContext.BaseDirectory;
+            var sb = new StringBuilder();
+            foreach (var dll in Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll", SearchOption.TopDirectoryOnly)
+                                         .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            {
+                var info = new FileInfo(dll);
+                sb.Append(info.Name).Append(':').Append(info.Length).Append(':')
+                  .Append(info.LastWriteTimeUtc.Ticks).Append(';');
+            }
+
+            if (sb.Length == 0) return AppContext.BaseDirectory;
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString())), 0, 8).ToLowerInvariant();
         }
         catch { return AppContext.BaseDirectory; }
     }

@@ -423,7 +423,13 @@ internal static class Program
             // that is genuinely yours: a file you moved away still resolved through main, so the branch read
             // clean while its links were stale. Main's own view is still available with --main.
             var roots = a.Has("--main") ? [root] : FileRootsFor(root);
-            report = SnaplinkValidator.Validate(state, root, [roots[0]], store.LoadTestCoverage());
+
+            // Two different kinds of out-of-date, and only one of them is fixable from here. The manifest
+            // going behind the build is refreshed silently; the build going behind its own source cannot be
+            // — that needs a compiler — so it is reported as an issue instead.
+            var testDlls = DiscoverTestDlls(root);
+            report = SnaplinkValidator.Validate(state, root, [roots[0]], RefreshedCoverage(root, store, testDlls));
+            FlagStaleTestBuilds(root, testDlls, report);
             if (save) store.SaveIntegrity(report);
         }
         catch (Exception ex)
@@ -2188,6 +2194,62 @@ internal static class Program
             foreach (var n in e.Nodes) Console.WriteLine($"[CoversNode(\"{n}\")]");
         }
         return Clean;
+    }
+
+    /// <summary>
+    /// The coverage manifest, rescanned first when the build has moved past it. Done without asking: the
+    /// scan is seconds, and the alternative is a release gate reconciling against whatever the last
+    /// remembered build happened to say. Derived state that relies on someone remembering to refresh it is
+    /// exactly the state that goes stale.
+    /// </summary>
+    private static TestCoverageManifest? RefreshedCoverage(string root, ProductStore store, List<string> testDlls)
+    {
+        var manifest = store.LoadTestCoverage();
+
+        // No manifest is not staleness: the coverage checks are skipped entirely, as on a clean CI checkout.
+        if (manifest is null) return null;
+        if (!TestCoverageCollector.NeedsRescan(manifest, testDlls, root)) return manifest;
+
+        try
+        {
+            var rescanned = TestCoverageCollector.Collect(testDlls, root, DateTime.Now.ToString("o"));
+            store.SaveTestCoverage(rescanned);
+            return rescanned;
+        }
+        catch (Exception ex)
+        {
+            // A scan that cannot run leaves the stored manifest in place rather than failing the whole
+            // validation — the snaplink half of the report is still worth having.
+            Console.Error.WriteLine($"warn: could not refresh the coverage manifest ({ex.Message}) — "
+                                  + "reconciling against the stored one.");
+            return manifest;
+        }
+    }
+
+    /// <summary>
+    /// Gates each test project whose compiled output is behind its own source. Rescanning neither fixes
+    /// nor detects this — the scan would re-read the same stale assembly and report its declarations as
+    /// confidently as ever — which is why it is a separate check rather than part of the refresh above.
+    /// </summary>
+    private static void FlagStaleTestBuilds(string root, List<string> testDlls, IntegrityReport report)
+    {
+        foreach (var stale in TestBuildFreshness.Check(testDlls, root))
+        {
+            var shown = string.Join(", ", stale.ChangedFiles.Take(3));
+            var more  = stale.ChangedFiles.Count > 3 ? $" +{stale.ChangedFiles.Count - 3} more" : string.Empty;
+
+            report.Issues.Add(new IntegrityIssue
+            {
+                NodeId    = string.Empty,
+                NodeTitle = string.Empty,
+                Concern   = TestCoverageReconciler.TestsConcern,
+                Index     = -1,
+                Kind      = IntegrityKind.StaleCoverageBuild,
+                Detail    = $"{stale.Assembly} is behind its own source ({shown}{more}) — rebuild it; until "
+                          + "then every [CoversNode] read from it describes code that is no longer there",
+                Link      = new Snaplink()
+            });
+        }
     }
 
     private static List<string> DiscoverTestDlls(string root)
