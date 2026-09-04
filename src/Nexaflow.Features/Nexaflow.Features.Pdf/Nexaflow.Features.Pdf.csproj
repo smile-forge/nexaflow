@@ -11,14 +11,14 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="PdfPig" Version="0.1.15" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
     <!-- Optional image codecs the base package leaves unhandled: DCTDecode (JPEG, by far the most
          common), JBIG2Decode (what document scanners emit) and JPXDecode (JPEG 2000, archival scans).
          Each depends on PdfPig alone. Without them TryGetPng declines those images and "extract
          images" quietly skips most of a scanned document. -->
-    <PackageReference Include="PdfPig.Filters.Dct.JpegLibrary" Version="0.1.15.1" />
-    <PackageReference Include="PdfPig.Filters.Jbig2.PdfboxJbig2" Version="0.1.15.1" />
-    <PackageReference Include="PdfPig.Filters.Jpx.OpenJpeg" Version="0.1.15.1" />
+    <PackageReference Include="PdfPig.Filters.Dct.JpegLibrary" Version="0.1.16" />
+    <PackageReference Include="PdfPig.Filters.Jbig2.PdfboxJbig2" Version="0.1.16" />
+    <PackageReference Include="PdfPig.Filters.Jpx.OpenJpeg" Version="0.1.16" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,7 +15,7 @@
     <!-- MsgReader (.msg) pulls Maui.Graphics → WindowsAppSDK, whose native_uap WebView2 copy would collide
          with the Web feature's WPF WebView2 in the MRT payload. That collision is defused centrally in
          Directory.Build.targets (DropDuplicateNativeWebView2), so this reference stays plain. -->
-    <PackageReference Include="MsgReader" Version="6.1.0" />
+    <PackageReference Include="MsgReader" Version="6.1.1" />
   </ItemGroup>
 
   <ItemGroup>
