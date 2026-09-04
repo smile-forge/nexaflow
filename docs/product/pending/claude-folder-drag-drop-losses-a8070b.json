@@ -29,6 +29,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationsPanelTests.cs",
             "class": "FileOperationsPanelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsFileSystem/FileOperationsPanelJourneyTests.cs",
+            "class": "FileOperationsPanelJourneyTests"
           }
         ]
       }
