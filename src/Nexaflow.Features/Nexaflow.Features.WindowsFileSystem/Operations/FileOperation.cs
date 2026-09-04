@@ -96,10 +96,14 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
         ? $"{Verb} {SourceSummary}"
         : $"{Verb} {SourceSummary} to {TargetLabel}";
 
-    [ObservableProperty] private FileOperationState _state = FileOperationState.Queued;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFinished), nameof(CanCancel), nameof(CanRetry), nameof(IsPaused), nameof(IsActive), nameof(StatusGlyph))]
+    private FileOperationState _state = FileOperationState.Queued;
 
     /// <summary>0–1, or -1 while there is no total to measure against.</summary>
-    [ObservableProperty] private double _fraction = -1;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsIndeterminate), nameof(Percent))]
+    private double _fraction = -1;
 
     [ObservableProperty] private long   _bytesDone;
     [ObservableProperty] private long   _bytesTotal;
@@ -121,6 +125,29 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
     public bool IsFinished => State is FileOperationState.Completed
                                     or FileOperationState.Failed
                                     or FileOperationState.Cancelled;
+
+    // ── What the panel binds to ───────────────────────────────────────────────
+
+    /// <summary>No byte total yet, so the bar sweeps rather than fills.</summary>
+    public bool IsIndeterminate => Fraction < 0;
+
+    public double Percent => Fraction < 0 ? 0 : Fraction * 100;
+
+    public bool CanCancel => !IsFinished;
+
+    /// <summary>Work is actually happening, so the glyph pulses.</summary>
+    public bool IsActive  => State is FileOperationState.Scanning or FileOperationState.Running;
+    public bool CanRetry  => State is FileOperationState.Paused;
+    public bool IsPaused  => State is FileOperationState.Paused;
+
+    public string StatusGlyph => State switch
+    {
+        FileOperationState.Completed => "✓",
+        FileOperationState.Failed    => "!",
+        FileOperationState.Cancelled => "✕",
+        FileOperationState.Paused    => "⏸",
+        _                            => "↻",
+    };
 
     // ── Driving it ────────────────────────────────────────────────────────────
 

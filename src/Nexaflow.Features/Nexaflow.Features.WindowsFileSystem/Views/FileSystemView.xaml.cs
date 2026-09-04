@@ -115,6 +115,13 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         FileListView.DragLeave += OnDragLeave;
         FileListView.Drop      += OnListViewDrop;
 
+        // This PC mode had no drop wiring at all, so a drag over a drive row did nothing and said
+        // nothing. It resolves the same way the file list does: the row under the cursor, or nowhere.
+        DriveListView.AllowDrop  = true;
+        DriveListView.DragOver  += OnListViewDragOver;
+        DriveListView.DragLeave += OnDragLeave;
+        DriveListView.Drop      += OnListViewDrop;
+
         DirectoryTree.AllowDrop  = true;
         DirectoryTree.DragOver  += OnTreeDragOver;
         DirectoryTree.DragLeave += OnDragLeave;

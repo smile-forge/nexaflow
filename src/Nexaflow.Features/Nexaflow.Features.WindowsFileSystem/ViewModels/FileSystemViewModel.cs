@@ -1022,6 +1022,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// started in this tab is visible from every other file-browser tab and outlives this one.</summary>
     public FileOperationQueue Operations { get; }
 
+    /// <summary>The panel above the tree that shows those operations while they run.</summary>
+    public FileOperationsPanelViewModel FileOperations { get; }
+
     private FileSystemViewModel(IShellServices shell, IAIService ai,
                                 IReadOnlyDictionary<Type, IFeatureConfig> configs)
     {
@@ -1029,6 +1032,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         _ai             = ai;
         Registry        = FileSystemFeatureRegistry.For(shell, ai, configs);
         Operations      = FileOperationQueue.For(shell);
+        FileOperations  = new FileOperationsPanelViewModel(Operations, shell);
         _actionRegistry = new FileActionManager(Registry);
         _opener         = new DefaultFileOpener(Registry);
         _externalAppsConfig = configs.TryGetValue(typeof(ExternalAppsConfig), out var ec)
