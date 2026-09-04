@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Author-time rules about the WPF surface itself. Its subject is XAML, not C#, which is why it reads
+    AdditionalFiles rather than syntax trees: Roslyn never sees a .xaml file, so the wiring in
+    Directory.Build.targets hands every Page/ApplicationDefinition item to the compiler as an AdditionalFile
+    and this analyzer parses them. Sibling of Nexaflow.Analyzers.Coverage; same netstandard2.0 AnyCPU shape,
+    because analyzers load into the compiler as MSIL despite the solution's x64 pin.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <IsPackable>false</IsPackable>
+    <!-- Internal analyzer, not a shipped package — skip the release-tracking ledger nag. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

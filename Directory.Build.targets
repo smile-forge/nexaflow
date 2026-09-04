@@ -31,6 +31,83 @@
        copies collide in the MRT/PRI payload and fail the build with APPX1101. Nexaflow is an unpackaged WPF
        app that never uses the native_uap variant, so drop it from copy-local before the payload is
        enumerated. The condition matches nothing in projects without the duplicate, so this is a no-op there. -->
+  <!-- Nexaflow.Analyzers.Ui reads the views themselves (NXUI001: a button needs an AutomationId), and Roslyn
+       never sees a .xaml file — so hand every hand-authored view to the compiler as an AdditionalFile. Wired
+       here rather than in each of the forty-odd WPF projects because the rule is about the surface as a whole:
+       a new feature should inherit it by being a WPF project, not by remembering a csproj line. Imported at
+       the end of the project, so the SDK's default Page/ApplicationDefinition globs are already populated.
+       Excluded: non-C# projects (the F# approvals suite, which Roslyn analyzers do not run in) and everything
+       under external/, where the submodules are somebody else's code held to somebody else's rules.
+
+       Also excluded is the _wpftmp pass. A WPF project compiles twice — once through a generated shadow
+       project that exists only to produce the markup's generated code — and both passes run the analyzers
+       over the same views, so without the _TargetAssemblyProjectName guard every warning appears twice under
+       two different project names. That reads as two problems and sends you looking for the second one. -->
+  <ItemGroup Condition="'$(UseWPF)' == 'true'
+                        And '$(MSBuildProjectExtension)' == '.csproj'
+                        And '$(_TargetAssemblyProjectName)' == ''
+                        And !$([System.String]::new('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)external'))">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\Nexaflow.Analyzers\Nexaflow.Analyzers.Ui\Nexaflow.Analyzers.Ui.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <AdditionalFiles Include="@(Page)" />
+    <AdditionalFiles Include="@(ApplicationDefinition)" />
+  </ItemGroup>
+
+  <!-- `dotnet build Nexaflow.slnx -t:Rebuild` failed with 278 errors in external/AngouriMath, every one of
+       them a missing polyfill type (IsExternalInit, NotNullWhen) in its netstandard2.0 pass. Nothing had
+       changed there: a plain `dotnet build` is green, and Rebuild is simply what nobody had run.
+
+       It is an SDK bug in the Rebuild path, and it bites any project taking `.cs.pp` contentFiles from a
+       package — here the IsExternalInit and Nullable packages, which is how AngouriMath gets C# 9 syntax on
+       netstandard2.0. The SDK preprocesses those into obj\…\NuGet\ in target RunProduceContentAssets, whose
+       condition excludes a Clean that is not half of a Rebuild (`_CleaningWithoutRebuilding`). Rebuild breaks
+       it two different ways depending on whether the project multi-targets:
+
+         • Single TFM — Clean and Build share one project instance, `_SdkBeforeRebuild` sets the property
+           false, so the target RUNS during the Clean phase, writes the files, and reports them as FileWrites.
+           CoreClean then deletes exactly those. The Build phase cannot re-run the target (MSBuild runs one at
+           most once per instance), so the Compile items survive pointing at files that no longer exist.
+         • Multi-TFM (AngouriMath: netstandard2.0;net8.0;net10.0) — the outer project dispatches Clean, then
+           Build, to each inner TFM. Those inner instances are never asked for `Rebuild`, so `_SdkBeforeRebuild`
+           never runs on them and `_SdkBeforeClean` leaves the property stuck at *true* for the rest of their
+           life. RunProduceContentAssets is skipped in both phases, so this time the Compile items are missing
+           as well as the files.
+
+       Either way the compiler reports the polyfill types as undefined rather than the files as missing, which
+       is why it reads as AngouriMath breaking rather than as a build-ordering fault.
+
+       So: produce them again, once, immediately before the compiler needs them — and re-add the Compile items
+       in the multi-TFM case, where the SDK never added them. The property is empty on a normal build, so this
+       target does not run at all outside a Rebuild; it costs nothing in the inner loop or in CI. -->
+  <UsingTask TaskName="Microsoft.NET.Build.Tasks.ProduceContentAssets"
+             AssemblyFile="$(MicrosoftNETBuildTasksAssembly)"
+             Condition="'$(MicrosoftNETBuildTasksAssembly)' != ''" />
+
+  <Target Name="NexaflowRestorePreprocessedContentAfterRebuildClean"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="ResolvePackageAssets"
+          Condition="'$(_CleaningWithoutRebuilding)' != ''
+                     And '$(MicrosoftNETBuildTasksAssembly)' != ''
+                     And '@(_ContentFilesToPreprocess)' != ''">
+    <ProduceContentAssets ContentFileDependencies="@(_ContentFilesToPreprocess)"
+                          ContentPreprocessorValues="@(PreprocessorValue)"
+                          ContentPreprocessorOutputDirectory="$(ContentPreprocessorOutputDirectory)"
+                          ProduceOnlyPreprocessorFiles="true"
+                          ProjectLanguage="$(Language)">
+      <Output TaskParameter="ProcessedContentItems" ItemName="_NexaflowProcessedContentItems" />
+      <!-- So the end-of-build IncrementalClean does not delete them again for the next run. -->
+      <Output TaskParameter="ProcessedContentItems" ItemName="FileWrites" />
+    </ProduceContentAssets>
+
+    <!-- Only when the SDK never got as far as adding them. Adding a second copy of a Compile item it already
+         holds would hand csc the same source twice — CS2002, which AngouriMath builds with
+         TreatWarningsAsErrors, so the cure would present as the disease. -->
+    <CreateItem Include="@(_NexaflowProcessedContentItems)"
+                Condition="'$(_CleaningWithoutRebuilding)' == 'true' And '@(_NexaflowProcessedContentItems)' != ''">
+      <Output TaskParameter="Include" ItemName="%(_NexaflowProcessedContentItems.ProcessedItemType)" />
+    </CreateItem>
+  </Target>
+
   <Target Name="DropDuplicateNativeWebView2" AfterTargets="ResolveAssemblyReferences">
     <ItemGroup>
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"

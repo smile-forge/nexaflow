@@ -75,29 +75,60 @@ jobs:
       - name: Build the solution (Release)
         run: dotnet build Nexaflow.slnx -c Release --no-restore
 
-      # Two categories never run here. UI tests (TestCategory=UI) drive the real app via FlaUI and need an
-      # interactive desktop session. Interactive tests (TestCategory=Interactive) call a real Windows
-      # service — they assert against whatever that machine happens to have indexed, so they prove our COM
-      # usage on a developer box but would be a coin toss on a runner. See docs/testing.md.
-      # The MSTest/MTP test exes take --filter directly.
-      # Tests.Providers and Tests.IO target plain net10.0-windows (no WinRT) and Tests.Initiatives is plain
-      # net10.0 (its subject is the WPF-free backend), hence the per-project TFM map.
-      - name: Run unit tests (non-UI)
+      # Every suite the runner can honestly execute — which is all of them but the ones that need a machine
+      # of their own. Naming five of them meant a break in Visuals, Components, Viewers, WindowsOS or Maths
+      # passed CI and surfaced only in Visual Studio, the same class of gap the "build the whole solution"
+      # step above was added to close.
+      #
+      # What is excluded, and why:
+      #   • Nexaflow.Tests.UIJourneys — the only suite that launches the app and drives the real mouse. It
+      #     takes the machine (UiTestGate holds a machine-wide semaphore), so it stays a run-it-yourself
+      #     suite. It is not in the map at all; no filter would make it safe here.
+      #   • TestCategory=Desktop — shows a real window and competes for focus, which is machine-wide. A
+      #     runner can host one, but "passes unless something else took focus" is not a gate.
+      #   • TestCategory=Interactive — calls a real Windows service and asserts against whatever that
+      #     machine happens to have indexed. A coin toss on a fresh VM. See docs/testing.md.
+      #
+      # TestCategory=UI is NOT excluded any more, and that is the point of the split: since the journeys
+      # moved into their own assembly, UI in the remaining suites means "constructs and renders WPF on an
+      # STA thread, opens no window" — fast, parallel-safe, and previously never run here at all.
+      #
+      # Nexaflow.Tests.Features.Architecture is deliberately absent: its subjects are the product tree and
+      # the graph, which are gitignored and so are not in a CI checkout.
+      #
+      # The MSTest/MTP test exes take --filter directly. The TFM map is per-project because they genuinely
+      # differ — Initiatives and Maths are plain net10.0 (WPF-free subjects), IO/Providers/Visuals/Components
+      # are net10.0-windows (no WinRT), the rest carry the Windows SDK TFM.
+      - name: Run unit tests
         shell: pwsh
         run: |
           $tests = [ordered]@{
-            'Nexaflow.Tests.Core'      = 'net10.0-windows10.0.19041.0'
-            'Nexaflow.Tests.Features'  = 'net10.0-windows10.0.19041.0'
-            'Nexaflow.Tests.Initiatives' = 'net10.0'
-            'Nexaflow.Tests.IO'        = 'net10.0-windows'
-            'Nexaflow.Tests.Providers' = 'net10.0-windows'
+            'Nexaflow.Tests.Core'              = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Features'          = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Features.Viewers'  = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Features.WindowsOS' = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Visuals'           = 'net10.0-windows'
+            'Nexaflow.Tests.Components'        = 'net10.0-windows'
+            'Nexaflow.Tests.Initiatives'       = 'net10.0'
+            'Nexaflow.Tests.Maths'             = 'net10.0'
+            'Nexaflow.Tests.IO'                = 'net10.0-windows'
+            'Nexaflow.Tests.Providers'         = 'net10.0-windows'
           }
           $failed = $false
           foreach ($proj in $tests.Keys) {
             $exe = "src/Nexaflow.Tests/$proj/bin/x64/Release/$($tests[$proj])/$proj.exe"
             Write-Host "::group::$proj"
-            & $exe --filter 'TestCategory!=UI&TestCategory!=Interactive'
+            & $exe --filter 'TestCategory!=Desktop&TestCategory!=Interactive'
             if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "::error::$proj failed (exit $LASTEXITCODE)" }
             Write-Host '::endgroup::'
           }
           if ($failed) { exit 1 }
+
+      # The typesetting approvals are the one suite that is not an MSTest exe — F#/xunit, ingested with the
+      # engine, and run through `dotnet test` from its own directory because global.json beside it pins the
+      # runner. They are the oracle the LaTeX parser replacement is measured against — a precise record of what
+      # the engine builds for each of 148 formulas — and nothing in this workflow ran them before.
+      - name: Run typesetting approvals (F#/xunit)
+        shell: pwsh
+        working-directory: src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
+        run: dotnet test Nexaflow.Tests.Typesetting.fsproj -c Release --no-restore
