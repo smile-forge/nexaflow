@@ -125,6 +125,21 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     private void ShowConfirmation(string title, string prompt, Action onConfirm)
         => Confirmation = new ConfirmationRequest(title, prompt, onConfirm, confirmLabel: "Delete");
 
+    /// <summary>
+    /// This page's hold on the product's live state — the tree loaded once and watched, and the knowledge graph
+    /// kept warm — shared with every other Product surface open on the same root, and released when the last of
+    /// them closes.
+    /// </summary>
+    private readonly ProductSession _session;
+
+    /// <summary>
+    /// What the graph is doing, when it is doing something: missing and being built, or stale and being brought
+    /// up to date, with how far through it is. Null the rest of the time, which is most of it — a banner that
+    /// appeared on every page open would stop being read.
+    /// </summary>
+    [ObservableProperty]
+    private string? _graphBanner;
+
     public ProductViewModel(ProductStore store, ProductGit git, string root, IShellServices shell)
     {
         _store = store;
@@ -136,6 +151,12 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
         _watch = shell.WatchFile(store.TreeFilePath, () => { if (SelectedVersion == ProductStore.CurrentVersion) Load(); });
         // the Integrity page rewrites integrity.json after a scan or a repair — keep the root tile honest
         _integrityWatch = shell.WatchFile(store.IntegrityFilePath, LoadIntegritySummary);
+
+        // Opening the page is what puts the graph in memory and, if it is missing or behind, what starts the
+        // work of fixing that. The status arrives on a background thread, so it is marshalled like any other.
+        _session = ProductSession.Open(shell, root);
+        _session.GraphStatusChanged += OnGraphStatusChanged;
+        GraphBanner = _session.GraphStatus;
     }
 
     [RelayCommand] private void Refresh() => Load();
@@ -909,7 +930,14 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     {
         _watch?.Dispose();
         _integrityWatch?.Dispose();
+
+        _session.GraphStatusChanged -= OnGraphStatusChanged;
+        _session.Dispose();
     }
+
+    /// <summary>Raised off the UI thread by the background build, so it is marshalled rather than assigned —
+    /// a feature never touches the dispatcher itself.</summary>
+    private void OnGraphStatusChanged() => _ = _shell.RunOnUiAsync(() => GraphBanner = _session.GraphStatus);
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 

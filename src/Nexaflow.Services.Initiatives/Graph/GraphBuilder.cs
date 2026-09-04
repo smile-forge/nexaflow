@@ -474,11 +474,19 @@ public sealed class GraphBuilder
         if (_opts.Scope != GraphScope.WholeRepo) return;   // product-anchored scoping is a later pass
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var full in RepoFiles.EnumerateSource(_codeRoot, _opts.MaxFiles))
+
+        // Listed rather than streamed, only so that progress can say how far through it is. A caller watching a
+        // repo walk wants "2,100 of 6,204" and not a spinner: the two answer different questions, and the one a
+        // person actually asks is whether it is worth waiting for.
+        var files = RepoFiles.EnumerateSource(_codeRoot, _opts.MaxFiles).ToList();
+        var done  = 0;
+
+        foreach (var full in files)
         {
             var rel = Path.GetRelativePath(_codeRoot, full).Replace('\\', '/');
             seen.Add(rel);
             ApplyContribution(rel, GetContribution(rel, full));
+            _opts.Progress?.Invoke(++done, files.Count);
         }
 
         // Prune cache entries for files that no longer exist (deleted / renamed away).

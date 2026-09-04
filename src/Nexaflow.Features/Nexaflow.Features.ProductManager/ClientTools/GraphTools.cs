@@ -4,6 +4,7 @@ using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
+using Nexaflow.Services.Initiatives.Hosting;
 
 namespace Nexaflow.Features.ProductManager.ClientTools;
 
@@ -173,13 +174,7 @@ public static class GraphTools
                 ToolSafety.RequiresApproval,
                 (a, _) => Task.FromResult(Edit(productRoot, a))),
 
-            new DelegateClientTool("graph_build",
-                "Rebuild graph.json from the product tree and the current source. Incremental - only files "
-                + "that changed are re-parsed - but it still walks the repo, so it is the one graph tool that "
-                + "costs real time and the only one that writes. Call it when the graph looks out of date.",
-                [], ToolSafety.RequiresApproval,
-                (_, _) => Task.FromResult(Build(productRoot))),
-        ];
+            ];
     }
 
     // ── Implementations ─────────────────────────────────────────────────────
@@ -371,31 +366,9 @@ public static class GraphTools
                 return ToolResult.Error(refused);
         }
 
-        report.AppendLine("Rebuild the graph (graph_build) so its record matches the file.");
+        if (Merge(root, [.. result.Changes.Select(c => c.RelativePath)]) is { Length: > 0 } merged)
+            report.AppendLine(merged);
         return ToolResult.Ok(result.Message, report.ToString());
-    }
-
-    private static ToolResult Build(string root)
-    {
-        try
-        {
-            var store = new ProductStore(root);
-            var state = store.Load();
-
-            // Incremental: unchanged files keep their cached extraction, so a rebuild after a small edit is
-            // cheap. The cache is content-addressed, so reusing it cannot go stale.
-            var built = GraphBuilder.BuildWithCache(state, root, new GraphBuildOptions(), store.LoadGraphCache());
-            store.SaveSnapshot(built.Graph, built.Cache);
-
-            var g = built.Graph;
-            return ToolResult.Ok($"rebuilt - {g.Nodes.Count} node(s)",
-                $"Rebuilt the knowledge graph: {g.Nodes.Count:N0} node(s), {g.Edges.Count:N0} edge(s), "
-              + $"{g.HyperEdges.Count:N0} hyperedge(s).");
-        }
-        catch (Exception ex)
-        {
-            return ToolResult.Error($"Could not rebuild the graph: {ex.Message}");
-        }
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -424,11 +397,22 @@ public static class GraphTools
     private static bool Bool(JsonObject a, string key) =>
         a.TryGetPropertyValue(key, out var v) && bool.TryParse(v?.ToString(), out var b) && b;
 
+    /// <summary>
+    /// The graph these tools answer from: the warm copy while a Product surface is open, and the file when none
+    /// is.
+    /// <para>
+    /// Every one of these tools used to read the whole archive back off disk, per call — hundreds of megabytes
+    /// to answer "what calls this". While a page is open the same object the daemon would be holding is already
+    /// in memory, checked for staleness at the moment it is used, so the tools use that. Nothing about
+    /// correctness rests on a page being open; only the reading does.
+    /// </para>
+    /// </summary>
     private static bool TryLoad(string root, out KnowledgeGraph graph, out ToolResult error)
     {
         graph = null!;
         error = default!;
-        var loaded = new ProductStore(root).LoadGraph();
+
+        var loaded = Warm(root)?.Graph ?? new ProductStore(root).LoadGraph();
         if (loaded is null)
         {
             error = ToolResult.Error(
@@ -439,6 +423,35 @@ public static class GraphTools
         graph = loaded;
         return true;
     }
+
+    /// <summary>
+    /// Folds the files an edit just changed back into the warm graph, so the next question is answered about the
+    /// code as it now is.
+    /// <para>
+    /// This is what <c>nfi graph edit</c> has always done and what the assistant's version did not, which made
+    /// the two surfaces unequal in the way that matters most: after an edit here the graph described the old
+    /// text, and the only remedy on offer was a whole repo walk. One file's parse is not a rebuild.
+    /// </para>
+    /// </summary>
+    private static string Merge(string root, IReadOnlyList<string> files)
+    {
+        if (Warm(root) is not { } workspace)
+            return "Rebuild the graph (open the Product page) so its record matches the file.";
+
+        var folded = workspace.Mutate(snapshot =>
+        {
+            var any = false;
+            foreach (var file in files)
+                any |= GraphBuilder.RefreshFile(snapshot.Graph, snapshot.Cache, root, file, null);
+            return any;
+        });
+
+        return folded ? "The graph has been brought up to date with the change." : "";
+    }
+
+    /// <summary>The workspace holding this product's graph, if a surface is currently keeping one alive. Always
+    /// the main checkout: a page is opened on the product root, which is where its <c>.product</c> lives.</summary>
+    private static GraphWorkspace? Warm(string root) => InitiativesHosts.Warm(root)?.Workspace(null);
 
     private static ToolResult NoNode(string? id) =>
         ToolResult.Error($"No graph node '{id}'. Use graph_search to find one.");
