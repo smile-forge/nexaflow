@@ -46,7 +46,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         // enough not to be rude about it.
         var block = new byte[8 * 1024 * 1024];
         Random.Shared.NextBytes(block);
-        for (var i = 0; i < 24; i++)
+        for (var i = 0; i < 96; i++)
             File.WriteAllBytes(Path.Combine(payload.FullName, $"blob{i}.bin"), block);
     }
 
@@ -77,6 +77,9 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         // ── Paste it somewhere else ───────────────────────────────────────────
         NavigateFileBrowserTo(_destination);
 
+        Check("the panel is not there before anything is happening",
+              () => WaitForGone("FileOps_Progress", 2));
+
         var paste = WaitForId("Paste", 8);
         Assert.IsNotNull(paste, "No Paste action — the copy never reached the clipboard.");
         paste!.AsButton().Invoke();
@@ -88,6 +91,11 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         var bar = WaitForId("FileOps_Progress", 10);
         Check("the operations panel appears while a large copy runs", () => bar is not null);
 
+        // Being in the automation tree is not the same as being on screen: the panel is clipped to zero
+        // height when idle, so without this the check could pass on a control nobody can see.
+        Check("and it is actually laid out, not a zero-height row in a collapsed panel",
+              () => bar is not null && bar.BoundingRectangle.Height > 0 && bar.BoundingRectangle.Width > 0);
+
         if (bar is not null)
         {
             Check("it offers a way to stop the copy",
@@ -97,7 +105,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         }
 
         // ── The copy lands ────────────────────────────────────────────────────
-        var landed = Path.Combine(_destination, "payload", "blob23.bin");
+        var landed = Path.Combine(_destination, "payload", "blob95.bin");
         Check("the whole folder arrives", () => WaitForFs(() => File.Exists(landed), 90));
 
         // ── And the panel gets out of the way ─────────────────────────────────
