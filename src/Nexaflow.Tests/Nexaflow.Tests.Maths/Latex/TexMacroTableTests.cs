@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Maths.Latex;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("maths-latex-parse-tree")]
+[CoversNode("maths-latex")]
 public class TexMacroTableTests
 {
     [TestMethod]

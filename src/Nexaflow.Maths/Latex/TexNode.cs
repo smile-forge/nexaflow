@@ -200,6 +200,40 @@ public sealed class TexNode
 
     public override string ToString() =>
         $"{this.Kind}[{this.Role}] {this.Print()}";
+
+    /// <summary>
+    /// Whether this is the same tree as <paramref name="other"/>: the same shape, made of the same pieces,
+    /// each saying the same thing.
+    ///
+    /// <para>
+    /// Neither of the two comparisons that come for free will do. Reference equality asks whether they are
+    /// the same object, which an edit that rebuilds a spine makes false for everything above the change.
+    /// Equal printing asks something weaker than it looks: a group and the single thing inside it print
+    /// alike and are not the same tree, and telling those two apart is the whole reason an edited tree is
+    /// held against what re-reading its source produced.
+    /// </para>
+    /// <para>
+    /// <see cref="Width"/> is deliberately not compared. It follows from the rest, so comparing it could
+    /// only ever agree — and a comparison that includes what follows from the answer is a comparison that
+    /// can hide a difference in the answer.
+    /// </para>
+    /// </summary>
+    public bool Same(TexNode? other)
+    {
+        if (ReferenceEquals(this, other)) return true;
+
+        if (other is null
+            || this.Kind != other.Kind
+            || this.Role != other.Role
+            || this.Text != other.Text
+            || this.Trouble != other.Trouble
+            || this.Children.Count != other.Children.Count) return false;
+
+        for (var i = 0; i < this.Children.Count; i++)
+            if (!this.Children[i].Same(other.Children[i])) return false;
+
+        return true;
+    }
 }
 
 /// <summary>A piece, and where it starts in the source printed from the tree that holds it.</summary>

@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Maths.Latex;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("maths-latex-parse-tree")]
+[CoversNode("maths-latex-pipeline")]
 public class TexPipelineTests
 {
     /// <summary>Something no command table will ever have heard of.</summary>

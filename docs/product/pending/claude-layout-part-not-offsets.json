@@ -44,11 +44,55 @@
           "class": "TexSourcePart"
         }
       ]
+    },
+    "maths-latex-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexEdit.cs",
+          "class": "TexEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexNode.cs",
+          "class": "TexNode",
+          "method": "Same"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexEditTests.cs",
+            "class": "TexEditTests"
+          }
+        ]
+      }
+    },
+    "maths-latex-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexPipeline.cs",
+          "class": "TexPipeline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexPipelineTests.cs",
+            "class": "TexPipelineTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 1,
+  "changed_sets": 5,
   "touched_nodes": [
-    "latex-source-map"
+    "latex-source-map",
+    "maths-latex-edit",
+    "maths-latex-pipeline"
   ]
 }
