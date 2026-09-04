@@ -1,7 +1,7 @@
 <Project>
 
   <!-- A fresh `git worktree` starts with EMPTY submodule directories (external/DiscUtils,
-       external/xaml-math), so the ProjectReferences into them point at .csproj files that don't
+       external/AngouriMath, …), so the ProjectReferences into them point at .csproj files that don't
        exist yet and the build (or Visual Studio) can't resolve them. Populate any missing submodule
        before project references are resolved, so creating a new worktree and hitting Build/F5 "just
        works". This is a build-time SELF-HEAL: normally the committed .githooks/post-checkout hook
@@ -14,7 +14,6 @@
           BeforeTargets="_SplitProjectReferencesByFileExistence;ResolveProjectReferences;PrepareForBuild"
           Condition="'$(NexaflowSkipSubmoduleInit)' != 'true'
                      And ( !Exists('$(MSBuildThisFileDirectory)external\DiscUtils\Library\DiscUtils.Core\DiscUtils.Core.csproj')
-                           Or !Exists('$(MSBuildThisFileDirectory)external\xaml-math\src\WpfMath\WpfMath.csproj')
                            Or !Exists('$(MSBuildThisFileDirectory)external\AngouriMath\Sources\AngouriMath\AngouriMath.csproj')
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-xml\xml\src\parser.c')
                            Or !Exists('$(MSBuildThisFileDirectory)external\tree-sitter-dotnet-bindings\src\TreeSitter.csproj')

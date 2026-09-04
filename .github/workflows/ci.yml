@@ -25,8 +25,9 @@ jobs:
     runs-on: windows-latest   # WPF / net10.0-windows + WiX MSI need Windows
 
     steps:
-      # submodules: the build ProjectReferences third-party source under external/ (xaml-math, DiscUtils —
-      # public smile-forge forks), so without this the restore/build can't resolve them. See docs/externals.md.
+      # submodules: the build ProjectReferences third-party source under external/ (DiscUtils, AngouriMath,
+      # tree-sitter — public smile-forge forks), so without this the restore/build can't resolve them.
+      # See docs/externals.md.
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -50,13 +51,14 @@ jobs:
       - name: Verify installer payload is complete (Release, x64)
         run: dotnet build nexaflowSetup/nexaflowSetup.wixproj -c Release -p:Platform=x64 --no-restore
 
-      - name: Build test projects (Release)
-        run: |
-          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj -c Release --no-restore
-          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Features/Nexaflow.Tests.Features.csproj -c Release --no-restore
-          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Nexaflow.Tests.Initiatives.csproj -c Release --no-restore
-          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.IO/Nexaflow.Tests.IO.csproj -c Release --no-restore
-          dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Providers/Nexaflow.Tests.Providers.csproj -c Release --no-restore
+      # Build the WHOLE solution, not just the five projects whose tests run below. Naming projects meant the
+      # other suites — Typesetting (F#), Visuals, Components, Maths, the Viewers/WindowsOS/Architecture ones —
+      # were never compiled here, so a break in any of them passed CI and only surfaced when somebody opened
+      # the solution in Visual Studio. That is exactly how the ApprovalTests 6→7 bump reached main: it broke
+      # Tests.Typesetting, which nothing in this workflow built. The five exes below still land in the same
+      # bin/x64/Release/<tfm>/ paths, so the run step is unaffected.
+      - name: Build the solution (Release)
+        run: dotnet build Nexaflow.slnx -c Release --no-restore
 
       # Two categories never run here. UI tests (TestCategory=UI) drive the real app via FlaUI and need an
       # interactive desktop session. Interactive tests (TestCategory=Interactive) call a real Windows

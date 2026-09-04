@@ -2,7 +2,7 @@
 # post-checkout — runs after `git checkout` / `git switch` / `git worktree add`.
 #
 # Populate any *uninitialised* submodules so a freshly-created worktree has its external/
-# ProjectReference targets (external/DiscUtils, external/xaml-math) on disk before Visual Studio
+# ProjectReference targets (external/DiscUtils, external/AngouriMath) on disk before Visual Studio
 # opens — so "create a worktree, open VS, hit F5" just works instead of failing on missing .csproj.
 #
 # Delegates to the shared, safe-and-idempotent helper (it only touches submodules that are not yet

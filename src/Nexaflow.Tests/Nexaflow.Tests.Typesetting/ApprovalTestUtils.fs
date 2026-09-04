@@ -32,11 +32,15 @@ type private BomlessFileWriter(data: string, ?extensionWithoutDot: string) =
 // The .received.txt files are written either way, so nothing is lost; diff them yourself when you want to.
 [<assembly: UseReporter(typeof<QuietReporter>)>]
 [<assembly: UseApprovalSubdirectory("TestResults")>]
+// ApprovalTests 7 dropped the settable TextWriterCreator/TextWriterWithExtensionCreator properties for a
+// pair of SetTextWriterCreator overloads; the Func's arity is what picks between them, so both are spelled
+// out rather than inferred.
 do
-    WriterFactory.TextWriterCreator <- Func<_, _>(fun data -> upcast BomlessFileWriter data)
-    WriterFactory.TextWriterWithExtensionCreator <- Func<_, _, _>(fun data extensionWithoutDot ->
-        upcast BomlessFileWriter(data, extensionWithoutDot)
-    )
+    WriterFactory.SetTextWriterCreator(
+        Func<string, Core.IApprovalWriter>(fun data -> upcast BomlessFileWriter data))
+    WriterFactory.SetTextWriterCreator(
+        Func<string, string, Core.IApprovalWriter>(fun data extensionWithoutDot ->
+            upcast BomlessFileWriter(data, extensionWithoutDot)))
 
 type private InnerPropertyContractResolver() =
     inherit DefaultContractResolver()

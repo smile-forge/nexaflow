@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     A fresh `git worktree` starts with EMPTY submodule directories (external/DiscUtils,
-    external/xaml-math, external/tree-sitter-xml), so the `ProjectReference`s into them point at
+    external/AngouriMath, external/tree-sitter-xml), so the `ProjectReference`s into them point at
     .csproj files that do not exist yet - and the tree-sitter grammar has no C sources to compile -
     so Visual Studio / `dotnet build` fail. This populates any missing submodule so the references
     resolve and the build "just works".
