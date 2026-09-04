@@ -96,4 +96,149 @@ public static class TexEdit
 
         throw new ArgumentException("that part is not one of this part's own", nameof(child));
     }
+
+    /// <summary>
+    /// The tree with <paramref name="text"/> written at <paramref name="caret"/>, shaped so that reading
+    /// the result back puts it where it was meant to go.
+    ///
+    /// <para>
+    /// Two things have to be said in the tree that would otherwise be said by peeking at characters. An
+    /// argument holding one token holds exactly one, so adding to it means bracing it — <c>x^2</c> gaining
+    /// a 3 reads as x squared beside a 3, not as x to the twenty-third, unless the braces go in. And a
+    /// control word runs on until something that is not a letter ends its name, so a letter written against
+    /// one needs a space, or <c>\hbar</c> quietly becomes <c>\hbarz</c>.
+    /// </para>
+    /// <para>
+    /// What is written goes in as <see cref="TexNode.Shown"/>: characters somebody typed, whose meaning is
+    /// settled by reading them back rather than guessed at here. That is why this can be so short — it has
+    /// to get the characters into the right place, not work out what they are.
+    /// </para>
+    /// <para>
+    /// Nothing here treats a letter written against a finished name as more of that name. It reads as one
+    /// token and is not one thing: <c>\hbar</c> is a command that exists and <c>\hbarz</c> is not, and only
+    /// a surface that knows the reader is mid-word can tell those apart. That surface has its own way of
+    /// saying so — it shows the stretch being typed as the characters it is made of — and until it does,
+    /// the safe reading of a complete control word is that it is complete.
+    /// </para>
+    /// <para>
+    /// A caret inside a name rather than beside it writes at the start of that name. Nothing is ever spliced
+    /// into the middle of a token, for the same reason.
+    /// </para>
+    /// </summary>
+    public static TexNode Write(TexReading reading, int caret, string text)
+    {
+        if (text.Length == 0) return reading.Root.Node;
+
+        var where = Math.Clamp(caret, 0, reading.Root.Length);
+
+        if (Argument(reading.Root, where) is { } argument)
+        {
+            var whole = argument.Node.Print();
+            var first = where <= argument.Start;
+            var piece = first ? Apart(string.Empty, whole, text) : Apart(whole, string.Empty, text);
+
+            return Replace(argument, Braced(argument.Node, TexNode.Shown(piece), first));
+        }
+
+        var (into, at) = Point(reading.Root, where);
+        var lands = at < into.Children.Count ? into.Children[at].Start : into.End;
+        var source = reading.Latex;
+        var here = Math.Clamp(lands, 0, source.Length);
+
+        return Insert(into, at, TexNode.Shown(Apart(source[..here], source[here..], text)));
+    }
+
+    /// <summary>
+    /// The argument <paramref name="caret"/> is writing into, where it is one already holding as much as it
+    /// can hold. Null where it is not in one, or is in one with braces of its own.
+    /// </summary>
+    private static TexPart? Argument(TexPart root, int caret)
+    {
+        TexPart? found = null;
+
+        foreach (var part in root.SelfAndDescendants())
+        {
+            if (part.Derived || part.Kind == TexKind.Group || !IsArgument(part.Role)) continue;
+            if (caret < part.Start || caret > part.End) continue;
+            if (found is null || part.Length < found.Length) found = part;
+        }
+
+        return found;
+    }
+
+    /// <summary>Roles that name a place content goes, and so are braced when they come to hold more.</summary>
+    private static bool IsArgument(string role) =>
+        role is TexRole.Superscript or TexRole.Subscript or TexRole.Numerator or TexRole.Denominator
+             or TexRole.Degree or TexRole.Radicand or TexRole.Over or TexRole.Under;
+
+    /// <summary><paramref name="argument"/> in braces of its own, with <paramref name="written"/> beside it.</summary>
+    private static TexNode Braced(TexNode argument, TexNode written, bool before)
+    {
+        var open = TexNode.Leaf(TexKind.Token, "{", TexRole.Open);
+        var close = TexNode.Leaf(TexKind.Token, "}", TexRole.Close);
+        var held = argument.As(TexRole.Element);
+
+        return TexNode.Branch(
+            TexKind.Group,
+            before ? [open, written, held, close] : [open, held, written, close],
+            argument.Role);
+    }
+
+    /// <summary>
+    /// Where in the tree <paramref name="caret"/> is writing: the piece that will hold what is written, and
+    /// where among its parts it goes. Descends only into something with parts, and stops at a piece's edge
+    /// rather than stepping inside it, so writing at the start of a group lands before its brace.
+    /// </summary>
+    private static (TexPart Into, int At) Point(TexPart root, int caret)
+    {
+        var into = root;
+
+        while (true)
+        {
+            var at = into.Children.Count;
+            TexPart? deeper = null;
+
+            for (var i = 0; i < into.Children.Count; i++)
+            {
+                var child = into.Children[i];
+                if (child.Derived) continue;
+
+                if (caret <= child.Start) { at = i; break; }
+                if (caret < child.End) { at = i; deeper = child; break; }
+                at = i + 1;
+            }
+
+            if (deeper is null || deeper.Children.Count == 0) return (into, at);
+            into = deeper;
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="text"/> with a space at either end where the join would otherwise change what the
+    /// neighbouring characters say.
+    ///
+    /// <para>
+    /// Asked of the characters rather than of the tree, and deliberately. Whether two things run together
+    /// exists nowhere else: <c>\left</c> and the <c>\{</c> after it are in different parts, under different
+    /// parents, and are still adjacent on the page. Reading text to decide a shape is not editing text —
+    /// nothing here writes a character into the source, and what comes back is a tree.
+    /// </para>
+    /// </summary>
+    /// <param name="before">What is printed immediately before, wherever in the tree it comes from.</param>
+    /// <param name="after">What is printed immediately after.</param>
+    private static string Apart(string before, string after, string text)
+    {
+        var lead = EndsWithControlWord(before) && char.IsLetter(text[0]) ? " " : string.Empty;
+        var tail = after.Length > 0 && EndsWithControlWord(text) && char.IsLetter(after[0]) ? " " : string.Empty;
+
+        return lead + text + tail;
+    }
+
+    /// <summary>Whether these characters end in a command's name, which the next letter would run on.</summary>
+    private static bool EndsWithControlWord(string text)
+    {
+        var i = text.Length;
+        while (i > 0 && char.IsLetter(text[i - 1])) i--;
+        return i < text.Length && i > 0 && text[i - 1] == '\\';
+    }
 }

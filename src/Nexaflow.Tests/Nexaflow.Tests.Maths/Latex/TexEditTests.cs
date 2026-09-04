@@ -4,6 +4,7 @@ using System.Linq;
 using Nexaflow.Maths.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using System.IO;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -176,4 +177,88 @@ public class TexEditTests
 
         throw new ArgumentException("that part is not one of this part's own", nameof(child));
     }
+
+    [TestMethod]
+    public void WhatIsWrittenLandsWhereItWasMeantTo()
+    {
+        // The property the rules exist for. Type a z at every place in every construct, print, read the
+        // result back, and the z must still be a piece of its own, in the same kind of place it was put.
+        // Without the rules it is neither: written against a command's name it is swallowed by it, and
+        // written into an unbraced argument it falls out of it.
+        var missed = new List<string>();
+        var tried = 0;
+
+        foreach (var (what, before) in Constructs())
+        {
+            var reading = TexReading.Of(before);
+            var source = before.Print();
+
+            for (var caret = 0; caret <= source.Length; caret++)
+            {
+                var grown = TexEdit.Write(reading, caret, "z");
+                tried++;
+
+                if (!Landed(grown.Print())) missed.Add($"{what} @{caret}: {source} -> {grown.Print()}");
+            }
+        }
+
+        Assert.IsTrue(tried > 1000, $"only {tried} place(s) were written at");
+        Assert.AreEqual(0, missed.Count,
+            $"{missed.Count} of {tried} did not land:\n  " + string.Join("\n  ", missed.Take(12)));
+    }
+
+    [TestMethod]
+    public void AndLandsInRealFormulasToo()
+    {
+        // The construct table is written to have one of everything; a corpus is written by people. Opt-in,
+        // because it is somebody's file and not the repository's.
+        var corpus = Environment.GetEnvironmentVariable("NEXAFLOW_LATEX_CORPUS");
+        if (string.IsNullOrWhiteSpace(corpus) || !File.Exists(corpus))
+            Assert.Inconclusive($"set NEXAFLOW_LATEX_CORPUS to a file of formulas (got: {corpus ?? "nothing"})");
+
+        var random = new Random(20260904);
+        var missed = new List<string>();
+        var tried = 0;
+        var seen = 0;
+
+        foreach (var raw in File.ReadLines(corpus))
+        {
+            var latex = raw.Trim();
+            if (latex.Length == 0) continue;
+            if (++seen > 5000) break;
+
+            var before = TexPipeline.Read(latex);
+            var reading = TexReading.Of(before);
+            var source = before.Print();
+
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                var caret = random.Next(source.Length + 1);
+                var grown = TexEdit.Write(reading, caret, "z");
+                tried++;
+
+                if (!Landed(grown.Print())) missed.Add($"@{caret}: {source} -> {grown.Print()}");
+            }
+        }
+
+        Assert.IsTrue(tried > 1000, $"only {tried} place(s) were written at, in {seen} formula(s)");
+        Assert.AreEqual(0, missed.Count,
+            $"{missed.Count} of {tried} did not land:\n  " + string.Join("\n  ", missed.Take(10)));
+    }
+
+    /// <summary>
+    /// Whether the z written into <paramref name="printed"/> is still a piece of its own once the source is
+    /// read back.
+    ///
+    /// <para>
+    /// Written straight onto a backslash it is not, and should not be: a lone <c>\</c> is the start of a
+    /// name and nothing else, so the letter after it joins that name. That is what a backslash is for, and
+    /// the only case where being swallowed is the right answer.
+    /// </para>
+    /// </summary>
+    private static bool Landed(string printed) =>
+        TexPipeline.Read(printed)
+            .SelfAndDescendants()
+            .Any(node => node.IsLeaf && node.Text == "z" && node.Kind != TexKind.Token)
+        || printed.Contains(@"\z", StringComparison.Ordinal);
 }
