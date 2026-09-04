@@ -1,56 +1,38 @@
 namespace Nexaflow.IO.Common;
 
 /// <summary>
-/// A safe recursive directory move: copy the whole tree to the destination, then delete the source.
-/// The copy opens each source file with <see cref="FileShare.ReadWrite"/> | <see cref="FileShare.Delete"/>
-/// so a file held open elsewhere is still copied — the destination always ends up with a complete copy
-/// before anything is removed. Cross-volume safe (never assumes a rename). Cancellation is honoured
-/// between files.
+/// A safe recursive directory move: the tree is copied to the destination and each source item is
+/// removed only once its own copy is verified. Cross-volume safe (never assumes a rename), and each
+/// source file is opened <see cref="FileShare.ReadWrite"/> | <see cref="FileShare.Delete"/> so a file
+/// held open elsewhere is still copied.
+/// <para>
+/// This is a narrow front door onto <see cref="FileTransferEngine"/> — the whole-or-nothing shape its
+/// callers were written against, where any failure is an exception and a partial result is not a
+/// thing you can be handed. Callers that want per-item tolerance, progress, cancellation or a pause
+/// when the disk fills should use the engine directly.
+/// </para>
 /// </summary>
 public static class DirectoryMover
 {
     /// <summary>
-    /// Copies <paramref name="source"/> to <paramref name="destination"/> then deletes the source.
-    /// Throws if the destination already exists (the caller decides how to resolve a name clash).
+    /// Moves <paramref name="source"/> to <paramref name="destination"/>. Throws if the destination
+    /// already exists (the caller decides how to resolve a name clash) and if any part of the tree
+    /// could not be moved — in which case whatever could not be copied is still at the source.
     /// </summary>
-    public static Task MoveAsync(string source, string destination, CancellationToken ct = default)
-        => Task.Run(() =>
-        {
-            if (!Directory.Exists(source))
-                throw new DirectoryNotFoundException($"Source folder '{source}' does not exist.");
-            if (Directory.Exists(destination))
-                throw new IOException($"A folder already exists at '{destination}'.");
-
-            CopyDirectory(source, destination, ct);
-            Directory.Delete(source, recursive: true);
-        }, ct);
-
-    private static void CopyDirectory(string source, string destination, CancellationToken ct)
+    public static async Task MoveAsync(string source, string destination, CancellationToken ct = default)
     {
-        Directory.CreateDirectory(destination);
-        var dir = new DirectoryInfo(source);
+        if (!Directory.Exists(source))
+            throw new DirectoryNotFoundException($"Source folder '{source}' does not exist.");
+        if (Directory.Exists(destination))
+            throw new IOException($"A folder already exists at '{destination}'.");
 
-        foreach (var file in dir.GetFiles())
-        {
-            ct.ThrowIfCancellationRequested();
-            CopyFileShared(file.FullName, Path.Combine(destination, file.Name));
-        }
+        var result = await FileTransferEngine.RunAsync(
+            new FileTransferRequest(TransferKind.Move, [new TransferItem(source, destination)], ConflictPolicy.Fail),
+            ct: ct);
 
-        foreach (var sub in dir.GetDirectories())
-        {
-            ct.ThrowIfCancellationRequested();
-            CopyDirectory(sub.FullName, Path.Combine(destination, sub.Name), ct);
-        }
-    }
+        if (!result.Completed) throw new TaskCanceledException();
 
-    private static void CopyFileShared(string source, string destination)
-    {
-        using (var from = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-        using (var to = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
-            from.CopyTo(to);
-
-        // Best-effort metadata preservation — never fail the copy over an attribute we couldn't set.
-        try { File.SetLastWriteTimeUtc(destination, File.GetLastWriteTimeUtc(source)); } catch { }
-        try { File.SetAttributes(destination, File.GetAttributes(source)); } catch { }
+        if (result.Failures.Count > 0)
+            throw new IOException(string.Join(Environment.NewLine, result.Failures.Select(f => f.Message)));
     }
 }
