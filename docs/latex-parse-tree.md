@@ -107,8 +107,20 @@ Each stage stands on its own and leaves the app working.
    every subtree it did not touch, and the character peeking is deleted rather than ported: `IsBraced`,
    `IsOneToken`, `EndsWithControlWord`, `Separated`, `Place` and `ArgumentAt` are gone from `LatexTree`,
    and its three callers — typing, a text move, a block dragged out of a matrix — all go through
-   `TexEdit.Write`, which says the brace and the space in the tree instead. **What is left is the
-   matrix body**, which is still re-rendered from a grid model rather than reused as it stands.
+   `TexEdit.Write`, which says the brace and the space in the tree instead.
+
+   A matrix moves the same way where the move is a **reordering**: whole columns and whole rows are a
+   permutation of cells that are already there, so `TexEdit.Columns` and `TexEdit.Rows` permute the
+   nodes and every untouched cell keeps the node it was — its spacing included. `LatexGrid` still
+   decides *which* columns go where, and still renders for the three cases that change what is written
+   in a cell rather than which order the cells are in: a partial block moved, a block taken out, and a
+   block joined in as new rows or columns.
+
+   A cell carries the separator that follows it and a row carries its own break, so a reordering moves
+   where the separators are rather than moving cells across them — the last of each gives its up, and
+   what is appended is a separator the table already had, so a document that writes them one way keeps
+   writing them that way. `AColumnMovedLeavesEveryOtherCellExactlyAsItWasWritten` is the whole point of
+   it: a matrix somebody lined up by hand still reads that way after a drag somewhere else in it.
 
    What comes back from an edit is *provisional*, and that is the rule the whole thing turns on. The
    stages between the parser and the builder do not re-derive themselves when a tree is changed

@@ -253,4 +253,100 @@ public static class TexEdit
         while (i > 0 && char.IsLetter(text[i - 1])) i--;
         return i < text.Length && i > 0 && text[i - 1] == '\\';
     }
+
+    /// <summary>
+    /// The tree with a table's columns in <paramref name="order"/>, and where the ones that moved landed.
+    ///
+    /// <para>
+    /// A permutation of the cells that are already there. Every cell keeps the node it was — its spacing,
+    /// its braces, whatever was written inside it — because nothing about it changed except which of its
+    /// neighbours it sits between. Rendering the table instead reformats every cell in it to move one, and
+    /// a reader who lined a matrix up by hand loses that for a drag they made somewhere else in it.
+    /// </para>
+    /// <para>
+    /// A cell carries the separator that follows it, so moving cells means moving where the separators are
+    /// rather than the cells across them: the last cell of a row has none, and whichever cell becomes last
+    /// gives its own up. The one appended is a separator the table already had, so a document that writes
+    /// them one way keeps writing them that way.
+    /// </para>
+    /// </summary>
+    public static TexWrite Columns(TexPart environment, IReadOnlyList<int> order, int at, int wide)
+    {
+        var landed = new HashSet<TexNode>();
+
+        var rows = environment.Node.Children.Select(child =>
+            child.Kind != TexKind.Row ? child : Ordered(child, TexKind.Cell, order, at, wide, landed)).ToList();
+
+        return Spanning(Replace(environment, environment.Node.With(rows)), landed);
+    }
+
+    /// <summary>
+    /// The tree with a table's rows in <paramref name="order"/>, and where the ones that moved landed.
+    /// The same permutation a column move is, one level up: a row carries the break that follows it.
+    /// </summary>
+    public static TexWrite Rows(TexPart environment, IReadOnlyList<int> order, int at, int wide)
+    {
+        var landed = new HashSet<TexNode>();
+        var node = Ordered(environment.Node, TexKind.Row, order, at, wide, landed);
+
+        return Spanning(Replace(environment, node), landed);
+    }
+
+    /// <summary>
+    /// <paramref name="holder"/> with the parts of <paramref name="kind"/> it holds put into
+    /// <paramref name="order"/>, the separators between them redistributed, and everything else where it
+    /// was. The ones that end up in <paramref name="wide"/> places from <paramref name="at"/> are recorded
+    /// in <paramref name="landed"/>, which is how the caller finds out where they went.
+    /// </summary>
+    private static TexNode Ordered(TexNode holder, TexKind kind, IReadOnlyList<int> order,
+                                   int at, int wide, HashSet<TexNode> landed)
+    {
+        var split = holder.Children.Where(child => child.Kind == kind).Select(Split).ToList();
+        if (split.Count == 0 || order.Any(i => i < 0 || i >= split.Count)) return holder;
+
+        var between = split.Select(part => part.Separator).FirstOrDefault(separator => separator is not null);
+        var moved = order.Select(i => split[i].Bare).ToList();
+
+        var built = new List<TexNode>(moved.Count);
+        for (var i = 0; i < moved.Count; i++)
+        {
+            var part = i < moved.Count - 1 && between is not null
+                ? moved[i].With([.. moved[i].Children, between])
+                : moved[i];
+
+            if (i >= at && i < at + wide) landed.Add(part);
+            built.Add(part);
+        }
+
+        // Everything that is not one of these — a \begin, an \end, a column spec — stays on the side of the
+        // table it was written on, which is what keeps a reordering from turning the table inside out.
+        var first = holder.Children.ToList().FindIndex(child => child.Kind == kind);
+        var last = holder.Children.ToList().FindLastIndex(child => child.Kind == kind);
+
+        return holder.With([
+            .. holder.Children.Take(first),
+            .. built,
+            .. holder.Children.Skip(last + 1)]);
+    }
+
+    /// <summary>The piece without the separator that follows it, and that separator where it had one.</summary>
+    private static (TexNode Bare, TexNode? Separator) Split(TexNode part) =>
+        part.Children.Count > 0 && part.Children[^1].Role == TexRole.Separator
+            ? (part.With([.. part.Children.Take(part.Children.Count - 1)]), part.Children[^1])
+            : (part, null);
+
+    /// <summary>Where in what <paramref name="tree"/> prints as the pieces in <paramref name="landed"/> ended up.</summary>
+    private static TexWrite Spanning(TexNode tree, HashSet<TexNode> landed)
+    {
+        int start = int.MaxValue, end = 0;
+
+        foreach (var place in tree.Placed())
+        {
+            if (!landed.Contains(place.Node)) continue;
+            start = Math.Min(start, place.Start);
+            end = Math.Max(end, place.End);
+        }
+
+        return start > end ? new TexWrite(tree, 0, 0, true) : new TexWrite(tree, start, end - start, true);
+    }
 }

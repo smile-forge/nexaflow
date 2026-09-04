@@ -379,4 +379,27 @@ public class LatexGridTests
         Assert.AreEqual("3", after.CellText(0, 0), "and the column in its new place");
         Assert.AreEqual("6", after.CellText(1, 0));
     });
+
+    [TestMethod]
+    public void AColumnMovedLeavesEveryOtherCellExactlyAsItWasWritten() => UiThread.Run(() =>
+    {
+        // Somebody lined this up by hand. Moving one column is a reordering of cells that are already
+        // there, so every one of them keeps the node it was — its spacing included. Rendering the table to
+        // move a column reformats every cell in it, and the alignment they wrote is gone for a drag they
+        // made somewhere else in it.
+        const string latex = @"\begin{matrix}  p  &   q  \\  u  &   v  \end{matrix}";
+        var tree = Tree(latex);
+
+        var cells = new[] { latex.IndexOf('q'), latex.IndexOf('v') }
+            .Select(at => (Start: at, Length: 1))
+            .ToList();
+
+        var moved = tree.Move(cells, to: latex.IndexOf('p'));
+        Assert.IsNotNull(moved, "the second column dragged onto the first is a move");
+
+        Assert.AreEqual(
+            @"\begin{matrix}   q  &  p  \\   v  &  u  \end{matrix}",
+            moved.Value.Latex,
+            "each cell carries the spacing it was written with, and only the separators move");
+    });
 }
