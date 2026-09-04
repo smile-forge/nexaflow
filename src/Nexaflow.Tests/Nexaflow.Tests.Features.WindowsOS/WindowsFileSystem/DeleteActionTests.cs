@@ -4,6 +4,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using System.Threading.Tasks;
+using Nexaflow.Features.WindowsFileSystem.Operations;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -101,15 +103,16 @@ public class DeleteActionTests
     // ── Shift: past the gate ──────────────────────────────────────────────────
 
     [TestMethod]
-    public void ShiftDeleteSkipsTheConfirmation_AndTheFileIsGoneForGood()
+    public async Task ShiftDeleteSkipsTheConfirmation_AndTheFileIsGoneForGood()
     {
-        var shell = Substitute.For<IShellServices>();
-        var file = File_("gone.txt");
+    var shell = Substitute.For<IShellServices>().Runs();
+    var file = File_("gone.txt");
 
-        var acted = new DeleteFile(shell).PerformAction(file, force: true);
+    var acted = new DeleteFile(shell).PerformAction(file, force: true);
 
-        Assert.IsTrue(acted);
-        Assert.IsFalse(File.Exists(file), "a forced delete is permanent — not the Recycle Bin");
+    Assert.IsTrue(acted);
+    await FileOperationQueue.For(shell).Operations[^1].Completion;
+    Assert.IsFalse(File.Exists(file), "a forced delete is permanent — not the Recycle Bin");
         shell.DidNotReceiveWithAnyArgs().ShowConfirmation(default!, default!, default!, default!);
         shell.Received().RequestRefresh();
     }

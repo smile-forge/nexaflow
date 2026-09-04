@@ -205,21 +205,22 @@ namespace Nexaflow.Features.WindowsFileSystem
             => Clipboard.ContainsFileDropList();
 
         /// <summary>
-        /// Pastes clipboard files into <paramref name="destinationFolder"/>.
-        /// Moves files when the clipboard effect is <see cref="DragDropEffects.Move"/>,
-        /// otherwise copies them. Each item that can't be moved/copied (in use, no permission,
-        /// disk full, …) is reported through a single <see cref="FileOperationException"/> whose
-        /// message lists the precise reasons; items that succeed are left in place.
+        /// Reads what a paste would act on: the file list, and whether it was cut rather than copied.
+        /// <para>
+        /// This used to do the transfer too, on the UI thread, with its own conflict rules that drag-drop
+        /// did not share. It now only reads — the destinations and the transfer belong to
+        /// <c>FileOperationDestinations</c> and the operation queue, which is what makes paste and drop
+        /// behave the same way by construction.
+        /// </para>
         /// </summary>
-        public static void ClipboardPasteFiles(string destinationFolder)
+        public static (IReadOnlyList<string> Paths, bool IsCut) ClipboardReadDrop()
         {
             var data = Clipboard.GetDataObject();
-            if (data is null) return;
+            if (data is null) return ([], false);
 
             var list = Clipboard.GetFileDropList();
-            if (list is null || list.Count == 0) return;
+            if (list is null || list.Count == 0) return ([], false);
 
-            // Determine cut vs copy
             bool isCut = false;
             if (data.GetData(PreferredDropEffect) is MemoryStream ms)
             {
@@ -229,122 +230,20 @@ namespace Nexaflow.Features.WindowsFileSystem
                     isCut = (DragDropEffects)BitConverter.ToInt32(bytes, 0) == DragDropEffects.Move;
             }
 
-            var    failures = new List<string>();
-            string verb     = isCut ? "move" : "copy";
+            var paths = new List<string>(list.Count);
+            foreach (string? path in list)
+                if (!string.IsNullOrEmpty(path)) paths.Add(path);
 
-            foreach (string? source in list)
-            {
-                if (source is null) continue;
-                bool sourceIsDir  = Directory.Exists(source);
-                bool sourceIsFile = File.Exists(source);
+            return (paths, isCut);
+        }
 
-                // Source vanished between copy and paste — nothing to do, and not worth a complaint.
-                if (!sourceIsDir && !sourceIsFile) continue;
-
-                string sourceTrimmed = source.TrimEnd(Path.DirectorySeparatorChar,
-                                                      Path.AltDirectorySeparatorChar);
-                string name = Path.GetFileName(sourceTrimmed);
-
-                // Guard: refuse to copy a folder into itself or any of its descendants.
-                if (!isCut && sourceIsDir)
-                {
-                    string destNorm = destinationFolder.TrimEnd(Path.DirectorySeparatorChar);
-                    if (string.Equals(destNorm, sourceTrimmed, StringComparison.OrdinalIgnoreCase) ||
-                        destNorm.StartsWith(sourceTrimmed + Path.DirectorySeparatorChar,
-                                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        failures.Add($"Can't copy \"{name}\" into itself.");
-                        continue;
-                    }
-                }
-
-                // Same-parent copy: use "Copy of <name>" so the result is distinct.
-                bool isSameParent = !isCut &&
-                    string.Equals(Path.GetDirectoryName(sourceTrimmed), destinationFolder,
-                                  StringComparison.OrdinalIgnoreCase);
-
-                string dest = isSameParent
-                    ? CopyOfDestination(destinationFolder, name, sourceIsDir)
-                    : UniqueDestination(Path.Combine(destinationFolder, name), sourceIsDir);
-
-                try
-                {
-                    if (sourceIsDir)
-                    {
-                        if (isCut) FileTransfer.MoveDirectory(source, dest);
-                        else       FileTransfer.CopyDirectory(source, dest);
-                    }
-                    else
-                    {
-                        if (isCut) FileTransfer.MoveFile(source, dest);
-                        else       FileTransfer.CopyFile(source, dest);
-                    }
-                }
-                catch (FileOperationException ex)
-                {
-                    failures.Add(ex.Message);
-                }
-            }
-
-            // After a cut-paste the clipboard contents are consumed — clear it to match Windows
-            // Explorer. Keep it when something failed so the user can fix the cause (e.g. close the
-            // program holding the file) and paste again.
-            if (isCut && failures.Count == 0)
-                Clipboard.Clear();
-
-            if (failures.Count > 0)
-                throw new FileOperationException(string.Join(Environment.NewLine, failures));
+        /// <summary>Empties the clipboard after a cut has actually landed. Must run on the UI thread.</summary>
+        public static void ClipboardClear()
+        {
+            try { Clipboard.Clear(); } catch { }
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Returns a path that does not already exist, appending " (2)", " (3)" etc.
-        /// </summary>
-        private static string UniqueDestination(string path, bool isDirectory)
-        {
-            if (isDirectory)
-            {
-                if (!Directory.Exists(path)) return path;
-                string parent = Path.GetDirectoryName(path) ?? path;
-                string name   = Path.GetFileName(path);
-                for (int i = 2; ; i++)
-                {
-                    string candidate = Path.Combine(parent, $"{name} ({i})");
-                    if (!Directory.Exists(candidate)) return candidate;
-                }
-            }
-            else
-            {
-                if (!File.Exists(path)) return path;
-                string dir  = Path.GetDirectoryName(path) ?? string.Empty;
-                string stem = Path.GetFileNameWithoutExtension(path);
-                string ext  = Path.GetExtension(path);
-                for (int i = 2; ; i++)
-                {
-                    string candidate = Path.Combine(dir, $"{stem} ({i}){ext}");
-                    if (!File.Exists(candidate)) return candidate;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Returns a "Copy of &lt;name&gt;" path (then "Copy of &lt;name&gt; (2)" etc.)
-        /// used when pasting into the same directory as the source.
-        /// </summary>
-        private static string CopyOfDestination(string folder, string name, bool isDirectory)
-        {
-            string candidate = Path.Combine(folder, $"Copy of {name}");
-            if (isDirectory ? !Directory.Exists(candidate) : !File.Exists(candidate))
-                return candidate;
-
-            for (int i = 2; ; i++)
-            {
-                candidate = Path.Combine(folder, $"Copy of {name} ({i})");
-                if (isDirectory ? !Directory.Exists(candidate) : !File.Exists(candidate))
-                    return candidate;
-            }
-        }
 
         // ── Recycle bin deletion via SHFileOperation ──────────────────────────
 

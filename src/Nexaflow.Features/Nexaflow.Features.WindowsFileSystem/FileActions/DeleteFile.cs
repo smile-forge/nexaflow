@@ -53,17 +53,24 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
     public bool PerformAction(IEnumerable<string> filePaths)
         => PerformAction(filePaths, force: false);
 
+    /// <summary>
+    /// Queues the delete rather than doing it here. Emptying a large tree used to block the UI thread
+    /// inside <c>SHFileOperation</c> with <c>FOF_SILENT</c> set, so the window simply stopped responding
+    /// with nothing on screen to say why. Recycling still goes through shell32 — only it produces a
+    /// Recycle Bin entry — but on a background thread, with a row in the operations panel.
+    /// </summary>
     public bool PerformAction(IEnumerable<string> filePaths, bool force)
     {
         // Delete what the row points at, not a temp copy of it — see ShellPath.RealForMutation.
         var paths = new List<string>(Services.ShellPath.RealForMutation(filePaths));
         if (paths.Count == 0) return false;
 
+        var queue = Operations.FileOperationQueue.For(_shell);
+
         if (force)
         {
-            bool ok = NativeMethods.DeleteFilesPermanently(paths);
-            _shell.RequestRefresh();
-            return ok;
+            queue.EnqueueDelete(paths, permanent: true);
+            return true;
         }
 
         string target = paths.Count == 1
@@ -73,13 +80,9 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
         _shell.ShowConfirmation(
             title:     "Move to Recycle Bin?",
             message:   $"Send {target} to the Recycle Bin?",
-            onConfirm: () =>
-            {
-                NativeMethods.RecycleFiles(paths);
-                _shell.RequestRefresh();
-            },
-            onCancel: () => { });
+            onConfirm: () => queue.EnqueueDelete(paths, permanent: false),
+            onCancel:  () => { });
 
-        return false;   // actual delete is deferred to the confirm callback
+        return false;   // the actual delete is deferred to the confirm callback
     }
 }

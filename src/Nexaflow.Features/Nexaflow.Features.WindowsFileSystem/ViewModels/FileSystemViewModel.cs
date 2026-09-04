@@ -25,6 +25,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
+using Nexaflow.Features.WindowsFileSystem.Operations;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -1017,12 +1018,17 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
     internal FileSystemFeatureRegistry Registry { get; }
 
+    /// <summary>Copy, move and delete work in flight. One queue per workspace runtime, so an operation
+    /// started in this tab is visible from every other file-browser tab and outlives this one.</summary>
+    public FileOperationQueue Operations { get; }
+
     private FileSystemViewModel(IShellServices shell, IAIService ai,
                                 IReadOnlyDictionary<Type, IFeatureConfig> configs)
     {
         _shell          = shell;
         _ai             = ai;
         Registry        = FileSystemFeatureRegistry.For(shell, ai, configs);
+        Operations      = FileOperationQueue.For(shell);
         _actionRegistry = new FileActionManager(Registry);
         _opener         = new DefaultFileOpener(Registry);
         _externalAppsConfig = configs.TryGetValue(typeof(ExternalAppsConfig), out var ec)
