@@ -1,7 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 
@@ -9,7 +8,8 @@ namespace Nexaflow.Features.WindowsFileSystem;
 
 /// <summary>
 /// Accepts file drag-drop onto <see cref="FileSystemView"/>, copying (or moving, with Shift)
-/// dropped files into either the hovered folder node or the current directory.
+/// dropped files into either the hovered folder node or the current directory. It decides nothing
+/// about how: destinations, name clashes and the transfer itself belong to the operation queue.
 /// </summary>
 public sealed class FileSystemDropTarget : IDropTarget
 {
@@ -31,49 +31,21 @@ public sealed class FileSystemDropTarget : IDropTarget
         return $"{(isMove ? "Move" : "Copy")} to {name}";
     }
 
+    /// <summary>
+    /// Hands the dropped paths to the operation queue and returns.
+    /// <para>
+    /// Returning immediately is the whole point. This runs inside the OLE <c>IDropTarget::Drop</c>
+    /// callback, so anything done here happens on the UI thread with no message pump — a 200 GB folder
+    /// froze the window for hours, and a window that is not pumping cannot be given a second drop at
+    /// all, so the next two folders someone dragged over went nowhere. Three drops now make three
+    /// queued operations.
+    /// </para>
+    /// The drop list is read here and now because the data object is only valid for the length of this
+    /// call; everything after that is the queue's problem.
+    /// </summary>
     public void Drop(IDataObject data, string destinationPath, bool move)
     {
         if (data.GetData(DataFormats.FileDrop) is not string[] sources) return;
-
-        var    failures = new List<string>();
-        string verb     = move ? "move" : "copy";
-
-        // FileTransfer works in real paths; dropping onto a mounted folder must land in the folder
-        // behind it. (Sources arrive from Windows as real paths already.)
-        destinationPath = Services.ShellPath.RealForMutation(destinationPath);
-
-        foreach (var source in sources)
-        {
-            // Source vanished between drag and drop — nothing to do, not worth a complaint.
-            bool isFile = File.Exists(source);
-            bool isDir  = Directory.Exists(source);
-            if (!isFile && !isDir) continue;
-
-            var dest = Path.Combine(destinationPath, Path.GetFileName(
-                source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
-
-            try
-            {
-                if (isFile)
-                {
-                    if (move) FileTransfer.MoveFile(source, dest);
-                    else      FileTransfer.CopyFile(source, dest);
-                }
-                else
-                {
-                    if (move) FileTransfer.MoveDirectory(source, dest);
-                    else      FileTransfer.CopyDirectory(source, dest);
-                }
-            }
-            catch (FileOperationException ex)
-            {
-                failures.Add(ex.Message);
-            }
-        }
-
-        _viewModel.Refresh();
-
-        if (failures.Count > 0)
-            _viewModel.ReportError(string.Join(Environment.NewLine, failures));
+        _viewModel.Operations.EnqueueDrop(sources, destinationPath, move);
     }
 }

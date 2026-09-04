@@ -25,6 +25,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
+using Nexaflow.Features.WindowsFileSystem.Operations;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -426,11 +427,19 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         _shell.FolderBusyChanged += OnShellFolderBusyChanged;
         RefreshBusyState();
+
+        // The operations panel starts collapsed, so it cannot rely on its own Loaded to start watching
+        // the queue — a collapsed control that only wakes when it loads can never become visible.
+        FileOperations.Attach();
     }
 
     /// <summary>Stops observing the shell's folder-busy signal. Called by the view on unload so the long-lived
     /// shell doesn't retain this VM.</summary>
-    public void DetachBusyTracking() => _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
+    public void DetachBusyTracking()
+{
+    _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
+    FileOperations.Detach();
+}
 
     /// <summary>
     /// Begins observing the This PC contributors, so editing them in Options updates an open tab without
@@ -1017,12 +1026,21 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
     internal FileSystemFeatureRegistry Registry { get; }
 
+    /// <summary>Copy, move and delete work in flight. One queue per workspace runtime, so an operation
+    /// started in this tab is visible from every other file-browser tab and outlives this one.</summary>
+    public FileOperationQueue Operations { get; }
+
+    /// <summary>The panel above the tree that shows those operations while they run.</summary>
+    public FileOperationsPanelViewModel FileOperations { get; }
+
     private FileSystemViewModel(IShellServices shell, IAIService ai,
                                 IReadOnlyDictionary<Type, IFeatureConfig> configs)
     {
         _shell          = shell;
         _ai             = ai;
         Registry        = FileSystemFeatureRegistry.For(shell, ai, configs);
+        Operations      = FileOperationQueue.For(shell);
+        FileOperations  = new FileOperationsPanelViewModel(Operations, shell);
         _actionRegistry = new FileActionManager(Registry);
         _opener         = new DefaultFileOpener(Registry);
         _externalAppsConfig = configs.TryGetValue(typeof(ExternalAppsConfig), out var ec)

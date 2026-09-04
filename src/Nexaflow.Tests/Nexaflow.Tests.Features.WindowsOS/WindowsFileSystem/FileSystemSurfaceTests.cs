@@ -10,6 +10,7 @@ using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -34,7 +35,7 @@ public class FileSystemSurfaceTests
 
     private static (IShellServices Shell, IAIService Ai, IReadOnlyDictionary<Type, IFeatureConfig> Configs) Deps()
     {
-        var shell = Substitute.For<IShellServices>();
+        var shell = Substitute.For<IShellServices>().Runs();
         shell.DiscoverImplementations<IFileAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFolderAction>().Returns(Array.Empty<Type>());
         shell.DiscoverImplementations<IFileCreateAction>().Returns(Array.Empty<Type>());
@@ -167,7 +168,7 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-drag-drop")]
-    public void DroppingCopiesTheFileIn_AndMovingTakesTheOriginal()
+    public async Task DroppingCopiesTheFileIn_AndMovingTakesTheOriginal()
     {
         var source = Path.Combine(_scratch, "source");
         var dest = Path.Combine(_scratch, "dest");
@@ -181,11 +182,16 @@ public class FileSystemSurfaceTests
         var vm = AtScratch(out _);
         var target = new FileSystemDropTarget(vm);
 
+        // The drop queues the work and returns — awaiting the operation is the point, not a nicety.
         target.Drop(new DataObject(DataFormats.FileDrop, new[] { copied }), dest, move: false);
+        await vm.Operations.Operations[^1].Completion;
+
         Assert.IsTrue(File.Exists(Path.Combine(dest, "copied.txt")));
         Assert.IsTrue(File.Exists(copied), "a copy leaves the original where it was");
 
         target.Drop(new DataObject(DataFormats.FileDrop, new[] { moved }), dest, move: true);
+        await vm.Operations.Operations[^1].Completion;
+
         Assert.IsTrue(File.Exists(Path.Combine(dest, "moved.txt")));
         Assert.IsFalse(File.Exists(moved));
     }
@@ -203,6 +209,7 @@ public class FileSystemSurfaceTests
                     dest, move: false);
 
         shell.DidNotReceiveWithAnyArgs().ShowError(default!);
+        Assert.AreEqual(0, vm.Operations.Operations.Count, "nothing was queued either");
     }
 
     // ── Ribbon pinning ────────────────────────────────────────────────────────

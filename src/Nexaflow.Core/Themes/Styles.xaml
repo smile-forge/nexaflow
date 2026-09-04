@@ -907,4 +907,14 @@
         </Setter>
     </Style>
 
+    <!-- ── Progress bar ─────────────────────────────────────────────────────
+         A thin accent fill on a subtle track. Shared because the app had exactly one ProgressBar
+         and no style for it, so anything that grew a second one would have invented its own. -->
+    <Style x:Key="NexaProgressBar" TargetType="ProgressBar">
+        <Setter Property="Height"          Value="4"/>
+        <Setter Property="Background"      Value="{DynamicResource Surface2Brush}"/>
+        <Setter Property="Foreground"      Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
 </ResourceDictionary>

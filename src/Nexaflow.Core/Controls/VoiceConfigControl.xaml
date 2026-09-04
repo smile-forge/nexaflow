@@ -37,12 +37,10 @@
                            TextWrapping="Wrap"
                            FontSize="13"
                            Foreground="{StaticResource TextBrush}"/>
-                <ProgressBar Height="6" Margin="0,10,0,0"
+                <ProgressBar Style="{StaticResource NexaProgressBar}"
+                             Height="6" Margin="0,10,0,0"
                              Minimum="0" Maximum="100"
                              Value="{Binding DownloadPercent}"
-                             Foreground="{StaticResource AccentBrush}"
-                             Background="{StaticResource BorderBrush}"
-                             BorderThickness="0"
                              Visibility="{Binding IsDownloading, Converter={StaticResource BoolVis}}"/>
                 <Button Content="Download now"
                         Margin="0,10,0,0" Padding="12,6"

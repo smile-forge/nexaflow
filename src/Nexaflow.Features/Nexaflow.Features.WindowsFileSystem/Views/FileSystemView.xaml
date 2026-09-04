@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsFileSystem.ViewModels"
              xmlns:conv="clr-namespace:Nexaflow.Features.WindowsFileSystem.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+                          xmlns:views="clr-namespace:Nexaflow.Features.WindowsFileSystem.Views"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -223,9 +224,22 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- ── Left: Directory Tree ──────────────────────────────────── -->
-        <Border Grid.Column="0"
-                Background="{StaticResource FileList.PanelBg}"
+        <!-- ── Left: operations panel above the Directory Tree ───────── -->
+        <DockPanel Grid.Column="0" LastChildFill="True">
+
+            <!-- Grows while a copy/move/delete runs, pushing the tree down; zero height otherwise.
+                 Deliberately in this column rather than RightGrid, where the folder-busy overlay
+                 spans every row and would cover it. -->
+            <!-- Visibility belongs here, on the docked control itself. Collapsing something *inside*
+                 the UserControl leaves the UserControl at zero height, so the DockPanel reserves no
+                 room, the tree's opaque background is painted over the top, and the panel is present
+                 in the automation tree but invisible on screen. -->
+            <views:FileOperationsPanel DockPanel.Dock="Top"
+                                       DataContext="{Binding FileOperations}"
+                                       Visibility="{Binding IsVisible, Converter={StaticResource BoolToVis}}"
+                                       AutomationProperties.AutomationId="FileOps_Panel"/>
+
+            <Border Background="{StaticResource FileList.PanelBg}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,0,1,0">
             <TreeView x:Name="DirectoryTree"
@@ -426,7 +440,8 @@
                     <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Transparent"/>
                 </TreeView.Resources>
             </TreeView>
-        </Border>
+            </Border>
+        </DockPanel>
 
         <!-- ── Splitter ──────────────────────────────────────────────── -->
         <GridSplitter Grid.Column="1"
@@ -487,8 +502,8 @@
 
             <!-- ── Drive ListView (This PC mode) ───────────────────────── -->
             <ListView Grid.Row="1" Grid.Column="0"
-                      x:Name="DriveListView"
-                      Visibility="Collapsed"
+                                  x:Name="DriveListView"
+                                  Visibility="Collapsed"
                       ItemsSource="{Binding Entries}"
                       ItemContainerStyle="{StaticResource FileListRowStyle}"
                       Background="{StaticResource BgBrush}"

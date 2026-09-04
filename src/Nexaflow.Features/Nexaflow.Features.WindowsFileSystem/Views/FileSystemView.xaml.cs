@@ -115,6 +115,13 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         FileListView.DragLeave += OnDragLeave;
         FileListView.Drop      += OnListViewDrop;
 
+        // This PC mode had no drop wiring at all, so a drag over a drive row did nothing and said
+        // nothing. It resolves the same way the file list does: the row under the cursor, or nowhere.
+        DriveListView.AllowDrop  = true;
+        DriveListView.DragOver  += OnListViewDragOver;
+        DriveListView.DragLeave += OnDragLeave;
+        DriveListView.Drop      += OnListViewDrop;
+
         DirectoryTree.AllowDrop  = true;
         DirectoryTree.DragOver  += OnTreeDragOver;
         DirectoryTree.DragLeave += OnDragLeave;
@@ -945,8 +952,19 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
                 destination = entry.FullPath;
         }
 
-        if (!string.IsNullOrEmpty(destination))
-            _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        // Belt and braces: nothing may escape an IDropTarget::Drop callback. A fault here is an unhandled
+        // UI-thread exception that abandons the rest of the drop with only a generic toast to show for it,
+        // which is one of the ways a folder drop used to disappear without explanation.
+        try
+        {
+            if (!string.IsNullOrEmpty(destination))
+                _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ReportError(ex.Message);
+        }
+
         e.Handled = true;
     }
 
@@ -975,8 +993,20 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         var node = ResolveTreeNodeUnderMouse(e);
         var destination = node?.FullPath ?? ViewModel.CurrentPath;
-        if (!string.IsNullOrEmpty(destination))
-            _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+
+        // Belt and braces: nothing may escape an IDropTarget::Drop callback. A fault here is an unhandled
+        // UI-thread exception that abandons the rest of the drop with only a generic toast to show for it,
+        // which is one of the ways a folder drop used to disappear without explanation.
+        try
+        {
+            if (!string.IsNullOrEmpty(destination))
+                _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        }
+        catch (Exception ex)
+        {
+            ViewModel.ReportError(ex.Message);
+        }
+
         e.Handled = true;
     }
 
