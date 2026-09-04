@@ -149,4 +149,77 @@ public class FileOperationsPanelTests
         await Task.WhenAll(first.Completion, second.Completion);
         panel.Detach();
     }
+
+    /// <summary>
+    /// The bug this exists for: a running copy reports progress several times a second, and the debounce
+    /// restarted its countdown on every one of those reports, so it never elapsed. The panel only ever
+    /// appeared for an operation that had gone quiet — precisely the one not worth showing — and in the
+    /// app it therefore never appeared at all.
+    /// </summary>
+    [TestMethod]
+    public async Task ASteadyStreamOfProgressDoesNotKeepResettingTheCountdown()
+    {
+        var src  = Folder("src", "a.txt");
+        var dest = Folder("dest");
+        FileTransferEngine.FreeSpaceProbe = _ => 0;   // parks the operation so it stays busy throughout
+
+        var (queue, panel) = Panel();
+        panel.Attach();
+
+        var op = queue.EnqueueDrop([src], dest, move: false);
+
+        var reports = Task.Run(async () =>
+        {
+            for (var i = 0; i < 25; i++)
+            {
+                queue.PublishOnUi(() => { });
+                await Task.Delay(100);
+            }
+        });
+
+        await Task.Delay(FileOperationsPanelViewModel.ExpandDelayMs + 900);
+        Assert.IsTrue(panel.IsVisible, "the panel has to appear while progress is still arriving");
+
+        op!.Cancel();
+        await op.Completion;
+        await reports;
+        panel.Detach();
+    }
+
+    /// <summary>
+    /// A copy belongs to the workspace, not to the tab that happened to start it. Every file browser in
+    /// the same runtime shares one queue, so opening a second one mid-copy shows the same work rather
+    /// than an empty panel.
+    /// </summary>
+    [TestMethod]
+    public async Task EveryFileBrowserInTheWorkspaceShowsTheSameCopies()
+    {
+        var src  = Folder("src", "a.txt");
+        var dest = Folder("dest");
+        FileTransferEngine.FreeSpaceProbe = _ => 0;   // parks it so both panels have time to notice
+
+        var shell = Substitute.For<IShellServices>().Runs();
+        var queue = FileOperationQueue.For(shell);
+
+        var started = new FileOperationsPanelViewModel(queue, shell);
+        started.Attach();
+
+        var op = queue.EnqueueDrop([src], dest, move: false);
+
+        // The second browser opens after the copy is already under way.
+        var opened = new FileOperationsPanelViewModel(queue, shell);
+        opened.Attach();
+
+        await Task.Delay(FileOperationsPanelViewModel.ExpandDelayMs + 700);
+
+        Assert.AreSame(started.Operations, opened.Operations, "both browsers read the one queue");
+        CollectionAssert.Contains(opened.Operations, op, "the second browser lists a copy it did not start");
+        Assert.IsTrue(started.IsVisible, "the browser that started it shows the panel");
+        Assert.IsTrue(opened.IsVisible, "and so does one opened while it was already running");
+
+        op!.Cancel();
+        await op.Completion;
+        started.Detach();
+        opened.Detach();
+    }
 }

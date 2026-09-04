@@ -427,11 +427,19 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         _shell.FolderBusyChanged += OnShellFolderBusyChanged;
         RefreshBusyState();
+
+        // The operations panel starts collapsed, so it cannot rely on its own Loaded to start watching
+        // the queue — a collapsed control that only wakes when it loads can never become visible.
+        FileOperations.Attach();
     }
 
     /// <summary>Stops observing the shell's folder-busy signal. Called by the view on unload so the long-lived
     /// shell doesn't retain this VM.</summary>
-    public void DetachBusyTracking() => _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
+    public void DetachBusyTracking()
+{
+    _shell.FolderBusyChanged -= OnShellFolderBusyChanged;
+    FileOperations.Detach();
+}
 
     /// <summary>
     /// Begins observing the This PC contributors, so editing them in Options updates an open tab without

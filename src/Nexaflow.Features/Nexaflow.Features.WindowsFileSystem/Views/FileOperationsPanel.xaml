@@ -28,25 +28,30 @@
         </Style>
     </UserControl.Resources>
 
-    <!-- Expands and collapses by animating its own height cap; ClipToBounds is what makes the
-         contents slide rather than squash. Zero height when idle, so the tree keeps the column. -->
-    <Border ClipToBounds="True"
-            Background="{DynamicResource SurfaceBrush}">
+    <!-- Visibility is what shows and hides this, and the animation deliberately touches nothing that
+         affects layout.
+         An animated MaxHeight was the obvious way to make it slide and it did not work: the animation
+         never took on the Border, so it kept zero layout height, its rows were arranged on top of the
+         tree and then clipped away — present in the automation tree, invisible on screen, and a
+         presence-based test passed on a panel nobody could see. Opacity and a render transform cannot
+         fail that way, because neither participates in measure or arrange. -->
+    <Border Background="{DynamicResource SurfaceBrush}">
+        <Border.RenderTransform>
+            <TranslateTransform Y="0"/>
+        </Border.RenderTransform>
         <Border.Style>
             <Style TargetType="Border">
-                <Setter Property="MaxHeight"  Value="0"/>
-                <!-- Collapsed, not merely clipped. A zero-height Border still arranges its children,
-                     so they keep a layout rect and stay in the automation tree — reachable by Tab and
-                     announced by a screen reader while nobody can see them. -->
-                <Setter Property="Visibility" Value="Collapsed"/>
                 <Style.Triggers>
+                    <!-- Show/hide is the host's job (see FileSystemView.xaml) — this only animates the
+                         arrival, on properties that take no part in measure or arrange. -->
                     <DataTrigger Binding="{Binding IsVisible}" Value="True">
-                        <Setter Property="Visibility" Value="Visible"/>
                         <DataTrigger.EnterActions>
                             <BeginStoryboard>
                                 <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
-                                                     To="420" Duration="0:0:0.18">
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     From="0" To="1" Duration="0:0:0.18"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                     From="-10" To="0" Duration="0:0:0.18">
                                         <DoubleAnimation.EasingFunction>
                                             <CubicEase EasingMode="EaseOut"/>
                                         </DoubleAnimation.EasingFunction>
@@ -54,18 +59,6 @@
                                 </Storyboard>
                             </BeginStoryboard>
                         </DataTrigger.EnterActions>
-                        <DataTrigger.ExitActions>
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetProperty="MaxHeight"
-                                                     To="0" Duration="0:0:0.18">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseIn"/>
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </DataTrigger.ExitActions>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>

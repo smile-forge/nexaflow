@@ -230,8 +230,14 @@
             <!-- Grows while a copy/move/delete runs, pushing the tree down; zero height otherwise.
                  Deliberately in this column rather than RightGrid, where the folder-busy overlay
                  spans every row and would cover it. -->
+            <!-- Visibility belongs here, on the docked control itself. Collapsing something *inside*
+                 the UserControl leaves the UserControl at zero height, so the DockPanel reserves no
+                 room, the tree's opaque background is painted over the top, and the panel is present
+                 in the automation tree but invisible on screen. -->
             <views:FileOperationsPanel DockPanel.Dock="Top"
-                                       DataContext="{Binding FileOperations}"/>
+                                       DataContext="{Binding FileOperations}"
+                                       Visibility="{Binding IsVisible, Converter={StaticResource BoolToVis}}"
+                                       AutomationProperties.AutomationId="FileOps_Panel"/>
 
             <Border Background="{StaticResource FileList.PanelBg}"
                 BorderBrush="{StaticResource BorderBrush}"

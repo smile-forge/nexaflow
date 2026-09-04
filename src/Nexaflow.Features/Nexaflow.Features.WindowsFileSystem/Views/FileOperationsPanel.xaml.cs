@@ -11,10 +11,5 @@ namespace Nexaflow.Features.WindowsFileSystem.Views;
 /// </summary>
 public partial class FileOperationsPanel : UserControl
 {
-    public FileOperationsPanel()
-    {
-        InitializeComponent();
-        Loaded   += (_, _) => (DataContext as FileOperationsPanelViewModel)?.Attach();
-        Unloaded += (_, _) => (DataContext as FileOperationsPanelViewModel)?.Detach();
-    }
+    public FileOperationsPanel() => InitializeComponent();
 }

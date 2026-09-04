@@ -35,6 +35,7 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
     private readonly FileOperationQueue _queue;
     private readonly IShellServices _shell;
     private CancellationTokenSource? _pending;
+    private bool? _pendingTarget;
 
     public FileOperationsPanelViewModel(FileOperationQueue queue, IShellServices shell)
     {
@@ -57,6 +58,7 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
     /// a permanent subscription would retain this view-model.</summary>
     public void Attach()
     {
+        
         _queue.Changed += OnQueueChanged;
         OnQueueChanged();
     }
@@ -65,8 +67,7 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
     public void Detach()
     {
         _queue.Changed -= OnQueueChanged;
-        _pending?.Cancel();
-        _pending = null;
+        CancelPending();
     }
 
     [RelayCommand] private void CancelAll() => _queue.CancelAll();
@@ -84,21 +85,30 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
 
         bool busy = _queue.IsBusy;
 
-        // Anything still in flight is worth showing at once if the panel is already open; the delay
-        // only exists to stop a fast operation opening it at all.
-        if (busy && IsVisible) { _pending?.Cancel(); _pending = null; return; }
-        if (!busy && !IsVisible) { _pending?.Cancel(); _pending = null; return; }
+        // Already where we want to be — and abandon any countdown to the opposite.
+        if (busy == IsVisible) { CancelPending(); return; }
 
         ScheduleVisibility(busy, busy ? ExpandDelayMs : CollapseDelayMs);
     }
 
-    /// <summary>Applies <paramref name="visible"/> after <paramref name="delayMs"/>, unless the queue
-    /// changes its mind first — a new schedule cancels the one before it.</summary>
+    /// <summary>
+    /// Applies <paramref name="visible"/> after <paramref name="delayMs"/>, unless the queue changes its
+    /// mind first.
+    /// <para>
+    /// A countdown that is already heading for this state is left alone. That is the whole subtlety: the
+    /// queue reports progress several times a second, and restarting the countdown on each report means
+    /// it never elapses — the panel would only ever appear for an operation that had gone quiet, which is
+    /// the opposite of the one worth showing.
+    /// </para>
+    /// </summary>
     private void ScheduleVisibility(bool visible, int delayMs)
     {
-        _pending?.Cancel();
+        if (_pendingTarget == visible) return;
+
+        CancelPending();
         var cts = new CancellationTokenSource();
-        _pending = cts;
+        _pending       = cts;
+        _pendingTarget = visible;
 
         _ = Task.Run(async () =>
         {
@@ -107,10 +117,20 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
 
             await _shell.RunOnUiAsync(() =>
             {
-                // Re-read rather than trusting the decision made 600 ms ago.
-                if (!cts.IsCancellationRequested) IsVisible = _queue.IsBusy;
+                if (cts.IsCancellationRequested) return;
+                _pendingTarget = null;
+
+                // Re-read rather than trusting the decision made when the countdown started.
+                IsVisible = _queue.IsBusy;
             });
         });
+    }
+
+    private void CancelPending()
+    {
+        _pending?.Cancel();
+        _pending       = null;
+        _pendingTarget = null;
     }
 
     private string DescribeQueue()
@@ -131,4 +151,5 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
         if (waiting > 0) text += $", {waiting} waiting";
         return text;
     }
+
 }
