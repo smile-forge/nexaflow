@@ -445,6 +445,27 @@ public sealed class LatexGrid
         rest.InsertRange(Math.Clamp(at, 0, rest.Count), moving);
         return rest;
     }
+
+    /// <summary>
+    /// The order this table's columns would be in with <paramref name="block"/> moved before
+    /// <paramref name="before"/>, and where the block lands — decided here, done to the tree.
+    /// </summary>
+    public (IReadOnlyList<int> Order, GridBlock Landed) ColumnOrder(GridBlock block, int before)
+    {
+        var order = Reordered(ColumnCount, block.Left, block.Right, before);
+        var landed = order.IndexOf(block.Left);
+
+        return (order, new GridBlock(0, landed, RowCount - 1, landed + block.Columns - 1));
+    }
+
+    /// <summary>The same for rows.</summary>
+    public (IReadOnlyList<int> Order, GridBlock Landed) RowOrder(GridBlock block, int before)
+    {
+        var order = Reordered(RowCount, block.Top, block.Bottom, before);
+        var landed = order.IndexOf(block.Top);
+
+        return (order, new GridBlock(landed, 0, landed + block.Rows - 1, ColumnCount - 1));
+    }
 }
 
 /// <summary>A grid after a move, and where the moved cells ended up in it.</summary>

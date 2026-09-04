@@ -727,14 +727,43 @@ public sealed class LatexTree
         return Wrote(latex, wrote.Start + wrote.Length, wrote.Length);
     }
 
-    private static LatexWrite? MovedWithin(LatexGrid grid, GridBlock block, (int Row, int Column) cell)
+    /// <summary>
+    /// A block moved somewhere else in the same matrix.
+    /// <para>
+    /// Whole columns and whole rows are a reordering of pieces that are already there, so they are done to
+    /// the tree: every cell keeps the node it was, and a matrix somebody lined up by hand still looks the
+    /// way they left it after a drag somewhere else in it. Anything less than a whole line changes what is
+    /// written in the cells rather than which order they are in, and is still rendered.
+    /// </para>
+    /// </summary>
+    private LatexWrite? MovedWithin(LatexGrid grid, GridBlock block, (int Row, int Column) cell)
     {
-        var move = grid.IsWholeColumns(block) ? grid.WithColumnsMoved(block, cell.Column)
-                 : grid.IsWholeRows(block) ? grid.WithRowsMoved(block, cell.Row)
-                 : grid.WithBlockMoved(block, cell.Row, cell.Column);
+        if (Table(grid) is { } table)
+        {
+            if (grid.IsWholeColumns(block))
+            {
+                var (order, landed) = grid.ColumnOrder(block, cell.Column);
+                return Settled(TexEdit.Columns(table, order, landed.Left, landed.Columns));
+            }
 
-        return Settled(move);
+            if (grid.IsWholeRows(block))
+            {
+                var (order, landed) = grid.RowOrder(block, cell.Row);
+                return Settled(TexEdit.Rows(table, order, landed.Top, landed.Rows));
+            }
+        }
+
+        return Settled(grid.WithBlockMoved(block, cell.Row, cell.Column));
     }
+
+    /// <summary>The part of the parse tree a table was read from, where the reading still holds one.</summary>
+    private TexPart? Table(LatexGrid grid) =>
+        Reading.Root.SelfAndDescendants()
+            .FirstOrDefault(part => part.Kind == TexKind.Environment && part.Start == grid.Start);
+
+    /// <summary>What an edit to the tree came to, as the surface wants it.</summary>
+    private static LatexWrite Settled(TexWrite written) =>
+        Wrote(written.Tree.Print(), written.End, written.Length);
 
     private static LatexWrite? MovedOut(LatexGrid grid, GridBlock block, int to)
     {
