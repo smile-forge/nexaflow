@@ -194,8 +194,14 @@ public sealed class LatexTree
     private LatexGrid? GridFrom(int offset) =>
         TexGrid.At(Reading.Root.Node, offset) is { } grid ? Shaped(grid) : null;
 
-    /// <summary>That table as the editor's own model of it, which rewrites LaTeX by character.</summary>
-    private LatexGrid Shaped(TexGrid grid) =>
+    /// <summary>
+    /// That table as the editor's own model of it, which rewrites LaTeX by character — or null where the
+    /// parse tree describes something the model cannot represent as a rectangle: no cells at all, or a
+    /// ragged row count that would make cell addresses lie. Nullable because
+    /// <see cref="LatexGrid.From"/> says so; declaring it otherwise only moved the null past the compiler
+    /// and into whatever touched the grid first.
+    /// </summary>
+    private LatexGrid? Shaped(TexGrid grid) =>
         LatexGrid.From(
             Latex,
             grid.Start,
@@ -256,7 +262,11 @@ public sealed class LatexTree
             }
 
             if (boxes.Count == 0) continue;
-            return Land(Shaped(grid), boxes, point);
+
+            // A grid the editor's model cannot represent is skipped for the same reason as one that drew
+            // no boxes: there is nothing here to land a drop on, and an enclosing grid may still serve.
+            if (Shaped(grid) is not { } shaped) continue;
+            return Land(shaped, boxes, point);
         }
 
         return null;

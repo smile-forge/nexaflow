@@ -46,11 +46,10 @@ internal sealed class DefaultTexFontParser
     {
         _fontProvider = fontProvider;
 
-        using var resource = typeof(XamlMathResourceMarker).Assembly.ReadResource(resourceName);
-        var doc = XDocument.Load(resource);
-        this.rootElement = doc.Root;
+        var root = typeof(XamlMathResourceMarker).Assembly.ReadResourceRoot(resourceName);
 
-        this.parsedTextStyles = CreateParseTextStyleMappings(doc.Root);
+        this.rootElement = root;
+        this.parsedTextStyles = CreateParseTextStyleMappings(root);
     }
 
     public IReadOnlyList<TexFontInfo> GetFontDescriptions()

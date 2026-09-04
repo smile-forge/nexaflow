@@ -33,9 +33,7 @@ internal sealed class TexSymbolParser
 
     public TexSymbolParser()
     {
-        using var resource = typeof(XamlMathResourceMarker).Assembly.ReadResource(resourceName);
-        var doc =  XDocument.Load(resource);
-        this.rootElement = doc.Root;
+        this.rootElement = typeof(XamlMathResourceMarker).Assembly.ReadResourceRoot(resourceName);
     }
 
     public IReadOnlyDictionary<string, Func<SymbolAtom>> GetSymbols()
