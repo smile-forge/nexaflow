@@ -122,5 +122,5 @@ public class BracketTests
     }
 
     private static string Text(string latex, ILayoutNode node) =>
-        latex.Substring(node.SourceStart, node.SourceLength);
+        latex.Substring(node.Sits().Start, node.Sits().Length);
 }

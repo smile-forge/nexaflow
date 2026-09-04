@@ -70,7 +70,7 @@ public class BarcodeLayoutTests
         var root = Root("format: EAN13\nvalue: 590123412345");
 
         foreach (var node in Of(root, BarcodeKind.EncodedText))
-            Assert.AreEqual(0, node.SourceLength,
+            Assert.AreEqual(0, node.Sits().Length,
                 "it stands for the whole value in the parse tree, and for no offsets here");
     });
 
@@ -94,8 +94,8 @@ public class BarcodeLayoutTests
         var third = Of(root, BarcodeKind.Character)[2];
         var found = root.NodeAt(Middle(third));
 
-        Assert.AreEqual(2, found!.SourceStart);
-        Assert.AreEqual(1, found.SourceLength);
+        Assert.AreEqual(2, found!.Sits().Start);
+        Assert.AreEqual(1, found.Sits().Length);
     });
 
     // ── What is drawn but says nothing ────────────────────────────────────
@@ -108,7 +108,7 @@ public class BarcodeLayoutTests
         var bars = root.SelfAndDescendants().Single(n => n.Kind == "Bars");
 
         Assert.IsTrue(bars.Bounds.Width > 0 && bars.Bounds.Height > 0, "they are on the page");
-        Assert.AreEqual(0, bars.SourceLength,
+        Assert.AreEqual(0, bars.Sits().Length,
             "and hold no place in the source, so the caret is never stood against one");
         Assert.IsFalse(bars.IsInk, "nor are they something a drag picks out");
     });

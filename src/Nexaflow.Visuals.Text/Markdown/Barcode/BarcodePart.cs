@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 
@@ -63,7 +64,7 @@ public static class BarcodeRole
 /// is a piece an edit cannot round-trip through.
 /// </para>
 /// </summary>
-public sealed class BarcodePart
+public sealed class BarcodePart : ISourcePart
 {
     private readonly List<BarcodePart> _children = [];
 

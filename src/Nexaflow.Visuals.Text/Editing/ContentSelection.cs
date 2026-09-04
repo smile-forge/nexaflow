@@ -48,10 +48,11 @@ public sealed class ContentSelection
         if (SharedGrid(anchor, focus) is { } grid && Block(grid, anchor, focus) is { } block)
             return block;
 
-        var from = System.Math.Min(anchor.SourceStart, focus.SourceStart);
-        var to = System.Math.Max(anchor.SourceEnd(), focus.SourceEnd());
+        var (one, other) = (anchor.Sits(), focus.Sits());
+        var from = System.Math.Min(one.Start, other.Start);
+        var to = System.Math.Max(one.End, other.End);
 
-        var touched = root.Ink().Where(n => n.SourceStart >= from && n.SourceEnd() <= to).ToList();
+        var touched = root.Ink().Where(n => n.Sits() is var at && at.Start >= from && at.End <= to).ToList();
         return touched.Count == 0 ? None : new ContentSelection(LayoutQuery.Promote(touched));
     }
 
@@ -106,8 +107,8 @@ public sealed class ContentSelection
             // grid's own punctuation and belongs to the selection. Taking each cell separately instead
             // would leave a selected row reading as three selected digits with the `&` between them
             // conspicuously unselected.
-            var start = ink.Min(n => n.SourceStart);
-            ranges.Add((start, ink.Max(n => n.SourceEnd()) - start));
+            var start = ink.Min(n => n.Sits().Start);
+            ranges.Add((start, ink.Max(n => n.Sits().End) - start));
         }
 
         return new ContentSelection([.. LayoutQuery.Promote(block)], LayoutQuery.Merge(ranges));

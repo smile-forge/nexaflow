@@ -42,8 +42,8 @@ public class LatexLayoutTests
         // claims the backslash back; without that, backspace would un-render α to `alpha`.
         var tree = Build(@"\alpha + \beta");
 
-        var alpha = tree.Root.Ink().Single(n => n.SourceStart == 0);
-        Assert.AreEqual(@"\alpha".Length, alpha.SourceLength);
+        var alpha = tree.Root.Ink().Single(n => n.Sits().Start == 0);
+        Assert.AreEqual(@"\alpha".Length, alpha.Sits().Length);
         CollectionAssert.DoesNotContain(tree.CaretStops.ToList(), 1,
             "and the backslash stops being a caret position of its own");
     });
@@ -55,11 +55,11 @@ public class LatexLayoutTests
         // or there is no such thing as "select the exponent".
         var ink = Build(Fraction).Root.Ink().ToList();
 
-        Assert.IsNotNull(ink.SingleOrDefault(n => n.SourceStart == 6 && n.SourceLength == 1),
+        Assert.IsNotNull(ink.SingleOrDefault(n => n.Sits().Start == 6 && n.Sits().Length == 1),
             "the numerator's x");
-        Assert.IsNotNull(ink.SingleOrDefault(n => n.SourceStart == 8 && n.SourceLength == 1),
+        Assert.IsNotNull(ink.SingleOrDefault(n => n.Sits().Start == 8 && n.Sits().Length == 1),
             "the exponent's 2");
-        Assert.IsNotNull(ink.SingleOrDefault(n => n.SourceStart == 11 && n.SourceLength == 1),
+        Assert.IsNotNull(ink.SingleOrDefault(n => n.Sits().Start == 11 && n.Sits().Length == 1),
             "the denominator's 2");
     });
 
@@ -70,16 +70,16 @@ public class LatexLayoutTests
         // guessed afterwards by comparing rectangles, which is how a numerator ever came to be treated as
         // a sibling of the fraction that holds it.
         var tree = Build(Fraction);
-        var numerator = tree.Root.Ink().Single(n => n.SourceStart == 6 && n.SourceLength == 1);
-        var denominator = tree.Root.Ink().Single(n => n.SourceStart == 11);
+        var numerator = tree.Root.Ink().Single(n => n.Sits().Start == 6 && n.Sits().Length == 1);
+        var denominator = tree.Root.Ink().Single(n => n.Sits().Start == 11);
 
         var shared = numerator.Ancestors().First(a => a.Ancestors().Contains(tree.Root) || a == tree.Root);
         Assert.IsNotNull(shared);
-        Assert.IsTrue(numerator.Ancestors().Any(a => a.SourceStart == 0 && a.SourceLength == 13),
+        Assert.IsTrue(numerator.Ancestors().Any(a => a.Sits().Start == 0 && a.Sits().Length == 13),
             "the x sits inside the fraction");
-        Assert.IsTrue(denominator.Ancestors().Any(a => a.SourceStart == 0 && a.SourceLength == 13),
+        Assert.IsTrue(denominator.Ancestors().Any(a => a.Sits().Start == 0 && a.Sits().Length == 13),
             "and so does the 2 below the bar");
-        Assert.IsTrue(numerator.Ancestors().Any(a => a.SourceStart == 6 && a.SourceLength == 3),
+        Assert.IsTrue(numerator.Ancestors().Any(a => a.Sits().Start == 6 && a.Sits().Length == 3),
             "with the script as a level of its own between them");
     });
 
@@ -93,17 +93,17 @@ public class LatexLayoutTests
         // to be interpreted, and every version of that interpretation has been wrong somewhere.
         const string latex = @"\sqrt[3]{x+1}";
         var tree = Build(latex);
-        var named = tree.Root.SelfAndDescendants().Where(n => n.SourceLength > 0).ToList();
+        var named = tree.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0).ToList();
 
         var repeated = named
-            .Where(n => n.Ancestors().Any(a => a.SourceStart == n.SourceStart && a.SourceLength == n.SourceLength))
+            .Where(n => n.Ancestors().Any(a => a.Sits().Start == n.Sits().Start && a.Sits().Length == n.Sits().Length))
             .ToList();
         Assert.AreEqual(0, repeated.Count,
             "layout repeating a name its own ancestor carries: " + string.Join("; ", repeated));
 
-        Assert.IsTrue(named.Any(n => n.SourceStart == 0 && n.SourceLength == latex.Length), "the root as a whole");
-        Assert.IsTrue(tree.Root.Ink().Any(n => latex.Substring(n.SourceStart, n.SourceLength) == "3"), "its degree");
-        Assert.IsTrue(tree.Root.Ink().Any(n => latex.Substring(n.SourceStart, n.SourceLength) == "x"), "its contents");
+        Assert.IsTrue(named.Any(n => n.Sits().Start == 0 && n.Sits().Length == latex.Length), "the root as a whole");
+        Assert.IsTrue(tree.Root.Ink().Any(n => latex.Substring(n.Sits().Start, n.Sits().Length) == "3"), "its degree");
+        Assert.IsTrue(tree.Root.Ink().Any(n => latex.Substring(n.Sits().Start, n.Sits().Length) == "x"), "its contents");
     });
 
     [TestMethod]
@@ -112,8 +112,8 @@ public class LatexLayoutTests
         // The caret's shape is taken straight from these boxes, so if the typesetter ever stopped
         // distinguishing them the caret would silently go uniform.
         var ink = Build(Fraction).Root.Ink().ToList();
-        var exponent = ink.Single(n => n.SourceStart == 8);
-        var denominator = ink.Single(n => n.SourceStart == 11);
+        var exponent = ink.Single(n => n.Sits().Start == 8);
+        var denominator = ink.Single(n => n.Sits().Start == 11);
 
         Assert.IsTrue(exponent.Bounds.Height < denominator.Bounds.Height);
         Assert.IsTrue(exponent.Bounds.Top < denominator.Bounds.Top);
@@ -127,7 +127,7 @@ public class LatexLayoutTests
         var layout = LatexLayout.Build(Fraction, Scale);
         Assert.IsNotNull(layout);
 
-        foreach (var node in layout.Tree.Root.SelfAndDescendants().Where(n => n.SourceLength > 0))
+        foreach (var node in layout.Tree.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
         {
             Assert.IsTrue(node.Bounds.X >= -0.01 && node.Bounds.Y >= -0.01,
                 $"{node} sits outside the control");
@@ -159,7 +159,7 @@ public class LatexLayoutTests
         const string trig = @"\sin x \;\; \cos x \;\; \tan x";
         var tree = Build(trig);
 
-        Assert.IsTrue(tree.Root.SelfAndDescendants().All(n => n.SourceEnd() <= trig.Length),
+        Assert.IsTrue(tree.Root.SelfAndDescendants().All(n => n.Sits().End <= trig.Length),
             "a span reaching past the end of the formula came from somewhere else entirely");
 
         var (start, length) = tree.SnapRange(5, 1);
@@ -172,7 +172,7 @@ public class LatexLayoutTests
     {
         // Three rows, three columns, each cell its own glyph — what canvas-style selection needs.
         var tree = Build(@"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}");
-        var cells = tree.Root.Ink().Where(n => n.SourceLength == 1).ToList();
+        var cells = tree.Root.Ink().Where(n => n.Sits().Length == 1).ToList();
 
         Assert.AreEqual(9, cells.Count, "nine cells");
         Assert.AreEqual(3, cells.Select(c => Math.Round(c.Bounds.Y)).Distinct().Count(), "in three rows");
@@ -208,7 +208,7 @@ public class LatexLayoutTests
             var at = latex.IndexOf(command, StringComparison.Ordinal);
 
             Assert.IsTrue(
-                tree.Root.SelfAndDescendants().Any(n => n.SourceStart == at && n.SourceLength >= command.Length),
+                tree.Root.SelfAndDescendants().Any(n => n.Sits().Start == at && n.Sits().Length >= command.Length),
                 $"{command} is not addressable in {latex}");
         }
     });
@@ -449,16 +449,16 @@ public class LatexLayoutTests
         const string latex = @"x+\not=y";
         var tree = Build(latex);
 
-        var sign = tree.Root.Ink().Single(node => node.SourceLength > 1);
-        Assert.AreEqual(@"\not=", latex.Substring(sign.SourceStart, sign.SourceLength),
+        var sign = tree.Root.Ink().Single(node => node.Sits().Length > 1);
+        Assert.AreEqual(@"\not=", latex.Substring(sign.Sits().Start, sign.Sits().Length),
             "the slash and what it crosses are one piece of ink, not two");
 
         // And what is either side of it stayed its own, so the sign is one item among neighbours rather
         // than something that swallowed them.
         CollectionAssert.AreEqual(
             new[] { "x", "+", @"\not=", "y" },
-            tree.Root.Ink().OrderBy(node => node.SourceStart)
-                .Select(node => latex.Substring(node.SourceStart, node.SourceLength)).ToArray());
+            tree.Root.Ink().OrderBy(node => node.Sits().Start)
+                .Select(node => latex.Substring(node.Sits().Start, node.Sits().Length)).ToArray());
 
         // Dragging over any part of it selects all of it.
         var at = latex.IndexOf('=', StringComparison.Ordinal);
@@ -513,4 +513,32 @@ public class LatexLayoutTests
             "these are claimed and have no case, so the reading will pass them to a builder with no "
             + "drawing for them:\n" + string.Join("\n", unset));
     }
+
+    [TestMethod]
+    public void AHoleCarriesThePartItWillBeWrittenInto() => UiThread.Run(() =>
+    {
+        // The one piece that is drawn, stands for no characters, and still has to know exactly where it
+        // is: type into a hole and the text has to land between those braces and nowhere else. So a hole
+        // is not a piece drawn from nothing — it is drawn from an empty argument, which is a part of the
+        // parse like any other and is the whole of what says where an edit to it goes.
+        const string latex = @"\frac{3+7}{}";
+
+        // A hole is offered only to a surface being written on — a box in the middle of a formula that is
+        // only being read would simply be wrong — so this is the writing path, not the reading one.
+        var layout = LatexLayout.Build(latex, Scale, placeholders: true);
+        Assert.IsNotNull(layout);
+        var tree = layout.Tree;
+
+        var hole = tree.Root.SelfAndDescendants().Single(n => n.IsPlaceholder());
+
+        Assert.IsNotNull(hole.Part, "a hole was read from an empty argument, so it was drawn from a part");
+        Assert.AreEqual(latex.IndexOf("{}", StringComparison.Ordinal) + 1, hole.Sits().Start,
+            "and sits between the braces, which is where what replaces it belongs");
+        Assert.AreEqual(0, hole.Sits().Length, "covering nothing, because nothing has been written there");
+
+        // Which is why it is somewhere a caret can be. Standing is not the same question as covering
+        // source: a hole covers none and is the one place the reader has been told to write.
+        Assert.IsTrue(hole.Stands());
+        CollectionAssert.Contains(tree.Root.CaretStops().ToArray(), hole.Sits().Start);
+    });
 }

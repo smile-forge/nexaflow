@@ -1,0 +1,103 @@
+{
+  "branch": "claude/layout-part-not-offsets",
+  "nodes": {
+    "latex-source-map": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexLayout.cs",
+          "class": "LatexLayout"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexLayoutCapture.cs",
+          "class": "LatexLayoutCapture"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexTree.cs",
+          "class": "LatexTree"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ILayoutNode.cs",
+          "class": "ILayoutNode"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ISourcePart.cs",
+          "class": "ISourcePart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/TexSourcePart.cs",
+          "class": "TexSourcePart"
+        }
+      ]
+    },
+    "maths-latex-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexEdit.cs",
+          "class": "TexEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexNode.cs",
+          "class": "TexNode",
+          "method": "Same"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexWrite.cs",
+          "class": "TexWrite"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexEditTests.cs",
+            "class": "TexEditTests"
+          }
+        ]
+      }
+    },
+    "maths-latex-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexPipeline.cs",
+          "class": "TexPipeline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexPipelineTests.cs",
+            "class": "TexPipelineTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 5,
+  "touched_nodes": [
+    "latex-source-map",
+    "maths-latex-edit",
+    "maths-latex-pipeline"
+  ]
+}

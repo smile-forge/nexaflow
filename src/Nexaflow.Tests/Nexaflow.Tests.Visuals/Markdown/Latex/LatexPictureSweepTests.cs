@@ -97,7 +97,7 @@ public class LatexPictureSweepTests
             Assert.Inconclusive($"nothing accepted yet. Read {Path.Combine(work, "review", "index.html")} "
                                 + "worst-first, then re-run with NEXAFLOW_LATEX_BLESS=1 to accept it.");
 
-        // Cut three ways, because the three mean different things. How a formula is *read* is most of
+        // Cut four ways, because the four mean different things. How a formula is *read* is most of
         // the work on this branch and is meant to change. Where its pieces are *set* is what a reader
         // sees, and is not. What each piece was set *from* is what a caret and a selection run on, and
         // changes with the reading — so it has to be visible without hiding the middle one.
@@ -113,14 +113,23 @@ public class LatexPictureSweepTests
         var named = moved.Count(pair => pair.Was.Layout != pair.Now.Layout) - set.Count;
         var told = moved.Count(pair => pair.Was.Layout == pair.Now.Layout
                                       && pair.Was.Parse == pair.Now.Parse
+                                      && pair.Was.Read == pair.Now.Read
                                       && pair.Was.Trouble != pair.Now.Trouble);
-        var read = moved.Count - set.Count - named - told;
+
+        // A stage between the parser and the builder moved the tree, and neither end shows it.
+        var gathered = moved.Count(pair => pair.Was.Layout == pair.Now.Layout
+                                          && pair.Was.Parse == pair.Now.Parse
+                                          && pair.Was.Read != pair.Now.Read);
+
+        var read = moved.Count - set.Count - named - told - gathered;
 
         Paint(work, moved.Select(pair => pair.Row).ToList());
 
         var complaint = new StringBuilder();
         complaint.AppendLine($"{moved.Count} of {drawn.Count} formula(s) differ from the accepted reference:");
-        complaint.AppendLine($"  {read,8} read differently, and set in the same places from the same source");
+        complaint.AppendLine($"  {read,8} read differently by the parser, and set in the same places");
+        complaint.AppendLine($"  {gathered,8} read the same and gathered differently — the tree the builder "
+        + "was handed moved, and nothing else did");
         complaint.AppendLine($"  {named,8} set in the same places, from different source — selection moved, "
                              + "the drawing did not");
         complaint.AppendLine($"  {told,8} set and read the same, and reported differently — a squiggle changed");
@@ -202,9 +211,22 @@ public class LatexPictureSweepTests
     }
 
     /// <summary>
-    /// Both readings of the formula, as text: what the parser made of the source, and what was laid out
-    /// from that. This is the thing compared exactly between runs, so everything in it is something a
-    /// change to would matter — and nothing in it is a pixel.
+    /// The three readings of the formula, as text: what the parser made of the source, what the pipeline
+    /// gathered out of that and the builder was handed, and what was laid out from it. This is the thing
+    /// compared exactly between runs, so everything in it is something a change to would matter — and
+    /// nothing in it is a pixel.
+    /// <para>
+    /// The middle one is here because a stage between the two ends can move the tree without moving either:
+    /// gathering gives the builder shapes it can act on, holes fill empty arguments, undrawable commands are
+    /// marked, and what is under the caret is shown as it was written. Recording only the ends said nothing
+    /// about any of that, and it is the tree an edit will be expressed against.
+    /// </para>
+    /// <para>
+    /// A piece drawn from nothing anybody wrote records no source at all. It used to record wherever it
+    /// happened to be parked, and that is an answer to a question such a piece was never asked: it moves
+    /// when the tree is rearranged around it, and means nothing either way, so a run reported thousands of
+    /// formulas as changed on the strength of it.
+    /// </para>
     /// </summary>
     private static string Reading(string latex, LatexLayout layout)
     {
@@ -213,15 +235,21 @@ public class LatexPictureSweepTests
         text.Append("parse\n");
         Parsed(TexReading.Of(latex).Root, 1, text);
 
+        text.Append("read\n");
+        Parsed(layout.Tree.Reading.Root, 1, text);
+
         text.Append("layout ").Append(Round(layout.Size.Width)).Append('x').Append(Round(layout.Size.Height)).Append('\n');
         foreach (var node in layout.Tree.Root.SelfAndDescendants())
+        {
             text.Append(' ', Depth(node))
                 .Append(node.Kind).Append(' ')
                 .Append(Round(node.Bounds.X)).Append(',').Append(Round(node.Bounds.Y)).Append(' ')
-                .Append(Round(node.Bounds.Width)).Append('x').Append(Round(node.Bounds.Height))
-                .Append(Named)
-                .Append(node.SourceStart).Append('+').Append(node.SourceLength)
-                .Append('\n');
+                .Append(Round(node.Bounds.Width)).Append('x').Append(Round(node.Bounds.Height));
+
+            if (node.Part is { } part) text.Append(Named).Append(part.Start).Append('+').Append(part.Length);
+
+            text.Append('\n');
+        }
 
         foreach (var trouble in layout.Tree.Diagnostics)
             text.Append("! ").Append(trouble.Start).Append('+').Append(trouble.Length)
@@ -371,28 +399,28 @@ public class LatexPictureSweepTests
     }
 
     /// <summary>
-    /// A stored reading cut into the three things it says: how the formula was read, where its pieces were
-    /// set, and what was reported about it.
+    /// A reading cut into the stages that made it, so a difference can be blamed on one of them.
     /// <para>
-    /// The third one earns its place. The trouble lines sit at the end of the layout section with no header
-    /// of their own, so cutting only twice folded them into the layout — and because a <c>!</c> line carries
-    /// no source-naming marker, <see cref="Geometry"/> passed it through untouched. A change to what is
-    /// <em>reported</em> then came out under "set in different places — these are the ones a reader sees",
-    /// which is the one line here that has to be trustworthy. 1,091 formulas said so while every score,
-    /// every bucket and the mean overlap were byte-identical.
+    /// The parser's tree, then the tree the pipeline gathered out of it and the builder was handed, then
+    /// where the pieces were set and what each was set from, then what was reported as wrong. A change to
+    /// any one of those means something different, and a run that lumped them together could only say that
+    /// something moved.
     /// </para>
     /// </summary>
-    private static (string Parse, string Layout, string Trouble) Parts(string reading)
+    private static (string Parse, string Read, string Layout, string Trouble) Parts(string reading)
     {
-        var layoutAt = reading.IndexOf("\nlayout ", StringComparison.Ordinal);
-        if (layoutAt < 0) return (reading, "", "");
+        var (parse, gathered) = Cut(reading, "\nread\n");
+        var (read, laid) = Cut(gathered, "\nlayout ");
+        var (layout, trouble) = Cut(laid, "\n! ");
 
-        var rest = reading[layoutAt..];
-        var troubleAt = rest.IndexOf("\n! ", StringComparison.Ordinal);
+        return (parse, read, layout, trouble);
+    }
 
-        return troubleAt < 0
-            ? (reading[..layoutAt], rest, "")
-            : (reading[..layoutAt], rest[..troubleAt], rest[troubleAt..]);
+    /// <summary>Everything before a marker, and the marker with everything after it.</summary>
+    private static (string Head, string Tail) Cut(string text, string marker)
+    {
+        var at = text.IndexOf(marker, StringComparison.Ordinal);
+        return at < 0 ? (text, string.Empty) : (text[..at], text[at..]);
     }
 
     /// <summary>Where a marker sits between where a piece was set and what it was set from.</summary>

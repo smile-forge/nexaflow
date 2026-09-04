@@ -55,15 +55,15 @@ public class LatexConstructCoverageTests
             var layout = LatexLayout.Build(LatexConstructs.Flatten(latex), Scale);
             Assert.IsNotNull(layout, what);
 
-            foreach (var node in layout.Tree.Root.SelfAndDescendants().Where(n => n.SourceLength > 0))
+            foreach (var node in layout.Tree.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
             {
                 Assert.IsFalse(
-                    node.Ancestors().Any(a => a.SourceStart == node.SourceStart && a.SourceLength == node.SourceLength),
+                    node.Ancestors().Any(a => a.Sits().Start == node.Sits().Start && a.Sits().Length == node.Sits().Length),
                     $"{what}: {node} repeats a name its ancestor carries");
 
-                if (node.Parent is { SourceLength: > 0 } parent)
+                if (node.Parent is { } parent && parent.Sits().Length > 0)
                     Assert.IsTrue(
-                        node.SourceStart >= parent.SourceStart && node.SourceEnd() <= parent.SourceEnd(),
+                        node.Sits().Start >= parent.Sits().Start && node.Sits().End <= parent.Sits().End,
                         $"{what}: {node} names source outside its parent {parent}");
             }
         }

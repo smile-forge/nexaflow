@@ -78,7 +78,7 @@ public static class LayoutQuery
 
     /// <summary>The nearest thing containing this node that the source actually named.</summary>
     private static ILayoutNode? NamedAncestor(ILayoutNode node) =>
-        node.Ancestors().FirstOrDefault(a => a.SourceLength > 0);
+        node.Ancestors().FirstOrDefault(a => a.Part is { Length: > 0 });
 
     /// <summary>
     /// What a node draws that no part of the source named: a fraction's bar, a radical's sign, a beam
@@ -89,7 +89,7 @@ public static class LayoutQuery
     {
         foreach (var child in node.Children)
         {
-            if (child.SourceLength > 0) continue;
+            if (child.Part is { Length: > 0 }) continue;
 
             if (child.Children.Count > 0)
                 foreach (var deeper in Decoration(child)) yield return deeper;
@@ -131,7 +131,7 @@ public static class LayoutQuery
     /// </summary>
     public static IReadOnlyList<ILayoutNode> Promote(IEnumerable<ILayoutNode> nodes)
     {
-        var chosen = new HashSet<ILayoutNode>(nodes.Where(n => n.SourceLength > 0));
+        var chosen = new HashSet<ILayoutNode>(nodes.Where(n => n.Part is { Length: > 0 }));
         if (chosen.Count == 0) return [];
 
         bool grew;
@@ -166,7 +166,7 @@ public static class LayoutQuery
         while (grew);
 
         // Drop anything already inside something else in the set, so a range is never counted twice.
-        return [.. chosen.Where(n => !n.Ancestors().Any(chosen.Contains)).OrderBy(n => n.SourceStart)];
+        return [.. chosen.Where(n => !n.Ancestors().Any(chosen.Contains)).OrderBy(n => n.Sits().Start)];
     }
 
     /// <summary>
@@ -174,7 +174,7 @@ public static class LayoutQuery
     /// column is a real selection and is not contiguous in the source.
     /// </summary>
     public static IReadOnlyList<(int Start, int Length)> Ranges(IEnumerable<ILayoutNode> nodes) =>
-        Merge(nodes.Where(n => n.SourceLength > 0).Select(n => (n.SourceStart, n.SourceLength)));
+        Merge(nodes.Select(n => n.Part).OfType<ISourcePart>().Where(p => p.Length > 0).Select(p => (p.Start, p.Length)));
 
     /// <summary>Ranges in order, with touching and overlapping ones folded together.</summary>
     public static IReadOnlyList<(int Start, int Length)> Merge(IEnumerable<(int Start, int Length)> ranges)
@@ -232,7 +232,7 @@ public static class LayoutQuery
             // Out through every enclosure finishing where what is inside it finishes. That is the case
             // the source cannot express: `x^{2}` closes the exponent with a brace and so has an offset
             // of its own for "past the script", while `x^2` has none.
-            foreach (var enclosure in ends.Ancestors().Where(a => a.SourceEnd() == offset && a.IsEnclosure))
+            foreach (var enclosure in ends.Ancestors().Where(a => a.Sits().End == offset && a.IsEnclosure))
             {
                 var stepped = Bar(enclosure, trailing: true);
                 if (!Coincide(bars[^1], stepped)) bars.Add(stepped);
@@ -252,8 +252,9 @@ public static class LayoutQuery
         ILayoutNode? before = null, after = null;
         foreach (var node in root.Ink())
         {
-            if (node.SourceEnd() <= offset && (before is null || node.SourceEnd() > before.SourceEnd())) before = node;
-            if (node.SourceStart >= offset && (after is null || node.SourceStart < after.SourceStart)) after = node;
+            var at = node.Sits();
+            if (at.End <= offset && (before is null || at.End > before.Sits().End)) before = node;
+            if (at.Start >= offset && (after is null || at.Start < after.Sits().Start)) after = node;
         }
 
         if (before is not null) return [Bar(before, trailing: true)];
@@ -294,21 +295,26 @@ public static class LayoutQuery
 
         foreach (var node in root.SelfAndDescendants().Where(n => n.Stands()))
         {
-            if (node.SourceEnd() == offset && (ends is null || Tighter(node, ends))) ends = node;
-            if (node.SourceStart == offset && (starts is null || Wider(node, starts))) starts = node;
+            var at = node.Sits();
+            if (at.End == offset && (ends is null || Tighter(node, ends))) ends = node;
+            if (at.Start == offset && (starts is null || Wider(node, starts))) starts = node;
         }
 
         return (ends, starts);
     }
 
     /// <summary>Smaller in source, and among equals the outer one — a fraction rather than its bar.</summary>
-    private static bool Tighter(ILayoutNode candidate, ILayoutNode best) =>
-        candidate.SourceLength < best.SourceLength
-        || (candidate.SourceLength == best.SourceLength && Shallower(candidate, best));
+    private static bool Tighter(ILayoutNode candidate, ILayoutNode best)
+    {
+        var (mine, theirs) = (candidate.Sits().Length, best.Sits().Length);
+        return mine < theirs || (mine == theirs && Shallower(candidate, best));
+    }
 
-    private static bool Wider(ILayoutNode candidate, ILayoutNode best) =>
-        candidate.SourceLength > best.SourceLength
-        || (candidate.SourceLength == best.SourceLength && Shallower(candidate, best));
+    private static bool Wider(ILayoutNode candidate, ILayoutNode best)
+    {
+        var (mine, theirs) = (candidate.Sits().Length, best.Sits().Length);
+        return mine > theirs || (mine == theirs && Shallower(candidate, best));
+    }
 
     private static bool Shallower(ILayoutNode candidate, ILayoutNode best) =>
         candidate.Ancestors().Count() < best.Ancestors().Count();
@@ -322,12 +328,16 @@ public static class LayoutQuery
     /// <summary>Where a caret may rest: wherever a piece of ink begins or ends, plus either end.</summary>
     public static IReadOnlyList<int> CaretStops(this ILayoutNode root)
     {
-        var stops = new SortedSet<int> { root.SourceStart, root.SourceEnd() };
+        var whole = root.Sits();
+        var stops = new SortedSet<int> { whole.Start, whole.End };
+
         foreach (var node in root.SelfAndDescendants().Where(n => n.Stands()))
         {
-            stops.Add(node.SourceStart);
-            stops.Add(node.SourceEnd());
+            var at = node.Sits();
+            stops.Add(at.Start);
+            stops.Add(at.End);
         }
+
         return [.. stops];
     }
 
@@ -407,11 +417,11 @@ public static class LayoutQuery
                 // the numerator arrives after the denominator rather than jumping in front of it.
                 var landing = rows[target]
                     .SelectMany(n => n.Ink())
-                    .Where(n => n.SourceLength < ancestor.SourceLength)
+                    .Where(n => n.Sits().Length < ancestor.Sits().Length)
                     .SelectMany(n => new[]
                     {
-                        (Offset: n.SourceStart, X: n.Bounds.X),
-                        (Offset: n.SourceEnd(), X: n.Bounds.Right),
+                        (Offset: n.Sits().Start, X: n.Bounds.X),
+                        (Offset: n.Sits().End, X: n.Bounds.Right),
                     })
                     .OrderBy(stop => Math.Abs(stop.X - fromX))
                     .ThenBy(stop => stop.Offset)

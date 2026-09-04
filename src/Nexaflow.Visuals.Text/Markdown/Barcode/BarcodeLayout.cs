@@ -183,7 +183,7 @@ internal sealed class BarcodeLayout
             captionHeight + _block.BarHeight + LabelHeight + _block.Margin * 2);
 
         // ── the tree ──
-        Root = new LayoutNode(new Rect(Size), 0, 0, nameof(BarcodeKind.Symbol), isInk: false);
+        Root = new LayoutNode(new Rect(Size), part: null, nameof(BarcodeKind.Symbol), isInk: false);
 
         // The ground the symbol is printed on. A barcode paints its own light field whatever the theme,
         // because a scanner needs dark bars on a light one.
@@ -302,7 +302,7 @@ internal sealed class BarcodeLayout
         if (_drawn is null) return;
 
         var bounds = new Rect(_barsLeft, _barsTop, PatternWidth * _block.BarWidth, _block.BarHeight + _guardDrop);
-        var node = Root.Add(new LayoutNode(bounds, 0, 0, "Bars", isInk: false));
+        var node = Root.Add(new LayoutNode(bounds, part: null, "Bars", isInk: false));
 
         Bars = new Rect(_barsLeft, _barsTop, PatternWidth * _block.BarWidth, _block.BarHeight);
 
@@ -336,7 +336,7 @@ internal sealed class BarcodeLayout
     private void LayCaption(BarcodePart part, FormattedText glyphs, Point at, double size)
     {
         var node = Root.Add(new LayoutNode(
-            new Rect(at.X, at.Y, glyphs.Width, glyphs.Height), 0, 0, part.Kind.ToString(), isInk: false));
+            new Rect(at.X, at.Y, glyphs.Width, glyphs.Height), part: null, part.Kind.ToString(), isInk: false));
 
         node.Drew(new TextMark(glyphs, at, null));
         LayPieces(node, part, at.X, at.Y, glyphs.Height, size);
@@ -381,7 +381,7 @@ internal sealed class BarcodeLayout
             if (i >= parts.Count) continue;
             var part = parts[i];
 
-            var node = Root.Add(new LayoutNode(bounds, 0, 0, part.Kind.ToString(), isInk: Generated(part)));
+            var node = Root.Add(new LayoutNode(bounds, part: null, part.Kind.ToString(), isInk: Generated(part)));
             node.Drew(new TextMark(glyphs, at, null));
 
             if (!Generated(part)) LayPieces(node, part, at.X, at.Y, glyphs.Height, null);
@@ -422,8 +422,7 @@ internal sealed class BarcodeLayout
                 // that it stands for the whole value, and says so when it is pressed — but a span here
                 // would put it among the caret's stops, and the caret would take its height and position
                 // from a piece of the symbol nobody can type into.
-                piece.IsSource ? piece.Start : 0,
-                piece.IsSource ? piece.Length : 0,
+                piece.IsSource ? piece : null,
                 piece.Kind.ToString(),
                 isInk: true));
         }

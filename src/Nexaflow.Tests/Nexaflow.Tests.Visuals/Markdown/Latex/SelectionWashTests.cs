@@ -38,7 +38,7 @@ public class SelectionWashTests
         {
             formula.Select(offset, 1);
 
-            var glyph = formula.Layout!.Tree.Root.Ink().Single(n => n.SourceStart == offset);
+            var glyph = formula.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == offset);
             var wash = RectanglesDrawnBy(formula)
                 .Where(r => r.Contains(glyph.Bounds))
                 .OrderBy(r => r.Width * r.Height)

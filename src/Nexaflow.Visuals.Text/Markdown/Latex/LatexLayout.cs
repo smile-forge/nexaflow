@@ -123,8 +123,8 @@ public sealed class LatexLayout
             // it draws without being complained about.
             var trouble = reading.Root.SelfAndDescendants()
                 .Where(part => part.Node.Trouble is not null)
-                .Select(part => Diagnostic.Of(part, DiagnosticSeverity.Error, part.Node.Trouble!))
-                .Concat(formula.Ignored.Select(part => Diagnostic.Of(
+                .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
+                .Concat(formula.Ignored.Select(part => TexSourcePart.Trouble(
                     part,
                     DiagnosticSeverity.Warning,
                     "This was read, and nothing here knows how to draw it.")))

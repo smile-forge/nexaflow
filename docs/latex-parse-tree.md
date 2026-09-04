@@ -96,15 +96,27 @@ Each stage stands on its own and leaves the app working.
    parsed. `\begin{matrix} \alpha & \beta \\ \gamma & \delta \end{matrix}` came back from a column move
    as `\begin{matrix} beta & alpha \\ delta & gamma \end{matrix}`. It had shipped, and nothing caught
    it, because every grid test written until then had a single letter in each cell.
-4. 🔄 **Swap `LatexTree`'s remaining questions over.** `RoleOf`, `IsComposite` and `IsSequence` answered
-   from the parse tree; the layout tree keeps geometry, which is all it was ever good for. The
-   `IFormulaNode` projection comes off `LatexNode` once nothing asks it anything. This is what makes a
-   fraction inside `\displaystyle` selectable, draggable and copyable as a fraction — today it is not,
-   because as far as the tree the editor asks is concerned it has no parts.
-5. **Edits become tree operations.** `Write` and `Move` build a new tree and print it. The character
-   peeking (`IsBraced`, `IsOneToken`, `EndsWithControlWord`, `Separated`) is deleted rather than
-   ported, and the matrix body stops being reformatted, because untouched subtrees are reused as they
-   stand.
+4. ✅ **Swap `LatexTree`'s remaining questions over.** `RoleOf`, `IsComposite` and `IsSequence` answer
+   from the parse tree. Each of them is `Innermost`, which is the part the piece carries rather than a
+   search of the reading for whatever happened to stand at its offsets; the layout tree keeps geometry,
+   which is all it was ever good for, and `IFormulaNode` is off `LatexNode`. What it bought is
+   `APartInsideAStyledGroupStillKnowsWhatItIs`: a style atom names no parts at all, so the numerator of
+   a fraction written inside `\displaystyle` — or `\mathrm`, `{\bf …}`, `\cancel` — used to be the
+   numerator of nothing as far as the editor could tell, and is a numerator again.
+5. 🔄 **Edits become tree operations.** `TexEdit` takes a part and gives back a whole new root, sharing
+   every subtree it did not touch, and the character peeking is deleted rather than ported: `IsBraced`,
+   `IsOneToken`, `EndsWithControlWord`, `Separated`, `Place` and `ArgumentAt` are gone from `LatexTree`,
+   and its three callers — typing, a text move, a block dragged out of a matrix — all go through
+   `TexEdit.Write`, which says the brace and the space in the tree instead. **What is left is the
+   matrix body**, which is still re-rendered from a grid model rather than reused as it stands.
+
+   What comes back from an edit is *provisional*, and that is the rule the whole thing turns on. The
+   stages between the parser and the builder do not re-derive themselves when a tree is changed
+   underneath them — a filled hole is still flagged a hole, a command whose name has grown is still
+   marked undrawable, a gathered shape may no longer be what gathering would make of it — so an edit
+   prints, and the source it prints as is read back and built from. Which is also why editing the tree
+   is worth the trouble: an edit expressed against a node knows what it touched, so trouble afterwards
+   can be blamed on the keystroke that caused it rather than guessed at by diffing a string.
 6. **The solver bridge** — later, and out of scope here. Tree to `Entity`, so that what renders is
    what solves.
 
@@ -171,13 +183,62 @@ cannot have been written outside it". `MarkInk` asks `TexPart.Derived`, which sa
 macro's insides stand for nothing written. `LatexNode.Formula` went with them: the layout no longer
 holds the typesetting tree at all, only the parse-tree part.
 
-**The other half is smaller than it was, and named.** `ILayoutNode.SourceStart`/`SourceLength` are
-still what `LayoutQuery`, `ContentSelection`, `FormulaElement` and `LatexTree`'s editing verbs work in
-— but they are written in exactly one place now, `LatexNode.Owns`, projected from the part. That
-method also holds the last narrowing of an answer to suit an offset (a group named by its contents, a
-cell by its ink), so when the editing seam moves off offsets — which is the same move that will
-harmonise the formula with the barcode, the score and every other custom-drawn block — it is a
-projection to delete rather than a mechanism to unpick.
+## The other half went too: the seam names parts, not offsets
+
+`ILayoutNode.SourceStart`/`SourceLength` are gone. A piece of layout carries **`Part`** — the parse-tree
+part it was drawn from, or nothing at all where it was drawn from nothing anybody wrote: a fraction's
+bar, a barcode's guard pattern, spacing, a decoration. The layout is geometry and a reference; where
+that part is *written* is asked of the part, every time.
+
+**The builder populates it, and nothing works its own out.** The layout is built *from* the parse tree,
+so being told is the only answer that cannot be wrong — and a piece with no part is drawn but not
+selectable and not editable, which is the honest thing to say about a rule the typesetter added.
+
+**`ISourcePart` is the whole of what the seam asks a part for** — `Start` and `Length`. It lives in the
+editing seam, so `TexPart` cannot implement it: a reading that had to know about an editor would be the
+wrong way round. `TexSourcePart` adapts one to the other, and it is where the last narrowing of an
+answer to suit an editor now lives — a braced argument named by its contents, a cell by its ink,
+because handing over the honest span instead re-braces an argument that is already braced. Being on
+this side of the boundary is the point: the reading stays true and the editor is told what it needs.
+`BarcodePart` implements it directly, and gets attached only to the characters somebody typed.
+
+**Where a piece sits is a question, not a field.** `LayoutNode.Sits()` answers it from the parts: a
+piece drawn from one is that part's stretch; a piece drawn from none is a *point*, at the start of
+whatever it was drawn inside. That distinction is what the caret turns on, and it is why nothing has to
+be told an anchor when it is built — `LatexLayoutCapture.Anchor` is deleted.
+
+**Two round trips went with it.** `LatexTree.Innermost` used to turn a piece's offsets back into a part
+by searching the reading for what stood at them — out of a part into two numbers and back, when the
+part was on the piece the whole time. And `Drawn` matched a piece to a part by comparing two numbers
+against two others; it is `ReferenceEquals` now, which is what it always meant.
+
+**What the corpus said, and what it was really saying.** The first run reported 3,446 of 238,132
+formulas as reading differently — none set in a different place, none parsed differently, and every one
+of the 463,432 differing lines a piece of zero length. The sweep had been recording a number that no
+piece of layout should ever have had.
+
+A piece drawn from nothing anybody wrote has no position of its own, but `SourceStart` was an `int` and
+had to hold something, so it was given an **anchor**: the start of whatever node was open on the
+capture's stack at the moment it was created. `FinishRendering` then ran `Detach` — which disowns a
+piece whose part is already claimed above it, or claimed from outside it — and `Disown` cleared the part
+while leaving that number behind. A disowned piece therefore kept an offset borrowed from the very part
+the layout had just decided it was not drawn from, and every part-less piece beneath it kept the copy it
+had taken during the walk. Nothing consumed them: `MarkInk` runs *after* `Detach`, so a disowned piece
+is not ink, and a piece that is neither ink nor standing takes no part in a caret stop, a hit test or a
+selection. Only the dump read them, because it printed a source link for every box.
+
+So it prints one only where there is a part, and the reference was re-blessed in that format. Held
+against the old reference line by line, over all 238,132 formulas and **62,811,861** layout lines:
+**13,193,974 lines lost their link — the anchors — and every other line is byte-identical. Zero
+mismatches.** Not one piece that names any source reports it differently.
+
+A hole is the piece that makes the distinction worth drawing: it is drawn, it stands for no characters,
+and it still has to know exactly where it is, because typing into it has to land between those braces.
+So it is not a piece drawn from nothing — it is drawn from an empty argument, which is a part like any
+other. Its part is `Derived` (`TexNode.IsDerived` counts `TexKind.Hole`), which is why `MarkInk` reads
+`node.Origin is { Derived: false } || node.IsPlaceholder()`: the first clause rejects a hole and the
+second has to rescue it. `AHoleCarriesThePartItWillBeWrittenInto` pins it, because the corpus never
+could — real LaTeX has no empty arguments, so holes appear only on a surface being written on.
 
 ## The sweep is the inner loop, so it runs in forty seconds
 

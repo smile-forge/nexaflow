@@ -92,7 +92,7 @@ public class LatexPaintTests
         Assert.IsNotNull(layout);
 
         var fraction = layout.Tree.Root.SelfAndDescendants()
-            .First(n => n.SourceStart == 0 && n.SourceLength == 13);
+            .First(n => n.Sits().Start == 0 && n.Sits().Length == 13);
 
         var whole = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black));
         var part = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black, fraction));

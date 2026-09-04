@@ -4,6 +4,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Maths.Latex;
+using Nexaflow.Tests.Visuals.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -26,6 +27,23 @@ public class LatexTreeTests
     //                               \frac{ = 0-5, x = 6, ^ = 7, 2 = 8, } = 9,
     //                               {  = 10, 2 = 11, } = 12, + = 13, \sqrt{ = 14-19, y = 20, } = 21
 
+    /// <summary>The formula as the parser reads it, so the pieces below can be drawn from real parts.</summary>
+    private static readonly TexReading Reading = TexReading.Of(Fraction);
+
+    /// <summary>
+    /// The part standing at these characters — what the capture would have told a piece it was drawn from.
+    /// <para>
+    /// A hand-built tree still has to be drawn from a real parse, because half of what is asked of it is a
+    /// question about the parse: whether a piece is one thing or a run of them, and whether anything the
+    /// writer wrote is exactly this box. The geometry is invented here; the parts are not.
+    /// </para>
+    /// </summary>
+    private static ISourcePart? Part(int start, int length)
+    {
+        var standing = Reading.Standing(start, length);
+        return standing.Count == 0 ? null : new TexSourcePart(standing[^1]);
+    }
+
     /// <summary>
     /// The formula's layout as the capture builds it: containers holding the pieces they were laid out
     /// from, and ink only at the leaves of what the source names.
@@ -40,20 +58,20 @@ public class LatexTreeTests
     /// </summary>
     private static LayoutNode Tree()
     {
-        var root = new LayoutNode(new Rect(0.0, 0.0, 78.7, 43.5), 0, 22, "HorizontalBox", isInk: false);
+        var root = new LayoutNode(new Rect(0.0, 0.0, 78.7, 43.5), Part(0, 22), "HorizontalBox", isInk: false);
 
-        var fraction = root.Add(new LayoutNode(new Rect(0.0, 0.0, 26.3, 43.5), 0, 13, "VerticalBox", isInk: false));
-        var numerator = fraction.Add(new LayoutNode(new Rect(2.4, 0.0, 18.4, 16.3), 6, 3, "HorizontalBox", isInk: false));
-        numerator.Add(new LayoutNode(new Rect(2.4, 7.7, 11.4, 8.6), 6, 1, "CharBox", isInk: true));      // x
-        numerator.Add(new LayoutNode(new Rect(13.8, 0.0, 7.0, 9.0), 8, 1, "CharBox", isInk: true));      // 2, the exponent
-        fraction.Add(new LayoutNode(new Rect(0.0, 20.0, 26.3, 2.0), 0, 0, "HorizontalRule", isInk: false));
-        fraction.Add(new LayoutNode(new Rect(6.9, 30.6, 10.0, 12.9), 11, 1, "CharBox", isInk: true));    // 2, below the bar
+        var fraction = root.Add(new LayoutNode(new Rect(0.0, 0.0, 26.3, 43.5), Part(0, 13), "VerticalBox", isInk: false));
+        var numerator = fraction.Add(new LayoutNode(new Rect(2.4, 0.0, 18.4, 16.3), Part(6, 3), "HorizontalBox", isInk: false));
+        numerator.Add(new LayoutNode(new Rect(2.4, 7.7, 11.4, 8.6), Part(6, 1), "CharBox", isInk: true));      // x
+        numerator.Add(new LayoutNode(new Rect(13.8, 0.0, 7.0, 9.0), Part(8, 1), "CharBox", isInk: true));      // 2, the exponent
+        fraction.Add(new LayoutNode(new Rect(0.0, 20.0, 26.3, 2.0), null, "HorizontalRule", isInk: false));
+        fraction.Add(new LayoutNode(new Rect(6.9, 30.6, 10.0, 12.9), Part(11, 1), "CharBox", isInk: true));    // 2, below the bar
 
-        root.Add(new LayoutNode(new Rect(28.2, 18.1, 15.6, 13.3), 13, 1, "CharBox", isInk: true));       // +
+        root.Add(new LayoutNode(new Rect(28.2, 18.1, 15.6, 13.3), Part(13, 1), "CharBox", isInk: true));       // +
 
-        var radical = root.Add(new LayoutNode(new Rect(48.2, 13.6, 30.5, 24.0), 14, 8, "HorizontalBox", isInk: false));
-        radical.Add(new LayoutNode(new Rect(48.2, 13.6, 20.0, 24.0), 14, 0, "CharBox", isInk: false));   // the sign
-        radical.Add(new LayoutNode(new Rect(68.2, 21.2, 10.5, 12.5), 20, 1, "CharBox", isInk: true));    // y
+        var radical = root.Add(new LayoutNode(new Rect(48.2, 13.6, 30.5, 24.0), Part(14, 8), "HorizontalBox", isInk: false));
+        radical.Add(new LayoutNode(new Rect(48.2, 13.6, 20.0, 24.0), Part(14, 0), "CharBox", isInk: false));   // the sign
+        radical.Add(new LayoutNode(new Rect(68.2, 21.2, 10.5, 12.5), Part(20, 1), "CharBox", isInk: true));    // y
 
         return root;
     }
@@ -262,16 +280,16 @@ public class LatexTreeTests
 
     // ── What backspace is standing behind ───────────────────────────────────
     //
-    // Which piece, only. Whether that piece is made of parts is a question about the parse, and the
-    // tree here is hand-built to exercise the geometry — its nodes stand for no parse at all. That half
-    // is covered against a real one in FormulaElementTests.
+    // Which piece, only. The geometry is invented here, but the parts are the formula's own: whether a
+    // piece is one thing or a run of them is a question about the parse, and there is no answering it
+    // without one. What backspace then does with the piece is covered in FormulaElementTests.
 
     [TestMethod]
     public void BehindAStructureIsTheWholeStructure()
     {
         var symbol = Latex().SymbolBefore(13);   // just past the closing brace of the fraction
         Assert.IsNotNull(symbol);
-        Assert.AreEqual(@"\frac{x^2}{2}", Fraction.Substring(symbol.SourceStart, symbol.SourceLength));
+        Assert.AreEqual(@"\frac{x^2}{2}", Fraction.Substring(symbol.Sits().Start, symbol.Sits().Length));
     }
 
     [TestMethod]
@@ -279,7 +297,7 @@ public class LatexTreeTests
     {
         var symbol = Latex().SymbolBefore(22);   // just past \sqrt{y}
         Assert.IsNotNull(symbol);
-        Assert.AreEqual(@"\sqrt{y}", Fraction.Substring(symbol.SourceStart, symbol.SourceLength));
+        Assert.AreEqual(@"\sqrt{y}", Fraction.Substring(symbol.Sits().Start, symbol.Sits().Length));
     }
 
     [TestMethod]
@@ -287,6 +305,6 @@ public class LatexTreeTests
     {
         var symbol = Latex().SymbolBefore(7);
         Assert.IsNotNull(symbol);
-        Assert.AreEqual(1, symbol.SourceLength, "one character of source for one glyph");
+        Assert.AreEqual(1, symbol.Sits().Length, "one character of source for one glyph");
     }
 }
