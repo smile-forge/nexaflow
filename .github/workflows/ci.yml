@@ -37,6 +37,21 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # The runner is a fresh VM every time, so nothing survives on the machine — but the cache does not live
+      # there. actions/cache keeps the archive in GitHub's own repo-scoped cache service and unpacks it onto
+      # the new VM, which turns Restore's hundreds of nuget.org round-trips into one download. Restore is
+      # resolution AND download; this removes only the second, so it takes back part of the step, not all.
+      # The key is every file that can change which packages are wanted. On a miss, restore-keys still
+      # recovers the newest earlier archive and restore fetches only the delta — so a version bump costs the
+      # bump, not the whole graph. Caches written on main are readable from every PR branch (a PR's own are
+      # not shared back), so main populates it and the PRs live off it.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.fsproj', '**/*.props', 'NuGet.config') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
       # Restores nuget.org + the VideoLAN preview feed (libVLC) per NuGet.config. The installer lives in its
       # own NexaflowSetup.slnx (kept out of the app solution), so restore both to cover the WiX projects too.
       - name: Restore
