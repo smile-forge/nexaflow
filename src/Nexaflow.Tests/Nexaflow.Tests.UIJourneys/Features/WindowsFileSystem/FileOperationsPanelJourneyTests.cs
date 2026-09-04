@@ -45,9 +45,8 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         _destination = Path.Combine(_root, "destination");
 
         Directory.CreateDirectory(_destination);
-        // 2.5 GB. It has to outlive the 600 ms debounce on an NVMe with the whole thing still in the
-        // OS file cache, which a few hundred megabytes does not.
-        MakePayload(Path.Combine(_source, "payload"), defaultGb: 2.5);
+        // Each test writes only the fixtures it needs: at these sizes a payload the other one ignores is
+        // several gigabytes of pointless IO before it even starts.
     }
 
     [TestCleanup]
@@ -59,13 +58,14 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
     [TestMethod]
     public void CopyingALargeFolderShowsAProgressPanel_ThenPutsItAway()
     {
+        // 2.5 GB. It has to outlive the 600 ms debounce on an NVMe with the whole thing still in the
+        // OS file cache, which a few hundred megabytes does not.
+        MakePayload(Path.Combine(_source, "payload"), defaultGb: 2.5);
+
         // ── Copy the payload folder ───────────────────────────────────────────
         NavigateFileBrowserTo(_source);
 
-        var row = WaitForName("payload", 8);
-        Assert.IsNotNull(row, "The folder to copy is not in the file list.");
-        row!.Click();
-        Wait.UntilInputIsProcessed();
+        Assert.IsTrue(SelectInFileList("payload"), "The folder to copy is not in the file list.");
 
         // The ActionStrip rather than Ctrl+C/Ctrl+V: NavigateFileBrowserTo types the path into the AI
         // input bar, so focus is still in that text box and a Ctrl+V would paste into it instead.
@@ -154,19 +154,16 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         {
             NavigateFileBrowserTo(_source);
 
-            var row = WaitForName(name, 8);
-            Assert.IsNotNull(row, $"'{name}' is not in the file list.");
-            row!.Click();
-            Wait.UntilInputIsProcessed();
+            Assert.IsTrue(SelectInFileList(name), $"'{name}' is not in the file list.");
 
-            var copy = WaitForId("Copy", 8);
+            var copy = WaitForId("Copy", 30);
             Assert.IsNotNull(copy, $"No Copy action for '{name}'.");
             copy!.AsButton().Invoke();
             Wait.UntilInputIsProcessed();
 
             NavigateFileBrowserTo(_destination);
 
-            var paste = WaitForId("Paste", 8);
+            var paste = WaitForId("Paste", 30);
             Assert.IsNotNull(paste, $"No Paste action for '{name}'.");
             paste!.AsButton().Invoke();
             Wait.UntilInputIsProcessed();
@@ -226,5 +223,28 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
 
         // The last block's name is what the arrival checks wait for.
         File.WriteAllText(Path.Combine(folder, "last.txt"), $"blob{blocks - 1}.bin");
+    }
+
+    /// <summary>
+    /// Selects <paramref name="name"/> in the file list and returns once the ActionStrip has caught up.
+    /// <para>
+    /// Scoped to the list on purpose. A window-wide search by name also matches the folder tree, whose
+    /// node may be scrolled out of view — FlaUI then clicks the centre of an off-screen rectangle, which
+    /// lands on the desktop, selects nothing, and leaves the next step waiting for an action that never
+    /// appears.
+    /// </para>
+    /// </summary>
+    private bool SelectInFileList(string name, int seconds = 30)
+    {
+        var list = WaitForId("FileListView", seconds);
+        if (list is null) return false;
+
+        var row = WaitFor(() => list.FindFirstDescendant(cf => cf.ByName(name)), seconds);
+        if (row is null) return false;
+
+        row.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+        row.Click();
+        Wait.UntilInputIsProcessed();
+        return true;
     }
 }
