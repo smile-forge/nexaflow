@@ -35,7 +35,7 @@ public class LatexRoleTests
         Assert.IsNotNull(layout, latex);
 
         var node = layout.Tree.Root.Ink()
-            .FirstOrDefault(n => latex.Substring(n.SourceStart, n.SourceLength) == text);
+            .FirstOrDefault(n => latex.Substring(n.Sits().Start, n.Sits().Length) == text);
         Assert.IsNotNull(node, $"no piece reading \"{text}\" in {latex}");
         return (layout.Tree, node);
     }
@@ -47,8 +47,8 @@ public class LatexRoleTests
         Assert.IsNotNull(layout, latex);
 
         var node = layout.Tree.Root.SelfAndDescendants()
-            .FirstOrDefault(n => n.SourceLength > 0
-                                 && latex.Substring(n.SourceStart, n.SourceLength) == text);
+            .FirstOrDefault(n => n.Sits().Length > 0
+                                 && latex.Substring(n.Sits().Start, n.Sits().Length) == text);
         Assert.IsNotNull(node, $"nothing was drawn from \"{text}\" in {latex}");
         return (layout.Tree, node);
     }
@@ -100,7 +100,7 @@ public class LatexRoleTests
         Assert.IsNotNull(role);
 
         var construct = role.Value.Construct;
-        Assert.AreEqual(latex, latex.Substring(construct.SourceStart, construct.SourceLength),
+        Assert.AreEqual(latex, latex.Substring(construct.Sits().Start, construct.Sits().Length),
             "the whole root, backslash included — what a paste would have to rebuild");
     });
 
@@ -131,7 +131,7 @@ public class LatexRoleTests
 
         foreach (var piece in guessed)
             Assert.IsNull(layout.Tree.RoleOf(piece),
-                $"\"{layout.Tree.Latex.Substring(piece.SourceStart, piece.SourceLength)}\" was shown, not read, "
+                $"\"{layout.Tree.Latex.Substring(piece.Sits().Start, piece.Sits().Length)}\" was shown, not read, "
                 + "so it plays no part in anything");
     });
 

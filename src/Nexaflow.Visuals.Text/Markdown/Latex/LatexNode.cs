@@ -24,24 +24,25 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 internal sealed class LatexNode : LayoutNode
 {
     public LatexNode(Rect bounds, string kind, bool isInk)
-        : base(bounds, sourceStart: 0, sourceLength: 0, kind, isInk)
+        : base(bounds, part: null, kind, isInk)
     {
     }
 
     /// <summary>
-    /// The part of the parse tree this piece was drawn from — the link back that says what it <em>is</em>
-    /// rather than merely where it came from.
+    /// The part of the parse tree this piece was drawn from, typed — the link back that says what it
+    /// <em>is</em> rather than merely where it came from.
     /// <para>
     /// Several pieces share one: a fraction's box and its bar are one construct drawn in parts. What a
     /// piece is <em>to</em> the thing holding it lives on the parse tree, not here, which is why this is a
     /// reference and not a copy of anything — the layout tree stays about layout.
     /// </para>
     /// <para>
-    /// Set once, when the formula is typeset, through <see cref="Owns"/> — never assigned directly, so
-    /// what follows from it cannot be set separately and disagree.
+    /// The same part <see cref="ILayoutNode.Part"/> carries, unwrapped. It is one field, read two ways: the
+    /// seam wants a stretch of source and this side wants the formula, and reading them off one reference
+    /// is what stops them disagreeing.
     /// </para>
     /// </summary>
-    public Nexaflow.Maths.Latex.TexPart? Part { get; private set; }
+    public Nexaflow.Maths.Latex.TexPart? Origin => (Part as TexSourcePart)?.Of;
 
     /// <summary>
     /// Says what part of the parse tree this piece was drawn from, and everything that follows from it.
@@ -51,49 +52,19 @@ internal sealed class LatexNode : LayoutNode
     /// answer it — so it is answered here rather than anywhere that happens to need it.
     /// </para>
     /// <para>
-    /// <see cref="ILayoutNode.SourceStart"/> and <see cref="ILayoutNode.SourceLength"/> are the other:
-    /// they are a <em>projection</em> of the part, written here and nowhere else, so that the day the
-    /// editing seam stops working in offsets they are one method to delete rather than a mechanism to
-    /// unpick. <paramref name="anchor"/> is where a piece that stands for nothing sits in the text —
-    /// wherever the thing containing it starts — and is part of the same projection.
+    /// Where the piece sits in the source used to be the other, projected here from the part and stored
+    /// beside it. It is not stored anywhere now: the seam asks the part, and a piece drawn from none takes
+    /// its place from whatever it was drawn inside, so there is no longer an anchor to be told either.
     /// </para>
     /// </summary>
-    public void Owns(Nexaflow.Maths.Latex.TexPart? part, int anchor)
+    public void Owns(Nexaflow.Maths.Latex.TexPart? part)
     {
-        Part = part;
+        Part = part is null ? null : new TexSourcePart(part);
         IsEnclosure = part is { } piece && piece.Parts.Any() && !IsRun(piece);
-
-        var (start, length) = Named(part);
-        SourceStart = part is null ? anchor : start;
-        SourceLength = length;
     }
 
     /// <summary>Takes this piece's part away, leaving it standing for nothing.</summary>
-    public void Disown()
-    {
-        Part = null;
-        SourceLength = 0;
-    }
-
-    /// <summary>
-    /// Which characters a part is named by, in the projection.
-    /// <para>
-    /// Named the way the reading this replaced named it, and deliberately: a braced argument's
-    /// contents, a cell's ink, where the <em>part</em> is the whole <c>{a+b}</c> and the whole cell.
-    /// Everything downstream still works in offsets and was written against that convention, and
-    /// handing over the honest span instead re-braces an argument that is already braced. This is the
-    /// last place an answer from the parse tree is narrowed to suit an offset, and it goes when the
-    /// editor asks the part.
-    /// </para>
-    /// </summary>
-    private static (int Start, int Length) Named(Nexaflow.Maths.Latex.TexPart? part) =>
-        part is null ? (0, 0)
-        : part.Kind switch
-        {
-            Nexaflow.Maths.Latex.TexKind.Group => part.Contents,
-            Nexaflow.Maths.Latex.TexKind.Cell => part.Written,
-            _ => (part.Start, part.Length),
-        };
+    public void Disown() => Part = null;
 
     /// <summary>
     /// Whether a part is a run of things rather than one thing made of parts. A row names every piece

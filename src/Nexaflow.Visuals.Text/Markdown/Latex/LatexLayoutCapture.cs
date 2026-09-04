@@ -92,7 +92,7 @@ internal sealed class LatexLayoutCapture : IElementRenderer
         // What it was drawn from, handed over rather than searched for: the atom that made this box was
         // built from a part and carries it. A strut and a piece of glue are the exception — they are room
         // rather than ink, and were written by nobody.
-        node.Owns(box is StrutBox or GlueBox ? null : box.Node?.Origin, Anchor);
+        node.Owns(box is StrutBox or GlueBox ? null : box.Node?.Origin);
 
         _pending = [];
         if (parent is null) Root = node;
@@ -190,9 +190,9 @@ internal sealed class LatexLayoutCapture : IElementRenderer
 
         // The whole layout stands for the whole formula, whatever the outermost box happened to be built
         // from. Without this a selection that grew all the way out would stand for nothing at all.
-        if (Root.Part is null) Root.Owns(_reading.Root, 0);
+        if (Root.Origin is null) Root.Owns(_reading.Root);
 
-        Detach(Root, [Root.Part!]);
+        Detach(Root, [Root.Origin!]);
         MarkInk(Root);
     }
 
@@ -228,7 +228,7 @@ internal sealed class LatexLayoutCapture : IElementRenderer
         foreach (var child in node.Children.OfType<LatexNode>())
         {
             var taken = false;
-            if (child.Part is { } part)
+            if (child.Origin is { } part)
             {
                 if (above.Any(seen => ReferenceEquals(seen, part)) || !Within(part, above[^1]))
                 {
@@ -270,13 +270,10 @@ internal sealed class LatexLayoutCapture : IElementRenderer
         // the most pointable thing on the page, being the one place the reader has been told to write. So
         // it counts as ink on the strength of being a hole rather than of standing for anything, and
         // everything that finds, hit-tests, selects or carries a symbol then finds it.
-        var stands = node.Part is { Derived: false } || node.IsPlaceholder();
+        var stands = node.Origin is { Derived: false } || node.IsPlaceholder();
 
         node.IsInk = stands && !below;
         return below || stands;
     }
-
-    /// <summary>Where a piece that stands for nothing sits in the text: wherever the thing containing it starts.</summary>
-    private int Anchor => _open.Count > 0 ? _open.Peek().SourceStart : 0;
 
     }

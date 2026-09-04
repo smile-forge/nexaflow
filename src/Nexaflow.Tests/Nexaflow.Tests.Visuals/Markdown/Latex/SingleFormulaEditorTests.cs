@@ -5,6 +5,7 @@ using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -313,7 +314,7 @@ public class SingleFormulaEditorTests
             Assert.AreEqual(@"\frac{3+7}{}", formula.Latex);
             Assert.AreEqual(1, formula.Layout!.Tree.Placeholders.Count,
                 "and the denominator is left as a hole, drawn and waiting");
-            Assert.AreEqual(formula.Layout.Tree.Placeholders[0].SourceStart, formula.Caret,
+            Assert.AreEqual(formula.Layout.Tree.Placeholders[0].Sits().Start, formula.Caret,
                 "with the caret already in it, ready to be typed into");
         });
     }

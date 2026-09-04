@@ -1,0 +1,54 @@
+{
+  "branch": "claude/layout-part-not-offsets",
+  "nodes": {
+    "latex-source-map": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexLayout.cs",
+          "class": "LatexLayout"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexLayoutCapture.cs",
+          "class": "LatexLayoutCapture"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexTree.cs",
+          "class": "LatexTree"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ILayoutNode.cs",
+          "class": "ILayoutNode"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ISourcePart.cs",
+          "class": "ISourcePart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/TexSourcePart.cs",
+          "class": "TexSourcePart"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "latex-source-map"
+  ]
+}

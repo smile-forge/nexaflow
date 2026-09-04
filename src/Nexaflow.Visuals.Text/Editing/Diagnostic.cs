@@ -53,7 +53,7 @@ public sealed record Diagnostic(int Start, int Length, DiagnosticSeverity Severi
 
     /// <summary>Whether this node's source falls inside the trouble.</summary>
     public bool Covers(ILayoutNode node) =>
-        node.SourceLength > 0 && node.SourceStart >= Start && node.SourceEnd() <= End;
+        node.Sits() is { Length: > 0 } at && at.Start >= Start && at.End <= End;
 }
 
 /// <summary>

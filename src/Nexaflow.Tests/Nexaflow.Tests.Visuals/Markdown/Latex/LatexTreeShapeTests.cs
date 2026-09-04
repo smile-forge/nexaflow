@@ -59,8 +59,8 @@ public class LatexTreeShapeTests
         foreach (var (latex, what) in Lines)
         {
             var repeated = Build(latex, what).Root.SelfAndDescendants()
-                .Where(n => n.SourceLength > 0)
-                .Where(n => n.Ancestors().Any(a => a.SourceStart == n.SourceStart && a.SourceLength == n.SourceLength))
+                .Where(n => n.Sits().Length > 0)
+                .Where(n => n.Ancestors().Any(a => a.Sits().Start == n.Sits().Start && a.Sits().Length == n.Sits().Length))
                 .ToList();
 
             Assert.AreEqual(0, repeated.Count,
@@ -79,10 +79,10 @@ public class LatexTreeShapeTests
         {
             var tree = Build(latex, what);
 
-            foreach (var node in tree.Root.SelfAndDescendants().Where(n => n.SourceLength > 0))
-                foreach (var inside in node.Children.SelectMany(c => c.SelfAndDescendants()).Where(n => n.SourceLength > 0))
+            foreach (var node in tree.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
+                foreach (var inside in node.Children.SelectMany(c => c.SelfAndDescendants()).Where(n => n.Sits().Length > 0))
                     Assert.IsTrue(
-                        inside.SourceStart >= node.SourceStart && inside.SourceEnd() <= node.SourceEnd(),
+                        inside.Sits().Start >= node.Sits().Start && inside.Sits().End <= node.Sits().End,
                         $"in {what}, {inside} sits inside {node} but names source outside it — {latex}");
         }
     });
@@ -104,7 +104,7 @@ public class LatexTreeShapeTests
                     node.Bounds.Y + node.Bounds.Height / 2);
 
                 var offset = tree.OffsetAt(centre);
-                Assert.IsTrue(offset == node.SourceStart || offset == node.SourceEnd(),
+                Assert.IsTrue(offset == node.Sits().Start || offset == node.Sits().End,
                     $"in {what}, pressing the middle of {node} reported offset {offset}, "
                     + $"which is neither of its own edges — {latex}");
             }
@@ -123,11 +123,11 @@ public class LatexTreeShapeTests
 
             foreach (var node in tree.Root.Ink())
             {
-                var (start, length) = tree.SnapRange(node.SourceStart, node.SourceLength);
+                var (start, length) = tree.SnapRange(node.Sits().Start, node.Sits().Length);
 
                 Assert.IsFalse(start <= 0 && length >= latex.Length,
                     $"in {what}, selecting {node} took the whole line — {latex}");
-                Assert.IsTrue(start <= node.SourceStart && start + length >= node.SourceEnd(),
+                Assert.IsTrue(start <= node.Sits().Start && start + length >= node.Sits().End,
                     $"in {what}, selecting {node} came back as {start}+{length}, which does not contain it — {latex}");
             }
         }
@@ -184,7 +184,7 @@ public class LatexTreeShapeTests
         // having anything to say: what was dragged over inside one is a run of terms like any other.
         const string latex = @"A = \begin{pmatrix} a & 4b^{2}+3 \\ c^4 & d+3i \end{pmatrix}";
         var tree = Build(latex, "a matrix");
-        ILayoutNode At(int offset) => tree.Root.Ink().Single(n => n.SourceStart == offset);
+        ILayoutNode At(int offset) => tree.Root.Ink().Single(n => n.Sits().Start == offset);
 
         var four = latex.IndexOf("4b", StringComparison.Ordinal);
         var two = latex.IndexOf("{2}", StringComparison.Ordinal) + 1;
@@ -219,5 +219,5 @@ public class LatexTreeShapeTests
     });
 
     private static string Text(LatexTree tree, ILayoutNode node) =>
-        node.SourceLength > 0 ? tree.Latex.Substring(node.SourceStart, node.SourceLength) : string.Empty;
+        node.Sits().Length > 0 ? tree.Latex.Substring(node.Sits().Start, node.Sits().Length) : string.Empty;
 }

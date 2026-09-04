@@ -220,7 +220,7 @@ public class LatexPictureSweepTests
                 .Append(Round(node.Bounds.X)).Append(',').Append(Round(node.Bounds.Y)).Append(' ')
                 .Append(Round(node.Bounds.Width)).Append('x').Append(Round(node.Bounds.Height))
                 .Append(Named)
-                .Append(node.SourceStart).Append('+').Append(node.SourceLength)
+                .Append(node.Sits().Start).Append('+').Append(node.Sits().Length)
                 .Append('\n');
 
         foreach (var trouble in layout.Tree.Diagnostics)

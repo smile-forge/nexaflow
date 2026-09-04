@@ -171,13 +171,42 @@ cannot have been written outside it". `MarkInk` asks `TexPart.Derived`, which sa
 macro's insides stand for nothing written. `LatexNode.Formula` went with them: the layout no longer
 holds the typesetting tree at all, only the parse-tree part.
 
-**The other half is smaller than it was, and named.** `ILayoutNode.SourceStart`/`SourceLength` are
-still what `LayoutQuery`, `ContentSelection`, `FormulaElement` and `LatexTree`'s editing verbs work in
-— but they are written in exactly one place now, `LatexNode.Owns`, projected from the part. That
-method also holds the last narrowing of an answer to suit an offset (a group named by its contents, a
-cell by its ink), so when the editing seam moves off offsets — which is the same move that will
-harmonise the formula with the barcode, the score and every other custom-drawn block — it is a
-projection to delete rather than a mechanism to unpick.
+## The other half went too: the seam names parts, not offsets
+
+`ILayoutNode.SourceStart`/`SourceLength` are gone. A piece of layout carries **`Part`** — the parse-tree
+part it was drawn from, or nothing at all where it was drawn from nothing anybody wrote: a fraction's
+bar, a barcode's guard pattern, spacing, a decoration. The layout is geometry and a reference; where
+that part is *written* is asked of the part, every time.
+
+**The builder populates it, and nothing works its own out.** The layout is built *from* the parse tree,
+so being told is the only answer that cannot be wrong — and a piece with no part is drawn but not
+selectable and not editable, which is the honest thing to say about a rule the typesetter added.
+
+**`ISourcePart` is the whole of what the seam asks a part for** — `Start` and `Length`. It lives in the
+editing seam, so `TexPart` cannot implement it: a reading that had to know about an editor would be the
+wrong way round. `TexSourcePart` adapts one to the other, and it is where the last narrowing of an
+answer to suit an editor now lives — a braced argument named by its contents, a cell by its ink,
+because handing over the honest span instead re-braces an argument that is already braced. Being on
+this side of the boundary is the point: the reading stays true and the editor is told what it needs.
+`BarcodePart` implements it directly, and gets attached only to the characters somebody typed.
+
+**Where a piece sits is a question, not a field.** `LayoutNode.Sits()` answers it from the parts: a
+piece drawn from one is that part's stretch; a piece drawn from none is a *point*, at the start of
+whatever it was drawn inside. That distinction is what the caret turns on, and it is why nothing has to
+be told an anchor when it is built — `LatexLayoutCapture.Anchor` is deleted.
+
+**Two round trips went with it.** `LatexTree.Innermost` used to turn a piece's offsets back into a part
+by searching the reading for what stood at them — out of a part into two numbers and back, when the
+part was on the piece the whole time. And `Drawn` matched a piece to a part by comparing two numbers
+against two others; it is `ReferenceEquals` now, which is what it always meant.
+
+**What the corpus said.** 3,446 of 238,132 formulas record a different reading, and every one of the
+463,432 lines that differ is a piece of **zero length** — not one piece that names any source moved,
+and the sweep's own count of formulas set in different places is zero. The difference is entirely in
+where a piece that stands for *nothing* is said to sit: an anchor used to be baked in when the piece was
+built, before `Detach` had decided that piece was not drawn from that part, and it is now read off the
+tree as it finally stands. Nothing a reader can point at, select or put a caret in is affected, because
+such a piece is neither ink nor standing.
 
 ## The sweep is the inner loop, so it runs in forty seconds
 

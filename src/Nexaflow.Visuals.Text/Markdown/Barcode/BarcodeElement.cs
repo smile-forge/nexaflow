@@ -271,8 +271,8 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         if (root.NodeAt(point) is not { } node) return 0;
 
         return point.X <= node.Bounds.X + node.Bounds.Width / 2
-            ? node.SourceStart
-            : node.SourceEnd();
+            ? node.Sits().Start
+            : node.Sits().End;
     }
 
     // ── Editing ───────────────────────────────────────────────────────────
@@ -556,7 +556,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             // was worked out from the whole value, so it is washed when the whole value is taken.
             var (start, length) = Generated(node)
                 ? (0, _block.Value.Length)
-                : (node.SourceStart, node.SourceLength);
+                : (node.Sits().Start, node.Sits().Length);
 
             if (length == 0) continue;
 

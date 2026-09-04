@@ -653,17 +653,19 @@ when every module is right, which is exactly what the reference images caught.
 [`IEditableBlock`](../src/Nexaflow.Visuals.Text/Editing/IEditableBlock.cs), so the caret crosses into
 it, selects, types and leaves through the same host code that drives a formula — see
 [`InlineMarkdownEditor.Blocks.cs`](../src/Nexaflow.Visuals.Text/Markdown/InlineMarkdownEditor.Blocks.cs).
-It contributes **no layout tree** (`Root` is null): the value is one run of characters, and a tree would
-be inventing structure to describe a flat string. What it keeps instead is the x, row and height of
-every place the caret can stand.
+It contributes a **layout tree** ([`BarcodeLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeLayout.cs)),
+built from a parse tree of the symbol's text
+([`BarcodePart`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePart.cs)) — so the shared queries
+answer where the caret can stand and what a press landed on, exactly as they do for a formula.
 
-While the caret is in it the text row shows the **value**, not the number the symbol prints. For most
-of the retail family those are different strings — an ISBN's value carries hyphens the symbol never
-prints, an EAN-13's gains a computed check digit, a UPC-E completes both ends — and a caret measured
-against one while the keys edit the other points at the wrong character. *This is the known rough
-edge*: the honest fix is a parse tree with a layout tree mapping onto it (as LaTeX has), which would
-let the caret sit in the printed number and still know which value characters it edits, and would make
-the caption editable. It waits on `ILayoutNode` losing its source offsets.
+**Only the characters somebody typed carry a part.** These formats do not print what they are given:
+Codabar brackets the value in a start and a stop mark, an EAN-13 works out a thirteenth digit, a UPC-E
+fills in both ends, an ISBN takes the hyphens out. Each printed run is cut against the window where the
+value appears verbatim, so it becomes `EncodedText`, then a `Character` per typed character, then
+`EncodedText` again. A layout node gets a part only where the piece is a `Character`; the guard patterns
+and the bars get none at all. A piece with no part is drawn and is not selectable — which is why the
+caret is never offered inside a check digit, and why an ISBN takes it in the caption (the number as it
+was written) and not under the bars.
 
 `BarcodeBlock.ValueStart` is relative to the fence's **content**, while the editing host splices into
 the whole block — `DiagramRenderOptions.SourceOffset` carries the difference, set by `BlockRenderer`,

@@ -230,7 +230,7 @@ public class FormulaElementTests
     public void ClickingPutsTheCaretWhereYouClicked() => UiThread.Run(() =>
     {
         var element = Arranged(@"\frac{x^2}{2}");
-        var exponent = element.Layout!.Tree.Root.Ink().Single(n => n.SourceStart == 8);
+        var exponent = element.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == 8);
 
         element.BeginPointerSelect(new Point(
             exponent.Bounds.X + exponent.Bounds.Width * 0.75,
@@ -245,8 +245,8 @@ public class FormulaElementTests
     public void DraggingSelectsWholeConstructs() => UiThread.Run(() =>
     {
         var element = Arranged(@"\frac{x^2}{2}");
-        var baseGlyph = element.Layout!.Tree.Root.Ink().Single(n => n.SourceStart == 6);
-        var exponent = element.Layout!.Tree.Root.Ink().Single(n => n.SourceStart == 8);
+        var baseGlyph = element.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == 6);
+        var exponent = element.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == 8);
 
         element.BeginPointerSelect(new Point(baseGlyph.Bounds.X + 1, baseGlyph.Bounds.Y + baseGlyph.Bounds.Height / 2));
         element.ExtendPointerSelect(new Point(exponent.Bounds.Right - 1, exponent.Bounds.Y + exponent.Bounds.Height / 2));

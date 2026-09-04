@@ -22,14 +22,14 @@ public class ContentSelectionTests
     /// <summary>A 3x3 grid: rows of cells, each cell wrapping its content the way a typesetter does.</summary>
     private static LayoutNode Matrix()
     {
-        var root = new LayoutNode(new Rect(0, 0, 70, 60), 0, 9, "grid", isInk: false);
+        var root = new LayoutNode(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid", isInk: false);
         for (var r = 0; r < 3; r++)
         {
-            var row = root.Add(new LayoutNode(new Rect(0, r * 20, 70, 13), r * 3, 3, "row", isInk: false));
+            var row = root.Add(new LayoutNode(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row", isInk: false));
             for (var c = 0; c < 3; c++)
             {
-                var cell = row.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), r * 3 + c, 1, "cell", isInk: false));
-                cell.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), r * 3 + c, 1, "char", isInk: true));
+                var cell = row.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), new TestPart(r * 3 + c, 1), "cell", isInk: false));
+                cell.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), new TestPart(r * 3 + c, 1), "char", isInk: true));
             }
         }
         return root;
@@ -38,22 +38,22 @@ public class ContentSelectionTests
     /// <summary><c>\frac{x^2}{2}+y</c> — rows without columns, which is not a grid.</summary>
     private static LayoutNode Fraction()
     {
-        var root = new LayoutNode(new Rect(0, 0, 100, 44), 0, 15, "row", isInk: false);
+        var root = new LayoutNode(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row", isInk: false);
 
-        var frac = root.Add(new LayoutNode(new Rect(0, 0, 26, 44), 0, 13, "fraction", isInk: false));
-        var numerator = frac.Add(new LayoutNode(new Rect(2, 0, 20, 17), 6, 3, "script", isInk: false));
-        numerator.Add(new LayoutNode(new Rect(2, 8, 11, 9), 6, 1, "char", isInk: true));
-        numerator.Add(new LayoutNode(new Rect(14, 0, 7, 9), 8, 1, "char", isInk: true));
-        frac.Add(new LayoutNode(new Rect(2, 20, 22, 2), 0, 0, "rule", isInk: false));
-        frac.Add(new LayoutNode(new Rect(7, 30, 10, 13), 11, 1, "char", isInk: true));
+        var frac = root.Add(new LayoutNode(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction", isInk: false));
+        var numerator = frac.Add(new LayoutNode(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script", isInk: false));
+        numerator.Add(new LayoutNode(new Rect(2, 8, 11, 9), new TestPart(6, 1), "char", isInk: true));
+        numerator.Add(new LayoutNode(new Rect(14, 0, 7, 9), new TestPart(8, 1), "char", isInk: true));
+        frac.Add(new LayoutNode(new Rect(2, 20, 22, 2), null, "rule", isInk: false));
+        frac.Add(new LayoutNode(new Rect(7, 30, 10, 13), new TestPart(11, 1), "char", isInk: true));
 
-        root.Add(new LayoutNode(new Rect(28, 18, 16, 13), 13, 1, "char", isInk: true));
-        root.Add(new LayoutNode(new Rect(46, 18, 11, 13), 14, 1, "char", isInk: true));
+        root.Add(new LayoutNode(new Rect(28, 18, 16, 13), new TestPart(13, 1), "char", isInk: true));
+        root.Add(new LayoutNode(new Rect(46, 18, 11, 13), new TestPart(14, 1), "char", isInk: true));
         return root;
     }
 
     private static ILayoutNode Cell(LayoutNode grid, int offset) =>
-        grid.Ink().Single(n => n.SourceStart == offset);
+        grid.Ink().Single(n => n.Sits().Start == offset);
 
     // ── A grid selects like a sheet ─────────────────────────────────────────
 
@@ -159,7 +159,7 @@ public class ContentSelectionTests
         Assert.IsTrue(cells.All(r => r.Count == 3));
         CollectionAssert.AreEqual(
             new[] { 6, 7, 8 },
-            cells[2].Select(c => c.SourceStart).ToArray(),
+            cells[2].Select(c => c.Sits().Start).ToArray(),
             "and in reading order, left to right");
     }
 
@@ -168,15 +168,15 @@ public class ContentSelectionTests
     {
         // Rows of different widths are a stack of rows, not a sheet, and block selection would have to
         // invent an answer for the cells that are not there.
-        var root = new LayoutNode(new Rect(0, 0, 70, 40), 0, 5, "rows", isInk: false);
+        var root = new LayoutNode(new Rect(0, 0, 70, 40), new TestPart(0, 5), "rows", isInk: false);
 
-        var first = root.Add(new LayoutNode(new Rect(0, 0, 70, 13), 0, 3, "row", isInk: false));
+        var first = root.Add(new LayoutNode(new Rect(0, 0, 70, 13), new TestPart(0, 3), "row", isInk: false));
         for (var c = 0; c < 3; c++)
-            first.Add(new LayoutNode(new Rect(c * 25, 0, 10, 13), c, 1, "char", isInk: true));
+            first.Add(new LayoutNode(new Rect(c * 25, 0, 10, 13), new TestPart(c, 1), "char", isInk: true));
 
-        var second = root.Add(new LayoutNode(new Rect(0, 20, 70, 13), 3, 2, "row", isInk: false));
+        var second = root.Add(new LayoutNode(new Rect(0, 20, 70, 13), new TestPart(3, 2), "row", isInk: false));
         for (var c = 0; c < 2; c++)
-            second.Add(new LayoutNode(new Rect(c * 25, 20, 10, 13), 3 + c, 1, "char", isInk: true));
+            second.Add(new LayoutNode(new Rect(c * 25, 20, 10, 13), new TestPart(3 + c, 1), "char", isInk: true));
 
         Assert.AreEqual(0, root.Grid().Count);
     }

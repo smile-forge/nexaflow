@@ -91,7 +91,7 @@ public sealed class LatexTree
     /// </summary>
     public (ILayoutNode Construct, string Role)? RoleOf(ILayoutNode node)
     {
-        if (node.SourceLength <= 0) return null;
+        if (node.Part is not { Length: > 0 }) return null;
 
         // Recovered text was shown, not read. Whatever the parser wrapped it in while carrying on is an
         // artefact of the recovery rather than anything the writer expressed, so it names no part of
@@ -148,10 +148,10 @@ public sealed class LatexTree
     }
 
     /// <summary>Where a part of the parse tree was drawn — the nearest thing above <paramref name="node"/>
-    /// that names the same stretch of source.</summary>
+    /// it was drawn from.</summary>
     private static ILayoutNode? Drawn(ILayoutNode node, TexPart part) =>
         node.Ancestors().FirstOrDefault(
-            a => a.SourceStart == part.Start && a.SourceLength == part.Length);
+            a => a.Part is TexSourcePart drawn && ReferenceEquals(drawn.Of, part));
 
     /// <summary>Where a caret is allowed to rest, ascending.</summary>
     public IReadOnlyList<int> CaretStops => _stops;
@@ -209,7 +209,7 @@ public sealed class LatexTree
     {
         foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
         {
-            if (node is not LatexNode { Part: { Kind: TexKind.Environment } part }) continue;
+            if (node is not LatexNode { Origin: { Kind: TexKind.Environment } part }) continue;
             if (TexGrid.Read(part.Node, part.Start) is not { } grid) continue;
 
             // How far the matrix reaches, brackets included. The cells' box stops at the cells: the
@@ -232,7 +232,7 @@ public sealed class LatexTree
 
                 var drawn = node.SelfAndDescendants()
                     .OfType<LatexNode>()
-                    .Where(n => n.Bounds.Width > 0 && Inside(n.Part, written))
+                    .Where(n => n.Bounds.Width > 0 && Inside(n.Origin, written))
                     .Select(n => n.Bounds)
                     .ToList();
                 if (drawn.Count == 0) continue;
@@ -293,7 +293,7 @@ public sealed class LatexTree
     /// drew a box for. Tab walks these.
     /// </summary>
     public IReadOnlyList<ILayoutNode> Placeholders =>
-        _placeholders ??= [.. Root.SelfAndDescendants().Where(n => n.IsPlaceholder()).OrderBy(n => n.SourceStart)];
+        _placeholders ??= [.. Root.SelfAndDescendants().Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
 
     private IReadOnlyList<ILayoutNode>? _placeholders;
 
@@ -325,7 +325,7 @@ public sealed class LatexTree
         var hit = Root.NodeAt(point);
         if (hit is null) return 0;
 
-        var offset = point.X < hit.Bounds.X + hit.Bounds.Width / 2 ? hit.SourceStart : hit.SourceEnd();
+        var offset = point.X < hit.Bounds.X + hit.Bounds.Width / 2 ? hit.Sits().Start : hit.Sits().End;
         return NearestStop(offset);
     }
 
@@ -383,7 +383,7 @@ public sealed class LatexTree
         // half-written fraction would wash everything except the part still missing — the one piece the
         // reader most needs to see they have picked up.
         var covered = Root.SelfAndDescendants()
-            .Where(n => n.Stands() && n.SourceStart >= start && n.SourceEnd() <= end)
+            .Where(n => n.Stands() && n.Sits().Start >= start && n.Sits().End <= end)
             .ToHashSet();
 
         return Merge([.. covered.Where(n => !n.Ancestors().Any(covered.Contains)).Select(n => n.Bounds)]);
@@ -443,7 +443,7 @@ public sealed class LatexTree
         // is under the bar. Anything only half inside is left to promotion, which is what stops a range
         // that clipped a brace of `^{n}` from coming back as `{n`.
         var touched = Root.SelfAndDescendants()
-            .Where(n => n.SourceLength > 0 && n.SourceStart >= from && n.SourceEnd() <= to)
+            .Where(n => n.Sits() is { Length: > 0 } at && at.Start >= from && at.End <= to)
             .ToList();
 
         if (touched.Count == 0)
@@ -451,7 +451,7 @@ public sealed class LatexTree
             // The range covers only characters nothing was drawn for — a lone brace, say, or half of a
             // command's name. Snap to whatever is nearest, so a selection is always of something visible.
             var nearest = Root.Ink()
-                .OrderBy(n => Math.Min(Math.Abs(n.SourceStart - from), Math.Abs(n.SourceEnd() - to)))
+                .OrderBy(n => Math.Min(Math.Abs(n.Sits().Start - from), Math.Abs(n.Sits().End - to)))
                 .FirstOrDefault();
             if (nearest is null) return (from, to - from);
             touched.Add(nearest);
@@ -460,7 +460,8 @@ public sealed class LatexTree
         var promoted = LayoutQuery.Promote(touched);
         if (promoted.Count == 0) return (from, to - from);
 
-        return (promoted.Min(n => n.SourceStart), promoted.Max(n => n.SourceEnd()) - promoted.Min(n => n.SourceStart));
+        var (first, last) = (promoted.Min(n => n.Sits().Start), promoted.Max(n => n.Sits().End));
+        return (first, last - first);
     }
 
     /// <summary>
@@ -544,7 +545,8 @@ public sealed class LatexTree
         caret = Math.Clamp(caret, 0, Latex.Length);
         if (ArgumentAt(caret) is not { } argument) return null;
 
-        var (start, end) = (argument.SourceStart, argument.SourceEnd());
+        var at = argument.Sits();
+        var (start, end) = (at.Start, at.End);
         if (start < 0 || end > Latex.Length || caret < start || caret > end) return null;
 
         // Already wrapped, or still one token: nothing structural to do, and the caller's own rules
@@ -612,9 +614,9 @@ public sealed class LatexTree
         // is still inside it once that is done — a drag can pass over a position whose argument the
         // cut has since taken apart, and the argument of somewhere else is no argument at all.
         var argument = ArgumentAt(to);
-        var span = argument is null || to < argument.SourceStart || to > argument.SourceEnd()
+        var span = argument is null || to < argument.Sits().Start || to > argument.Sits().End
             ? ((int Start, int End)?)null
-            : (Shift(argument.SourceStart, ordered), Shift(argument.SourceEnd(), ordered));
+            : (Shift(argument.Sits().Start, ordered), Shift(argument.Sits().End, ordered));
 
         return Place(remainder, drop, moved, span, argument is not null && IsBraced(argument));
 
@@ -826,12 +828,13 @@ public sealed class LatexTree
         ILayoutNode? best = null;
         foreach (var node in Root.SelfAndDescendants())
         {
-            if (node.SourceLength <= 0) continue;
+            var at = node.Sits();
+            if (at.Length <= 0) continue;
 
             // Edges included: writing at either end of an argument is writing in it. That is the whole
             // question — the position after the 2 of x^2 is both "the end of the exponent" and "the end
             // of the formula", and only the construct that owns it can say which.
-            if (caret < node.SourceStart || caret > node.SourceEnd()) continue;
+            if (caret < at.Start || caret > at.End) continue;
             if (RoleOf(node) is not { } role || !IsArgument(role.Role)) continue;
 
             // The innermost, because an argument can hold constructs with arguments of their own.
@@ -880,7 +883,7 @@ public sealed class LatexTree
         ILayoutNode? best = null;
         foreach (var node in Root.SelfAndDescendants())
         {
-            if (!node.Stands() || node.SourceEnd() != offset) continue;
+            if (!node.Stands() || node.Sits().End != offset) continue;
 
             // Never a run of things. A row is not an item — it is however many items, each of which is
             // one — so it is never "the thing before the caret" however exactly it happens to end
@@ -958,24 +961,19 @@ public sealed class LatexTree
 
     /// <summary>
     /// The innermost part of the parse tree standing for exactly what this piece of layout was drawn
-    /// from, or null if nothing does.
+    /// from, or null if it was drawn from nothing anybody wrote.
     /// <para>
     /// Innermost, because a part and what holds it can stand for the same characters — a formula that is
     /// one fraction is both a run of one thing and a fraction — and the question is always about the
     /// nearer of the two. Reading it as the run would make backspace refuse to un-render a formula
     /// consisting of a single construct, on the grounds that a run is never one thing.
     /// </para>
+    /// <para>
+    /// Which is settled by asking the piece, because the builder told it. This used to turn the piece's
+    /// offsets back into a part by searching the reading for what stood at them — a round trip out of a
+    /// part into two numbers and back, when the part was on the piece the whole time.
+    /// </para>
     /// </summary>
-    private TexPart? Innermost(ILayoutNode node)
-    {
-        if (node.SourceLength <= 0) return null;
-
-        // Typeset pieces were told when the formula was laid out. Anything else is a tree built by hand
-        // — the query tests do that, and one day so will a caller with no desktop to typeset on — so it
-        // is worked out here instead.
-        if (node is LatexNode piece) return piece.Part;
-
-        var standing = Reading.Standing(node.SourceStart, node.SourceLength);
-        return standing.Count == 0 ? null : standing[^1];
-    }
+    private static TexPart? Innermost(ILayoutNode node) =>
+        node.Part is TexSourcePart { Length: > 0 } part ? part.Of : null;
 }

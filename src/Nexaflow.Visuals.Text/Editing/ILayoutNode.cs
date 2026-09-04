@@ -5,7 +5,8 @@ using System.Windows;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// One piece of laid-out content: where it was drawn, and which part of its source produced it.
+/// One piece of laid-out content: where it was drawn, and the part of its content's parse tree it was
+/// drawn from.
 /// <para>
 /// This is the shape every kind of embedded, rendered, editable content shares — a formula, a bar of
 /// music, a diagram node, a run of markdown. Each keeps its own layout model (a score's knows about
@@ -13,10 +14,11 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// what a click means, what a drag selected and where the caret goes can be written once.
 /// </para>
 /// <para>
-/// The link back to source is the whole point. Selection promotes to whole nodes and takes its range
-/// from them, so what you copy or replace is what the parser produced — well-formed because it could not
-/// be otherwise. Content that cannot say where a node came from cannot join in; that is the one
-/// prerequisite for adopting this.
+/// The link back to source is the whole point, and it is a link to a <em>part</em> rather than to a pair
+/// of numbers. Selection promotes to whole nodes and takes its range from the parts they were drawn
+/// from, so what you copy or replace is what the parser produced — well-formed because it could not be
+/// otherwise. Content that cannot say what a node came from cannot join in; that is the one prerequisite
+/// for adopting this.
 /// </para>
 /// </summary>
 public interface ILayoutNode
@@ -30,11 +32,17 @@ public interface ILayoutNode
     /// <summary>Its children, in reading order.</summary>
     IReadOnlyList<ILayoutNode> Children { get; }
 
-    /// <summary>Offset of the first source character this node came from.</summary>
-    int SourceStart { get; }
-
-    /// <summary>How many source characters it covers.</summary>
-    int SourceLength { get; }
+    /// <summary>
+    /// The part of the content's parse tree this piece was drawn from, or null where it was drawn from
+    /// nothing anybody wrote — a fraction's bar, a barcode's guard pattern, spacing, a decoration.
+    /// <para>
+    /// Populated by the builder for that surface, which is the only thing holding both trees. A piece is
+    /// never asked to work its own out: the layout is built <em>from</em> the parse tree, so being told
+    /// is the only answer that cannot be wrong. Where a piece has none, where it sits in the source is
+    /// the nearest thing above it that has one — see <see cref="LayoutNodeExtensions.Named"/>.
+    /// </para>
+    /// </summary>
+    ISourcePart? Part { get; }
 
     /// <summary>
     /// Whether this node draws something a reader could point at, as opposed to being spacing or a
@@ -67,12 +75,18 @@ public interface ILayoutNode
 /// <summary>Convenience over <see cref="ILayoutNode"/> that every implementation would otherwise repeat.</summary>
 public static class LayoutNodeExtensions
 {
-    /// <summary>One past the last source character.</summary>
-    public static int SourceEnd(this ILayoutNode node) => node.SourceStart + node.SourceLength;
-
-    /// <summary>Whether this node's source range wholly contains another's.</summary>
-    public static bool Covers(this ILayoutNode node, ILayoutNode other) =>
-        other.SourceStart >= node.SourceStart && other.SourceEnd() <= node.SourceEnd();
+    /// <summary>
+    /// The part that places this piece in the source: its own, or — where it was drawn from nothing
+    /// anybody wrote — the one belonging to whatever it was drawn inside.
+    /// <para>
+    /// This is the only route from a piece of layout to a position, and it is deliberately indirect. The
+    /// layout is geometry: where a thing was drawn and what it drew. Where it was <em>written</em> is a
+    /// fact about the parse tree, so it is asked of the parse tree, every time, rather than copied onto
+    /// the picture where it would go stale the moment anything is edited.
+    /// </para>
+    /// </summary>
+    public static ISourcePart? Naming(this ILayoutNode node) =>
+        node.Part ?? node.Ancestors().FirstOrDefault(a => a.Part is not null)?.Part;
 
     /// <summary>This node and everything beneath it, parents first.</summary>
     public static IEnumerable<ILayoutNode> SelfAndDescendants(this ILayoutNode node)
@@ -105,5 +119,31 @@ public static class LayoutNodeExtensions
     /// Whether this piece holds a place of its own in the source: a stretch of it, or a hole in it.
     /// What a caret can rest at and a query can land on.
     /// </summary>
-    public static bool Stands(this ILayoutNode node) => node.SourceLength > 0 || node.IsInk;
+    public static bool Stands(this ILayoutNode node) => node.Part is { Length: > 0 } || node.IsInk;
+
+    /// <summary>
+    /// Where this piece sits in the source.
+    /// <para>
+    /// A piece drawn from a part is that part's stretch of it. A piece drawn from nothing anybody wrote — a
+    /// fraction's bar, a barcode's guard pattern, a hole waiting to be typed into — is a <em>point</em>, at
+    /// the start of whatever it was drawn inside: it stands somewhere without standing for anything, and
+    /// that distinction is what the caret turns on. Worked out from the parts on every call; the layout
+    /// holds neither number.
+    /// </para>
+    /// </summary>
+    public static SourcePlace Sits(this ILayoutNode node) =>
+        node.Part is { } part ? new SourcePlace(part.Start, part.Length)
+                              : new SourcePlace(node.Naming()?.Start ?? 0, 0);
+}
+
+
+/// <summary>Convenience over <see cref="ISourcePart"/>, so the arithmetic is written once.</summary>
+public static class SourcePartExtensions
+{
+    /// <summary>One past the last source character this part is named by.</summary>
+    public static int End(this ISourcePart part) => part.Start + part.Length;
+
+    /// <summary>Whether this part's stretch of source wholly contains another's.</summary>
+    public static bool Covers(this ISourcePart part, ISourcePart other) =>
+        other.Start >= part.Start && other.End() <= part.End();
 }

@@ -397,13 +397,13 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // a construct being filled in is a loop until it is finished.
         var here = _state.HasSelection ? _state.SelectionStart : _state.Caret;
         var next = forward
-            ? boxes.FirstOrDefault(b => b.SourceStart > here, boxes[0])
-            : boxes.LastOrDefault(b => b.SourceStart < here, boxes[^1]);
+            ? boxes.FirstOrDefault(b => b.Sits().Start > here, boxes[0])
+            : boxes.LastOrDefault(b => b.Sits().Start < here, boxes[^1]);
 
         // The caret goes into the hole rather than over it. A hole covers nothing — that is what makes
         // it a hole — so there is nothing to select and nothing to delete first: what gets typed lands
         // inside the braces, and the hole stops being one because the argument is no longer empty.
-        TakeCaret(next.SourceStart);
+        TakeCaret(next.Sits().Start);
         return true;
     }
 
@@ -473,9 +473,9 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         var here = _state.Caret;
         var symbol = _state.HasSelection || _state.Raw is not null ? null : _layout?.Tree.SymbolBefore(here);
 
-        if (symbol is { SourceLength: > 1 })
+        if (symbol?.Sits() is { Length: > 1 } place)
         {
-            var span = (Start: symbol.SourceStart, Length: symbol.SourceLength);
+            var span = (Start: place.Start, Length: place.Length);
 
             // A construct goes back to the source it was written as — there is source to go back to. A
             // symbol has nothing hidden behind it, so it is simply taken: an α is one thing on the page
@@ -673,7 +673,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // source-edit mode: inside a formula, "the word you clicked" is the symbol you clicked.
         var here = _layout.Tree.OffsetAt(pointInElement);
         var atom = _layout.Tree.SymbolBefore(here);
-        if (atom is { SourceLength: > 0 }) Select(atom.SourceStart, atom.SourceLength);
+        if (atom?.Sits() is { Length: > 0 } at) Select(at.Start, at.Length);
         else Select(Math.Max(0, here - 1), 1);
         return true;
     }
@@ -875,7 +875,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         var taken = new List<ILayoutNode>();
         foreach (var node in preview.Tree.Root.SelfAndDescendants())
         {
-            if (node.SourceLength <= 0 || node.SourceStart < start || node.SourceEnd() > end) continue;
+            if (node.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
             if (taken.Any(t => node.Ancestors().Contains(t))) continue;
 
             taken.Add(node);
