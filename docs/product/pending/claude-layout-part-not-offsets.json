@@ -57,6 +57,11 @@
           "doc": "src/Nexaflow.Maths/Latex/TexNode.cs",
           "class": "TexNode",
           "method": "Same"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Maths/Latex/TexWrite.cs",
+          "class": "TexWrite"
         }
       ],
       "concerns": {

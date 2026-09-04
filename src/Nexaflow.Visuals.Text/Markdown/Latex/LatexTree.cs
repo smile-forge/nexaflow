@@ -511,28 +511,6 @@ public sealed class LatexTree
     }
 
     /// <summary>
-    /// The construct drawn immediately before <paramref name="offset"/>, when it took more than one
-    /// character to write it. This is what backspace un-renders: the caret sits after an <c>α</c> whose
-    /// source is the six characters <c>\alpha</c>, and deleting one of those six is the wrong move.
-    /// </summary>
-    /// <summary>
-    /// The construct's argument ending exactly at <paramref name="offset"/>, when the writer left its
-    /// braces off — what typing there has to extend rather than walk out of.
-    /// <para>
-    /// LaTeX lets a one-token argument go unbraced, so <c>x^2</c> is x to the 2. Type a 3 meaning
-    /// twenty-three and the characters say something else entirely: <c>x^23</c> is x squared followed
-    /// by a 3, because the exponent was one token and that token has been used. Naming the case here is
-    /// what lets a caller re-brace it, which is the only way the obvious keystroke means the obvious
-    /// thing.
-    /// </para>
-    /// <para>
-    /// Only the roles that are genuinely an argument the writer wrote after a command. A construct's
-    /// <c>base</c> is not one — <c>x</c> in <c>x^2</c> — and neither is an <c>element</c> of a row: the
-    /// <c>1</c> in <c>a + 1</c> plays a part in the row that holds it, so it has a role, but a 2 typed
-    /// after it is twelve and bracing it would say nothing at all.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// Writes <paramref name="text"/> in at <paramref name="caret"/> as a change to the construct that
     /// owns that position, rather than to the characters either side of it.
     /// <para>
@@ -545,28 +523,23 @@ public sealed class LatexTree
     /// should have to tell apart.
     /// </para>
     /// <para>
-    /// Returns null when the position belongs to no construct in particular. Then the text is simply
-    /// inserted, which the caller does itself: typing a character carries rules of its own — a
-    /// backslash opens a command that is shown as it is spelled — and those are about the source,
-    /// not the structure.
+    /// Which is <see cref="TexEdit.Write"/>'s work, and not this one's: where the caret is and what a
+    /// construct may hold are questions about the formula, and the answer is a tree. All this adds is what
+    /// the surface needs on top — the source that tree prints as, and where the caret goes in it.
+    /// </para>
+    /// <para>
+    /// Returns null when nothing had to be reshaped to hold the text. Then it is simply inserted, which the
+    /// caller does itself: typing a character carries rules of its own — a backslash opens a command that
+    /// is shown as it is spelled — and those are about the source, not the structure.
     /// </para>
     /// </summary>
     public LatexWrite? Write(int caret, string text)
     {
         if (string.IsNullOrEmpty(text)) return null;
 
-        caret = Math.Clamp(caret, 0, Latex.Length);
-        if (ArgumentAt(caret) is not { } argument) return null;
+        var written = TexEdit.Write(Reading, Math.Clamp(caret, 0, Latex.Length), text);
 
-        var at = argument.Sits();
-        var (start, end) = (at.Start, at.End);
-        if (start < 0 || end > Latex.Length || caret < start || caret > end) return null;
-
-        // Already wrapped, or still one token: nothing structural to do, and the caller's own rules
-        // should have the keystroke.
-        if (IsBraced(argument) || IsOneToken(Latex[start..caret] + text + Latex[caret..end])) return null;
-
-        return Place(Latex, caret, text, (start, end), braced: false);
+        return written.Reshaped ? Wrote(written.Tree.Print(), written.End, written.Length) : null;
     }
 
     /// <summary>
@@ -622,16 +595,12 @@ public sealed class LatexTree
 
         var drop = Math.Clamp(Shift(to, ordered), 0, remainder.Length);
 
-        // The destination is read off the formula as it stands, which is the one the reader dropped
-        // onto, then shifted into the source the cut left behind. It only means anything if the drop
-        // is still inside it once that is done — a drag can pass over a position whose argument the
-        // cut has since taken apart, and the argument of somewhere else is no argument at all.
-        var argument = ArgumentAt(to);
-        var span = argument is null || to < argument.Sits().Start || to > argument.Sits().End
-            ? ((int Start, int End)?)null
-            : (Shift(argument.Sits().Start, ordered), Shift(argument.Sits().End, ordered));
+        // Read what the cut left behind, rather than shifting this reading's answers into it. A drag can
+        // pass over a position whose argument the cut has since taken apart, and the argument of somewhere
+        // that is no longer there has nothing to say about where a term lands.
+        var written = TexEdit.Write(TexReading.Of(TexPipeline.Read(remainder)), drop, moved);
 
-        return Place(remainder, drop, moved, span, argument is not null && IsBraced(argument));
+        return Wrote(written.Tree.Print(), written.End, written.Length);
 
         // An offset in the formula as it stands, read as an offset into what the cut left behind.
         // A stretch wholly in front of it takes its whole length off; one the offset falls *inside*
@@ -777,111 +746,12 @@ public sealed class LatexTree
         var shift = (left.BodyEnd - left.BodyStart) - (grid.BodyEnd - grid.BodyStart);
         var at = Math.Clamp(to <= left.BodyStart ? to : to + shift, 0, latex.Length);
 
-        var separated = Separated(latex, at, taken);
-        return new LatexWrite(
-            latex.Insert(at, separated),
-            at + separated.Length,
-            new LatexRange(at, separated.Length));
-    }
-
-    /// <summary>
-    /// Puts <paramref name="text"/> into <paramref name="source"/> at <paramref name="at"/>, wrapping
-    /// the argument it lands in when that argument can no longer hold it bare.
-    /// </summary>
-    private static LatexWrite Place(string source, int at, string text,
-                                    (int Start, int End)? argument, bool braced)
-    {
-        var written = Separated(source, at, text);
-
-        // An argument that does not hold the position being written to has nothing to say about it, so
-        // it is treated as no argument rather than trusted — this is a private helper with two callers
-        // and a precondition either could get wrong, and getting it wrong reads the source backwards.
-        if (argument is { } bounds && (at < bounds.Start || at > bounds.End || bounds.End > source.Length))
-            argument = null;
-
-        // The caret always ends up just past what was written, so where that landed follows from it —
-        // including when wrapping the argument shifted the whole lot along by a brace.
-        if (argument is not { } span || braced
-            || IsOneToken(source[span.Start..at] + written + source[at..span.End]))
-            return Wrote(source.Insert(at, written), at + written.Length, written.Length);
-
-        var content = source[span.Start..at] + written + source[at..span.End];
-        return Wrote(
-            source[..span.Start] + "{" + content + "}" + source[span.End..],
-            span.Start + 1 + (at - span.Start) + written.Length,
-            written.Length);
+        var written = TexEdit.Write(TexReading.Of(TexPipeline.Read(latex)), at, taken);
+        return Wrote(written.Tree.Print(), written.End, written.Length);
     }
 
     private static LatexWrite Wrote(string latex, int caret, int length) =>
         new(latex, caret, new LatexRange(caret - length, length));
-
-    /// <summary>
-    /// <paramref name="text"/> with a space added at either end where the join would otherwise change
-    /// what the neighbouring characters say — a control word runs on until something that is not a
-    /// letter ends its name, so <c>\alpha</c> written against <c>x</c> would become <c>\alphax</c>.
-    /// </summary>
-    private static string Separated(string source, int at, string text)
-    {
-        if (text.Length == 0) return text;
-
-        var before = EndsWithControlWord(source[..at]) && char.IsLetter(text[0]) ? " " : string.Empty;
-        var after = EndsWithControlWord(text) && at < source.Length && char.IsLetter(source[at]) ? " " : string.Empty;
-        return before + text + after;
-    }
-
-    private static bool EndsWithControlWord(string text)
-    {
-        var i = text.Length;
-        while (i > 0 && char.IsLetter(text[i - 1])) i--;
-        return i < text.Length && i > 0 && text[i - 1] == '\\';
-    }
-
-    private ILayoutNode? ArgumentAt(int caret)
-    {
-        ILayoutNode? best = null;
-        foreach (var node in Root.SelfAndDescendants())
-        {
-            var at = node.Sits();
-            if (at.Length <= 0) continue;
-
-            // Edges included: writing at either end of an argument is writing in it. That is the whole
-            // question — the position after the 2 of x^2 is both "the end of the exponent" and "the end
-            // of the formula", and only the construct that owns it can say which.
-            if (caret < at.Start || caret > at.End) continue;
-            if (RoleOf(node) is not { } role || !IsArgument(role.Role)) continue;
-
-            // The innermost, because an argument can hold constructs with arguments of their own.
-            if (best is null || node.Ancestors().Count() > best.Ancestors().Count()) best = node;
-        }
-        return best;
-    }
-
-    /// <summary>Roles a construct gives to something written as its argument.</summary>
-    private static bool IsArgument(string role) =>
-        role is "superscript" or "subscript" or "numerator" or "denominator"
-             or "degree" or "radicand" or "over" or "under";
-
-    /// <summary>
-    /// Whether this piece is a braced group — asked of the parse tree, which said so when it read the
-    /// braces, rather than of the characters either side of where the piece was drawn.
-    /// <para>
-    /// The one thing written in a group counts as the group, the same promotion <see cref="RoleOf"/>
-    /// makes: a typesetter names the contents of <c>{a+b}</c> where the part that <em>is</em> the
-    /// argument is the whole of it, so the piece pointed at is often the one inside.
-    /// </para>
-    /// </summary>
-    private bool IsBraced(ILayoutNode node) =>
-        Innermost(node) is { } part
-        && (part.Kind == TexKind.Group
-            || (part.Parent is { Kind: TexKind.Group } group && ReferenceEquals(Alone(group), part)));
-
-    /// <summary>
-    /// Whether <paramref name="content"/> is one token, and so can stand as an argument bare. A single
-    /// character is; so is a whole control word, which is why <c>x^\alpha</c> needs no braces.
-    /// </summary>
-    private static bool IsOneToken(string content) =>
-        content.Length == 1
-        || (content.Length > 1 && content[0] == '\\' && content.Skip(1).All(char.IsLetter));
 
     /// <summary>
     /// The one thing immediately before <paramref name="offset"/> — what backspace acts on.

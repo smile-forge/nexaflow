@@ -99,7 +99,7 @@ public static class TexEdit
 
     /// <summary>
     /// The tree with <paramref name="text"/> written at <paramref name="caret"/>, shaped so that reading
-    /// the result back puts it where it was meant to go.
+    /// the result back puts it where it was meant to go — and where in the result it landed.
     ///
     /// <para>
     /// Two things have to be said in the tree that would otherwise be said by peeking at characters. An
@@ -125,27 +125,39 @@ public static class TexEdit
     /// into the middle of a token, for the same reason.
     /// </para>
     /// </summary>
-    public static TexNode Write(TexReading reading, int caret, string text)
+    public static TexWrite Write(TexReading reading, int caret, string text)
     {
-        if (text.Length == 0) return reading.Root.Node;
-
         var where = Math.Clamp(caret, 0, reading.Root.Length);
+        if (text.Length == 0) return new TexWrite(reading.Root.Node, where, 0, false);
+
+        TexNode tree, written;
+        bool reshaped;
 
         if (Argument(reading.Root, where) is { } argument)
         {
             var whole = argument.Node.Print();
             var first = where <= argument.Start;
-            var piece = first ? Apart(string.Empty, whole, text) : Apart(whole, string.Empty, text);
 
-            return Replace(argument, Braced(argument.Node, TexNode.Shown(piece), first));
+            written = TexNode.Shown(first ? Apart(string.Empty, whole, text) : Apart(whole, string.Empty, text));
+            tree = Replace(argument, Braced(argument.Node, written, first));
+            reshaped = true;
+        }
+        else
+        {
+            var (into, at) = Point(reading.Root, where);
+            var lands = Math.Clamp(at < into.Children.Count ? into.Children[at].Start : into.End,
+                                   0, reading.Latex.Length);
+
+            written = TexNode.Shown(Apart(reading.Latex[..lands], reading.Latex[lands..], text));
+            tree = Insert(into, at, written);
+            reshaped = false;
         }
 
-        var (into, at) = Point(reading.Root, where);
-        var lands = at < into.Children.Count ? into.Children[at].Start : into.End;
-        var source = reading.Latex;
-        var here = Math.Clamp(lands, 0, source.Length);
+        // Where it landed, read off the tree that holds it rather than counted out — the piece is the one
+        // object that knows which of it is the separator and which the writing.
+        var place = tree.Placed().First(where => ReferenceEquals(where.Node, written));
 
-        return Insert(into, at, TexNode.Shown(Apart(source[..here], source[here..], text)));
+        return new TexWrite(tree, place.Start, written.Width, reshaped);
     }
 
     /// <summary>

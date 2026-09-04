@@ -195,7 +195,7 @@ public class TexEditTests
 
             for (var caret = 0; caret <= source.Length; caret++)
             {
-                var grown = TexEdit.Write(reading, caret, "z");
+                var grown = TexEdit.Write(reading, caret, "z").Tree;
                 tried++;
 
                 if (!Landed(grown.Print())) missed.Add($"{what} @{caret}: {source} -> {grown.Print()}");
@@ -234,7 +234,7 @@ public class TexEditTests
             for (var attempt = 0; attempt < 5; attempt++)
             {
                 var caret = random.Next(source.Length + 1);
-                var grown = TexEdit.Write(reading, caret, "z");
+                var grown = TexEdit.Write(reading, caret, "z").Tree;
                 tried++;
 
                 if (!Landed(grown.Print())) missed.Add($"@{caret}: {source} -> {grown.Print()}");

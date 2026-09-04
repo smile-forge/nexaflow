@@ -103,10 +103,20 @@ Each stage stands on its own and leaves the app working.
    `APartInsideAStyledGroupStillKnowsWhatItIs`: a style atom names no parts at all, so the numerator of
    a fraction written inside `\displaystyle` — or `\mathrm`, `{\bf …}`, `\cancel` — used to be the
    numerator of nothing as far as the editor could tell, and is a numerator again.
-5. **Edits become tree operations.** `Write` and `Move` build a new tree and print it. The character
-   peeking (`IsBraced`, `IsOneToken`, `EndsWithControlWord`, `Separated`) is deleted rather than
-   ported, and the matrix body stops being reformatted, because untouched subtrees are reused as they
-   stand.
+5. 🔄 **Edits become tree operations.** `TexEdit` takes a part and gives back a whole new root, sharing
+   every subtree it did not touch, and the character peeking is deleted rather than ported: `IsBraced`,
+   `IsOneToken`, `EndsWithControlWord`, `Separated`, `Place` and `ArgumentAt` are gone from `LatexTree`,
+   and its three callers — typing, a text move, a block dragged out of a matrix — all go through
+   `TexEdit.Write`, which says the brace and the space in the tree instead. **What is left is the
+   matrix body**, which is still re-rendered from a grid model rather than reused as it stands.
+
+   What comes back from an edit is *provisional*, and that is the rule the whole thing turns on. The
+   stages between the parser and the builder do not re-derive themselves when a tree is changed
+   underneath them — a filled hole is still flagged a hole, a command whose name has grown is still
+   marked undrawable, a gathered shape may no longer be what gathering would make of it — so an edit
+   prints, and the source it prints as is read back and built from. Which is also why editing the tree
+   is worth the trouble: an edit expressed against a node knows what it touched, so trouble afterwards
+   can be blamed on the keystroke that caused it rather than guessed at by diffing a string.
 6. **The solver bridge** — later, and out of scope here. Tree to `Entity`, so that what renders is
    what solves.
 
