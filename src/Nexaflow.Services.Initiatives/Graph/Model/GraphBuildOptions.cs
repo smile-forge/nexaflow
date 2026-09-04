@@ -1,3 +1,5 @@
+using System;
+
 namespace Nexaflow.Services.Initiatives.Graph.Model;
 
 /// <summary>How much of the repo the builder walks.</summary>
@@ -47,6 +49,14 @@ public sealed class GraphBuildOptions
 
     /// <summary>ISO-8601 timestamp the caller stamps into <c>Metadata.GeneratedAt</c>; the builder never reads the clock.</summary>
     public string? GeneratedAt { get; set; }
+
+    /// <summary>
+    /// Called as each source file is folded in, with how many are done and how many there are. Null by
+    /// default and never read otherwise, so the builder stays something you can reason about without it —
+    /// but a whole-repo walk is a minute of silence, and a caller that has to show a person what is
+    /// happening cannot get that from a return value.
+    /// </summary>
+    public Action<int, int>? Progress { get; set; }
 
     public CommunityAlgorithm CommunityAlgorithm { get; set; } = CommunityAlgorithm.Louvain;
 }

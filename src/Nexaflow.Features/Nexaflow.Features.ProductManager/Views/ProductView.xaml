@@ -38,7 +38,29 @@
     </UserControl.Resources>
 
     <Grid>
-        <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Says so while the knowledge graph is missing or behind and something is being done about it.
+             Collapsed the rest of the time: a banner that shows on every page open stops being read. -->
+        <Border Grid.Row="0" Background="{StaticResource AccentBrush}" Padding="10,5">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding GraphBanner}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding GraphBanner}" Foreground="{StaticResource OnAccentBrush}"
+                       TextTrimming="CharacterEllipsis"/>
+        </Border>
+
+        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="280"/>
                 <ColumnDefinition Width="5"/>

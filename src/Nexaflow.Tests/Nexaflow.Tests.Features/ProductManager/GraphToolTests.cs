@@ -136,8 +136,17 @@ public class GraphToolTests
 
     // ── The surface ───────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Every graph verb the CLI has, the assistant has too — with one deliberate exception.
+    /// <para>
+    /// `graph build` is not offered as a tool and must not be. It was, and it was the only tool the assistant
+    /// had to know to call before any other would work: the rest failed with "no graph has been built", which
+    /// reads as a fact about the product rather than an instruction about the tooling. Opening the page is the
+    /// moment the intent is unambiguous, so the build happens there instead — see GraphWarmUpTask.
+    /// </para>
+    /// </summary>
     [TestMethod]
-    public void EveryGraphCliVerbHasATool()
+    public void EveryGraphCliVerbHasATool_ExceptTheOneThePageDoesForYou()
     {
         var names = ProductTools.ForRoot(_root).Select(t => t.Name).ToHashSet();
 
@@ -146,23 +155,26 @@ public class GraphToolTests
                      ("graph search", "graph_search"), ("graph context", "graph_context"),
                      ("graph node", "graph_node"), ("graph walk", "graph_walk"),
                      ("graph grep", "graph_grep"), ("graph code", "graph_code"),
-                     ("graph stats", "graph_stats"), ("graph build", "graph_build"),
+                     ("graph stats", "graph_stats"),
                  })
             Assert.IsTrue(names.Contains(tool), $"CLI verb '{verb}' has no '{tool}' tool");
+
+        Assert.IsFalse(names.Contains("graph_build"),
+                       "the page builds the graph when it opens; offering it as a tool put an ordering on the "
+                     + "assistant that nothing in a request implies");
     }
 
+    /// <summary>Nothing the assistant can do to the graph writes it, so nothing here interrupts to ask. The one
+    /// operation that did is no longer a tool.</summary>
     [TestMethod]
-    public void OnlyTheRebuildAsksFirst()
+    public void NoGraphQuestionInterruptsToAsk()
     {
         var tools = ProductTools.ForRoot(_root)
             .Where(t => t.Name.StartsWith("graph_")).ToDictionary(t => t.Name, t => t.Safety);
 
         foreach (var read in new[] { "graph_search", "graph_context", "graph_node",
-                                     "graph_walk", "graph_grep", "graph_code", "graph_stats" })
+                                    "graph_walk", "graph_grep", "graph_code", "graph_stats" })
             Assert.AreEqual(ToolSafety.SafeOperation, tools[read], $"{read} only reads the built graph");
-
-        Assert.AreEqual(ToolSafety.RequiresApproval, tools["graph_build"],
-                        "a rebuild walks the whole repo and writes graph.json - it asks");
     }
 
     // ── Search ────────────────────────────────────────────────────────────────

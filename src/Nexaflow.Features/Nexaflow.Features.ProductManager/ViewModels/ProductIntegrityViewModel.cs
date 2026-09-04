@@ -91,6 +91,10 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
     public bool IsContextReady => !IsScanning;
     public bool CanScan => !IsScanning;
 
+    /// <summary>This page's share in the product's live state, so its graph tools answer from the same warm copy
+    /// the Product page is using rather than reading the archive back per call.</summary>
+    private readonly ProductSession _session;
+
     public ProductIntegrityViewModel(ProductStore store, string productRoot, IShellServices shell)
     {
         _store = store;
@@ -105,6 +109,8 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         // The tree can be edited from the Product tab while this page is open; reload so the live links we
         // write through stay the ones actually on disk.
         _watch = shell.WatchFile(store.TreeFilePath, () => { if (!IsScanning) LoadStateAndSavedReport(); });
+
+        _session = ProductSession.Open(shell, productRoot);
 
         Rescan();
     }
@@ -535,5 +541,9 @@ public partial class ProductIntegrityViewModel : ObservableObject, IPageViewMode
         "class/method, malformed URL). Each can be re-pointed by editing its target, or removed — " +
         "product_remap_snaplinks follows a file that moved, and product_validate re-checks the whole tree.";
 
-    public void Dispose() => _watch?.Dispose();
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        _session.Dispose();
+    }
 }
