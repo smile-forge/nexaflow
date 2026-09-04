@@ -52,7 +52,10 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 # RID-specific: tree-sitter and libgit2 ship natives for EVERY runtime identifier, so a RID-less publish
 # drops ~618 MB of linux/osx/arm payload here for a Windows-only tool. win-x64 prunes it to ~73 MB.
 # --self-contained false because the CLI runs on the installed .NET 10 runtime, same as the installer's copy.
-& dotnet publish $proj -c Release -r win-x64 --self-contained false -o $stage --nologo -v minimal
+# NfiPublishingViaScript tells the project's NfiPublishViaScript target to stand aside. Without it a publish
+# started from Visual Studio's button would re-enter this script from inside its own publish, forever.
+& dotnet publish $proj -c Release -r win-x64 --self-contained false -o $stage --nologo -v minimal `
+    -p:NfiPublishingViaScript=true
 if ($LASTEXITCODE -ne 0) {
     Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
     Write-Error "publish failed — $out is untouched and still the previous build."

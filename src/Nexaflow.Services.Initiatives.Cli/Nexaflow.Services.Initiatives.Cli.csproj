@@ -40,4 +40,25 @@
     <InternalsVisibleTo Include="Nexaflow.Tests.Features.Architecture" />
   </ItemGroup>
 
+  <!--
+    Visual Studio's Publish button hands off to tools/publish-graph-cli.ps1 rather than publishing on its own.
+    A hand-driven publish of this project is not a smaller version of the script's job, it is a different and
+    wrong one: nfi.exe is a framework-dependent apphost — a stub with no code in it — so a profile that lands
+    the exe without nfi.dll and the libraries beside it produces something that still runs, as whatever the
+    previous build was. That is the worst failure available to a tool whose whole job is telling you when
+    something is out of date, and it is what happened. The script is what stops resident daemons, publishes
+    win-x64 (a RID-less publish drops ~618 MB of other-platform natives in here), swaps the folder whole, and
+    proves the result runs before calling it published.
+
+    Scoped to VS because that is the button being fixed; `dotnet publish` from CI or the installer is left
+    alone. NfiPublishingViaScript breaks the recursion — the script's own publish sets it, and this target
+    then stands aside so the inner publish is an ordinary one.
+  -->
+  <Target Name="NfiPublishViaScript"
+          AfterTargets="Publish"
+          Condition="'$(NfiPublishingViaScript)' != 'true' And '$(BuildingInsideVisualStudio)' == 'true'">
+    <Message Importance="high" Text="Publishing the graph CLI through tools/publish-graph-cli.ps1 ..." />
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\tools\publish-graph-cli.ps1&quot;" />
+  </Target>
+
 </Project>
