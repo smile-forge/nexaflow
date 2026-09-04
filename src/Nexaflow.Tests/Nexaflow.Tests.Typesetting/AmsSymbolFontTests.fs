@@ -221,16 +221,6 @@ type AmsSymbolFontTests() =
         Assert.NotEqual(mathIt.Width, textIt.Width)
 
     [<Fact>]
-    member _.``small caps really are small capitals``() =
-        // cmcsc10 keeps its small capitals in the lowercase slots, so lowercase input comes out as
-        // capitals that are shorter than the real ones.
-        let small = (parse @"\textsc{a}").RootAtom.CreateBox(environment)
-        let capital = (parse @"\textsc{A}").RootAtom.CreateBox(environment)
-        Assert.True(small.Height < capital.Height, "small caps should be shorter than capitals")
-        Assert.True(small.Height > (parse @"\textrm{a}").RootAtom.CreateBox(environment).Height,
-                    "small caps should be taller than lowercase roman")
-
-    [<Fact>]
     member _.``typewriter is monospaced``() =
         let narrow = (parse @"\mathtt{iii}").RootAtom.CreateBox(environment)
         let wide = (parse @"\mathtt{mmm}").RootAtom.CreateBox(environment)

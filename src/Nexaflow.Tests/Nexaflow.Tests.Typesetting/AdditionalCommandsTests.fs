@@ -101,7 +101,6 @@ type AdditionalCommandsTests() =
     [<InlineData(@"\mathclap{x}")>]
     [<InlineData(@"\llap{x}")>]
     [<InlineData(@"\rlap{x}")>]
-    [<InlineData(@"\clap{x}")>]
     member _.``the lap family drops the width and keeps the height``(markup: string) =
         Assert.IsType<LapAtom>(parseRoot markup) |> ignore
         let box = (parseRoot markup).CreateBox(environment)

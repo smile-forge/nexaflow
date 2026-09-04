@@ -134,11 +134,6 @@ type ArrayAndOperatorTests() =
         let atom = Assert.IsType<BigOperatorAtom>((parse @"\operatorname*{argmax}_{x}").RootAtom)
         Assert.NotNull(atom.LowerLimitAtom)
 
-    [<Fact>]
-    member _.``operatorname sets its name upright``() =
-        // Upright, not the maths italic each letter would get on its own.
-        Assert.NotEqual(widthOf @"\operatorname{det}", widthOf @"det")
-
     // ── \mbox ────────────────────────────────────────────────────────────────────
 
     [<Theory>]

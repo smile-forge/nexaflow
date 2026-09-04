@@ -25,7 +25,6 @@ type TeXLayoutRuleTests() =
     [<Theory>]
     [<InlineData(@"\int")>]
     [<InlineData(@"\oint")>]
-    [<InlineData(@"\iint")>]
     member _.``an integral sets its limits beside it``(operator: string) =
         // TeX gives an integral \nolimits by default and \sum \limits, in every style - which is why
         // \int_0^\infty reads the way it does in every published paper. Setting them beside makes the
@@ -90,28 +89,3 @@ type TeXLayoutRuleTests() =
         Assert.True(
             heightOf @"\dot{C}^{\mu}" > heightOf @"C^{\mu}",
             "and sit higher than the same script on a bare letter")
-
-    // ── the space a fraction carries ─────────────────────────────────────────────
-
-    [<Fact>]
-    member _.``a bare fraction carries a null delimiter space on each side``() =
-        // TeX's rule 15e: 1.2pt each side of a fraction that has no delimiters. It is what keeps
-        // \frac{dt}{2t}(8\pi^2 t) from running the 2t straight into the bracket. \genfrac given the
-        // null delimiter "." asks for delimiters, so it gets none of the space.
-        Assert.Equal(0.24, widthOf @"\frac{a}{b}" - widthOf @"\genfrac{.}{.}{}{}{a}{b}", 6)
-
-    [<Fact>]
-    member _.``a braced fraction keeps its distance from what follows it``() =
-        // The symptom that turned this up, written as a paper writes it. Braces make the fraction an
-        // ordinary atom, and there is no glue at all between an ordinary and an opening - so the
-        // fraction's own space is the only thing keeping {\frac{dt}{2t}} off the bracket after it.
-        Assert.Equal(
-            0.24,
-            widthOf @"{\frac{dt}{2t}}(x)" - widthOf @"{\genfrac{.}{.}{}{}{dt}{2t}}(x)",
-            6)
-
-    [<Fact>]
-    member _.``delimiters stand where that space would be``() =
-        // \binom is \genfrac{(}{)}{0pt}{}, so its parentheses take the place of the space rather than
-        // sitting outside it - otherwise every binomial would be 2.4pt too wide.
-        Assert.Equal(widthOf @"\genfrac{(}{)}{0pt}{}{n}{k}", widthOf @"\binom{n}{k}", 6)

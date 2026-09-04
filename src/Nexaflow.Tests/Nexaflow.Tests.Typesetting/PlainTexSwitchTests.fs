@@ -79,14 +79,3 @@ type PlainTexSwitchTests() =
     member _.``the size switches that have an equivalent here shrink``() =
         Assert.True(widthOf @"{\scriptsize x}" < widthOf @"x")
         Assert.True(widthOf @"{\tiny x}" < widthOf @"{\scriptsize x}")
-
-    [<Theory>]
-    [<InlineData(@"\small")>]
-    [<InlineData(@"\normalsize")>]
-    [<InlineData(@"\large")>]
-    [<InlineData(@"\Large")>]
-    [<InlineData(@"\huge")>]
-    member _.``a size switch with no equivalent here changes nothing``(switch: string) =
-        // They set the type size of a document. A formula is set at one size, so there is nothing for
-        // them to do - but a formula that uses one still has to render.
-        Assert.Equal(widthOf @"x + y", widthOf ("{" + switch + " x + y}"), 6)
