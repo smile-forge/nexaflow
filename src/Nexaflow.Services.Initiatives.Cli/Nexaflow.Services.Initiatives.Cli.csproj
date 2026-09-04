@@ -40,4 +40,48 @@
     <InternalsVisibleTo Include="Nexaflow.Tests.Features.Architecture" />
   </ItemGroup>
 
+  <!--
+    Visual Studio's Publish button hands off to tools/publish-graph-cli.ps1 rather than publishing on its own.
+    A hand-driven publish of this project is not a smaller version of the script's job, it is a different and
+    wrong one: nfi.exe is a framework-dependent apphost — a stub with no code in it — so a profile that lands
+    the exe without nfi.dll and the libraries beside it produces something that still runs, as whatever the
+    previous build was. That is the worst failure available to a tool whose whole job is telling you when
+    something is out of date, and it is what happened. The script is what stops resident daemons, publishes
+    win-x64 (a RID-less publish drops ~618 MB of other-platform natives in here), swaps the folder whole, and
+    proves the result runs before calling it published.
+
+    Scoped to VS because that is the button being fixed; `dotnet publish` from CI or the installer is left
+    alone. NfiPublishingViaScript breaks the recursion — the script's own publish sets it, and this target
+    then stands aside so the inner publish is an ordinary one.
+  -->
+  <Target Name="NfiPublishViaScript"
+          AfterTargets="Publish"
+          Condition="'$(NfiPublishingViaScript)' != 'true' And '$(BuildingInsideVisualStudio)' == 'true'">
+    <Message Importance="high" Text="Publishing the graph CLI through tools/publish-graph-cli.ps1 ..." />
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\tools\publish-graph-cli.ps1&quot;" />
+  </Target>
+
+  <!--
+    A publish profile must not aim at tools/graph-cli itself, and this refuses before anything is deleted.
+    Publish profiles are gitignored, so this guard is the only part that travels with the repo — and the
+    profile it was written for did exactly this: PublishDir straight at the live folder plus
+    DeleteExistingFiles, which wipes it and then copies. Hit one locked file partway through that copy and
+    the folder is left gutted; what survived last time was nfi.exe alone, an apphost stub that still runs and
+    silently executes whatever nfi.dll it can find. The script exists because the destination has to be
+    written whole or not at all, and it cannot promise that if the button has already emptied it.
+
+    The publish itself is not blocked, only its destination: point the profile anywhere scratch (its output
+    is discarded) and the target above republishes properly through the script.
+  -->
+  <Target Name="NfiRefusePublishOverLiveTools"
+          BeforeTargets="Publish"
+          Condition="'$(NfiPublishingViaScript)' != 'true' And '$(PublishDir)' != ''">
+    <PropertyGroup>
+      <_NfiLiveTools>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\tools\graph-cli'))</_NfiLiveTools>
+      <_NfiPublishDir>$([MSBuild]::NormalizeDirectory('$(PublishDir)'))</_NfiPublishDir>
+    </PropertyGroup>
+    <Error Condition="'$(_NfiPublishDir)' == '$(_NfiLiveTools)'"
+           Text="This profile publishes straight into $(_NfiLiveTools), which is the exe everyone runs. A partial copy there leaves a working-looking nfi.exe running stale code. Point PublishDir at a scratch folder (bin\vs-publish) — the Publish button then republishes properly via tools/publish-graph-cli.ps1 — or run that script directly." />
+  </Target>
+
 </Project>

@@ -66,7 +66,25 @@ public enum IntegrityKind
     /// there is no node for it, which is the finding.
     /// </para>
     /// </summary>
-    UnlinkedProject
+    UnlinkedProject,
+
+    /// <summary>
+    /// A test project's compiled output is behind its own source, so every coverage claim derived from it
+    /// describes code that no longer exists. The manifest is not at fault and rescanning cannot help — it
+    /// would re-read the same stale assembly — so this gates on the build itself.
+    /// <para>
+    /// This is the failure the other coverage kinds cannot see. <see cref="StaleCoverageNode"/> reports a
+    /// declaration naming a node the tree lacks; when the assembly is stale that report is backwards — the
+    /// tree is current and the declaration is a fossil of an id that has since been renamed. Left ungated,
+    /// the release gate reads clean over whatever the last build happened to say.
+    /// </para>
+    /// <para>
+    /// Found by comparing the portable PDB's document hashes against the working tree, so
+    /// <see cref="IntegrityIssue.Index"/> is -1 and <see cref="IntegrityIssue.Link"/> is empty: there is
+    /// nothing in the tree to repair, and the fix is to rebuild.
+    /// </para>
+    /// </summary>
+    StaleCoverageBuild
 }
 
 /// <summary>
