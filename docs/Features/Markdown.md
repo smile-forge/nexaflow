@@ -695,11 +695,21 @@ value: 590123412345
 
 ![Barcodes: Code 128, an EAN-13 and an ISBN with its price add-on](images/markdown/barcodes.png)
 
-**The value is editable where it is drawn.** Click into the digits under the bars and type — the
-symbol re-encodes as you go, and the change goes back into the fence in your document. While the
-caret is in it you are shown the value itself rather than the number the symbol prints, because for
-several of these formats those are different strings: an ISBN's value carries hyphens the symbol
-never prints, and an EAN-13's gains the check digit you left off.
+**What you typed is editable where it is drawn; what the format worked out is not.** Click into the
+digits and type — the symbol re-encodes as you go, and the change goes back into the fence in your
+document.
+
+Most of these formats do not print exactly what they are given, and the caret goes only where they
+do. Codabar wraps your value in the start and stop marks it needs, so those two characters take no
+caret and the rest does. An EAN-13 works out its thirteenth digit from the other twelve, so the
+twelfth is the last place you can stand. A UPC-E given six digits fills in both ends. An ISBN is the
+furthest from what you typed — the digits under its bars are your number with the hyphens taken out
+and a check digit added — so none of them is editable, and the caption above the bars, which is your
+number as you wrote it, is where you edit it.
+
+Everything is still selectable and copyable either way, and pressing a digit the format worked out
+selects the whole number it was worked out from. Where a symbol takes no caret at all, edit it in the
+block source: double-click to open it.
 
 ### Formats
 

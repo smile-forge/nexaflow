@@ -232,9 +232,14 @@ public class BarcodeInEditorTests
     [TestMethod]
     public void EveryCharacterOfTheValueIsReachableByArrowingThroughIt()
     {
-        // UPC-E completes what it is given — a number system digit on the front, a check digit on the
-        // end — so what it prints is longer than what was typed. A caret walking the printed number ran
-        // past the ends of the value, which is what made deleting look like it was inventing characters.
+        // A UPC-E prints its eight digits in three places: the number system outside the bars on the left,
+        // six under them, the check digit outside on the right. So the caret has more places to stand than
+        // the value has characters — the end of one group and the start of the next are one offset drawn a
+        // symbol's width apart, and a reader arrowing along visits both, exactly as they do either side of
+        // the space around an operator in a formula.
+        //
+        // What matters is therefore not how many presses it takes but that it takes at least one per
+        // character, that it does eventually come out, and that walking through changes nothing.
         const string value = "01234565";
         const string document = "before\n\n```barcode\nformat: UPCE\nvalue: " + value + "\n```\n\nafter";
 
@@ -242,14 +247,19 @@ public class BarcodeInEditorTests
         {
             EnterBarcodeAtTheEnd(editor, rtb);
 
-            for (int i = 0; i < value.Length; i++)
+            int presses = 0;
+            while (editor.FocusedBlock is not null && presses < 100)
             {
                 MarkdownEditorHarness.RaiseKey(rtb, Key.Left);
-                Assert.IsNotNull(editor.FocusedBlock, $"still inside the value after {i + 1} steps");
+                presses++;
             }
 
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Left);
-            Assert.IsNull(editor.FocusedBlock, "and the step off the front hands the caret back");
+            Assert.IsNull(editor.FocusedBlock, "arrowing left eventually hands the caret back");
+            Assert.IsTrue(presses > value.Length,
+                $"every character is a stop, and the breaks between the groups are stops too "
+                + $"(took {presses} for {value.Length} characters)");
+
+            StringAssert.Contains(editor.Markdown, "value: " + value, "and walking through it changed nothing");
         }));
     }
 
