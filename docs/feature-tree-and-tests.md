@@ -63,6 +63,33 @@ and [CLAUDE.md → product tree]; testing conventions in [testing.md](testing.md
 
 ---
 
+## 0. `Features` and `Common / Shared` are different kinds of list
+
+Before the shape of a subtree, the shape of the two halves — they are not the same thing modelled twice:
+
+| | Answers | A description says |
+|---|---|---|
+| **`Features > …`** | *what can a user interact with* — a structured list of **use cases** | what the user does, and what they are trusting when they do it |
+| **`Common / Shared > …`** | *what functional blocks and capabilities exist* — which is why it aligns closely with code structure | the mechanism, its contract, and the traps in it |
+
+**The same code can legitimately be modelled on both sides, and that is not duplication.** The Product
+tab's *Snaplink validation* is a use case: open the Integrity page, see what broke, re-point it. The
+validator is a capability: what it checks, what it refuses, what it treats as unverifiable. Deleting
+either one loses something real.
+
+What goes wrong is the **description**, not the existence of the node. A `Features` node that describes a
+class, a store's write-scoping rules or an engine's contract has absorbed capability detail — usually
+because the capability had no node when it was written. The fix is to move that detail to the Shared node
+and leave the feature node saying what the user does, naming its capability at the end.
+
+This also settles which node a test declares: a unit test whose **subject** is the capability declares the
+**Shared** node (the same subject rule that decides which suite it lives in), while a use case wants a
+test that exercises the use case. When a `[CoversNode]` and a node look mismatched, it is one of two
+things — the test class is scoped wrongly, or the node is not granular enough to name what the test
+actually pins down. Fix the cause; do not fold several precise declarations onto one coarse node.
+
+---
+
 ## 1. The shape of a feature subtree
 
 Each feature root lives under `Features` and has (up to) three children — **UI**, **Functionality**,
