@@ -197,3 +197,9 @@ Editor_ReadOnlyBanner
 Editor_ReadOnlyIndicator
 Editor_UnsavedIndicator
 TextEditorView
+
+# src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileOperationsPanel.xaml
+# Renders only inside the row template of a FAILED operation. Reaching it means making a real copy fail
+# mid-flight — a denied destination, or a source pulled away under the engine — which is a journey about
+# failure handling rather than one that happens to press a button, and is worth writing as its own.
+FileOps_Retry
