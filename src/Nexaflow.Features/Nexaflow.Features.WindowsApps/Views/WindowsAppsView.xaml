@@ -155,14 +155,14 @@
             </Grid.RowDefinitions>
 
             <!-- ── Header bar: status + refresh (filtering is driven by the shell query handler) ── -->
-            <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid x:Name="HeaderBar" Grid.Row="0" Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- Discovering… (animated dots) while loading -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                <StackPanel x:Name="LoadingStatus" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="Discovering" Foreground="{StaticResource TextMutedBrush}" FontSize="13"/>
                     <TextBlock Width="20" Foreground="{StaticResource TextMutedBrush}" FontSize="13">
@@ -226,7 +226,7 @@
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListView.View>
-                    <GridView ColumnHeaderContainerStyle="{StaticResource GvColHeaderStyle}">
+                    <GridView x:Name="AppColumns" ColumnHeaderContainerStyle="{StaticResource GvColHeaderStyle}">
 
                         <!-- Name -->
                         <GridViewColumn Width="320" HeaderTemplate="{StaticResource SortHeaderTemplate}">
@@ -303,7 +303,7 @@
                         </GridViewColumn>
 
                         <!-- Actions dropdown -->
-                        <GridViewColumn Width="44" Header="">
+                        <GridViewColumn x:Name="ActionsColumn" Width="44" Header="">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:InstalledAppItem}">
                                     <Button Content="⋯" Click="RowMenu_Click"

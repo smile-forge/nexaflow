@@ -1,0 +1,771 @@
+{
+  "branch": "claude/snaplink-anchors",
+  "nodes": {
+    "aibar-cancel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "CancelAi"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_Send"
+        }
+      ]
+    },
+    "aibar-input-group": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiInputBox"
+        }
+      ]
+    },
+    "aibar-queue": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_Queue"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/ClientTools/IAIResponseHandler.cs",
+          "class": "IAIResponseHandler",
+          "method": "Enqueue"
+        }
+      ]
+    },
+    "aibar-send": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "SendAiMessage"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_Send"
+        }
+      ]
+    },
+    "chat-interface": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "N:AiRow"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "SendAiMessage"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/Architecture.md",
+          "title_path": [
+            "Nexaflow Architecture",
+            "Core Flows",
+            "AI input bar"
+          ]
+        }
+      ]
+    },
+    "chrome-ai-clear": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:AiBar_Clear"
+        }
+      ]
+    },
+    "chrome-ai-send": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:AiBar_Send"
+        }
+      ]
+    },
+    "chrome-aibar": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "N:AiRow"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml.cs",
+          "class": "MainWindow",
+          "method": "WireAiBarChatHandlers"
+        }
+      ]
+    },
+    "chrome-notifications-panel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:Chrome_NotificationsPanel"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "DismissNotification"
+        }
+      ]
+    },
+    "chrome-options-button": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:Chrome_OptionsButton"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "ast": "T:ShellViewModel/M:ToggleOptions"
+        }
+      ]
+    },
+    "chrome-prompt-confirm": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ShowConfirmation"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:Chrome_ConfirmOk"
+        }
+      ]
+    },
+    "chrome-prompt-input": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ShowPrompt"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:ShellPromptBox"
+        }
+      ]
+    },
+    "chrome-toast": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "DisplayNextToast"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:Toast_Dismiss"
+        }
+      ]
+    },
+    "page-contents-injection": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_ContextToggle"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "WaitForContextAsync"
+        }
+      ]
+    },
+    "voice-input": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "ToggleVoice"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "ast": "A:AiBar_Mic"
+        }
+      ]
+    },
+    "album": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "ast": "T:ImageViewModel/P:IsAlbum"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml",
+          "class": "ImageView",
+          "ast": "N:AlbumSurface"
+        }
+      ]
+    },
+    "carousel": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "ast": "T:ImageViewModel/P:IsCarousel"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml",
+          "class": "ImageView",
+          "ast": "N:CarouselSurface"
+        }
+      ]
+    },
+    "hybrid-album": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "ast": "T:ImageViewModel/P:IsExplore"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml",
+          "class": "ImageView",
+          "ast": "N:ExploreSurface"
+        }
+      ]
+    },
+    "images-mode-selector": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "OnViewModeChanged"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml",
+          "class": "ImageView",
+          "ast": "N:SubViewSelector"
+        }
+      ]
+    },
+    "windowsapps-columns": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/WindowsAppsView.xaml",
+          "class": "WindowsAppsView",
+          "ast": "N:AppColumns"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/ViewModels/InstalledAppItem.cs",
+          "class": "InstalledAppItem"
+        }
+      ]
+    },
+    "windowsapps-loading-status": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/WindowsAppsView.xaml",
+          "class": "WindowsAppsView",
+          "ast": "N:LoadingStatus"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/ViewModels/WindowsAppsViewModel.cs",
+          "class": "WindowsAppsViewModel",
+          "method": "IsContextReady"
+        }
+      ]
+    },
+    "windowsapps-rowactions": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/WindowsAppsView.xaml",
+          "class": "WindowsAppsView",
+          "ast": "N:ActionsColumn"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/WindowsAppsView.xaml.cs",
+          "class": "WindowsAppsView",
+          "method": "RowMenu_Click"
+        }
+      ]
+    },
+    "windowsapps-toolbar": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/WindowsAppsView.xaml",
+          "class": "WindowsAppsView",
+          "ast": "N:HeaderBar"
+        }
+      ]
+    },
+    "code-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorView.xaml",
+          "class": "FileTextEditorView",
+          "ast": "N:EditorContextMenu"
+        }
+      ]
+    },
+    "code-editor-toolbar": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorView.xaml",
+          "class": "FileTextEditorView",
+          "ast": "N:EditorToolbar"
+        }
+      ]
+    },
+    "code-statusbar": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorView.xaml",
+          "class": "FileTextEditorView",
+          "ast": "N:EditorStatusBar"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorViewModel.cs",
+          "class": "FileTextEditorViewModel",
+          "method": "RecomputeLineEndingLabel"
+        }
+      ]
+    },
+    "parser-css": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages",
+          "ast": "T:TreeSitterLanguages/M:TreeSitterLanguages"
+        }
+      ]
+    },
+    "parser-erb": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages",
+          "ast": "T:TreeSitterLanguages/M:TreeSitterLanguages"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/LanguageInjections.cs",
+          "class": "LanguageInjections",
+          "method": "Find"
+        }
+      ]
+    },
+    "parser-html": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages",
+          "ast": "T:TreeSitterLanguages/M:TreeSitterLanguages"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/LanguageInjections.cs",
+          "class": "LanguageInjections",
+          "method": "Find"
+        }
+      ]
+    },
+    "parser-jinja": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages",
+          "ast": "T:TreeSitterLanguages/M:TreeSitterLanguages"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting",
+            "Embedded languages (injection)"
+          ]
+        }
+      ]
+    },
+    "parser-json": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/TreeSitterLanguages.cs",
+          "class": "TreeSitterLanguages",
+          "ast": "T:TreeSitterLanguages/M:TreeSitterLanguages"
+        }
+      ]
+    },
+    "parsers": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/Highlighting/HighlightingRegistry.cs",
+          "class": "HighlightingRegistry",
+          "ast": "T:HighlightingRegistry/M:Resolve"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/CodeStructureExtractor.cs",
+          "class": "CodeStructureExtractor",
+          "method": "Build"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting",
+            "Add a tree-sitter language"
+          ]
+        }
+      ]
+    },
+    "code-base64": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/Commands/BuiltInTextEditorCommands.cs",
+          "class": "BuiltInTextEditorCommands",
+          "ast": "T:BuiltInTextEditorCommands/P:All"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Common/Base64CodecTests.cs",
+          "class": "Base64CodecTests"
+        }
+      ]
+    },
+    "code-checksum": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/Commands/BuiltInTextEditorCommands.cs",
+          "class": "BuiltInTextEditorCommands",
+          "ast": "T:BuiltInTextEditorCommands/P:All"
+        }
+      ]
+    },
+    "code-line-ops": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/Commands/BuiltInTextEditorCommands.cs",
+          "class": "BuiltInTextEditorCommands",
+          "ast": "T:BuiltInTextEditorCommands/P:All"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorViewModel.cs",
+          "class": "FileTextEditorViewModel",
+          "method": "BuildCommands"
+        }
+      ]
+    },
+    "aibar-tool-approval": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/AiResponseHandlerBase.cs",
+          "class": "AiResponseHandlerBase",
+          "method": "RequestToolBatchApprovalAsync"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/AiResponseOverlay.xaml",
+          "ast": "N:ApprovalState"
+        }
+      ]
+    },
+    "opt-editor-listsource": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/OptionsViewModel.cs",
+          "class": "PropertyEditViewModel",
+          "ast": "T:PropertyEditViewModel"
+        }
+      ]
+    },
+    "postit-editor": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Views/PostItControl.xaml",
+          "class": "PostItControl",
+          "ast": "N:Editor"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Views/PostItControl.xaml.cs",
+          "class": "PostItControl",
+          "method": "MigrateLegacyContent"
+        }
+      ]
+    },
+    "tabular-footer": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/Views/TabularView.xaml",
+          "class": "TabularView",
+          "ast": "N:Footer"
+        }
+      ]
+    },
+    "ws-modal-block-switch": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "ast": "T:ShellViewModel/P:CanSwitchWorkspace"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/WorkspaceSelectorControl.xaml.cs",
+          "class": "WorkspaceSelectorControl",
+          "method": "OnTriggerClick"
+        }
+      ]
+    },
+    "aichat-context-menu": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationContextStripTests.cs",
+            "class": "ConversationContextStripTests",
+            "method": "AvailableOpenTabs_ExcludesThisConversationAndWhatIsAlreadyPinned"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationContextStripTests.cs",
+            "class": "ConversationContextStripTests",
+            "method": "AddOpenTab_PinsTheTabWithoutTakingOwnershipOfIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/AIChat/ConversationViewJourneyTests.cs",
+            "class": "ConversationViewJourneyTests",
+            "method": "AiChat_Controls_RespondInOnePass",
+            "ast": "T:ConversationViewJourneyTests/M:AiChat_Controls_RespondInOnePass"
+          }
+        ]
+      }
+    },
+    "latex-shown-as-written": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Maths/Latex/TexPipeline.cs",
+          "class": "TexPipeline",
+          "method": "ShownAsWritten",
+          "ast": "T:TexPipeline/M:ShownAsWritten"
+        }
+      ]
+    },
+    "theme-scene-battery-policy": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Theming/BackgroundAnimationPolicy.cs",
+          "class": "BackgroundAnimationPolicy"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/BatteryAnimationGuard.cs",
+          "class": "BatteryAnimationGuard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml",
+          "class": "ShellBatteryAnimationsToggle"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Scenes \u2014 non-colour theming",
+            "Scenes and battery"
+          ]
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 43,
+  "touched_nodes": [
+    "aibar-cancel",
+    "aibar-input-group",
+    "aibar-queue",
+    "aibar-send",
+    "aibar-tool-approval",
+    "aichat-context-menu",
+    "album",
+    "carousel",
+    "chat-interface",
+    "chrome-ai-clear",
+    "chrome-ai-send",
+    "chrome-aibar",
+    "chrome-notifications-panel",
+    "chrome-options-button",
+    "chrome-prompt-confirm",
+    "chrome-prompt-input",
+    "chrome-toast",
+    "code-base64",
+    "code-checksum",
+    "code-context-menu",
+    "code-editor-toolbar",
+    "code-line-ops",
+    "code-statusbar",
+    "hybrid-album",
+    "images-mode-selector",
+    "latex-shown-as-written",
+    "opt-editor-listsource",
+    "page-contents-injection",
+    "parser-css",
+    "parser-erb",
+    "parser-html",
+    "parser-jinja",
+    "parser-json",
+    "parsers",
+    "postit-editor",
+    "tabular-footer",
+    "theme-scene-battery-policy",
+    "voice-input",
+    "windowsapps-columns",
+    "windowsapps-loading-status",
+    "windowsapps-rowactions",
+    "windowsapps-toolbar",
+    "ws-modal-block-switch"
+  ]
+}

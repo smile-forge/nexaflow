@@ -312,7 +312,7 @@
             <Grid Margin="12,0">
 
                 <!-- Sub-view selector -->
-                <Border HorizontalAlignment="Left" VerticalAlignment="Center"
+                <Border x:Name="SubViewSelector" HorizontalAlignment="Left" VerticalAlignment="Center"
                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
                         Visibility="{Binding HasMultiple, Converter={StaticResource BoolToVis}}">
                     <StackPanel Orientation="Horizontal">
@@ -392,7 +392,7 @@
         <Grid Grid.Row="1">
 
             <!-- ── Carousel ── -->
-            <Grid Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}">
+            <Grid x:Name="CarouselSurface" Visibility="{Binding IsCarousel, Converter={StaticResource BoolToVis}}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
@@ -529,7 +529,7 @@
             </Grid>
 
             <!-- ── Album ── -->
-            <ScrollViewer Visibility="{Binding IsAlbum, Converter={StaticResource BoolToVis}}"
+            <ScrollViewer x:Name="AlbumSurface" Visibility="{Binding IsAlbum, Converter={StaticResource BoolToVis}}"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Background="{StaticResource BgBrush}"
                           PreviewMouseLeftButtonUp="ThumbSelect_Click"
@@ -551,7 +551,7 @@
             </ScrollViewer>
 
             <!-- ── Explore: thumbnail strip (left) + selected image (right) ── -->
-            <Grid Visibility="{Binding IsExplore, Converter={StaticResource BoolToVis}}">
+            <Grid x:Name="ExploreSurface" Visibility="{Binding IsExplore, Converter={StaticResource BoolToVis}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="300" MinWidth="160"/>
                     <ColumnDefinition Width="4"/>
