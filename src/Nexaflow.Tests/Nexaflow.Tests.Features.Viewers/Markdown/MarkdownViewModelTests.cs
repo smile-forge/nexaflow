@@ -158,4 +158,52 @@ public class MarkdownViewModelTests
         Assert.AreEqual(Path.GetDirectoryName(vm.FilePath), fileCtx.RootPath);
         CollectionAssert.Contains(fileCtx.SelectedItems.ToList(), vm.FilePath);
     }
+
+    // ── Zoom ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The viewer's own zoom is the shared <c>TextZoom</c>, so its stepping and clamping are pinned once in
+    /// <c>TextZoomTests</c>. What is markdown's alone — and what a shared model cannot prove — is that the
+    /// tab actually carries one and hands out a usable body size.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("markdown-zoom")]
+    public void Zoom_ScalesTheDocumentBodySize()
+    {
+        var vm = Make();
+        Assert.AreEqual(100, vm.Zoom.Percent, "a freshly opened document is unzoomed");
+
+        var unzoomed = vm.Zoom.FontSize;
+        vm.Zoom.Percent = 150;
+        Assert.AreEqual(unzoomed * 1.5, vm.Zoom.FontSize, 1e-9,
+            "the rendered surface and the source box both bind this");
+    }
+
+    /// <summary>
+    /// The footer's counts. A word is a run of non-whitespace, so punctuation and markdown syntax
+    /// (<c>**bold**</c>, a list bullet) count as part of the word they are attached to — which is what a
+    /// count in a markdown editor should say, and is the behaviour a naive Split would quietly change.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("markdown-doc-stats")]
+    public void DocumentStats_CountWordsAndLines()
+    {
+        var vm = Make("# Title\n\nBody text here.\n");
+
+        Assert.AreEqual(3, vm.LineCount, "the trailing newline ends the third line rather than starting a fourth");
+        Assert.AreEqual(5, vm.WordCount, "'#', 'Title', 'Body', 'text', 'here.'");
+
+        vm.Markdown = "one  two\tthree\nfour";
+        Assert.AreEqual(4, vm.WordCount, "runs of mixed whitespace separate one word, not several");
+        Assert.AreEqual(2, vm.LineCount);
+    }
+
+    [TestMethod]
+    [CoversNode("markdown-doc-stats")]
+    public void DocumentStats_AnEmptyDocumentHasNoLines()
+    {
+        var vm = Make(string.Empty);
+        Assert.AreEqual(0, vm.WordCount);
+        Assert.AreEqual(0, vm.LineCount, "an empty file is no lines, not one blank one");
+    }
 }

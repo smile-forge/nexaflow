@@ -213,23 +213,23 @@ public class TextFindReplaceTests
     public void Zoom_StepsAndClampsWithinBounds()
     {
         using var vm = Make();
-        Assert.AreEqual(100, vm.ZoomPercent);
-        CollectionAssert.Contains(vm.ZoomPresets.ToArray(), 130, "130% is an offered preset");
+        Assert.AreEqual(100, vm.Zoom.Percent);
+        CollectionAssert.Contains(vm.Zoom.Presets.ToArray(), 130, "130% is an offered preset");
 
-        vm.ZoomInCommand.Execute(null);
-        Assert.AreEqual(110, vm.ZoomPercent);
+        vm.Zoom.ZoomInCommand.Execute(null);
+        Assert.AreEqual(110, vm.Zoom.Percent);
 
-        vm.ResetZoomCommand.Execute(null);
-        Assert.AreEqual(100, vm.ZoomPercent);
+        vm.Zoom.ResetZoomCommand.Execute(null);
+        Assert.AreEqual(100, vm.Zoom.Percent);
 
-        vm.ZoomPercent = 1000;  // clamps to the ceiling
-        Assert.AreEqual(400, vm.ZoomPercent);
+        vm.Zoom.Percent = 1000;  // clamps to the ceiling
+        Assert.AreEqual(400, vm.Zoom.Percent);
 
-        vm.ZoomPercent = 5;     // clamps to the floor
-        Assert.AreEqual(50, vm.ZoomPercent);
+        vm.Zoom.Percent = 5;     // clamps to the floor
+        Assert.AreEqual(50, vm.Zoom.Percent);
 
-        for (var i = 0; i < 100; i++) vm.ZoomOutCommand.Execute(null);
-        Assert.AreEqual(50, vm.ZoomPercent, "Zoom Out never drops below the floor");
+        for (var i = 0; i < 100; i++) vm.Zoom.ZoomOutCommand.Execute(null);
+        Assert.AreEqual(50, vm.Zoom.Percent, "Zoom Out never drops below the floor");
     }
 
     // ── Undo / redo ─────────────────────────────────────────────────────────────

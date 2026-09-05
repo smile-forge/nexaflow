@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -49,6 +50,19 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     [ObservableProperty]
     private bool _sourceOnly;
 
+    // ── Footer stats ──────────────────────────────────────────────────────────
+
+    /// <summary>Words in the document, as the footer reports them. Kept in step with
+    /// <see cref="Markdown"/> rather than computed on demand, so the footer is a binding like everything else.</summary>
+    [ObservableProperty] private int _wordCount;
+
+    /// <summary>Lines in the document. The text is normalised to \n on load, so this counts those.</summary>
+    [ObservableProperty] private int _lineCount;
+
+    /// <summary>This tab's zoom over the shell's text size. The rendered surface takes it as its body size
+    /// (the rest of the document is proportional to that); the source box takes it directly.</summary>
+    public TextZoom Zoom { get; } = new();
+
     /// <summary>Last value written to / read from disk; the dirty baseline.</summary>
     private string _savedText;
 
@@ -77,7 +91,11 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
 
     // ── Dirty tracking ────────────────────────────────────────────────────
 
-    partial void OnMarkdownChanged(string value) => IsDirty = value != _savedText;
+    partial void OnMarkdownChanged(string value)
+    {
+        IsDirty = value != _savedText;
+        UpdateCounts(value);
+    }
 
     // ── AI surface helpers (used by the client tools) ─────────────────────
     // Mutating tools run off the UI thread; the Markdown/SourceOnly properties are two-way bound to WPF
@@ -169,5 +187,32 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
             }
         }
         return sb.ToString().TrimEnd('\n');
+    }
+
+    /// <summary>
+    /// Recomputes the footer's counts. Runs on every keystroke, like the dirty check beside it — both are a
+    /// single pass over the document, which is the same order as the string comparison already there, so the
+    /// footer costs nothing the tab was not already paying.
+    /// </summary>
+    private void UpdateCounts(string text)
+    {
+        var words = 0;
+        var newlines = 0;
+        var inWord = false;
+
+        // Counted here rather than with Split: a split allocates an array per keystroke, and "words" is the
+        // number of whitespace-to-text transitions, which one pass answers directly.
+        foreach (var c in text)
+        {
+            if (c == '\n') newlines++;
+
+            if (char.IsWhiteSpace(c)) inWord = false;
+            else if (!inWord) { inWord = true; words++; }
+        }
+
+        WordCount = words;
+        // A trailing newline ends the last line rather than starting an empty one — the same count
+        // File.ReadAllLines gives, and what every editor puts in its footer.
+        LineCount = text.Length == 0 ? 0 : newlines + (text[^1] == '\n' ? 0 : 1);
     }
 }

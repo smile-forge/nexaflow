@@ -8,6 +8,14 @@
              AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
 
+    <UserControl.InputBindings>
+        <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding Zoom.ResetZoomCommand}"/>
+        <KeyBinding Key="OemPlus"  Modifiers="Control" Command="{Binding Zoom.ZoomInCommand}"/>
+        <KeyBinding Key="Add"      Modifiers="Control" Command="{Binding Zoom.ZoomInCommand}"/>
+        <KeyBinding Key="OemMinus" Modifiers="Control" Command="{Binding Zoom.ZoomOutCommand}"/>
+        <KeyBinding Key="Subtract" Modifiers="Control" Command="{Binding Zoom.ZoomOutCommand}"/>
+    </UserControl.InputBindings>
+
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
@@ -18,6 +26,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="42"/> <!-- toolbar   -->
             <RowDefinition Height="*"/> <!-- content   -->
+            <RowDefinition Height="28"/> <!-- footer    -->
         </Grid.RowDefinitions>
 
         <!-- ══════════════════════════════════════════════════════════
@@ -86,6 +95,7 @@
                                      Grid.Column="0"
                                      ContentPadding="40,24,40,48"
                                      EditOnDoubleClick="True"
+                                     BaseFontSize="{Binding Zoom.FontSize}"
                                      AutomationProperties.AutomationId="Markdown_Editor"
                                      Visibility="{Binding SourceOnly, Converter={StaticResource InvBoolVis}}"
                                      Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
@@ -101,7 +111,7 @@
                      TextWrapping="Wrap"
                      SpellCheck.IsEnabled="False"
                      FontFamily="Consolas, Courier New"
-                     FontSize="13"
+                     FontSize="{Binding Zoom.FontSize}"
                      Foreground="{StaticResource TextBrush}"
                      Background="{StaticResource DeepBgBrush}"
                      CaretBrush="{StaticResource AccentBrush}"
@@ -115,6 +125,41 @@
                              Grid.Column="1"
                              Background="{StaticResource DeepBgBrush}"/>
         </Grid>
+
+        <!-- ══════════════════════════════════════════════════════════
+             STATUS BAR
+             ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="2"
+                Background="{StaticResource DeepBgBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <DockPanel VerticalAlignment="Center" Margin="14,0" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding WordCount, StringFormat='{}{0:N0} words'}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"/>
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding LineCount, StringFormat='{}{0:N0} lines'}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"/>
+                <!-- The Save button already greys out when clean; this says the same thing where you are
+                     looking when you wonder whether a keystroke landed. -->
+                <TextBlock DockPanel.Dock="Left"
+                           Text="Unsaved changes"
+                           Foreground="{StaticResource WarningBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"
+                           Visibility="{Binding IsDirty, Converter={StaticResource BoolVis}}"/>
+
+                <!-- Zoom %: click for a preset, or Ctrl+scroll / Ctrl+± over the document -->
+                <vc:ZoomChip DockPanel.Dock="Right"
+                             PagePrefix="Markdown"
+                             Zoom="{Binding Zoom}"
+                             VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
 
     </Grid>
 </UserControl>

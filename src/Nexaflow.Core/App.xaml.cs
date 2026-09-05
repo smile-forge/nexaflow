@@ -25,6 +25,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Updatum;
 using StageKit.Runtime;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core;
 
@@ -208,6 +209,11 @@ public partial class App : Application
         // Gate the theme's animated backdrop on the power state, before the first window is built - a
         // scene that is going to be suppressed is then never realised, rather than started and torn down.
         BatteryAnimationGuard.SetDisableOnBattery(shellConfig.DisableAnimationsOnBattery);
+
+        // Same shape as the line above: a shell setting pushed onto the shared policy the surfaces read, so
+        // no feature has to know Core holds it. Before the first window, so a text tab restored from the last
+        // session paints at the saved size rather than at 13 and then jumping.
+        TextTypography.BaseFontSize = shellConfig.TextFontSize;
         StartupTimings.Mark("Init.Theme");
 
         var securityConfig = new SecurityConfig();

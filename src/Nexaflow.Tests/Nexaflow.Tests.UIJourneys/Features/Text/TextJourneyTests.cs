@@ -57,13 +57,13 @@ public class TextJourneyTests : UiJourneyTestBase
 
         // Pick one and require it to land: a preset that opens a popup and changes nothing is the failure a
         // present-only check cannot see. 120% is chosen because it is not the default, so the label has to move.
-        CheckDoes("Zoom 120% applies", "Text_Zoom120",
-                  () => WaitForId("Text_ZoomLabel", 3)?.Name?.Contains("120") == true);
+        Check("Zoom starts at 100%", () => ZoomLabelReads("Text", "100%"));
+        CheckDoes("Zoom 120% applies", "Text_Zoom120", () => ZoomLabelReads("Text", "120%"));
 
-        // Back to 100% so the rest of the journey runs at the size everything else assumes. The popup has to
-        // be reopened first — choosing a preset closes it.
+        // Back to 100% so the rest of the journey runs at the size everything else assumes — and assert it
+        // landed, rather than clicking and hoping. The popup has to be reopened first: choosing a preset closes it.
         CheckInvoke("Zoom label (reopen)", "Text_ZoomLabel");
-        CheckInvoke("Zoom 100% restores the default", "Text_Zoom100");
+        CheckDoes("Zoom 100% restores the default", "Text_Zoom100", () => ZoomLabelReads("Text", "100%"));
 
         // Find split button: the ▾ menu is present; the main button toggles the bar open. Its controls
         // should all be present, then it closes. (The bar's Border host isn't in the UIA control tree,

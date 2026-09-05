@@ -1,5 +1,6 @@
 using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core;
 
@@ -22,6 +23,15 @@ public sealed class ShellConfig : IFeatureConfig
 
     [ConfigDisplayName("Language")]
     public LanguageOption Language { get; set; } = LanguageOption.English;
+
+    /// <summary>
+    /// Point size text content is read at across the shell's text surfaces — the text/code editor, the
+    /// markdown document, the hex grid. A viewer's own zoom multiplies this rather than replacing it, so
+    /// changing it moves them all together and each keeps its own proportions (markdown's heading ladder,
+    /// the hex grid's column metrics). Applies live, no restart.
+    /// </summary>
+    [ConfigDisplayName("Text size")]
+    public double TextFontSize { get; set; } = TextTypography.DefaultBaseFontSize;
 
     /// <summary>
     /// When true, Nexaflow registers itself to launch at login with <c>--prestart</c> as a windowless

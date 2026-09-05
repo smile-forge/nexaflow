@@ -65,6 +65,7 @@ public partial class InlineMarkdownEditor : UserControl
     private IInteractiveBlock? _pointerBlock; // interactive block owning the in-progress click/drag gesture
     private Point?     _dragArm;              // press point when it landed on the selection — a potential copy drag-out
     private bool       _renderPending;        // a RenderAll was requested while hidden → run it once the editor is shown
+    
 
     // Block-model undo: a snapshot of (blocks, active block, caret-in-block) taken at the start of each
     // editing session. Edits within one block coalesce into a single undo step (block-level, not per key).
@@ -209,6 +210,52 @@ public partial class InlineMarkdownEditor : UserControl
 
     /// <summary>Palette in effect — an explicit <see cref="Palette"/>, else the active theme.</summary>
     private MarkdownPalette Pal => Palette ?? MarkdownPalette.FromTheme();
+
+    /// <summary>
+    /// Point size body text renders at, with the rest of the document proportional to it (see
+    /// <see cref="MarkdownRenderContext.BaseFontSize"/>). Leave it unset — the default, <c>NaN</c> — and the
+    /// editor follows the shell's <see cref="Nexaflow.Visuals.Common.Theming.TextTypography.BaseFontSize"/>;
+    /// a host with its own zoom binds the zoomed size here instead.
+    /// <para>
+    /// <c>NaN</c> rather than the setting's current value as the default, because a DP default is evaluated
+    /// once per type: baking the size in at first use would freeze every unhosted editor at whatever the
+    /// setting happened to be then.
+    /// </para>
+    /// </summary>
+    public static readonly DependencyProperty BaseFontSizeProperty =
+        DependencyProperty.Register(nameof(BaseFontSize), typeof(double), typeof(InlineMarkdownEditor),
+            new PropertyMetadata(double.NaN, (d, _) => ((InlineMarkdownEditor)d).OnBaseFontSizeChanged()));
+
+    public double BaseFontSize
+    {
+        get => (double)GetValue(BaseFontSizeProperty);
+        set => SetValue(BaseFontSizeProperty, value);
+    }
+
+    /// <summary>Size in effect — an explicit <see cref="BaseFontSize"/>, else the shell's text size.</summary>
+    private double EffectiveBaseFontSize
+        => double.IsNaN(BaseFontSize) ? Nexaflow.Visuals.Common.Theming.TextTypography.BaseFontSize : BaseFontSize;
+
+    /// <summary>
+    /// Re-lays the document out at the new size, <em>always</em> — including while the caret is in here.
+    /// <para>
+    /// The palette and base-directory changes above skip a focused editor because they arrive from
+    /// somewhere else while you happen to be typing. A size change is the opposite: it is the gesture you
+    /// just made (Ctrl+wheel, Ctrl+plus, a preset), so the one unacceptable outcome is nothing visibly
+    /// happening. Deferring it until focus left meant exactly that — clicking into a document is enough to
+    /// hold focus, so zoom did nothing at all in the ordinary case.
+    /// </para>
+    /// <para>
+    /// The rebuild costs the current edit session, not any text: <c>RenderAll</c> syncs the model first, and
+    /// pins the focal block, the scroll offset and a formula caret across it.
+    /// </para>
+    /// </summary>
+    private void OnBaseFontSizeChanged()
+    {
+        if (_rtb.Document.FontSize.Equals(EffectiveBaseFontSize)) return;
+        _rtb.Document.FontSize = EffectiveBaseFontSize;
+        RenderAll();
+    }
 
     public static readonly DependencyProperty PlaceholderProperty =
         DependencyProperty.Register(nameof(Placeholder), typeof(string), typeof(InlineMarkdownEditor),
@@ -366,6 +413,7 @@ public partial class InlineMarkdownEditor : UserControl
     private MarkdownRenderContext Context => new()
     {
         Palette           = Pal,
+        BaseFontSize      = EffectiveBaseFontSize,
         OnNavigate        = LinkNavigate,
         BaseDirectory     = BaseDirectory,
         FitContentToWidth = true,   // diagrams scale to the column rather than getting un-grabbable scrollbars
@@ -2087,7 +2135,7 @@ public partial class InlineMarkdownEditor : UserControl
     private FlowDocument NewDocument() => new()
     {
         FontFamily  = BlockRenderer.BodyFont,
-        FontSize    = BlockRenderer.BaseFontSize,
+        FontSize    = EffectiveBaseFontSize,
         Foreground  = Pal.Text,
         Background  = Brushes.Transparent,
         PagePadding = ContentPadding,   // insets the text; the scrollbar stays at the control edge

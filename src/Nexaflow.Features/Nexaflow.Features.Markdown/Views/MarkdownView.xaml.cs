@@ -51,6 +51,10 @@ public partial class MarkdownView : UserControl, IPageView
             }
         };
 
+        // Ctrl+wheel zooms over either surface. Preview, so it beats the surface's own scroll handling; a
+        // plain wheel is left alone and still scrolls.
+        PreviewMouseWheel += (_, e) => e.Handled = viewModel.Zoom.TryWheel(e);
+
         Focusable = true;
 
         // Opened from a snaplink with a heading → scroll there once the document has rendered + laid out.

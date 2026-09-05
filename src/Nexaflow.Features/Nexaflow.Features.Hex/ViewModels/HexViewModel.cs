@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Common.Formatting;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Features.Hex.ViewModels;
 
@@ -741,4 +742,8 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
     private static string FormatSize(long bytes) => SizeFormatter.FormatBytes(bytes);
 
     public void Dispose() => Buffer.Dispose();
+
+    /// <summary>This tab's zoom over the shell's text size. Both panes take it, so the hex grid and the
+    /// decoded text stay row-aligned.</summary>
+    public TextZoom Zoom { get; } = new();
 }

@@ -5,6 +5,7 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:ed="clr-namespace:Nexaflow.Visuals.Text.Editor;assembly=Nexaflow.Visuals.Text"
              xmlns:local="clr-namespace:Nexaflow.Features.Text.Views"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="TextView"
              Background="{StaticResource BgBrush}">
 
@@ -20,11 +21,11 @@
         <KeyBinding Key="G"  Modifiers="Control"       Command="{Binding GoToLineCommand}"/>
         <KeyBinding Key="F3"                           Command="{Binding FindNextCommand}"/>
         <KeyBinding Key="F3" Modifiers="Shift"         Command="{Binding FindPreviousCommand}"/>
-        <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding ResetZoomCommand}"/>
-        <KeyBinding Key="OemPlus"  Modifiers="Control" Command="{Binding ZoomInCommand}"/>
-        <KeyBinding Key="Add"      Modifiers="Control" Command="{Binding ZoomInCommand}"/>
-        <KeyBinding Key="OemMinus" Modifiers="Control" Command="{Binding ZoomOutCommand}"/>
-        <KeyBinding Key="Subtract" Modifiers="Control" Command="{Binding ZoomOutCommand}"/>
+        <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding Zoom.ResetZoomCommand}"/>
+        <KeyBinding Key="OemPlus"  Modifiers="Control" Command="{Binding Zoom.ZoomInCommand}"/>
+        <KeyBinding Key="Add"      Modifiers="Control" Command="{Binding Zoom.ZoomInCommand}"/>
+        <KeyBinding Key="OemMinus" Modifiers="Control" Command="{Binding Zoom.ZoomOutCommand}"/>
+        <KeyBinding Key="Subtract" Modifiers="Control" Command="{Binding Zoom.ZoomOutCommand}"/>
     </UserControl.InputBindings>
 
     <Grid>
@@ -380,10 +381,11 @@
                 <ColumnDefinition Width="14"/>
             </Grid.ColumnDefinitions>
 
+            <!-- FontSize is deliberately absent: it is the shell's text size at this tab's zoom, applied from
+                 the code-behind (ApplyZoom) so a single path owns it. -->
             <avalon:TextEditor x:Name="Editor"
                                Grid.Column="0"
                                FontFamily="Cascadia Code, Consolas, Courier New, monospace"
-                               FontSize="13"
                                Margin="3,3,0,0"
                                UseLayoutRounding="True"
                                Background="{StaticResource BgBrush}"
@@ -501,67 +503,10 @@
                            Visibility="{Binding IsLargeFile, Converter={StaticResource BoolVis}}"/>
 
                 <!-- Zoom % (right): click for a preset, or Ctrl+scroll / Ctrl+± over the editor -->
-                <TextBlock x:Name="ZoomLabel"
-                           DockPanel.Dock="Right"
-                           Text="{Binding ZoomPercent, StringFormat='{}{0}%'}"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="11"
-                           VerticalAlignment="Center"
-                           Padding="6,3"
-                           Cursor="Hand"
-                           ToolTip="Click to set zoom (Ctrl+scroll)"
-                           AutomationProperties.AutomationId="Text_ZoomLabel"
-                           MouseLeftButtonUp="ZoomLabel_Click"/>
-                <Popup x:Name="ZoomPopup"
-                       PlacementTarget="{Binding ElementName=ZoomLabel}"
-                       Placement="Top"
-                       StaysOpen="False"
-                       AllowsTransparency="True"
-                       PopupAnimation="Fade"
-                       HorizontalOffset="-4" VerticalOffset="-4">
-                    <Border Background="{StaticResource SurfaceBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="4">
-                        <Border.Resources>
-                            <Style TargetType="Button">
-                                <Setter Property="Background" Value="Transparent"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="FontSize" Value="12"/>
-                                <Setter Property="MinWidth" Value="64"/>
-                                <Setter Property="Cursor" Value="Hand"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Left"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                                    CornerRadius="3" Padding="12,5">
-                                                <ContentPresenter HorizontalAlignment="Left"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="bg" Property="Background"
-                                                            Value="{StaticResource AccentBrush}"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Border.Resources>
-                        <StackPanel>
-                            <Button Content="80%"  Tag="80"  Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom80"/>
-                            <Button Content="90%"  Tag="90"  Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom90"/>
-                            <Button Content="100%" Tag="100" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom100"/>
-                            <Button Content="110%" Tag="110" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom110"/>
-                            <Button Content="120%" Tag="120" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom120"/>
-                            <Button Content="130%" Tag="130" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom130"/>
-                        </StackPanel>
-                    </Border>
-                </Popup>
+                <vc:ZoomChip DockPanel.Dock="Right"
+                             PagePrefix="Text"
+                             Zoom="{Binding Zoom}"
+                             VerticalAlignment="Center"/>
             </DockPanel>
         </Border>
 

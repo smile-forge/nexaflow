@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Features.Text.Views;
 
@@ -48,7 +49,11 @@ public partial class TextView : UserControl, IPageView
         Editor.ShowLineNumbers = vm.ShowLineNumbers;
         Editor.WordWrap        = vm.WordWrap;
         Editor.PreviewMouseWheel += OnEditorPreviewMouseWheel; // Ctrl+wheel zoom
-        ApplyZoom(vm.ZoomPercent);
+        // The zoom's own notifications rather than the VM's: TextZoom.FontSize also moves when the shell's
+        // text size changes, which the VM never hears about.
+        vm.Zoom.PropertyChanged += OnZoomChanged;
+        Unloaded += (_, _) => vm.Zoom.PropertyChanged -= OnZoomChanged;
+        ApplyZoom();
 
         // Clipboard buttons bind to AvalonEdit's editing commands (targeting the TextArea, where the
         // handlers live) so WPF drives their enabled state: Cut/Copy need a selection, Paste needs an
@@ -128,18 +133,14 @@ public partial class TextView : UserControl, IPageView
             case nameof(TextViewModel.WordWrap):
                 Editor.WordWrap = _vm.WordWrap;
                 break;
-
-            case nameof(TextViewModel.ZoomPercent):
-                ApplyZoom(_vm.ZoomPercent);
-                break;
         }
     }
 
     // ── Find bar + zoom ─────────────────────────────────────────────────────────
 
-    private const double BaseFontSize = 13.0; // matches Editor.FontSize in XAML
-
-    private void ApplyZoom(int percent) => Editor.FontSize = BaseFontSize * percent / 100.0;
+    /// <summary>Pushes the zoom's effective point size onto the editor. The size already folds in the
+    /// shell's text setting, so this is also what a live Options change lands through.</summary>
+    private void ApplyZoom() => Editor.FontSize = _vm.Zoom.FontSize;
 
     private void FocusFindBox() =>
         Dispatcher.InvokeAsync(() => { FindBox.Focus(); FindBox.SelectAll(); },
@@ -164,19 +165,13 @@ public partial class TextView : UserControl, IPageView
         }
     }
 
-    private void OnEditorPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private void OnZoomChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control) return;
-        if (e.Delta > 0)      _vm.ZoomInCommand.Execute(null);
-        else if (e.Delta < 0) _vm.ZoomOutCommand.Execute(null);
-        e.Handled = true;
+        if (e.PropertyName is nameof(TextZoom.FontSize) or null) ApplyZoom();
     }
 
-    private void ZoomLabel_Click(object sender, MouseButtonEventArgs e)
-    {
-        ZoomPopup.IsOpen = true;
-        e.Handled = true;
-    }
+    private void OnEditorPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        => e.Handled = _vm.Zoom.TryWheel(e);
 
     private void FindMenu_Click(object sender, RoutedEventArgs e) => FindMenuPopup.IsOpen = true;
 
@@ -190,13 +185,6 @@ public partial class TextView : UserControl, IPageView
     {
         FindMenuPopup.IsOpen = false;
         _vm.OpenReplaceCommand.Execute(null);
-    }
-
-    private void ZoomPreset_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag } && int.TryParse(tag, out var percent))
-            _vm.ZoomPercent = percent;
-        ZoomPopup.IsOpen = false;
     }
 
     // The editable span the read-only-section provider allows: the resident window while editing (and not

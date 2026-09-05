@@ -32,6 +32,14 @@ public partial class HexView : UserControl, IPageView
         InputBindings.Add(new KeyBinding(vm.UndoCommand, Key.Z, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(vm.RedoCommand, Key.Y, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(vm.SaveCommand, Key.S, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(vm.Zoom.ResetZoomCommand, Key.D0,       ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(vm.Zoom.ZoomInCommand,    Key.OemPlus,  ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(vm.Zoom.ZoomInCommand,    Key.Add,      ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(vm.Zoom.ZoomOutCommand,   Key.OemMinus, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(vm.Zoom.ZoomOutCommand,   Key.Subtract, ModifierKeys.Control));
+
+        // Ctrl+wheel zooms; a plain wheel falls through to the panels, which scroll by row.
+        PreviewMouseWheel += (_, e) => e.Handled = vm.Zoom.TryWheel(e);
         InputBindings.Add(new KeyBinding(
             new RelayCommand(() => GotoBox.Focus()),
             Key.G, ModifierKeys.Control));
