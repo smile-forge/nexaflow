@@ -1,4 +1,4 @@
-<UserControl x:Class="Nexaflow.Features.Compressed.Views.CompressedView"
+﻿<UserControl x:Class="Nexaflow.Features.Compressed.Views.CompressedView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
@@ -188,6 +188,7 @@
                                     <!-- Chevron: single-click toggles the folder (like the file-browser tree). -->
                                     <Button Width="16" Command="{Binding DataContext.ActivateRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                             CommandParameter="{Binding}"
+                                            AutomationProperties.AutomationId="Compressed_RowExpand"
                                             Background="Transparent" BorderThickness="0" Cursor="Hand"
                                             Focusable="False"
                                             Visibility="{Binding HasChildren, Converter={StaticResource BoolVis}}">
@@ -267,15 +268,15 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Width="120">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <UniformGrid Columns="2" Margin="4,6" VerticalAlignment="Top">
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE896;" Content="Extract"   Command="{Binding ExtractCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE710;" Content="Add file"  Command="{Binding AddFileCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE721;" Content="Test"      Command="{Binding TestCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72E;" Content="Encrypt"   Command="{Binding EncryptCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE785;" Content="Decrypt"   Command="{Binding DecryptCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE70F;" Content="Sign"      Command="{Binding SignCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE73E;" Content="Sig Check" Command="{Binding VerifyCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72C;" Content="Recompress" Command="{Binding RecompressCommand}"/>
-                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE895;" Content="Convert"    Command="{Binding ConvertCommand}"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE896;" Content="Extract"   Command="{Binding ExtractCommand}" AutomationProperties.AutomationId="Compressed_Extract"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE710;" Content="Add file"  Command="{Binding AddFileCommand}" AutomationProperties.AutomationId="Compressed_AddFile"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE721;" Content="Test"      Command="{Binding TestCommand}" AutomationProperties.AutomationId="Compressed_Test"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72E;" Content="Encrypt"   Command="{Binding EncryptCommand}" AutomationProperties.AutomationId="Compressed_Encrypt"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE785;" Content="Decrypt"   Command="{Binding DecryptCommand}" AutomationProperties.AutomationId="Compressed_Decrypt"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE70F;" Content="Sign"      Command="{Binding SignCommand}" AutomationProperties.AutomationId="Compressed_Sign"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE73E;" Content="Sig Check" Command="{Binding VerifyCommand}" AutomationProperties.AutomationId="Compressed_Verify"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE72C;" Content="Recompress" Command="{Binding RecompressCommand}" AutomationProperties.AutomationId="Compressed_Recompress"/>
+                        <Button Style="{StaticResource ActionBtn}" Tag="&#xE895;" Content="Convert"    Command="{Binding ConvertCommand}" AutomationProperties.AutomationId="Compressed_Convert"/>
                     </UniformGrid>
                 </ScrollViewer>
             </Border>
@@ -303,6 +304,7 @@
                             <DataTemplate>
                                 <Button Command="{Binding DataContext.PickChoiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                         CommandParameter="{Binding Value}" ToolTip="{Binding Label}"
+                                        AutomationProperties.AutomationId="Compressed_ConvertOption"
                                         Width="84" Height="66" Margin="3" Cursor="Hand">
                                     <Button.Style>
                                         <Style TargetType="Button">
@@ -347,6 +349,7 @@
                                 <Button Content="{Binding Label}"
                                         Command="{Binding DataContext.PickChoiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                         CommandParameter="{Binding Value}"
+                                        AutomationProperties.AutomationId="Compressed_RecompressOption"
                                         HorizontalContentAlignment="Left" Cursor="Hand" Margin="0,0,0,6"
                                         Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
                                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,7"/>
@@ -355,6 +358,7 @@
                     </ItemsControl>
 
                     <Button Content="Cancel" Command="{Binding CancelChoiceCommand}" Cursor="Hand"
+                            AutomationProperties.AutomationId="Compressed_ChoiceCancel"
                             HorizontalAlignment="Right" Margin="0,6,0,0"
                             Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
                             BorderThickness="0" Padding="8,4"/>
@@ -379,9 +383,11 @@
                     </Border>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Cancel" Command="{Binding CancelPasswordCommand}" Cursor="Hand"
+                                AutomationProperties.AutomationId="Compressed_PasswordCancel"
                                 Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
                                 BorderThickness="0" Padding="10,6" Margin="0,0,8,0"/>
                         <Button Content="OK" Click="PasswordOk_Click" Cursor="Hand"
+                                AutomationProperties.AutomationId="Compressed_PasswordOk"
                                 Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}"
                                 BorderThickness="0" Padding="18,6" FontWeight="SemiBold"/>
                     </StackPanel>
