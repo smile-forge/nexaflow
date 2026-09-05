@@ -89,6 +89,13 @@ public static class TestSampleData
             .ToList();
     }
 
+    /// <summary>
+    /// The sub-directory of every registered sample family, in catalog order. The dataset root holds one
+    /// folder per name here, plus <c>ui/</c> — which is <c>UiFixtures</c>' own and not a sample set — so the
+    /// folder count on disk is deliberately one higher than this.
+    /// </summary>
+    public static IReadOnlyList<string> SetNames => Sets.Select(s => s.SubDirectory).ToList();
+
     // ── Generation ──────────────────────────────────────────────────────────
 
     private static string EnsureAll()

@@ -266,7 +266,7 @@ Feature assemblies (`Nexaflow.Features.*`) are tested across the `Nexaflow.Tests
 `Nexaflow.Tests.Features.Common`.
 **Unit** = the headless `TestCategory!=UI` tests; **UI** = `[TestCategory("UI")]` (drives the real
 shell via FlaUI). The file-viewer features additionally get a per-file open-smoke UI case from the
-shared, data-driven `SampleFileViewerTests` (each fixture → its viewer; see
+shared `SampleFileViewerTests` (each fixture → its viewer; see
 [Per-file viewer UI tests](#per-file-viewer-ui-tests)).
 
 **Per-component coverage is tracked in the product tree, not in this file.** A hand-maintained
@@ -415,13 +415,41 @@ reproducible and churn-free.
 
 ## Per-file viewer UI tests
 
-Every sample file has a UI test that opens it through the real shell and asserts it loads in the
-expected in-app viewer. `SampleFileViewerTests` is **data-driven** (`[DynamicData]` over
-`TestSampleData.Files(...)`), so adding a fixture automatically adds its UI case — one test per file,
-named e.g. `tabular/quoted_fields.csv → TabularView`.
+Every sample file is opened through the real shell and asserted to load in the expected in-app viewer.
+`SampleFileViewerTests` drives that off `ViewerMap.BySet`, so adding a fixture automatically adds its
+coverage — no per-file wiring.
 
-Each case navigates the file browser to the sample's folder, double-clicks the file (the default-open
-route), and waits for the viewer's root `AutomationProperties.AutomationId`:
+It runs as **three** tests, not one per file and not one for the lot: `MarkdownSamples_…`,
+`ImageSamples_…` and `OtherSamples_…`. One app launch per test amortises the ~110 fixtures (a test per
+file was the original shape and was far slower), while the two heaviest families — markdown at a third
+of the corpus, images at a fifth — are pulled out so the suite has no single multi-minute block, a
+failure names which group broke, and a crash in one group leaves the others' results intact.
+
+A family with its own test must also be listed in `SampleFileViewerTests.OwnTest`, which is what
+excludes it from the tail; `Only(...)` refuses to sweep a family missing from that list, so the two
+halves can't drift apart and leave a family swept twice.
+
+Each file is opened by navigating the file browser to the sample's folder and taking the default-open
+route, then waiting for the viewer's root `AutomationProperties.AutomationId`. Every file's outcome is
+accumulated and reported together, so one bad fixture doesn't hide the rest:
+
+### Per-family timings
+
+Each family's elapsed time is written to `TestContext` and appended to the gitignored
+`artifacts/journey-timings.csv` (`JourneyTimings`), one row per family per run:
+
+```
+timestampUtc,appVersion,scope,unit,items,elapsedMs,msPerItem,failures
+```
+
+`appVersion` is the `FileVersion` of the `Nexaflow.exe` that was driven, so rows are comparable across
+releases — sort by `unit` then `appVersion` to see whether a viewer got slower. Compare on `msPerItem`,
+not `elapsedMs`: a family gains fixtures over time, so its total is not comparable with its own past.
+
+**App launch is deliberately outside every row.** The clock starts inside the test body, after the app
+is up and the file browser has painted, and dataset generation is forced before the first family — so a
+cold disk or a slow first paint lands on nobody's number. What a row measures is navigate-plus-open-plus-close
+for that family. Writing the log is best-effort and can never fail a test.
 
 | Sub-dir | Extensions | Opens in viewer (AutomationId) |
 |---------|-----------|--------------------------------|
@@ -437,7 +465,13 @@ route), and waits for the viewer's root `AutomationProperties.AutomationId`:
 | `video`    | `.mp4` (+ `.mkv` `.webm` `.mov` `.avi` `.wmv` … at runtime) | `VideoView` |
 | `font`     | `.ttf` `.woff` (+ `.otf` `.ttc` at runtime) | `FontView` |
 
-(The `code`, `notebook` and `archive` sample sets also exist for unit/feature tests but route through their feature's own UI tests, not the data-driven `SampleFileViewerTests` map above.)
+The dataset directory holds more folders than that table lists, on purpose. The `code`, `notebook` and
+`archive` sample sets exist for unit/feature tests but route through their feature's own UI tests
+(`CodeViewUiTests`, `NotebookViewUiTests`, `CompressedJourneyTests`), not the `SampleFileViewerTests` map
+above — so they have no `ViewerMap` row. And `ui/` is not a sample set at all: it is `UiFixtures.Root`,
+where the suite that owns each format leaves the material the journeys open. Counting up:
+`TestSampleData.Sets` has one entry per family, `ViewerMap.BySet` has a row only for the families whose
+files should default-open into a viewer, and the folder count on disk is the sets plus `ui/`.
 
 The default-open route is deterministic because the UI test runs against a fresh `NEXAFLOW_CONFIG_DIR`:
 the file-type map (`FileMapManager`) is seeded from the bundled `default-filemap.json`, which maps each
@@ -446,7 +480,8 @@ config root (`ConfigManager.BaseDir`), so a test run is fully isolated from the 
 
 When you add a **new viewer**, give its root `UserControl` a stable
 `AutomationProperties.AutomationId="…View"`, map its extension(s) to the viewer's experience id in
-`default-filemap.json`, and add the `(subDir, "ViewId")` pair to `SampleFileViewerTests.ViewerBySet`.
+`default-filemap.json`, and add the `(subDir, "ViewId")` pair to `ViewerMap.BySet`
+(`Nexaflow.Tests.Fixtures/ViewerMap.cs`) — the new family joins the `OtherSamples_…` test from there.
 
 ## Mutation testing (Stryker.NET)
 
