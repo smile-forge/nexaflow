@@ -49,9 +49,6 @@ Audio_Next
 Audio_PlaylistToggle
 Audio_Previous
 
-# src/Nexaflow.Features/Nexaflow.Features.Compressed/Views/CompressedView.xaml
-CompressedView
-
 # src/Nexaflow.Features/Nexaflow.Features.Dicom/Views/DicomView.xaml
 Dicom_CinePlay
 Dicom_FrameSlider
