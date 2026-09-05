@@ -148,7 +148,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#1A1A1A"
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource OnAccentBrush}"
                                Text="This project uses the old format. Upgrade to enable editing — the previous scope / notes / plan fields are rolled into the new markdown fields."/>
                     <Button Grid.Column="1" Content="Upgrade" Style="{StaticResource AccentButton}"
                             AutomationProperties.AutomationId="Projects_Detail_Upgrade"

@@ -36,7 +36,14 @@ public abstract class UITestBase
     /// <summary>The isolated config root for this test (NEXAFLOW_CONFIG_DIR).</summary>
     protected string ConfigDir => _configDir;
 
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+    /// <summary>
+    /// How long to wait for the shell window after launching. Generous because it costs nothing when the
+    /// app is healthy — the wait returns the moment the window appears — and because the machine is not
+    /// always healthy when this runs: a preceding test that thrashed the box left the next launch short of
+    /// twenty seconds, and the failure it produced ("Shell window did not appear within 20s") reads as a
+    /// broken app rather than as a loaded machine. Only a launch that is genuinely stuck should reach this.
+    /// </summary>
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 
     /// <summary>How long to wait for another test host's UI test to finish. The gate is held per test, not
     /// per suite, so a legitimate wait is one other journey — a couple of minutes at worst. A host killed

@@ -5,16 +5,17 @@ using Nexaflow.Features.Solver.ViewModels;
 namespace Nexaflow.Features.Solver;
 
 /// <summary>
-/// Sends <c>?…</c> from the AI bar straight into the Solver.
+/// Sends <c>?…</c> from the AI bar into the Solver, while the Solver is the page in front.
 /// <para>
-/// Typing <c>?3+5</c> puts <c>3+5</c> in the Text tab and leaves the chips to offer what they make
-/// of it. The point is that the shortest path from "I have a sum" to "I have an answer" should not
-/// require finding the tab first — the AI bar is always there, so it becomes the way in.
+/// Typing <c>?3+5</c> there puts <c>3+5</c> in the Text tab and leaves the chips to offer what they
+/// make of it — the bar is a faster way back to the definition than the tab is, once the tab is open.
 /// </para>
 /// <para>
-/// It only claims input that is actually prefixed. Un-prefixed text scores zero: the AI bar belongs
-/// to the assistant, and a handler that grabbed every arithmetic-looking phrase would take questions
-/// the user meant to ask it.
+/// It claims only prefixed input, and only on its own page. Un-prefixed text scores zero because the
+/// AI bar belongs to the assistant, and a handler that grabbed every arithmetic-looking phrase would
+/// take questions the user meant to ask it. The page gate is the other half of the same idea:
+/// <c>?</c> is the shell-wide search route, so claiming it everywhere does not open the Solver from
+/// anywhere — it ties with search and opens nothing at all.
 /// </para>
 /// </summary>
 public sealed class SolverQueryHandler(IShellServices shell) : IQueryHandler
@@ -27,8 +28,17 @@ public sealed class SolverQueryHandler(IShellServices shell) : IQueryHandler
     public string? Symbol => "?";
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Gated on the Solver's own page, like every other symbol handler is gated on its page type
+    /// (Console on the terminal, FileSystem on the browser). A symbol is only unambiguous while one
+    /// handler can claim it for a given page: <c>?</c> is also the shell's search route, and a handler
+    /// that claimed every prefixed string took a tie with it on every searchable page — two 1.0 scores,
+    /// no clear winner, so the bar showed no symbol and the query fell through to disambiguation. From
+    /// the outside that is a "?" that silently does nothing, which is what shipped after the Solver
+    /// landed.
+    /// </remarks>
     public float CanProcess(string input, bool prefixed, IPageViewModel? pageVm = null)
-        => prefixed && !string.IsNullOrWhiteSpace(input) ? 1f : 0f;
+        => pageVm is SolverViewModel && prefixed && !string.IsNullOrWhiteSpace(input) ? 1f : 0f;
 
     /// <inheritdoc/>
     public async Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
