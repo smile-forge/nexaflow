@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Components.Syntax;
 /// to any declaration in it.
 /// </summary>
 [TestClass]
-[CoversNode("graph-edit")]
+[CoversNode("syntax-structural-edit")]
 public class StructuralEditTests
 {
     private const string Widget = """
