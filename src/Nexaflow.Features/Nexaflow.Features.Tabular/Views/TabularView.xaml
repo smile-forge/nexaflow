@@ -240,7 +240,7 @@
         </Grid>
 
         <!-- ══ Footer ═════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="2"
+        <Border x:Name="Footer" Grid.Row="2"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="0,1,0,0">
