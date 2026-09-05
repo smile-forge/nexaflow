@@ -1,0 +1,18 @@
+<vcc:AnimatedScene x:Class="Nexaflow.Core.Themes.FlowerbedScene"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             IsHitTestVisible="False">
+    <Grid x:Name="Root" ClipToBounds="True">
+        <Grid.Background>
+            <!-- Unprinted paper: a barely-there warm gradient, so the sheet reads as stock rather
+                 than as a flat fill. The botanical motifs are laid over this. -->
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0.35,1">
+                <GradientStop Color="#FCF8F0" Offset="0"/>
+                <GradientStop Color="#F9F3E7" Offset="0.55"/>
+                <GradientStop Color="#F4ECDC" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+        <Canvas x:Name="Layer"/>
+    </Grid>
+</vcc:AnimatedScene>

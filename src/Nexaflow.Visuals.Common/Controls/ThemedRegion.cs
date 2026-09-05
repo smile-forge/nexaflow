@@ -10,7 +10,11 @@ namespace Nexaflow.Visuals.Common.Controls;
 /// region's name from the active theme's resources:
 /// <list type="bullet">
 ///   <item><c>Scene.{Region}</c> — an optional <see cref="DataTemplate"/> rendering a living
-///   backdrop (animated <c>Canvas</c>, shader, etc.). Bottom layer.</item>
+///   backdrop (animated <c>Canvas</c>, shader, etc.). Bottom layer. Switched off wholesale by the
+///   battery policy, since forever-animating is what makes it worth reclaiming.</item>
+///   <item><c>StillScene.{Region}</c> — the same bottom layer for a backdrop that draws once and
+///   never animates. Never battery-gated: cached as a texture it costs what the colour veil below
+///   costs, so dropping it would lose the theme's art and save nothing.</item>
 ///   <item><c>{Region}.Bg</c> — an optional <see cref="Brush"/> veil/tint over the scene. Middle
 ///   layer.</item>
 /// </list>
@@ -80,13 +84,29 @@ public class ThemedRegion : ContentControl
 
         _backdrop.Background = TryFindResource($"{Region}.Bg") as Brush ?? Brushes.Transparent;
 
-        // A scene is the only forever-animating part of the shell, so it is the one the power policy
-        // can switch off wholesale. Dropping the template (rather than pausing its clocks) is what makes
-        // that a real saving: the scene unloads, stops its clocks and clears its visuals, leaving exactly
-        // what a theme with no Scene key renders.
-        if (BackgroundAnimationPolicy.ScenesEnabled && TryFindResource($"Scene.{Region}") is DataTemplate scene)
+        // Two backdrop keys, and what separates them is precisely what the power policy is entitled to
+        // take away.
+        //
+        // Scene.{Region} animates forever, which is the whole reason the shell can switch it off at all.
+        // A suppressed one is DROPPED rather than paused: the scene unloads, stops its clocks and clears
+        // its visuals, leaving exactly what a theme with no scene key renders. Pausing would keep a large
+        // blended visual tree alive for no benefit.
+        //
+        // StillScene.{Region} draws once and never animates. After the base class's cache pass it is a
+        // static texture, costing what the flat {Region}.Bg veil beside it already costs — and that veil
+        // is left alone on battery for exactly the same reason. Measured on a folder tab with the window
+        // in front: Flowers (a still plate of some hundreds of drawn plants) idles at 0.0% of a core,
+        // against Dark's 0.7% and Ocean's 10.7%. There is nothing there to reclaim, so it is never
+        // gated. A theme supplies one key or the other; a still backdrop wins if both are somehow
+        // present, being the one that survives either state.
+        var backdrop = TryFindResource($"StillScene.{Region}") as DataTemplate
+                       ?? (BackgroundAnimationPolicy.ScenesEnabled
+                               ? TryFindResource($"Scene.{Region}") as DataTemplate
+                               : null);
+
+        if (backdrop is not null)
         {
-            _scene.ContentTemplate = scene;
+            _scene.ContentTemplate = backdrop;
             _scene.Content         = Region;   // any non-null value realises the template
         }
         else

@@ -1,0 +1,89 @@
+{
+  "branch": "claude/flowers-theme-f7142c",
+  "nodes": {
+    "flowers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/Colors.Flowers.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/Theme.Flowers.xaml"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Keeping Dark (and the other plain themes) identical"
+          ]
+        },
+        {
+          "type": "node",
+          "target": "theme-scene-flowerbed"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ThemeLayerContractTests.cs",
+            "class": "ThemeLayerContractTests"
+          }
+        ]
+      }
+    },
+    "theme-scene-flowerbed": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/FlowerbedScene.xaml.cs",
+          "class": "FlowerbedScene"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/FlowerbedScene.xaml"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Scenes \u2014 non-colour theming",
+            "The Flowers plate \u2014 a scene that never moves"
+          ]
+        }
+      ]
+    },
+    "theme-scene-battery-policy": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ThemedRegionScenePolicyTests.cs",
+            "class": "ThemedRegionScenePolicyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BatteryAnimationGuardTests.cs",
+            "class": "BatteryAnimationGuardTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ThemedRegionScenePolicyTests.cs",
+            "class": "ThemedRegionScenePolicyTests",
+            "method": "StillScene_SurvivesSceneSuppression"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "flowers",
+    "theme-scene-battery-policy",
+    "theme-scene-flowerbed"
+  ]
+}

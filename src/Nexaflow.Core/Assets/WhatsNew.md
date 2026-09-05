@@ -25,6 +25,8 @@ This release is about *working inside* the things you open — and seeing what a
 
 ### 🎨 New Themes
 *   A new **Arctic** theme.
+*   A new **Flowers** theme — warm paper, deep leaf ink, and a drawn botanical border standing behind the shell: beds of daisies, sunflowers, poppies, lilies, tulips, alliums and lavender among grasses, ferns and gypsophila.
+*   It plants itself afresh **every time you open a window**, picking a handful of species out of fourteen, so no two sessions get the same bunch. It never moves, so it stays up on battery when animated themes switch theirs off.
 
 ### ⚡ Smaller things you'll notice
 *   See large file copy/move/delete/zip/unzip progress

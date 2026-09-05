@@ -8,12 +8,16 @@ using Nexaflow.Visuals.Common.Theming;
 namespace Nexaflow.Tests.Visuals.Controls;
 
 /// <summary>
-/// A theme scene is the shell's only forever-animating surface, so it is the one thing the battery
-/// policy switches off. These tests pin the two halves of that: a suppressed region realises no scene
-/// at all (rather than pausing one, which would still cost a visual tree), and a region already on
-/// screen follows the policy live - which is what makes unplugging the charger take effect without a
-/// restart. They also pin what must NOT change: the <c>{Region}.Bg</c> veil is colour, not animation,
-/// so it stays either way.
+/// An animated theme scene is the shell's only forever-animating surface, so it is the one thing the
+/// battery policy switches off. These tests pin the two halves of that: a suppressed region realises
+/// no scene at all (rather than pausing one, which would still cost a visual tree), and a region
+/// already on screen follows the policy live - which is what makes unplugging the charger take effect
+/// without a restart.
+/// <para>They also pin the two things that must NOT change when it does. The <c>{Region}.Bg</c> veil
+/// is colour rather than animation, so it stays either way; and a <c>StillScene.{Region}</c> backdrop
+/// draws once and then costs what that veil costs, so suppressing it would reclaim nothing and lose
+/// the theme its art. Both are the same argument, and the still-scene tests are what stop the gate
+/// from quietly widening back over them.</para>
 /// <para>Interactive desktop only (WPF elements need an STA thread). Run with
 /// <c>--filter "TestCategory=UI"</c>.</para>
 /// </summary>
@@ -29,13 +33,18 @@ public class ThemedRegionScenePolicyTests
     /// Builds a region whose resources carry both a <c>Scene.Window</c> template and a
     /// <c>Window.Bg</c> veil, templated and laid out so <c>OnApplyTemplate</c> has run.
     /// </summary>
-    private static void WithRegion(Action<ThemedRegion> test) => UiThread.Run(() =>
+    private static void WithRegion(Action<ThemedRegion> test) => WithRegion(test, "Scene.Window");
+
+    /// <summary>As <see cref="WithRegion(Action{ThemedRegion})"/>, but the theme supplies whichever
+    /// backdrop keys are named — so one test can set up an animated scene, a still one, or both.</summary>
+    private static void WithRegion(Action<ThemedRegion> test, params string[] sceneKeys) => UiThread.Run(() =>
     {
         bool original = BackgroundAnimationPolicy.ScenesEnabled;
         try
         {
             var region = new ThemedRegion { Region = "Window" };
-            region.Resources.Add("Scene.Window", SceneTemplate());
+            foreach (var key in sceneKeys)
+                region.Resources.Add(key, SceneTemplate());
             region.Resources.Add("Window.Bg", new SolidColorBrush(Colors.Magenta));
 
             // Off-screen there is no Application to resolve the implicit theme style, so apply the
@@ -145,4 +154,44 @@ public class ThemedRegionScenePolicyTests
         Assert.AreEqual(Colors.Magenta, veil?.Color,
             "{Region}.Bg is colour, not animation - a theme must keep its tint on battery.");
     });
+
+    [TestMethod]
+    public void StillScene_SurvivesSceneSuppression() => WithRegion(region =>
+    {
+        BackgroundAnimationPolicy.ScenesEnabled = false;
+
+        var host = SceneHost(region);
+        Assert.IsNotNull(host.ContentTemplate,
+            "A StillScene never animates, so suppression would reclaim nothing and cost the theme its art.");
+        Assert.IsNotNull(host.Content, "The still backdrop should still be realised on battery.");
+    }, "StillScene.Window");
+
+    [TestMethod]
+    public void StillScene_IsUnmovedByAPolicyFlipInEitherDirection() => WithRegion(region =>
+    {
+        BackgroundAnimationPolicy.ScenesEnabled = true;
+        var onMains = SceneHost(region).ContentTemplate;
+        Assert.IsNotNull(onMains, "Baseline: the still backdrop should be up on mains.");
+
+        BackgroundAnimationPolicy.ScenesEnabled = false;
+        Assert.AreSame(onMains, SceneHost(region).ContentTemplate,
+            "Unplugging must not disturb a still backdrop - not even by dropping and re-realising it.");
+
+        BackgroundAnimationPolicy.ScenesEnabled = true;
+        Assert.AreSame(onMains, SceneHost(region).ContentTemplate, "…nor plugging back in.");
+    }, "StillScene.Window");
+
+    /// <summary>
+    /// A theme is expected to supply one key or the other, but if both arrive the still one has to win:
+    /// it is the only choice that renders in both power states, so preferring the animated one would
+    /// make the region go blank on battery despite the theme having shipped a backdrop that cannot.
+    /// </summary>
+    [TestMethod]
+    public void BothKeysPresent_TheStillOneWinsSoTheRegionIsNeverBlank() =>
+        WithRegion(region =>
+        {
+            BackgroundAnimationPolicy.ScenesEnabled = false;
+            Assert.IsNotNull(SceneHost(region).Content,
+                "With a still backdrop available, suppression must not leave the region with nothing.");
+        }, "StillScene.Window", "Scene.Window");
 }
