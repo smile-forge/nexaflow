@@ -1,0 +1,54 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ── Palette: polar ICE GLASS ──
+         A low-sun arctic dusk (Scene.Window) behind deep glacier-blue translucent panels: snow-white
+         text, a meltwater-blue accent and a low-sun gold secondary. The two hues are the photograph's
+         own — cold ice against a warm horizon — and they stay far enough apart that the gold reads as
+         a distinct highlight rather than a warmer blue.
+
+         Values sit a stop below the reference photograph on purpose. The scene's brightest band (the
+         gold horizon) lands behind page content, and a literal sunset there leaves body text at ~3:1.
+         Pitched to dusk and veiled by BgColor it clears ~3.7:1 at the horizon and >11:1 over the water,
+         which is why the palette reads cold even though the art is warm. -->
+    <Color x:Key="BgColor">#660C2334</Color>       <!-- page root: a polar-water veil the scene reads through -->
+    <Color x:Key="SurfaceColor">#14324A</Color>    <!-- panels / cards — deep glacier blue -->
+    <Color x:Key="Surface2Color">#1C4665</Color>   <!-- raised panels / inputs -->
+    <Color x:Key="BorderColor">#2A5C7C</Color>
+    <Color x:Key="BorderLightColor">#4A93B4</Color>
+    <Color x:Key="AccentColor">#79D2F2</Color>
+    <!-- Glacier meltwater blue -->
+    <Color x:Key="Accent2Color">#FFB877</Color>
+    <!-- Low sun on the ice -->
+    <Color x:Key="TextColor">#EAF6FC</Color>
+    <Color x:Key="TextMutedColor">#A3C4D6</Color>
+    <Color x:Key="DeepBgColor">#071A28</Color>
+
+    <!-- ── Brushes ── -->
+    <SolidColorBrush x:Key="BgBrush"         Color="{StaticResource BgColor}"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="{StaticResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="Surface2Brush"   Color="{StaticResource Surface2Color}"/>
+    <SolidColorBrush x:Key="BorderBrush"     Color="{StaticResource BorderColor}"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}"/>
+    <SolidColorBrush x:Key="AccentBrush"     Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="Accent2Brush"    Color="{StaticResource Accent2Color}"/>
+    <SolidColorBrush x:Key="TextBrush"       Color="{StaticResource TextColor}"/>
+    <SolidColorBrush x:Key="TextMutedBrush"  Color="{StaticResource TextMutedColor}"/>
+    <SolidColorBrush x:Key="DeepBgBrush"     Color="{StaticResource DeepBgColor}"/>
+
+    <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#9BE6FA" Offset="0"/>
+        <GradientStop Color="#FFC98F" Offset="1"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="BarGradientBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{StaticResource AccentColor}" Offset="0"/>
+        <GradientStop Color="{StaticResource Accent2Color}" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- Dimensions -->
+    <GridLength x:Key="TopBarHeight">72</GridLength>
+    <GridLength x:Key="TabBarHeight">38</GridLength>
+    <GridLength x:Key="InteractionHeight">90</GridLength>
+
+</ResourceDictionary>
