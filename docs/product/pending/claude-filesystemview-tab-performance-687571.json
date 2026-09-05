@@ -1,0 +1,21 @@
+{
+  "branch": "claude/filesystemview-tab-performance-687571",
+  "nodes": {
+    "winfs-thispc": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/ThisPcReattachTests.cs",
+            "class": "ThisPcReattachTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "winfs-thispc"
+  ]
+}

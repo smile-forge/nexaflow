@@ -502,9 +502,8 @@
 
             <!-- ── Drive ListView (This PC mode) ───────────────────────── -->
             <ListView Grid.Row="1" Grid.Column="0"
-                                  x:Name="DriveListView"
-                                  Visibility="Collapsed"
-                      ItemsSource="{Binding Entries}"
+                      x:Name="DriveListView"
+                      Visibility="Collapsed"
                       ItemContainerStyle="{StaticResource FileListRowStyle}"
                       Background="{StaticResource BgBrush}"
                       BorderThickness="0"
@@ -702,7 +701,6 @@
             <!-- ── File ListView (folder navigation) ────────────────────── -->
             <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="FileListView"
-                      ItemsSource="{Binding Entries}"
                       ItemContainerStyle="{StaticResource FileListRowStyle}"
                       Background="{StaticResource BgBrush}"
                       BorderThickness="0"
