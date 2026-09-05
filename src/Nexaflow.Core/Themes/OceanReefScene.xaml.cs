@@ -59,6 +59,7 @@ public partial class OceanReefScene : AnimatedScene
             AddCoral(w, h, coral);
             AddFish(w, h, fish);
             AddTurtle(w, h);
+            AddSeahorse(w, h);
             AddBubbles(w, h, bubbles);
         }
         else
@@ -424,6 +425,147 @@ public partial class OceanReefScene : AnimatedScene
         Loop(paddleRot, RotateTransform.AngleProperty, 14, 32, 2.2 + _rng.NextDouble() * 1.2, _rng.NextDouble());
 
         return turtle;
+    }
+
+
+    // ── Seahorse: rarer still than the turtle, and drifting at half its pace ────
+    // Same cross-then-park cycle as the turtle, over the same distance in twice the time — so exactly
+    // half the speed — and parked off-screen far longer between crossings, making it the scarcer of the
+    // two sightings.
+    private void AddSeahorse(double w, double h)
+    {
+        Color[] tints =
+        [
+            Color.FromArgb(235, 0xF2, 0xB0, 0x3C), // golden
+            Color.FromArgb(235, 0xE8, 0x74, 0x3C), // burnt orange
+            Color.FromArgb(235, 0xE0, 0x5C, 0x7A), // rose
+        ];
+
+        bool   toRight = _rng.Next(2) == 0;
+        double scale   = 0.75 + _rng.NextDouble() * 0.45;        // smaller than the turtle
+        // Lower in the column than the turtle — a seahorse hovers among the coral, not in open water.
+        double baseY   = h * (0.32 + 0.46 * Math.Sqrt(_rng.NextDouble()));
+
+        var seahorse = MakeSeahorse(tints[_rng.Next(tints.Length)]);
+        Canvas.SetTop(seahorse, baseY);
+
+        var move = new TranslateTransform();
+        var sway = new RotateTransform(0, 13, 23);               // the upright body rocks as it drifts
+        seahorse.RenderTransform = new TransformGroup
+        {
+            Children =
+            {
+                new ScaleTransform(toRight ? scale : -scale, scale, 13, 23),  // flip to face travel direction
+                sway,
+                move,
+            },
+        };
+        Cache(seahorse, scale);
+        Layer.Children.Add(seahorse);
+
+        double startX = toRight ? -160 : w + 160;
+        double endX   = toRight ?  w + 160 : -160;
+        Canvas.SetLeft(seahorse, startX);                        // parked off-screen until a crossing begins
+
+        // Same ±160 span the turtle crosses, so doubling its 50–78s makes the rate half, not merely slower.
+        double crossDur = 100 + _rng.Next(56);
+        double gap      = 150 + _rng.Next(120);                  // far longer off-screen than the turtle's 34–64s
+        double total    = crossDur + gap;
+
+        var cross = new DoubleAnimationUsingKeyFrames
+        {
+            RepeatBehavior = RepeatBehavior.Forever,
+            Duration       = new Duration(TimeSpan.FromSeconds(total)),
+        };
+        cross.KeyFrames.Add(new LinearDoubleKeyFrame(0,             KeyTime.FromPercent(0)));
+        cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(crossDur / total)));
+        cross.KeyFrames.Add(new LinearDoubleKeyFrame(endX - startX, KeyTime.FromPercent(1)));
+        Animate(move, TranslateTransform.XProperty, cross, phaseSeconds: _rng.NextDouble() * total);
+
+        Loop(move, TranslateTransform.YProperty, -12, 12, 5 + _rng.NextDouble() * 3, _rng.NextDouble());
+        Loop(sway, RotateTransform.AngleProperty, -6, 6, 3.2 + _rng.NextDouble() * 1.6, _rng.NextDouble());
+    }
+
+    private FrameworkElement MakeSeahorse(Color tint)
+    {
+        var bodyBrush = Frozen(new SolidColorBrush(tint));
+        // Fins are the translucent part of a seahorse — barely more than tinted water.
+        var finBrush  = Frozen(new SolidColorBrush(Color.FromArgb(150,
+            (byte)Math.Min(255, tint.R + 40), (byte)Math.Min(255, tint.G + 40), (byte)Math.Min(255, tint.B + 40))));
+        var stroke    = Frozen(new SolidColorBrush(Color.FromArgb(90, 0x05, 0x24, 0x2C)));
+        var ridge     = Frozen(new SolidColorBrush(Color.FromArgb(110,
+            (byte)(tint.R * 0.62), (byte)(tint.G * 0.62), (byte)(tint.B * 0.62))));
+
+        var seahorse = new Canvas { Width = 26, Height = 46 };   // built upright, facing right
+
+        // Dorsal fin — behind the body, on the back. It is what actually propels a seahorse, so it
+        // flutters continuously while the body itself barely moves.
+        var finRot = new RotateTransform(0, 4, 1);               // hinged where it meets the back
+        var dorsal = new Ellipse { Width = 4, Height = 10, Fill = finBrush, RenderTransform = finRot };
+        Canvas.SetLeft(dorsal, 9.5); Canvas.SetTop(dorsal, 17);
+        seahorse.Children.Add(dorsal);
+        Loop(finRot, RotateTransform.AngleProperty, -16, 16, 0.5 + _rng.NextDouble() * 0.25, _rng.NextDouble());
+
+        // The spine, in three strokes of falling weight — a fat chest, a tapering tail, then the curl.
+        // A single uniform stroke cannot taper, and closing a filled silhouette around the curl is fiddly;
+        // thin-to-thick draw order hides each join under the heavier segment above it.
+        Path Segment(string data, double thickness) => new()
+        {
+            Data               = Frozen(Geometry.Parse(data)),
+            Stroke             = bodyBrush,
+            StrokeThickness    = thickness,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap   = PenLineCap.Round,
+        };
+
+        seahorse.Children.Add(Segment("M12.5,29 C14,33 15.5,35.5 13,38 C10.5,40.5 6.8,39.6 6.4,36.8 C6.1,34.4 8.6,33 10,34.6", 3.2));
+        seahorse.Children.Add(Segment("M14,20 C12,24 12,26 12.6,29.4", 5.4));
+        seahorse.Children.Add(Segment("M14.5,9 C18.2,12.6 18,16.6 14.4,20.4", 8));
+
+        // Bony rings across the body.
+        seahorse.Children.Add(new Path
+        {
+            Data               = Frozen(Geometry.Parse("M12.6,13.4 L17.6,14.6 M11.8,17.6 L17,18 M11.6,22 L15.4,22.6")),
+            Stroke             = ridge,
+            StrokeThickness    = 1,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap   = PenLineCap.Round,
+        });
+
+        // Pectoral fin just behind the cheek — the small one that steers.
+        var pecRot = new RotateTransform(0, 1, 1);
+        var pec = new Ellipse { Width = 4.6, Height = 5.6, Fill = finBrush, RenderTransform = pecRot };
+        Canvas.SetLeft(pec, 17.8); Canvas.SetTop(pec, 12.8);
+        seahorse.Children.Add(pec);
+        Loop(pecRot, RotateTransform.AngleProperty, -18, 12, 0.6 + _rng.NextDouble() * 0.3, _rng.NextDouble());
+
+        // Snout, then coronet, then the head — the head's outline lands last and covers both joins.
+        seahorse.Children.Add(new Polygon
+        {
+            Points          = [new Point(15, 7.6), new Point(23.4, 10.2), new Point(23.4, 11.5), new Point(15, 12.2)],
+            Fill            = bodyBrush,
+            Stroke          = stroke,
+            StrokeThickness = 0.8,
+        });
+
+        seahorse.Children.Add(new Path
+        {
+            Data               = Frozen(Geometry.Parse("M11.6,5 L10.7,2.5 M14.2,4 L14.2,1.8 M16.8,4.8 L18,2.7")),
+            Stroke             = bodyBrush,
+            StrokeThickness    = 1.8,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap   = PenLineCap.Round,
+        });
+
+        var head = new Ellipse { Width = 11.5, Height = 10, Fill = bodyBrush, Stroke = stroke, StrokeThickness = 0.9 };
+        Canvas.SetLeft(head, 8.5); Canvas.SetTop(head, 4);
+        seahorse.Children.Add(head);
+
+        var eye = new Ellipse { Width = 2, Height = 2, Fill = Brushes.Black, Opacity = 0.6 };
+        Canvas.SetLeft(eye, 15); Canvas.SetTop(eye, 7.4);
+        seahorse.Children.Add(eye);
+
+        return seahorse;
     }
 
     // ── Bubbles: bright highlighted spheres rising, wobbling, fading, recycling ─

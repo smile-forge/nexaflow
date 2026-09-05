@@ -28,6 +28,10 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
     private CancellationTokenSource _windowCts = new();
     private CancellationTokenSource? _countCts;
 
+    // The row count runs detached, and it holds an open handle on the file for as long as it reads.
+    // Dispose has to be able to WAIT for it, not just cancel it — see Dispose.
+    private Task? _counting;
+
     private IRowSource?       _source;
     private DataShape?        _data;
     private FileSample?       _sample;
@@ -348,7 +352,7 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
             {
                 IsCountingRows = true;
                 _countCts = new CancellationTokenSource();
-                _ = RowCounter.CountAsync(
+                _counting = RowCounter.CountAsync(
                     FilePath, _sample.BomByteCount, _data.RawShape,
                     rows => _shell.RunOnUiAsync(() => GrowKnownRowCount(rows)),
                     _countCts.Token,
@@ -879,10 +883,28 @@ public sealed partial class TabularViewModel : ObservableObject, IPageViewModel,
         });
     }
 
+    /// <summary>
+    /// Releases the file. The row count is the part that needs care: it runs detached on a thread-pool
+    /// thread with the file open for the whole scan, and cancelling it is <i>cooperative</i> — the token
+    /// is checked between chunks, so <c>Cancel()</c> returns while the read is still in flight and the
+    /// handle is still held. Returning there would mean a disposed view model whose file cannot be
+    /// deleted or moved yet, which is exactly what a user gets when they close a tab and then try to
+    /// delete the CSV.
+    /// <para>
+    /// So the cancel is followed by a bounded wait. It is normally over in well under a millisecond (one
+    /// chunk), and the timeout is only there so a wedged read cannot hang the caller — this runs on the
+    /// UI thread when a tab closes. Waiting cannot deadlock against that thread: the continuation hands
+    /// its UI work to <c>RunOnUiAsync</c> without awaiting it, so it completes on the pool either way.
+    /// </para>
+    /// </summary>
     public void Dispose()
     {
         _windowCts.Cancel();
         _countCts?.Cancel();
+
+        try { _counting?.Wait(TimeSpan.FromSeconds(5)); }
+        catch (AggregateException) { /* a cancelled or failed count has nothing left to release */ }
+
         _source?.Dispose();
     }
 }

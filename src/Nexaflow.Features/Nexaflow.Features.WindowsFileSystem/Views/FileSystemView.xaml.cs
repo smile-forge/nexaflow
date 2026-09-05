@@ -220,17 +220,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // ── Property change handler ───────────────────────────────────────────
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FileSystemViewModel.InputPromptVisible)
-            && ViewModel.InputPromptVisible)
-        {
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
-            {
-                InputPromptTextBox.Focus();
-                InputPromptTextBox.SelectAll();
-            });
-        }
-        else if (e.PropertyName == nameof(FileSystemViewModel.CreateOverlayVisible)
-                 && ViewModel.CreateOverlayVisible)
+        if (e.PropertyName == nameof(FileSystemViewModel.CreateOverlayVisible)
+            && ViewModel.CreateOverlayVisible)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
             {
@@ -436,18 +427,15 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // ── IKeyboardHandler (dispatched by the shell for the active page) ─────
     // Ctrl+A is a view-level selection; the rest delegate to the shared FileSystemKeyboardHandler so they
     // take the same path as clicking the action strip. The shell already skips this while a TextBox is
-    // focused, so an inline rename keeps its native editing keys; the overlay guard covers the confirm/prompt
-    // banners (which aren't text boxes).
+    // focused, so an inline rename keeps its native editing keys.
     public bool CanProcessKey(Key key, ModifierKeys modifiers)
     {
-        if (ViewModel.InputPromptVisible || ViewModel.ConfirmationVisible) return false;
         if (key == Key.A && modifiers == ModifierKeys.Control) return true;
         return _actionKeys.CanProcessKey(key, modifiers);
     }
 
     public bool ProcessKey(Key key, ModifierKeys modifiers)
     {
-        if (ViewModel.InputPromptVisible || ViewModel.ConfirmationVisible) return false;
         if (key == Key.A && modifiers == ModifierKeys.Control) { FileListView.SelectAll(); return true; }
         return _actionKeys.ProcessKey(key, modifiers);
     }
@@ -839,26 +827,6 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         var template = new ControlTemplate(typeof(Separator)) { VisualTree = line };
         return new Separator { Template = template };
-    }
-
-    private void InputPromptTextBox_GotFocus(object sender, RoutedEventArgs e)
-    {
-        if (sender is TextBox tb)
-            tb.SelectAll();
-    }
-
-    private void InputPromptTextBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            ViewModel.ConfirmInputPromptCommand.Execute(null);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape)
-        {
-            ViewModel.CancelInputPromptCommand.Execute(null);
-            e.Handled = true;
-        }
     }
 
     private void CreateFileNameBox_GotFocus(object sender, RoutedEventArgs e)
