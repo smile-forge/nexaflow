@@ -12,4 +12,11 @@ public sealed class ConcernLink
 
     /// <summary>Optional snaplinks attached to this concern↔node link (e.g. the doc/code that satisfies it).</summary>
     public List<Snaplink>? Snaplinks { get; set; }
+
+    /// <summary>A copy of this link and each of its snaplinks — see <see cref="Snaplink.Copy"/>.</summary>
+    public ConcernLink Copy() => new()
+    {
+        Tag = Tag, Status = Status,
+        Snaplinks = Snaplinks is null ? null : [.. Snaplinks.Select(l => l.Copy())],
+    };
 }

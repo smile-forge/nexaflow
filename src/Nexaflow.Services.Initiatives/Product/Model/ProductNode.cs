@@ -28,4 +28,13 @@ public sealed class ProductNode
 
     /// <summary>Loose, typed connections to docs/code/etc.</summary>
     public List<Snaplink>? Snaplinks { get; set; }
+
+    /// <summary>A copy of this node, down to every concern link and snaplink — see <see cref="ProductState.Copy"/>.</summary>
+    public ProductNode Copy() => new()
+    {
+        Title = Title, Description = Description, Status = Status, Note = Note,
+        Parent = Parent, Children = [.. Children],
+        Concerns = Concerns is null ? null : [.. Concerns.Select(c => c.Copy())],
+        Snaplinks = Snaplinks is null ? null : [.. Snaplinks.Select(l => l.Copy())],
+    };
 }

@@ -107,14 +107,18 @@ internal static class Program
     }
 
     /// <summary>
-    /// The tree a verb works on. Resident, that is the host's own instance — one parse shared by every call —
-    /// which is what makes a query cheap and a write correct. A <c>--dry-run</c> must NOT have it: every verb
-    /// mutates the state it is handed and only <c>SaveAndValidate</c> decides whether to persist, so a dry run
-    /// on the shared instance writes nothing to disk and still leaves its edits in the tree the daemon serves to
-    /// every later call. <paramref name="shared"/> false re-reads from disk for an instance nobody else holds.
+    /// The tree a verb works on: always an instance nobody else holds. Resident, that is a working copy of the
+    /// host's — the parse is still shared, which is what makes a query cheap, but the object is not.
+    /// <para>
+    /// Every verb mutates the state it is handed and only the write decides whether to persist it, so a shared
+    /// instance turns each refusal into a silent edit: a <c>--dry-run</c>, a snaplink refused for naming a file
+    /// that is not there, a batch that aborted on line 3 — all of them printed "nothing was written" and left
+    /// their changes in the tree the daemon served to every later call, until the next write persisted them.
+    /// One copy per command makes the refusal path cost nothing to get right.
+    /// </para>
     /// </summary>
-    private static ProductState LoadTree(string root, ProductStore store, bool shared = true) =>
-        shared && Host is { } host && PathsEqual(host.ProductRoot, root) ? host.Tree : store.Load();
+    private static ProductState LoadTree(string root, ProductStore store) =>
+        Host is { } host && PathsEqual(host.ProductRoot, root) ? host.WorkingCopy() : store.Load();
 
     /// <summary>
     /// Writes the tree and tells whoever is holding one what it now says.
@@ -2169,7 +2173,7 @@ internal static class Program
     private static int RemapFromGit(string[] args)
     {
         if (!TryRead(Specs.RemapFromGit, args, out var a, out var root, out var parseCode)) return parseCode;
-        if (!TryLoad(root, out var state, out var code, shared: !a.Has("--dry-run"))) return code;
+        if (!TryLoad(root, out var state, out var code)) return code;
 
         var range = a.Value("--from-git");
         if (string.IsNullOrWhiteSpace(range)) return Usage("--from-git needs a revision range, e.g. v1.4.0..HEAD");
@@ -2525,13 +2529,14 @@ internal static class Program
             "add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>] "
             + "[--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]");
         public static readonly VerbSpec RemoveSnaplink = new("remove-snaplink", 1,
-            ["--concern", "--index", "--type", "--doc", "--class", "--method", "--target"], None,
+            ["--concern", "--index", "--type", "--doc", "--class", "--method", "--target"], ["--all"],
             "remove-snaplink <node-id> [<root>] [--concern <tag>] "
-            + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]");
+            + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>] | --all");
         public static readonly VerbSpec SetSnaplink = new("set-snaplink", 1,
-            ["--index", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--status", "--clear", "--expect"], None,
+            ["--index", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--title-path", "--status", "--clear", "--expect"], None,
             "set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] "
-            + "[--doc <p>] [--class <c>] [--method <m>] [--ast <a>] [--target <t>] [--status <s>] [--clear <f,f>] [--expect <text>]");
+            + "[--doc <p>] [--class <c>] [--method <m>] [--ast <a>] [--target <t>] [--title-path a>b] [--status <s>] "
+            + "[--clear <f,f>] [--expect <text>]");
         public static readonly VerbSpec SetNode = new("set-node", 1, ["--title", "--desc", "--note"], None,
             "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]");
         public static readonly VerbSpec AddNode = new("add-node", 2, ["--id", "--desc", "--status"], None,
@@ -2855,7 +2860,7 @@ internal static class Program
     private static int Promote(string[] args)
     {
         if (!TryRead(Specs.Promote, args, out var a, out var root, out var parseCode)) return parseCode;
-        if (!TryLoad(root, out var state, out var code, shared: !a.Has("--dry-run"))) return code;
+        if (!TryLoad(root, out var state, out var code)) return code;
 
         var store = PendingStoreFor(root);
         var sets  = (a.Value("--branch") is { Length: > 0 } only
@@ -3093,7 +3098,28 @@ internal static class Program
         var clear = a.Value("--clear") is { Length: > 0 } c
             ? c.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             : [];
-        var touched = clear.Length > 0 || status is not null;
+
+        var fields = new (string Opt, Action<Snaplink, string> Assign)[]
+        {
+            ("--doc",        (l, v) => l.Doc = v),
+            ("--class",      (l, v) => l.Class = v),
+            ("--method",     (l, v) => l.Method = v),
+            ("--ast",        (l, v) => l.Ast = v),
+            ("--target",     (l, v) => l.Target = v),
+            // The one field add-snaplink could write and this could not, which is why repairing a markdown
+            // heading path meant removing the link and adding it back — losing its status and its position to
+            // fix the one thing about it that had moved.
+            ("--title-path", (l, v) => l.TitlePath =
+                 [.. v.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)]),
+        };
+
+        // What this call changes, read off the arguments rather than discovered while assigning them. Deciding
+        // it inside the setter meant a setter that never ran (no such index) reported "nothing to change" —
+        // the caller's real mistake hidden behind a complaint about the one thing they had got right.
+        var given = fields.Where(f => a.Value(f.Opt) is not null).ToList();
+        if (given.Count == 0 && clear.Length == 0 && status is null)
+            return (false, "nothing to change - pass a field ("
+                         + string.Join('/', fields.Select(f => f.Opt)) + "/--status) or --clear <f,f>");
 
         var concern = a.Value("--concern");
         var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
@@ -3111,24 +3137,14 @@ internal static class Program
                              + $"(it is now {current.Display}) — re-read it with: describe {id}");
         }
 
-        var ok = ProductTreeOps.SetSnaplink(s, id, index, concern, link =>
+        return ProductTreeOps.SetSnaplink(s, id, index, concern, link =>
         {
-            foreach (var (opt, assign) in new (string, Action<string>)[]
-                     {
-                         ("--doc",    v => link.Doc = v),
-                         ("--class",  v => link.Class = v),
-                         ("--method", v => link.Method = v),
-                         ("--ast",    v => link.Ast = v),
-                         ("--target", v => link.Target = v),
-                     })
-                if (a.Value(opt) is { } v) { assign(v); touched = true; }
+            foreach (var (opt, assign) in given) assign(link, a.Value(opt)!);
             if (status is not null) link.Status = status;
-        }, clear);
-
-        if (!touched) return (false, "nothing to change - pass a field (--doc/--class/--method/--ast/--target/--status) or --clear <f,f>");
-        return ok
+        }, clear)
             ? (true, $"Updated snaplink #{index} on {where}.")
-            : (false, $"no snaplink #{index} on {where} (or an unknown --clear field)");
+            : (false, $"no snaplink #{index} on {where}, or an unknown --clear field "
+                    + "(class|method|ast|doc|target|title-path|status)");
     }
 
     /// <summary>Whether <paramref name="expect"/> still appears in any field a caller could have read the link
@@ -3154,17 +3170,30 @@ internal static class Program
 
         var match = new SnaplinkFilter(a.Value("--type"), a.Value("--doc"), a.Value("--class"),
                                        a.Value("--method"), a.Value("--target"));
+        var all = a.Has("--all");
+        var concern = a.Value("--concern");
+        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
+
         // Two ways to name the same link, and they disagree the moment anything reorders the list. Refuse
         // rather than pick one, so a script cannot quietly delete the entry next to the one it meant.
         if (index is not null && !match.IsEmpty)
             return (false, "--index and the --type/--doc/--class/--method/--target matchers are alternatives - use one");
+        if (all && (index is not null || !match.IsEmpty))
+            return (false, "--all removes every link on the node - it takes no --index and no matcher");
 
-        var concern = a.Value("--concern");
-        var removed = ProductTreeOps.RemoveSnaplink(s, id, concern, index, match);
-        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
-        var how = match.IsEmpty
-            ? (index is { } n ? $" at index {n}" : " (all of them)")
-            : $" matching {Describe(match)}";
+        // Naming nothing used to mean "all of them". It reads as a sensible default and it cost somebody four
+        // links: the call that wipes the set looks exactly like the call that would have removed one, so a
+        // mis-named matcher is indistinguishable from meaning all. Say --all, or name what you meant.
+        if (!all && index is null && match.IsEmpty)
+            return (false, $"remove-snaplink needs to know which link on {where}: --index <n> (see: describe {id}), "
+                         + "a matcher (--type/--doc/--class/--method/--target), or --all to remove every one");
+
+        var removed = all
+            ? ProductTreeOps.ClearSnaplinks(s, id, concern)
+            : ProductTreeOps.RemoveSnaplink(s, id, concern, index, match);
+        var how = all ? " (all of them)"
+                : match.IsEmpty ? $" at index {index}"
+                : $" matching {Describe(match)}";
         return removed > 0
             ? (true, $"Removed {removed} snaplink(s) from {where}{how}.")
             : (false, $"no matching snaplink to remove on {where}{how}");
@@ -3269,7 +3298,7 @@ internal static class Program
         // Applied, then checked, then rolled back if the check refuses it — the instruction's own dry run, so a
         // refused line leaves the tree exactly as it found it instead of relying on the caller to discard it.
         var list   = root is null ? null : LinkTargetOf(args) is { } t ? ProductTreeOps.SnaplinksOf(state, t.NodeId, t.Concern) : null;
-        var before = list?.Select(CopyOf).ToList();
+        var before = list?.Select(l => l.Copy()).ToList();
 
         (bool Ok, string Message) result = args switch
         {
@@ -3314,7 +3343,7 @@ internal static class Program
         if (!File.Exists(file))
             return VerbUsage($"batch: no such script file: {a[0]}"
                            + (PathsEqual(file, a[0]) ? "" : $" (looked in {CallerPath.Directory})"));
-        if (!TryLoad(root, out var state, out var code, shared: !dryRun)) return code;
+        if (!TryLoad(root, out var state, out var code)) return code;
 
         var lines = File.ReadAllLines(file);
         var applied = new List<string>();
@@ -3413,13 +3442,6 @@ internal static class Program
             ? link
             : null;
     }
-
-    /// <summary>A copy of one link, for the snapshot an instruction is rolled back to.</summary>
-    private static Snaplink CopyOf(Snaplink l) => new()
-    {
-        Type = l.Type, Status = l.Status, Doc = l.Doc, Class = l.Class, Method = l.Method,
-        Ast = l.Ast, Target = l.Target, TitlePath = l.TitlePath is null ? null : [.. l.TitlePath],
-    };
 
     /// <summary>
     /// Shell-lite tokenizer: splits on whitespace, with double-quotes grouping a value that contains spaces
@@ -3570,15 +3592,14 @@ internal static class Program
     /// </summary>
     /// <param name="applyPending">False for the one caller that must see the shared tree as it stands —
     /// <c>pending</c>, which reports the difference between the two.</param>
-    private static bool TryLoad(string root, out ProductState state, out int code, bool applyPending = true,
-                                bool shared = true)
+    private static bool TryLoad(string root, out ProductState state, out int code, bool applyPending = true)
     {
         state = new ProductState();
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
         if (!ProductStore.Exists(root)) { Console.Error.WriteLine($"error: no .product/ under {root}."); code = Error; return false; }
         try
         {
-            state = LoadTree(root, new ProductStore(root), shared);
+            state = LoadTree(root, new ProductStore(root));
             if (applyPending && PendingBranch(root) is { } branch)
                 PendingStoreFor(root).Load(branch).ApplyTo(state);
             code = Clean;

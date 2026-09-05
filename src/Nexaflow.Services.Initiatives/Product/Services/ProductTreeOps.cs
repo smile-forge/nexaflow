@@ -169,32 +169,41 @@ public static class ProductTreeOps
         return true;
     }
 
-    /// <summary>Removes snaplinks from the node itself, or — with <paramref name="concernTag"/> — from that
-    /// concern's link. Three addressing modes, in priority order: <paramref name="match"/> removes every link
-    /// whose fields agree with it, <paramref name="index"/> removes just that one entry (0-based), and neither
-    /// clears them all. Returns how many were removed (0 if the node/concern/list is absent, the index is out of
-    /// range, or nothing matched).
+    /// <summary>
+    /// Removes the snaplinks a caller <em>named</em>, from the node itself or — with
+    /// <paramref name="concernTag"/> — from that concern's link. Two ways to name them: <paramref name="match"/>
+    /// takes every link whose fields agree with it, <paramref name="index"/> takes just that one entry
+    /// (0-based). Returns how many were removed — 0 when the node, concern or list is absent, the index is out
+    /// of range, nothing matched, or <b>neither</b> was given.
     /// <para>
-    /// Prefer <paramref name="match"/>: an index is a position in a list that any other edit reorders, which
-    /// makes it the wrong handle for a script, while clear-them-all is only ever right when you mean all.
+    /// Naming nothing removes nothing. It used to mean "all of them", which reads as a sensible default and is
+    /// a trap: a caller that meant one link and mis-spelled the way it named it wiped the node's whole set, and
+    /// the call that did it looked like the call that would have worked. Clearing them all is
+    /// <see cref="ClearSnaplinks"/> — a caller that means all says so.
+    /// </para>
+    /// <para>
+    /// Prefer <paramref name="match"/> over <paramref name="index"/>: an index is a position in a list that any
+    /// other edit reorders, which makes it the wrong handle for a script.
     /// </para></summary>
     public static int RemoveSnaplink(ProductState s, string id, string? concernTag = null, int? index = null,
                                      SnaplinkFilter? match = null)
     {
-        if (!s.Nodes.TryGetValue(id, out var node)) return 0;
-        var list = concernTag is null
-            ? node.Snaplinks
-            : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
-        if (list is null || list.Count == 0) return 0;
+        if (SnaplinksOf(s, id, concernTag) is not { Count: > 0 } list) return 0;
 
         if (match is { IsEmpty: false } filter) return list.RemoveAll(filter.Matches);
 
-        if (index is { } i)
-        {
-            if (i < 0 || i >= list.Count) return 0;
-            list.RemoveAt(i);
-            return 1;
-        }
+        if (index is not { } i || i < 0 || i >= list.Count) return 0;
+        list.RemoveAt(i);
+        return 1;
+    }
+
+    /// <summary>
+    /// Drops every snaplink from the node, or from one of its concerns — the deliberate, destructive form that
+    /// <see cref="RemoveSnaplink"/> deliberately no longer has a way to reach by accident. Returns how many went.
+    /// </summary>
+    public static int ClearSnaplinks(ProductState s, string id, string? concernTag = null)
+    {
+        if (SnaplinksOf(s, id, concernTag) is not { Count: > 0 } list) return 0;
         var n = list.Count;
         list.Clear();
         return n;
@@ -222,7 +231,14 @@ public static class ProductTreeOps
 
     /// <summary>
     /// Edits one existing snaplink in place: <paramref name="set"/> assigns fields, <paramref name="clear"/>
-    /// names fields to unset. Returns false if the node, concern, or index isn't there.
+    /// names fields to unset. Returns false — having changed nothing — if the node, concern or index isn't
+    /// there, or if <paramref name="clear"/> names a field this link doesn't have.
+    /// <para>
+    /// The clear list is resolved to its setters BEFORE anything is assigned. It used to be walked as it was
+    /// applied, so an unknown field name refused the call after <paramref name="set"/> had already run: the
+    /// caller was told nothing happened while half of it had, which is precisely the failure this whole path
+    /// exists to avoid.
+    /// </para>
     /// <para>
     /// Clearing is the half <see cref="Remove"/>-then-<see cref="AddSnaplink"/> cannot do without losing the
     /// link's other fields and its position, and it is what a link needs when a target stops having the
@@ -232,20 +248,23 @@ public static class ProductTreeOps
     public static bool SetSnaplink(ProductState s, string id, int index, string? concernTag,
                                    Action<Snaplink>? set = null, IEnumerable<string>? clear = null)
     {
-        if (!TryGetSnaplink(s, id, index, concernTag, out var link) || link is null) return false;
-        set?.Invoke(link);
+        var clears = new List<Action<Snaplink>>();
         foreach (var field in clear ?? [])
             switch (field.Trim().ToLowerInvariant())
             {
-                case "class":      link.Class = null; break;
-                case "method":     link.Method = null; break;
-                case "ast":        link.Ast = null; break;
-                case "doc":        link.Doc = null; break;
-                case "target":     link.Target = null; break;
-                case "title-path": link.TitlePath = null; break;
-                case "status":     link.Status = null; break;
+                case "class":      clears.Add(l => l.Class = null); break;
+                case "method":     clears.Add(l => l.Method = null); break;
+                case "ast":        clears.Add(l => l.Ast = null); break;
+                case "doc":        clears.Add(l => l.Doc = null); break;
+                case "target":     clears.Add(l => l.Target = null); break;
+                case "title-path": clears.Add(l => l.TitlePath = null); break;
+                case "status":     clears.Add(l => l.Status = null); break;
                 default: return false;
             }
+
+        if (!TryGetSnaplink(s, id, index, concernTag, out var link) || link is null) return false;
+        set?.Invoke(link);
+        foreach (var apply in clears) apply(link);
         return true;
     }
 

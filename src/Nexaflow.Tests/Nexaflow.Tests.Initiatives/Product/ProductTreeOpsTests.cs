@@ -392,8 +392,27 @@ public class ProductTreeOpsTests
 
         Assert.AreEqual(0, ProductTreeOps.RemoveSnaplink(s, "n", "tests", index: 9), "out-of-range removes nothing");
 
-        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests"), "clears the rest");
+        Assert.AreEqual(1, ProductTreeOps.ClearSnaplinks(s, "n", "tests"), "clearing is its own verb");
         Assert.AreEqual(0, s.Nodes["n"].Concerns!.Single().Snaplinks!.Count);
+    }
+
+    /// <summary>Naming nothing removes nothing. It used to mean "all of them", so a caller whose matcher was
+    /// mis-spelled — or built from options that were all absent — wiped the node's whole set with a call that
+    /// looked exactly like the one that would have removed a single link.</summary>
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void RemoveSnaplink_NamingNoLink_RemovesNothing()
+    {
+        var s = WithLinks(new Snaplink { Type = "code", Doc = "A.cs", Class = "A" },
+                          new Snaplink { Type = "code", Doc = "B.cs", Class = "B" });
+
+        Assert.AreEqual(0, ProductTreeOps.RemoveSnaplink(s, "n", "tests"), "no index and no matcher");
+        Assert.AreEqual(0, ProductTreeOps.RemoveSnaplink(s, "n", "tests", match: new SnaplinkFilter()),
+            "an empty filter is 'no filter given', not 'match everything'");
+        Assert.AreEqual(2, Links(s).Count, "the set is intact");
+
+        Assert.AreEqual(2, ProductTreeOps.ClearSnaplinks(s, "n", "tests"), "the caller that means all says so");
+        Assert.AreEqual(0, Links(s).Count);
     }
 
     [TestMethod]
@@ -441,6 +460,26 @@ public class ProductTreeOpsTests
         Assert.AreEqual("A", Links(s).Single().Class, "a refused edit leaves the link alone");
     }
 
+    /// <summary>
+    /// The clear list is resolved before anything is assigned. It used to be walked as it was applied, so an
+    /// unknown field name refused the call with the assignments already made — the caller was told nothing
+    /// happened while half of it had, and the half that stuck was persisted by whatever wrote next.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("data-model")]
+    public void SetSnaplink_WithAnUnknownClearField_AssignsNothingEither()
+    {
+        var s = WithLinks(new Snaplink { Type = "code", Doc = "A.cs", Class = "A", Method = "One" });
+
+        Assert.IsFalse(ProductTreeOps.SetSnaplink(s, "n", 0, "tests",
+            set: l => { l.Class = "B"; l.Doc = "B.cs"; }, clear: ["method", "nonsense"]));
+
+        var link = Links(s).Single();
+        Assert.AreEqual("A", link.Class, "the refused call assigned nothing");
+        Assert.AreEqual("A.cs", link.Doc);
+        Assert.AreEqual("One", link.Method, "and cleared nothing");
+    }
+
     /// <summary>Three links in one file, one per method. An index would name whichever happens to sit at
     /// that position; the filter names the link itself, which is the only handle that survives a reorder.</summary>
     [TestMethod]
@@ -479,11 +518,11 @@ public class ProductTreeOpsTests
         Assert.AreEqual(0, Links(s).Count);
     }
 
-    /// <summary>An empty filter is "no filter given", not "match everything" — otherwise a caller who built
-    /// one from absent options would clear the node instead of removing nothing.</summary>
+    /// <summary>An index and an empty filter together still mean the index — the filter is absent, not a
+    /// wildcard, so a caller that built one from options nobody passed does not lose its addressing.</summary>
     [TestMethod]
     [CoversNode("data-model")]
-    public void RemoveSnaplink_WithAnEmptyFilter_FallsBackToTheIndexOrClearAllBehaviour()
+    public void RemoveSnaplink_WithAnEmptyFilter_StillHonoursTheIndex()
     {
         var s = WithLinks(
             new Snaplink { Type = "code", Doc = "A.cs", Class = "A" },
@@ -491,9 +530,6 @@ public class ProductTreeOpsTests
 
         Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests", index: 0, match: new SnaplinkFilter()));
         Assert.AreEqual("B.cs", Links(s).Single().Doc);
-
-        Assert.AreEqual(1, ProductTreeOps.RemoveSnaplink(s, "n", "tests", match: new SnaplinkFilter()));
-        Assert.AreEqual(0, Links(s).Count);
     }
 
     [TestMethod]

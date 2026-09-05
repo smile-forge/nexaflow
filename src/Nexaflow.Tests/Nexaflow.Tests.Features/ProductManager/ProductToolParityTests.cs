@@ -86,6 +86,7 @@ public class ProductToolParityTests
                      ("set-concern", "product_set_concern_status"),
                      ("remove-concern", "product_remove_concern"),
                      ("add-snaplink", "product_add_node_snaplink"),
+                     ("set-snaplink", "product_set_snaplink"),
                      ("remove-snaplink", "product_remove_node_snaplink"),
                  })
             Assert.IsTrue(names.Contains(tool), $"CLI verb '{verb}' has no '{tool}' tool");
@@ -124,6 +125,9 @@ public class ProductToolParityTests
         ("product_set_concern_status",      ToolSafety.SafeOperation),
         ("product_add_node_snaplink",       ToolSafety.SafeOperation),
         ("product_add_concern_snaplink",    ToolSafety.SafeOperation),
+        // Overwrites fields on a link that is already there — the same shape as product_edit_node, and
+        // reversible the same way. Removing a link still asks; changing what one points at does not.
+        ("product_set_snaplink",            ToolSafety.SafeOperation),
 
         // ── Product: removals and reshaping — must ask ────────────────────────
         ("product_add_concern",             ToolSafety.RequiresApproval),
@@ -396,5 +400,181 @@ public class ProductToolParityTests
 
         Assert.IsFalse(fixIt.IsError);
         Assert.IsFalse(Reload().Nodes["widget-ui"].Children.Contains("ghost-node"));
+    }
+
+    // -- Snaplinks -------------------------------------------------------------
+
+    /// <summary>Two links on the leaf, so "which one" is a real question.</summary>
+    private async Task TwoSnaplinks()
+    {
+        await Run("product_add_node_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["type"] = "code", ["target"] = "src/Save.cs", ["detail"] = "Save.Run" });
+        await Run("product_add_node_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["type"] = "markdown", ["target"] = "docs/save.md", ["detail"] = "Save > Usage" });
+    }
+
+    private static List<Snaplink> LinksOn(ProductState s) => s.Nodes["widget-button"].Snaplinks ?? [];
+
+    [TestMethod]
+    public async Task Zoom_NumbersTheSnaplinks_SoAnIndexCanNameOne()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_zoom", new JsonObject { ["node_id"] = "widget-button" });
+
+        StringAssert.Contains(r.ModelText, "#0 [code]");
+        StringAssert.Contains(r.ModelText, "#1 [markdown]",
+            "an index the model cannot read is an index it cannot use");
+    }
+
+    /// <summary>The repair the CLI set-snaplink verb exists for, and the app had no way to make at all: the
+    /// link status and its position have to survive it, which remove-then-add cannot manage.</summary>
+    [TestMethod]
+    public async Task SetSnaplink_RepointsOneLinkInPlace()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_set_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["index"] = "0", ["doc"] = "src/Store.cs", ["class"] = "Store" });
+
+        Assert.IsFalse(r.IsError, r.ModelText);
+        var links = LinksOn(Reload());
+        Assert.AreEqual("src/Store.cs", links[0].Doc);
+        Assert.AreEqual("Store", links[0].Class);
+        Assert.AreEqual("Run", links[0].Method, "a field nobody named is left alone");
+        Assert.AreEqual("docs/save.md", links[1].Doc, "and so is the neighbouring link");
+    }
+
+    /// <summary>The other half of the repair: a heading path that moved. add-snaplink could write one and
+    /// nothing could change one, so fixing a heading meant losing the link and rebuilding it.</summary>
+    [TestMethod]
+    public async Task SetSnaplink_RepairsAMarkdownHeadingPath()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_set_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["match"] = "save.md", ["title_path"] = "Save > Configuration" });
+
+        Assert.IsFalse(r.IsError, r.ModelText);
+        CollectionAssert.AreEqual(new[] { "Save", "Configuration" }, LinksOn(Reload())[1].TitlePath!.ToArray());
+    }
+
+    [TestMethod]
+    public async Task SetSnaplink_ClearsAFieldWithoutTouchingTheRest()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_set_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["index"] = "0", ["clear"] = "method" });
+
+        Assert.IsFalse(r.IsError, r.ModelText);
+        var link = LinksOn(Reload())[0];
+        Assert.IsNull(link.Method);
+        Assert.AreEqual("Save", link.Class, "clearing one field must not disturb the others");
+    }
+
+    /// <summary>An unknown clear field is refused having assigned nothing — the CLI bug that wrote half an
+    /// edit and reported none of it, asserted on the surface that shares the op.</summary>
+    [TestMethod]
+    public async Task SetSnaplink_WithAnUnknownClearField_WritesNothingAtAll()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_set_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["index"] = "0", ["class"] = "Rewritten", ["clear"] = "nonsense" });
+
+        Assert.IsTrue(r.IsError);
+        Assert.AreEqual("Save", LinksOn(Reload())[0].Class, "the refused edit assigned nothing");
+    }
+
+    /// <summary>An index is a position: anything that adds or removes a link renumbers the rest, so a listing
+    /// read before an edit can name a different link by the time it is used.</summary>
+    [TestMethod]
+    public async Task SetSnaplink_ExpectRefusesAnIndexThatNowMeansAnotherLink()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_set_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["index"] = "1", ["expect"] = "Save.cs", ["class"] = "X" });
+
+        Assert.IsTrue(r.IsError);
+        StringAssert.Contains(r.ModelText, "product_zoom");
+        Assert.IsNull(LinksOn(Reload())[1].Class);
+    }
+
+    /// <summary>The one that cost somebody four links: naming nothing used to mean "all of them".</summary>
+    [TestMethod]
+    public async Task RemoveSnaplink_NamingNoLink_RemovesNothingAndSaysHow()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_remove_node_snaplink", new JsonObject { ["node_id"] = "widget-button" });
+
+        Assert.IsTrue(r.IsError);
+        StringAssert.Contains(r.ModelText, "index");
+        Assert.AreEqual(2, LinksOn(Reload()).Count, "the set is intact");
+    }
+
+    [TestMethod]
+    public async Task RemoveSnaplink_ByIndex_TakesThatOne()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_remove_node_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["index"] = "0" });
+
+        Assert.IsFalse(r.IsError, r.ModelText);
+        Assert.AreEqual("docs/save.md", LinksOn(Reload()).Single().Doc);
+    }
+
+    /// <summary>An ambiguous substring used to take the first hit, which is indistinguishable from taking the
+    /// right one until the wrong link is already gone.</summary>
+    [TestMethod]
+    public async Task RemoveSnaplink_AnAmbiguousMatchIsRefused_NotResolvedToTheFirst()
+    {
+        await Run("product_add_node_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["type"] = "code", ["target"] = "src/A.cs", ["detail"] = "Save.One" });
+        await Run("product_add_node_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["type"] = "code", ["target"] = "src/A.cs", ["detail"] = "Save.Two" });
+
+        var r = await Run("product_remove_node_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["match"] = "Save" });
+
+        Assert.IsTrue(r.IsError);
+        StringAssert.Contains(r.ModelText, "matches 2");
+        Assert.AreEqual(2, LinksOn(Reload()).Count);
+    }
+
+    [TestMethod]
+    public async Task RemoveSnaplink_AllIsTheDeliberateForm()
+    {
+        await TwoSnaplinks();
+
+        var r = await Run("product_remove_node_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["all"] = true });
+
+        Assert.IsFalse(r.IsError, r.ModelText);
+        Assert.AreEqual(0, LinksOn(Reload()).Count);
+    }
+
+    /// <summary>A concern's links are numbered separately from the node's own, so the listing has to show both
+    /// or an index means whichever list the reader assumed.</summary>
+    [TestMethod]
+    public async Task ConcernSnaplinks_AreNumberedAndAddressableToo()
+    {
+        await Run("product_add_concern_snaplink", new JsonObject
+        {
+            ["node_id"] = "widget-button", ["concern"] = "tests",
+            ["type"] = "code", ["target"] = "tests/SaveTests.cs", ["detail"] = "SaveTests",
+        });
+
+        var zoom = await Run("product_zoom", new JsonObject { ["node_id"] = "widget-button" });
+        StringAssert.Contains(zoom.ModelText, "#0 [code] SaveTests");
+
+        var set = await Run("product_set_snaplink", new JsonObject
+            { ["node_id"] = "widget-button", ["concern"] = "tests", ["index"] = "0", ["method"] = "Saves" });
+
+        Assert.IsFalse(set.IsError, set.ModelText);
+        Assert.AreEqual("Saves", Reload().Nodes["widget-button"].Concerns!.Single().Snaplinks!.Single().Method);
     }
 }

@@ -295,15 +295,22 @@ run it from anywhere with no root arg. Build once and call the exe directly, or 
   `graph …` (code/AST discovery).
 - **Edit (one node):** `add-node`, `move <id> <new-parent>`, `rename <old-id> <new-id>`,
   `remove <id> [--recursive]`, `set-status`, `set-concern`, `remove-concern`, `add-snaplink`,
-  `remove-snaplink`, `set-node`.
+  `set-snaplink`, `remove-snaplink`, `set-node`.
 
 > **Address a snaplink by what it is, not where it sits.** `remove-snaplink <id> [--concern <tag>]` takes
 > `--type/--doc/--class/--method/--target`, and every field you give has to agree: `--doc` alone drops every
 > link into that file, adding `--method` narrows it to the one (paths compare slash- and case-insensitively,
 > so a backslashed path pasted from Explorer still matches). `--index <n>` still removes by position, but a
 > position is only valid until the next edit reorders the list — which is exactly what an earlier line in the
-> same batch does — so the two are mutually exclusive and giving both is an error. Give neither and it clears
-> the list, so say what you mean.
+> same batch does — so the two are mutually exclusive and giving both is an error. **Naming nothing removes
+> nothing**: clearing the list is `--all`, said outright, because the call that wipes a node's links used to
+> look exactly like the call that would have removed one.
+
+> **Repair a link, don't rebuild it.** `set-snaplink <id> --index <n>` edits one link in place — a moved file
+> (`--doc`), a renamed class or method, a heading that shifted (`--title-path`), a field a target no longer
+> has (`--clear class`). Remove-and-re-add loses the link's status and its position for the sake of the one
+> thing about it that changed. Pin the edit with `--expect <text>` (required inside a batch) so an index that
+> now means a different link is refused rather than silently rewritten.
 
 > **Ids are one flat global namespace.** `add-node` slugs the title, so a node titled "Run" under any feature
 > claims the bare id `run`. Give every node a feature-prefixed id (`dotnet-verb-run`, not `run`) and use
