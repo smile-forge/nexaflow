@@ -11,6 +11,7 @@ using Nexaflow.Features.Tabular.Templates;
 using Nexaflow.Features.Tabular.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using System.Text;
 
 namespace Nexaflow.Tests.Features.Tabular;
 
@@ -226,5 +227,44 @@ public class TabularSurfaceTests
 
         Assert.IsNotNull(result);
         Assert.AreEqual("Untitled table", result!.Label);
+    }
+
+    /// <summary>
+    /// Disposing the tab has to leave the file free straight away.
+    /// <para>
+    /// The row count runs detached with the file open for the whole scan, and cancelling it only asks it
+    /// to stop — the token is read between chunks. So a Dispose that returned as soon as it had cancelled
+    /// left a live handle behind, and the file could not be deleted or moved for a moment afterwards. In
+    /// the app that is closing a CSV's tab and then failing to delete the CSV; in CI it was an occasional
+    /// "being used by another process" in whichever tabular test tore its temp folder down first.
+    /// </para>
+    /// <para>
+    /// The delete below is deliberately not retried. A bounded retry would pass either way and would only
+    /// prove the handle closes eventually, which was never in doubt — the claim is that Dispose has
+    /// already waited for it.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void Dispose_ReleasesTheFile_WhileTheRowCountIsStillRunning()
+    {
+        // Large enough to take the windowed path, which is the only mode that starts a background count,
+        // and long enough that the count is still reading when Ready completes.
+        var rows = new StringBuilder("name,age,city\n");
+        for (var i = 0; i < 50_000; i++) rows.Append($"person{i},{i % 90},town number {i} padded out a bit\n");
+
+        var csv = WriteCsv(out var dir, rows.ToString());
+        var vm = Load(csv);
+
+        Assert.IsFalse(vm.IsSmallMode, "precondition: only the windowed path starts the row count");
+        // Without this the test can pass for the wrong reason: on a fast disk the count sometimes finishes
+        // before Ready returns, and then Dispose has nothing to wait for and the delete would succeed either
+        // way. Say so rather than bank a green that proved nothing.
+        if (!vm.IsCountingRows)
+            Assert.Inconclusive("the row count finished before Dispose — this run could not exercise the race.");
+
+        vm.Dispose();
+
+        Directory.Delete(dir, recursive: true);
+        Assert.IsFalse(Directory.Exists(dir));
     }
 }
