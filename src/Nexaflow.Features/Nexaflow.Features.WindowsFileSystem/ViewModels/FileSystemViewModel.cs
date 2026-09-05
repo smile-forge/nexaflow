@@ -29,7 +29,6 @@ using Nexaflow.Features.WindowsFileSystem.Operations;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
-
 // ── Main ViewModel ────────────────────────────────────────────────────────────
 
 public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISearchable
@@ -111,87 +110,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         foreach (var fa in FileActions)
             fa.ShiftHeld = value;
-    }
-
-    // ── Confirmation overlay ──────────────────────────────────────────────────
-    [ObservableProperty] private bool   _confirmationVisible;
-    [ObservableProperty] private string _confirmationTitle  = "Are you sure?";
-    [ObservableProperty] private string _confirmationPrompt = string.Empty;
-
-    private Action? _pendingConfirm;
-    private Action? _pendingCancel;
-
-    public void ShowConfirmation(string prompt, Action onConfirm, Action onCancel)
-        => ShowConfirmation("Are you sure?", prompt, onConfirm, onCancel);
-
-    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action onCancel)
-    {
-        _pendingConfirm     = onConfirm;
-        _pendingCancel      = onCancel;
-        ConfirmationTitle   = title;
-        ConfirmationPrompt  = prompt;
-        ConfirmationVisible = true;
-    }
-
-    [RelayCommand]
-    private void ConfirmAction()
-    {
-        ConfirmationVisible = false;
-        var action = _pendingConfirm;
-        _pendingConfirm = null;
-        _pendingCancel  = null;
-        action?.Invoke();
-    }
-
-    [RelayCommand]
-    private void CancelConfirmation()
-    {
-        ConfirmationVisible = false;
-        var cancel = _pendingCancel;
-        _pendingConfirm = null;
-        _pendingCancel  = null;
-        cancel?.Invoke();
-    }
-
-    // ── Input prompt overlay ──────────────────────────────────────────────────
-    [ObservableProperty] private bool   _inputPromptVisible;
-    [ObservableProperty] private string _inputPromptTitle  = string.Empty;
-    [ObservableProperty] private string _inputPromptLabel  = string.Empty;
-    [ObservableProperty] private string _inputPromptValue  = string.Empty;
-
-    private Action<string>? _pendingInputConfirm;
-    private Action?         _pendingInputCancel;
-
-    public void ShowInputPrompt(string title, string label, string initialValue,
-                                Action<string> onConfirm, Action onCancel)
-    {
-        _pendingInputConfirm = onConfirm;
-        _pendingInputCancel  = onCancel;
-        InputPromptTitle     = title;
-        InputPromptLabel     = label;
-        InputPromptValue     = initialValue;
-        InputPromptVisible   = true;
-    }
-
-    [RelayCommand]
-    private void ConfirmInputPrompt()
-    {
-        InputPromptVisible = false;
-        var confirm = _pendingInputConfirm;
-        var value   = InputPromptValue;
-        _pendingInputConfirm = null;
-        _pendingInputCancel  = null;
-        confirm?.Invoke(value);
-    }
-
-    [RelayCommand]
-    private void CancelInputPrompt()
-    {
-        InputPromptVisible = false;
-        var cancel = _pendingInputCancel;
-        _pendingInputConfirm = null;
-        _pendingInputCancel  = null;
-        cancel?.Invoke();
     }
 
     // ── Create overlay (the "New" button) ──────────────────────────────────────
@@ -797,7 +715,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     /// </summary>
     public event Action<IReadOnlyList<(string Label, string Path)>>? NavigationChanged;
 
-
     // ── Constructors ─────────────────────────────────────────────────────────
 
     /// <summary>Opens a specific directory as the starting point.</summary>
@@ -1083,7 +1000,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         };
         TreeRoots.Add(root);
     }
-
 
     /// <summary>
     /// Re-roots the tree at the current path so the view starts fresh from
@@ -1745,7 +1661,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         }
         return false;
     }
-
 
     /// <summary>One unit of work handed from the background enumerator to the UI consumer.
     /// <paramref name="Replace"/> = commit the whole sorted set at once (single Reset);
