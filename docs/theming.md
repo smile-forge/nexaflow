@@ -47,7 +47,7 @@ holds a Dark bootstrap merge for the designer; `Apply` rebuilds the list determi
 >
 > The one seam: activation *queues* the re-apply rather than doing it inline, so a view built in the same
 > dispatcher pass as its assembly's very first activation can precede the merge. That is a race only a fast
-> driver can win, which is exactly why `--skipSetup` forces `EnsureAllActivated()` for UI automation.
+> driver can win, which is exactly why `--uiTest` forces `EnsureAllActivated()` for UI automation.
 > Accordingly, **contributed keys are referenced with `{DynamicResource}`** — Audio, Logs, Executable, DICOM,
 > SVG and Model3D all do, and none use `{StaticResource}`. It is the reach that tolerates a late merge, and
 > it costs nothing here because these are a handful of brushes rather than whole templates. Core keys stay

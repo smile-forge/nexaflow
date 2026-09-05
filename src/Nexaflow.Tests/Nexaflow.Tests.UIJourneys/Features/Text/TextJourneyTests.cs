@@ -3,6 +3,7 @@ using System.Linq;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
+using FlaUI.Core.WindowsAPI;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
@@ -27,8 +28,12 @@ public class TextJourneyTests : UiJourneyTestBase
     [CoversNode("ui")]
     public void Text_Controls_RespondInOnePass()
     {
-        var file = Path.GetFileName(TestSampleData.Files("text").First());
-        var view = OpenFileVia(TestSampleData.Path("text"), file, "As Text", "TextView");
+        // Named, not Files("text").First(). That set leads with empty.txt, and whichever file the enumeration
+        // happens to yield decides whether half of this journey tests anything: a search over an empty file
+        // matches nothing, so IsSearchActive stays false and find next/previous are reported as broken
+        // buttons when they are behaving perfectly. Naming the file makes the term below verifiable.
+        const string sample = "short_utf8_nobom.txt";
+        var view = OpenFileVia(TestSampleData.Path("text"), sample, "As Text", "TextView");
         Assert.IsNotNull(view, "TextView did not open via the 'As Text' action.");
 
         // Encoding selector — present in the toolbar.
@@ -76,14 +81,17 @@ public class TextJourneyTests : UiJourneyTestBase
         CheckPresent("Find previous (no search yet)", "Text_FindPrevious");
         CheckPresent("Find next (no search yet)",     "Text_FindNext");
 
+        // The search runs off FindText changing, debounced — Enter is a shortcut, not the trigger. Both
+        // buttons bind IsEnabled to IsSearchActive, which only goes true once a run has found something, so
+        // the term has to be one the sample really contains.
         Check("Typing a term activates the search", () =>
         {
             var box = WaitForId("Text_FindBox", 3);
             if (box is null) return false;
-            box.AsTextBox().Enter("e");                     // a letter no text sample can avoid
+            box.AsTextBox().Text = "quick";                 // in the sample twice, so next/previous both mean something
             Wait.UntilInputIsProcessed();
-            System.Threading.Thread.Sleep(300);             // the search runs off the keystroke
-            return WaitForId("Text_FindNext", 3)?.IsEnabled == true;
+            System.Threading.Thread.Sleep(1200);            // the debounce, then an async pass over the file
+            return WaitForId("Text_FindNext", 5)?.IsEnabled == true;
         });
 
         CheckInvoke("Find next",     "Text_FindNext");
@@ -106,7 +114,13 @@ public class TextJourneyTests : UiJourneyTestBase
         // the panel that hosts it.
         CheckDoes("Split-panel toggle opens the panel", "Text_SplitToggle",
                   () => WaitForId("Text_SplitNow", 3) is not null);
-        CheckInvoke("Split now", "Text_SplitNow");
+
+        // Present, not pressed. "Split now" writes the file out as sibling parts on disk — see
+        // TextViewModelTests.Split_QueuesTask_ThatSplitsFileIntoSiblingParts — and a journey that litters the
+        // shared sample directory every run is a worse problem than the one it was checking for. Its command
+        // is unit-tested where the output can be inspected and thrown away.
+        CheckPresent("Split now", "Text_SplitNow");
+
         CheckDoes("Split panel closes", "Text_SplitClose",
                   () => WaitForId("Text_SplitNow", 2) is null);
 

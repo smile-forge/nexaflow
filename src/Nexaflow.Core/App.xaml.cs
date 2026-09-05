@@ -61,11 +61,20 @@ public partial class App : Application
     public static bool IsUpdating { get; private set; }
 
     /// <summary>
-    /// True when launched with <c>--skipSetup</c>: the first-run / post-update wizard is bypassed and the
-    /// shell opens straight away. Used by the UI test harness so it never has to find the wizard window
-    /// and click Skip.
+    /// True when launched with <c>--uiTest</c>: a UI journey is driving this window rather than a person.
+    /// <para>
+    /// It was <c>--skipSetup</c>, named for the first thing it turned off, and it accumulated the rest
+    /// anyway — the comments at its other two uses already read "UI-test automation" and "(UI tests)".
+    /// Naming it for what it means rather than for one of its effects is what lets the next such case
+    /// hang off it instead of arriving as a second flag saying the same thing.
+    /// </para>
+    /// <para>
+    /// What it currently turns off or forces: the first-run / post-update wizard (so the shell opens
+    /// straight away and nothing has to hunt for a wizard window to click Skip), eager feature activation
+    /// (automation outruns lazy warm-up), and the voice-model download.
+    /// </para>
     /// </summary>
-    public static bool SkipSetup { get; private set; }
+    public static bool UiTest { get; private set; }
 
     /// <summary>
     /// A page kind supplied via <c>--openTab &lt;PageKind&gt;</c>: after the shell's default tab opens, that
@@ -94,7 +103,7 @@ public partial class App : Application
         TaskScheduler.UnobservedTaskException          += OnUnobservedTaskException;
 
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
-        SkipSetup = e.Args.Any(a => string.Equals(a, "--skipSetup", StringComparison.OrdinalIgnoreCase));
+        UiTest = e.Args.Any(a => string.Equals(a, "--uiTest", StringComparison.OrdinalIgnoreCase));
         _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));
 
         var openTabIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--openTab", StringComparison.OrdinalIgnoreCase));
@@ -102,7 +111,7 @@ public partial class App : Application
 
         // Opt-in startup profiling (see StartupTimings). --timing bypasses the single-instance guard and the
         // setup wizard so a harness can cold-start repeatedly, but does NOT force the eager feature load the
-        // way --skipSetup does — so it measures the real lazy-startup path.
+        // way --uiTest does — so it measures the real lazy-startup path.
         StartupTimings.Enabled = e.Args.Any(a => string.Equals(a, "--timing", StringComparison.OrdinalIgnoreCase))
                                  || Environment.GetEnvironmentVariable("NEXAFLOW_STARTUP_TIMING") == "1";
         StartupTimings.Mark("OnStartup");
@@ -148,7 +157,13 @@ public partial class App : Application
 
         // Voice model download — background, kicked off only after the window is up (or after init in
         // prestart mode) so it never competes with window construction / first render.
-        Task.Run(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig));
+        //
+        // Not under a UI journey. Each journey launches with a throwaway config dir, so the model is never
+        // already there and every single test re-downloads a large file over the network — then posts a
+        // message about how it went, on top of the window the journey is trying to click. A control a test
+        // cannot reach because a toast is covering it fails as though the control itself were broken.
+        if (!UiTest)
+            Task.Run(() => WhisperModelManager.Instance.EnsureModelDownloaded(voiceConfig));
 
         // Update check — runs in both paths (the daemon finds updates windowless and posts a message;
         // the first window replays it as a toast). Skipped on first run.
@@ -270,10 +285,10 @@ public partial class App : Application
         // codecs (into the VFS) and theme contributions (folded below the active theme applied in step 1).
         FeatureManager.Instance.RegisterFeatures();
 
-        // UI-test automation (--skipSetup) drives the app far faster than a human and would outrun the
+        // UI-test automation (--uiTest) drives the app far faster than a human and would outrun the
         // post-paint background warm-up, racing features that haven't loaded yet. Force every feature
         // assembly to load + activate synchronously now so the whole app is ready before automation starts.
-        if (SkipSetup) FeatureCatalog.Instance.EnsureAllActivated();
+        if (UiTest) FeatureCatalog.Instance.EnsureAllActivated();
         StartupTimings.Mark("Init.Features");
 
         // ── 6a. Voice input — capability probe (model download starts later, off the show path) ──
@@ -421,9 +436,9 @@ public partial class App : Application
         {
             _setupShown = true;
 
-            // --skipSetup (UI tests) and --timing (profiling) bypass the wizard entirely; the run is still
+            // --uiTest and --timing (profiling) bypass the wizard entirely; the run is still
             // stamped so post-update detection stays consistent.
-            if (!SkipSetup && !StartupTimings.Enabled)
+            if (!UiTest && !StartupTimings.Enabled)
             {
                 var wizard = SetupWizardViewModel.Build(workspace);
                 if (wizard is not null)

@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 ///
 /// Each test runs against an isolated, throwaway config dir (NEXAFLOW_CONFIG_DIR) so it
 /// neither depends on nor pollutes the developer's real %APPDATA% config. The app is launched
-/// with --skipSetup so the first-run / post-update wizard is bypassed and the shell opens
+/// with --uiTest so the first-run / post-update wizard is bypassed and the shell opens
 /// straight away — no hunting for the wizard window to click Skip.
 /// </summary>
 [TestClass]
@@ -79,7 +79,9 @@ public abstract class UITestBase
         Automation = new UIA3Automation();
 
         var psi = new ProcessStartInfo(FindAppExe()) { UseShellExecute = false };
-        psi.ArgumentList.Add("--skipSetup");                           // bypass the first-run wizard
+        // "A journey is driving this window": no first-run wizard, eager feature activation rather than
+        // lazy warm-up, and none of the background work that would otherwise talk over the test.
+        psi.ArgumentList.Add("--uiTest");
         if (LaunchTabKind is { Length: > 0 } kind)
         {
             psi.ArgumentList.Add("--openTab");
@@ -155,7 +157,7 @@ public abstract class UITestBase
     }
 
     /// <summary>
-    /// Returns the shell window (AutomationId "MainWindow"). The app is launched with --skipSetup, so the
+    /// Returns the shell window (AutomationId "MainWindow"). The app is launched with --uiTest, so the
     /// wizard never shows and the shell is the first (and only) top-level window.
     /// </summary>
     /// <summary>
