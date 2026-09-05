@@ -126,11 +126,20 @@ is the generic mechanism. Wrap any region's content in it and give it a `Region`
 </vcc:ThemedRegion>
 ```
 
-On load it resolves two keys from the active theme and renders three layers, bottom → top:
+On load it resolves the active theme's keys and renders three layers, bottom → top:
 
-1. `Scene.{Region}` — a `DataTemplate` (animated backdrop). Absent → nothing.
-2. `{Region}.Bg` — a `Brush` veil/tint over the scene. Absent → transparent.
+1. **The backdrop** — a `DataTemplate`, under one of two keys. Absent → nothing.
+   - `Scene.{Region}` — an *animated* backdrop. Suppressed wholesale by the battery policy.
+   - `StillScene.{Region}` — a backdrop that draws once and never animates. **Never suppressed.**
+2. `{Region}.Bg` — a `Brush` veil/tint over the backdrop. Absent → transparent.
 3. the region's own content.
+
+> **Which backdrop key you use is a statement about animation, not about art.** The battery policy
+> exists because a scene is the only part of the shell that animates forever with nothing happening
+> — so a backdrop that *doesn't* animate has nothing for it to reclaim, and dropping it would cost a
+> theme its whole look to save nothing. `StillScene.*` is that case, and a still backdrop under
+> `Scene.*` would silently vanish the moment the machine came off the charger. `ThemeLayerContractTests`
+> pins Flowers against exactly that mistake.
 
 A Pro theme supplies neither → the wrapper is inert and the region looks exactly as before (zero extra
 visuals, no layout change). An immersive theme drops a scene behind the exact region it names.
@@ -211,7 +220,20 @@ When it says no, `ThemedRegion` **realises no scene at all** rather than pausing
 unloads, stops its clocks and clears its visuals, leaving exactly what a theme with no `Scene.*` key
 renders. Pausing would keep a large blended visual tree alive for no benefit, and would freeze
 travelling sprites wherever they happened to be (often off-screen, since they start there). The
-`{Region}.Bg` veil is colour rather than animation and is left alone, so a theme keeps its tint.
+`{Region}.Bg` veil is colour rather than animation and is left alone, so a theme keeps its tint — and
+a `StillScene.{Region}` backdrop is left alone for the same reason. After the base's cache pass a still
+backdrop is one texture, costing what that colour veil costs. Measured the same way as the figures above
+— a folder tab, window in front:
+
+| Theme | idle, % of one core |
+|---|---|
+| Flowers (a still plate of some hundreds of drawn plants) | **0.0** |
+| Dark (no backdrop at all) | 0.7 |
+| Ocean (the animated reef) | 10.7 |
+
+A still backdrop is therefore *cheaper than the shell with no backdrop*, within measurement noise, however
+much is drawn in it — the count never reaches the frame loop. Suppressing it would take a theme's art away
+and reclaim nothing, which is the whole argument for the second key.
 
 Regions follow the policy live: a `ThemedRegion` subscribes to `Changed`, so unplugging the charger
 drops the scene and plugging back in rebuilds it, with no restart. A machine with no battery never
@@ -265,6 +287,41 @@ the `AmbientFrameRate` cap. The judder that cap normally causes needs motion the
 berg moves about a pixel a second.
 
 
+### The Flowers plate — a scene that never moves
+
+`Themes/FlowerbedScene.xaml(.cs)` is the third worked example and the odd one out: it derives from
+`AnimatedScene` for the build/rebuild cycle and the cache pass, calls none of the `Loop`/`Animate`
+helpers, and so registers no clocks at all. It is the reason `StillScene.*` exists.
+
+It is also where to look for **making procedural art not look procedural**, which is a different problem
+from the reef's density or the Arctic's depth. Five things do the work, and each was a visible failure
+before it was a rule:
+
+- **Composition is beds, not a scatter.** Four or five rough horizontal lines with plants rooted on
+  them. A uniform scatter of the same motifs reads as wallpaper no matter how well each one is drawn.
+- **Everything grows upward, and leans rather than spins.** Free rotation is the single largest tell:
+  a freely rotated field has no "up", which is exactly the property of a repeating pattern. The lean
+  then *fans* away from the centre line, a few degrees at the margins, which is what a held bunch does.
+- **Motifs anchor at the root, not the centre.** `RenderTransformOrigin` is the foot of the stem, so
+  scale and lean both leave that point alone — a plant grows out of the ground and bends from it.
+- **Stem length is independent of head size**, and the stem *bends*: its foot sits off to one side of
+  its head and the curve is spent between the two. A stem that bows out and returns to the same x is a
+  swollen stalk, not a bend.
+- **Nothing is drawn from one formula twice.** Leaf blades take their own asymmetric edges and tip
+  droop; a bed hung with six identical lens shapes reads as a machined part.
+
+Two further things it does that an animated scene cannot afford:
+
+- **It shades freely, and draws far more than an animated scene could.** Petals carry gradients, discs
+  and berries a radial highlight, and a full window holds some hundreds of plants across nine or so
+  beds. Gradients are normally a scene's dominant per-frame cost — but this one rasterises once into a
+  single cached texture, so all of it is free from the second frame onward (0.0% of a core at idle,
+  against the reef's 10.7). Detail is the thing a still scene can spend without limit.
+- **It draws a different bunch every launch.** Fourteen motifs exist; a planting picks four to six
+  flowers and three or four fillers from a per-instance seed. Showing everything every time averages
+  every launch into the same picture. A *resize* re-lays-out the planting it already has rather than
+  replanting it, so the arrangement is stable within a session.
+
 ## Authoring a new theme
 
 **Pro theme (flat, professional)** — like Dark/Light:
@@ -281,6 +338,11 @@ berg moves about a pixel a second.
 3. The scene visual: a `UserControl` in `Themes/` (or a `VisualBrush`/`ShaderEffect` behind the same
    `Scene.*` key — `ThemedRegion` only cares that it's a `DataTemplate`).
 4. Add the name to `ThemeOption`.
+
+**Still-immersive theme** — like Flowers: as above, but the backdrop goes behind **`StillScene.{Region}`**
+and the scene registers no clocks (derive from `AnimatedScene` for the build cycle and the cache pass;
+just never call `Loop`/`Animate`). The battery policy then leaves it up, which is correct — there is no
+animation to save. Getting this key wrong is invisible on mains and blanks the theme on battery.
 
 ## Feature participation
 
@@ -323,6 +385,10 @@ a literal `#RRGGBB`, `Color.FromRgb(...)` or `Brushes.X` as the **final** value.
    semantic (`SuccessBrush` / `WarningBrush` / `DangerBrush`, `OnAccentBrush`).
 2. **The categorical `Swatch.*` bank** when you need *N mutually-distinct* colours (pie/chart series,
    category dots, colour pickers). Distinctness is the point — don't use the close-together chrome tones.
+   `Theme.Flowers.xaml` is the worked example of a theme *retuning* the bank: the defaults are bright
+   pastels tuned for a near-black canvas and they wash out on cream, so it restates all twelve a stop
+   deeper in the botanical plate's own hues — the contract is that they stay mutually separable, not
+   that they stay these particular values.
 3. **A feature-owned token via `IThemeContribution`** when the colour is specific to the feature (e.g.
    the scratchpad's `PostIt.*`, a log-level tint). It merges below the active theme, so any theme
    overrides it by string key. This is the same seam as `IPageRegistration` — no Core⇄feature reference.
@@ -375,8 +441,10 @@ pale override gets dark text without the author asking.
   change for any theme that doesn't override them.
 - `ThemedRegion` with no `Scene.*` / `{Region}.Bg` renders nothing extra.
 - `Theme.Dark.xaml` is intentionally empty — a pure palette (`ThemeManager.Load` would also skip a
-  missing optional layer entirely). `Theme.Light.xaml` is a *Pro* theme — region overrides only (a soft
-  grey frame around lighter content), no scene. `Theme.Ocean.xaml` (reef), `Theme.Nature.xaml` (forest),
+  missing optional layer entirely). `Theme.Light.xaml` is a *Pro* theme — region overrides only
+  (a soft grey frame around lighter content), no scene. `Theme.Flowers.xaml` is *still immersive*: a
+  warm paper frame over a drawn botanical plate (`FlowerbedScene`) behind `StillScene.Window`, which
+  never animates and is therefore never battery-suppressed. `Theme.Ocean.xaml` (reef), `Theme.Nature.xaml` (forest),
   `Theme.Sandstone.xaml` (cut-stone wall), `Theme.Gothic.xaml` (midnight tower) and
   `Theme.Arctic.xaml` (polar dusk) are *dark immersive* — overrides + a `Scene.Window`
   (`OceanReefScene` / `ForestScene` / `SandstoneWall` / `GothicScene` / `ArcticScene`). `Theme.Sunny.xaml` is a *light immersive* — a
@@ -396,6 +464,7 @@ pale override gets dark text without the author asking.
 | `Core/Themes/Styles.xaml` | Layer 5 — shared control templates |
 | `Core/Themes/OceanReefScene.xaml(.cs)` | The Ocean scene (theme art) |
 | `Core/Themes/ArcticScene.xaml(.cs)` | The Arctic scene (theme art) — the depth/grouping worked example |
+| `Core/Themes/FlowerbedScene.xaml(.cs)` | The Flowers plate (theme art) — the *still* scene, and the not-looking-procedural worked example |
 | `Visuals.Common/Controls/ThemedRegion.cs` + `Themes/Generic.xaml` | The generic scene/veil wrapper |
 | `Features.Common/IThemeContribution.cs` | The optional feature contribution seam |
 | `Core/App.xaml`, `App.xaml.cs` | Bootstrap merge + the startup `Apply` call |

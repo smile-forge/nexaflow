@@ -91,10 +91,11 @@ public class ThemeLayerContractTests
         {
             var keys = KeyedElements(XDocument.Load(ThemeFile($"Theme.{theme}.xaml")));
 
-            if (keys.TryGetValue("Scene.Window", out var element))
-                Assert.AreEqual("DataTemplate", element,
-                    $"Theme.{theme}.xaml declares Scene.Window as <{element}> — ThemedRegion realises "
-                    + "nothing but a DataTemplate, so the backdrop would silently never draw");
+            foreach (var key in new[] { "Scene.Window", "StillScene.Window" })
+                if (keys.TryGetValue(key, out var element))
+                    Assert.AreEqual("DataTemplate", element,
+                        $"Theme.{theme}.xaml declares {key} as <{element}> — ThemedRegion realises "
+                        + "nothing but a DataTemplate, so the backdrop would silently never draw");
         }
     }
 
@@ -116,6 +117,29 @@ public class ThemeLayerContractTests
         Assert.IsTrue(File.Exists(path), $"{theme} is immersive but ships no overrides layer");
         Assert.IsTrue(KeyedElements(XDocument.Load(path)).ContainsKey("Scene.Window"),
                       $"Theme.{theme}.xaml supplies no Scene.Window — the theme would render flat");
+    }
+
+    /// <summary>
+    /// Flowers is immersive too, but its plate never animates — so it reaches the shell through
+    /// <c>StillScene.Window</c>, the key <c>ThemedRegion</c> does not put behind the battery gate.
+    /// Both halves are asserted, and the second is the one that matters: moving the plate to
+    /// <c>Scene.Window</c> would still load, still theme and still look right on mains, and would
+    /// silently blank the backdrop the moment the machine came off the charger.
+    /// </summary>
+    [DataTestMethod]
+    [DataRow(ThemeOption.Flowers)]
+    public void StillTheme_SuppliesAStillWindowScene_AndNotAnAnimatedOne(ThemeOption theme)
+    {
+        string path = ThemeFile($"Theme.{theme}.xaml");
+        Assert.IsTrue(File.Exists(path), $"{theme} is immersive but ships no overrides layer");
+
+        var keys = KeyedElements(XDocument.Load(path));
+        Assert.IsTrue(keys.ContainsKey("StillScene.Window"),
+                      $"Theme.{theme}.xaml supplies no StillScene.Window — the theme would render flat");
+        Assert.IsFalse(keys.ContainsKey("Scene.Window"),
+                       $"Theme.{theme}.xaml supplies Scene.Window, which the battery policy suppresses. "
+                       + "A backdrop that does not animate has nothing to reclaim, so it belongs on "
+                       + "StillScene.Window or it will vanish on battery for no saving.");
     }
 
     /// <summary>Every <c>x:Key</c>'d element in a dictionary, mapped to its element name.</summary>

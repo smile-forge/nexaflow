@@ -4,7 +4,7 @@ using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core;
 
-public enum ThemeOption    { Dark, Light, Sunny, Ocean, Nature, Sandstone, Gothic, Arctic }
+public enum ThemeOption    { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone, Gothic, Arctic }
 public enum LanguageOption { English }
 
 /// <summary>
