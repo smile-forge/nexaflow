@@ -384,6 +384,29 @@ doc-comment is the authoritative, fuller description. Most are discovered by ref
 |---|---|
 | `IThemeContribution` | A feature ships fallback theme resources (region tokens / `Scene.*` templates) without Core referencing it. |
 
+### Text size & zoom
+
+**A surface that shows a document never hard-codes a point size.** The shell has a *Text size* setting
+(Options → Shell), and the size a viewer renders at is that setting times the tab's own zoom. Both live in
+`Nexaflow.Visuals.Common.Theming`:
+
+| Type | What it's for |
+|---|---|
+| `TextTypography` | The shell setting: `BaseFontSize`, plus `AddChangeListener` for code that has to react. Core pushes the value in at startup and on Options → Apply; nothing else writes it. |
+| `TextZoom` | One tab's zoom — `Percent`, `Presets`, the zoom in/out/reset commands, and `TryWheel` for the Ctrl+wheel gesture. `FontSize` is the number to bind: it already folds the shell setting in, and re-raises when *either* input moves. |
+| `ZoomChip` (`Visuals.Common.Controls`) | The chrome: the percentage and its preset popup. Set `PagePrefix` to the page's automation prefix and the ids compose as `{Prefix}_ZoomLabel` / `{Prefix}_Zoom{percent}`. |
+
+So a viewer holds a `TextZoom` on its ViewModel, binds `Zoom.FontSize` onto whatever draws text, drops a
+`ZoomChip` in its toolbar or status bar, and wires the five Ctrl key bindings plus `PreviewMouseWheel`. Nothing
+needs disposing — `TextTypography` holds its listeners weakly, so a closed tab's zoom is simply collected.
+
+A surface with a typographic ladder of its own expresses it as **ratios of the body size**, never as absolute
+points — see `BlockRenderer`'s role accessors (`Body`/`Heading`/`Code`/`Caption`/`TableHeader`), which is why a
+markdown document scales without flattening. Markdown gets this for free: `MarkdownRenderContext.BaseFontSize`
+defaults to the live shell setting, so every markdown surface in the app honours Options with no wiring, and
+only a host that adds zoom has to set it.
+
+
 ### External components (`Dependencies/`)
 | Interface | What it's for |
 |---|---|

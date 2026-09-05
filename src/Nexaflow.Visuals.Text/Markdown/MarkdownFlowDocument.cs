@@ -38,7 +38,7 @@ public static class MarkdownFlowDocument
         var doc = new FlowDocument
         {
             FontFamily  = BlockRenderer.BodyFont,
-            FontSize    = BlockRenderer.BaseFontSize,
+            FontSize    = BlockRenderer.Body(ctx),
             Foreground  = p.Text,
             Background  = Brushes.Transparent,
             PagePadding = new Thickness(0),
@@ -100,10 +100,9 @@ public static class MarkdownFlowDocument
     private static IEnumerable<WpfBlock> Heading(HeadingBlock hb, MarkdownRenderContext ctx)
     {
         var p = ctx.Palette;
-        double[] sizes = [28, 22, 18, 16, 14.5, BlockRenderer.BaseFontSize];
         var para = new Paragraph
         {
-            FontSize   = sizes[Math.Clamp(hb.Level - 1, 0, 5)],
+        FontSize   = BlockRenderer.Heading(ctx, hb.Level),
             FontWeight = FontWeights.Bold,
             Foreground = p.Heading,
             Margin     = new Thickness(0, hb.Level == 1 ? 14 : 10, 0, 4),
@@ -250,7 +249,7 @@ public static class MarkdownFlowDocument
         var run = new Run(text.TrimEnd('\n'))
         {
             FontFamily = BlockRenderer.MonoFont,
-            FontSize   = 12,
+            FontSize   = BlockRenderer.Code(ctx),
             Foreground = p.Text,
             Tag        = span,
         };
@@ -305,7 +304,7 @@ public static class MarkdownFlowDocument
                         Margin        = new Thickness(0),
                         FontWeight    = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal,
                         Foreground    = row.IsHeader ? p.Heading : p.Text,
-                        FontSize      = row.IsHeader ? 13 : BlockRenderer.BaseFontSize,
+                        FontSize      = row.IsHeader ? BlockRenderer.TableHeader(ctx) : BlockRenderer.Body(ctx),
                         TextAlignment = align switch
                         {
                             TableColumnAlign.Right  => TextAlignment.Right,

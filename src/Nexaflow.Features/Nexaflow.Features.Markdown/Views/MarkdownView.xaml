@@ -8,6 +8,14 @@
              AutomationProperties.AutomationId="MarkdownView"
              Background="{StaticResource BgBrush}">
 
+    <UserControl.InputBindings>
+        <KeyBinding Key="D0"       Modifiers="Control" Command="{Binding Zoom.ResetZoomCommand}"/>
+        <KeyBinding Key="OemPlus"  Modifiers="Control" Command="{Binding Zoom.ZoomInCommand}"/>
+        <KeyBinding Key="Add"      Modifiers="Control" Command="{Binding Zoom.ZoomInCommand}"/>
+        <KeyBinding Key="OemMinus" Modifiers="Control" Command="{Binding Zoom.ZoomOutCommand}"/>
+        <KeyBinding Key="Subtract" Modifiers="Control" Command="{Binding Zoom.ZoomOutCommand}"/>
+    </UserControl.InputBindings>
+
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
@@ -32,6 +40,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- File name + the search chip an AI-bar "?" search leaves behind -->
@@ -47,8 +56,15 @@
                                          VerticalAlignment="Center" Margin="16,0,0,0"/>
                 </StackPanel>
 
+                <!-- Zoom %: click for a preset, or Ctrl+scroll / Ctrl+± over the document -->
+                <vc:ZoomChip Grid.Column="1"
+                             PagePrefix="Markdown"
+                             Zoom="{Binding Zoom}"
+                             VerticalAlignment="Center"
+                             Margin="0,0,10,0"/>
+
                 <!-- Source-only toggle (default off → rendered + inline editing) -->
-                <ToggleButton Grid.Column="1"
+                <ToggleButton Grid.Column="2"
                               Style="{StaticResource TbToggle}"
                               Margin="0,0,6,0"
                               Content="&lt;/&gt; Source"
@@ -57,7 +73,7 @@
                               IsChecked="{Binding SourceOnly, Mode=TwoWay}"/>
 
                 <!-- Save button (greyed out when clean) -->
-                <Button Grid.Column="2"
+                <Button Grid.Column="3"
                         Style="{StaticResource TbBtn}"
                         ToolTip="Save (Ctrl+S)"
                         AutomationProperties.AutomationId="Markdown_Save"
@@ -86,6 +102,7 @@
                                      Grid.Column="0"
                                      ContentPadding="40,24,40,48"
                                      EditOnDoubleClick="True"
+                                     BaseFontSize="{Binding Zoom.FontSize}"
                                      AutomationProperties.AutomationId="Markdown_Editor"
                                      Visibility="{Binding SourceOnly, Converter={StaticResource InvBoolVis}}"
                                      Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
@@ -101,7 +118,7 @@
                      TextWrapping="Wrap"
                      SpellCheck.IsEnabled="False"
                      FontFamily="Consolas, Courier New"
-                     FontSize="13"
+                     FontSize="{Binding Zoom.FontSize}"
                      Foreground="{StaticResource TextBrush}"
                      Background="{StaticResource DeepBgBrush}"
                      CaretBrush="{StaticResource AccentBrush}"

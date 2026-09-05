@@ -158,4 +158,24 @@ public class MarkdownViewModelTests
         Assert.AreEqual(Path.GetDirectoryName(vm.FilePath), fileCtx.RootPath);
         CollectionAssert.Contains(fileCtx.SelectedItems.ToList(), vm.FilePath);
     }
+
+    // ── Zoom ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The viewer's own zoom is the shared <c>TextZoom</c>, so its stepping and clamping are pinned once in
+    /// <c>TextZoomTests</c>. What is markdown's alone — and what a shared model cannot prove — is that the
+    /// tab actually carries one and hands out a usable body size.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("markdown-zoom")]
+    public void Zoom_ScalesTheDocumentBodySize()
+    {
+        var vm = Make();
+        Assert.AreEqual(100, vm.Zoom.Percent, "a freshly opened document is unzoomed");
+
+        var unzoomed = vm.Zoom.FontSize;
+        vm.Zoom.Percent = 150;
+        Assert.AreEqual(unzoomed * 1.5, vm.Zoom.FontSize, 1e-9,
+            "the rendered surface and the source box both bind this");
+    }
 }

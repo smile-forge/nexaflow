@@ -15,6 +15,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Features.Text.ViewModels;
 
@@ -72,18 +73,9 @@ public sealed partial class TextViewModel : ObservableObject, IDisposable, IPage
 
     // ── Zoom (editor font scale) ─────────────────────────────────────────────────
 
-    [ObservableProperty] private int _zoomPercent = 100;
-    public IReadOnlyList<int> ZoomPresets { get; } = [80, 90, 100, 110, 120, 130];
-
-    partial void OnZoomPercentChanged(int value)
-    {
-        var clamped = Math.Clamp(value, 50, 400);
-        if (clamped != value) ZoomPercent = clamped; // re-enters with the clamped value; the view reads it
-    }
-
-    [RelayCommand] private void ZoomIn()    => ZoomPercent = Math.Min(400, ZoomPercent + 10);
-    [RelayCommand] private void ZoomOut()   => ZoomPercent = Math.Max(50,  ZoomPercent - 10);
-    [RelayCommand] private void ResetZoom() => ZoomPercent = 100;
+    /// <summary>This tab's zoom over the shell's text size. The view binds
+    /// <see cref="TextZoom.FontSize"/> onto the editor and hands the same object to the shared chip.</summary>
+    public TextZoom Zoom { get; } = new();
 
     // ── Monitoring ────────────────────────────────────────────────────────────
 

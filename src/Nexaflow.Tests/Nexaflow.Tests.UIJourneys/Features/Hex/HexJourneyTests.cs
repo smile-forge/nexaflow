@@ -45,6 +45,21 @@ public class HexJourneyTests : UiJourneyTestBase
         // Evaluate-pane toggle.
         CheckInvoke("Evaluate pane toggle", "Hex_EvalPane");
 
+        // Zoom, in the status bar. The label is a TextBlock with a MouseLeftButtonUp handler rather than a
+        // Button, so it supports no Invoke pattern — the base class falls back to a real click, which is what
+        // opens the popup. The presets only exist in the UIA tree while it is open.
+        CheckInvoke("Zoom label (opens the preset popup)", "Hex_ZoomLabel");
+        Check("Zoom popup opens", () => WaitForId("Hex_Zoom100", 3) is not null);
+        CheckPresent("Zoom 80%",  "Hex_Zoom80");
+        CheckPresent("Zoom 130%", "Hex_Zoom130");
+
+        // Require a preset to land: zooming re-measures the cell, so this is also the check that a resized grid
+        // still renders rather than throwing on the way.
+        CheckDoes("Zoom 120% applies", "Hex_Zoom120",
+                  () => WaitForId("Hex_ZoomLabel", 3)?.Name?.Contains("120") == true);
+        CheckInvoke("Zoom label (reopen)", "Hex_ZoomLabel");
+        CheckInvoke("Zoom 100% restores the default", "Hex_Zoom100");
+
         AssertJourney();
     }
 }

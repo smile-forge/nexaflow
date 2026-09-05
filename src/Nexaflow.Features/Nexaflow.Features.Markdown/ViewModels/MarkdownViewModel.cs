@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Controls;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Features.Markdown.ViewModels;
 
@@ -48,6 +49,10 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// <summary>True = show the raw markdown source; false = rendered + inline editing (default).</summary>
     [ObservableProperty]
     private bool _sourceOnly;
+
+    /// <summary>This tab's zoom over the shell's text size. The rendered surface takes it as its body size
+    /// (the rest of the document is proportional to that); the source box takes it directly.</summary>
+    public TextZoom Zoom { get; } = new();
 
     /// <summary>Last value written to / read from disk; the dirty baseline.</summary>
     private string _savedText;

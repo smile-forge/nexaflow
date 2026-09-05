@@ -12,6 +12,20 @@ public sealed class MarkdownRenderContext
     public required MarkdownPalette Palette { get; init; }
 
     /// <summary>
+    /// Point size body text renders at; everything else in the document — headings, code runs, captions,
+    /// sub/superscripts, a display formula — is a fixed ratio of it, so one number moves the whole
+    /// document and keeps its proportions.
+    /// <para>
+    /// Defaults to the shell's <see cref="Nexaflow.Visuals.Common.Theming.TextTypography.BaseFontSize"/>,
+    /// which is what makes every markdown surface honour the Options text size without its host wiring
+    /// anything. A host with its own zoom (the markdown viewer) sets it to the zoomed size instead.
+    /// Read at construction, so a context outlives a setting change — build a fresh one per render, as
+    /// every surface here already does.
+    /// </para>
+    /// </summary>
+    public double BaseFontSize { get; init; } = Nexaflow.Visuals.Common.Theming.TextTypography.BaseFontSize;
+
+    /// <summary>
     /// Invoked when a link is clicked. Return <c>true</c> to indicate the link was
     /// handled (e.g. opened in an in-app tab); the renderer then skips its default
     /// behaviour of launching the OS browser. When null, links open externally.

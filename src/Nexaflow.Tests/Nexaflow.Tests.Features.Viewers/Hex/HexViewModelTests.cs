@@ -470,4 +470,21 @@ public class HexViewModelTests
         }
         finally { File.Delete(path); }
     }
+
+    /// <summary>
+    /// Stepping and clamping belong to the shared <c>TextZoom</c> (pinned in <c>TextZoomTests</c>); what is
+    /// hex's alone is that the tab carries one, because both panes read the same instance and that is what
+    /// keeps the byte grid and the decoded text row-aligned.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("hex-zoom")]
+    public void Zoom_ScalesTheGridTextSize()
+    {
+        using var vm = new HexViewModel(string.Empty, _shell);
+        Assert.AreEqual(100, vm.Zoom.Percent, "a freshly opened file is unzoomed");
+
+        var unzoomed = vm.Zoom.FontSize;
+        vm.Zoom.Percent = 150;
+        Assert.AreEqual(unzoomed * 1.5, vm.Zoom.FontSize, 1e-9, "both panes bind this one size");
+    }
 }

@@ -63,9 +63,11 @@ public class SetupWizardTests
     [TestMethod]
     [CoversNode("opt-ai-persona")]
     [CoversNode("opt-section-shell")]
+    [CoversNode("opt-shell-text-size")]
     public void FirstRunWizard_ConfiguresEveryStep_AndPersistsToDisk()
     {
         const string chosenTheme   = "Ocean";               // not the default (Dark)
+        const string chosenTextSize = "16";                 // not the default (13)
         const string apiKey        = "sk-test-ABC123";
         const string baseUrl       = "https://example.test/anthropic";
         const string chosenModel   = "claude-sonnet-4-6";   // a non-first entry in Claude's static list
@@ -78,9 +80,11 @@ public class SetupWizardTests
         // ── Step 1: What's New (welcome) — no input ──
         ClickNext(wizard);
 
-        // ── Step 2: Shell settings (custom control) — pick a theme; leave language + start-with-windows ──
+        // ── Step 2: Shell settings (custom control) — pick a theme and a text size; leave the rest ──
         var themeCombo = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("ShellThemeCombo"))?.AsComboBox());
         themeCombo.Select(chosenTheme);
+        var textSizeCombo = WaitFor(() => wizard.FindFirstDescendant(cf => cf.ByAutomationId("ShellTextSizeCombo"))?.AsComboBox());
+        textSizeCombo.Select(chosenTextSize);
         ClickNext(wizard);
 
         // ── Step 3: pick the provider ──
@@ -129,6 +133,7 @@ public class SetupWizardTests
         var shell = ReadConfig(_configDir, "shell");
         Assert.AreEqual(chosenTheme, shell.GetProperty("Theme").GetString(), "Shell theme not persisted.");
         Assert.IsFalse(shell.GetProperty("PrestartAtLogin").GetBoolean(), "PrestartAtLogin should remain off.");
+        Assert.AreEqual(16d, shell.GetProperty("TextFontSize").GetDouble(), "Shell text size not persisted.");
 
         // ── Verify what landed on disk under Contexts\Default ──
         var defaultDir = Path.Combine(_configDir, "Contexts", "Default");

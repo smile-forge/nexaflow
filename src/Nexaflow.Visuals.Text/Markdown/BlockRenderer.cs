@@ -40,7 +40,60 @@ public static class BlockRenderer
 
     internal static readonly FontFamily BodyFont = new("Segoe UI");
     internal static readonly FontFamily MonoFont = new("Consolas, Courier New");
-    internal const double BaseFontSize = 13.5;
+
+    /// <summary>
+    /// The body size this document's typography was drawn at. Not what anything renders at — that is
+    /// <see cref="MarkdownRenderContext.BaseFontSize"/>, which the shell's text size and a viewer's zoom
+    /// both move. It survives as the denominator of the ratios below, so the proportions stay the ones
+    /// that were designed rather than becoming whatever the current setting happens to be.
+    /// </summary>
+    internal const double DesignBodySize = 13.5;
+
+    /// <summary>h1–h6 as multiples of body. Levels beyond six clamp onto the last.</summary>
+    private static readonly double[] HeadingRatios =
+    [
+        28 / DesignBodySize, 22 / DesignBodySize, 18 / DesignBodySize,
+        16 / DesignBodySize, 14.5 / DesignBodySize, 1.0,
+    ];
+
+    /// <summary>Monospace runs — code blocks, inline code, a formula shown as its source. Slightly under
+    /// body, because a monospace face reads larger than a proportional one at the same point size.</summary>
+    private const double CodeRatio = 12 / DesignBodySize;
+
+    /// <summary>Figure captions and footers — secondary text, set down from body.</summary>
+    private const double CaptionRatio = 12 / DesignBodySize;
+
+    /// <summary>A table's header row, set marginally down from its cells.</summary>
+    private const double TableHeaderRatio = 13 / DesignBodySize;
+
+    /// <summary>A citation ("" … "") — raised and set down from body.</summary>
+    private const double CitationRatio = 0.85;
+
+    /// <summary>Sub- and superscript runs.</summary>
+    private const double ScriptRatio = 0.75;
+
+    /// <summary>A display ($$ … $$) formula, set up from body so it carries its own line.</summary>
+    private const double DisplayFormulaRatio = 1.5;
+
+    // One accessor per typographic role rather than a ratio each caller multiplies itself: the flow-document
+    // renderer draws the same document with the same proportions, and a role defined twice is a role that
+    // drifts. The ratios stay private so that stays true.
+
+    /// <summary>Body size for <paramref name="ctx"/> — the number every role below is a multiple of.</summary>
+    internal static double Body(MarkdownRenderContext ctx) => ctx.BaseFontSize;
+
+    /// <summary>Size of an h<paramref name="level"/> heading (1-based; beyond six clamps onto h6).</summary>
+    internal static double Heading(MarkdownRenderContext ctx, int level)
+        => Body(ctx) * HeadingRatios[Math.Clamp(level - 1, 0, HeadingRatios.Length - 1)];
+
+    /// <summary>Size of a monospace run — a code block, inline code, a formula shown as source.</summary>
+    internal static double Code(MarkdownRenderContext ctx) => Body(ctx) * CodeRatio;
+
+    /// <summary>Size of secondary text — a figure caption, a footer.</summary>
+    internal static double Caption(MarkdownRenderContext ctx) => Body(ctx) * CaptionRatio;
+
+    /// <summary>Size of a table's header row.</summary>
+    internal static double TableHeader(MarkdownRenderContext ctx) => Body(ctx) * TableHeaderRatio;
 
     // ── Public entry point ────────────────────────────────────────────────
 
@@ -92,7 +145,7 @@ public static class BlockRenderer
             {
                 Text         = block.ToString() ?? string.Empty,
                 Foreground   = p.TextMuted,
-                FontSize     = BaseFontSize,
+                FontSize     = Body(ctx),
                 TextWrapping = TextWrapping.Wrap
             };
         }
@@ -103,9 +156,8 @@ public static class BlockRenderer
     private static FrameworkElement RenderHeading(HeadingBlock hb, MarkdownRenderContext ctx)
     {
         var p = ctx.Palette;
-        double[] sizes = [28, 22, 18, 16, 14.5, BaseFontSize];
-        var tb = MakeTextBlock(p);
-        tb.FontSize   = sizes[Math.Clamp(hb.Level - 1, 0, 5)];
+        var tb = MakeTextBlock(ctx);
+        tb.FontSize   = Heading(ctx, hb.Level);
         tb.FontWeight = FontWeights.Bold;
         tb.Foreground = p.Heading;
         tb.Margin     = new Thickness(0, hb.Level == 1 ? 14 : 10, 0, 4);
@@ -131,7 +183,7 @@ public static class BlockRenderer
 
     private static FrameworkElement RenderParagraph(ParagraphBlock pb, MarkdownRenderContext ctx)
     {
-        var tb = MakeTextBlock(ctx.Palette);
+        var tb = MakeTextBlock(ctx);
         tb.Margin = new Thickness(0, 4, 0, 8);
 
         if (pb.Inline is not null)
@@ -184,7 +236,7 @@ public static class BlockRenderer
         {
             Text       = label,
             FontFamily = BodyFont,
-            FontSize   = BaseFontSize,
+            FontSize   = Body(ctx),
             FontWeight = FontWeights.Bold,
             Foreground = accent,
             Margin     = new Thickness(0, 0, 0, 4),
@@ -241,7 +293,7 @@ public static class BlockRenderer
             {
                 Text              = MakeListMarker(lb, ordinal),
                 Foreground        = p.TextMuted,
-                FontSize          = BaseFontSize,
+                FontSize          = Body(ctx),
                 FontFamily        = BodyFont,
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin            = new Thickness(0, 4, 4, 0),
@@ -309,7 +361,7 @@ public static class BlockRenderer
             {
                 Text         = text.TrimEnd('\n'),
                 FontFamily   = MonoFont,
-                FontSize     = 12,
+                FontSize     = Code(ctx),
                 Foreground   = p.Text,
                 TextWrapping = TextWrapping.NoWrap
             }
@@ -354,10 +406,10 @@ public static class BlockRenderer
                 FrameworkElement content;
                 if (cell.Count == 1 && cell[0] is ParagraphBlock pb)
                 {
-                    var tb = MakeTextBlock(p);
+                    var tb = MakeTextBlock(ctx);
                     tb.FontWeight    = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal;
                     tb.Foreground    = row.IsHeader ? p.Heading : p.Text;
-                    tb.FontSize      = row.IsHeader ? 13 : BaseFontSize;
+                    tb.FontSize      = row.IsHeader ? TableHeader(ctx) : Body(ctx);
                     tb.Padding       = new Thickness(8, 5, 8, 5);
                     tb.TextAlignment = align switch
                     {
@@ -421,7 +473,7 @@ public static class BlockRenderer
     private static FrameworkElement RenderDefinitionTerm(DefinitionTerm dt, MarkdownRenderContext ctx)
     {
         var p = ctx.Palette;
-        var tb = MakeTextBlock(p);
+        var tb = MakeTextBlock(ctx);
         tb.FontWeight = FontWeights.SemiBold;
         tb.Foreground = p.DefTerm;
         tb.Margin     = new Thickness(0, 6, 0, 2);
@@ -456,9 +508,9 @@ public static class BlockRenderer
     private static FrameworkElement RenderFigureCaption(MdFigureCaption fc, MarkdownRenderContext ctx)
     {
         var p = ctx.Palette;
-        var tb = MakeTextBlock(p);
+        var tb = MakeTextBlock(ctx);
         tb.FontStyle  = FontStyles.Italic;
-        tb.FontSize   = 12;
+        tb.FontSize   = Caption(ctx);
         tb.Foreground = p.TextMuted;
         tb.TextAlignment = TextAlignment.Center;
         tb.Margin     = new Thickness(0, 2, 0, 6);
@@ -481,7 +533,7 @@ public static class BlockRenderer
             var rendered = Render(child, "", ctx);
             if (rendered is TextBlock ftb)
             {
-                ftb.FontSize  = 12;
+                ftb.FontSize  = Caption(ctx);
                 ftb.Foreground = p.TextMuted;
             }
             inner.Children.Add(rendered);
@@ -541,7 +593,7 @@ public static class BlockRenderer
         // the one thing the editor could not do.
         try
         {
-            var formula = new FormulaElement(latex, p, BaseFontSize * 1.5)
+            var formula = new FormulaElement(latex, p, Body(ctx) * DisplayFormulaRatio)
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin              = new Thickness(0, 8, 0, 8)
@@ -571,7 +623,7 @@ public static class BlockRenderer
             {
                 Text         = string.IsNullOrWhiteSpace(latex) ? "(empty math block)" : $"$$\n{latex}\n$$",
                 FontFamily   = MonoFont,
-                FontSize     = 12,
+                FontSize     = Code(ctx),
                 Foreground   = p.Accent,
                 TextWrapping = TextWrapping.Wrap
             }
@@ -595,17 +647,17 @@ public static class BlockRenderer
         {
             Text         = block.ToString() ?? string.Empty,
             Foreground   = ctx.Palette.TextMuted,
-            FontSize     = BaseFontSize,
+            FontSize     = Body(ctx),
             TextWrapping = TextWrapping.Wrap
         };
 
     // ── TextBlock factory ─────────────────────────────────────────────────
 
-    private static TextBlock MakeTextBlock(MarkdownPalette p) =>
+    private static TextBlock MakeTextBlock(MarkdownRenderContext ctx) =>
         new()
         {
-            Foreground   = p.Text,
-            FontSize     = BaseFontSize,
+            Foreground   = ctx.Palette.Text,
+            FontSize     = Body(ctx),
             FontFamily   = BodyFont,
             TextWrapping = TextWrapping.Wrap,
             LineHeight   = double.NaN
@@ -641,7 +693,7 @@ public static class BlockRenderer
                 var citeSpan = new Span
                 {
                     Foreground = p.Citation,
-                    FontSize   = BaseFontSize * 0.85,
+                    FontSize   = Body(ctx) * CitationRatio,
                     BaselineAlignment = BaselineAlignment.Superscript
                 };
                 foreach (var child in ei) AddInlines(citeSpan.Inlines, child, ctx);
@@ -654,8 +706,8 @@ public static class BlockRenderer
                 Span extraSpan = ei.DelimiterChar switch
                 {
                     '~' when ei.DelimiterCount >= 2 => new Span { TextDecorations = TextDecorations.Strikethrough },
-                    '~'                             => new Span { BaselineAlignment = BaselineAlignment.Subscript,   FontSize = BaseFontSize * 0.75 },
-                    '^'                             => new Span { BaselineAlignment = BaselineAlignment.Superscript, FontSize = BaseFontSize * 0.75 },
+                    '~'                             => new Span { BaselineAlignment = BaselineAlignment.Subscript,   FontSize = Body(ctx) * ScriptRatio },
+                    '^'                             => new Span { BaselineAlignment = BaselineAlignment.Superscript, FontSize = Body(ctx) * ScriptRatio },
                     '='                             => new Span { Background = p.Marked },
                     _                               => new Span { TextDecorations = TextDecorations.Underline }, // ++inserted++
                 };
@@ -678,7 +730,7 @@ public static class BlockRenderer
                 target.Add(new Run(ci.Content)
                 {
                     FontFamily = MonoFont,
-                    FontSize   = 12,
+                    FontSize   = Code(ctx),
                     Background = p.CodeBg,
                     Foreground = p.Accent,
                     Tag        = ci.Span
@@ -722,7 +774,7 @@ public static class BlockRenderer
                 {
                     // Carry where the LaTeX sits in the block's source (delimiters excluded), so an
                     // editing host can splice a change back into the sentence it came from.
-                    var ctrl = new FormulaElement(miLatex, p, BaseFontSize, inline: true)
+                    var ctrl = new FormulaElement(miLatex, p, Body(ctx), inline: true)
                     {
                         SourceStart  = mi.Content.Start,
                         SourceLength = mi.Content.Length,
@@ -735,7 +787,7 @@ public static class BlockRenderer
                     }
                 }
                 catch { }
-                target.Add(new Run($"${miLatex}$") { FontFamily = MonoFont, FontSize = 12, Foreground = p.Accent });
+                target.Add(new Run($"${miLatex}$") { FontFamily = MonoFont, FontSize = Code(ctx), Foreground = p.Accent });
                 break;
 
             case HtmlInline:

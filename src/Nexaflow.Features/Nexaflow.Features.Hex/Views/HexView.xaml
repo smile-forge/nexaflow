@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:ctrl="clr-namespace:Nexaflow.Features.Hex.Controls"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="HexView"
              Background="{StaticResource BgBrush}">
 
@@ -216,7 +217,8 @@
             </Grid.ColumnDefinitions>
 
             <!-- Hex render panel -->
-            <ctrl:HexRenderPanel x:Name="HexPanel" Grid.Column="0"/>
+            <ctrl:HexRenderPanel x:Name="HexPanel" Grid.Column="0"
+                                 TextSize="{Binding Zoom.FontSize}"/>
 
             <!-- GridSplitter between hex and eval pane -->
             <GridSplitter Grid.Column="1"
@@ -229,6 +231,7 @@
             <!-- Eval pane -->
             <ctrl:EvalRenderPanel x:Name="EvalPanel"
                                   Grid.Column="2"
+                                  TextSize="{Binding Zoom.FontSize}"
                                   Visibility="{Binding ShowEvaluatePane, Converter={StaticResource BoolVis}}"/>
 
             <!-- Shared scrollbar -->
@@ -262,6 +265,13 @@
                                Foreground="{StaticResource TextBrush}"
                                FontFamily="Consolas"/>
                 </StackPanel>
+                <!-- Zoom %: click for a preset, or Ctrl+scroll / Ctrl+± over the grid -->
+                <vc:ZoomChip HorizontalAlignment="Right"
+                             VerticalAlignment="Center"
+                             Margin="0,0,90,0"
+                             PagePrefix="Hex"
+                             Zoom="{Binding Zoom}"/>
+
                 <!-- Edit mode indicator on right -->
                 <TextBlock HorizontalAlignment="Right"
                            VerticalAlignment="Center"
