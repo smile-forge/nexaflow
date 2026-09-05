@@ -839,10 +839,20 @@ Both are asserted against the standard's published tables — all 32 full-range 
 codeword counts — rather than against what the code computes, because a formula that is right for the
 sizes you happened to try is the failure mode here.
 
-Not implemented: **Aztec Runes**, **reader-initialisation symbols**, and **structured append**. The
-first two are defined in the standard's annexes, whose bit-level detail is not public, and there is no
-reference symbol to validate an implementation against; guessing at them would produce symbols that look
-right and carry nothing. Structured append spans several symbols, which a single fenced block is not.
+**Still to build — wanted, not declined:** **Aztec Runes**, **reader-initialisation symbols**, and
+**structured append** (`aztec-runes`, `aztec-reader-init`, `aztec-structured-append`).
+
+The first two are *blocked* rather than deferred, and the distinction matters because it says what would
+unblock them: both are defined in the standard's annexes, whose bit-level detail is not public, and there
+is no reference symbol to validate an implementation against — so an attempt cannot be told apart from a
+symbol that looks right and carries nothing. What moves them is a reference symbol or the annex text, not
+another go at the encoder. Structured append is a different shape: it is one payload across several
+symbols, so what it needs first is a **block syntax for a symbol set**, which is our question rather than
+the standard's.
+
+> An earlier version of this section read as a design decision — "not implemented", with the reasons
+> arranged as justification. They were obstacles, not choices, and writing them up that way hid three
+> wanted features from every list that asks what is left to do.
 
 ---
 
@@ -1064,11 +1074,17 @@ requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, s
 
 ## Known limitations / gaps worth flagging
 
-- **No syntax highlighting** in code blocks — monospace only.
-- **No remote images** — only local files load; remote URLs degrade to alt text.
-- **Raw HTML is not rendered** — inline HTML is dropped, HTML blocks show as raw text.
-- **No emoji shortcodes** (`:tada:`).
-- **Task list checkboxes are display-only** — not clickable to toggle.
+Each of these is now a node, so it appears in `$nfi query --status should` rather than only here — a
+limitation nothing tracks is indistinguishable from a limitation nobody wants fixed.
+
+| Gap | Node | Why it is still open |
+|---|---|---|
+| **No syntax highlighting** in code blocks — monospace only | `md-code-highlighting` | The engine that would colour it is in the same solution and already resolves a grammar from the fence's language tag. The join is missing, and it has to land in **both** render paths or a document colours in one view and not the other |
+| **No remote images** — local files only; remote URLs degrade to alt text | `md-remote-images` | Needs a cache, a size cap and a failure state, and would be the first thing in the renderer to touch the network — policy as much as feature |
+| **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF `FlowDocument` should honour is the real question |
+| **Task-list checkboxes are display-only** | `md-task-toggle` | Toggling has to write back to the source, so it belongs with the inline editor's block model — the drawing half is done |
+| **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | One of four Markdig extensions still off; see the extensions table |
+
 - **Every Mermaid family now renders** — nothing falls back to raw source.
 
 If any of the disabled extensions are wanted, the change is usually a one-line

@@ -359,7 +359,11 @@ pale override gets dark text without the author asking.
 
 ## Roadmap / not done yet
 
-- **Per-feature region tokens (opt-in, panels only).** Most feature views bind the generic palette
+All three are now tracked as nodes — `theme-per-feature-regions`, `theme-reduce-motion`,
+`theme-immersive-tuning` — so they show up in `$nfi query --status should` alongside every other gap
+rather than only in this file. The reasoning stays here; the status lives there.
+
+- **Per-feature region tokens (opt-in, panels only)** (`theme-per-feature-regions`). Most feature views bind the generic palette
   (`SurfaceBrush`/`Surface2Brush`/`BorderBrush`…) directly. That's correct and fully themed — *not* a
   bug — but it means a theme can't art-direct one feature differently from the rest (e.g. tint the
   Console panel unlike the JSON tree, or show a `Scene.*` behind only one feature), because they all
@@ -376,5 +380,8 @@ pale override gets dark text without the author asking.
   - It's **opt-in per feature** — only worth doing for a feature you actually want a theme to treat
     distinctly. Adding region tokens for all features up-front just creates palette-aliasing churn with
     no visible change until a theme uses them.
-- Per-theme tuning of the remaining immersive themes (Sunny, Nature, Sandstone) toward their own scenes.
-- Optional "reduce motion / performance" switch to disable scenes (falls back to the flat `{Region}.Bg`).
+- **Per-theme tuning of the remaining immersive themes** (Sunny, Nature, Sandstone) toward their own
+  scenes (`theme-immersive-tuning`). Every seam it needs already exists — this is tuning, not a feature.
+- **"Reduce motion / performance" switch** to disable scenes, falling back to the flat `{Region}.Bg`
+  (`theme-reduce-motion`). Distinct from the battery suppression that already ships: that one is
+  automatic and conditional on AC state, this is the user's standing choice and outranks it.
