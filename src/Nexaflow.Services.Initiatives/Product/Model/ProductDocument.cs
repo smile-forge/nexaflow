@@ -19,4 +19,11 @@ public sealed class ProductDocument
 
     /// <summary>Folder (relative to the product root) where committed snapshots + PRODUCT.md are written.</summary>
     public string ExportDir { get; set; } = "docs/product";
+
+    /// <summary>A copy of the vocabulary, so a working copy of the product shares nothing with the original.</summary>
+    public ProductDocument Copy() => new()
+    {
+        Product = Product, ExportDir = ExportDir,
+        Concerns = [.. Concerns.Select(c => new ConcernDef { Name = c.Name, IsDefault = c.IsDefault, RequiresSnaplink = c.RequiresSnaplink })],
+    };
 }

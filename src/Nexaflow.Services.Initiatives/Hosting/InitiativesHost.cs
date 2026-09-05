@@ -71,6 +71,18 @@ public sealed class InitiativesHost : IDisposable
     }
 
     /// <summary>
+    /// A private deep copy of <see cref="Tree"/>, for a caller that intends to <em>change</em> it.
+    /// <para>
+    /// Every mutating command edits the state it is handed and only its write decides whether to keep the
+    /// result — so a command handed the live instance leaves its edits behind even when it refuses them. That
+    /// is how a <c>set-snaplink</c> could print "nothing was written", leave a half-applied link in the tree
+    /// this process serves, and have the next unrelated command persist it. The copy is the transaction: a
+    /// refusal simply drops it, and only <see cref="TreeSaved"/> publishes anything.
+    /// </para>
+    /// </summary>
+    public ProductState WorkingCopy() => Tree.Copy();
+
+    /// <summary>
     /// The warm graph for one working tree. <paramref name="codeRoot"/> is that tree, or null for the main
     /// checkout — the same distinction every caller of this domain already makes, so the daemon carries it
     /// verbatim rather than inventing a second vocabulary for it.
@@ -117,11 +129,14 @@ public sealed class InitiativesHost : IDisposable
     public void TreeSaved(ProductState state)
     {
         GraphWorkspace[] workspaces;
+        ProductState saved;
         lock (_gate)
         {
             if (_disposed) return;
 
-            _tree = state;
+            // Adopted as a copy, not by reference: the caller goes on editing the state it saved (a branch's
+            // pending links go back on for reporting), and none of that is what the file now says.
+            _tree = saved = state.Copy();
 
             // Armed from the file as it now stands, so the notification this write is about to cause is matched
             // by what it wrote rather than by a timer. An edit that lands in the same millisecond from somewhere
@@ -131,7 +146,7 @@ public sealed class InitiativesHost : IDisposable
         }
 
         foreach (var workspace in workspaces)
-            try { workspace.RebuildProductLayer(state); }
+            try { workspace.RebuildProductLayer(saved); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 

@@ -1,0 +1,49 @@
+{
+  "branch": "claude/snaplink-editing-bugs-801057",
+  "nodes": {
+    "product-ai-act-product-set-snaplink": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.ProductManager/ClientTools/ProductTools.cs",
+          "class": "ProductTools",
+          "method": "SetSnaplink"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/ProductManager/ProductToolParityTests.cs",
+            "class": "ProductToolParityTests"
+          }
+        ]
+      }
+    },
+    "initiatives-daemon": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/InitiativesHostsTests.cs",
+            "class": "InitiativesHostsTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/HostWorkingCopyTests.cs",
+            "class": "HostWorkingCopyTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "initiatives-daemon",
+    "product-ai-act-product-set-snaplink"
+  ]
+}

@@ -89,18 +89,39 @@ public static class ProductTools
                 (a, _) => Task.FromResult(AddSnaplink(productRoot, a, forConcern: true))),
 
             // ── Edit (asks first) ─────────────────────────────────────────────
-            new DelegateClientTool("product_remove_node_snaplink",
-                "Remove a snaplink from a node. match is a substring of the snaplink's display (see product_zoom); the first match is removed.",
+            new DelegateClientTool("product_set_snaplink",
+                "Edit one existing snaplink in place — repoint a moved file, fix a renamed class, repair a markdown "
+                + "heading path — instead of removing it and adding it back, which loses its status and its position. "
+                + "Name it with index (product_zoom numbers them) or match (a substring of its display). Pass only the "
+                + "fields to change; clear names fields to unset (\"class,method\"). Omit concern for the node's own links.",
                 [new ClientToolParameter("node_id", "The node id."),
-                 new ClientToolParameter("match", "Substring of the snaplink to remove.")],
+                 new ClientToolParameter("concern", "The concern tag, for a link on a concern rather than the node.", Required: false),
+                 new ClientToolParameter("index", "Which snaplink, as numbered by product_zoom.", Required: false),
+                 new ClientToolParameter("match", "…or a substring of its display; it must match exactly one.", Required: false),
+                 new ClientToolParameter("expect", "Optional: text the link must still contain, so a renumbered list is refused rather than silently edited.", Required: false),
+                 new ClientToolParameter("doc", "New file path.", Required: false),
+                 new ClientToolParameter("class", "New class name.", Required: false),
+                 new ClientToolParameter("method", "New method name.", Required: false),
+                 new ClientToolParameter("ast", "New structure path.", Required: false),
+                 new ClientToolParameter("target", "New target (node id for a node link, URL for a url link).", Required: false),
+                 new ClientToolParameter("title_path", "New markdown heading path (\"A > B\").", Required: false),
+                 new ClientToolParameter("status", "New status for the link.", Required: false),
+                 new ClientToolParameter("clear", "Comma-separated fields to unset: class,method,ast,doc,target,title-path,status.", Required: false)],
+                ToolSafety.SafeOperation,
+                (a, _) => Task.FromResult(SetSnaplink(productRoot, a))),
+
+            new DelegateClientTool("product_remove_node_snaplink",
+                "Remove one snaplink from a node. Name it with index (product_zoom numbers them) or match (a "
+                + "substring of its display, which must match exactly one). all=true removes every one — say it "
+                + "outright; naming nothing removes nothing.",
+                RemoveSnaplinkParams(forConcern: false),
                 ToolSafety.RequiresApproval,
                 (a, _) => Task.FromResult(RemoveSnaplink(productRoot, a, forConcern: false))),
 
             new DelegateClientTool("product_remove_concern_snaplink",
-                "Remove a snaplink from one of a node's concerns. match is a substring of the snaplink's display.",
-                [new ClientToolParameter("node_id", "The node id."),
-                 new ClientToolParameter("concern", "The concern tag."),
-                 new ClientToolParameter("match", "Substring of the snaplink to remove.")],
+                "Remove one snaplink from a node's concern. Same index / match / all=true addressing as "
+                + "product_remove_node_snaplink.",
+                RemoveSnaplinkParams(forConcern: true),
                 ToolSafety.RequiresApproval,
                 (a, _) => Task.FromResult(RemoveSnaplink(productRoot, a, forConcern: true))),
 
@@ -583,15 +604,25 @@ public static class ProductTools
         return $"- {id} \"{n.Title}\" [{Disp(ProductAggregator.EffectiveStatus(s, id))}] ({shape})";
     }
 
+    /// <summary>
+    /// A node's concerns, each with the links attached to it — listed rather than counted, because a concern's
+    /// snaplinks are numbered separately from the node's own and an edit has to name which of the two it means.
+    /// </summary>
     private static string Concerns(ProductNode n)
     {
         if (n.Concerns is not { Count: > 0 }) return "—";
         return string.Join(", ", n.Concerns.Select(c =>
-            $"{c.Tag}[{Disp(c.Status)}]" + (c.Snaplinks is { Count: > 0 } sl ? $"({sl.Count} snaplink{(sl.Count == 1 ? "" : "s")})" : "")));
+            $"{c.Tag}[{Disp(c.Status)}]" + (c.Snaplinks is { Count: > 0 } ? $"({Snaplinks(c.Snaplinks)})" : "")));
     }
 
+    /// <summary>
+    /// A node's or concern's links, numbered. The number is what <c>product_set_snaplink</c> and the remove
+    /// tools address a link by, so a listing that did not show it left them reachable only by substring.
+    /// </summary>
     private static string Snaplinks(List<Snaplink>? links) =>
-        links is { Count: > 0 } ? string.Join(", ", links.Select(l => $"[{l.Type}] {l.Display}")) : "—";
+        links is { Count: > 0 }
+            ? string.Join(", ", links.Select((l, i) => $"#{i} [{l.Type}] {l.Display}"))
+            : "—";
 
     // ── Mutations ───────────────────────────────────────────────────────────
 
@@ -641,17 +672,140 @@ public static class ProductTools
         return ToolResult.Ok($"+snaplink on {NodeId(a)}", $"Added [{link.Type}] {link.Display} to {NodeId(a)}.");
     });
 
-    private static ToolResult RemoveSnaplink(string root, JsonObject a, bool forConcern) => WithNode(root, a, (_, node) =>
+    /// <summary>
+    /// Removes one named snaplink, or — asked outright — all of them. Three ways to name it, because the
+    /// index a listing shows is a position that any other edit renumbers, and a substring is what the model
+    /// actually reads back from <see cref="Zoom"/>.
+    /// <para>
+    /// A substring that matches several links is refused rather than resolved to the first one. Taking the
+    /// first is how a caller that meant one link removed a different one and could not tell — the same shape
+    /// as the omitted selector that used to mean "all of them".
+    /// </para>
+    /// </summary>
+    private static ToolResult RemoveSnaplink(string root, JsonObject a, bool forConcern) => WithNode(root, a, (s, node) =>
     {
-        var match = Str(a, "match");
-        if (string.IsNullOrWhiteSpace(match)) return ToolResult.Error("Pass 'match'.");
-        List<Snaplink>? list = forConcern ? (FindConcern(node, Str(a, "concern")) ?? Missing).Snaplinks : node.Snaplinks;
-        if (forConcern && FindConcern(node, Str(a, "concern")) is null) return NoConcern(a);
-        var hit = list?.FirstOrDefault(l => l.Display.Contains(match, StringComparison.OrdinalIgnoreCase));
-        if (hit is null) return ToolResult.Error($"No snaplink matching '{match}'.");
-        list!.Remove(hit);
-        return ToolResult.Ok("Removed snaplink", $"Removed [{hit.Type}] {hit.Display}.");
+        var id = Str(a, "node_id")!;
+        string? tag = null;
+        if (forConcern)
+        {
+            if (FindConcern(node, Str(a, "concern")) is not { } c) return NoConcern(a);
+            tag = c.Tag;
+        }
+
+        if (ProductTreeOps.SnaplinksOf(s, id, tag) is not { Count: > 0 } links)
+            return ToolResult.Error($"{NodeId(a)} has no snaplinks to remove.");
+
+        if (Bool(a, "all"))
+            return ToolResult.Ok("Cleared snaplinks",
+                $"Removed all {ProductTreeOps.ClearSnaplinks(s, id, tag)} snaplink(s) from {Where(a, tag)}.");
+
+        var chosen = Chosen(a, links);
+        if (chosen.Error is { } why) return ToolResult.Error(why);
+
+        var (link, index) = chosen.Hit!.Value;
+        ProductTreeOps.RemoveSnaplink(s, id, tag, index);
+        return ToolResult.Ok("Removed snaplink", $"Removed #{index} [{link.Type}] {link.Display} from {Where(a, tag)}.");
     });
+
+    /// <summary>
+    /// Edits one existing snaplink in place — the repair that removing and re-adding cannot make without
+    /// losing the link's other fields, its status and its position. Pass only the fields to change; 'clear'
+    /// names fields to unset.
+    /// </summary>
+    private static ToolResult SetSnaplink(string root, JsonObject a) => WithNode(root, a, (s, node) =>
+    {
+        var id = Str(a, "node_id")!;
+        string? tag = null;
+        if (Str(a, "concern") is { Length: > 0 })
+        {
+            if (FindConcern(node, Str(a, "concern")) is not { } c) return NoConcern(a);
+            tag = c.Tag;
+        }
+
+        if (ProductTreeOps.SnaplinksOf(s, id, tag) is not { Count: > 0 } links)
+            return ToolResult.Error($"{Where(a, tag)} has no snaplinks to edit — add one first.");
+
+        var chosen = Chosen(a, links);
+        if (chosen.Error is { } why) return ToolResult.Error(why);
+        var (link, index) = chosen.Hit!.Value;
+
+        // An index is a position, and anything that adds or removes a link renumbers the rest — so the listing
+        // it was read from is always older than the edit. 'expect' pins the edit to what was read.
+        if (Str(a, "expect") is { Length: > 0 } expect
+            && !new[] { link.Doc, link.Class, link.Method, link.Ast, link.Target, link.Type }
+                    .Any(f => f is not null && f.Contains(expect, StringComparison.Ordinal)))
+            return ToolResult.Error($"Snaplink #{index} no longer contains '{expect}' (it is now {link.Display}) — re-read it with product_zoom.");
+
+        Status? status = null;
+        if (Str(a, "status") is { Length: > 0 } st)
+        {
+            if (ParseStatus(st) is not { } parsed) return ToolResult.Error($"Unknown status '{st}'.");
+            status = parsed;
+        }
+
+        var fields = new (string Key, Action<Snaplink, string> Assign)[]
+        {
+            ("doc",        (l, v) => l.Doc = v),
+            ("class",      (l, v) => l.Class = v),
+            ("method",     (l, v) => l.Method = v),
+            ("ast",        (l, v) => l.Ast = v),
+            ("target",     (l, v) => l.Target = v),
+            ("title_path", (l, v) => l.TitlePath =
+                 [.. v.Split('>', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)]),
+        };
+        var given = fields.Where(f => Str(a, f.Key) is not null).ToList();
+        var clear = Str(a, "clear") is { Length: > 0 } names
+            ? names.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            : [];
+
+        if (given.Count == 0 && clear.Length == 0 && status is null)
+            return ToolResult.Error("Nothing to change — pass a field (" + string.Join('/', fields.Select(f => f.Key))
+                                  + "/status), or 'clear' naming fields to unset.");
+
+        // Resolved and applied by the shared op, which refuses an unknown 'clear' field having assigned nothing.
+        if (!ProductTreeOps.SetSnaplink(s, id, index, tag, link =>
+            {
+                foreach (var (key, assign) in given) assign(link, Str(a, key)!);
+                if (status is not null) link.Status = status;
+            }, clear))
+            return ToolResult.Error("'clear' names a field a snaplink does not have "
+                                  + "(class|method|ast|doc|target|title-path|status).");
+
+        return ToolResult.Ok("Edited snaplink", $"Snaplink #{index} on {Where(a, tag)} is now [{link.Type}] {link.Display}.");
+    });
+
+    /// <summary>
+    /// The one link an 'index' or 'match' argument names, or the refusal that says why it names none — the
+    /// shared half of editing and removing, so both answer a bad handle the same way.
+    /// </summary>
+    private static ((Snaplink Link, int Index)? Hit, string? Error) Chosen(JsonObject a, List<Snaplink> links)
+    {
+        if (Str(a, "index") is { Length: > 0 } raw)
+            return int.TryParse(raw, out var i)
+                ? i >= 0 && i < links.Count
+                    ? ((links[i], i), null)
+                    : (null, $"No snaplink #{i} — there {(links.Count == 1 ? "is 1" : $"are {links.Count}")}; see product_zoom.")
+                : (null, $"'index' must be a number (got '{raw}').");
+
+        var match = Str(a, "match");
+        if (string.IsNullOrWhiteSpace(match))
+            return (null, "Say which snaplink: 'index' (product_zoom numbers them) or 'match' (a substring of its display).");
+
+        var hits = links.Select((l, i) => (Link: l, Index: i))
+                        .Where(x => x.Link.Display.Contains(match, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+        return hits.Count switch
+        {
+            0 => (null, $"No snaplink matching '{match}'."),
+            1 => (hits[0], null),
+            _ => (null, $"'{match}' matches {hits.Count} snaplinks ("
+                      + string.Join("; ", hits.Select(h => $"#{h.Index} {h.Link.Display}"))
+                      + ") — narrow it, or pass 'index'."),
+        };
+    }
+
+    private static string Where(JsonObject a, string? tag) =>
+        tag is null ? NodeId(a) : $"{NodeId(a)} concern '{tag}'";
 
     private static ToolResult AddConcern(string root, JsonObject a) => WithNode(root, a, (s, node) =>
     {
@@ -730,6 +884,16 @@ public static class ProductTools
         list.Add(new ClientToolParameter("type", "markdown | code | url."));
         list.Add(new ClientToolParameter("target", "File path (relative to the product folder) for markdown/code, or the URL for url."));
         list.Add(new ClientToolParameter("detail", "Optional: markdown heading path (\"A > B\"), or code Class / Class.Method.", Required: false));
+        return list;
+    }
+
+    private static IReadOnlyList<ClientToolParameter> RemoveSnaplinkParams(bool forConcern)
+    {
+        var list = new List<ClientToolParameter> { new("node_id", "The node id.") };
+        if (forConcern) list.Add(new ClientToolParameter("concern", "The concern tag on that node."));
+        list.Add(new ClientToolParameter("index", "Which snaplink, as numbered by product_zoom.", Required: false));
+        list.Add(new ClientToolParameter("match", "…or a substring of its display; it must match exactly one.", Required: false));
+        list.Add(new ClientToolParameter("all", "true to remove every snaplink here. Takes no index and no match.", Required: false, Type: "boolean"));
         return list;
     }
 

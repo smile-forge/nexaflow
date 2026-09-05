@@ -44,4 +44,15 @@ public sealed class Snaplink
         "node"     => Target is { Length: > 0 } ? $"→ {Target}" : "(node)",
         _          => Target ?? Type
     };
+
+    /// <summary>
+    /// A field-for-field copy, with a <see cref="TitlePath"/> list of its own. The unit of the private working
+    /// copy an edit is applied to, so a refused edit has nothing to undo.
+    /// </summary>
+    public Snaplink Copy() => new()
+    {
+        Type = Type, Status = Status,
+        Doc = Doc, TitlePath = TitlePath is null ? null : [.. TitlePath],
+        Class = Class, Method = Method, Ast = Ast, Target = Target,
+    };
 }
