@@ -24,11 +24,23 @@
           }
         ]
       }
+    },
+    "winfs-confirm-overlay": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileActions/DeleteFile.cs",
+          "class": "DeleteFile",
+          "method": "PerformAction"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 1,
+  "changed_sets": 2,
   "touched_nodes": [
-    "aichat-context-menu"
+    "aichat-context-menu",
+    "winfs-confirm-overlay"
   ]
 }

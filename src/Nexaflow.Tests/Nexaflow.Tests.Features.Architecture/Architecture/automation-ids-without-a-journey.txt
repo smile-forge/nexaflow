@@ -207,18 +207,6 @@ FileOps_DismissRow
 # because the destination volume ran out of space. A journey cannot fill a disk.
 FileOps_StopPaused
 
-# src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml
-# Two whole overlays in this view are unreachable, and not because they are hard to open — nothing opens
-# them. FileSystemViewModel.ShowInputPrompt and .ShowConfirmation have no production caller: rename now
-# goes through the shell's own prompt (ShellPromptBox / ShellPromptOk / ShellPromptCancel, which the
-# journey does drive), and delete goes through IShellServices.ShowConfirmation. The only callers left are
-# FileSystemViewModelTests. Journeys are the wrong tool for this: it wants deciding whether the view keeps
-# its own overlays or drops them, and until then there is no user action that puts them on screen.
-FileSystem_ConfirmActionCancel
-FileSystem_ConfirmActionConfirm
-FileSystem_InputPromptCancel
-FileSystem_InputPromptConfirm
-
 # src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Controls/ViewletHost.xaml
 # The banner's three buttons live in FullModeButtonsPanel, which ApplyMode only shows for
 # ViewletDisplayMode.Full — and no viewlet in the repo ever asks for it. Every IFolderViewlet declares
