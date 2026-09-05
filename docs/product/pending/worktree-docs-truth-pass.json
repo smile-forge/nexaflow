@@ -1,0 +1,50 @@
+{
+  "branch": "worktree-docs-truth-pass",
+  "nodes": {
+    "latex-shown-as-written": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Maths/Latex/TexPipeline.cs",
+          "class": "TexPipeline",
+          "method": "ShownAsWritten"
+        }
+      ]
+    },
+    "theme-scene-battery-policy": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Theming/BackgroundAnimationPolicy.cs",
+          "class": "BackgroundAnimationPolicy"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/BatteryAnimationGuard.cs",
+          "class": "BatteryAnimationGuard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/ShellConfigControl.xaml",
+          "class": "ShellBatteryAnimationsToggle"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Scenes \u2014 non-colour theming",
+            "Scenes and battery"
+          ]
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "latex-shown-as-written",
+    "theme-scene-battery-policy"
+  ]
+}
