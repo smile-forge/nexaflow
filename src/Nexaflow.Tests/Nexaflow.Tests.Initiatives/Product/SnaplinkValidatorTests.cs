@@ -388,6 +388,40 @@ public class SnaplinkValidatorTests
         Assert.IsNull(SnaplinkValidator.CheckLink(link, _root).Detail, "repair should verify without a full scan");
     }
 
+    /// <summary>The write-time gate resolves against the caller's working tree, not the product root. A branch
+    /// that has moved a file away has to be told its link is broken, and resolving through the main checkout —
+    /// which a full scan does on purpose, to stay quiet about unmerged work — is exactly what would hide it.</summary>
+    [TestMethod]
+    public void CheckLink_ResolvesAgainstTheFileRootsItIsGiven()
+    {
+        var worktree = Path.Combine(Path.GetTempPath(), $"snaplink_wt_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(worktree, "src"));
+        File.WriteAllText(Path.Combine(worktree, "src", "Widget.cs"), Csharp);
+        try
+        {
+            var link = new Snaplink { Type = "code", Doc = "src/Widget.cs", Class = "Widget", Method = "Spin" };
+
+            Assert.AreEqual(LinkVerdict.Broken, SnaplinkValidator.CheckLink(link, _root, null, null).Verdict,
+                "the product root does not have the file");
+            Assert.AreEqual(LinkVerdict.Sound, SnaplinkValidator.CheckLink(link, _root, [worktree], null).Verdict,
+                "the working tree does, and that is the tree the write is being made from");
+        }
+        finally { Directory.Delete(worktree, recursive: true); }
+    }
+
+    /// <summary>A node link names another node, which needs no file to check — so given the tree it is proven
+    /// rather than deferred. Without one the honest answer is still "nothing proven".</summary>
+    [TestMethod]
+    public void CheckLink_GivenTheNodeIds_ProvesANodeTargetRatherThanDeferringIt()
+    {
+        var link = new Snaplink { Type = "node", Target = "no-such-node" };
+
+        Assert.AreEqual(LinkVerdict.Unverifiable, SnaplinkValidator.CheckLink(link, _root, null, null).Verdict,
+            "no tree in scope — nothing is proven either way");
+        Assert.AreEqual(LinkVerdict.Broken,
+            SnaplinkValidator.CheckLink(link, _root, null, new HashSet<string>(StringComparer.Ordinal) { "other" }).Verdict);
+    }
+
     // ── node → node snaplinks (logical dependency edges) ─────────────────────
 
     [TestMethod]

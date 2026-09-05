@@ -129,6 +129,88 @@ public class BatchInstructionTests
         Assert.AreEqual("Second", s.Nodes["n"].Concerns!.Single().Snaplinks!.Single().Ast, "the surviving link is untouched");
     }
 
+    /// <summary>The gap this closes: nfi wrote first and validated afterwards, so a snaplink naming a file that
+    /// was never there was accepted, saved, and only reported on. Given the root to resolve against, the line
+    /// that named the target is the line that is refused.</summary>
+    [TestMethod]
+    public void AddSnaplink_RefusesATargetThatIsNotThere()
+    {
+        var root = NewRoot();
+        try
+        {
+            var s = WithLinks();
+
+            var (ok, msg) = Program.ApplyOne(s, [.. Program.Tokenize(
+                "add-snaplink n --concern tests --type code --doc src/Ghost.cs --class Ghost")], root);
+
+            Assert.IsFalse(ok);
+            StringAssert.Contains(msg, "file not found");
+            Assert.AreEqual(0, s.Nodes["n"].Concerns!.Single().Snaplinks!.Count, "nothing was added");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>A node link names another node, so nothing on disk decides it — the tree does.</summary>
+    [TestMethod]
+    public void AddSnaplink_RefusesANodeTargetThatIsNotInTheTree()
+    {
+        var root = NewRoot();
+        try
+        {
+            var (ok, msg) = Program.ApplyOne(WithLinks(),
+                [.. Program.Tokenize("add-snaplink n --concern tests --type node --target nowhere")], root);
+
+            Assert.IsFalse(ok);
+            StringAssert.Contains(msg, "not in the tree");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>The gate must not stand in the way of a link that does resolve.</summary>
+    [TestMethod]
+    public void AddSnaplink_AcceptsATargetThatIsThere()
+    {
+        var root = NewRoot();
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "src"));
+            File.WriteAllText(Path.Combine(root, "src", "Real.cs"), "public class Real { public void Go() { } }");
+            var s = WithLinks();
+
+            var (ok, msg) = Program.ApplyOne(s, [.. Program.Tokenize(
+                "add-snaplink n --concern tests --type code --doc src/Real.cs --class Real --method Go")], root);
+
+            Assert.IsTrue(ok, msg);
+            Assert.AreEqual(1, s.Nodes["n"].Concerns!.Single().Snaplinks!.Count);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>remap rewrites every link matching a path, so no argument names one link and the check belongs
+    /// to the write rather than the line — which is why the instruction itself still succeeds here.</summary>
+    [TestMethod]
+    public void Remap_IsNotArgumentChecked_BecauseItRewritesEnMasse()
+    {
+        var root = NewRoot();
+        try
+        {
+            var s = WithLinks(new Snaplink { Type = "code", Doc = "old/A.cs", Class = "A" });
+
+            var (ok, msg) = Program.ApplyOne(s, [.. Program.Tokenize("remap old/A.cs also/not/there/A.cs")], root);
+
+            Assert.IsTrue(ok, msg);
+            Assert.AreEqual("also/not/there/A.cs", s.Nodes["n"].Concerns!.Single().Snaplinks!.Single().Doc);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    private static string NewRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"batchgate_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
     [TestMethod]
     public void AnUnknownInstruction_NamesWhatBatchAccepts()
     {

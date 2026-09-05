@@ -201,7 +201,7 @@ public static class ProductTreeOps
     }
 
     /// <summary>The snaplink list an index addresses: the node's own, or one concern's.</summary>
-    private static List<Snaplink>? SnaplinksOf(ProductState s, string id, string? concernTag) =>
+    public static List<Snaplink>? SnaplinksOf(ProductState s, string id, string? concernTag) =>
         !s.Nodes.TryGetValue(id, out var node) ? null
         : concernTag is null ? node.Snaplinks
         : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
