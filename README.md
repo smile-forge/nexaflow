@@ -6,7 +6,7 @@ Nexaflow replaces the scattered pile of apps you juggle every day — file explo
 
 The goal isn't to add more features. It's to reduce the friction between you and the thing you're actually trying to do.
 
-![Version 1.4.0](https://img.shields.io/badge/version-1.4.0-brightgreen)
+![Version 1.6.0](https://img.shields.io/badge/version-1.6.0-brightgreen)
 ![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
@@ -25,13 +25,17 @@ Power users shouldn't have to remember everything. They should be able to *build
 
 ## What you get
 
+**🔎 One way to search anything**
+
+Type `?` in the input bar and you search **whatever you're looking at** — a log, a spreadsheet, a JSON file, a notebook, a registry hive, your processes, a conversation. Nearly thirty pages answer it themselves, each in the way that suits it, and `?/pattern/` is a regular expression on all of them. In a folder it uses the Windows index; when a location isn't indexed, Nexaflow offers to read the files itself and streams hits as it walks.
+
 **📂 Files, search, and navigation**
 
-A built-in file tree with full-text Windows Search and AI-assisted query refinement. Folder viewlets automatically recognise Git repos and .NET projects and surface that context directly to the assistant — so you don't have to explain where you are.
+A built-in file tree with full-text Windows Search and AI-assisted query refinement. Folder viewlets automatically recognise Git repos and .NET projects and surface that context directly to the assistant — so you don't have to explain where you are. Long copies, moves and deletes report their progress, throughput and ETA above the tree, and can be cancelled.
 
 **📝 Editors and viewers that understand their content**
 
-A live Markdown editor with LaTeX and native Mermaid diagram rendering. A code editor with syntax highlighting, code folding, and a class/structure map. Dedicated viewers for images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), CSV/TSV tables, hex/binary, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
+A live Markdown editor with LaTeX, native Mermaid diagrams, and QR codes, barcodes and C4 architecture diagrams generated straight from a fenced block. Formulas aren't pictures — you can put a caret in one and edit it. A code editor with syntax highlighting, code folding, colour previews, and a class/structure map. Dedicated viewers for PDFs, DICOM medical imaging, images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), CSV/TSV tables, hex/binary, fonts, SVG, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
 
 **🎬 Media and 3D**
 
@@ -43,11 +47,15 @@ Browse `.zip`, `.7z`, `.tar`, `.rar`, `zstd`, and `lz4` archives like folders in
 
 **⌨️ Terminal and system tools**
 
-A real PTY terminal with shell integration. A live Process Explorer. A font viewer. An installed-apps manager. A system-info dashboard, VirtualDisk mounting, and a registry editor. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
+A real PTY terminal with shell integration. A live Process Explorer. An installed-apps manager. A system-info dashboard, VirtualDisk mounting, and a registry editor. Inspect any `.exe`, `.dll` or `.sys` and see what it actually is — headers, sections, imports and exports. A Network tab discovers what's on your segments. Elevated actions go through a privilege bridge so you're never blindsided by a UAC prompt mid-flow.
 
 **🗂️ Organisation built in**
 
 Lightweight project tracking with a backlog workflow. A Product Manager for tracking status across a product tree. A Scratchpad corkboard for loose notes and ideas. Multiple workspaces you can switch between — each with its own context intact.
+
+**🎨 Themes that go further than a colour swap**
+
+Several themes, each with its own palette and an optional animated backdrop, which can be stopped automatically while you're running on battery. Text size is yours to set, and every text surface has its own zoom on top of it.
 
 **🤖 AI that works with your context, not despite it**
 
