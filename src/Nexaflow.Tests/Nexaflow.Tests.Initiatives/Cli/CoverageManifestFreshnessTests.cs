@@ -17,7 +17,7 @@ namespace Nexaflow.Tests.Initiatives.Cli;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("integrity-scan")]
+[CoversNode("nfi-scan-tests")]
 public class CoverageManifestFreshnessTests
 {
     private string _root = string.Empty;

@@ -21,7 +21,7 @@ namespace Nexaflow.Tests.Initiatives.Graph;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("graph-build")]
+[CoversNode("graph-archive")]
 public class GraphArchiveTests
 {
     private string _dir = "";

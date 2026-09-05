@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Initiatives.Graph;
 /// but the two judgement calls: which traversals are allowed, and what counts as a use.
 /// </summary>
 [TestClass]
-[CoversNode("graph-paths")]
+[CoversNode("graph-queries")]
 public class GraphPathTests
 {
     private static GraphNode N(string id, string type = NodeType.Type) =>

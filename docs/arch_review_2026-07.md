@@ -1,6 +1,9 @@
 # Architecture Review — 2026-07
 
-_Review date: 2026-07-08. Scope: full re-examination — product tree (843 nodes), all docs, and the implemented code across the 52-project solution. This file supersedes [arch_improvements.md](arch_improvements.md) (2026-05-31, updated 2026-06-20); the still-open items from that review are carried forward here (§C1)._
+_Review date: 2026-07-08. **Open rows re-verified against the code 2026-09-05** — see the freshness rule
+below. Scope: full re-examination — product tree (843 nodes), all docs, and the implemented code across
+the 52-project solution. This file supersedes [arch_improvements.md](arch_improvements.md) (2026-05-31,
+updated 2026-06-20); the still-open items from that review are carried forward here (§C1)._
 
 **Reviewing lens.** 95%+ of changes are made by Claude, so "maintainability" is scored for an AI agent, not a human. For an agent the priorities invert from a human codebase: **docs are load-bearing** (an agent reads them as ground truth every session — a wrong doc is worse than no doc), **rules need mechanical enforcement** (an agent can't accumulate tribal knowledge; a red test is the only reliable guardrail), **silent failure modes matter most** (a green build hiding a broken feature wastes whole sessions), and **context-window economy** counts (god files force loading 70 KB to change one concern).
 
@@ -16,42 +19,72 @@ The codebase is in noticeably better shape than its own docs claim. Confirmed cl
 - **Contract XML docs are genuinely authoritative** — threading contracts, failure modes, and gotchas documented on `IShellServices`, `IPageRegistration`, `IPageViewModel`, `IClientTool`. This is the single strongest AI affordance in the repo; protect the bar (one thin spot: §H4).
 - **The agent loop** (`AIService.RunAgentAsync`, ~188 lines) is a clean, commented, single-concern state machine with sensible guards (max steps, repeated-batch detection, tool ranking). Leave it alone.
 
-## TL;DR — verdicts at a glance
+## How to read this — the status column rots, so every row now says how to re-check it
 
-Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now guardrails); **P2** = high-value structure; **P3** = worthwhile polish.
+This file was written as a dated snapshot and then used as a live tracker, which is the one thing a
+snapshot cannot be. By 2026-09 two rows said "open" for work that had shipped and one said "958 lines"
+about a file that had grown to 1,120 — **the table was wrong in both directions, and nothing in the repo
+would ever have said so.**
 
-| # | Finding | Verdict | Lens | Effort | Band |
-|---|---------|---------|------|--------|------|
-| A1 | Docs teach the **inverted** Workspace vocabulary post-rename | ✅ Done 2026-07-08 — both docs rewritten; stale code comments swept | AI-maint | M | P1 |
-| A2 | Dead instructions: `BuildDefaultItems()`, `RegisterQueryHandler` | ✅ Done 2026-07-08 — incl. `IQueryHandler.cs` XML doc | AI-maint | S | P1 |
-| A3 | testing.md coverage table is false (4 areas claimed untested now have tests) | ✅ Done 2026-07-08 — replaced with product-tree redirect | AI-maint | S | P1 |
-| A4 | 5 projects undocumented (Elevation ×2, IO.Terminal, Syntax, Visuals.Terminal); IO.Common understated | ✅ Done 2026-07-08 — layout re-tiered, Elevation section + hard rule added | AI-maint | M | P1 |
-| A5 | Architecture.md SoC list ~60% stale | ✅ Done 2026-07-08 — replaced with a pointer to this doc | AI-maint | S | P1 |
-| B1 | Hard rules have **zero mechanical enforcement** (they hold today — lock in) | ✅ Done 2026-07-08 — architecture tests | AI-maint | S | P1 |
-| B2 | New-feature checklist has 5 **silent** failure modes | ✅ Done 2026-07-08 — completeness tests (3 of 5) | AI-maint | M | P1 |
-| B3 | `Tests.Providers` never runs in CI | ✅ Done 2026-07-08 | AI-maint | S | P1 |
-| F1 | **Bug:** cancellation rewrapped as error ×4 providers; Gemini ignores `ct` | ✅ Fixed 2026-07-08 | Product | S | P1 |
-| F2 | **Leak:** `IAsyncDisposable`-only provider (Aria) never disposed by pool | ✅ Fixed 2026-07-08 | Perf | S | P1 |
-| G2 | **Leak:** `RibbonViewModel` leaks per closed window | ✅ Fixed 2026-07-08 | Perf | S | P1 |
-| C1 | 2026-05 blessed moves still not executed (`ClientBlockParser`/`ParsedAssistantTurn`/`OpenPageRequest` → Core) | ✅ Done 2026-07-08 (`Core/Services/Agent/`, `Core/Models/`) | Maint | S | P2 |
-| C2 | ~30 tool classes duplicate 5-member scaffolding; SystemInfo invented a local base | ✅ Done 2026-07-08 — `ClientToolBase`; SystemInfo migrated, rest on touch | AI-Ready | M | P2 |
-| E1 | Modal overlay scaffold copy-pasted ~15× across 6 features + VM confirmation state | ✅ Primitive shipped 2026-07-08 (`ConfirmationRequest` + `ConfirmationDialog` in Visuals.Common); ProductManager migrated, rest on touch | Maint | M | P2 |
-| G1 | Image album eagerly decodes every thumbnail, non-virtualized | ◐ Mitigated 2026-07-08 (batched marshalling + 1024-thumb cap); UI virtualization still open | Perf | M | P2 |
-| F3 | ~90 lines identical stream/catch/activity wrapper ×4 providers; no retry/timeout/429 anywhere | ✅ Done 2026-07-08 — `LlmStreamRunner` (+ cached SDK clients, `LastModelListError`) | Product | M | P2 |
-| F5 | Vision/context-window/model-list hardcoded per **class**, not per model | ✅ Done 2026-07-08 — model-bound tables/heuristics; Gemini /models metadata; Claude live list + `MaxOutputTokens` | Product | M | P2 |
-| F6 | API keys stored plaintext JSON in %AppData% | ✅ Done 2026-07-08 — `[Secret]` → DPAPI at rest, legacy plaintext migrates | Product | M | P2 |
-| D1 | `ShellViewModel` (1,545 lines): AI-input cluster + overlay hosts extractable | ◐ `OverlayCoordinator` extracted 2026-07-08 (facade keeps XAML bindings); `AiInputRouter` still open | AI-maint | M | P2 |
-| D2 | `ShellServices` (958 lines, ~13 concerns) — undocumented second god object | Split 3 leaf helpers | AI-maint | M | P2 |
-| H1 | "AI Ready" concern: 317 open links; no recipe for making a page AI-ready | Recipe doc + C2 leverage | AI-Ready | M | P2 |
-| H3 | No add-feature skill / fast-loop docs / per-feature README stubs | ✅ Done 2026-07-08 (add-feature skill + fast-loop in CLAUDE.md; README stubs deliberately skipped) | AI-maint | S–M | P2 |
-| E2/E3 | 3× sort converters, 2× depth converter, dup formatters | ✅ Done 2026-07-08 — hoisted to Visuals.Common; `FormatMediaTime` added | Maint | S | P3 |
-| E4 | 5 colour-literal clusters (Scratchpad chrome biggest) | Tokenize | Maint | S–M | P3 |
-| E5 | 5 process-global mutable registries in WindowsFileSystem | Scope or sanction | Maint | M | P3 |
-| E6 | `FileSystemViewModel` 75 KB; Json/Product VMs have clean split lines | Split | AI-maint | M–L | P3 |
-| C3–C6 | Tool merger dup, arg-reader gap, tool naming, `IShellServices` peel, quiesce wiring | ◐ C4 done 2026-07-08 (`*_file` names, `ToolArgs.IntOrNull`, Registry wrappers dropped — UI-context guarantee verified in `ExecuteBatchAsync`); C3/C5/C6 open | Maint | S–M | P3 |
-| F4 | Provider contract: no streaming surface, no native tool-calling, no usage metadata | ✅ Documented as deliberate 2026-07-08 (Architecture.md → Providers); additive escape hatches named | Product | M | P3 |
-| G3–G8 | Minimize-blind timers, VFS temp growth, chat-list virtualization, eager conversations, startup reads, hex paint churn | ◐ G3 + G4 done 2026-07-08 (`WindowMinimizeWatcher`; VFS 512 MB LRU); G5–G8 open | Perf | S–M | P3 |
-| D3 | RibbonEditor: 749-line procedural code-behind | ViewModel + XAML | Maint | L | P3 |
+The fix is not a fresher table. It is that **an open row carries the command that re-answers it**, so
+the state is derived rather than remembered, and a stale row costs one command to catch instead of a
+reading of the code. `$nfi` below is `tools/graph-cli/nfi.exe`; a check that prints nothing (or `No graph
+nodes match`) means the row is still open.
+
+Two things deliberately do **not** live here:
+
+- **Product-shaped work** — a missing capability, a panel with no tests, an un-themed view — belongs in
+  the product tree, which is already gated and already forward-looking (`$nfi query --status should`).
+  Nothing below is product-shaped; this file is for structure that no node names.
+- **Closed rows.** They moved to [§Closed](#closed--kept-for-the-reasoning-not-the-status) so the live
+  table stays short enough to read. The reasoning behind each still sits in its lettered section.
+
+Priority bands: **P1** = do first (bugs, actively-misleading docs, lock-in-now guardrails); **P2** =
+high-value structure; **P3** = worthwhile polish.
+
+## Open — every row re-verified 2026-09-05
+
+| # | Finding | State on 2026-09-05 | Re-check with | Effort | Band |
+|---|---------|---------------------|---------------|--------|------|
+| C3 | Two hand-rolled tool aggregators duplicate security-context routing | open — no merger exists | `$nfi graph search ClientToolMerger` | M | P3 |
+| C5 | `IShellServices` is a 33-member god-interface | open — neither facet peeled | `$nfi graph search IShellDialogs` | M | P3 |
+| C6 | Viewlet quiesce runs through a **public settable** delegate — left null it silently no-ops a *safety* contract | open — still `{ get; set; }`, still wired from `FileSystemView.RefreshViewlets` | `$nfi graph grep "QuiesceFolderHandler" --mode content` | S | P3 |
+| C7 | `Page.SecurityRisk` denormalized; `GetOrCreateContent()` returns a blank `UserControl`; `BreadcrumbSegment`'s exclusivity unencoded | open | read `Features.Common/Page.cs` | S | P3 |
+| C8 | No one table mapping contract → discovery surface → instantiation rule | open — nothing in Architecture.md | `grep -n "discovery surface" docs/Architecture.md` | S | P3 |
+| D1 | `ShellViewModel`: the AI-input cluster is still in the god object | open — `OverlayCoordinator` landed, `AiInputRouter` did not. **1,503 lines** (was 1,545) | `$nfi graph search AiInputRouter` | M | P2 |
+| D2 | `ShellServices` — the second god object | **worse: 1,120 lines** (was 958 at review). Three leaf concerns still unsplit | `wc -l src/Nexaflow.Core/Services/ShellServices.cs` | M | P2 |
+| D3 | RibbonEditor: procedural code-behind | open — **749 lines**, unchanged | `wc -l src/Nexaflow.Core/Controls/RibbonEditor.xaml.cs` | L | P3 |
+| D4 | Window-position constants duplicated | open, and **three copies now**: the `const` in `PositionWindow`, `MainWindow.xaml.cs`, and a `TopBarHeight` GridLength in every `Colors.*.xaml` — the theme resource is the obvious single home | `$nfi graph grep "TopBarHeight" --mode content` | S | P3 |
+| E1 | Modal-overlay scaffold copy-pasted across 6 features | ◐ primitive shipped and spreading — `ConfirmationRequest` at 13 sites; the rest migrate on touch | `$nfi graph grep "ConfirmationRequest" --mode content` | M | P2 |
+| E4 | Colour literals outside the theme layer | **nearly closed** — all five original clusters are done. What is left is 3 sites, and the biggest is `Core/MainWindow.xaml` itself: the shell hard-codes an accent while every feature is forbidden to | `$nfi graph grep "#[0-9A-Fa-f]{6}\"" --mode content --limit 400`, then **exclude** `Themes/` · `Tokens.xaml` · `Colors.*.xaml` · tests — a raw count reads the theme layer as debt | S | P3 |
+| E5 | 5 process-global mutable registries in WindowsFileSystem | open — all five still `static … Instance` | `$nfi graph grep "public static .* Instance" --from product:win-file-system --scope owned --mode content` | M | P3 |
+| E6 | ViewModel outliers | open and grown: FileSystem **2,019**, Json **1,499**, Text **1,344**, Product **964** | `wc -l` on the four | M–L | P3 |
+| E7 | Dynamic breadcrumb rebuild hand-rolled ~5× | open — no shared helper | `$nfi graph search SetNavBreadcrumbs` | M | P3 |
+| F7 | Aria: `[Required]` `ApiKey` is collected, stored and **never sent**; AD email PII per frame; no correlation id | open — `AriaConfig` is constructed only by its tests, so nothing carries it to the provider | `$nfi graph grep "AriaConfig" --mode content` | S–M | P3 |
+| F8 | The `LlmMessage` → SDK mapping has no test seam | open — no `InternalsVisibleTo` on any provider | `$nfi graph grep "InternalsVisibleTo" --mode content` | M | P3 |
+| G1 | Image album non-virtualized | ◐ mitigated 2026-07-08 (batched marshalling + 1024-thumb cap); UI virtualization still open | read `ImageView.xaml` for a `VirtualizingStackPanel` | M | P2 |
+| G5 | Chat timeline realizes every message | open — `MessageList` is still a bare `ItemsControl` | `$nfi graph grep "MessageList" --mode content` | S–M | P3 |
+| G6–G8 | Eager conversation bodies, pre-paint startup reads, hex paint churn, WMI double-query, `async void` | open — `QueueNugetCheck` is still `async void` | `$nfi graph grep "async void QueueNugetCheck" --mode content` | S–M | P3 |
+| H1 | "AI Ready": no recipe for making a page AI-ready | open — nothing in features.md | `grep -n "AI-ready" docs/features.md` | M | P2 |
+| H4 | `IFolderViewlet` members carry no `<summary>` | open | `$nfi graph code code:src/Nexaflow.Features/Nexaflow.Features.Common/Viewlets/IFolderViewlet.cs#T:IFolderViewlet` | S | P3 |
+| B4 | Colour-literal Roslyn analyzer | **deferred on purpose** — do E4 first so the allow-list is small | — | M | — |
+
+### Closed — kept for the reasoning, not the status
+
+All verified done; each one's *why* is still in its lettered section below.
+
+**2026-07-08:** A1–A5 (the docs truth pass) · B1–B3 (architecture tests, touch-point tests, Providers in
+CI) · C1 (`ClientBlockParser`/`ParsedAssistantTurn` → `Core/Services/Agent/`, `OpenPageRequest` →
+`Core/Models/`) · C2 (`ClientToolBase`) · C4 (`*_file` names, `ToolArgs.IntOrNull`) · E2/E3 (converters
+hoisted — re-verified 2026-09-05, one copy each) · F1 (cancellation ×4 + Gemini `ct`) · F2 (Aria dispose)
+· F3 (`LlmStreamRunner`) · F4 (provider contract documented as deliberate) · F5 (per-model capabilities)
+· F6 (DPAPI secrets) · G2 (ribbon leak) · G3 (`WindowMinimizeWatcher`) · G4 (VFS 512 MB LRU) · H3
+(add-feature skill + fast-loop docs).
+
+**Since, and never recorded here:** **H2's test-project split has happened** — the monolithic
+`Tests.Features` is now seven suites (`.Viewers`, `.WindowsOS`, `.Architecture`, `.Common`, plus
+`Tests.Components` and `Tests.Initiatives`), which is the **L**-effort fix this file deferred as too
+expensive. The per-feature `[TestCategory]` mitigation it proposed instead is moot.
 
 ---
 
@@ -84,7 +117,7 @@ This is the most dangerous drift found: the docs themselves say "getting scope w
 
 ### A3. The test-coverage table is false
 
-`docs/testing.md` claimed Console, Projects, WindowsRegistry had no tests and `Tests.Providers` was an empty placeholder. All four had real tests (Console 7 files, Projects 4, WindowsRegistry 6, Providers ~10 incl. Aria wire-protocol tests). **Fixed 2026-07-08:** rather than regenerating a table that would rot again, the coverage table was removed and testing.md now redirects to the product tree's `tests` concern (in-app Product tab / `.product/tree.json` / the `PRODUCT.md` concern tally) as the single live record, with "update the node's `tests` concern" as the maintenance step; the Providers section was rewritten to describe actual coverage and the remaining `CompleteAsync`-mapping gap (§F8). Still open: the reflection self-check test asserting every feature assembly has ≥1 test class (§H2). **Effort: S (remaining).**
+`docs/testing.md` claimed Console, Projects, WindowsRegistry had no tests and `Tests.Providers` was an empty placeholder. All four had real tests (Console 7 files, Projects 4, WindowsRegistry 6, Providers ~10 incl. Aria wire-protocol tests). **Fixed 2026-07-08:** rather than regenerating a table that would rot again, the coverage table was removed and testing.md now redirects to the product tree's `tests` concern (in-app Product tab / `.product/tree.json` / the `PRODUCT.md` concern tally) as the single live record, with "update the node's `tests` concern" as the maintenance step; the Providers section was rewritten to describe actual coverage and the remaining `CompleteAsync`-mapping gap (§F8). The reflection self-check test this section once listed as remaining landed the same day (§H2, `Architecture/CoverageGuardTests`). **Closed.**
 
 ### A4. Undocumented subsystems
 
@@ -170,14 +203,16 @@ A feature advertises capability through three surfaces (FeatureManager/`FeatureC
 
 ### D1. ShellViewModel — extract the two remaining clusters (M)
 
-1,545 lines, ~17 concerns, but thinner than it looks: tabs/ribbon/notifications are already thin delegations to `ShellServices`/`RibbonViewModel`/`MessageCenter` (§A5). The two genuinely extractable clusters:
+**1,503 lines as of 2026-09-05** (1,545 at review — the `OverlayCoordinator` extraction was offset by new
+work), ~17 concerns, but thinner than it looks: tabs/ribbon/notifications are already thin delegations to `ShellServices`/`RibbonViewModel`/`MessageCenter` (§A5). The two genuinely extractable clusters:
 - **`AiInputRouter`** (~345 lines, L1181–1524): handler scoring, ghost-completion, chat drop handling, voice, prefill animation, send/cancel. Self-contained, and the most-touched concern in the file.
 - **`OverlayCoordinator`** (~230 lines, L280–510): the unified overlay host + confirmation + input-prompt trio.
 Pane/split-layout (L869–945) is a third candidate if the file grows again.
 
 ### D2. ShellServices — the second god object (M)
 
-958 lines, ~13 banner concerns (window registry, tab registry + open/move/tear-off, session capture/restore, file watching, overlays, themed pickers, folder-busy tracking, window positioning). Nothing here is wrong — it's just Core's biggest context-load after ShellViewModel. Split the three leaf concerns with no coupling to the tab registry: file watching (`WatchFile` plumbing), folder-busy tracking, and the themed file/folder pickers. Pairs naturally with the C5 interface peel.
+**1,120 lines as of 2026-09-05** — it was 958 at review, so this is the one finding here that has moved
+backwards while being tracked. ~13 banner concerns (window registry, tab registry + open/move/tear-off, session capture/restore, file watching, overlays, themed pickers, folder-busy tracking, window positioning). Nothing here is wrong — it's just Core's biggest context-load after ShellViewModel. Split the three leaf concerns with no coupling to the tab registry: file watching (`WatchFile` plumbing), folder-busy tracking, and the themed file/folder pickers. Pairs naturally with the C5 interface peel.
 
 ### D3. RibbonEditor (L)
 
@@ -207,11 +242,28 @@ The scrim + centered Surface/Accent card pattern appears **~15 times across 6 fe
 
 ### E4. Colour-literal clusters (S–M)
 
-1. **Scratchpad chrome + picker swatches** (biggest): panel/border/fg literals across `ScratchpadView.xaml`, and picker ellipses that *duplicate the `PostIt.*` token values* — bind chrome to Surface/Text/Border tokens and swatches to the `PostIt.*` tokens.
-2. **Logs level pips** (`LogView.xaml:69–109,393`) re-type hues that `LogsTheme.xaml` already defines as `Log.*` — reference the tokens.
-3. **Images** accent-blue `DropShadowEffect Color="#4F8EF7"` ×4 — not a black shadow, so not exempt; use `AccentColor`.
-4. **WindowsFileSystem** drive/folder glyph fills + success-toast green — promote to tokens or `Swatch.*`/`SuccessBrush`.
-5. **Git brand orange** (`#F05032`) — defensible as a brand asset; ship a `Git.Brand` token if zero-literals is the goal.
+> **Re-counted 2026-09-05, and this finding is nearly closed — but the remaining cluster is the one the
+> review did not name.** Four of the five below are done. What is left, after discounting the two
+> sanctioned categories (a token *definition*, and a scrim/alpha wash), is:
+>
+> | Where | What | Verdict |
+> |---|---|---|
+> | `Core/MainWindow.xaml` | `#E81123` close-button red, `#06b6d4` ×2, `#E11D48`, `#FFD8D8D8` caret | **the biggest cluster left, and it is Core's own chrome** — the shell hard-codes an accent while every feature is forbidden to |
+> | `Features.Text/TextView.xaml:409,414` | `#CC2A2A00` + `#FFFF00` warning banner | real — wants `WarningBrush` |
+> | `Features.Projects/ProjectDetailView.xaml:151` | `#1A1A1A` foreground | real — wants `TextBrush` |
+> | `Visuals.Text/…/SvgGraphRenderer.cs:18–25` | a whole hard-coded dark palette | defensible (it writes **SVG output**, not WPF) but it means an exported diagram ignores the theme. Decide and record |
+> | `Core/Models/WorkspaceStyle.cs` | workspace colour presets | **sanctioned** — user-pickable data, not chrome |
+> | `Scratchpad` | the `PostIt.*` values | **sanctioned** — this is the `IThemeContribution` token definition CLAUDE.md names as the pattern |
+>
+> The measuring trap, recorded because this section fell into it: a raw grep for `#RRGGBB` counts theme
+> definitions, and the theme layer is *where colours are supposed to be*, so the naive count says
+> Scratchpad and `Nexaflow.Core` are the worst offenders when both are clean. Exclude `Themes/`,
+> `Tokens.xaml`, `Colors.*.xaml` and the tests before reading anything into a number.
+
+The original five, for the record: 1. ~~Scratchpad chrome + picker swatches~~ — **done** (what remains is
+the sanctioned token definition). 2. ~~Logs level pips~~ — **done**. 3. ~~Images accent-blue
+`DropShadowEffect`~~ — **done**. 4. ~~WindowsFileSystem glyph fills + success toast~~ — **done**.
+5. **Git brand orange** (`#F05032`) — no longer present as a literal either.
 
 ### E5. WindowsFileSystem's five process-global mutable registries (M)
 
@@ -219,10 +271,12 @@ The scrim + centered Surface/Accent card pattern appears **~15 times across 6 fe
 
 ### E6. ViewModel outliers with clean split lines (M–L)
 
-- `FileSystemViewModel` (75 KB, ~16 regions): three overlay concerns (→E1), Define-New wizard, tree management, right-panel management, ribbon pinning, background folder load. The one true outlier — extract overlays first (cheap, mechanical), then tree/right-panel collaborators. **L** in total, incremental.
-- `JsonViewModel` (59 KB): the root-array **table mode** (:58, :1061) is a feature-within-a-feature, separable from the streaming/windowing reader. **M.**
-- `ProductViewModel` (41 KB): consolidate the two duplicate confirmation regions; lift Snaplinks/Concerns/Restructure overlays. **M.**
-- `TextViewModel` (42 KB): already partially decomposed; low priority.
+Line counts re-measured 2026-09-05; all four have grown since the review.
+
+- `FileSystemViewModel` (**2,019 lines**, ~16 regions): three overlay concerns (→E1), Define-New wizard, tree management, right-panel management, ribbon pinning, background folder load. The one true outlier — extract overlays first (cheap, mechanical), then tree/right-panel collaborators. **L** in total, incremental.
+- `JsonViewModel` (**1,499**): the root-array **table mode** is a feature-within-a-feature, separable from the streaming/windowing reader. **M.**
+- `TextViewModel` (**1,344**): already partially decomposed; low priority.
+- `ProductViewModel` (**964**): consolidate the two duplicate confirmation regions; lift Snaplinks/Concerns/Restructure overlays. **M.**
 
 ### E7. Navigational-breadcrumb helper (M, optional)
 
@@ -311,7 +365,14 @@ The live product tree (843 nodes, 674 leaves, 652 done, 0 faulted) says the prod
 2. Write a **"make a page AI-ready" recipe** in features.md: `GetContext` (string) → `GetContextObject` (typed) → `GetClientTools` (read-only first, then approval-gated mutators) → `GetAiSystemPromptGuidance` → security context — with one canonical example per step. Today the pattern must be reverse-engineered from 17 differently-shaped implementations.
 3. Then batch-close by area, worst-first.
 
-### H2. Tests concern (333 open links) — make coverage self-truthing (S–M)
+### H2. Tests concern — make coverage self-truthing (✅ both halves now done)
+
+> **Superseded 2026-09-05.** The deferred half of this section — splitting the monolithic
+> `Tests.Features` — **has happened**, and by subject rather than by feature: `.Viewers`, `.WindowsOS`,
+> `.Architecture`, `.Common`, plus `Tests.Components` and `Tests.Initiatives`. So the `[TestCategory]`
+> mitigation proposed below is moot, and the fast inner loop it was working around is real. Left in place
+> because the reasoning about *why* the monolith hurt is still the reason not to rebuild one.
+
 
 Beyond fixing the false table (§A3): a reflection test asserting every `Nexaflow.Features.*` assembly has ≥1 test class in `Tests.Features` (**✅ done 2026-07-08** — `Architecture/CoverageGuardTests`, with an alias map for shared folders), so the gap list can't rot again. The monolithic `Tests.Features` exe (references all 29 features) makes the per-feature edit-test loop pay a full feature-set rebuild — a per-feature `[TestCategory("<Feature>")]` convention is the cheap mitigation (**S**); splitting the project is the clean fix but **L**, defer.
 
@@ -329,16 +390,24 @@ Beyond fixing the false table (§A3): a reflection test asserting every `Nexaflo
 
 ## Suggested sequencing
 
-Cheapest, highest-confidence first — same discipline as the last review:
+Steps 1–3, 4, 6 and most of 5 and 7 are done; what follows is the **remaining** order, re-derived
+2026-09-05. Cheapest, highest-confidence first — same discipline as the last review.
 
-1. **Bug/leak trio** ✅ done — F1 cancellation ×4 + Gemini `ct`, F2 Aria dispose (+ discovery-lock fix), G2 ribbon leak. *(S)*
-2. **Docs truth pass** (A1–A5) ✅ done: Workspace vocabulary rewrite, dead instructions, coverage table, missing projects/elevation, SoC refresh — plus de-listing to the product tree + skill query recipes. *(M)*
-3. **Enforcement** (B1–B3) ✅ done: architecture tests + touch-point completeness tests + Providers in CI. *(S–M)*
-4. **Contract moves + tool seam** (C1, C2, C4): the blessed relocations, `ClientToolBase`, tool polish. *(S–M)*
-5. **Overlay primitive + converter hoists** (E1, E2, E3): the biggest duplication kills; E1 also unblocks the E6 VM splits. *(M)*
-6. **Provider consolidation** (F3, F5, F6): shared stream helper + resilience, per-model capabilities, DPAPI secrets. *(M)*
-7. **Performance pair** (G1 image virtualization, G3 minimize-aware timers); the rest of §G opportunistically. *(M)*
-8. **Shell splits** (D1, D2) when next touching those files — extract-on-touch rather than big-bang. *(M)*
-9. **AI-Ready campaign** (H1–H3): recipe + skill, then batch-close concern links worst-area-first. *(M, ongoing)*
+1. **The safety row first — C6.** It is an **S**, and it is the only open finding where the failure is
+   silent and the contract is a *safety* one: a null `QuiesceFolderHandler` no-ops the quiesce and nothing
+   says so. Pass the fan-out as a constructor argument. Everything else here is cost, not risk.
+2. **Cheap truth fixes** (C8, H4, D4): the discovery table, the `IFolderViewlet` summaries, and folding
+   the window constants onto the `TopBarHeight` theme resource that already exists. *(S each)*
+3. **Finish E4, then B4.** Only three sites remain, and the largest is Core's own `MainWindow.xaml` — so
+   this is now an **S**, and it is the last thing standing between the repo and a colour analyzer with a
+   short allow-list. Doing them in the other order is what makes B4 expensive. *(S, then M)*
+4. **AI-Ready campaign** (H1): write the recipe, then batch-close concern links worst-area-first. This is
+   the largest product-visible win left and it is now the only P2 with nothing blocking it. *(M, ongoing)*
+5. **Shell splits** (D1, D2) when next touching those files — extract-on-touch rather than big-bang. D2 is
+   the one row that has moved *backwards* (958 → 1,120), so it wants a decision rather than more drift. *(M)*
+6. **Contract shape** (C3, C5, C7): the tool merger, the two interface peels, the small notes. *(S–M)*
+7. **Perf tail** (G1 image virtualization, G5 chat virtualization, G6–G8) opportunistically. *(S–M)*
+8. **Provider tail** (F7 Aria, F8 test seam). *(S–M)*
+9. **E5, E6, E7, D3** — the expensive structural ones, on touch. *(M–L)*
 
 Deliberately deferred: the colour analyzer (B4 — do E4 first), `IShellServices`/`IAIService` splits beyond the two facet peels (C5), RibbonEditor rewrite (D3), per-feature test project split (H2), and any umbrella file-reader abstraction (the four windowing strategies remain correctly feature-specific — unchanged verdict from the last review).

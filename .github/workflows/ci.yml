@@ -124,11 +124,22 @@ jobs:
           }
           if ($failed) { exit 1 }
 
-      # The typesetting approvals are the one suite that is not an MSTest exe — F#/xunit, ingested with the
-      # engine, and run through `dotnet test` from its own directory because global.json beside it pins the
-      # runner. They are the oracle the LaTeX parser replacement is measured against — a precise record of what
-      # the engine builds for each of 148 formulas — and nothing in this workflow ran them before.
-      - name: Run typesetting approvals (F#/xunit)
-        shell: pwsh
-        working-directory: src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
-        run: dotnet test Nexaflow.Tests.Typesetting.fsproj -c Release --no-restore
+      # The typesetting approvals (F#/xunit, ingested with the engine) are deliberately NOT run here, and
+      # this comment exists so the gap is not "closed" again by someone who sees a suite with no step.
+      #
+      # They pass locally — 716/716 in Debug — and fail 59 of them in Release, which is the only way CI
+      # runs anything. The failure is not in the maths: ApprovalTests works out WHICH test is running by
+      # walking the stack for a recognisable xunit frame, and in Release it cannot find one, so every
+      # approval-based test throws "Could Not Detect Test Framework" before it compares anything. The
+      # obvious levers do not move it — Optimize=false, DebugType=full and Tailcalls=false were each
+      # tried, together and separately, and all 59 still fail. It is a property of that library's
+      # stack-walking namer, not of this repo, and chasing it further costs more than the coverage is
+      # worth while the suite is an oracle rather than a gate.
+      #
+      # So run them by hand, in Debug, from their own directory (global.json beside them pins the runner):
+      #
+      #     cd src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
+      #     dotnet test Nexaflow.Tests.Typesetting.fsproj -c Debug
+      #
+      # Worth doing whenever the LaTeX parser replacement moves, since these approvals are the precise
+      # record of what the old parser produced for each of 148 formulas — the thing it is measured against.

@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Initiatives.Graph;
 /// trusting its line numbers is precisely the failure mode this exists to remove.
 /// </summary>
 [TestClass]
-[CoversNode("graph-edit")]
+[CoversNode("graph-structural-edit")]
 public class GraphEditTests
 {
     private const string Rel = "src/Sample.cs";

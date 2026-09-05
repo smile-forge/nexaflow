@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Initiatives.Product;
 /// The boundary rule matters: a rename of <c>Foo.cs</c> must not also rewrite <c>Foo.csproj</c>.
 /// </summary>
 [TestClass]
-[CoversNode("product-snaplinks")]
+[CoversNode("initiatives-remap")]
 public class SnaplinkRemapperTests
 {
     private static ProductState Tree(params Snaplink[] nodeLinks) => new()

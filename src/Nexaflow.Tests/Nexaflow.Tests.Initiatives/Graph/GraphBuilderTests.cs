@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Initiatives.Graph;
 /// fixed timestamp), so the CLI/incremental cache diff cleanly.
 /// </summary>
 [TestClass]
-[CoversNode("graph-build")]
+[CoversNode("graph-extraction")]
 public class GraphBuilderTests
 {
     private static (string Root, ProductState State) Setup()

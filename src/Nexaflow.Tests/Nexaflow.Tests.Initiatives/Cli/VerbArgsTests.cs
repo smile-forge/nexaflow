@@ -10,7 +10,7 @@ namespace Nexaflow.Tests.Initiatives.Cli;
 /// Since the same parse guards a transactional <c>batch</c> script, a dropped option means a silent data loss.
 /// </summary>
 [TestClass]
-[NoCoverage("Argument parsing for the headless CLI — infrastructure, not a product-tree node.")]
+[CoversNode("nfi-verbs")]
 public class VerbArgsTests
 {
     // Stands in for the real specs: two positionals, one value flag, one switch.

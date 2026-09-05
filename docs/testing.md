@@ -31,11 +31,22 @@ refuses to mix runners — so a `global.json` beside it shadows the repo's choic
 
 ```powershell
 cd src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
-dotnet test Nexaflow.Tests.Typesetting.fsproj
+dotnet test Nexaflow.Tests.Typesetting.fsproj -c Debug
 ```
 
 It is worth the awkwardness: it is the only thing watching the largest and most intricate part of the
 maths stack, and it caught a change of ours the day before the engine was ingested.
+
+**`-c Debug` is not incidental, and this suite is deliberately not run by CI.** In Release, 59 of its 716
+fail — not on the maths, but before any comparison happens: ApprovalTests identifies which test is
+running by walking the stack for a recognisable xunit frame, and in Release it does not find one, so every
+approval-based test throws *"Could Not Detect Test Framework"*. `Optimize=false`, `DebugType=full` and
+`Tailcalls=false` were each tried, together and separately, and all 59 still fail — it is a property of
+that library's namer rather than of this repo. CI builds the project (it is in `Nexaflow.slnx`), so a
+**compile** break is still caught; what is not gated is the approvals themselves. Run them by hand when
+the maths stack moves, and especially when the LaTeX parser replacement does, since they are the record
+the replacement is measured against. `.github/workflows/ci.yml` carries the same note, so the missing
+step is not mistaken for an oversight and re-added.
 
 No `Nexaflow.Tests.Features*` suite references Core (they mirror the architectural rule that features
 don't depend on Core). The sample-data generator therefore lives in its own dependency-free library,
