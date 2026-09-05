@@ -224,6 +224,38 @@ rays, floor caustics, vivid fish, colourful coral, highlight bubbles). It's them
 by `Theme.Ocean.xaml`, never by `ThemedRegion`. Density scales with region size; it never hit-tests.
 Colours were taken from the source HTML mock.
 
+### The Arctic scene
+
+`Themes/ArcticScene.xaml(.cs)` is the other worked example, and the one to read when a scene needs
+*depth* rather than incident: a polar dusk of stars and an aurora at the zenith, cirrus and cloud
+banks over a low sun, three ranges on the horizon, and a sea of pack ice and icebergs creeping across
+a shimmering sun path. Like the reef it is theme art — referenced only by `Theme.Arctic.xaml`, never
+by `ThemedRegion` — procedural, size-scaled and non-hit-testing. Four things in it are worth copying:
+
+- **Distance is three things at once, never just size.** Every layer that recedes also loses contrast
+  toward a shared `Haze` colour, gains a lighter sunward face, and moves more slowly. The three ranges
+  are one `Ridge` record applied three times so the progression is visible in one place, and a berg
+  takes a *nearness* that gates how much form it is drawn with — a far one is a shaded silhouette
+  because that is all the eye could resolve, and giving every berg the full treatment flattens the
+  field just as surely as giving none of them it.
+- **Both sides of the horizon arrive at one colour** (`Horizon`): the ranges' feet dissolve into it
+  and the sea's first gradient stop *is* it. Fading each side toward its own idea of "distant" put a
+  drawn-looking stripe across the full width — they have to agree on the colour, not merely both go pale.
+- **Static detail is grouped; animated detail is not.** The base caches every direct child of
+  `SceneLayer`, so the ranges, the star field and the distant pack ice each go in as one `Canvas` and
+  cost one texture rather than a hundred — which is what makes that much detail affordable at all.
+  Anything that animates stays a top-level child with only its root transform or opacity moving; an
+  animation nested inside a cached group invalidates that whole texture every frame, which is worse
+  than not caching it. It is also why a berg's reflection is drawn into the berg and left *still*: the
+  shimmer passing over it does the rippling, more cheaply and more convincingly than moving it would.
+- **A radial gradient goes in a `Rectangle`, not an `Ellipse`.** An ellipse shows its own outline
+  wherever the gradient still has alpha where the shape stops, and over a dark sea that read as a
+  drawn arc across the water.
+
+Everything in it is *ambient* — nothing crosses the window in under ten minutes — so every clock takes
+the `AmbientFrameRate` cap. The judder that cap normally causes needs motion the eye can track, and a
+berg moves about a pixel a second.
+
 ## Authoring a new theme
 
 **Pro theme (flat, professional)** — like Dark/Light:
@@ -335,9 +367,10 @@ pale override gets dark text without the author asking.
 - `ThemedRegion` with no `Scene.*` / `{Region}.Bg` renders nothing extra.
 - `Theme.Dark.xaml` is intentionally empty — a pure palette (`ThemeManager.Load` would also skip a
   missing optional layer entirely). `Theme.Light.xaml` is a *Pro* theme — region overrides only (a soft
-  grey frame around lighter content), no scene. `Theme.Ocean.xaml` (reef), `Theme.Nature.xaml` (forest)
-  and `Theme.Sandstone.xaml` (cut-stone wall) are *dark immersive* — overrides + a `Scene.Window`
-  (`OceanReefScene` / `ForestScene` / `SandstoneWall`). `Theme.Sunny.xaml` is a *light immersive* — a
+  grey frame around lighter content), no scene. `Theme.Ocean.xaml` (reef), `Theme.Nature.xaml` (forest),
+  `Theme.Sandstone.xaml` (cut-stone wall), `Theme.Gothic.xaml` (midnight tower) and
+  `Theme.Arctic.xaml` (polar dusk) are *dark immersive* — overrides + a `Scene.Window`
+  (`OceanReefScene` / `ForestScene` / `SandstoneWall` / `GothicScene` / `ArcticScene`). `Theme.Sunny.xaml` is a *light immersive* — a
   bright sky with drifting balloons/confetti (`SunnyScene`) behind translucent white panels, showing
   the same `Scene.Window` mechanism works for light themes too.
 - Cross-dictionary `{StaticResource}` (a token in `Tokens.xaml` aliasing a colour in `Colors.*.xaml`)
@@ -353,6 +386,7 @@ pale override gets dark text without the author asking.
 | `Core/Themes/Theme.<Theme>.xaml` | Layer 4 — per-theme region overrides + `Scene.*` (Dark = empty, Ocean = the reef) |
 | `Core/Themes/Styles.xaml` | Layer 5 — shared control templates |
 | `Core/Themes/OceanReefScene.xaml(.cs)` | The Ocean scene (theme art) |
+| `Core/Themes/ArcticScene.xaml(.cs)` | The Arctic scene (theme art) — the depth/grouping worked example |
 | `Visuals.Common/Controls/ThemedRegion.cs` + `Themes/Generic.xaml` | The generic scene/veil wrapper |
 | `Features.Common/IThemeContribution.cs` | The optional feature contribution seam |
 | `Core/App.xaml`, `App.xaml.cs` | Bootstrap merge + the startup `Apply` call |

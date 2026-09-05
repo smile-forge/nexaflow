@@ -1,0 +1,68 @@
+{
+  "branch": "claude/nexaflow-arctic-theme-cf37d4",
+  "nodes": {
+    "arctic": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/Colors.Arctic.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/Theme.Arctic.xaml"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/ArcticScene.xaml.cs",
+          "class": "ArcticScene"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Scenes \u2014 non-colour theming",
+            "The Arctic scene"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ThemeLayerContractTests.cs",
+            "class": "ThemeLayerContractTests"
+          }
+        ]
+      }
+    },
+    "theme-scene-arctic": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/ArcticScene.xaml.cs",
+          "class": "ArcticScene"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Themes/ArcticScene.xaml"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Scenes \u2014 non-colour theming",
+            "The Arctic scene"
+          ]
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "arctic",
+    "theme-scene-arctic"
+  ]
+}
