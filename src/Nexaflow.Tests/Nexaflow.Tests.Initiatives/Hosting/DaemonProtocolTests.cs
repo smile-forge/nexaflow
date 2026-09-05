@@ -18,7 +18,7 @@ namespace Nexaflow.Tests.Initiatives.Hosting;
 /// </para>
 /// </summary>
 [TestClass]
-[NoCoverage("Transport for the headless CLI — infrastructure, not a product-tree node.")]
+[CoversNode("initiatives-ipc")]
 public class DaemonProtocolTests
 {
     [TestMethod]

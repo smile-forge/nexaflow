@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Initiatives.Product;
 /// (built to the Text Viewer's shape) is the anchor test.
 /// </summary>
 [TestClass]
-[NoCoverage("Advisory tree-convention linter for the headless CLI — tooling, not a product-tree node.")]
+[CoversNode("initiatives-lint")]
 public class StructureLinterTests
 {
     private static ConcernLink Concern(string tag, Status status = Status.Done, bool linked = false) => new()

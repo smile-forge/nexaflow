@@ -158,6 +158,14 @@ The concern vocabulary is fixed in `product.json` (`theming`, `tests`, `docs`, `
 `add-node` no longer sprays it onto leaves). If a concern auto-attaches where it doesn't belong, strip it with
 `remove-concern`.
 
+**Strip it — do not mark it `shouldnt`.** The two look interchangeable and are not. `shouldnt` is a
+*claim*: this node has a visual and it deliberately isn't themed — which is worth asserting, and worth a
+note saying why. An absent concern is the weaker and correct statement for a node that simply has no
+visual at all. The practical difference shows up later: when such a component *does* grow a visual
+aspect, adding the concern is obvious, whereas someone facing a `theming=shouldnt` first has to work out
+whether it means "no UI here" or "we decided against theming this UI" — and only one of those is safe to
+flip. A WPF-free backend, a console tool, a pure grammar or a parser has no `theming` concern at all.
+
 ---
 
 ## 3. The testing model

@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Initiatives.Hosting;
 /// </para>
 /// </summary>
 [TestClass]
-[NoCoverage("Shared lifetime for the Product surfaces — infrastructure, not a product-tree node.")]
+[CoversNode("initiatives-daemon")]
 public class InitiativesHostsTests
 {
     private string _root = "";

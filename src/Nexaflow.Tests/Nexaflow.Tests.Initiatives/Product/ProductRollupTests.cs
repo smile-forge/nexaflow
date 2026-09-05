@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.Initiatives.Product;
 /// derives from its children (and their concerns), ignoring its own stored status. Precedence:
 /// faulted → should → done → shouldnt.</summary>
 [TestClass]
-[CoversNode("product-status-rollup")]
+[CoversNode("initiatives-node-model")]
 public class ProductRollupTests
 {
     private static ProductState One(ProductNode node)
