@@ -79,7 +79,7 @@
             <TextBlock x:Name="EmptyText" Grid.Column="0" Text="No backlog items" Visibility="Collapsed"
                        FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
 
-            <Button Grid.Column="1" Style="{StaticResource FlatBtn}" Content="Open project ↗"
+            <Button AutomationProperties.AutomationId="Projects_BacklogViewlet_OpenProject" Grid.Column="1" Style="{StaticResource FlatBtn}" Content="Open project ↗"
                     VerticalAlignment="Center" HorizontalAlignment="Right"
                     Click="OpenProject_Click" ToolTip="Open the project detail view"/>
         </Grid>
