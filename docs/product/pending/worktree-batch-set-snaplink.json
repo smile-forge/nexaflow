@@ -1,0 +1,641 @@
+{
+  "branch": "worktree-batch-set-snaplink",
+  "nodes": {
+    "chrome-content-area": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "N:RootPaneHost"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/PaneView.xaml",
+          "class": "PaneView"
+        }
+      ]
+    },
+    "chrome-messages-button": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "A:NotificationsButton"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "RecomputeUnread"
+        }
+      ]
+    },
+    "chrome-tab-activate": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/TabStrip.xaml.cs",
+          "class": "TabStrip",
+          "ast": "T:TabStrip/P:ActivateTabCommand"
+        }
+      ]
+    },
+    "chrome-tab-close": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/TabStrip.xaml.cs",
+          "class": "TabStrip",
+          "ast": "T:TabStrip/P:CloseTabCommand"
+        }
+      ]
+    },
+    "chrome-titlebar": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml.cs",
+          "class": "MainWindow",
+          "method": "ToggleMaxRestore"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "K:CaptionButton"
+        }
+      ]
+    },
+    "chrome-topbar": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "N:TopBar"
+        }
+      ]
+    },
+    "code-line-numbers": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/FileTextEditorViewModel.cs",
+          "class": "FileTextEditorViewModel",
+          "ast": "T:FileTextEditorViewModel/F:_showLineNumbers"
+        }
+      ]
+    },
+    "code-map-deps": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Code/CodeIntelligenceMarkdown.cs",
+          "class": "CodeIntelligenceMarkdown",
+          "method": "CollectImports"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Syntax/CodeStructureExtractor.cs",
+          "class": "CodeStructureExtractor",
+          "ast": "T:CodeStructureExtractor/M:ResolveJs"
+        }
+      ]
+    },
+    "hybrid-album": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "ast": "T:ImageViewModel/P:IsExplore"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml",
+          "class": "ImageView",
+          "ast": "Grid[Explore]"
+        }
+      ]
+    },
+    "images-speed-slider": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "method": "OnAutoSpeedChanged"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "ast": "T:ImageViewModel/P:AutoSpeedLabel"
+        }
+      ]
+    },
+    "images-tools": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml",
+          "class": "ImageView",
+          "ast": "K:ImageToolsTemplate"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Images/ImagesJourneyTests.cs",
+          "class": "ImagesJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Images/ImagesViewModelTests.cs",
+          "class": "ImagesViewModelTests"
+        }
+      ]
+    },
+    "log-viewer-follow": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/ViewModels/LogViewModel.cs",
+          "class": "LogViewModel",
+          "ast": "T:LogViewModel/F:_isAutoScrolling"
+        }
+      ]
+    },
+    "markdown-filename": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "ast": "T:MarkdownViewModel/P:FileName"
+        }
+      ]
+    },
+    "markdown-source-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "ast": "T:MarkdownViewModel/F:_sourceOnly"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "OnViewModelChanged"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownJourneyTests.cs",
+          "class": "MarkdownJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+          "class": "MarkdownViewModelTests"
+        }
+      ]
+    },
+    "model3d-inspector": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Model3D/ViewModels/MaterialRowViewModel.cs",
+          "class": "MaterialRowViewModel"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Model3D/ViewModels/Model3DViewModel.cs",
+          "class": "Model3DViewModel",
+          "ast": "T:Model3DViewModel/P:UnsupportedElements"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Model3D/Model3DJourneyTests.cs",
+          "class": "Model3DJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Model3D/Model3DViewModelTests.cs",
+          "class": "Model3DViewModelTests"
+        }
+      ]
+    },
+    "model3d-stats-footer": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Model3D/ViewModels/Model3DViewModel.cs",
+          "class": "Model3DViewModel",
+          "ast": "T:Model3DViewModel/F:_triangleCount"
+        }
+      ]
+    },
+    "notebook-code-cell": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Notebook/ViewModels/NotebookCellViewModel.cs",
+          "class": "NotebookCellViewModel"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Notebook/Views/NotebookView.xaml",
+          "ast": "K:CodeCellTemplate"
+        }
+      ]
+    },
+    "notebook-markdown-cell": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Notebook/Views/NotebookView.xaml",
+          "ast": "K:MarkdownCellTemplate"
+        }
+      ]
+    },
+    "opt-editor-textbox": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/OptionsViewModel.cs",
+          "class": "PropertyEditViewModel",
+          "method": "ConvertToTargetType"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/OptionsPanel.xaml",
+          "class": "OptionsPanel",
+          "ast": "K:TextBoxTemplate"
+        }
+      ]
+    },
+    "opt-editor-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/OptionsPanel.xaml",
+          "class": "OptionsPanel",
+          "ast": "K:ToggleTemplate"
+        }
+      ]
+    },
+    "ribbon-accent": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "ItemForeground"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonStyleCatalog.cs",
+          "class": "RibbonStyleCatalog",
+          "ast": "T:RibbonStyleCatalog/F:SwatchKeys"
+        }
+      ]
+    },
+    "ribbon-quickedit-icon": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "ShowIconFlyout"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonStyleCatalog.cs",
+          "class": "RibbonStyleCatalog",
+          "ast": "T:RibbonStyleCatalog/F:Icons"
+        }
+      ]
+    },
+    "text-viewer-linenumbers": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.cs",
+          "class": "TextViewModel",
+          "ast": "T:TextViewModel/F:_showLineNumbers"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Text/TextJourneyTests.cs",
+          "class": "TextJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelCommandTests.cs",
+          "class": "TextViewModelCommandTests"
+        }
+      ]
+    },
+    "text-viewer-streaming-indicator": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.cs",
+          "class": "TextViewModel",
+          "ast": "T:TextViewModel/F:_isLargeFile"
+        }
+      ]
+    },
+    "text-viewer-wordwrap": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Text/ViewModels/TextViewModel.cs",
+          "class": "TextViewModel",
+          "ast": "T:TextViewModel/F:_wordWrap"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Text/TextJourneyTests.cs",
+          "class": "TextJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Text/TextViewModelCommandTests.cs",
+          "class": "TextViewModelCommandTests"
+        }
+      ]
+    },
+    "theme-semantic-tokens": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Themes/Tokens.xaml",
+          "ast": "K:SuccessBrush"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Token contract",
+            "Base palette (layer 1)"
+          ]
+        }
+      ]
+    },
+    "theme-swatch-bank": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Themes/Tokens.xaml",
+          "ast": "K:Swatch.Blue"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "Rule: a feature never hard-codes a colour"
+          ]
+        }
+      ]
+    },
+    "theme-textswatch-palette": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Themes/Tokens.xaml",
+          "ast": "K:TextSwatch.Keyword"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editor/Highlighting/TreeSitterColorizer.cs",
+          "class": "TreeSitterColorizer"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/syntax-highlighting.md",
+          "title_path": [
+            "Syntax Highlighting",
+            "The role palette (\u0060TextSwatch.*\u0060)"
+          ]
+        }
+      ]
+    },
+    "themes": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ThemeManager.cs",
+          "class": "ThemeManager",
+          "method": "Apply"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ShellConfig.cs",
+          "class": "ShellConfig",
+          "ast": "T:ThemeOption"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/theming.md",
+          "title_path": [
+            "Nexaflow Theming",
+            "The layered model"
+          ]
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ThemeManagerFreezeTests.cs",
+          "class": "ThemeManagerFreezeTests"
+        }
+      ]
+    },
+    "tsv": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/Detection/ShapeDetector.cs",
+          "class": "ShapeDetector",
+          "ast": "T:ShapeDetector/F:SeparatorCandidates"
+        }
+      ]
+    },
+    "video-poster": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/ViewModels/VideoViewModel.cs",
+          "class": "VideoViewModel",
+          "ast": "T:VideoViewModel/P:ShowPoster"
+        }
+      ]
+    },
+    "video-transport": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Views/VideoControls.xaml",
+          "ast": "K:TransportBarTemplate"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Video/VideoJourneyTests.cs",
+          "class": "VideoJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Video/VideoViewModelTests.cs",
+          "class": "VideoViewModelTests"
+        }
+      ]
+    },
+    "windowsapps-list": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/WindowsAppsView.xaml",
+          "class": "WindowsAppsView",
+          "ast": "N:AppListView"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/ViewModels/WindowsAppsViewModel.cs",
+          "class": "WindowsAppsViewModel",
+          "method": "Populate"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Services/InstalledAppsService.cs",
+          "class": "InstalledAppsService",
+          "method": "LoadAsync"
+        }
+      ]
+    },
+    "ws-prestart-daemon": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/App.xaml.cs",
+          "class": "App",
+          "ast": "T:App/P:IsResident"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/ShellServices.cs",
+          "class": "ShellServices",
+          "method": "UnregisterWindow"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 34,
+  "touched_nodes": [
+    "chrome-content-area",
+    "chrome-messages-button",
+    "chrome-tab-activate",
+    "chrome-tab-close",
+    "chrome-titlebar",
+    "chrome-topbar",
+    "code-line-numbers",
+    "code-map-deps",
+    "hybrid-album",
+    "images-speed-slider",
+    "images-tools",
+    "log-viewer-follow",
+    "markdown-filename",
+    "markdown-source-toggle",
+    "model3d-inspector",
+    "model3d-stats-footer",
+    "notebook-code-cell",
+    "notebook-markdown-cell",
+    "opt-editor-textbox",
+    "opt-editor-toggle",
+    "ribbon-accent",
+    "ribbon-quickedit-icon",
+    "text-viewer-linenumbers",
+    "text-viewer-streaming-indicator",
+    "text-viewer-wordwrap",
+    "theme-semantic-tokens",
+    "theme-swatch-bank",
+    "theme-textswatch-palette",
+    "themes",
+    "tsv",
+    "video-poster",
+    "video-transport",
+    "windowsapps-list",
+    "ws-prestart-daemon"
+  ]
+}

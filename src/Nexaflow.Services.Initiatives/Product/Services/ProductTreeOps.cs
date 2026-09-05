@@ -200,6 +200,26 @@ public static class ProductTreeOps
         return n;
     }
 
+    /// <summary>The snaplink list an index addresses: the node's own, or one concern's.</summary>
+    private static List<Snaplink>? SnaplinksOf(ProductState s, string id, string? concernTag) =>
+        !s.Nodes.TryGetValue(id, out var node) ? null
+        : concernTag is null ? node.Snaplinks
+        : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
+
+    /// <summary>
+    /// The snaplink at <paramref name="index"/>, without changing it. What an index-addressed edit needs in
+    /// order to check it is still aimed at the link the caller meant: an index is a position, not an identity,
+    /// so anything that adds or removes a link renumbers the rest.
+    /// </summary>
+    public static bool TryGetSnaplink(ProductState s, string id, int index, string? concernTag,
+                                      out Snaplink? link)
+    {
+        link = null;
+        if (SnaplinksOf(s, id, concernTag) is not { } list || index < 0 || index >= list.Count) return false;
+        link = list[index];
+        return true;
+    }
+
     /// <summary>
     /// Edits one existing snaplink in place: <paramref name="set"/> assigns fields, <paramref name="clear"/>
     /// names fields to unset. Returns false if the node, concern, or index isn't there.
@@ -212,13 +232,7 @@ public static class ProductTreeOps
     public static bool SetSnaplink(ProductState s, string id, int index, string? concernTag,
                                    Action<Snaplink>? set = null, IEnumerable<string>? clear = null)
     {
-        if (!s.Nodes.TryGetValue(id, out var node)) return false;
-        var list = concernTag is null
-            ? node.Snaplinks
-            : node.Concerns?.FirstOrDefault(c => c.Tag == concernTag)?.Snaplinks;
-        if (list is null || index < 0 || index >= list.Count) return false;
-
-        var link = list[index];
+        if (!TryGetSnaplink(s, id, index, concernTag, out var link) || link is null) return false;
         set?.Invoke(link);
         foreach (var field in clear ?? [])
             switch (field.Trim().ToLowerInvariant())
