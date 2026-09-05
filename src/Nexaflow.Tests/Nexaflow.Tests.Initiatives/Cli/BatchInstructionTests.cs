@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Initiatives.Cli;
 /// what it does and does not accept is the contract, not an implementation detail.
 /// </summary>
 [TestClass]
-[NoCoverage("Batch instruction dispatch for the headless CLI - batch is deliberately CLI-only, so it maps to no product node.")]
+[CoversNode("nfi-batch")]
 public class BatchInstructionTests
 {
     private static ProductState WithLinks(params Snaplink[] links) => new()

@@ -5,7 +5,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Initiatives.Product;
 
 [TestClass]
-[CoversNode("data-model")]
+[CoversNode("initiatives-root-locator")]
 public class ProductRootLocatorTests
 {
     [TestMethod]

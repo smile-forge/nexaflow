@@ -69,9 +69,16 @@ public enum IntegrityKind
     UnlinkedProject,
 
     /// <summary>
-    /// A test project's compiled output is behind its own source, so every coverage claim derived from it
-    /// describes code that no longer exists. The manifest is not at fault and rescanning cannot help — it
-    /// would re-read the same stale assembly — so this gates on the build itself.
+    /// A test project's compiled output is behind its own source, so the coverage read from it answers for an
+    /// older compile than the one in the working tree. This says the CHECK is not yet trustworthy for that
+    /// project — not that anything is wrong with the code or the tree. The manifest is not at fault and
+    /// rescanning cannot help, since it would re-read the same stale assembly, so this gates on the build.
+    /// <para>
+    /// The usual way to arrive here: build only the sub-project you were working on, then run validate and
+    /// read its verdict as covering the whole repository. It cannot — coverage is reflected out of compiled
+    /// assemblies, so every suite you did not build is answering from whenever it was last built. Build, then
+    /// re-run.
+    /// </para>
     /// <para>
     /// This is the failure the other coverage kinds cannot see. <see cref="StaleCoverageNode"/> reports a
     /// declaration naming a node the tree lacks; when the assembly is stale that report is backwards — the

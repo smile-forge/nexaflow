@@ -2368,8 +2368,7 @@ internal static class Program
                 Concern   = TestCoverageReconciler.TestsConcern,
                 Index     = -1,
                 Kind      = IntegrityKind.StaleCoverageBuild,
-                Detail    = $"{stale.Assembly} is behind its own source ({shown}{more}) — rebuild it; until "
-                          + "then every [CoversNode] read from it describes code that is no longer there",
+                Detail    = $"{stale.Assembly} is behind its own source ({shown}{more}) — its coverage was read from an older compile, so validate cannot answer for it yet. Build it, then re-run",
                 Link      = new Snaplink()
             });
         }

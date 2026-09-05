@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Initiatives.Product;
 /// never invent one, because a false positive fails a release build.
 /// </summary>
 [TestClass]
-[CoversNode("integrity-validate")]
+[CoversNode("initiatives-validate")]
 public class SnaplinkValidatorTests
 {
     private string _root = string.Empty;

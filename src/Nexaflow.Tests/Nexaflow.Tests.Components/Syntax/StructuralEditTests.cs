@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Components.Syntax;
 /// to any declaration in it.
 /// </summary>
 [TestClass]
-[CoversNode("graph-edit")]
+[CoversNode("syntax-structural-edit")]
 public class StructuralEditTests
 {
     private const string Widget = """
@@ -1077,5 +1077,87 @@ public class StructuralEditTests
 
         Assert.IsFalse(result.Ok);
         StringAssert.Contains(result.Message, "line 3");
+    }
+
+    /// <summary>
+    /// The indentation contract, which is two promises that only collide on one shape. Written flush-left, a
+    /// payload is re-indented to where it lands — that is what lets a caller ignore whitespace entirely. Written
+    /// WITH indentation, a single line is kept exactly as typed, because with no second line its whitespace
+    /// cannot be describing a shape and can only be saying where to put it.
+    /// <para>
+    /// The case that forced it: a C# continuation aligned under the <c>=</c> it belongs to. Re-indenting that to
+    /// the statement's own depth is right for every other payload and precisely wrong for this one, and before
+    /// this there was no way to write it — three attempts in one session ended by collapsing the statement onto
+    /// a single long line to dodge the problem.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void Substitute_KeepsASingleLineExactlyWhenTheCallerIndentedIt()
+    {
+        const string src = """
+            class C
+            {
+                void M()
+                {
+                    var s = "a"
+                          + "b";
+                }
+            }
+            """;
+
+        // 22 spaces: deeper than the statement's 12, aligning the + under the = above it.
+        var text = Applied(Sub(src, "T:C/M:M", "+ \"b\";", "                      + \"c\";"));
+
+        // Compared as a whole line: the re-indented result would be a SUFFIX of the wanted one, so a
+            // Contains check passes either way and asserts nothing.
+            AssertLine(text, "                      + \"c\";");
+    }
+
+    /// <summary>The other half of the same contract, unchanged: no leading whitespace still means "you indent it".</summary>
+    [TestMethod]
+    public void Substitute_StillIndentsASingleLineWrittenFlushLeft()
+    {
+        const string src = """
+            class C
+            {
+                void M()
+                {
+                    Go();
+                }
+            }
+            """;
+
+        var text = Applied(Sub(src, "T:C/M:M", "Go();", "Stop();"));
+
+        Assert.IsTrue(text.Contains("        Stop();"),
+            "a flush-left payload is indented for the line it lands on");
+    }
+
+    /// <summary>
+    /// The regression guard for the exemption's boundary. A MULTI-line block keeps the old rule even when its
+    /// lines are indented: there the common indent is an artefact of wherever it was lifted from, and the shape
+    /// between the lines — which survives either way — is what carries the meaning. Only the single-line case is
+    /// ambiguous, so only it changed.
+    /// </summary>
+    [TestMethod]
+    public void Substitute_StillReindentsAMultiLineBlockLiftedFromAnotherDepth()
+    {
+        const string src = """
+            class C
+            {
+                void M()
+                {
+                    Go();
+                }
+            }
+            """;
+
+        // Lifted from somewhere much deeper, as a `graph code` listing would print it.
+        var text = Applied(Sub(src, "T:C/M:M", "Go();", "                        First();\n                        Second();"));
+
+        Assert.IsTrue(text.Contains("        First();"), "the block is re-indented to where it lands");
+        Assert.IsTrue(text.Contains("        Second();"), "and its second line with it");
+        Assert.IsFalse(text.Contains("                        First();"),
+            "it must not keep the depth it happened to have in the listing it came from");
     }
 }

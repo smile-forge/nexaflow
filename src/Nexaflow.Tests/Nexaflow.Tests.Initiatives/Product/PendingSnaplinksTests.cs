@@ -19,7 +19,7 @@ namespace Nexaflow.Tests.Initiatives.Product;
 /// </para>
 /// </summary>
 [TestClass]
-[CoversNode("integrity-validate")]
+[CoversNode("initiatives-pending")]
 public class PendingSnaplinksTests
 {
     private string _root = "";

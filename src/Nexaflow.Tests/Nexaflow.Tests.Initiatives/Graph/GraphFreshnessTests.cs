@@ -12,7 +12,7 @@ namespace Nexaflow.Tests.Initiatives.Graph;
 /// either "current" or "these files have moved on".
 /// </summary>
 [TestClass]
-[CoversNode("graph-edit")]
+[CoversNode("graph-archive")]
 public class GraphFreshnessTests
 {
     private string _root = "";

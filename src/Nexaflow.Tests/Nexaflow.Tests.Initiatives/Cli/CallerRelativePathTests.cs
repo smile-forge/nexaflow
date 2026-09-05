@@ -32,7 +32,7 @@ namespace Nexaflow.Tests.Initiatives.Cli;
 /// </para>
 /// </summary>
 [TestClass]
-[NoCoverage("Command-line path resolution for the headless CLI — infrastructure, not a product-tree node.")]
+[CoversNode("nfi-self-location")]
 public class CallerRelativePathTests
 {
     private const int Clean = 0, Error = 2;

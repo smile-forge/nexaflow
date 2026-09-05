@@ -192,7 +192,14 @@ button, which code touches an element, which ViewModel member a binding names.
 **Answered by pointing:** *"where does X happen?"* — scoped `graph grep` is fast and reports the owning
 member and feature of every hit, which a text search cannot.
 
-**Not answered, and worth fixing** (in rough value order):
+**Not answered, and worth fixing** (in rough value order).
+
+> Each open one is now a node under `initiatives-graph`, so it appears in `$nfi query --status should`
+> beside every other gap instead of only in this file: `graph-entry-points`, `graph-cycles`,
+> `graph-visibility`, `graph-event-edges`. The grammar gap moved to where it belongs — `parser-ps1-yml`,
+> under the Syntax Engine, next to `parser-sql-graphql` — because a missing grammar is the parser's gap
+> and not the graph's. The reasoning stays here; the status lives there.
+
 
 1. ~~**Orphans**~~ and ~~**type mentions**~~ — **both added.** Orphan detection came first and immediately
    exposed the deeper gap: **the extractor recorded calls and constructions, not general references.**
@@ -225,10 +232,19 @@ member and feature of every hit, which a text search cannot.
    after resolving**, never narrow the candidate set first. Narrowing first can leave one survivor where
    there were two, turning a name the resolver used to abandon as ambiguous into a confident wrong edge — it
    made a LINQ `Select` bind to one ViewModel's method 909 times before that was caught.
-3. **Entry points as a first-class kind** — `Main`, `IPageRegistration`, test entry, installer. Half-closed:
-   `output_type` on a project node names the executables, but not what each one reaches.
-4. **Cycle detection.**
-5. ~~**Parse the build**~~ — done: the installer and the MSBuild logic read as XML now.
+3. **Entry points as a first-class kind** (`graph-entry-points`) — `Main`, `IPageRegistration`, test entry,
+   installer. Half-closed: `output_type` on a project node names the executables, but not what each one
+   reaches. Wants the entry-point kind *and* the path query, so it pairs with nothing else on this list.
+4. **Cycle detection** (`graph-cycles`) — the cheapest of the four: the data already supports it, only the
+   verb is missing.
+5. **Visibility on a node** (`graph-visibility`) — no visibility reaches the graph at all, so *the public
+   surface of assembly X* is not expressible. The outline already knows a member's visibility, so this is
+   carrying a fact the extractor currently discards rather than deriving a new one.
+6. **Event wiring** (`graph-event-edges`) — a C# `event` and its `+=` subscriptions produce no edge, so
+   *what consumes this event* is invisible. The same shape as the type-mention gap in §1, before that closed.
+7. ~~**Parse the build**~~ — done: the installer and the MSBuild logic read as XML now. What is still
+   unread is `.ps1` and `.yml`, which is a missing **grammar** rather than a missing extractor — tracked
+   as `parser-ps1-yml` under the Syntax Engine.
 
 **Not answered, and correctly so:** dataflow, control flow, runtime DI resolution. Those need a different
 kind of model, and inventing them from name-resolved edges would produce confident wrong answers — the

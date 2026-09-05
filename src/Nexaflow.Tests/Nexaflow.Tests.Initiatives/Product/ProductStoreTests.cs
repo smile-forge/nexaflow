@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Initiatives.Product;
 /// (markdown title-path + code class/method), round-trip fidelity, and minimal diffs on a status flip.
 /// </summary>
 [TestClass]
-[CoversNode("data-model")]
+[CoversNode("initiatives-store")]
 public class ProductStoreTests
 {
     private string _root = string.Empty;
