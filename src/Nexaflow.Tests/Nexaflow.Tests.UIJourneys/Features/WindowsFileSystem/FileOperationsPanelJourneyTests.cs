@@ -126,6 +126,12 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
                   () => WaitForId("FileOps_CancelRow", 4) is not null);
             Check("and a way to stop everything",
                   () => WaitForId("FileOps_CancelAll", 4) is not null);
+
+            // The header's collapse toggle. Pressed twice so the panel is left expanded for the checks
+            // below — a journey that quietly collapses the thing it is inspecting reports nothing useful
+            // about the rest of it.
+            CheckInvoke("collapse toggle", "FileOps_Toggle");
+            CheckInvoke("expand again",    "FileOps_Toggle");
         }
 
         // ── The copy lands ────────────────────────────────────────────────────

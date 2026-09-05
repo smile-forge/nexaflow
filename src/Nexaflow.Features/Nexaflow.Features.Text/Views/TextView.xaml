@@ -327,11 +327,13 @@
                                Visibility="{Binding IsSearchActive, Converter={StaticResource BoolVis}}"/>
                     <Button Style="{StaticResource TbBtn}" Command="{Binding FindPreviousCommand}"
                             IsEnabled="{Binding IsSearchActive}"
+                            AutomationProperties.AutomationId="Text_FindPrevious"
                             ToolTip="Find previous (Shift+F3)" Padding="6,3">
                         <TextBlock Text="▲" FontSize="10"/>
                     </Button>
                     <Button Style="{StaticResource TbBtn}" Command="{Binding FindNextCommand}"
                             IsEnabled="{Binding IsSearchActive}"
+                            AutomationProperties.AutomationId="Text_FindNext"
                             ToolTip="Find next (F3)" Padding="6,3">
                         <TextBlock Text="▼" FontSize="10"/>
                     </Button>
@@ -453,12 +455,14 @@
                             Command="{Binding SplitCommand}"
                             Padding="8,3"
                             Margin="0,0,4,0"
+                            AutomationProperties.AutomationId="Text_SplitNow"
                             ToolTip="Split now">
                         <TextBlock Text="Split" FontSize="11"/>
                     </Button>
                     <Button Style="{StaticResource TbBtn}"
                             Command="{Binding ToggleSplitPanelCommand}"
                             Padding="6,3"
+                            AutomationProperties.AutomationId="Text_SplitClose"
                             ToolTip="Close">
                         <TextBlock Text="✕" FontSize="10"/>
                     </Button>
@@ -549,12 +553,12 @@
                             </Style>
                         </Border.Resources>
                         <StackPanel>
-                            <Button Content="80%"  Tag="80"  Click="ZoomPreset_Click"/>
-                            <Button Content="90%"  Tag="90"  Click="ZoomPreset_Click"/>
-                            <Button Content="100%" Tag="100" Click="ZoomPreset_Click"/>
-                            <Button Content="110%" Tag="110" Click="ZoomPreset_Click"/>
-                            <Button Content="120%" Tag="120" Click="ZoomPreset_Click"/>
-                            <Button Content="130%" Tag="130" Click="ZoomPreset_Click"/>
+                            <Button Content="80%"  Tag="80"  Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom80"/>
+                            <Button Content="90%"  Tag="90"  Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom90"/>
+                            <Button Content="100%" Tag="100" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom100"/>
+                            <Button Content="110%" Tag="110" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom110"/>
+                            <Button Content="120%" Tag="120" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom120"/>
+                            <Button Content="130%" Tag="130" Click="ZoomPreset_Click" AutomationProperties.AutomationId="Text_Zoom130"/>
                         </StackPanel>
                     </Border>
                 </Popup>

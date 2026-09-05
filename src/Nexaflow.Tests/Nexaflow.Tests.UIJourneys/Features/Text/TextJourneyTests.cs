@@ -1,5 +1,8 @@
 using System.IO;
 using System.Linq;
+using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Input;
+using FlaUI.Core.Tools;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
@@ -35,9 +38,27 @@ public class TextJourneyTests : UiJourneyTestBase
         CheckInvoke("Line-numbers toggle", "Text_LineNumbers");
         CheckInvoke("Word-wrap toggle",    "Text_WordWrap");
 
-        // Zoom % and Go-to-line live in the toolbar/footer regardless of edit state.
-        CheckPresent("Zoom label",   "Text_ZoomLabel");
+        // Zoom % and Go-to-line live in the toolbar/footer regardless of edit state. The label is a TextBlock
+        // with a MouseLeftButtonUp handler rather than a Button, so it supports no Invoke pattern — the base
+        // class falls back to a real click, which is what opens the popup. The presets only exist in the UIA
+        // tree while that popup is open, so they are reachable from here and nowhere else in this journey.
         CheckPresent("Go-to-line button", "Text_GoToLine");
+        CheckInvoke("Zoom label (opens the preset popup)", "Text_ZoomLabel");
+        Check("Zoom popup opens", () => WaitForId("Text_Zoom100", 3) is not null);
+        CheckPresent("Zoom 80%",  "Text_Zoom80");
+        CheckPresent("Zoom 90%",  "Text_Zoom90");
+        CheckPresent("Zoom 110%", "Text_Zoom110");
+        CheckPresent("Zoom 130%", "Text_Zoom130");
+
+        // Pick one and require it to land: a preset that opens a popup and changes nothing is the failure a
+        // present-only check cannot see. 120% is chosen because it is not the default, so the label has to move.
+        CheckDoes("Zoom 120% applies", "Text_Zoom120",
+                  () => WaitForId("Text_ZoomLabel", 3)?.Name?.Contains("120") == true);
+
+        // Back to 100% so the rest of the journey runs at the size everything else assumes. The popup has to
+        // be reopened first — choosing a preset closes it.
+        CheckInvoke("Zoom label (reopen)", "Text_ZoomLabel");
+        CheckInvoke("Zoom 100% restores the default", "Text_Zoom100");
 
         // Find split button: the ▾ menu is present; the main button toggles the bar open. Its controls
         // should all be present, then it closes. (The bar's Border host isn't in the UIA control tree,
@@ -48,6 +69,26 @@ public class TextJourneyTests : UiJourneyTestBase
         CheckPresent("Find box",        "Text_FindBox");
         CheckPresent("Match-case toggle", "Text_MatchCase");
         CheckPresent("Regex toggle",      "Text_UseRegex");
+
+        // Find next/previous bind IsEnabled to IsSearchActive, so on an empty box they are present and
+        // disabled — invoking one there would only prove that a dead button does nothing. Typing a term the
+        // sample certainly contains is what makes them live, and then they are worth pressing.
+        CheckPresent("Find previous (no search yet)", "Text_FindPrevious");
+        CheckPresent("Find next (no search yet)",     "Text_FindNext");
+
+        Check("Typing a term activates the search", () =>
+        {
+            var box = WaitForId("Text_FindBox", 3);
+            if (box is null) return false;
+            box.AsTextBox().Enter("e");                     // a letter no text sample can avoid
+            Wait.UntilInputIsProcessed();
+            System.Threading.Thread.Sleep(300);             // the search runs off the keystroke
+            return WaitForId("Text_FindNext", 3)?.IsEnabled == true;
+        });
+
+        CheckInvoke("Find next",     "Text_FindNext");
+        CheckInvoke("Find previous", "Text_FindPrevious");
+
         CheckInvoke("Close find bar", "Text_CloseFind");
 
         // Read-only viewer: only Copy is shown (Cut/Paste are edit-only, hidden via IsEditing). Copy binds to
@@ -60,8 +101,14 @@ public class TextJourneyTests : UiJourneyTestBase
         // Monitoring toggle — safe to flip.
         CheckInvoke("Monitor toggle", "Text_Monitor");
 
-        // Split-panel toggle — opens the split side panel (a safe UI toggle).
-        CheckInvoke("Split-panel toggle", "Text_SplitToggle");
+        // Split-panel toggle — opens the split side panel (a safe UI toggle). Its own two buttons live inside
+        // that panel, so they are only reachable once it is open, and the ✕ is pressed last because it shuts
+        // the panel that hosts it.
+        CheckDoes("Split-panel toggle opens the panel", "Text_SplitToggle",
+                  () => WaitForId("Text_SplitNow", 3) is not null);
+        CheckInvoke("Split now", "Text_SplitNow");
+        CheckDoes("Split panel closes", "Text_SplitClose",
+                  () => WaitForId("Text_SplitNow", 2) is null);
 
         // Edit toggle → editing mode, which reveals the edit-only Save / Cut / Paste toolbar buttons.
         CheckInvoke("Edit toggle", "Text_EditToggle");
