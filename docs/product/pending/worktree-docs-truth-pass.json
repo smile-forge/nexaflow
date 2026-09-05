@@ -39,12 +39,401 @@
           ]
         }
       ]
+    },
+    "initiatives-node-model": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Model/ProductNode.cs",
+          "class": "ProductNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/ProductAggregator.cs",
+          "class": "ProductAggregator"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/ProductAggregatorTests.cs",
+            "class": "ProductAggregatorTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/ProductRollupTests.cs",
+            "class": "ProductRollupTests"
+          }
+        ]
+      }
+    },
+    "initiatives-tree-ops": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/ProductTreeOps.cs",
+          "class": "ProductTreeOps"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/ProductTreeOpsTests.cs",
+            "class": "ProductTreeOpsTests"
+          }
+        ]
+      }
+    },
+    "initiatives-store": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/ProductStore.cs",
+          "class": "ProductStore"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/ProductStoreTests.cs",
+            "class": "ProductStoreTests"
+          }
+        ]
+      }
+    },
+    "initiatives-root-locator": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/ProductRootLocator.cs",
+          "class": "ProductRootLocator"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/ProductRootLocatorTests.cs",
+            "class": "ProductRootLocatorTests"
+          }
+        ]
+      }
+    },
+    "initiatives-pending": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/PendingStore.cs",
+          "class": "PendingStore"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/PendingSnaplinksTests.cs",
+            "class": "PendingSnaplinksTests"
+          }
+        ]
+      }
+    },
+    "initiatives-validate": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/SnaplinkValidator.cs",
+          "class": "SnaplinkValidator"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/SnaplinkValidatorTests.cs",
+            "class": "SnaplinkValidatorTests"
+          }
+        ]
+      }
+    },
+    "initiatives-remap": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/SnaplinkRemapper.cs",
+          "class": "SnaplinkRemapper"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/SnaplinkRemapperTests.cs",
+            "class": "SnaplinkRemapperTests"
+          }
+        ]
+      }
+    },
+    "initiatives-coverage": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/TestCoverageReconciler.cs",
+          "class": "TestCoverageReconciler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/TestCoverageReconcilerTests.cs",
+            "class": "TestCoverageReconcilerTests"
+          }
+        ]
+      }
+    },
+    "initiatives-lint": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/StructureLinter.cs",
+          "class": "StructureLinter"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/StructureLinterTests.cs",
+            "class": "StructureLinterTests"
+          }
+        ]
+      }
+    },
+    "graph-extraction": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphBuilder.cs",
+          "class": "GraphBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphBuilderTests.cs",
+            "class": "GraphBuilderTests"
+          }
+        ]
+      }
+    },
+    "graph-archive": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/Store/GraphArchive.cs",
+          "class": "GraphArchive"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphFreshness.cs",
+          "class": "GraphFreshness"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphArchiveTests.cs",
+            "class": "GraphArchiveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphFreshnessTests.cs",
+            "class": "GraphFreshnessTests"
+          }
+        ]
+      }
+    },
+    "graph-queries": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphQuery.cs",
+          "class": "GraphQuery"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphPathTests.cs",
+            "class": "GraphPathTests"
+          }
+        ]
+      }
+    },
+    "graph-structural-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphEdit.cs",
+          "class": "GraphEdit"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphEditTests.cs",
+            "class": "GraphEditTests"
+          }
+        ]
+      }
+    },
+    "graph-communities-detect": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/Communities/CommunityDetector.cs",
+          "class": "CommunityDetector"
+        }
+      ]
+    },
+    "initiatives-daemon": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Hosting/InitiativesHost.cs",
+          "class": "InitiativesHost"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/InitiativesHostsTests.cs",
+            "class": "InitiativesHostsTests"
+          }
+        ]
+      }
+    },
+    "initiatives-ipc": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Hosting/Ipc/DaemonProtocol.cs",
+          "class": "DaemonProtocol"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/DaemonProtocolTests.cs",
+            "class": "DaemonProtocolTests"
+          }
+        ]
+      }
+    },
+    "nfi-verbs": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/VerbArgs.cs",
+          "class": "VerbArgs"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/VerbArgsTests.cs",
+            "class": "VerbArgsTests"
+          }
+        ]
+      }
+    },
+    "nfi-scan-tests": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/TestCoverageCollector.cs",
+          "class": "TestCoverageCollector"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/CoverageManifestFreshnessTests.cs",
+            "class": "CoverageManifestFreshnessTests"
+          }
+        ]
+      }
+    },
+    "initiatives-advisories": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/IntegrityBinderTests.cs",
+            "class": "IntegrityBinderTests"
+          }
+        ]
+      }
+    },
+    "nfi-batch": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/BatchInstructionTests.cs",
+            "class": "BatchInstructionTests"
+          }
+        ]
+      }
+    },
+    "nfi-self-location": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/CallerRelativePathTests.cs",
+            "class": "CallerRelativePathTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 40,
   "touched_nodes": [
+    "graph-archive",
+    "graph-communities-detect",
+    "graph-extraction",
+    "graph-queries",
+    "graph-structural-edit",
+    "initiatives-advisories",
+    "initiatives-coverage",
+    "initiatives-daemon",
+    "initiatives-ipc",
+    "initiatives-lint",
+    "initiatives-node-model",
+    "initiatives-pending",
+    "initiatives-remap",
+    "initiatives-root-locator",
+    "initiatives-store",
+    "initiatives-tree-ops",
+    "initiatives-validate",
     "latex-shown-as-written",
+    "nfi-batch",
+    "nfi-scan-tests",
+    "nfi-self-location",
+    "nfi-verbs",
     "theme-scene-battery-policy"
   ]
 }
