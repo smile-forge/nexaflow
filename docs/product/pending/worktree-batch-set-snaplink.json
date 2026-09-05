@@ -598,20 +598,70 @@
           "method": "UnregisterWindow"
         }
       ]
+    },
+    "chrome-options-button": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/MainWindow.xaml",
+          "class": "MainWindow",
+          "ast": "ToggleOptionsCommand button"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "ast": "T:ShellViewModel/M:ToggleOptions"
+        }
+      ]
+    },
+    "images-auto-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/ViewModels/ImageViewModel.cs",
+          "class": "ImageViewModel",
+          "ast": "T:ImageViewModel/F:_isAuto"
+        }
+      ]
+    },
+    "chrome-tab-tearoff-drag": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/TabStrip.xaml.cs",
+          "class": "TabStrip",
+          "ast": "T:TabStrip/M:BuildTabElement"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/TabStrip.xaml.cs",
+          "class": "TabStrip",
+          "method": "TabStrip_Drop"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 34,
+  "changed_sets": 37,
   "touched_nodes": [
     "chrome-content-area",
     "chrome-messages-button",
+    "chrome-options-button",
     "chrome-tab-activate",
     "chrome-tab-close",
+    "chrome-tab-tearoff-drag",
     "chrome-titlebar",
     "chrome-topbar",
     "code-line-numbers",
     "code-map-deps",
     "hybrid-album",
+    "images-auto-toggle",
     "images-speed-slider",
     "images-tools",
     "log-viewer-follow",
