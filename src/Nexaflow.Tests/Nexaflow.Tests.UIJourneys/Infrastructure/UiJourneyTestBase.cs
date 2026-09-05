@@ -4,6 +4,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
+using System.Diagnostics;
 
 namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 
@@ -48,11 +49,51 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
 
     // ── Soft checks ──────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// How long a journey may spend <b>waiting</b> on controls before it stops paying for waits.
+    /// <para>
+    /// Per-check timeouts are additive, and a journey walking a broken page pays every one of them. The
+    /// Search journey's fourteen 60-second waits stack into roughly a quarter of an hour of a machine
+    /// sitting apparently idle before it says anything at all — so the soft-check report, which is the
+    /// entire point of checking softly, arrives long after anyone has stopped watching and hit Ctrl+C.
+    /// Past the budget each remaining check gets one look instead of a wait: still truthful about a
+    /// control that is there, no longer paying a minute to confirm one that is not.
+    /// </para>
+    /// The longest healthy journey is comfortably under a minute, so this only bites once something is
+    /// already wrong. Override it for a journey that genuinely waits on real work.
+    /// </summary>
+    protected virtual TimeSpan JourneyBudget => TimeSpan.FromSeconds(120);
+
+    /// <summary>Started at the first check, so the app launch is not charged to the journey's budget.</summary>
+    private Stopwatch? _clock;
+    private bool _budgetReported;
+
+    /// <summary>
+    /// <paramref name="wanted"/> seconds, or what is left of <see cref="JourneyBudget"/> — whichever is
+    /// less, and never less than one. A single look still distinguishes a control that is present from
+    /// one that is missing; a zero would report every remaining control missing without looking at all.
+    /// <para>Wrap any wait a journey performs for itself, so its own loops are budgeted like the checks.</para>
+    /// </summary>
+    protected int Affordable(int wanted)
+    {
+        _clock ??= Stopwatch.StartNew();
+        var left = (int)(JourneyBudget - _clock.Elapsed).TotalSeconds;
+        if (left >= wanted) return wanted;
+
+        if (left <= 0 && !_budgetReported)
+        {
+            _budgetReported = true;
+            _failures.Add($"Journey budget of {JourneyBudget.TotalSeconds:0}s spent — every check below got " +
+                          "one look rather than its full wait, so read them as consequences of the first miss.");
+        }
+        return Math.Max(1, left);
+    }
+
     /// <summary>Records whether a control with <paramref name="automationId"/> is present + on-screen.</summary>
     protected AutomationElement? CheckPresent(string label, string automationId, int seconds = 5)
     {
         _checks++;
-        var el = WaitForId(automationId, seconds);
+        var el = WaitForId(automationId, Affordable(seconds));
         if (el is null) _failures.Add($"{label}: control '{automationId}' not found.");
         return el;
     }

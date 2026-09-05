@@ -61,7 +61,7 @@ public class SearchJourneyTests : UiJourneyTestBase
     /// </summary>
     private void ReturnToBrowser()
     {
-        var close = WaitForId("CloseTab_Search", 4);
+        var close = WaitForId("CloseTab_Search", Affordable(4));
         if (close is not null)
         {
             close.Click();
@@ -72,21 +72,55 @@ public class SearchJourneyTests : UiJourneyTestBase
         // section may still be finishing a background sweep, and on a loaded machine the tab does not close
         // the instant it is asked — submitting the next query into a page that is still the results page
         // routes it somewhere else entirely, and the search that follows silently never happens.
-        WaitForId("DirectoryTree", 10);
+        WaitForId("DirectoryTree", Affordable(10));
     }
 
-    /// <summary>Submits <paramref name="text"/> through the AI input bar, the way a user runs a search.</summary>
-    private void Submit(string text)
+    /// <summary>
+    /// Submits <paramref name="text"/> through the AI input bar, the way a user runs a search. Returns false
+    /// — having recorded why — when the bar never became ready for it.
+    /// <para>
+    /// The wait is the point. The bar is <c>IsEnabled=False</c> while <c>AiIsBusy</c>, so a query typed while
+    /// the previous turn is still running goes nowhere at all: no error, no results page, just a bar that
+    /// looks normal a moment later. The regex section ahead of this starts a background sweep and the journey
+    /// used to follow it with a flat two-second sleep, which is a race — and one this machine lost, silently,
+    /// three sections before the first check that mentioned it. Typing the same query by hand always worked,
+    /// which is exactly what a race looks like from the outside.
+    /// </para>
+    /// </summary>
+    private bool Submit(string text)
     {
         // Clicked rather than focused with Ctrl+Tab: reliable across the foreground churn of a full run.
-        var ai = WaitForId("AiInputBox", 10);
-        Assert.IsNotNull(ai, "AI input box not found.");
-        ai!.Click();
+        var ai = WaitForId("AiInputBox", Affordable(10));
+        if (ai is null)
+        {
+            Check($"The AI bar is present to submit '{text}'", () => false);
+            return false;
+        }
+
+        if (!WaitForFs(() => ai.IsEnabled, Affordable(30)))
+        {
+            Check($"The AI bar finishes its previous turn and accepts '{text}'", () => false);
+            return false;
+        }
+
+        ai.Click();
         Wait.UntilInputIsProcessed();
 
         Keyboard.Type(text);
+        Wait.UntilInputIsProcessed();
+
+        // The bar holds what we meant to send. A click that missed, or one that landed as the bar was
+        // re-enabling, otherwise sends a truncated query and the search that follows reads as a feature defect.
+        var typed = ai.AsTextBox().Text;
+        if (!typed.Contains(text, StringComparison.Ordinal))
+        {
+            Check($"The AI bar received '{text}' (it holds '{typed}')", () => false);
+            return false;
+        }
+
         Keyboard.Press(VirtualKeyShort.RETURN);
         Wait.UntilInputIsProcessed();
+        return true;
     }
 
     /// <summary>
@@ -102,15 +136,16 @@ public class SearchJourneyTests : UiJourneyTestBase
         {
             NavigateFileBrowserTo(folder);
         }
-        else if (WaitForId("DirectoryTree", 15) is null)
+        else if (WaitForId("DirectoryTree", Affordable(15)) is null)
         {
             // The default This PC tab opens on a deferred dispatcher tick, and a glob submitted before it
             // lands routes into an empty context and opens nothing.
             return false;
         }
 
-        Submit(query);
-        return WaitForId("ResultList", seconds) is not null;
+        if (!Submit(query)) return false;
+
+        return WaitForId("ResultList", Affordable(seconds)) is not null;
     }
 
     /// <summary>True once the banner is saying <paramref name="fragment"/>.</summary>
@@ -123,7 +158,7 @@ public class SearchJourneyTests : UiJourneyTestBase
             if (el?.Name?.Contains(fragment, StringComparison.OrdinalIgnoreCase) == true) return true;
             Thread.Sleep(200);
         }
-        while (sw.Elapsed < TimeSpan.FromSeconds(seconds));
+        while (sw.Elapsed < TimeSpan.FromSeconds(Affordable(seconds)));
 
         return false;
     }
@@ -160,6 +195,13 @@ public class SearchJourneyTests : UiJourneyTestBase
         // question with different buttons.)
         Check("Verification is not offered when there is nothing to verify",
               () => Hidden("VerifyRemaining") && Hidden("SkipVerification"));
+
+        // An explicit "?" must run the same search the bare glob just ran. Same page, same term, same
+        // moment - the only difference is the prefix, so a failure here is the ROUTE, and a pass says the
+        // route is fine and the fault is in what an EMPTY result does. Without it the first "?" in this
+        // journey is also the first absent term and the first search after a background sweep, and the
+        // three are indistinguishable in the report.
+        Check("An explicit \x27?\x27 runs the same search as the bare glob", () => Search("?*.txt"));
 
         // A regex takes the speculative path — translate, widen, classify, and possibly start a background
         // sweep. Whether it matches anything here depends on the machine, but it must not take the app down.
