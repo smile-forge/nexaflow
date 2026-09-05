@@ -117,10 +117,22 @@ public class OptionsJourneyTests : UiJourneyTestBase
 
             // The notices section shares the page; expanding it proves the two collapsibles are independent.
             Expand("About_NoticesToggle");
+
+            // ── The panel's own footer ──
+            // Save commits the edited copy and closes; the X closes without committing. Neither is pressed,
+            // and not because the app would come to harm — it runs against a throwaway config dir, so what
+            // they write is discarded with it. They are left alone because each one closes the panel, and
+            // Cancel below is the exit whose behaviour this pass actually asserts.
+            CheckPresent("Save",    "Options_Save");
+            CheckPresent("Close X", "Options_CloseX");
         }
         finally
         {
-            CloseOptions();
+            // Cancel rather than the chrome toggle, so the panel's own dismissal is what gets exercised.
+            // If it fails to close, CloseOptions still runs — a modal left open blocks everything after it.
+            CheckDoes("Cancel closes the Options overlay", "Options_Cancel",
+                      () => WaitForId("Chrome_OptionsPanel", 3) is null);
+            if (WaitForId("Chrome_OptionsPanel", 1) is not null) CloseOptions();
         }
 
         AssertJourney();

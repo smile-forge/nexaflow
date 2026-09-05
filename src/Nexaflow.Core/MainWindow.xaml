@@ -47,7 +47,7 @@
                     <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap"
                                Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,18"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
+                        <Button AutomationProperties.AutomationId="Chrome_ConfirmCancel" Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
                                 MinWidth="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
@@ -67,7 +67,7 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <Button Content="{Binding ConfirmLabel}" Command="{Binding ConfirmCommand}"
+                        <Button AutomationProperties.AutomationId="Chrome_ConfirmOk" Content="{Binding ConfirmLabel}" Command="{Binding ConfirmCommand}"
                                 MinWidth="90" Height="32" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource AccentBrush}" Foreground="White"
                                 BorderThickness="0" FontWeight="SemiBold">
@@ -269,17 +269,17 @@
         <Border Grid.Row="0" Background="{StaticResource Chrome.Deep}"/>
         <StackPanel Grid.Row="0" Orientation="Horizontal"
                     HorizontalAlignment="Right" VerticalAlignment="Stretch">
-            <Button x:Name="MinimizeButton"
+            <Button AutomationProperties.AutomationId="Chrome_Minimize" x:Name="MinimizeButton"
                     Style="{StaticResource CaptionButton}"
                     Content="&#xE921;"
                     ToolTip="Minimise"
                     Click="OnMinimizeClick"/>
-            <Button x:Name="MaximizeRestoreButton"
+            <Button AutomationProperties.AutomationId="Chrome_MaximizeRestore" x:Name="MaximizeRestoreButton"
                     Style="{StaticResource CaptionButton}"
                     Content="&#xE922;"
                     ToolTip="Maximise"
                     Click="OnMaximizeRestoreClick"/>
-            <Button x:Name="CloseButton"
+            <Button AutomationProperties.AutomationId="Chrome_Close" x:Name="CloseButton"
                     Style="{StaticResource CloseCaptionButton}"
                     Content="&#xE8BB;"
                     ToolTip="Close"
@@ -481,7 +481,7 @@
                                           Width="28" Height="28"/>
 
                         <!-- Clear input -->
-                        <Button Style="{StaticResource IconButton}"
+                        <Button AutomationProperties.AutomationId="AiBar_Clear" Style="{StaticResource IconButton}"
                                 ToolTip="Clear input"
                                 Command="{Binding ClearAiInputCommand}"
                                 IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
@@ -545,7 +545,7 @@
 
                 <!-- Queue addendum — visible only while the agent is working; Enter also queues.
                      Takes the top half while busy (the main button drops to the bottom half). -->
-                <Button Grid.Row="0" VerticalAlignment="Stretch" Margin="0,0,0,3"
+                <Button AutomationProperties.AutomationId="AiBar_Queue" Grid.Row="0" VerticalAlignment="Stretch" Margin="0,0,0,3"
                         Cursor="Hand" FontSize="14" Foreground="White"
                         Content="➤＋" ToolTip="Queue message (delivered at the next step)"
                         Command="{Binding SendAiMessageCommand}">
@@ -574,7 +574,7 @@
                     </Button.Style>
                 </Button>
 
-                <Button VerticalAlignment="Stretch"
+                <Button AutomationProperties.AutomationId="AiBar_Send" VerticalAlignment="Stretch"
                         Cursor="Hand" FontSize="16"
                         Foreground="White">
                     <Button.Style>
@@ -632,7 +632,7 @@
                         Background="{StaticResource AiBar.ClusterBg}" CornerRadius="10" Padding="7,8">
                     <StackPanel VerticalAlignment="Top">
 
-                        <ToggleButton ToolTip="Include page context"
+                        <ToggleButton AutomationProperties.AutomationId="AiBar_ContextToggle" ToolTip="Include page context"
                                       IsChecked="{Binding IncludeContext}"
                                       IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
                                       Style="{StaticResource ContextToggleButton}">
@@ -640,7 +640,7 @@
                         </ToggleButton>
 
                         <!-- Mic button — enabled only when voice is available; red while listening -->
-                        <Button ToolTip="Voice input (toggle)"
+                        <Button AutomationProperties.AutomationId="AiBar_Mic" ToolTip="Voice input (toggle)"
                                 Command="{Binding ToggleVoiceCommand}"
                                 Margin="0,6,0,0">
                             <Button.Style>
@@ -709,7 +709,7 @@
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="{x:Type m:MessageAction}">
-                                                    <Button Content="{Binding Label}"
+                                                    <Button AutomationProperties.AutomationId="Notif_ItemAction" Content="{Binding Label}"
                                                             Style="{StaticResource TopBarAction}"
                                                             Padding="10,4" Margin="0,0,6,0"
                                                             Foreground="{StaticResource TextBrush}"
@@ -718,7 +718,7 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </StackPanel>
-                                    <Button Grid.Column="1" VerticalAlignment="Top"
+                                    <Button AutomationProperties.AutomationId="Notif_Dismiss" Grid.Column="1" VerticalAlignment="Top"
                                             Style="{StaticResource TopBarAction}"
                                             Command="{Binding DataContext.DismissNotificationCommand,
                                                               RelativeSource={RelativeSource AncestorType=Window}}"
@@ -866,7 +866,7 @@
                                TextWrapping="Wrap"
                                VerticalAlignment="Center"/>
 
-                    <Button Grid.Column="2" VerticalAlignment="Top"
+                    <Button AutomationProperties.AutomationId="Toast_Dismiss" Grid.Column="2" VerticalAlignment="Top"
                             Style="{StaticResource TopBarAction}"
                             Margin="10,0,0,0"
                             Command="{Binding DataContext.DismissActiveToastCommand,
@@ -899,7 +899,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type m:MessageAction}">
-                            <Button Content="{Binding Label}"
+                            <Button AutomationProperties.AutomationId="Toast_Action" Content="{Binding Label}"
                                     Padding="12,5" Margin="8,0,0,0"
                                     Foreground="{StaticResource TextBrush}"
                                     Command="{Binding DataContext.RunToastActionCommand,
