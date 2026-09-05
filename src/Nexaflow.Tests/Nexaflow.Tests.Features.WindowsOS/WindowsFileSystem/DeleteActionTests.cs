@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Fixtures;
@@ -105,16 +106,36 @@ public class DeleteActionTests
     [TestMethod]
     public async Task ShiftDeleteSkipsTheConfirmation_AndTheFileIsGoneForGood()
     {
-    var shell = Substitute.For<IShellServices>().Runs();
-    var file = File_("gone.txt");
+        var shell = Substitute.For<IShellServices>().Runs();
+        var file  = File_("gone.txt");
 
-    var acted = new DeleteFile(shell).PerformAction(file, force: true);
+        var acted = new DeleteFile(shell).PerformAction(file, force: true);
 
-    Assert.IsTrue(acted);
-    await FileOperationQueue.For(shell).Operations[^1].Completion;
-    Assert.IsFalse(File.Exists(file), "a forced delete is permanent — not the Recycle Bin");
+        Assert.IsTrue(acted);
+        await FileOperationQueue.For(shell).Operations[^1].Completion;
+
+        Assert.IsFalse(File.Exists(file), "a forced delete is permanent — not the Recycle Bin");
         shell.DidNotReceiveWithAnyArgs().ShowConfirmation(default!, default!, default!, default!);
-        shell.Received().RequestRefresh();
+
+        // Completion says the TRANSFER finished. The refresh is announced afterwards, from the queue's
+        // onComplete callback (FileOperationQueue.Start → Announce → RequestRefresh), so awaiting the one
+        // does not order the other — and _completion is created RunContinuationsAsynchronously, so this
+        // method resumes on the pool and races that callback rather than following it. Asserting straight
+        // after the await passed on a developer machine and failed in CI, which is the worst shape a test
+        // can have: it blocked every unrelated PR while looking like each one had broken delete.
+        await WaitUntil(() => shell.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IShellServices.RequestRefresh)),
+                        "the delete was never announced to the shell, so no view would refresh");
+    }
+
+    /// <summary>Waits for something another thread is about to do, rather than assuming it already has.</summary>
+    private static async Task WaitUntil(Func<bool> done, string because, int seconds = 10)
+    {
+        for (var waited = 0; waited < seconds * 1000; waited += 25)
+        {
+            if (done()) return;
+            await Task.Delay(25);
+        }
+        Assert.Fail($"timed out after {seconds}s — {because}");
     }
 
     // ── Declared shape ────────────────────────────────────────────────────────
