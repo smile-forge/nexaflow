@@ -301,14 +301,21 @@ the write is deferred.
 
 ```powershell
 & $nfi pending                  # what this branch has changed and not merged — review before committing
-& $nfi promote [--dry-run]      # fold arrived sets into the shared tree and delete them
+& $nfi promote [--dry-run]      # fold arrived sets into the shared tree, delete them, and commit that
 ```
 
 **Commit that file with your change.** It is under the committed export dir on purpose: it rides along with
 the PR, so at merge the change set arrives in the main checkout together with the code it describes — no
-knowing which worktree, on whose machine, produced it. Its presence there *is* the merged signal, and the
-next `validate` in the main checkout folds it in and commits the removal (`--no-promote` to skip). A branch
+knowing which worktree, on whose machine, produced it. Its presence there *is* the merged signal. A branch
 that is abandoned never merges, so its set never arrives and there is nothing to clean up.
+
+**`promote` is the only verb that writes to git, and it is run deliberately, from the main checkout.**
+`validate` used to fold arrived sets in and commit the removal on the way past, which meant the verb
+*everything* runs — the installer's release gate, the Product page, every agent, several times a session —
+moved whatever branch its caller happened to be standing on. In the main checkout that is `main`. It now
+*reports* what is waiting (`note: N merged link set(s) … Fold them in with: nfi promote`) and writes
+nothing; `--no-promote` is gone with the behaviour it named. `promote` from a linked worktree is refused:
+a pending set there is that branch's own unmerged work, not something that has merged.
 
 **`validate` answers about the branch you are on, and a snaplink to a file that does not exist is an error.**
 From a linked worktree it resolves each snaplink against *that* tree — not the main checkout — because "does

@@ -414,15 +414,19 @@ internal static class Program
             return Clean;
         }
 
-        // Before validating, take in anything that has merged since — otherwise the first thing validate
-        // would report is links the shared tree has not been told about yet.
-        if (!a.Has("--no-promote")) ConsolidateMerged(root);
+        // The pending sets that apply where the caller stands, overlaid IN MEMORY below so the verdict is the one
+        // the tree gives once they are folded in. Reported, never folded: validate used to consolidate merged sets
+        // and commit the removal, which made the verb everyone runs — the installer gate, the Product page, every
+        // agent — move whatever branch its caller was standing on, main included. Folding in is `promote`.
+        var pending = PendingHere(root);
+
 
         IntegrityReport report;
         try
         {
             var store = new ProductStore(root);
             var state = LoadTree(root, store);
+            foreach (var set in pending) set.ApplyTo(state);
             // The coverage manifest gates [CoversNode] ids that no longer exist. It is derived, gitignored
             // state, so LoadTestCoverage() returning null (clean CI checkout, or scan-tests never run) simply
             // means that check is skipped — never a failure, and never a false all-clear either.
@@ -447,6 +451,14 @@ internal static class Program
             return Error;
         }
 
+        // On stderr, so it never lands in --json output or changes an exit code: this is a note about work
+        // waiting, not a verdict on the tree. Only in the main checkout — a set in a worktree is the branch's
+        // own and has not merged, so there is nothing there to fold in.
+        if (PendingBranch(root) is null && pending.Count > 0)
+            Console.Error.WriteLine(
+                $"note: {pending.Count} merged link set(s) ({string.Join(", ", pending.Select(p => p.Branch))}) are "
+              + "included above but not yet in the shared tree. Fold them in with: nfi promote");
+
         if (json)
         {
             // Same serializer as the on-disk report, so `--json` and integrity.json are byte-comparable.
@@ -463,7 +475,7 @@ internal static class Program
         // including a file that is in neither this tree nor the main checkout. That last case used to be
         // exempt on the theory that it was some other branch's not-yet-merged work and no branch should
         // answer for another. It does not hold any more: a snaplink written on a branch is deferred into
-        // docs/product/pending/<branch>.json and overlaid only for that branch (see ConsolidateMerged
+        // docs/product/pending/<branch>.json and overlaid only for that branch (see PendingHere
         // above), so the shared tree gets a link only once the file it names has merged. What the exemption
         // actually bought, therefore, was silence about a link naming a file that exists nowhere at all —
         // which is exactly the state it was meant to catch.
@@ -2483,8 +2495,9 @@ internal static class Program
     {
         private static readonly string[] None = [];
 
-        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save", "--main", "--no-promote"],
-            "validate [<root>] [--json] [--save] [--main] [--no-promote]");
+        // No --no-promote: validate does not promote. It reads, and says what is waiting to be folded in.
+        public static readonly VerbSpec Validate = new("validate", 0, None, ["--json", "--save", "--main"],
+            "validate [<root>] [--json] [--save] [--main]");
         public static readonly VerbSpec Find = new("find", 1, None, ["--json"],
             "find <term> [<root>] [--json]");
         public static readonly VerbSpec Query = new("query", 0, ["--under", "--concern", "--status"],
@@ -2761,39 +2774,20 @@ internal static class Program
     }
 
     /// <summary>
-    /// Folds in any pending set that has arrived by merge, as a side effect of an ordinary command.
+    /// The pending link sets that apply where the caller stands: from a worktree this branch's own, and in the
+    /// main checkout every set that has arrived — which is what a merge delivers, the file's presence there
+    /// being the merged signal.
     /// <para>
-    /// Only in the main checkout, and only for sets that are physically present there — which they can only
-    /// be because the branch that wrote one merged. That is the whole trick: the change set travels with the
-    /// pull request, so the moment its code lands the instruction to consolidate lands with it, and no one
-    /// has to remember to run anything from the machine the branch happened to be on.
+    /// Reading them is all this does. <c>validate</c> overlays them to answer for the tree as it will stand,
+    /// and <see cref="Promote"/> is the one verb that folds them in and commits — deliberately, because a
+    /// command that writes to git as a side effect of being asked a question moves whatever branch its caller
+    /// happened to be standing on.
     /// </para>
     /// </summary>
-    private static void ConsolidateMerged(string root)
-    {
-        if (PendingBranch(root) is not null) return;                 // on a branch: its own set is not merged
-        var store = PendingStoreFor(root);
-        var sets  = store.All();
-        if (sets.Count == 0) return;
-
-        try
-        {
-            var state   = LoadTree(root, new ProductStore(root));
-            var applied = sets.Sum(p => p.ApplyTo(state));
-            var paths   = store.RelativePaths(PendingRoot(root), sets);
-
-            SaveTree(root, new ProductStore(root), state);
-            foreach (var pending in sets) store.Delete(pending.Branch);
-
-            var (ok, error) = new ProductGit(PendingRoot(root)).CommitPaths(
-                paths, $"Product: consolidate snaplinks from {string.Join(", ", sets.Select(s => s.Branch))}");
-
-            Console.Error.WriteLine(
-                $"snaplinks: folded in {applied} set(s) from {sets.Count} merged branch(es)"
-              + (ok ? " and committed the removal." : $" — removal not committed ({error})."));
-        }
-        catch (Exception ex) { Console.Error.WriteLine($"note: could not consolidate pending snaplinks ({ex.Message})."); }
-    }
+    private static IReadOnlyList<PendingSnaplinks> PendingHere(string root) =>
+        PendingBranch(root) is { } branch
+            ? [PendingStoreFor(root).Load(branch)]
+            : PendingStoreFor(root).All();
 
     /// <summary>
     /// What this branch has changed and not yet merged — the review step before committing a pending set.
@@ -2860,6 +2854,18 @@ internal static class Program
     private static int Promote(string[] args)
     {
         if (!TryRead(Specs.Promote, args, out var a, out var root, out var parseCode)) return parseCode;
+
+        // A set in a worktree is that branch's own work, not something that has merged — folding it into the
+        // shared tree from here is the mistake this whole split exists to prevent, and it would commit the
+        // deletion onto the branch as well. The signal that a set has merged is its arrival in the main checkout.
+        if (PendingBranch(root) is { } onBranch)
+        {
+            Console.Error.WriteLine(
+                $"error: promote folds MERGED link sets into the shared tree, and this is branch '{onBranch}' in a "
+              + $"worktree — its set has not merged. Run it from the main checkout ({root}) once the PR has landed.");
+            return Error;
+        }
+
         if (!TryLoad(root, out var state, out var code)) return code;
 
         var store = PendingStoreFor(root);
