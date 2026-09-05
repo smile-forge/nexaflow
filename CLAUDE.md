@@ -181,7 +181,14 @@ guard that still refuses when the path itself has come to mean something else.
 
 You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
 flush-left with `\n` and it lands correctly indented with the file's own endings and encoding — that holds
-for **every** verb including `substitute`, whose replacement is indented for the line it lands on. A new
+for **every** verb including `substitute`, whose replacement is indented for the line it lands on. The
+converse holds too, and it is the escape hatch for the one shape auto-indent gets wrong: **a single line
+written WITH leading whitespace is placed exactly as you wrote it.** With no second line, indentation
+cannot be describing a shape, so the only thing it can mean is "put it here" — which is how you write a
+continuation aligned under the `=` it belongs to (`+ "…"`), or anything else that deliberately sits deeper
+than its own statement. A **multi-line** block keeps the flush-left rule even when its lines are indented:
+there the common indent is an artefact of wherever it was lifted from, and the shape *between* the lines,
+which survives either way, is what carries the meaning. A new
 file has no endings of its own, so `create` takes the ones its neighbours already use — the directory it
 lands in, then upward — rather than the machine's, which put CRLF into an LF repo on Windows. `replace`
 keeps the declaration's existing doc comment, *unless* your replacement opens with one, in which case yours

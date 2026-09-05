@@ -937,10 +937,32 @@ public static class StructuralEdit
     /// declaration begins after the indentation already sitting in front of it, so indenting the first line
     /// again would double it. Every later line does begin a fresh line, and does need it.
     /// </para>
+    /// <para>
+    /// <b>A single line that arrives with leading whitespace is kept exactly as written.</b> It is the one
+    /// payload whose indentation can only be intent: with no second line there is no relative shape for it to
+    /// describe, so the only thing it can mean is "put it here". That is what makes an aligned continuation
+    /// (<c>+ "…"</c> under the <c>=</c> it belongs to) expressible at all — re-indenting it to the statement's
+    /// own depth, as every other payload wants, is precisely wrong for that one. Written flush-left it is
+    /// re-indented like anything else, so the ordinary case is untouched.
+    /// </para>
+    /// <para>
+    /// A MULTI-line block keeps the old rule even when its lines are indented, because there the common indent
+    /// is an artefact of wherever the block was lifted from and the shape BETWEEN the lines is what carries the
+    /// meaning — which <see cref="SourceText.Reindent"/> preserves either way. Only the single-line case is
+    /// ambiguous, so only it changed.
+    /// </para>
     /// </summary>
     private static string Block(string text, string indent, string newline, bool indentFirst = true)
     {
-        var lines = SourceText.Reindent(SourceText.BlockOf(text), indent);
+        var block = SourceText.BlockOf(text);
+
+        if (block is [var only] && only.Length > 0 && (only[0] == ' ' || only[0] == '\t'))
+            // When the splice begins part-way along a line, the destination's indentation is already in the
+            // file in front of it — so drop that much of what the caller wrote and let the two add up to
+            // exactly the line they asked for, rather than to both.
+            return !indentFirst && only.StartsWith(indent, StringComparison.Ordinal) ? only[indent.Length..] : only;
+
+        var lines = SourceText.Reindent(block, indent);
         if (!indentFirst && lines.Count > 0 && lines[0].StartsWith(indent, StringComparison.Ordinal))
             lines = [lines[0][indent.Length..], .. lines.Skip(1)];
         return string.Join(newline, lines);
