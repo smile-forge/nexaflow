@@ -31,6 +31,21 @@ public sealed class GraphWorkspace
     private GraphSnapshot? _snapshot;
     private bool _dirty;
 
+    /// <summary>
+    /// The archive as it was when the held snapshot was read from it, so that a rebuild performed by anyone
+    /// else is noticed rather than ignored forever.
+    /// <para>
+    /// Without this the snapshot was read once and kept for the life of the process, and a <c>graph build</c>
+    /// run anywhere but inside this daemon — another process, another session, the CLI while a daemon
+    /// happened to be resident — wrote a correct archive that was then never looked at again. What that
+    /// looked like from outside was far worse than staleness: <c>graph search</c> answered "no nodes match"
+    /// for types that plainly existed, and the freshness line reported the same drift after every rebuild,
+    /// because the build fixed the file and the answer came from memory. Two full rebuilds could not shift
+    /// it; killing the daemon could.
+    /// </para>
+    /// </summary>
+    private FileStamp _archive;
+
     /// <param name="store">Where this tree's archive lives — the main checkout's, or a worktree's own.</param>
     /// <param name="productRoot">The checkout holding <c>.product</c>: always the main one.</param>
     /// <param name="codeRoot">Where source is read from — this branch's tree, or null to mean the product root.</param>
@@ -71,13 +86,50 @@ private readonly Func<ProductState>? _tree;
     {
         lock (_gate)
         {
-            _snapshot ??= GraphArchive.Read(Store.GraphFilePath);
+            if (_snapshot is null || ArchiveMovedOn()) Load();
             if (_snapshot is null) return null;
 
             NoteTreeStamp(_snapshot);
             Reconcile(_snapshot);
             return _snapshot;
         }
+    }
+
+    /// <summary>
+    /// Reads the archive and records what it was, so the next call can tell in one stat whether it still is.
+    /// </summary>
+    private void Load()
+    {
+        _snapshot = GraphArchive.Read(Store.GraphFilePath);
+        _dirty    = false;
+        StampArchive();
+    }
+
+    /// <summary>
+    /// Whether the archive on disk is no longer the one the held snapshot came from — someone else rebuilt it.
+    /// <para>
+    /// Not asked while this workspace has unflushed changes of its own. Re-reading would drop them, and the
+    /// alternative — writing ours over theirs — is the same loss facing the other way. Holding what we have
+    /// until <see cref="Flush"/> has written it keeps the choice out of a query's path; the flush re-stamps,
+    /// so the very next call sees a clean snapshot and can take their build in then.
+    /// </para>
+    /// </summary>
+    private bool ArchiveMovedOn()
+    {
+        if (_dirty) return false;
+
+        var info = Info(Store.GraphFilePath);
+        if (info is null) return false;                 // no archive at all is not a newer one
+
+        // An archive read before this was recorded has no stamp; re-reading once settles it.
+        return !_archive.IsKnown || !_archive.Matches(info.Length, info.LastWriteTimeUtc);
+    }
+
+    /// <summary>Records the archive's current identity as the one the held snapshot corresponds to.</summary>
+    private void StampArchive()
+    {
+        var info = Info(Store.GraphFilePath);
+        _archive = info is null ? default : new FileStamp(string.Empty, info.Length, info.LastWriteTimeUtc);
     }
 
     /// <summary>Replaces what is held — after a full build, which produces a snapshot rather than amending
@@ -99,7 +151,10 @@ private readonly Func<ProductState>? _tree;
     {
         lock (_gate)
         {
-            var snapshot = _snapshot ??= GraphArchive.Read(Store.GraphFilePath) ?? new GraphSnapshot();
+            // Same currency check as a read. An edit merges into whatever is held, so starting from a
+            // superseded archive would write a graph missing everything the other build added.
+            if (_snapshot is null || ArchiveMovedOn()) Load();
+            var snapshot = _snapshot ??= new GraphSnapshot();
             Reconcile(snapshot);
 
             var result = mutate(snapshot);
@@ -119,6 +174,10 @@ private readonly Func<ProductState>? _tree;
             _snapshot.Files = Stamps(_snapshot.Cache);
             Store.SaveSnapshot(_snapshot);
             _dirty = false;
+
+            // What we just wrote is now what the held snapshot corresponds to. Without this the next read
+            // would see an archive it had never stamped, and re-load the file it had itself just produced.
+            StampArchive();
         }
     }
 
@@ -213,9 +272,15 @@ private readonly Func<ProductState>? _tree;
         if (stale.Count == 0 || stale.Count > RefreshLimit) return;
 
         foreach (var rel in stale)
-            if (GraphBuilder.RefreshFile(snapshot.Graph, snapshot.Cache, ProductRoot, rel, CodeRoot))
-                _dirty = true;
+            GraphBuilder.RefreshFile(snapshot.Graph, snapshot.Cache, ProductRoot, rel, CodeRoot);
 
+        // Dirty because the STAMPS moved, not because the graph did. A file whose content is unchanged —
+        // git restoring it, a checkout, a save with no edit — re-parses to exactly what was already there,
+        // so nothing here reports a change and nothing was written; the stamp therefore stayed at its old
+        // value and the file read as stale again on the next query, and the next, permanently. That is the
+        // banner that cries wolf, and it cried on the one thing a reader could not act on: re-running with
+        // --refresh did not clear it either, because that path made the same judgement.
+        _dirty  = true;
         Drifted = 0;
     }
 

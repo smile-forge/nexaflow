@@ -574,6 +574,17 @@ internal static class Program
                 "you're on); the product tree + the graph archive stay in the main checkout, and the content-addressed " +
                 "cache re-parses only the files that differ from it.");
 
+        // Say when there was nothing to do, rather than spending two and a half minutes proving it. Queries
+        // fold their own drift in now, so an explicit build is usually someone checking rather than fixing —
+        // and "already current" is the useful answer to that. --no-incremental still rebuilds regardless:
+        // that is the form you reach for precisely when you suspect the archive itself, and a check that
+        // reads the archive cannot be the thing that clears it.
+        if (incremental && !json && GraphIsAlreadyCurrent(root, a.Has("--main")) is { } current)
+        {
+            Console.WriteLine(current);
+            return Clean;
+        }
+
         KnowledgeGraph graph;
         try
         {
@@ -591,7 +602,19 @@ internal static class Program
             graph = built.Graph;
             if (!json)
             {
-                store.SaveSnapshot(graph, built.Cache);
+                // Hand the result to the warm workspace rather than writing round the back of it. A build
+                // that only wrote the file left the resident process serving the snapshot it loaded at
+                // startup — for the life of that daemon. The symptom was not staleness but confident
+                // wrongness: `graph search` answered "no nodes match" for types that plainly existed, and
+                // the freshness line reported identical drift after every rebuild, because the build fixed
+                // the archive and the answer came from memory. Two full rebuilds could not shift it.
+                //
+                // Replace persists it too, so this is the same one write it was before — and because the
+                // workspace now holds exactly what was just built, nothing re-reads it afterwards.
+                if (Workspace(root, a.Has("--main"), store) is { } workspace)
+                    workspace.Replace(graph, built.Cache);
+                else
+                    store.SaveSnapshot(graph, built.Cache);
             }
         }
         catch (Exception ex)
@@ -775,7 +798,7 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 40, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
         BeginFreshness(root, a.Has("--main"), g);
-        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
+        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         var hits = GraphQuery.Search(g, term, a.Value("--type"));
         Console.WriteLine(GraphReport.Search(hits, term, limit));
@@ -788,7 +811,7 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 60, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
         BeginFreshness(root, a.Has("--main"), g);
-        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
+        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         var type = a.Value("--type");
         var file = a.Value("--file");
@@ -823,7 +846,7 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 30, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
         BeginFreshness(root, a.Has("--main"), g);
-        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
+        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         if (GraphQuery.Node(g, id) is not { } hood)
         { Console.Error.WriteLine($"error: no node '{id}' (try: graph search)."); return Error; }
@@ -840,7 +863,7 @@ internal static class Program
         if (!TryIntOpt(a, "--limit", 150, out var limit)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
         BeginFreshness(root, a.Has("--main"), g);
-        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
+        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         var types = a.Value("--types")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                      .ToHashSet(StringComparer.Ordinal);
@@ -869,6 +892,9 @@ internal static class Program
 
         var full = CodeFilePath(root, rel, a.Has("--main"));
         if (full is null) { Console.Error.WriteLine($"error: file not found: {rel}"); return Error; }
+
+        AdoptFileIfUnknown(root, a.Has("--main"), rel);
+
         var lines = File.ReadAllText(full).Replace("\r\n", "\n").Split('\n');
 
         int s0, e0;
@@ -1039,21 +1065,45 @@ internal static class Program
     /// </summary>
     private static void BeginFreshness(string root, bool main, KnowledgeGraph graph)
     {
-        var codeRoot = CodeRootOrNull(root, main) ?? root;
-        // Only the files the builder actually read. A file node is also synthesized for an import target
-        // that never resolved to anything on disk, and those carry the REFERRING file as their source — so
-        // counting them made a clean main checkout report hundreds of files "removed".
-        var known = graph.Nodes
+        var codeRoot  = CodeRootOrNull(root, main) ?? root;
+        var known     = KnownFiles(graph);
+        var graphFile = GraphStore(root, main).GraphFilePath;
+
+        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
+    }
+
+    /// <summary>
+    /// Only the files the builder actually read. A file node is also synthesized for an import target that
+    /// never resolved to anything on disk, and those carry the REFERRING file as their source — so counting
+    /// them made a clean main checkout report hundreds of files "removed".
+    /// </summary>
+    private static string[] KnownFiles(KnowledgeGraph graph) =>
+        [.. graph.Nodes
             .Where(n => n.Type == NodeType.File
                      && n.FilePath is { Length: > 0 }
                      && string.Equals(n.Source, n.FilePath, StringComparison.OrdinalIgnoreCase))
             .Select(n => n.FilePath!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
 
-        var graphFile  = GraphStore(root, main).GraphFilePath;
+    /// <summary>
+    /// The "nothing to do" line when the archive already describes this tree, or null when there is work.
+    /// Asking costs the same read a query does, which is nothing beside the build it saves.
+    /// </summary>
+    private static string? GraphIsAlreadyCurrent(string root, bool main)
+    {
+        var store = GraphStore(root, main);
+        if (!File.Exists(store.GraphFilePath)) return null;         // never built: there is certainly work
 
-        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
+        if (!TryLoadGraph(root, out var graph, out _)) return null;
+
+        GraphFreshness.Report report;
+        try { report = GraphFreshness.Check(KnownFiles(graph), CodeRootOrNull(root, main) ?? root, store.GraphFilePath); }
+        catch { return null; }                                      // cannot tell: build rather than claim
+
+        return report.Available && report.IsCurrent
+            ? $"Graph already current — {report.Known:N0} files, nothing changed since it was built. "
+            + "Nothing to rebuild (--no-incremental forces one anyway)."
+            : null;
     }
 
     /// <summary>
@@ -1073,23 +1123,47 @@ internal static class Program
     }
 
     /// <summary>
-    /// Folds every file that has moved on back into the graph before the query reads it, so
-    /// <c>--refresh</c> answers from current data rather than warning about stale data.
+    /// How much drift a query will fold in on its own before deciding that rebuilding is the honest answer.
+    /// <para>
+    /// The same judgement, and the same number, as the warm workspace's own limit: dozens of files is
+    /// somebody working and costs a parse each; thousands is a checkout seeded from somewhere else, and
+    /// re-parsing thousands is the two-and-a-half-minute build nobody asked for by typing <c>graph node</c>.
+    /// </para>
     /// </summary>
-    private static void RefreshStaleFiles(string root, bool main, KnowledgeGraph graph)
+    private const int AutoRefreshLimit = 200;
+
+    /// <summary>
+    /// Folds every file that has moved on back into the graph before the query reads it, so the answer is
+    /// about the code as it is rather than a warning about code as it was.
+    /// <para>
+    /// This runs whether or not <c>--refresh</c> was passed. Detecting staleness and then answering from it
+    /// anyway put the reader in the worst position available: a confident answer, a note saying it might be
+    /// wrong, and a flag they had to know to type. <c>--refresh</c> now means only "do it however much there
+    /// is" — past <see cref="AutoRefreshLimit"/> an unforced query leaves the work alone and the freshness
+    /// line says a build is wanted, because that much re-parsing is not something to do to someone who asked
+    /// for one node.
+    /// </para>
+    /// </summary>
+    private static void RefreshStaleFiles(string root, bool main, KnowledgeGraph graph, bool forced = true)
     {
         if (_freshness is null) return;
 
         GraphFreshness.Report report;
         try { report = _freshness.Result; } catch { return; }
         if (!report.Available || report.IsCurrent) return;
+        if (!forced && report.Stale.Count > AutoRefreshLimit) return;
 
         var store = GraphStore(root, main);
         var cache = EditCache(root, main, store);
-        var dirty = false;
+
+        // Having re-read these is itself worth recording, whether or not any of them turned out to differ.
+        // A file restored by git parses to exactly what was already in the graph, so nothing changes, and
+        // when nothing changed nothing was written — leaving the stamp at its old value, so the file read
+        // as stale on the next query too, and every one after it. --refresh did not clear it either.
+        var dirty = report.Stale.Count > 0;
 
         foreach (var rel in report.Stale)
-            dirty |= GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
+            GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
 
         // Files the graph names that this tree does not have. Dropping them is only safe because the graph
         // being updated is this tree's own — from a shared one they could as easily be a parallel branch's
@@ -1106,6 +1180,33 @@ internal static class Program
             $"graph: refreshed {report.Stale.Count} file(s)"
           + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
         _freshness = null;                       // the report it would print is now out of date itself
+    }
+
+    /// <summary>
+    /// Makes sure the graph knows the file being read, and says so when it did not.
+    /// <para>
+    /// This verb answers from the file on disk, so it worked perfectly well on a file the graph had never
+    /// heard of — which reads as confirmation that the graph holds it. It is not, and the wrong conclusion
+    /// is an expensive one to draw: a file missing from the graph is invisible to <c>search</c>, <c>node</c>
+    /// and every other query, and the one command that would have exposed that was instead concealing it.
+    /// So the file is folded in and the note is printed; the next query finds it.
+    /// </para>
+    /// </summary>
+    private static void AdoptFileIfUnknown(string root, bool main, string rel)
+    {
+        var store = GraphStore(root, main);
+        if (!File.Exists(store.GraphFilePath)) return;      // nothing built yet: not this verb's business
+        if (!TryLoadGraph(root, out var graph, out _)) return;
+
+        if (graph.Nodes.Exists(n => n.Type == NodeType.File
+                                 && string.Equals(n.FilePath, rel, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var cache = EditCache(root, main, store);
+        if (!GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main))) return;
+
+        SaveGraphChange(root, main, store, graph, cache);
+        Console.Error.WriteLine($"graph: {rel} was not in the graph — added it, so queries can find it too.");
     }
 
     /// <summary>The repo-relative file a node id names, or null when the id names neither.</summary>
@@ -1475,7 +1576,7 @@ internal static class Program
         if (!TryIntOpt(a, "--lines", 60, out var sourceLines)) return Error;
         if (!TryLoadGraph(root, out var g, out var code)) return code;
         BeginFreshness(root, a.Has("--main"), g);
-        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
+        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         // The library reads source through a callback precisely so the CLI can resolve the caller's working
         // tree first (and --main can override it) without the query layer knowing anything about worktrees.
@@ -1527,7 +1628,7 @@ internal static class Program
 
         if (!TryLoadGraph(root, out var g, out var code)) return code;
         BeginFreshness(root, a.Has("--main"), g);
-        if (a.Has("--refresh")) RefreshStaleFiles(root, a.Has("--main"), g);
+        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         Regex rx;
         try { rx = new Regex(pattern, RegexOptions.IgnoreCase); }

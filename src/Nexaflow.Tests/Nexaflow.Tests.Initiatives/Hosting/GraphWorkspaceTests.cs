@@ -195,4 +195,44 @@ public class GraphWorkspaceTests
                       "absent is reported, never acted on");
         Assert.AreEqual(0, workspace.Drifted);
     }
+
+    /// <summary>
+    /// The failure this pair exists for. The snapshot used to be read once and kept for the life of the
+    /// process, so a build run anywhere else wrote a correct archive that was then never looked at again.
+    /// It did not present as staleness: queries answered "no nodes match" for types that were plainly
+    /// there, and the freshness line reported identical drift after every rebuild, because the build fixed
+    /// the file and the answer came from memory.
+    /// </summary>
+    [TestMethod]
+    public void AnArchiveRebuiltByAnotherProcess_IsPickedUp()
+    {
+        Seed(3);
+        var workspace = Workspace();
+        Assert.AreEqual(3, workspace.Graph!.Nodes.Count, "the archive as it stood when first read");
+
+        Seed(6);   // another process rebuilds it underneath
+
+        Assert.AreEqual(6, workspace.Graph!.Nodes.Count,
+            "the archive on disk is no longer the one this snapshot came from, so it is re-read");
+    }
+
+    /// <summary>
+    /// The other half, and why this is a stamp rather than a reload-every-time: a workspace that wrote the
+    /// archive itself already holds exactly what is in it. Re-reading there is pure cost on the common
+    /// path — one daemon, doing its own work.
+    /// </summary>
+    [TestMethod]
+    public void AWorkspaceThatWroteTheArchiveItself_DoesNotReReadIt()
+    {
+        Seed(3);
+        var workspace = Workspace();
+        Assert.IsNotNull(workspace.Graph);
+
+        var replacement = new KnowledgeGraph();
+        replacement.Nodes.Add(new GraphNode { Id = "code:src/Only.cs#T:Only", Type = "type", Label = "Only" });
+        workspace.Replace(replacement, new GraphCache());
+
+        Assert.AreSame(replacement, workspace.Graph,
+            "what it just built is what it holds — a re-read here would swap it for a copy of itself");
+    }
 }
