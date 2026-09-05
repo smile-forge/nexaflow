@@ -128,4 +128,19 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         if (_failures.Count > 0)
             Assert.Fail($"{_failures.Count}/{_checks} control checks failed:\n  - " + string.Join("\n  - ", _failures));
     }
+
+    /// <summary>
+    /// True when the <c>ZoomChip</c> for <paramref name="pagePrefix"/> reads exactly
+    /// <paramref name="expected"/> (e.g. "120%").
+    /// <para>
+    /// Exact, not a substring: "contains 120" also passes on 1200%, and — worse — a check that can pass
+    /// without the zoom having moved is the one failure mode a zoom test exists to catch. The label is a
+    /// TextBlock, so UIA reports its text as the element's Name.
+    /// </para>
+    /// </summary>
+    protected bool ZoomLabelReads(string pagePrefix, string expected)
+    {
+        var label = WaitForId($"{pagePrefix}_ZoomLabel", 3);
+        return label?.Name == expected;
+    }
 }

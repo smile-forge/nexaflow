@@ -26,6 +26,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="42"/> <!-- toolbar   -->
             <RowDefinition Height="*"/> <!-- content   -->
+            <RowDefinition Height="28"/> <!-- footer    -->
         </Grid.RowDefinitions>
 
         <!-- ══════════════════════════════════════════════════════════
@@ -38,7 +39,6 @@
             <Grid Margin="10,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -56,15 +56,8 @@
                                          VerticalAlignment="Center" Margin="16,0,0,0"/>
                 </StackPanel>
 
-                <!-- Zoom %: click for a preset, or Ctrl+scroll / Ctrl+± over the document -->
-                <vc:ZoomChip Grid.Column="1"
-                             PagePrefix="Markdown"
-                             Zoom="{Binding Zoom}"
-                             VerticalAlignment="Center"
-                             Margin="0,0,10,0"/>
-
                 <!-- Source-only toggle (default off → rendered + inline editing) -->
-                <ToggleButton Grid.Column="2"
+                <ToggleButton Grid.Column="1"
                               Style="{StaticResource TbToggle}"
                               Margin="0,0,6,0"
                               Content="&lt;/&gt; Source"
@@ -73,7 +66,7 @@
                               IsChecked="{Binding SourceOnly, Mode=TwoWay}"/>
 
                 <!-- Save button (greyed out when clean) -->
-                <Button Grid.Column="3"
+                <Button Grid.Column="2"
                         Style="{StaticResource TbBtn}"
                         ToolTip="Save (Ctrl+S)"
                         AutomationProperties.AutomationId="Markdown_Save"
@@ -132,6 +125,41 @@
                              Grid.Column="1"
                              Background="{StaticResource DeepBgBrush}"/>
         </Grid>
+
+        <!-- ══════════════════════════════════════════════════════════
+             STATUS BAR
+             ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="2"
+                Background="{StaticResource DeepBgBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <DockPanel VerticalAlignment="Center" Margin="14,0" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding WordCount, StringFormat='{}{0:N0} words'}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"/>
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding LineCount, StringFormat='{}{0:N0} lines'}"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"/>
+                <!-- The Save button already greys out when clean; this says the same thing where you are
+                     looking when you wonder whether a keystroke landed. -->
+                <TextBlock DockPanel.Dock="Left"
+                           Text="Unsaved changes"
+                           Foreground="{StaticResource WarningBrush}"
+                           FontSize="11"
+                           Margin="0,0,16,0"
+                           Visibility="{Binding IsDirty, Converter={StaticResource BoolVis}}"/>
+
+                <!-- Zoom %: click for a preset, or Ctrl+scroll / Ctrl+± over the document -->
+                <vc:ZoomChip DockPanel.Dock="Right"
+                             PagePrefix="Markdown"
+                             Zoom="{Binding Zoom}"
+                             VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
 
     </Grid>
 </UserControl>

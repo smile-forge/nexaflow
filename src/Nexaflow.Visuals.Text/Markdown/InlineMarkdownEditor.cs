@@ -65,7 +65,7 @@ public partial class InlineMarkdownEditor : UserControl
     private IInteractiveBlock? _pointerBlock; // interactive block owning the in-progress click/drag gesture
     private Point?     _dragArm;              // press point when it landed on the selection — a potential copy drag-out
     private bool       _renderPending;        // a RenderAll was requested while hidden → run it once the editor is shown
-    private bool       _fontSizePending;      // the text size moved while someone was typing → apply when focus leaves
+    
 
     // Block-model undo: a snapshot of (blocks, active block, caret-in-block) taken at the start of each
     // editing session. Edits within one block coalesce into a single undo step (block-level, not per key).
@@ -116,8 +116,6 @@ public partial class InlineMarkdownEditor : UserControl
         _rtb.SelectionChanged  += OnSelectionChanged;
         _rtb.GotKeyboardFocus  += (_, _) => ScheduleNavigate();
         _rtb.LostKeyboardFocus += OnLostFocus;
-        // After OnLostFocus, so the commit's own rebuild gets first refusal at applying a deferred size change.
-        _rtb.LostKeyboardFocus += (_, _) => { if (_fontSizePending) ApplyBaseFontSize(); };
 
         // The prompt turns on whether anyone is writing here, so it has to be reconsidered when that
         // changes. Nothing did — it was only revisited when the document was rebuilt or the model
@@ -239,23 +237,21 @@ public partial class InlineMarkdownEditor : UserControl
         => double.IsNaN(BaseFontSize) ? Nexaflow.Visuals.Common.Theming.TextTypography.BaseFontSize : BaseFontSize;
 
     /// <summary>
-    /// A size change re-lays the whole document out, and the rebuild that does it ends any edit session —
-    /// so while the caret is in here, remember it and apply on the way out rather than yanking the block
-    /// out from under whoever is typing. Half-applying is not an option either: only the active source
-    /// block inherits the document default, so setting that alone would resize that one block and nothing
-    /// else.
+    /// Re-lays the document out at the new size, <em>always</em> — including while the caret is in here.
+    /// <para>
+    /// The palette and base-directory changes above skip a focused editor because they arrive from
+    /// somewhere else while you happen to be typing. A size change is the opposite: it is the gesture you
+    /// just made (Ctrl+wheel, Ctrl+plus, a preset), so the one unacceptable outcome is nothing visibly
+    /// happening. Deferring it until focus left meant exactly that — clicking into a document is enough to
+    /// hold focus, so zoom did nothing at all in the ordinary case.
+    /// </para>
+    /// <para>
+    /// The rebuild costs the current edit session, not any text: <c>RenderAll</c> syncs the model first, and
+    /// pins the focal block, the scroll offset and a formula caret across it.
+    /// </para>
     /// </summary>
     private void OnBaseFontSizeChanged()
     {
-        if (_rtb.IsKeyboardFocusWithin) { _fontSizePending = true; return; }
-        ApplyBaseFontSize();
-    }
-
-    private void ApplyBaseFontSize()
-    {
-        _fontSizePending = false;
-        // A rebuild on the way out (CommitEdit renders the block being left) already builds the document at
-        // the current size, so there is usually nothing left to do by the time focus goes.
         if (_rtb.Document.FontSize.Equals(EffectiveBaseFontSize)) return;
         _rtb.Document.FontSize = EffectiveBaseFontSize;
         RenderAll();

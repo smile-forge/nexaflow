@@ -121,12 +121,33 @@
           }
         ]
       }
+    },
+    "markdown-doc-stats": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "method": "UpdateCounts"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+            "class": "MarkdownViewModelTests",
+            "method": "DocumentStats_CountWordsAndLines"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 9,
+  "changed_sets": 11,
   "touched_nodes": [
     "hex-zoom",
+    "markdown-doc-stats",
     "markdown-zoom",
     "opt-shell-text-size",
     "text-viewer-zoom",

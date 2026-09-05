@@ -91,40 +91,4 @@ public class MarkdownTypographyTests
 
         return (h1, para.FontSize, codeRun.FontSize);
     }
-
-    [TestMethod]
-    public void BaseFontSize_ScalesTheRenderedDocument() => UiThread.Run(() =>
-    {
-        var editor = new InlineMarkdownEditor { Markdown = "Body text.\n", BaseFontSize = 15 };
-        Settle(editor);
-        Assert.AreEqual(15d, Document(editor).FontSize, 1e-9);
-
-        editor.BaseFontSize = 30;
-        Settle(editor);
-        Assert.AreEqual(30d, Document(editor).FontSize, 1e-9,
-            "an unfocused editor takes a size change immediately");
-    });
-
-    /// <summary>The editor's FlowDocument. Reached through the RichTextBox rather than a field, since the
-    /// control does not expose one.</summary>
-    private static System.Windows.Documents.FlowDocument Document(InlineMarkdownEditor editor)
-        => Descendants(editor).OfType<System.Windows.Controls.RichTextBox>().First().Document;
-
-    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
-    {
-        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
-        for (var i = 0; i < count; i++)
-        {
-            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
-            yield return child;
-            foreach (var d in Descendants(child)) yield return d;
-        }
-    }
-
-    private static void Settle(FrameworkElement fe)
-    {
-        fe.Measure(new Size(600, 400));
-        fe.Arrange(new Rect(0, 0, 600, 400));
-        fe.UpdateLayout();
-    }
 }

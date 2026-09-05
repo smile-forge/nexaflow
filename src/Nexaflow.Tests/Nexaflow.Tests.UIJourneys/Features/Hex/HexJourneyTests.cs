@@ -55,10 +55,11 @@ public class HexJourneyTests : UiJourneyTestBase
 
         // Require a preset to land: zooming re-measures the cell, so this is also the check that a resized grid
         // still renders rather than throwing on the way.
-        CheckDoes("Zoom 120% applies", "Hex_Zoom120",
-                  () => WaitForId("Hex_ZoomLabel", 3)?.Name?.Contains("120") == true);
+        Check("Zoom starts at 100%", () => ZoomLabelReads("Hex", "100%"));
+        CheckDoes("Zoom 120% applies", "Hex_Zoom120", () => ZoomLabelReads("Hex", "120%"));
+
         CheckInvoke("Zoom label (reopen)", "Hex_ZoomLabel");
-        CheckInvoke("Zoom 100% restores the default", "Hex_Zoom100");
+        CheckDoes("Zoom 100% restores the default", "Hex_Zoom100", () => ZoomLabelReads("Hex", "100%"));
 
         AssertJourney();
     }
