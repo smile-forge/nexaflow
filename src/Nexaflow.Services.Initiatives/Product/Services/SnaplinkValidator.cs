@@ -113,6 +113,18 @@ public sealed class SnaplinkValidator
         return validator.Check(link);
     }
 
+    /// <summary>
+    /// Single-link recheck resolved against <paramref name="fileRoots"/> — the caller's working tree — rather
+    /// than the product root alone. What a write-time gate needs: a branch that has moved a file away must be
+    /// told its link is broken, and resolving through the main checkout is exactly what would hide that.
+    /// </summary>
+    public static LinkCheck CheckLink(Snaplink link, string productRoot, IEnumerable<string>? fileRoots,
+                                      IReadOnlySet<string>? nodeIds)
+    {
+        var validator = new SnaplinkValidator(productRoot, fileRoots) { _nodeIds = nodeIds };
+        return validator.Check(link);
+    }
+
     private IntegrityReport Run(ProductState state, TestCoverageManifest? manifest)
     {
         var report = new IntegrityReport

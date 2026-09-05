@@ -107,11 +107,14 @@ internal static class Program
     }
 
     /// <summary>
-    /// The authored tree. From the warm host when one is holding it — it keeps its copy current itself,
-    /// watching the file for edits made anywhere else — and from disk when nothing is.
+    /// The tree a verb works on. Resident, that is the host's own instance — one parse shared by every call —
+    /// which is what makes a query cheap and a write correct. A <c>--dry-run</c> must NOT have it: every verb
+    /// mutates the state it is handed and only <c>SaveAndValidate</c> decides whether to persist, so a dry run
+    /// on the shared instance writes nothing to disk and still leaves its edits in the tree the daemon serves to
+    /// every later call. <paramref name="shared"/> false re-reads from disk for an instance nobody else holds.
     /// </summary>
-    private static ProductState LoadTree(string root, ProductStore store) =>
-        Host is { } host && PathsEqual(host.ProductRoot, root) ? host.Tree : store.Load();
+    private static ProductState LoadTree(string root, ProductStore store, bool shared = true) =>
+        shared && Host is { } host && PathsEqual(host.ProductRoot, root) ? host.Tree : store.Load();
 
     /// <summary>
     /// Writes the tree and tells whoever is holding one what it now says.
@@ -193,7 +196,7 @@ internal static class Program
               nfi remove-concern <node-id> <tag> [<root>]
               nfi add-snaplink <node-id> --type <code|markdown|node|url> [<root>] [--concern <tag>]
                                                 [--doc <p>] [--class <c>] [--method <m>] [--target <id>] [--url <u>] [--title-path a>b] [--status <s>]
-              nfi set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] [--clear <f,f>]
+              nfi set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] [--clear <f,f>] [--expect <t>]
               nfi remove-snaplink <node-id> [<root>] [--concern <tag>]
                                                 [--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]
               nfi set-node   <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]
@@ -272,10 +275,12 @@ internal static class Program
             batch      Applies a whole script of instructions to the tree in ONE load/save/validate — the batch
                        replacement for hand-editing tree.json. One instruction per line, each the same syntax as
                        a standalone verb minus <root>: set-status / set-concern / remove-concern /
-                       add-snaplink / remove-snaplink / remap / set-node / add-node / move / rename / remove.
-                       Blank lines and '#' comments are skipped; "quote" a value with spaces. It is
-                       transactional — if any line is invalid, NOTHING is written (the error names the line).
-                       --dry-run parses + applies in memory and reports, writing nothing.
+                       add-snaplink / set-snaplink / remove-snaplink / remap / set-node / add-node / move /
+                       rename / remove. Blank lines and '#' comments are skipped; "quote" a value with spaces.
+                       It is transactional — if any line is invalid, NOTHING is written (the error names the line).
+                       --dry-run parses + applies in memory and reports, writing nothing. set-snaplink must carry
+                       --expect <text> here: it addresses by --index, and an add/remove-snaplink on the same list
+                       renumbers every later index, so each line pins itself to what you read.
             lint       Checks a feature subtree against the modelling rules in docs/feature-tree-and-tests.md
                        §1-§4: the UI/Functionality/AI backbone, 'AI Ready' only on a feature root, panels and
                        state nodes journey-covered (no 'tests' concern), every leaf unit-tested, and a done
@@ -2138,7 +2143,7 @@ internal static class Program
             Console.WriteLine($"No snaplink referenced '{a[0]}' - nothing remapped.");
             return Clean;
         }
-        return SaveAndValidate(state, root, $"Remapped {changed} snaplink(s): {a[0]} -> {a[1]}.");
+        return SaveAndValidate(state, root, $"Remapped {changed} snaplink(s): {a[0]} -> {a[1]}.", written: LinksAt(state, [a[1]]));
     }
 
     private static (bool Ok, string Message) ApplyRemap(ProductState s, VerbArgs a)
@@ -2164,7 +2169,7 @@ internal static class Program
     private static int RemapFromGit(string[] args)
     {
         if (!TryRead(Specs.RemapFromGit, args, out var a, out var root, out var parseCode)) return parseCode;
-        if (!TryLoad(root, out var state, out var code)) return code;
+        if (!TryLoad(root, out var state, out var code, shared: !a.Has("--dry-run"))) return code;
 
         var range = a.Value("--from-git");
         if (string.IsNullOrWhiteSpace(range)) return Usage("--from-git needs a revision range, e.g. v1.4.0..HEAD");
@@ -2188,12 +2193,12 @@ internal static class Program
         if (renames.Count == 0) { Console.WriteLine($"git recorded no renames in '{range}' - nothing to remap."); return Clean; }
 
         var dryRun = a.Has("--dry-run");
-        var total = 0; var touched = 0;
+        var total = 0; var touched = 0; var destinations = new List<string>();
         foreach (var (oldPath, newPath) in renames)
         {
             var changed = SnaplinkRemapper.Remap(state, oldPath, newPath, null, null);
             if (changed == 0) continue;
-            total += changed; touched++;
+            total += changed; touched++; destinations.Add(newPath);
             Console.WriteLine($"  {changed} snaplink(s): {oldPath} -> {newPath}");
         }
 
@@ -2207,7 +2212,8 @@ internal static class Program
             Console.WriteLine($"Dry run - {total} snaplink(s) across {touched} renamed file(s) would be rewritten, nothing written.");
             return Clean;
         }
-        return SaveAndValidate(state, root, $"Remapped {total} snaplink(s) across {touched} renamed file(s) from git '{range}'.");
+        return SaveAndValidate(state, root, $"Remapped {total} snaplink(s) across {touched} renamed file(s) from git '{range}'.",
+                               written: LinksAt(state, destinations));
     }
 
     /// <summary>Runs git in <paramref name="repo"/> and returns its stdout lines, or null if it failed.</summary>
@@ -2523,9 +2529,9 @@ internal static class Program
             "remove-snaplink <node-id> [<root>] [--concern <tag>] "
             + "[--type <t>] [--doc <p>] [--class <c>] [--method <m>] [--target <id>] | [--index <n>]");
         public static readonly VerbSpec SetSnaplink = new("set-snaplink", 1,
-            ["--index", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--status", "--clear"], None,
+            ["--index", "--concern", "--doc", "--class", "--method", "--ast", "--target", "--status", "--clear", "--expect"], None,
             "set-snaplink <node-id> --index <n> [<root>] [--concern <tag>] "
-            + "[--doc <p>] [--class <c>] [--method <m>] [--ast <a>] [--target <t>] [--status <s>] [--clear <f,f>]");
+            + "[--doc <p>] [--class <c>] [--method <m>] [--ast <a>] [--target <t>] [--status <s>] [--clear <f,f>] [--expect <text>]");
         public static readonly VerbSpec SetNode = new("set-node", 1, ["--title", "--desc", "--note"], None,
             "set-node <node-id> [<root>] [--title <t>] [--desc <d>] [--note <n>]");
         public static readonly VerbSpec AddNode = new("add-node", 2, ["--id", "--desc", "--status"], None,
@@ -2849,7 +2855,7 @@ internal static class Program
     private static int Promote(string[] args)
     {
         if (!TryRead(Specs.Promote, args, out var a, out var root, out var parseCode)) return parseCode;
-        if (!TryLoad(root, out var state, out var code)) return code;
+        if (!TryLoad(root, out var state, out var code, shared: !a.Has("--dry-run"))) return code;
 
         var store = PendingStoreFor(root);
         var sets  = (a.Value("--branch") is { Length: > 0 } only
@@ -2901,11 +2907,80 @@ internal static class Program
         catch { return "docs/product"; }
     }
 
+    /// <summary>
+    /// The write-time gate: every link an operation produced, checked against the caller's own working tree
+    /// before anything is saved. Returns the refusal text, or null when the write may proceed.
+    /// <para>
+    /// Verbs used to write first and validate afterwards, so a snaplink naming a file, class, method, heading
+    /// or node id that does not exist was accepted, saved, and only reported on — <c>remap</c> would rewrite
+    /// twenty links onto a path that was never there and report success. The check is the operation's own dry
+    /// run: it is applied in memory, what it actually produced is checked, and a broken result is refused
+    /// rather than persisted for a later scan to find.
+    /// </para>
+    /// <para>
+    /// Only links the operation touched are checked, so the tree's existing breakage neither blocks a write
+    /// nor is silently adopted by it. <see cref="LinkVerdict.Unverifiable"/> passes: a .txt with no grammar or
+    /// an unreadable file was never proof of anything, and the bar here is proving a link broken.
+    /// </para></summary>
+    private static string? RefusalFor(ProductState state, string root, IEnumerable<Snaplink> written)
+    {
+        var roots  = CallerFileRoots(root);
+        var nodeIds = state.Nodes.Keys.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var link in written)
+        {
+            var check = SnaplinkValidator.CheckLink(link, root, roots, nodeIds);
+            if (check.Verdict != LinkVerdict.Broken) continue;
+            return $"{check.Detail} — nothing was written. The snaplink must resolve in this working tree "
+                 + "(create the target first, or point the link at what is actually there).";
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Every link in the tree now pointing at one of <paramref name="docs"/> — what a remap produced, gathered
+    /// by its destination because the rewrite is precisely what made them all name it. A link that already
+    /// pointed there is swept up too, which costs one sound check and keeps the gather honest about what the
+    /// tree now claims.
+    /// </summary>
+    private static IEnumerable<Snaplink> LinksAt(ProductState state, IEnumerable<string> docs)
+    {
+        var wanted = docs.Select(d => d.Replace('\\', '/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return state.Nodes.Values
+            .SelectMany(n => (n.Snaplinks ?? []).Concat((n.Concerns ?? []).SelectMany(c => c.Snaplinks ?? [])))
+            .Where(l => l.Doc is { } d && wanted.Contains(d.Replace('\\', '/')));
+    }
+
+    /// <summary>
+    /// Where a write-time check looks for a file: the caller's working tree ALONE when it is a worktree of this
+    /// product root. <see cref="FileRootsFor"/> falls back to the product root as well, which is right for
+    /// reporting on a branch whose work has not merged — and wrong here, because a file this branch has moved
+    /// away still resolves through the main checkout, which is the one case the gate exists to catch.
+    /// </summary>
+    private static string[] CallerFileRoots(string productRoot)
+    {
+        var caller = WorkingTreeRootOf(CallerDirectory);
+        if (caller is not { Length: > 0 } || PathsEqual(caller, productRoot)) return [productRoot];
+        return TryFindMainCheckout(caller, out var callerMain) && PathsEqual(callerMain, productRoot)
+            ? [caller]
+            : [productRoot];
+    }
+
     /// <summary>Persist the mutated tree via the canonical serializer, re-validate, and print the outcome —
     /// the same "edit then show the effect" contract as remap/add-node.</summary>
     private static int SaveAndValidate(ProductState state, string root, string message,
-                                       IReadOnlyList<(string NodeId, string? Concern)>? touchedLinks = null)
+                                       IReadOnlyList<(string NodeId, string? Concern)>? touchedLinks = null,
+                                       IEnumerable<Snaplink>? written = null)
     {
+        // remap rewrites en masse — twenty links over as many nodes — so no argument names one link and only
+        // what it produced is worth checking. Checked here, before the write, so a rewrite onto a path that is
+        // not there is refused rather than saved and reported on afterwards.
+        if (written is not null && RefusalFor(state, root, written) is { } refusal)
+        {
+            Console.Error.WriteLine($"error: {refusal}");
+            return Error;
+        }
+
         var store  = new ProductStore(root);
         var branch = touchedLinks is { Count: > 0 } ? PendingBranch(root) : null;
 
@@ -2953,6 +3028,13 @@ internal static class Program
         if (!TryLoad(root, out var state, out var code)) return code;
         var (ok, msg) = apply(state, parsed);
         if (!ok) { Console.Error.WriteLine($"error: {msg}"); return Error; }
+
+        // A snaplink verb answers for the target its arguments named, before any of it is written.
+        if (WrittenBy(state, spec.Verb, parsed) is { } link && RefusalFor(state, root, [link]) is { } refusal)
+        {
+            Console.Error.WriteLine($"error: {refusal}");
+            return Error;
+        }
 
         var touched = touchesSnaplinks && parsed.Positionals.Count > 0
             ? new[] { (parsed[0], parsed.Value("--concern")) }
@@ -3014,6 +3096,21 @@ internal static class Program
         var touched = clear.Length > 0 || status is not null;
 
         var concern = a.Value("--concern");
+        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
+
+        // --index is a position, not an identity: anything that adds or removes a link renumbers the rest, and
+        // the listing an index was read from is always older than the edit. --expect pins the edit to what was
+        // read — the same guard `graph edit --expect` gives a declaration — so a moved link is refused rather
+        // than silently rewritten. Required inside a batch, where a whole listing's worth of indices is in play.
+        if (a.Value("--expect") is { Length: > 0 } expect)
+        {
+            if (!ProductTreeOps.TryGetSnaplink(s, id, index, concern, out var current) || current is null)
+                return (false, $"no snaplink #{index} on {where}");
+            if (!SnaplinkHolds(current, expect))
+                return (false, $"snaplink #{index} on {where} no longer contains '{expect}' "
+                             + $"(it is now {current.Display}) — re-read it with: describe {id}");
+        }
+
         var ok = ProductTreeOps.SetSnaplink(s, id, index, concern, link =>
         {
             foreach (var (opt, assign) in new (string, Action<string>)[]
@@ -3029,11 +3126,17 @@ internal static class Program
         }, clear);
 
         if (!touched) return (false, "nothing to change - pass a field (--doc/--class/--method/--ast/--target/--status) or --clear <f,f>");
-        var where = concern is null ? $"'{id}'" : $"'{id}' concern '{concern}'";
         return ok
             ? (true, $"Updated snaplink #{index} on {where}.")
             : (false, $"no snaplink #{index} on {where} (or an unknown --clear field)");
     }
+
+    /// <summary>Whether <paramref name="expect"/> still appears in any field a caller could have read the link
+    /// by — so the text quoted back from a listing (a doc path, a class, the ast that no longer resolves) is
+    /// enough to pin an index-addressed edit.</summary>
+    private static bool SnaplinkHolds(Snaplink link, string expect) =>
+        new[] { link.Doc, link.Class, link.Method, link.Ast, link.Target, link.Type }
+            .Any(f => f is not null && f.Contains(expect, StringComparison.Ordinal));
 
     private static int RemoveSnaplink(string[] args) => RunOne(Specs.RemoveSnaplink, args, ApplyRemoveSnaplink, touchesSnaplinks: true);
 
@@ -3137,11 +3240,12 @@ internal static class Program
     // ── batch: apply a whole script of instructions in one load/save/validate (transactional) ──
 
     /// <summary>
-    /// Dispatches one instruction line (verb + its args, no <c>&lt;root&gt;</c>) to its Apply* core, parsing
-    /// it against the same <see cref="VerbSpec"/> the standalone verb uses — so a batch script gets identical
-    /// strictness. Since batch is all-or-nothing, an unknown option on line 40 aborts before anything is written.
+    /// Dispatches one batch instruction. <paramref name="root"/> is the product root the run resolves targets
+    /// against; given one, an instruction that writes a snaplink must also produce a link that resolves, so a
+    /// bad target is refused as that line rather than saved for a later scan to find. Null skips the check —
+    /// for a caller with no tree on disk to check against.
     /// </summary>
-    internal static (bool Ok, string Message) ApplyOne(ProductState state, string[] args)
+    internal static (bool Ok, string Message) ApplyOne(ProductState state, string[] args, string? root = null)
     {
         // Parse against the BATCH form of the spec (no trailing <root> — the run has one), then run the
         // same core the standalone verb uses.
@@ -3151,13 +3255,30 @@ internal static class Program
                 ? apply(state, parsed)
                 : (false, error);
 
-        return args switch
+        // set-snaplink addresses by --index, and a batch is where an index is least trustworthy: an
+        // add-snaplink or remove-snaplink earlier in the same script renumbers every later link on that list,
+        // so a line written against the pre-batch listing would edit a different link and still report success.
+        // Requiring --expect makes each line self-verifying instead of leaving the ordering to the author.
+        (bool Ok, string Message) SetSnaplinkLine(string[] rest) =>
+            rest.Contains("--expect")
+                ? Parsed(Specs.SetSnaplink, rest, ApplySetSnaplink)
+                : (false, "set-snaplink needs --expect <text> inside a batch — --index is a position, and an "
+                        + "add/remove-snaplink on the same list renumbers it. Pin the line to what you read "
+                        + "(the ast, doc or class the listing showed).");
+
+        // Applied, then checked, then rolled back if the check refuses it — the instruction's own dry run, so a
+        // refused line leaves the tree exactly as it found it instead of relying on the caller to discard it.
+        var list   = root is null ? null : LinkTargetOf(args) is { } t ? ProductTreeOps.SnaplinksOf(state, t.NodeId, t.Concern) : null;
+        var before = list?.Select(CopyOf).ToList();
+
+        (bool Ok, string Message) result = args switch
         {
             [] => (false, "empty instruction"),
             ["set-status",      .. var r] => Parsed(Specs.SetStatus,      r, ApplySetStatus),
             ["set-concern",     .. var r] => Parsed(Specs.SetConcern,     r, ApplySetConcern),
             ["remove-concern",  .. var r] => Parsed(Specs.RemoveConcern,  r, ApplyRemoveConcern),
             ["add-snaplink",    .. var r] => Parsed(Specs.AddSnaplink,    r, ApplyAddSnaplink),
+            ["set-snaplink",    .. var r] => SetSnaplinkLine(r),
             ["remove-snaplink", .. var r] => Parsed(Specs.RemoveSnaplink, r, ApplyRemoveSnaplink),
             ["remap",           .. var r] => Parsed(Specs.Remap,           r, ApplyRemap),
             ["set-node",        .. var r] => Parsed(Specs.SetNode,        r, ApplySetNode),
@@ -3165,8 +3286,21 @@ internal static class Program
             ["move",            .. var r] => Parsed(Specs.Move,           r, ApplyMove),
             ["rename",          .. var r] => Parsed(Specs.Rename,         r, ApplyRename),
             ["remove",          .. var r] => Parsed(Specs.Remove,         r, ApplyRemove),
-            [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, remove-snaplink, remap, set-node, add-node, move, rename, remove)"),
+            [var verb, ..] => (false, $"unknown instruction '{verb}' (batch supports: set-status, set-concern, remove-concern, add-snaplink, set-snaplink, remove-snaplink, remap, set-node, add-node, move, rename, remove)"),
         };
+
+        // The line named a target, so the line answers for it — reported as this instruction, with the text
+        // that named it, rather than as a broken link somebody finds in the tree a week later. remap is not
+        // checked here: it rewrites en masse, so only what it produced as a whole means anything, and that is
+        // checked at the write.
+        if (result.Ok && root is not null && WrittenBy(state, args) is { } link
+            && RefusalFor(state, root, [link]) is { } refusal)
+        {
+            if (list is not null && before is not null) { list.Clear(); list.AddRange(before); }
+            return (false, refusal);
+        }
+
+        return result;
     }
 
     private static int Batch(string[] args)
@@ -3180,7 +3314,7 @@ internal static class Program
         if (!File.Exists(file))
             return VerbUsage($"batch: no such script file: {a[0]}"
                            + (PathsEqual(file, a[0]) ? "" : $" (looked in {CallerPath.Directory})"));
-        if (!TryLoad(root, out var state, out var code)) return code;
+        if (!TryLoad(root, out var state, out var code, shared: !dryRun)) return code;
 
         var lines = File.ReadAllLines(file);
         var applied = new List<string>();
@@ -3196,7 +3330,8 @@ internal static class Program
             if (line.Length == 0 || line.StartsWith('#')) continue;   // blank lines + # comments
             var tokens = Tokenize(line).ToArray();
             if (LinkTargetOf(tokens) is { } target) touchedLinks.Add(target);
-            var (ok, msg) = ApplyOne(state, tokens);
+            var (ok, msg) = ApplyOne(state, tokens, root);
+
             if (!ok)
             {
                 Console.Error.WriteLine($"error: line {i + 1}: {msg}");
@@ -3240,6 +3375,51 @@ internal static class Program
             ? (parsed[0], parsed.Value("--concern"))
             : null;
     }
+
+    /// <summary>
+    /// The link a snaplink instruction just wrote, so that ONE line can be answered for by the arguments it was
+    /// given: a <c>--doc</c> naming a file that is not there, a <c>--class</c>/<c>--method</c> that is not
+    /// declared, a <c>--target</c> that is not a node or not a URL. Null for an instruction that wrote no link.
+    /// <para>
+    /// <c>remap</c> is deliberately not here. It rewrites every link matching a path — twenty of them, spread
+    /// over as many nodes — so no single argument names a link, and only what it produced as a whole is worth
+    /// checking. That happens at the write instead, via <see cref="RefusalFor"/>.
+    /// </para></summary>
+    private static Snaplink? WrittenBy(ProductState state, string[] tokens)
+    {
+        var spec = tokens switch
+        {
+            ["set-snaplink", ..] => Specs.SetSnaplink,
+            ["add-snaplink", ..] => Specs.AddSnaplink,
+            _                    => null,
+        };
+        return spec is not null && VerbArgs.TryParse(spec.InBatch, tokens[1..], out var a, out _)
+            ? WrittenBy(state, tokens[0], a)
+            : null;
+    }
+
+    /// <summary>As above, for a verb whose arguments are already parsed (the standalone call).</summary>
+    private static Snaplink? WrittenBy(ProductState state, string verb, VerbArgs a)
+    {
+        if (a.Positionals.Count == 0) return null;
+        var concern = a.Value("--concern");
+
+        if (verb == "add-snaplink")
+            return ProductTreeOps.SnaplinksOf(state, a[0], concern) is { Count: > 0 } list ? list[^1] : null;
+
+        return verb == "set-snaplink"
+            && int.TryParse(a.Value("--index"), out var index)
+            && ProductTreeOps.TryGetSnaplink(state, a[0], index, concern, out var link)
+            ? link
+            : null;
+    }
+
+    /// <summary>A copy of one link, for the snapshot an instruction is rolled back to.</summary>
+    private static Snaplink CopyOf(Snaplink l) => new()
+    {
+        Type = l.Type, Status = l.Status, Doc = l.Doc, Class = l.Class, Method = l.Method,
+        Ast = l.Ast, Target = l.Target, TitlePath = l.TitlePath is null ? null : [.. l.TitlePath],
+    };
 
     /// <summary>
     /// Shell-lite tokenizer: splits on whitespace, with double-quotes grouping a value that contains spaces
@@ -3390,14 +3570,15 @@ internal static class Program
     /// </summary>
     /// <param name="applyPending">False for the one caller that must see the shared tree as it stands —
     /// <c>pending</c>, which reports the difference between the two.</param>
-    private static bool TryLoad(string root, out ProductState state, out int code, bool applyPending = true)
+    private static bool TryLoad(string root, out ProductState state, out int code, bool applyPending = true,
+                                bool shared = true)
     {
         state = new ProductState();
         if (!Directory.Exists(root)) { Console.Error.WriteLine($"error: no such directory: {root}"); code = Error; return false; }
         if (!ProductStore.Exists(root)) { Console.Error.WriteLine($"error: no .product/ under {root}."); code = Error; return false; }
         try
         {
-            state = LoadTree(root, new ProductStore(root));
+            state = LoadTree(root, new ProductStore(root), shared);
             if (applyPending && PendingBranch(root) is { } branch)
                 PendingStoreFor(root).Load(branch).ApplyTo(state);
             code = Clean;
