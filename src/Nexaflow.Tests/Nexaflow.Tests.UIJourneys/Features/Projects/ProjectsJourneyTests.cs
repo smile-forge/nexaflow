@@ -51,6 +51,12 @@ public class ProjectsJourneyTests : UiJourneyTestBase
             "The backlog-status viewlet did not appear for a folder containing a .project file.");
         CheckPresent("Backlog viewlet", "Projects_BacklogViewlet");
 
+        // The viewlet's own route into the project: it opens a ProjectDetail tab and does nothing else — no
+        // write, no config change. Pressed here rather than later because it needs the file browser on
+        // screen, and opening the ribbon's Projects tab below takes that away.
+        CheckDoes("Open project from the viewlet", "Projects_BacklogViewlet_OpenProject",
+                  () => WaitForId("ProjectDetailView", 10) is not null);
+
         // ── Tab surface: open Projects from the ribbon ──
         Assert.IsNotNull(TryOpenTabWithElement("ProjectsView"), "ProjectsView did not open from the ribbon.");
 
@@ -82,6 +88,12 @@ public class ProjectsJourneyTests : UiJourneyTestBase
                   () => WaitForId("ProjectDetailView", 10) is not null);
         CheckPresent("Project Details tab", "Projects_Tab_Details");
 
+        // The acceptance-criteria controls are not checked here: that row is stamped per criterion and the
+        // seeded project has none, nor is the add button present on this tab for it, so the section wants
+        // project state the fixture does not carry. They stay in the ratchet — and deliberately unnamed
+        // here, because its coverage check is a plain text scan of this suite, so writing an id in a comment
+        // explaining why it is NOT covered is enough to make the guard believe it is.
+
         CheckDoes("Open Backlog tab", "Projects_Tab_Backlog",
                   () => WaitForId("Projects_Detail_NewTodoTitle", 5) is not null);
 
@@ -101,6 +113,36 @@ public class ProjectsJourneyTests : UiJourneyTestBase
             CheckPresent("Status dropdown", "Projects_Detail_StatusCombo");
             CheckPresent("Task to AI", "Projects_Detail_TaskToAi");
             CheckPresent("Plan with AI", "Projects_Detail_PlanWithAi");
+
+            // Both progress buttons write the project file, advancing the seeded "First task" off
+            // NotStarted — and every check above depends on that seeded state, in a corpus the whole suite
+            // shares. Present-checked here; their behaviour is covered headlessly by ProjectOperationsTests.
+            CheckPresent("Row progress",  "Projects_Detail_RowProgress");
+            CheckPresent("Item progress", "Projects_Detail_Progress");
+        }
+
+        // ── The delete prompt, on the row this journey added ──
+        // Delete is the one destructive path that can be driven end to end without touching seeded state,
+        // because the row being removed is the one added above — so confirming it puts the corpus back
+        // exactly as it was found. Cancel first, on the same row, to prove the prompt can be backed out of.
+        var mine = WaitForName(added, 5);
+        if (mine is not null)
+        {
+            mine.Click();
+            System.Threading.Thread.Sleep(250);
+
+            CheckDoes("Delete raises the confirmation", "Projects_Detail_DeleteTodo",
+                      () => WaitForId("Projects_Detail_CancelConfirm", 5) is not null);
+            CheckPresent("Confirm delete", "Projects_Detail_ConfirmDelete");
+            CheckDoes("Cancel backs out of the prompt", "Projects_Detail_CancelConfirm",
+                      () => WaitForId("Projects_Detail_ConfirmDelete", 3) is null);
+            Check("the row survived the cancel", () => WaitForName(added, 3) is not null);
+
+            // And again, this time through — leaving the fixture as it was found.
+            CheckDoes("Delete raises it again", "Projects_Detail_DeleteTodo",
+                      () => WaitForId("Projects_Detail_ConfirmDelete", 5) is not null);
+            CheckDoes("Confirm removes the added row", "Projects_Detail_ConfirmDelete",
+                      () => WaitForName(added, 3) is null);
         }
 
         AssertJourney();

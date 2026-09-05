@@ -134,7 +134,6 @@ ProductSearchView
 # src/Nexaflow.Features/Nexaflow.Features.Projects/Views/ProjectDetailView.xaml
 Projects_Detail_AddCriterion
 Projects_Detail_Backlog
-Projects_Detail_DeleteTodo
 Projects_Detail_SaveItem
 Projects_Detail_Upgrade
 
@@ -250,3 +249,10 @@ Options_Toggle
 RibbonEditor_DeleteSeparator
 RibbonEditor_SizeToggle
 RibbonEditor_DeleteItem
+
+# src/Nexaflow.Features/Nexaflow.Features.Projects/Views/ProjectDetailView.xaml
+# Stamped per acceptance-criterion row, and the seeded Alpha project has no criteria — nor is the Add
+# button present on the Details tab for it, so the criteria section wants project state the UI fixture does
+# not carry (the upgrade path is the likely gate). It also deletes and writes with no confirmation, unlike
+# the backlog delete, so whatever journey reaches it must be pressing a row it created itself.
+Projects_Detail_RemoveCriterion
