@@ -4,9 +4,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Core.Controls;
 
@@ -182,7 +184,12 @@ public partial class PaneView : UserControl
 
     private void UpdateContent()
     {
-        var page    = Pane?.ActivePage;
+        var page = Pane?.ActivePage;
+
+        // Read before GetOrCreateContent, which is the thing that would build it: null here means this page
+        // has never been shown, and only that first show earns the settle-in animation.
+        var firstShow = page?.Content is null;
+
         var content = page?.GetOrCreateContent();
 
         // GetOrCreateContent no longer throws — it records the failure and hands back a blank control. A
@@ -193,17 +200,51 @@ public partial class PaneView : UserControl
                    ?? page.ReplaceContent(new PageLoadErrorView(page, error));
 
         if (ReferenceEquals(ContentHost.Content, content)) return;
+
+        MeasureSwitch(page, firstShow);
+
         // A page's content control is cached and shared as it moves between panes/windows; a WPF element
         // can have only one parent. Detach it from a prior host (e.g. the other side of a collapsing
         // split) before adopting, so re-parenting never throws.
         DetachFromParent(content);
         ContentHost.Content = content;
-        if (content is not null) AnimateContentIn();
+        if (content is null) return;
+
+        if (firstShow) AnimateContentIn();
+        else           ShowContentAtRest();
     }
 
-    // Subtle settle-in on the page host so a freshly-shown page eases in rather than popping — smooths both
-    // the debounced startup load and ordinary tab switches. Opacity + transform are GPU-composited, so this
-    // stays cheap even for a heavy feature page.
+    /// <summary>
+    /// Times the whole switch — the swap plus the layout and render pass it provokes — when
+    /// <c>NEXAFLOW_TIMING=1</c>. The scope closes at <see cref="DispatcherPriority.ContextIdle"/>, which the
+    /// dispatcher reaches only once that frame's work is done, so the number is what the user waited for
+    /// rather than what this method returned in. Free when timing is off.
+    /// </summary>
+    private void MeasureSwitch(Page? page, bool firstShow)
+    {
+        if (!Timing.Enabled) return;
+        var scope = Timing.Measure($"Tab.show {page?.PageKind ?? "none"} first={firstShow} (swap to idle)");
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => scope?.Dispose());
+    }
+
+    /// <summary>
+    /// Shows a page that already existed, with no animation at all. Returning to an open tab is not an
+    /// arrival: the content was on screen moments ago, so easing it back in only adds ~190ms of waiting to
+    /// every switch, and an opacity below 1 makes WPF composite the whole page through an intermediate
+    /// surface for as long as it runs. Animations are removed rather than left holding their last value.
+    /// </summary>
+    private void ShowContentAtRest()
+    {
+        ContentHost.BeginAnimation(OpacityProperty, null);
+        ContentHost.Opacity = 1.0;
+        if (ContentHost.RenderTransform is TranslateTransform slide)
+            slide.BeginAnimation(TranslateTransform.YProperty, null);
+        ContentHost.RenderTransform = Transform.Identity;
+    }
+
+    // Subtle settle-in the FIRST time a page is shown, so content that has just been built eases in rather
+    // than popping — the debounced startup load, and a newly opened tab. A switch back to a page that
+    // already exists takes ShowContentAtRest instead: there is nothing arriving to announce.
     private void AnimateContentIn()
     {
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };

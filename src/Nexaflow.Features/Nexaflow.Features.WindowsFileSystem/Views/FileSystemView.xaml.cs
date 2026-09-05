@@ -203,18 +203,26 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         RefreshViewlets(ViewModel.CurrentPath, ViewModel.IsThisPcMode);
     }
 
+    /// <summary>
+    /// Shows the list the current mode calls for — and gives only that one the entries.
+    /// <para>
+    /// Both lists render the same <see cref="FileSystemViewModel.Entries"/> in different columns, and both
+    /// used to bind it in XAML, so every row a folder load produced was taken up twice: once by the list on
+    /// screen and once by a list nobody could see. The hidden one went on raising SelectionChanged as the
+    /// collection was rebuilt, too — see the guard in <see cref="FileListView_SelectionChanged"/>.
+    /// </para>
+    /// </summary>
     private void UpdateListViewVisibility()
     {
-        if (ViewModel.IsThisPcMode)
-        {
-            DriveListView.Visibility = Visibility.Visible;
-            FileListView.Visibility  = Visibility.Collapsed;
-        }
-        else
-        {
-            DriveListView.Visibility = Visibility.Collapsed;
-            FileListView.Visibility  = Visibility.Visible;
-        }
+        var (shown, hidden) = ViewModel.IsThisPcMode
+            ? (DriveListView, FileListView)
+            : (FileListView, DriveListView);
+
+        hidden.Visibility  = Visibility.Collapsed;
+        hidden.ItemsSource = null;
+
+        shown.Visibility  = Visibility.Visible;
+        shown.ItemsSource = ViewModel.Entries;   // same reference on a re-show: WPF makes that a no-op
     }
 
     // ── Property change handler ───────────────────────────────────────────
@@ -528,7 +536,9 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // ── File list selection ───────────────────────────────────────────────
     private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is not ListView lv) return;
+        // Only the list on screen speaks for the page. The other one raises this as its items are taken
+        // away (see UpdateListViewVisibility), and an empty selection from it would clear the action strip.
+        if (sender is not ListView { Visibility: Visibility.Visible } lv) return;
         var selected = lv.SelectedItems.OfType<FileSystemEntry>().ToList();
         ViewModel.OnSelectionChanged(selected);
     }

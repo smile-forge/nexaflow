@@ -373,7 +373,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         foreach (var provider in Registry.ThisPcItemProviders) provider.Changed += OnThisPcItemsChanged;
         Vfs.MountsChanged += OnThisPcItemsChanged;
-        if (_isThisPcMode) OnThisPcItemsChanged();   // catch anything that moved while unloaded
+
+        // Catch up on what moved while unloaded — but only when something did. This runs on every switch
+        // back to a This PC tab, and rebuilding unconditionally cost that switch a full teardown: the rows
+        // were cleared and re-added, each one flashed back to Loading, and every drive was re-probed
+        // (readiness, capacity, a no-seek-penalty device query) for an answer it already had.
+        if (_isThisPcMode && !ThisPcRowsMatch(ThisPcBrowsePaths())) OnThisPcItemsChanged();
     }
 
     /// <summary>Stops observing the This PC contributors. Called by the view on unload.</summary>
@@ -381,6 +386,51 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         foreach (var provider in Registry.ThisPcItemProviders) provider.Changed -= OnThisPcItemsChanged;
         Vfs.MountsChanged -= OnThisPcItemsChanged;
+    }
+
+    /// <summary>
+    /// The browse paths This PC would show right now, in order — the identity <see cref="FillThisPc"/>
+    /// builds each row from.
+    /// <para>
+    /// Deliberately not <see cref="ThisPcItemSet.Enumerate"/>, which reads <see cref="DriveInfo.IsReady"/>
+    /// per drive to label it: that blocks on the hardware for a network share or an empty optical bay, and
+    /// this runs on the UI thread every time the tab is shown. Membership is all the comparison needs, and
+    /// membership costs nothing — the drive letters, then the contributed rows, which providers answer
+    /// from their own state (the slow half of a contributed row is <c>GetDetailAsync</c>).
+    /// </para>
+    /// </summary>
+    private List<string> ThisPcBrowsePaths()
+    {
+        var roots = new List<string>();
+        DriveInfo[] drives;
+        try { drives = DriveInfo.GetDrives(); } catch { drives = []; }
+        foreach (var drive in drives)
+        {
+            try { roots.Add(drive.RootDirectory.FullName); } catch { /* gone mid-enumeration */ }
+        }
+
+        var paths = new List<string>(roots);
+        try
+        {
+            foreach (var item in ThisPcItemSet.Collect(Registry.ThisPcItemProviders, roots))
+                paths.Add(VirtualMount.RootFor(item.Id));
+        }
+        catch { /* a broken contributor is not a reason to rebuild */ }
+        return paths;
+    }
+
+    /// <summary>
+    /// Whether the rows on screen are still the ones <paramref name="paths"/> describes — same places, same
+    /// order. Per-row state a probe settles (readiness, free space, volume label) is deliberately not part
+    /// of it: that arrives on its own and a change to it is not a reason to rebuild the list.
+    /// </summary>
+    private bool ThisPcRowsMatch(IReadOnlyList<string> paths)
+    {
+        if (paths.Count != Entries.Count) return false;
+        for (int i = 0; i < paths.Count; i++)
+            if (!string.Equals(paths[i], Entries[i].FullPath, StringComparison.OrdinalIgnoreCase))
+                return false;
+        return true;
     }
 
     /// <summary>A provider may signal from any thread (a file watcher, a background probe), so hop to the
@@ -838,9 +888,15 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         using (Timing.Measure("ThisPC.ThisPcItemSet.Enumerate"))
         {
             try { places = ThisPcItemSet.Enumerate(Registry.ThisPcItemProviders); }
-            catch { return; }   // never let a contributor break This PC itself
+            catch { Entries.Clear(); return; }   // never let a contributor break This PC itself
         }
         Timing.Note("ThisPC.places", places.Count.ToString());
+
+        // Built in full, then committed in one go: an Add per place raised a CollectionChanged per place,
+        // where one Reset says the same thing. The probes start only once the rows are on screen — each
+        // settles the entry object it was handed, and that object is the same one either way.
+        var rows = new List<FileSystemEntry>(places.Count);
+        var probes = new List<(ThisPcPlace Place, FileSystemTreeNode? Node, FileSystemEntry Entry)>(places.Count);
 
         foreach (var place in places)
         {
@@ -858,7 +914,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 DriveIconType  = MapIcon(place.Icon),
                 DriveKindLabel = place.Kind == ThisPcPlaceKind.Provided ? place.TypeLabel : string.Empty,
             };
-            Entries.Add(entry);
+            rows.Add(entry);
 
             FileSystemTreeNode? node = null;
             if (thisPc is not null)
@@ -878,6 +934,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
                 node.DriveIconType = entry.DriveIconType;
             }
 
+            probes.Add((place, node, entry));
+        }
+
+        Entries.ReplaceAll(rows);
+
+        foreach (var (place, node, entry) in probes)
+        {
             if (place.Drive is { } drive) _ = CheckDriveAsync(drive, node, entry);
             else if (place.Item is { } provided) _ = CheckProvidedAsync(this, provided, node, entry);
         }
@@ -1108,7 +1171,6 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
             // Populate entries immediately with all drives in Loading state,
             // then resolve each drive individually on a background thread.
-            Entries.Clear();
             FillThisPc(thisPcNode, addTreeNodes: rebuildTree);
 
             RecountEntries();
