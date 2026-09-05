@@ -94,6 +94,45 @@ public class FeatureTouchPointTests
             $"default-open route won't reach the viewer. Missing: {string.Join(", ", missing)}");
     }
 
+    /// <summary>
+    /// Every registered sample family either default-opens into a viewer — a <see cref="ViewerMap"/> row,
+    /// which is what gives it <c>SampleFileViewerTests</c> coverage — or is named below as deliberately
+    /// exempt, with the tests that cover it instead.
+    /// <para>
+    /// The filemap check above walks <see cref="ViewerMap"/>, so it can only verify rows that already exist.
+    /// The silent half is the other direction: add a viewer, add its sample set, forget the map row, and the
+    /// build is green, the fixtures generate, and nothing ever opens them. This is the assertion that says so.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void Every_sample_set_either_maps_to_a_viewer_or_is_a_named_exemption()
+    {
+        // Covered by their own feature's UI tests rather than the shared default-open sweep: code by
+        // CodeViewUiTests/CodeJourneyTests, notebook by NotebookViewUiTests, archive by
+        // CompressedJourneyTests. Each opens through an explicit ActionStrip action instead of the
+        // double-click default, so for these a ViewerMap row would be wrong rather than missing.
+        string[] exempt = ["code", "notebook", "archive"];
+
+        var mapped = ViewerMap.BySet.Select(s => s.SubDir).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unaccounted = TestSampleData.SetNames
+            .Where(name => !mapped.Contains(name)
+                        && !exempt.Contains(name, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.AreEqual(0, unaccounted.Count,
+            "Every TestSampleData set needs either a ViewerMap.BySet row (so SampleFileViewerTests opens "
+            + "its fixtures through the default-open route) or a place on this test's exemption list naming "
+            + $"what covers it instead. Unaccounted: {string.Join(", ", unaccounted)}");
+
+        // The list must not outlive the sets it names, or it quietly excuses nothing and reads as if it does.
+        var stale = exempt
+            .Where(name => !TestSampleData.SetNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.AreEqual(0, stale.Count,
+            $"Exemptions naming sample sets that no longer exist: {string.Join(", ", stale)}");
+    }
+
     [TestMethod]
     public void Every_internal_viewer_action_is_reachable_from_the_bundled_filemap()
     {
