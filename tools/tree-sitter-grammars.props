@@ -4,7 +4,7 @@
     The tree-sitter grammars Nexaflow builds from source, and where each one's C sources live.
 
     This is the single source of truth for the set: Nexaflow.Syntax.csproj imports it (to declare the
-    Content items that flow each DLL to the output root), tools/build-tree-sitter-grammars.ps1 reads it
+    Content items that flow each DLL to the output root), tools/build-tree-sitter-natives.ps1 reads it
     to know what to compile, and tools/ensure-submodules.ps1 reads it to know which nested submodules a
     fresh worktree has to populate. Adding a language means adding one row here.
 
