@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Nexaflow.Features.WindowsFileSystem.Operations;
 
 namespace Nexaflow.Features.WindowsFileSystem.Services;
 
@@ -201,6 +202,10 @@ public sealed class FileSystemFeatureRegistry
                 args[i] = _shell;
             else if (typeof(IAIService).IsAssignableFrom(pt))
                 args[i] = _ai;
+            else if (typeof(IFileOperationHost).IsAssignableFrom(pt))
+                // The file browser is what shows a progress row, so it is what supplies one to the actions it
+                // builds. An action that asks for this outside a browser simply does not get one.
+                args[i] = FileOperationQueue.For(_shell);
             else if (_configs.TryGetValue(pt, out var cfg))
                 args[i] = cfg;
             else if (parms[i].IsOptional)

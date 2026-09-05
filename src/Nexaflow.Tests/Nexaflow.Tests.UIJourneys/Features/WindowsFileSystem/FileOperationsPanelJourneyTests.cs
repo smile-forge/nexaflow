@@ -6,6 +6,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
+using System.Linq;
+using System.IO.Compression;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 
@@ -309,5 +311,170 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
                       File.ReadAllText(Path.Combine(_source, "payload", "last.txt")))), 300));
 
         AssertJourney();
+    }
+
+    /// <summary>
+    /// Zipping is the other slow operation, and it used to run on the caller's thread — a large folder
+    /// froze the window exactly as a large drop once did.
+    /// <para>
+    /// It goes through the same queue now, so the same panel has to show it. This is the half no unit
+    /// test reaches: that an operation <i>another feature</i> handed over renders like one the file
+    /// browser started itself, rather than producing an empty row or none at all.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void ZippingALargeFolderShowsTheProgressPanel()
+    {
+        // Random bytes, so deflate cannot shrink them away and the write stays honest work.
+        var payload = Path.Combine(_source, "payload");
+        MakePayload(payload, defaultGb: 0.5);
+        var sourceBytes = BytesIn(payload);
+
+        NavigateFileBrowserTo(_source);
+        Assert.IsTrue(SelectInFileList("payload"), "The folder to zip is not in the file list.");
+
+        // The action strip's ids are the actions' own display names.
+        var zipIt = WaitForId("Zip It", 30);
+        Assert.IsNotNull(zipIt, "No Zip It action for the selected folder.");
+        zipIt!.AsButton().Invoke();
+
+        var bar = WaitForId("FileOps_Progress", 15);
+        Check("the operations panel appears while a large zip runs", () => bar is not null);
+
+        // A bar bound to the wrong thing is still a bar, so the row has to say what it is doing.
+        Check("the row names the work as a compression",
+              () => RowTitleContains("Compressing"));
+
+        // Present in the automation tree is not the same as visible: a zero-height container still
+        // arranges its children at their natural size. If the panel overlaps the tree it is drawing over it.
+        var directoryTree = WaitForId("DirectoryTree", 5);
+        Check("the panel pushed the tree down instead of drawing over it",
+              () => bar is not null && directoryTree is not null
+                 && bar.BoundingRectangle.Bottom <= directoryTree.BoundingRectangle.Top);
+
+        Check("a zip can be stopped like a copy",
+              () => WaitForId("FileOps_CancelRow", 5) is not null);
+
+        try { MainWindow.Capture().Save(Path.Combine(Path.GetTempPath(), "nexaflow-fileops-zip.png")); }
+        catch { }
+
+        // The destination name is claimed the moment the action returns, so existence proves nothing —
+        // the archive is finished when it holds the bytes.
+        var archive = Path.Combine(_source, "payload.zip");
+        Check("the archive is written, not merely named",
+              () => WaitForFs(() => File.Exists(archive)
+                                 && new FileInfo(archive).Length > sourceBytes / 2, 300));
+
+        Check("and the panel gets out of the way",
+              () => WaitForGone("FileOps_Progress", 25));
+
+        AssertJourney();
+    }
+
+    /// <summary>
+    /// Extracting, the other half. The archive is built here rather than taken from the test above, so the
+    /// two stay independent — a journey that lives off another journey's leftovers fails in pairs and
+    /// tells you about neither.
+    /// </summary>
+    [TestMethod]
+    public void UnzippingALargeArchiveShowsTheProgressPanel()
+    {
+        var payload = Path.Combine(_source, "payload");
+        var fileCount = MakeManySmallFiles(payload);
+        var expectedBytes = BytesIn(payload);
+
+        // Stored rather than deflated: this is fixture setup, and compressing it would cost more than the
+        // extraction being measured.
+        var archive = Path.Combine(_source, "bundle.zip");
+        ZipFile.CreateFromDirectory(payload, archive, CompressionLevel.NoCompression, includeBaseDirectory: false);
+        Directory.Delete(payload, recursive: true);
+
+        NavigateFileBrowserTo(_source);
+        Assert.IsTrue(SelectInFileList("bundle.zip"), "The archive to extract is not in the file list.");
+
+        // Only an archive offers this, so finding it is also the proof that the click landed on the zip
+        // rather than on a neighbouring row.
+        var unzip = WaitForId("Unzip here", 30);
+        Assert.IsNotNull(unzip, "No Unzip here action — the selection is not the archive.");
+        unzip!.AsButton().Invoke();
+
+        var bar = WaitForId("FileOps_Progress", 15);
+        Check("the operations panel appears while a large extraction runs", () => bar is not null);
+
+        Check("the row names the work as an extraction",
+              () => RowTitleContains("Extracting"));
+
+        var directoryTree = WaitForId("DirectoryTree", 5);
+        Check("the panel pushed the tree down instead of drawing over it",
+              () => bar is not null && directoryTree is not null
+                 && bar.BoundingRectangle.Bottom <= directoryTree.BoundingRectangle.Top);
+
+        Check("an extraction can be stopped like a copy",
+              () => WaitForId("FileOps_CancelRow", 5) is not null);
+
+        try { MainWindow.Capture().Save(Path.Combine(Path.GetTempPath(), "nexaflow-fileops-unzip.png")); }
+        catch { }
+
+        // Into a sibling folder named after the archive, so 'bundle.zip' and 'bundle' sit side by side.
+        // Measured in bytes rather than file count because a file exists the moment it is created, which
+        // is well before it is written.
+        var extracted = Path.Combine(_source, "bundle");
+        Check($"all {fileCount} entries arrive",
+              () => WaitForFs(() => BytesIn(extracted) == expectedBytes, 300));
+
+        Check("and the panel gets out of the way",
+              () => WaitForGone("FileOps_Progress", 25));
+
+        AssertJourney();
+    }
+
+    /// <summary>
+    /// Writes <paramref name="count"/> small files and returns how many.
+    /// <para>
+    /// Sized by count rather than by gigabytes because extraction is dominated by per-file work — create,
+    /// open, close — not by throughput. A few large blocks written moments earlier come straight back out
+    /// of the page cache and can finish inside the panel's 600 ms debounce however many bytes they hold,
+    /// which is exactly how this test first failed. Thousands of small entries take real time for a
+    /// fraction of the disk, and drive the row's item counter besides.
+    /// </para>
+    /// </summary>
+    private static int MakeManySmallFiles(string folder, int count = 12_000)
+    {
+        Directory.CreateDirectory(folder);
+
+        var block = new byte[8 * 1024];
+        Random.Shared.NextBytes(block);
+
+        for (var i = 0; i < count; i++)
+            File.WriteAllBytes(Path.Combine(folder, $"f{i:D5}.bin"), block);
+
+        return count;
+    }
+
+    /// <summary>
+    /// True once a row in the panel says <paramref name="fragment"/>. The title is a plain
+    /// <c>TextBlock</c>, so its automation name is its text; matching a fragment rather than the whole
+    /// sentence keeps this from breaking on a wording change that is not the point of the test.
+    /// </summary>
+    private bool RowTitleContains(string fragment, int seconds = 15)
+        => WaitFor(() =>
+        {
+            var scope = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("FileOps_Panel")) ?? MainWindow;
+            return Array.Find(scope.FindAllDescendants(),
+                e => { try { return e.Name?.Contains(fragment, StringComparison.OrdinalIgnoreCase) == true; }
+                       catch { return false; } });
+        }, seconds) is not null;
+
+    /// <summary>Bytes held directly in <paramref name="dir"/>, or -1 if it is not there yet. Tolerant of a
+    /// folder being written underneath it, which is the whole situation it is asked about.</summary>
+    private static long BytesIn(string dir)
+    {
+        try
+        {
+            return Directory.Exists(dir)
+                ? new DirectoryInfo(dir).EnumerateFiles().Sum(f => f.Length)
+                : -1;
+        }
+        catch { return -1; }
     }
 }

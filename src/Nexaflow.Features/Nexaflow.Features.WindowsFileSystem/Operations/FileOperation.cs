@@ -49,38 +49,28 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource<PauseDecision>? _pauseAnswer;
 
-    internal FileOperation(TransferKind kind, FileTransferRequest request, string targetLabel, bool recycle)
+    /// <summary>A row is described by what it says, not by what it does — so anything long-running can
+    /// have one, not only a transfer. The work itself lives in the task that drives it.</summary>
+    internal FileOperation(string verb, string sourceSummary, string targetLabel,
+                           int itemsTotal = 0, bool announceOnSuccess = true)
     {
-        Kind        = kind;
-        Request     = request;
-        TargetLabel = targetLabel;
-        Recycle     = recycle;
-        ItemsTotal  = request.Items.Count;
-
-        Verb = kind switch
-        {
-            TransferKind.Move   => "Moving",
-            TransferKind.Delete => recycle ? "Recycling" : "Deleting",
-            _                   => "Copying",
-        };
-
-        SourceSummary = request.Items.Count == 1
-            ? Path.GetFileName(request.Items[0].Source.TrimEnd(Path.DirectorySeparatorChar))
-            : $"{request.Items.Count} items";
+        Verb              = verb;
+        SourceSummary     = sourceSummary;
+        TargetLabel       = targetLabel;
+        ItemsTotal        = itemsTotal;
+        AnnounceOnSuccess = announceOnSuccess;
     }
 
     public Guid Id { get; } = Guid.NewGuid();
-    public TransferKind Kind { get; }
     public string Verb { get; }
     public string SourceSummary { get; }
 
-    /// <summary>The destination folder's name, or empty for a delete.</summary>
+    /// <summary>The destination's name, or empty when there is nowhere to name.</summary>
     public string TargetLabel { get; }
 
-    /// <summary>A delete that goes to the Recycle Bin rather than being permanent.</summary>
-    internal bool Recycle { get; }
-
-    internal FileTransferRequest Request { get; }
+    /// <summary>Whether a clean finish is worth saying out loud. A delete is not — the files being gone
+    /// is its own confirmation — where a copy or an archive is.</summary>
+    internal bool AnnounceOnSuccess { get; }
     internal CancellationToken Token => _cts.Token;
 
     /// <summary>How this object gets onto the UI thread. Set by the queue, which owns the marshal —

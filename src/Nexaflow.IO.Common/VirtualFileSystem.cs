@@ -757,30 +757,74 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         handler.Write(output, containerFileName, rebuilt);
     }
 
-    public void ExtractAll(string containerPath, string destinationDir)
+    public void ExtractAll(string containerPath, string destinationDir,
+                           System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
     {
         containerPath  = ToReal(containerPath);
         destinationDir = ToReal(destinationDir);
+
+        // Reading a large archive's central directory takes seconds, so say so rather than sit at nought.
+        var reporter = new ArchiveProgressReporter(progress, ct);
+        reporter.Scanning();
+
         var summary = DescribeArchive(containerPath)
             ?? throw new System.NotSupportedException("Not a recognised archive.");
         var handler = HandlerFor(Path.GetFileName(containerPath))!;
         Directory.CreateDirectory(destinationDir);
         var fullDest = Path.GetFullPath(destinationDir);
 
+        // The entries carry their sizes, so both totals are known before the first byte moves.
+        var files = summary.Entries.Where(e => !e.IsDirectory).ToList();
+        reporter.Measured(files.Sum(e => e.Size), files.Count);
+
         using var session = handler.Open(
             new FileStream(containerPath, FileMode.Open, FileAccess.Read, FileShare.Read), Path.GetFileName(containerPath));
-        foreach (var e in summary.Entries)
+
+        string? inFlight = null;
+        try
         {
-            if (e.IsDirectory) continue;
-            var target = Path.GetFullPath(Path.Combine(fullDest, e.Name.Replace('/', Path.DirectorySeparatorChar)));
-            // Zip-slip guard: never write outside the destination root.
-            if (target != fullDest &&
-                !target.StartsWith(fullDest + Path.DirectorySeparatorChar, System.StringComparison.OrdinalIgnoreCase))
-                continue;
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            using var src = session.OpenEntry(e.Name);
-            using var dst = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None);
-            src.CopyTo(dst);
+            foreach (var e in files)
+            {
+                ct.ThrowIfCancellationRequested();
+                var target = Path.GetFullPath(Path.Combine(fullDest, e.Name.Replace('/', Path.DirectorySeparatorChar)));
+                // Zip-slip guard: never write outside the destination root.
+                if (target != fullDest &&
+                    !target.StartsWith(fullDest + Path.DirectorySeparatorChar, System.StringComparison.OrdinalIgnoreCase))
+                    continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+                reporter.ItemStarted(e.Name);
+                inFlight = target;
+                using (var src = session.OpenEntry(e.Name))
+                using (var dst = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None))
+                    Pump(src, dst, reporter, ct);
+                inFlight = null;
+                reporter.ItemFinished(e.Name, e.Size, e.Size);
+            }
+            reporter.Finished();
+        }
+        catch (System.OperationCanceledException)
+        {
+            // The file being written when the stop arrived is definitively incomplete; the ones already
+            // closed are not, and a user who stops an extraction expects to keep what has landed.
+            if (inFlight is not null) { try { File.Delete(inFlight); } catch { /* best effort */ } }
+            throw;
+        }
+    }
+
+    /// <summary>Copies one entry, reporting as it goes and stopping promptly when asked. Chunked rather
+    /// than <see cref="Stream.CopyTo(Stream)"/> so a single multi-gigabyte entry is cancellable.</summary>
+    private static void Pump(Stream src, Stream dst, ArchiveProgressReporter reporter, CancellationToken ct)
+    {
+        var buffer = new byte[81920];
+        long done = 0;
+        int read;
+        while ((read = src.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            dst.Write(buffer, 0, read);
+            done += read;
+            reporter.Advanced(done);
         }
     }
 
@@ -798,14 +842,17 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         return HandlerFor(name) is { } h && h.CanWrite(name);
     }
 
-    public void CreateArchive(string archivePath, string sourceDir)
+    public void CreateArchive(string archivePath, string sourceDir,
+                              System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
     {
         var (real, handler, name) = ResolveArchiveWriter(archivePath);
         var fullSource = Path.GetFullPath(ToReal(sourceDir));
-        WriteNewArchive(real, handler, name, EntriesUnder(fullSource, prefix: "").ToList());
+        WriteNewArchive(real, handler, name, EntriesUnder(fullSource, prefix: "").ToList(),
+                        new ArchiveProgressReporter(progress, ct));
     }
 
-    public void CreateArchive(string archivePath, IReadOnlyList<string> sourcePaths)
+    public void CreateArchive(string archivePath, IReadOnlyList<string> sourcePaths,
+                              System.IProgress<TransferProgress>? progress = null, CancellationToken ct = default)
     {
         if (sourcePaths is null || sourcePaths.Count == 0)
             throw new System.ArgumentException("At least one source path is required.", nameof(sourcePaths));
@@ -826,7 +873,7 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
                 throw new FileNotFoundException($"Nothing to compress at '{source}'.", source);
         }
 
-        WriteNewArchive(real, handler, name, entries);
+        WriteNewArchive(real, handler, name, entries, new ArchiveProgressReporter(progress, ct));
     }
 
     /// <summary>Resolves the archive path to a real one and picks the handler that can create its format.
@@ -849,28 +896,48 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
             yield return FileEntry(file, prefix + Path.GetRelativePath(fullDir, file).Replace('\\', '/'));
     }
 
-    private static ArchiveWriteEntry FileEntry(string sourcePath, string entryPath) => new()
+    /// <summary>One file as a write entry. The single <see cref="FileInfo"/> yields both the timestamp and
+    /// the length, so a byte total for the progress bar costs no extra syscall.</summary>
+    private static ArchiveWriteEntry FileEntry(string sourcePath, string entryPath)
     {
-        Path = entryPath,
-        Modified = File.GetLastWriteTime(sourcePath),
-        OpenContent = () => File.OpenRead(sourcePath),
-    };
+        var info = new FileInfo(sourcePath);
+        return new()
+        {
+            Path = entryPath,
+            Modified = info.LastWriteTime,
+            Length = info.Exists ? info.Length : 0,
+            OpenContent = () => File.OpenRead(sourcePath),
+        };
+    }
 
     private static string LeafName(string path) =>
         Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
     /// <summary>Builds the archive beside its destination and swaps it in, so a failed write never leaves a
-    /// half-built file at <paramref name="archivePath"/>.</summary>
+    /// half-built file at <paramref name="archivePath"/> — nor a stray temp, which is what a cancelled
+    /// write would otherwise leave behind on every stop.</summary>
     private static void WriteNewArchive(
-        string archivePath, IArchiveHandler handler, string name, List<ArchiveWriteEntry> entries)
+        string archivePath, IArchiveHandler handler, string name, List<ArchiveWriteEntry> entries,
+        ArchiveProgressReporter? reporter = null)
     {
         var dir = Path.GetDirectoryName(archivePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         var tmp = archivePath + ".nexatmp";
-        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-            handler.Write(outStream, name, entries);
-        if (File.Exists(archivePath)) File.Replace(tmp, archivePath, null);
-        else File.Move(tmp, archivePath);
+        try
+        {
+            reporter?.Measured(entries.Sum(e => e.Length), entries.Count(e => !e.IsDirectory));
+            var payload = reporter?.Decorate(entries) ?? entries;
+            using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+                handler.Write(outStream, name, payload);
+            if (File.Exists(archivePath)) File.Replace(tmp, archivePath, null);
+            else File.Move(tmp, archivePath);
+            reporter?.Finished();
+        }
+        catch
+        {
+            try { File.Delete(tmp); } catch { /* best effort */ }
+            throw;
+        }
     }
 
     public void Repackage(string sourcePath, string targetPath, ArchiveWriteOptions? options = null)
@@ -932,11 +999,15 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
                     $"A {codec.Extension} file holds a single stream, but this archive has {files.Count} files — " +
                     $"convert to .tar{codec.Extension} instead.");
             var tmp = targetPath + ".nexatmp";
-            using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-            using (var cs = codec.Compress(outStream))
-            using (var src = files[0].OpenContent!())
-                src.CopyTo(cs);
-            Commit(tmp, targetPath);
+            try
+            {
+                using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var cs = codec.Compress(outStream))
+                using (var src = files[0].OpenContent!())
+                    src.CopyTo(cs);
+                Commit(tmp, targetPath);
+            }
+            catch { try { File.Delete(tmp); } catch { /* best effort */ } throw; }
             return;
         }
 
@@ -946,19 +1017,27 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         if (!handler.CanWrite(name))
             throw new System.NotSupportedException($"{handler.Name} cannot create '{Path.GetExtension(name)}' archives.");
         var t = targetPath + ".nexatmp";
-        using (var outStream = new FileStream(t, FileMode.Create, FileAccess.Write, FileShare.None))
-            handler.Write(outStream, name, entries, options);
-        Commit(t, targetPath);
+        try
+        {
+            using (var outStream = new FileStream(t, FileMode.Create, FileAccess.Write, FileShare.None))
+                handler.Write(outStream, name, entries, options);
+            Commit(t, targetPath);
+        }
+        catch { try { File.Delete(t); } catch { /* best effort */ } throw; }
     }
 
     private static void CompressFileWithCodec(string sourceFile, string targetPath, IStreamCodec codec)
     {
         var tmp = targetPath + ".nexatmp";
-        using (var inStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
-        using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-        using (var cs = codec.Compress(outStream))
-            inStream.CopyTo(cs);
-        Commit(tmp, targetPath);
+        try
+        {
+            using (var inStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var outStream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var cs = codec.Compress(outStream))
+                inStream.CopyTo(cs);
+            Commit(tmp, targetPath);
+        }
+        catch { try { File.Delete(tmp); } catch { /* best effort */ } throw; }
     }
 
     private static void Commit(string tmp, string targetPath)

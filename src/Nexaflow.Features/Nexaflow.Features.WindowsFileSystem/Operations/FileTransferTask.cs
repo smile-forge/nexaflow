@@ -17,6 +17,8 @@ namespace Nexaflow.Features.WindowsFileSystem.Operations;
 internal sealed class FileTransferTask(
     FileOperation op,
     FileOperationQueue queue,
+    FileTransferRequest request,
+    bool recycle,
     string volumeKey) : IBackgroundTask
 {
     public string Description => op.Title;
@@ -37,18 +39,18 @@ internal sealed class FileTransferTask(
 
         try
         {
-            var sources = op.Request.Items.Select(i => i.Source).ToList();
+            var sources = request.Items.Select(i => i.Source).ToList();
 
             queue.PublishOnUi(() => op.SetState(FileOperationState.Scanning));
             var measured = await FileTransferEngine.ScanAsync(sources, ct);
 
             // A delete keeps the counts but not the byte total: it never moves a byte, so a progress bar
             // measured against the size of what it is removing would sit at nought until the moment it ended.
-            TransferScan? scan = op.Kind == TransferKind.Delete
+            TransferScan? scan = request.Kind == TransferKind.Delete
                 ? measured with { TotalBytes = 0 }
                 : measured;
 
-            if (op.Kind == TransferKind.Delete && op.Recycle)
+            if (request.Kind == TransferKind.Delete && recycle)
             {
                 await RecycleAsync(sources, scan, ct);
                 return;
@@ -57,7 +59,7 @@ internal sealed class FileTransferTask(
             queue.PublishOnUi(() => op.SetState(FileOperationState.Running));
 
             var result = await FileTransferEngine.RunAsync(
-                op.Request, scan, new FileOperationProgressSink(op, queue), op, ct);
+                request, scan, new FileOperationProgressSink(op, queue), op, ct);
 
             queue.PublishOnUi(() => op.Finish(result));
         }
@@ -108,6 +110,64 @@ internal sealed class FileTransferTask(
             Failures: failures, SkippedReparsePoints: [], RenamedDestinations: [], PartialDestinations: []);
 
         queue.PublishOnUi(() => op.Finish(result));
+    }
+
+    private static TransferResult Cancelled()
+        => new(false, 0, 0, [], [], [], []);
+
+    private static TransferResult Faulted(Exception ex)
+        => new(true, 0, 0, [new TransferItemFailure(string.Empty, "run", 0, ex.Message)], [], [], []);
+}
+
+/// <summary>
+/// Runs a caller-supplied piece of long work behind a <see cref="FileOperation"/> row — an archive
+/// being built or unpacked, say. Everything around the work is <see cref="FileTransferTask"/>'s: the
+/// same volume gate, the same progress sink, and the same rule that a cancellation is <i>reported</i>
+/// rather than thrown.
+/// <para>
+/// The work is expected to describe its own outcome in the <see cref="TransferResult"/> it returns,
+/// including a cancellation — that is the only way it can name what it left half-written. The catches
+/// here are a backstop: an exception escaping <see cref="RunAsync"/> leaves the row spinning forever,
+/// because <c>QueueBackgroundTask</c> skips <c>onComplete</c> when a task throws a cancellation.
+/// </para>
+/// </summary>
+internal sealed class FileWorkTask(
+    FileOperation op,
+    FileOperationQueue queue,
+    string volumeKey,
+    Func<IProgress<TransferProgress>, CancellationToken, Task<TransferResult>> work) : IBackgroundTask
+{
+    public string Description => op.Title;
+
+    public async Task RunAsync(CancellationToken ct)
+    {
+        var gate = queue.GateFor(volumeKey);
+
+        try { await gate.WaitAsync(ct); }
+        catch (OperationCanceledException)
+        {
+            queue.PublishOnUi(() => op.Finish(Cancelled()));
+            return;
+        }
+
+        try
+        {
+            queue.PublishOnUi(() => op.SetState(FileOperationState.Running));
+            var result = await work(new FileOperationProgressSink(op, queue), ct);
+            queue.PublishOnUi(() => op.Finish(result));
+        }
+        catch (OperationCanceledException)
+        {
+            queue.PublishOnUi(() => op.Finish(Cancelled()));
+        }
+        catch (Exception ex)
+        {
+            queue.PublishOnUi(() => op.Finish(Faulted(ex)));
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private static TransferResult Cancelled()

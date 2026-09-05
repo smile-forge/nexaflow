@@ -30,7 +30,7 @@ namespace Nexaflow.Features.WindowsFileSystem.Operations;
 /// rather than being cancelled, because a copy should survive a tab closing.)
 /// </para>
 /// </summary>
-public sealed class FileOperationQueue
+public sealed class FileOperationQueue : IFileOperationHost
 {
     private static readonly ConditionalWeakTable<IShellServices, FileOperationQueue> _instances = new();
     private static readonly object _instancesLock = new();
@@ -89,10 +89,12 @@ public sealed class FileOperationQueue
         var request = new FileTransferRequest(
             move ? TransferKind.Move : TransferKind.Copy, items, ConflictPolicy.AutoRename);
 
-        var op = new FileOperation(request.Kind, request, LabelFor(destinationFolder), recycle: false);
+        var op = new FileOperation(move ? "Moving" : "Copying", Describe(items),
+                                   LabelFor(destinationFolder), items.Count);
         if (refusals.Count > 0) _shell.ShowError(string.Join(Environment.NewLine, refusals));
 
-        Start(op, VolumeKey(destinationFolder), onSucceeded);
+        Start(op, new FileTransferTask(op, this, request, recycle: false, VolumeKey(destinationFolder)),
+              onSucceeded);
         return op;
     }
 
@@ -107,19 +109,22 @@ public sealed class FileOperationQueue
         var request = new FileTransferRequest(
             TransferKind.Delete, [.. real.Select(p => new TransferItem(p, p))], ConflictPolicy.Fail);
 
-        var op = new FileOperation(TransferKind.Delete, request, targetLabel: string.Empty, recycle: !permanent);
-        Start(op, VolumeKey(real[0]), onSucceeded: null);
+        // A delete says nothing when it works: the files being gone is its own confirmation.
+        var op = new FileOperation(permanent ? "Deleting" : "Recycling", Describe(request.Items),
+                                   targetLabel: string.Empty, request.Items.Count, announceOnSuccess: false);
+        Start(op, new FileTransferTask(op, this, request, recycle: !permanent, VolumeKey(real[0])),
+              onSucceeded: null);
         return op;
     }
 
-    private void Start(FileOperation op, string volumeKey, Action? onSucceeded)
+    private void Start(FileOperation op, IBackgroundTask task, Action? onSucceeded)
     {
         op.Marshal = PublishOnUi;
         Operations.Add(op);
         Changed?.Invoke();
 
         _shell.QueueBackgroundTask(
-            new FileTransferTask(op, this, volumeKey),
+            task,
             onComplete: _ =>
             {
                 if (op.State is FileOperationState.Completed) onSucceeded?.Invoke();
@@ -128,6 +133,25 @@ public sealed class FileOperationQueue
             },
             ct: op.Token);
     }
+
+    /// <summary>
+    /// Shows and runs work the queue did not plan itself — an archive being built or unpacked. The row,
+    /// the cancel button, the volume gate, the completion notice and the auto-retire are all the ones a
+    /// copy already gets; only the work differs, so only the work is passed in.
+    /// </summary>
+    public Task Run(FileOperationRequest request,
+                    Func<IProgress<TransferProgress>, CancellationToken, Task<TransferResult>> work)
+    {
+        var op = new FileOperation(request.Verb, request.Subject, request.TargetLabel);
+        Start(op, new FileWorkTask(op, this, VolumeKey(request.DestinationPath), work), onSucceeded: null);
+        return op.Completion;
+    }
+
+    /// <summary>What the row calls the thing being worked on.</summary>
+    private static string Describe(IReadOnlyList<TransferItem> items)
+        => items.Count == 1
+            ? Path.GetFileName(items[0].Source.TrimEnd(Path.DirectorySeparatorChar))
+            : $"{items.Count} items";
 
     // ── Controls ──────────────────────────────────────────────────────────────
 
@@ -189,7 +213,7 @@ public sealed class FileOperationQueue
 
         if (op.Problems.Count == 0)
         {
-            if (op.Kind != TransferKind.Delete) _shell.ShowNotification($"{op.Title} — done.");
+            if (op.AnnounceOnSuccess) _shell.ShowNotification($"{op.Title} — done.");
             _shell.RequestRefresh();
             return;
         }
