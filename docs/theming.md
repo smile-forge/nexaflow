@@ -224,6 +224,14 @@ rays, floor caustics, vivid fish, colourful coral, highlight bubbles). It's them
 by `Theme.Ocean.xaml`, never by `ThemedRegion`. Density scales with region size; it never hit-tests.
 Colours were taken from the source HTML mock.
 
+Two **rare visitors** sit apart from that density rule: a turtle and a seahorse, one of each regardless
+of region size. Where the fish loop back-to-back, a visitor crosses once per long cycle and is parked
+off-screen for the rest, so a sighting reads as a treat rather than décor. Both use the same
+cross-then-hold keyframe (the wrap from far edge back to start happens off-screen, so it is never seen);
+they differ only in the numbers. The seahorse crosses the same ±160 span in twice the time — 100–156s
+against the turtle's 50–78s, so exactly half the pace — and waits 150–270s between crossings against the
+turtle's 34–64s, making it roughly a third as frequent a sighting.
+
 ## Authoring a new theme
 
 **Pro theme (flat, professional)** — like Dark/Light:
