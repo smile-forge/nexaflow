@@ -196,6 +196,7 @@
                                                             CommandParameter="{Binding}"
                                                             AutomationProperties.AutomationId="FileOps_Retry"/>
                                                     <Button Content="Stop" Style="{StaticResource RowButton}"
+                                                    AutomationProperties.AutomationId="FileOps_StopPaused"
                                                             Command="{Binding DataContext.CancelCommand,
                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding}"/>
@@ -228,6 +229,7 @@
                                                 Style="{StaticResource RowButton}"
                                                 VerticalAlignment="Top"
                                                 Visibility="{Binding HasProblems, Converter={StaticResource BoolToVis}}"
+                                                AutomationProperties.AutomationId="FileOps_DismissRow"
                                                 Command="{Binding DataContext.DismissCommand,
                                                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                 CommandParameter="{Binding}"

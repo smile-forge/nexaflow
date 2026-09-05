@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
-using FlaUI.Core.WindowsAPI;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
@@ -80,20 +79,25 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         return true;
     }
 
-    /// <summary>Escape in the filename box cancels the overlay — the way out when a flow leaves it open.</summary>
+    /// <summary>
+    /// Closes the create overlay with its own Cancel button — the way out when a flow leaves it open.
+    /// <para>
+    /// It used to press Escape in the filename box, which works and proves nothing about the button
+    /// beside it. Cancel is bound to <c>CancelCreateCommand</c> and is the control a user actually
+    /// reaches for, so the flow that has to dismiss the overlay anyway is the one that should press it.
+    /// </para>
+    /// </summary>
     private void DismissCreateOverlay()
     {
-        var box = WaitForId("CreateFileNameBox", 4);
-        if (box is null) return;
+        if (WaitForId("CreateFileNameBox", 4) is null) return;
 
-        box.Click();
-        Keyboard.Press(VirtualKeyShort.ESCAPE);
-        Wait.UntilInputIsProcessed();
+        CheckDoes("Cancel closes the create overlay", "FileSystem_CreateCancel",
+                  () => WaitForGone("CreateFileNameBox", 4));
     }
 
     private void Confirm()
     {
-        WaitForId("CreateConfirmButton")?.AsButton().Invoke();
+        WaitForId("FileSystem_CreateConfirm")?.AsButton().Invoke();
         Wait.UntilInputIsProcessed();
     }
 
@@ -160,7 +164,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
                 box.AsTextBox().Text = "existing";        // resolves to the seeded existing.txt
                 CheckPresent("Name-clash warning", "CreateNameWarning", 4);
                 Check("Create is disabled for a name that already exists", () =>
-                    MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("CreateConfirmButton"))
+                    MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("FileSystem_CreateConfirm"))
                         is { } create && !create.Properties.IsEnabled.ValueOrDefault);
             }
 
@@ -269,6 +273,178 @@ public class FileSystemJourneyTests : UiJourneyTestBase
                   () => made && File.ReadAllText(outFile) == TemplateBody);
         }
 
+        RunDefineNewWizardPass();
+
         AssertJourney();
+    }
+
+    /// <summary>
+    /// The "Define New…" wizard: the surface that associates a file, an extension or a glob with an
+    /// internal viewer or an external app. Run as its own pass at the end of the journey because it is
+    /// the one part with no launcher button — see <see cref="OpenDefineNewWizard"/>.
+    /// <para>
+    /// It is three pages for every target (pick what → pick/define it → pick the scope), and only the
+    /// third one commits: <c>Advance</c> calls <c>Commit()</c> when <c>IsLastPage</c>. So the pass walks
+    /// both branches that have controls of their own, stops <i>on</i> the scope page, and leaves by
+    /// Cancel — the wizard's writes land in the throwaway config dir either way, but a Finish would end
+    /// the wizard and there would be nothing left to check.
+    /// </para>
+    /// </summary>
+    private void RunDefineNewWizardPass()
+    {
+        if (!OpenDefineNewWizard("hello.txt"))
+        {
+            Check("the Define New wizard opens from the action strip", () => false);
+            return;
+        }
+
+        // ── Page 1 of 3: what to associate the file with ──
+        CheckPresent("Wizard: an internal viewer", "DefineNew_TargetInternal");
+        // Present-checked, never chosen: it is IsEnabled-bound to HasExistingApps, and a journey's
+        // config dir has no external apps in it — and CheckInvoke counts a disabled control as a failure.
+        CheckPresent("Wizard: an existing external app", "DefineNew_TargetExistingApp");
+        CheckPresent("Wizard: a new external app", "DefineNew_TargetNewApp");
+
+        // ── The new-external-app branch, which is where the Browse buttons live ──
+        Choose("A new external app", "DefineNew_TargetNewApp");
+        CheckDoes("Next reaches the app-details page", "DefineNew_Advance",
+                  () => WaitForId("DefineNew_BrowseAppPath", 6) is not null);
+
+        // Both Browse buttons open a modal shell picker that is a window of its own, so FlaUI cannot
+        // see or dismiss it from MainWindow — pressing either would hang the rest of the pass with a
+        // dialog nothing in the test can close. Present-checked on purpose.
+        CheckPresent("Browse for the app (a modal picker, so not pressed)", "DefineNew_BrowseAppPath");
+        CheckInvoke("Expand the advanced fields", "DefineNew_ToggleAdvanced");
+        CheckPresent("Browse for an icon (the same modal picker)", "DefineNew_BrowseIconPath");
+
+        CheckDoes("Back returns to the first page", "DefineNew_Back",
+                  () => WaitForId("DefineNew_TargetInternal", 6) is not null);
+
+        // ── The internal-viewer branch, through to the scope page ──
+        Choose("An internal viewer", "DefineNew_TargetInternal");
+        CheckDoes("Next reaches the viewer picker", "DefineNew_Advance",
+                  () => WaitForId("DefineNew_InternalPicker", 6) is not null);
+
+        // Page 2 will not advance until an experience is selected (CanAdvance → SelectedExperience is
+        // not null), so the pass picks the first one rather than assuming one is preselected.
+        Check("the picker offers a viewer to choose", ChooseFirstInternalViewer);
+
+        CheckDoes("Next reaches the scope page", "DefineNew_Advance",
+                  () => WaitForId("DefineNew_ScopeThisFile", 6) is not null);
+
+        // Each scope is a plain view-model flip that only BuildCriteria() reads, and BuildCriteria is
+        // only called by Commit — so all four can be moved through freely.
+        Choose("Scope: this file only",        "DefineNew_ScopeThisFile");
+        Choose("Scope: the extension here",    "DefineNew_ScopeExtInFolder");
+        Choose("Scope: the extension anywhere","DefineNew_ScopeExtAnywhere");
+        Choose("Scope: custom globs",          "DefineNew_ScopeCustomGlobs");
+
+        CheckDoes("Cancel closes the wizard", "DefineNew_Cancel",
+                  () => WaitForGone("DefineNew_ScopeCustomGlobs", 5));
+    }
+
+    /// <summary>
+    /// Opens the wizard the only way the app offers: a right-click on EMPTY action-strip space, which
+    /// raises a runtime ContextMenu holding a single "Define New…" item. False when any step does not
+    /// happen, so the caller can report one failure rather than a cascade of missing wizard controls.
+    /// <para>
+    /// It selects a file first, and that is not incidental: <c>CanOpenDefineNewWizard</c> requires exactly
+    /// one selected non-directory item, so with nothing selected the command cannot execute and the handler
+    /// raises no menu at all — and the strip has no action buttons to measure from either.
+    /// </para>
+    /// <para>
+    /// The strip is a <c>Border</c>, and WPF gives a Border no automation peer, so its position is read
+    /// from a button inside it instead. "Empty" is the space <i>below</i> the buttons: the strip is a
+    /// fixed 120px column whose actions fill a two-column grid from the top, and the handler walks up
+    /// from whatever was hit and bails if it finds a Button, so a click on one raises nothing.
+    /// </para>
+    /// </summary>
+    private bool OpenDefineNewWizard(string fileName)
+    {
+        var list = WaitForId("FileListView", 8);
+        if (list is null) return false;
+
+        var row = WaitFor(() => list.FindFirstDescendant(cf => cf.ByName(fileName)), 8);
+        if (row is null) return false;
+
+        row.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+        row.Click();
+        Wait.UntilInputIsProcessed();
+        System.Threading.Thread.Sleep(250);
+
+        var anchor = WaitForId("Copy", 8) ?? WaitForId("Rename", 8) ?? WaitForId("New", 8);
+        if (anchor is null) return false;
+
+        var x = anchor.BoundingRectangle.Left + (anchor.BoundingRectangle.Width / 2);
+        var y = list.BoundingRectangle.Bottom - 24;
+        if (y <= anchor.BoundingRectangle.Bottom + 8) return false;   // no empty strip to right-click
+
+        Mouse.RightClick(new System.Drawing.Point(x, y));
+        Wait.UntilInputIsProcessed();
+        System.Threading.Thread.Sleep(300);
+
+        var item = FindDefineNewItem();
+        if (item is null) return false;
+
+        item.Click();
+        Wait.UntilInputIsProcessed();
+        return WaitForId("DefineNew_TargetInternal", 8) is not null;
+    }
+
+    /// <summary>
+    /// Selects one of the wizard's radio options and records whether the selection took. Radios answer
+    /// the SelectionItem pattern rather than Invoke, so this asks directly instead of going through
+    /// <see cref="UiJourneyTestBase.CheckInvoke"/>, which would fall back to a coordinate click.
+    /// </summary>
+    private void Choose(string label, string automationId)
+    {
+        Check($"{label} can be chosen", () =>
+        {
+            var option = WaitForId(automationId, 5);
+            var pattern = option?.Patterns.SelectionItem.PatternOrDefault;
+            if (pattern is null) return false;
+
+            pattern.Select();
+            Wait.UntilInputIsProcessed();
+            System.Threading.Thread.Sleep(120);
+            return pattern.IsSelected.ValueOrDefault;
+        });
+    }
+
+    /// <summary>Selects the first viewer in the wizard's internal-viewer list, so Next becomes available.</summary>
+    private bool ChooseFirstInternalViewer()
+    {
+        var picker = WaitForId("DefineNew_InternalPicker", 5);
+        var first = picker?.FindAllChildren().FirstOrDefault();
+        if (first is null) return false;
+
+        first.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
+        first.Patterns.SelectionItem.PatternOrDefault?.Select();
+        Wait.UntilInputIsProcessed();
+        System.Threading.Thread.Sleep(150);
+        return true;
+    }
+
+    /// <summary>
+    /// Finds the "Define New…" menu item. A WPF ContextMenu is hosted in a Popup with its own HWND, and
+    /// whether that shows up under the shell window or as a top-level window of the process depends on
+    /// how it was raised — this one is built in code-behind rather than declared in XAML — so both are
+    /// searched rather than assuming the one the other journeys happen to hit.
+    /// </summary>
+    private AutomationElement? FindDefineNewItem()
+    {
+        const string Header = "Define New…";
+
+        var inWindow = WaitForName(Header, 3);
+        if (inWindow is not null) return inWindow;
+
+        return WaitFor(() =>
+        {
+            foreach (var w in App.GetAllTopLevelWindows(Automation))
+            {
+                if (w.FindFirstDescendant(cf => cf.ByName(Header)) is { } hit) return hit;
+            }
+            return null;
+        }, 3);
     }
 }
