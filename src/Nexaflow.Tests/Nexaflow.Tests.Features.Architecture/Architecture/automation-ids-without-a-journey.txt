@@ -203,3 +203,18 @@ TextEditorView
 # mid-flight — a denied destination, or a source pulled away under the engine — which is a journey about
 # failure handling rather than one that happens to press a button, and is worth writing as its own.
 FileOps_Retry
+
+# src/Nexaflow.Features/Nexaflow.Features.AIChat/Views/ConversationView.xaml
+# The approval row and the tool-batch disclosure only enter the timeline when a live agent turn asks to
+# run a tool batch. That needs a configured provider and a real model round-trip, which a journey's
+# throwaway config dir has by design. Accept is also the gate that authorises client tools to run — file
+# writes, deletes, process spawns — so it wants a journey built around a stubbed agent, not a click here.
+Conversation_ApprovalAccept
+Conversation_ApprovalDeny
+Conversation_ToolBatchExpand
+# The chip, its preview and the attachment remove are all ItemTemplate children of collections the seeded
+# conversation.json leaves empty. A context item is a pinned live page rather than anything JSON can
+# reconstitute, so reaching these means a journey that first pins a tab and attaches a file.
+Conversation_ContextChip
+Conversation_ClosePreview
+Conversation_AttachmentRemove
