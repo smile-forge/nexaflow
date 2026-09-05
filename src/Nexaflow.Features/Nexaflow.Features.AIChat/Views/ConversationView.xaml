@@ -43,7 +43,7 @@
                                FontSize="10"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextMutedBrush}"/>
-                    <Button Margin="7,0,0,0"
+                    <Button AutomationProperties.AutomationId="Conversation_Rewind" Margin="7,0,0,0"
                             Padding="6,1"
                             Cursor="Hand"
                             Content="↺ Rewind"
@@ -108,7 +108,8 @@
 
         <DataTemplate DataType="{x:Type tl:TimelineToolBatch}">
             <StackPanel Margin="0,4" HorizontalAlignment="Left" MaxWidth="720">
-                <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}" Cursor="Hand" HorizontalAlignment="Left">
+                <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}" Cursor="Hand" HorizontalAlignment="Left"
+                              AutomationProperties.AutomationId="Conversation_ToolBatchExpand">
                     <ToggleButton.Template>
                         <ControlTemplate TargetType="ToggleButton">
                             <Border Background="{StaticResource Surface2Brush}"
@@ -178,9 +179,9 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                                     Margin="14,0,0,0"
                                     Visibility="{Binding Resolved, Converter={StaticResource InvBoolVis}}">
-                            <Button Style="{StaticResource RibbonButton}" Padding="12,6" Margin="0,0,8,0"
+                            <Button AutomationProperties.AutomationId="Conversation_ApprovalDeny" Style="{StaticResource RibbonButton}" Padding="12,6" Margin="0,0,8,0"
                                     Content="Deny" Command="{Binding DenyCommand}"/>
-                            <Button Style="{StaticResource RibbonButton}" Padding="12,6"
+                            <Button AutomationProperties.AutomationId="Conversation_ApprovalAccept" Style="{StaticResource RibbonButton}" Padding="12,6"
                                     Content="Accept" Command="{Binding ApproveCommand}"/>
                         </StackPanel>
 
@@ -260,7 +261,7 @@
                                 VerticalAlignment="Center">
                     <!-- Disclosure arrow: collapses the chips to a one-line summary, for when the pinned
                          set is settled and the thread is what you are reading. -->
-                    <Button Command="{Binding ToggleContextCollapsedCommand}"
+                    <Button AutomationProperties.AutomationId="Conversation_ToggleContext" Command="{Binding ToggleContextCollapsedCommand}"
                             Cursor="Hand"
                             Margin="0,0,6,0"
                             VerticalAlignment="Center"
@@ -420,7 +421,7 @@
                                     <DataTemplate DataType="{x:Type vm:ContextItemViewModel}">
                                         <!-- The chip is a button: clicking it selects the item and opens the
                                              preview panel; clicking the selected one closes it again. -->
-                                        <Button Command="{Binding DataContext.SelectContextItemCommand,
+                                        <Button AutomationProperties.AutomationId="Conversation_ContextChip" Command="{Binding DataContext.SelectContextItemCommand,
                                                                   RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 Cursor="Hand"
@@ -597,7 +598,7 @@
                                                            Foreground="{StaticResource DangerBrush}"
                                                            ToolTip="File not found — it may have been moved or deleted."
                                                            Visibility="{Binding Converter={StaticResource MissingPathVis}}"/>
-                                                <Button x:Name="AttRemoveBtn"
+                                                <Button AutomationProperties.AutomationId="Conversation_AttachmentRemove" x:Name="AttRemoveBtn"
                                                         HorizontalAlignment="Right"
                                                         VerticalAlignment="Top"
                                                         Margin="0,-6,-6,0"
@@ -645,7 +646,7 @@
                             <!-- Add-context button: the same menu the banner's right-click opens, made
                                  visible — right-click alone was a feature nobody found. Held at low
                                  opacity so it reads as an affordance beside the chips, not a chip. -->
-                            <Button x:Name="AddContextButton"
+                            <Button AutomationProperties.AutomationId="Conversation_AddContext" x:Name="AddContextButton"
                                     Click="OnAddContextClick"
                                     Cursor="Hand"
                                     Opacity="0.45"
@@ -787,7 +788,7 @@
                                TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource TextBrush}"/>
 
-                    <Button Grid.Column="1"
+                    <Button AutomationProperties.AutomationId="Conversation_ClosePreview" Grid.Column="1"
                             Width="22" Height="22"
                             Cursor="Hand"
                             ToolTip="Close preview"

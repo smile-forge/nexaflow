@@ -35,7 +35,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Delete (x) — top-right corner -->
-                    <Button Grid.ColumnSpan="3"
+                    <Button AutomationProperties.AutomationId="AiChat_DeleteConversation" Grid.ColumnSpan="3"
                             HorizontalAlignment="Right" VerticalAlignment="Top"
                             Style="{StaticResource RibbonButton}"
                             Padding="5,1" Margin="0,-4,-4,0"
@@ -69,7 +69,7 @@
 
                     <!-- Right: Open + Analysis -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Style="{StaticResource RibbonButton}"
+                        <Button AutomationProperties.AutomationId="AiChat_OpenConversation" Style="{StaticResource RibbonButton}"
                                 Padding="12,6" Margin="0,0,6,0"
                                 Command="{Binding DataContext.OpenConversationCommand,
                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -79,7 +79,7 @@
                                 <TextBlock Text="Open" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource RibbonButton}"
+                        <Button AutomationProperties.AutomationId="AiChat_ShowAnalysis" Style="{StaticResource RibbonButton}"
                                 Padding="9,6" ToolTip="View analysis"
                                 Command="{Binding DataContext.ShowAnalysisCommand,
                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -118,7 +118,7 @@
                      regardless of the range picked here. -->
                 <vcc:SearchStatusChip PagePrefix="AiChat" Margin="16,0,0,0"/>
             </StackPanel>
-            <Button Grid.Column="1"
+            <Button AutomationProperties.AutomationId="AiChat_NewConversation" Grid.Column="1"
                     Style="{StaticResource RibbonButton}" Padding="12,6"
                     ToolTip="Start a new conversation"
                     Command="{Binding NewConversationCommand}">
@@ -167,7 +167,7 @@
                                    FontSize="16" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextBrush}"
                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                        <Button Grid.Column="1"
+                        <Button AutomationProperties.AutomationId="AiChat_CloseAnalysis" Grid.Column="1"
                                 Style="{StaticResource RibbonButton}"
                                 Padding="9,5" ToolTip="Close"
                                 Command="{Binding CloseAnalysisCommand}">
@@ -241,7 +241,7 @@
                     </ScrollViewer>
 
                     <!-- Footer: Open -->
-                    <Button Grid.Row="2" HorizontalAlignment="Right" Margin="0,12,0,0"
+                    <Button AutomationProperties.AutomationId="AiChat_AnalysisOpenConversation" Grid.Row="2" HorizontalAlignment="Right" Margin="0,12,0,0"
                             Style="{StaticResource RibbonButton}" Padding="14,7"
                             Command="{Binding OpenConversationCommand}"
                             CommandParameter="{Binding AnalysisOverlayItem}">
