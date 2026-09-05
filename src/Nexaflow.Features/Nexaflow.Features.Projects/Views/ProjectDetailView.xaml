@@ -230,7 +230,7 @@
                                             </ComboBox>
                                             <TextBox Grid.Column="1" Text="{Binding Text, UpdateSourceTrigger=LostFocus}"
                                                      Style="{StaticResource DarkTextBox}" FontSize="12" VerticalAlignment="Center"/>
-                                            <Button Grid.Column="2" Style="{StaticResource IconButton}" Width="26" Margin="6,0,0,0"
+                                            <Button AutomationProperties.AutomationId="Projects_Detail_RemoveCriterion" Grid.Column="2" Style="{StaticResource IconButton}" Width="26" Margin="6,0,0,0"
                                                     ToolTip="Remove criterion"
                                                     Command="{Binding DataContext.RemoveCriterionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     CommandParameter="{Binding}">
@@ -316,7 +316,7 @@
                                                 </TextBlock>
                                                 <TextBlock Text="{Binding StatusLabel}" FontSize="10" Foreground="{Binding StatusBrush}" Margin="0,2,0,0"/>
                                             </StackPanel>
-                                            <Button Grid.Column="2" Style="{StaticResource IconButton}" Width="22" Height="22"
+                                            <Button AutomationProperties.AutomationId="Projects_Detail_RowProgress" Grid.Column="2" Style="{StaticResource IconButton}" Width="22" Height="22"
                                                     ToolTip="Progress to next stage" Command="{Binding ProgressCommand}"
                                                     Visibility="{Binding CanProgress, Converter={StaticResource BoolVis}}">
                                                 <TextBlock Text="▶" FontSize="9"/>
@@ -372,7 +372,7 @@
                                             <TextBlock Grid.Column="1" Text="invalid status" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0"
                                                        Foreground="{StaticResource DangerBrush}"
                                                        Visibility="{Binding IsInvalidStatus, Converter={StaticResource BoolVis}}"/>
-                                            <Button Grid.Column="2" Style="{StaticResource AccentButton}" Padding="10,6"
+                                            <Button AutomationProperties.AutomationId="Projects_Detail_Progress" Grid.Column="2" Style="{StaticResource AccentButton}" Padding="10,6"
                                                     Command="{Binding ProgressCommand}" IsEnabled="{Binding CanProgress}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="▶" FontSize="11" Margin="0,0,5,0"/>
@@ -460,9 +460,9 @@
                                FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
                     <TextBlock Text="{Binding ConfirmationPrompt}" Foreground="{StaticResource TextMutedBrush}"
                                FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"/>
-                    <Button Content="Delete" Command="{Binding ConfirmActionCommand}" Cursor="Hand" Margin="0,0,0,6"
+                    <Button AutomationProperties.AutomationId="Projects_Detail_ConfirmDelete" Content="Delete" Command="{Binding ConfirmActionCommand}" Cursor="Hand" Margin="0,0,0,6"
                             Style="{StaticResource AccentButton}" Background="{StaticResource DangerBrush}" Foreground="White"/>
-                    <Button Content="Cancel" Command="{Binding CancelConfirmationCommand}" Cursor="Hand"
+                    <Button AutomationProperties.AutomationId="Projects_Detail_CancelConfirm" Content="Cancel" Command="{Binding CancelConfirmationCommand}" Cursor="Hand"
                             Style="{StaticResource GhostButton}"/>
                 </StackPanel>
             </Border>
