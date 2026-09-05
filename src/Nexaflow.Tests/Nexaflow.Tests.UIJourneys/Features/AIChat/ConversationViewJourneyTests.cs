@@ -159,18 +159,4 @@ public class ConversationViewJourneyTests : UiJourneyTestBase
         }
         return false;
     }
-
-    /// <summary>Waits for a descendant with the given accessible name — for menu items, which carry no id.</summary>
-    private AutomationElement? WaitForName(string name, int seconds)
-    {
-        var sw = Stopwatch.StartNew();
-        while (sw.Elapsed < TimeSpan.FromSeconds(seconds))
-        {
-            AutomationElement? el = null;
-            try { el = MainWindow.FindFirstDescendant(cf => cf.ByName(name)); } catch { /* tree churned */ }
-            if (el is not null && !el.IsOffscreen) return el;
-            System.Threading.Thread.Sleep(150);
-        }
-        return null;
-    }
 }

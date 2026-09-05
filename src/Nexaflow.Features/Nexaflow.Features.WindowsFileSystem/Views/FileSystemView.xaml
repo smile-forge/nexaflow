@@ -1056,118 +1056,6 @@
         <!-- ── Modal overlays — root-grid children so they cover the WHOLE page
                  (tree + right pane), not just the file list. ─────────────────── -->
 
-        <!-- ── Input Prompt Overlay ─────────────────────────────────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
-                    Visibility="{Binding InputPromptVisible,
-                                 Converter={StaticResource BoolToVis}}"
-                    Background="#CC000000"
-                    Panel.ZIndex="20">
-                <Border Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource AccentBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Width="320"
-                        Padding="16"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                    <StackPanel>
-                        <TextBlock Text="{Binding InputPromptTitle}"
-                                   Foreground="{StaticResource TextBrush}"
-                                   FontSize="13" FontWeight="SemiBold"
-                                   Margin="0,0,0,10"/>
-                        <TextBlock Text="{Binding InputPromptLabel}"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   FontSize="11"
-                                   Margin="0,0,0,4"/>
-                        <Border BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="3"
-                                Margin="0,0,0,12">
-                            <TextBox x:Name="InputPromptTextBox"
-                                     Text="{Binding InputPromptValue,
-                                            UpdateSourceTrigger=PropertyChanged}"
-                                     Background="{StaticResource Surface2Brush}"
-                                     Foreground="{StaticResource TextBrush}"
-                                     CaretBrush="{StaticResource TextBrush}"
-                                     BorderThickness="0"
-                                     FontSize="12"
-                                     Padding="8,6"
-                                     GotFocus="InputPromptTextBox_GotFocus"
-                                     KeyDown="InputPromptTextBox_KeyDown"/>
-                        </Border>
-                        <Button Content="Rename"
-                                Command="{Binding ConfirmInputPromptCommand}"
-                                Cursor="Hand"
-                                Margin="0,0,0,6">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background"      Value="{StaticResource AccentBrush}"/>
-                                    <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Padding"         Value="0,7"/>
-                                    <Setter Property="FontSize"        Value="12"/>
-                                    <Setter Property="FontWeight"      Value="SemiBold"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="Bd"
-                                                        Background="{TemplateBinding Background}"
-                                                        CornerRadius="4"
-                                                        Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsPressed" Value="True">
-                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <Button Content="Cancel"
-                                Command="{Binding CancelInputPromptCommand}"
-                                Cursor="Hand">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
-                                    <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Padding"         Value="0,7"/>
-                                    <Setter Property="FontSize"        Value="12"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="Bd"
-                                                        Background="{TemplateBinding Background}"
-                                                        CornerRadius="4"
-                                                        Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="Bd" Property="Background"
-                                                                Value="{StaticResource BorderBrush}"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsPressed" Value="True">
-                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.75"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                    </StackPanel>
-                </Border>
-            </Border>
-
             <!-- ── Create Overlay (single pane: type picker + filename) ─────── -->
             <Border x:Name="CreateOverlay"
                     Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
@@ -1221,6 +1109,7 @@
                                        Margin="0,4,0,0"
                                        Visibility="{Binding CreateNameExists, Converter={StaticResource BoolToVis}}"/>
                             <Button x:Name="CreateConfirmButton" Content="Create"
+                            AutomationProperties.AutomationId="FileSystem_CreateConfirm"
                                     Command="{Binding CreateCommand}"
                                     Cursor="Hand"
                                     Margin="0,10,0,6">
@@ -1257,6 +1146,7 @@
                             </Button>
                             <Button Content="Cancel"
                                     Command="{Binding CancelCreateCommand}"
+                                    AutomationProperties.AutomationId="FileSystem_CreateCancel"
                                     Cursor="Hand">
                                 <Button.Style>
                                     <Style TargetType="Button">
@@ -1387,103 +1277,6 @@
                 </Border>
             </Border>
 
-            <!-- ── Confirmation Overlay (spans entire right pane) ───────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
-                    Visibility="{Binding ConfirmationVisible,
-                                 Converter={StaticResource BoolToVis}}"
-                    Background="#CC000000"
-                    Panel.ZIndex="19">
-                <Border Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource DangerBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Width="320"
-                        Padding="16"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                    <StackPanel>
-                        <TextBlock Text="{Binding ConfirmationTitle}"
-                                   Foreground="{StaticResource TextBrush}"
-                                   FontSize="13" FontWeight="SemiBold"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,8"/>
-                        <TextBlock Text="{Binding ConfirmationPrompt}"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   FontSize="11"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,12"/>
-                        <Button Content="Confirm"
-                                Command="{Binding ConfirmActionCommand}"
-                                Cursor="Hand"
-                                Margin="0,0,0,6">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background"      Value="{StaticResource DangerBrush}"/>
-                                    <Setter Property="Foreground"      Value="White"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Padding"         Value="0,7"/>
-                                    <Setter Property="FontSize"        Value="12"/>
-                                    <Setter Property="FontWeight"      Value="SemiBold"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="Bd"
-                                                        Background="{TemplateBinding Background}"
-                                                        CornerRadius="4"
-                                                        Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsPressed" Value="True">
-                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.75"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <Button Content="Cancel"
-                                Command="{Binding CancelConfirmationCommand}"
-                                Cursor="Hand">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
-                                    <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Padding"         Value="0,7"/>
-                                    <Setter Property="FontSize"        Value="12"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="Bd"
-                                                        Background="{TemplateBinding Background}"
-                                                        CornerRadius="4"
-                                                        Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource BorderBrush}"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsPressed" Value="True">
-                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.75"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                    </StackPanel>
-                </Border>
-            </Border>
-
             <!-- ── Define-New association wizard overlay ────────────────────── -->
             <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
                     Visibility="{Binding WizardOverlayVisible, Converter={StaticResource BoolToVis}}"
@@ -1514,16 +1307,19 @@
                         <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
                             <Button DockPanel.Dock="Left" Content="Cancel"
                                     Style="{StaticResource WzSecondaryBtn}"
-                                    Command="{Binding CancelCommand}"/>
+                                    Command="{Binding CancelCommand}"
+                                    AutomationProperties.AutomationId="DefineNew_Cancel"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Content="Back"
                                         Style="{StaticResource WzSecondaryBtn}"
                                         Command="{Binding BackCommand}"
+                                        AutomationProperties.AutomationId="DefineNew_Back"
                                         Visibility="{Binding ShowBack, Converter={StaticResource BoolToVis}}"
                                         Margin="0,0,8,0"/>
                                 <Button Content="{Binding AdvanceButtonText}"
                                         Style="{StaticResource WzPrimaryBtn}"
-                                        Command="{Binding AdvanceCommand}"/>
+                                        Command="{Binding AdvanceCommand}"
+                                        AutomationProperties.AutomationId="DefineNew_Advance"/>
                             </StackPanel>
                         </DockPanel>
 
@@ -1537,14 +1333,17 @@
                                                Foreground="{StaticResource TextBrush}" FontSize="12"/>
                                     <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
                                                  Content="An internal viewer"
-                                                 IsChecked="{Binding IsInternalSelected, Mode=TwoWay}"/>
+                                                 IsChecked="{Binding IsInternalSelected, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="DefineNew_TargetInternal"/>
                                     <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
                                                  Content="An existing external app"
                                                  IsEnabled="{Binding HasExistingApps}"
+                                                 AutomationProperties.AutomationId="DefineNew_TargetExistingApp"
                                                  IsChecked="{Binding IsExistingSelected, Mode=TwoWay}"/>
                                     <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
                                                  Content="A new external app"
-                                                 IsChecked="{Binding IsNewSelected, Mode=TwoWay}"/>
+                                                 IsChecked="{Binding IsNewSelected, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="DefineNew_TargetNewApp"/>
                                 </StackPanel>
 
                                 <!-- Page 2 (internal): pick the viewer -->
@@ -1553,6 +1352,7 @@
                                                Foreground="{StaticResource TextBrush}" FontSize="12"/>
                                     <ListBox ItemsSource="{Binding Experiences}"
                                              SelectedItem="{Binding SelectedExperience, Mode=TwoWay}"
+                                             AutomationProperties.AutomationId="DefineNew_InternalPicker"
                                              Background="{StaticResource Surface2Brush}"
                                              BorderBrush="{StaticResource BorderBrush}"
                                              BorderThickness="1"
@@ -1609,7 +1409,8 @@
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Content="Browse…"
                                                 Style="{StaticResource WzSecondaryBtn}"
-                                                Command="{Binding BrowseAppPathCommand}" Margin="8,0,0,0"/>
+                                                Command="{Binding BrowseAppPathCommand}"
+                                                AutomationProperties.AutomationId="DefineNew_BrowseAppPath" Margin="8,0,0,0"/>
                                         <TextBox Style="{StaticResource WzInput}"
                                                  Text="{Binding NewAppPath, UpdateSourceTrigger=PropertyChanged}"/>
                                     </DockPanel>
@@ -1621,6 +1422,7 @@
                                     <!-- Advanced (collapsed by default) -->
                                     <Button Content="{Binding AdvancedHeader}"
                                             Command="{Binding ToggleAdvancedCommand}"
+                                            AutomationProperties.AutomationId="DefineNew_ToggleAdvanced"
                                             HorizontalAlignment="Left" Cursor="Hand"
                                             Background="Transparent" BorderThickness="0" Padding="0,4"
                                             Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,12,0,0"/>
@@ -1642,7 +1444,8 @@
                                         <DockPanel>
                                             <Button DockPanel.Dock="Right" Content="Browse…"
                                                     Style="{StaticResource WzSecondaryBtn}"
-                                                    Command="{Binding BrowseIconPathCommand}" Margin="8,0,0,0"/>
+                                                    Command="{Binding BrowseIconPathCommand}"
+                                                    AutomationProperties.AutomationId="DefineNew_BrowseIconPath" Margin="8,0,0,0"/>
                                             <TextBox Style="{StaticResource WzInput}"
                                                      Text="{Binding NewAppIconPath, UpdateSourceTrigger=PropertyChanged}"/>
                                         </DockPanel>
@@ -1665,7 +1468,8 @@
 
                                     <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
                                                  IsEnabled="{Binding HasSelectedFile}"
-                                                 IsChecked="{Binding IsScopeThisFile, Mode=TwoWay}">
+                                                 IsChecked="{Binding IsScopeThisFile, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="DefineNew_ScopeThisFile">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="Only this file ("/>
                                             <TextBlock Text="{Binding SelectedFileName}"/>
@@ -1673,7 +1477,8 @@
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
-                                                 IsChecked="{Binding IsScopeExtFolder, Mode=TwoWay}">
+                                                 IsChecked="{Binding IsScopeExtFolder, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="DefineNew_ScopeExtInFolder">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="All "/>
                                             <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
@@ -1681,7 +1486,8 @@
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
-                                                 IsChecked="{Binding IsScopeExtAnywhere, Mode=TwoWay}">
+                                                 IsChecked="{Binding IsScopeExtAnywhere, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="DefineNew_ScopeExtAnywhere">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="All "/>
                                             <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
@@ -1690,7 +1496,8 @@
                                     </RadioButton>
                                     <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
                                                  Content="Custom globs (; separated, full-path)"
-                                                 IsChecked="{Binding IsScopeCustom, Mode=TwoWay}"/>
+                                                 IsChecked="{Binding IsScopeCustom, Mode=TwoWay}"
+                                                 AutomationProperties.AutomationId="DefineNew_ScopeCustomGlobs"/>
                                     <TextBox Style="{StaticResource WzInput}" Margin="0,4,0,0"
                                              IsEnabled="{Binding IsScopeCustom}"
                                              Text="{Binding CustomGlobs, UpdateSourceTrigger=PropertyChanged}"/>

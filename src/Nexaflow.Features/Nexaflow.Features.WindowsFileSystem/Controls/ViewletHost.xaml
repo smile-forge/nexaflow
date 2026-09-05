@@ -28,6 +28,7 @@
                             VerticalAlignment="Center"
                             Visibility="Collapsed">
                     <Button x:Name="ViewletViewBtn"
+                    AutomationProperties.AutomationId="Viewlet_ViewletView"
                             Content="Viewlet View"
                             Padding="8,3"
                             FontSize="10"
@@ -63,6 +64,7 @@
                         </Button.Style>
                     </Button>
                     <Button x:Name="FileViewBtn"
+                    AutomationProperties.AutomationId="Viewlet_FileView"
                             Content="File View"
                             Padding="8,3"
                             FontSize="10"
@@ -95,6 +97,7 @@
                     </Button>
                     <!-- Cycle to another full viewlet: shown only when multiple full viewlets exist -->
                     <Button x:Name="SwitchViewletBtn"
+                    AutomationProperties.AutomationId="Viewlet_SwitchViewlet"
                             Padding="8,3"
                             FontSize="10"
                             Margin="4,0,0,0"

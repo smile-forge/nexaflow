@@ -199,6 +199,22 @@ TextEditorView
 # mid-flight — a denied destination, or a source pulled away under the engine — which is a journey about
 # failure handling rather than one that happens to press a button, and is worth writing as its own.
 FileOps_Retry
+# The dismiss cross shares that row: its Visibility is bound to HasProblems, so it too needs a failure
+# to exist at all. Its sibling on the same cell, FileOps_CancelRow, is the mutually exclusive CanCancel
+# one and is already driven by FileOperationsPanelJourneyTests.
+FileOps_DismissRow
+# And the paused row's Stop needs something further still: IsPaused is only set when a copy stopped
+# because the destination volume ran out of space. A journey cannot fill a disk.
+FileOps_StopPaused
+
+# src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Controls/ViewletHost.xaml
+# The banner's three buttons live in FullModeButtonsPanel, which ApplyMode only shows for
+# ViewletDisplayMode.Full — and no viewlet in the repo ever asks for it. Every IFolderViewlet declares
+# SingleBar or DoubleBar, and the one SetDisplayMode call anywhere (AiSummaryViewletView) asks for Large.
+# So Full is a mode the shipping app cannot enter, and the switch button needs two viewlets in it at once.
+Viewlet_FileView
+Viewlet_SwitchViewlet
+Viewlet_ViewletView
 
 # src/Nexaflow.Features/Nexaflow.Features.AIChat/Views/ConversationView.xaml
 # The approval row and the tool-batch disclosure only enter the timeline when a live agent turn asks to

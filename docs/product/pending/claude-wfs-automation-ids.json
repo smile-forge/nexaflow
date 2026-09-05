@@ -1,0 +1,46 @@
+{
+  "branch": "claude/wfs-automation-ids",
+  "nodes": {
+    "aichat-context-menu": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationContextStripTests.cs",
+            "class": "ConversationContextStripTests",
+            "method": "AvailableOpenTabs_ExcludesThisConversationAndWhatIsAlreadyPinned"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/AIChat/ConversationContextStripTests.cs",
+            "class": "ConversationContextStripTests",
+            "method": "AddOpenTab_PinsTheTabWithoutTakingOwnershipOfIt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/AIChat/ConversationViewJourneyTests.cs",
+            "class": "ConversationViewJourneyTests",
+            "method": "AiChat_Controls_RespondInOnePass"
+          }
+        ]
+      }
+    },
+    "winfs-confirm-overlay": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileActions/DeleteFile.cs",
+          "class": "DeleteFile",
+          "method": "PerformAction"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "aichat-context-menu",
+    "winfs-confirm-overlay"
+  ]
+}
