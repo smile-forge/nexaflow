@@ -33,7 +33,7 @@
                                    FontSize="11" Foreground="{StaticResource TextMutedBrush}"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
-                    <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                    <Button AutomationProperties.AutomationId="RibbonEditor_CloseX" HorizontalAlignment="Right" VerticalAlignment="Top"
                             Style="{StaticResource TopBarAction}"
                             Click="Cancel_Click">
                         <TextBlock Text="✕" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
@@ -78,7 +78,7 @@
                             <TextBlock Text="Separator" FontSize="12"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        VerticalAlignment="Center" Margin="0,0,16,0"/>
-                            <Button Style="{StaticResource RibbonHalfButton}"
+                            <Button AutomationProperties.AutomationId="RibbonEditor_DeleteSeparator" Style="{StaticResource RibbonHalfButton}"
                                     Padding="12,6" Click="DeleteSelected_Click">
                                 <TextBlock Text="✕  Delete" FontSize="12" Foreground="{StaticResource DangerBrush}"/>
                             </Button>
@@ -112,7 +112,7 @@
                             <StackPanel Grid.Column="2" VerticalAlignment="Top">
                                 <TextBlock Text="SIZE" FontSize="9" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
-                                <Button x:Name="SizeToggleBtn"
+                                <Button AutomationProperties.AutomationId="RibbonEditor_SizeToggle" x:Name="SizeToggleBtn"
                                         Style="{StaticResource RibbonHalfButton}"
                                         Padding="12,6" MinWidth="90"
                                         Click="SizeToggle_Click"/>
@@ -151,7 +151,7 @@
                             <StackPanel Grid.Column="8" VerticalAlignment="Top">
                                 <TextBlock Text="REMOVE" FontSize="9" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
-                                <Button Style="{StaticResource RibbonHalfButton}"
+                                <Button AutomationProperties.AutomationId="RibbonEditor_DeleteItem" Style="{StaticResource RibbonHalfButton}"
                                         Padding="12,6" Click="DeleteSelected_Click">
                                     <TextBlock Text="✕  Delete" FontSize="12" Foreground="{StaticResource DangerBrush}"/>
                                 </Button>
@@ -187,7 +187,7 @@
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
-                        <Button Content="＋ Add"
+                        <Button AutomationProperties.AutomationId="RibbonEditor_AddPage" Content="＋ Add"
                                 Style="{StaticResource RibbonHalfButton}"
                                 Padding="12,6" FontSize="12"
                                 Foreground="{StaticResource AccentBrush}"
@@ -197,25 +197,25 @@
 
                     <!-- Layout + dismiss actions -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Insert separator"
+                    <Button AutomationProperties.AutomationId="RibbonEditor_AddSeparator" Content="Insert separator"
                             Style="{StaticResource RibbonHalfButton}"
                             Padding="12,6" FontSize="12"
                             Foreground="{StaticResource TextMutedBrush}"
                             Click="AddSeparator_Click"
                             Margin="0,0,8,0"/>
-                    <Button Content="Reset to defaults"
+                    <Button AutomationProperties.AutomationId="RibbonEditor_ResetDefaults" Content="Reset to defaults"
                             Style="{StaticResource RibbonHalfButton}"
                             Padding="12,6" FontSize="12"
                             Foreground="{StaticResource TextMutedBrush}"
                             Click="ResetDefaults_Click"
                             Margin="0,0,8,0"/>
-                    <Button Content="Cancel"
+                    <Button AutomationProperties.AutomationId="RibbonEditor_Cancel" Content="Cancel"
                             Style="{StaticResource RibbonHalfButton}"
                             Padding="16,6" FontSize="12"
                             Foreground="{StaticResource TextMutedBrush}"
                             Click="Cancel_Click"
                             Margin="0,0,8,0"/>
-                    <Button Content="Done"
+                    <Button AutomationProperties.AutomationId="RibbonEditor_Done" Content="Done"
                             Style="{StaticResource RibbonHalfButton}"
                             Padding="20,6" FontSize="12"
                             Foreground="{StaticResource AccentBrush}"

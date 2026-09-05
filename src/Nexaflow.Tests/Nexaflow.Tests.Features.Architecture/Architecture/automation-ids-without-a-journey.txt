@@ -215,3 +215,38 @@ Conversation_ToolBatchExpand
 Conversation_ContextChip
 Conversation_ClosePreview
 Conversation_AttachmentRemove
+
+# src/Nexaflow.Core/MainWindow.xaml
+# Transient, event-driven chrome: the confirmation overlay, the notification rows and the toast all exist
+# only while something has raised them, and nothing a journey does from a cold launch raises one. Reaching
+# them means a journey that first provokes the event — a shell confirmation, a queued background task —
+# rather than one that presses what is on screen.
+Chrome_ConfirmOk
+Chrome_ConfirmCancel
+Notif_ItemAction
+Notif_Dismiss
+Toast_Dismiss
+Toast_Action
+# Shown only while a request is already in flight and another is typed behind it, which needs a configured
+# provider to produce the first one.
+AiBar_Queue
+
+# src/Nexaflow.Core/Controls/OptionsPanel.xaml
+# Per-field editors stamped by the options template: they exist only for a section that has a field of
+# that kind, so reaching them means a journey that walks the section list rather than one that opens the
+# panel. The Browse pair additionally opens a modal picker that has to be dismissed before anything else
+# can be clicked.
+Options_ClearValue
+Options_BrowseFolder
+Options_BrowseFile
+Options_Toggle
+
+# src/Nexaflow.Core/Controls/RibbonEditor.xaml
+# The per-row editors sit Visibility="Collapsed" until a card is selected, and a card cannot be selected
+# through UIA: cards are Borders built in code-behind, so they create no automation peer. Putting an id on
+# the Border was tried and does not resolve — the unpredictable case CLAUDE.md describes, where TabStrip's
+# equivalent happens to work and this one does not — and reshaping a card into a Control just to host an id
+# is what that same note says not to do. Needs a journey that can reach a card another way.
+RibbonEditor_DeleteSeparator
+RibbonEditor_SizeToggle
+RibbonEditor_DeleteItem

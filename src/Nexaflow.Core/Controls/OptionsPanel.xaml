@@ -32,7 +32,7 @@
                          Style="{StaticResource DarkTextBox}"
                          Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
                          FontSize="12"/>
-                <Button x:Name="ClearBtn"
+                <Button AutomationProperties.AutomationId="Options_ClearValue" x:Name="ClearBtn"
                         Grid.Column="2"
                         Margin="4,0,0,0"
                         Width="22" Height="22"
@@ -119,7 +119,7 @@
                          FontSize="12"
                          BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
                          ToolTip="{Binding ValidationError}"/>
-                <Button Grid.Column="2"
+                <Button AutomationProperties.AutomationId="Options_BrowseFolder" Grid.Column="2"
                         Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
                         ToolTip="Browse for folder…"
@@ -190,7 +190,7 @@
                          FontSize="12"
                          BorderBrush="{Binding ValidationError, Converter={StaticResource ValidationBorderBrush}}"
                          ToolTip="{Binding ValidationError}"/>
-                <Button Grid.Column="2"
+                <Button AutomationProperties.AutomationId="Options_BrowseFile" Grid.Column="2"
                         Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
                         ToolTip="Browse for file…"
@@ -211,7 +211,7 @@
                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" VerticalAlignment="Center"/>
-                <ToggleButton Grid.Column="1"
+                <ToggleButton AutomationProperties.AutomationId="Options_Toggle" Grid.Column="1"
                               Style="{StaticResource ToggleSwitch}"
                               IsChecked="{Binding Value}"/>
             </Grid>
@@ -238,7 +238,7 @@
             <TextBlock Text="Options" FontSize="16" FontWeight="Bold"
                        Foreground="{StaticResource TextBrush}"/>
             <!-- CloseOptionsCommand lives on ShellViewModel (the Window's DataContext) -->
-            <Button HorizontalAlignment="Right"
+            <Button AutomationProperties.AutomationId="Options_CloseX" HorizontalAlignment="Right"
                     Style="{StaticResource TopBarAction}"
                     Command="{Binding RelativeSource={RelativeSource AncestorType=Window},
                                       Path=DataContext.CloseOptionsCommand}">
@@ -304,7 +304,7 @@
                 Padding="16,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <!-- Cancel: closes the panel via the Window's ShellViewModel -->
-                <Button Content="Cancel"
+                <Button AutomationProperties.AutomationId="Options_Cancel" Content="Cancel"
                         Width="90" Height="32"
                         Margin="0,0,8,0"
                         FontSize="12"
@@ -334,7 +334,7 @@
                 </Button>
 
                 <!-- Save -->
-                <Button Content="Save"
+                <Button AutomationProperties.AutomationId="Options_Save" Content="Save"
                         Width="90" Height="32"
                         FontSize="12"
                         Background="{StaticResource AccentBrush}"
