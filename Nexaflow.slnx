@@ -302,15 +302,105 @@
 
     They build AnyCPU (each carries its own Directory.Build.props, so none inherits this repo's x64 pin),
     hence the explicit AnyCPU mapping against the x64 solution platform.
+
+    DiscUtils is listed in FULL - all 27 projects in the closure of the three that
+    Nexaflow.Features.VirtualDisk references - and that is load-bearing, not tidiness. Its 27 projects
+    share ONE output directory keyed by configuration (OutputPath = ..\$(Configuration)), and the fork's
+    Directory.Build.props defaults an UNSET $(Configuration) to Release because that is how Visual Studio
+    evaluates an out-of-solution reference. So listing only the three directly-referenced ones split the
+    sub-graph in two: those three took Debug from the solution, the other 24 (Xfs, Ntfs, Vhdx, ...)
+    resolved Release, and the two halves wrote to different directories. On the command line that merely
+    compiles everything twice - MSBuild treats each (project, global properties) pair as its own node, so
+    both trees get built and every reference is satisfied. Visual Studio builds one side only, and the
+    other side's reference dangles:
+
+        Metadata file '...\external\DiscUtils\Library\Release\netstandard2.1\DiscUtils.Xfs.dll'
+        could not be found
+
+    Listing all 27 gives every one of them the solution's configuration, so the unset-$(Configuration)
+    default never fires and there is only ever one tree. Add a DiscUtils ProjectReference and you must
+    add its closure here too.
   -->
   <Folder Name="/External/">
+    <Project Path="external/DiscUtils/Library/DiscUtils.Btrfs/DiscUtils.Btrfs.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
     <Project Path="external/DiscUtils/Library/DiscUtils.Containers/DiscUtils.Containers.csproj">
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="external/DiscUtils/Library/DiscUtils.Core/DiscUtils.Core.csproj">
       <Platform Project="AnyCPU" />
     </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Dmg/DiscUtils.Dmg.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.ExFat/DiscUtils.ExFat.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Ext/DiscUtils.Ext.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Fat/DiscUtils.Fat.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
     <Project Path="external/DiscUtils/Library/DiscUtils.FileSystems/DiscUtils.FileSystems.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.HfsPlus/DiscUtils.HfsPlus.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Iso9660/DiscUtils.Iso9660.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Lvm/DiscUtils.Lvm.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Net/DiscUtils.Net.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Ntfs/DiscUtils.Ntfs.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.OpticalDiscSharing/DiscUtils.OpticalDiscSharing.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.OpticalDisk/DiscUtils.OpticalDisk.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.SquashFs/DiscUtils.SquashFs.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Streams/DiscUtils.Streams.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Swap/DiscUtils.Swap.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Udf/DiscUtils.Udf.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Vdi/DiscUtils.Vdi.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Vhd/DiscUtils.Vhd.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Vhdx/DiscUtils.Vhdx.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.VirtualFileSystem/DiscUtils.VirtualFileSystem.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Vmdk/DiscUtils.Vmdk.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Wim/DiscUtils.Wim.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Xfs/DiscUtils.Xfs.csproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <Project Path="external/DiscUtils/Library/DiscUtils.Xva/DiscUtils.Xva.csproj">
       <Platform Project="AnyCPU" />
     </Project>
     <Project Path="external/tree-sitter-dotnet-bindings/src/TreeSitter.csproj">
