@@ -408,10 +408,10 @@
         </Grid>
 
         <!-- Confirmation overlay (shared Visuals.Common dialog) -->
-        <ctrl:ConfirmationDialog Request="{Binding Confirmation}" Panel.ZIndex="40"/>
+        <ctrl:ConfirmationDialog Request="{Binding Confirmation}" Grid.RowSpan="2" Panel.ZIndex="40"/>
 
         <!-- Take-snapshot overlay -->
-        <Border Visibility="{Binding TakeSnapshotVisible, Converter={StaticResource BoolVis}}"
+        <Border Grid.RowSpan="2" Visibility="{Binding TakeSnapshotVisible, Converter={StaticResource BoolVis}}"
                 Background="#CC000000" Panel.ZIndex="21">
             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1" CornerRadius="8" Width="360" Padding="20"
@@ -436,7 +436,7 @@
         </Border>
 
         <!-- Settings overlay -->
-        <Border Visibility="{Binding SettingsVisible, Converter={StaticResource BoolVis}}"
+        <Border Grid.RowSpan="2" Visibility="{Binding SettingsVisible, Converter={StaticResource BoolVis}}"
                 Background="#CC000000" Panel.ZIndex="21">
             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1" CornerRadius="8" Width="360" Padding="20"
@@ -504,7 +504,7 @@
         </Border>
 
         <!-- Concern snaplinks overlay -->
-        <Border Visibility="{Binding ConcernSnaplinksVisible, Converter={StaticResource BoolVis}}"
+        <Border Grid.RowSpan="2" Visibility="{Binding ConcernSnaplinksVisible, Converter={StaticResource BoolVis}}"
                 Background="#CC000000" Panel.ZIndex="22">
             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1" CornerRadius="8" Width="600" Padding="20"
@@ -679,7 +679,7 @@
         </Border>
 
         <!-- Restructure overlay — drag-drop the whole tree to re-parent -->
-        <Border Visibility="{Binding RestructureVisible, Converter={StaticResource BoolVis}}"
+        <Border Grid.RowSpan="2" Visibility="{Binding RestructureVisible, Converter={StaticResource BoolVis}}"
                 Background="#CC000000" Panel.ZIndex="23">
             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1" CornerRadius="8" Width="460" MaxHeight="640" Padding="20"
