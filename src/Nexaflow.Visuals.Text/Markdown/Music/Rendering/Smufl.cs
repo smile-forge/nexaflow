@@ -160,6 +160,28 @@ internal static class Smufl
         return shape.Advance;
     }
 
+    /// <summary>
+    /// A glyph's outline, already placed so its SMuFL baseline sits at <paramref name="baseline"/>, or null
+    /// where the font is missing.
+    /// <para>
+    /// The same shape <see cref="Draw"/> paints, handed over instead of painted. A builder that records what
+    /// it drew on the layout tree needs the geometry rather than the side effect — painting and asking are
+    /// then the same walk over the same tree, and a single note can be repainted on its own.
+    /// </para>
+    /// </summary>
+    public static Geometry? Outline(int codepoint, Point baseline, double staffSpace, double scale = 1.0)
+    {
+        if (Get(codepoint, 4.0 * staffSpace * scale) is not { } shape) return null;
+
+        // Frozen, because the cached outline is shared by every note that draws this glyph and a transform
+        // group hung off it would be a second thing to keep in step. A copy placed once is cheaper than a
+        // transform pushed on every paint.
+        var placed = shape.Outline.Clone();
+        placed.Transform = new TranslateTransform(baseline.X, baseline.Y);
+        placed.Freeze();
+        return placed;
+    }
+
     /// <summary>Advance width (px) of a glyph, for layout without drawing.</summary>
     public static double Advance(int codepoint, double staffSpace, double scale = 1.0) =>
         Get(codepoint, 4.0 * staffSpace * scale)?.Advance ?? staffSpace * 1.2;

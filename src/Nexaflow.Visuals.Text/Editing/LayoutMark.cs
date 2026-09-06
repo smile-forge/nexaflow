@@ -58,6 +58,39 @@ public sealed record LineMark(Point From, Point To, Brush? Foreground) : LayoutM
     }
 }
 
+/// <summary>
+/// A shape, filled and/or stroked: a music glyph drawn as an outline, a beam, a slur, a bracket, a stem.
+///
+/// <para>
+/// The one mark a score needs that a formula did not. Its glyphs go down as filled outlines rather than as
+/// text, deliberately — WPF's text pipeline gamma-corrects glyph coverage and visibly fattens a music
+/// font's thin strokes — and the rest of what an engraver draws is neither a glyph nor an axis-aligned
+/// rectangle: a beam is a parallelogram, a slur is a Bézier, and a stem is a line with a real thickness
+/// where <see cref="LineMark"/>'s is fixed at one pixel.
+/// </para>
+/// <para>
+/// The geometry is already positioned — a builder that knows where a piece landed is the only thing that
+/// can place it, and nothing here should have to work it out a second time.
+/// </para>
+/// </summary>
+public sealed record GeometryMark(Geometry Shape, Brush? Fill, Brush? Stroke, double Thickness) : LayoutMark
+{
+    /// <summary>A filled shape in whatever colour the content did not ask for.</summary>
+    public static GeometryMark Filled(Geometry shape, Brush? fill = null) => new(shape, fill, null, 0);
+
+    public override void PaintOn(DrawingContext dc, Brush fallback)
+    {
+        Pen? pen = null;
+        if (Stroke is not null || Thickness > 0)
+        {
+            pen = new Pen(Stroke ?? fallback, Thickness);
+            pen.Freeze();
+        }
+
+        dc.DrawGeometry(Fill is null && pen is not null ? null : Fill ?? fallback, pen, Shape);
+    }
+}
+
 /// <summary>A filled rectangle: a rule, a bar of a barcode, a wash behind a piece.</summary>
 public sealed record RuleMark(Rect Bounds, Brush? Foreground) : LayoutMark
 {

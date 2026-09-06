@@ -1,4 +1,4 @@
-﻿# Markdown Support
+# Markdown Support
 
 What the Nexaflow markdown renderer (`Nexaflow.Visuals.Text`) currently supports,
 checked against the Markdig [CommonMark](https://xoofx.github.io/markdig/docs/commonmark/)
@@ -131,6 +131,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `datamatrix` | ✅ | ✅ — see [Data Matrix](#data-matrix--sub-support) below |
 | `pdf417` | ✅ | ✅ — see [PDF417](#pdf417--sub-support) below |
 | `aztec` | ✅ | ✅ — see [Aztec Code](#aztec-code--sub-support) below |
+| `abc` | ✅ | ✅ — ABC music on the shared syntax tree; see [Musical Notation](#musical-notation--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
 
@@ -857,6 +858,23 @@ the standard's.
 ---
 
 ## Musical Notation — sub-support
+
+### Two paths, on purpose
+
+There are two ways to write music, and they are different engines rather than two spellings of one.
+
+- **```abc** is the new one, and the one everything else is moving onto: ABC read into the shared syntax
+  tree, worked over by a pipeline of stages, engraved by a builder that says which characters every piece
+  of the picture was drawn from, and drawn out of the layout tree the formulas and barcodes already use.
+  That is what makes a note something a reader can click, select and — next — edit in place. Registered as
+  an `IDiagramHandler` ([`AbcDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/AbcDiagramHandler.cs)),
+  so one entry lights it up on both markdown surfaces. Design: [docs/markdown-ast.md](markdown-ast.md).
+- **`#% … #%`** is the older one, described below, and is untouched. It still serves both ABC and
+  LilyPond through the shared `Score` IR and its own engraver. The two meet, and the older one goes, when
+  LilyPond moves across.
+
+What ```abc does not draw yet: slurs, ties, repeat brackets, grace notes, decorations, annotations,
+multi-voice systems, and the title/credit prose the `#%` path emits as real paragraphs.
 
 Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
 ([`MusicBlockExtension`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs), registered

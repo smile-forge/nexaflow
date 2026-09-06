@@ -48,13 +48,42 @@
           }
         ]
       }
+    },
+    "abc-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcBuilder.cs",
+          "class": "AbcBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcLayout.cs",
+          "class": "AbcLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcElement.cs",
+          "class": "AbcElement"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcBuilderTests.cs",
+            "class": "AbcBuilderTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
     "abc-ast",
     "abc-ast-pipeline",
-    "abc-ast-roundtrip"
+    "abc-ast-roundtrip",
+    "abc-layout"
   ]
 }

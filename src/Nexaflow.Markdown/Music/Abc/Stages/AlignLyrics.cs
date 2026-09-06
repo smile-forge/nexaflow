@@ -166,7 +166,13 @@ public sealed class AlignLyrics : IAstStage
                 $"{verse}:{(syllable.Melisma ? "_" : syllable.Text)}{(syllable.Hyphen ? "-" : "")}");
         }
 
-        if (node.Kind == AbcKinds.Measure) skipping = false;
+        if (node.Kind == AbcKinds.Measure)
+        {
+            // A bar jump is settled at the bar line, not on a note. Consuming it when the next note asked
+            // for a syllable spent that note's turn on the marker and left the whole bar unsung.
+            while (at < syllables.Count && syllables[at].NextBar) at++;
+            skipping = false;
+        }
 
         if (node.IsLeaf) return node;
 

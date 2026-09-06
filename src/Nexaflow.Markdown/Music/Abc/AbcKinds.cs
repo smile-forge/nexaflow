@@ -144,6 +144,9 @@ public static class AbcRoles
     /// <summary>How long an event lasts, after the unit note length and any broken rhythm.</summary>
     public const string Duration = "duration";
 
+    /// <summary>What value an event is written as, before any tuplet compressed it.</summary>
+    public const string Written = "written";
+
     /// <summary>Which accidental actually prints, which is not the same as which was written.</summary>
     public const string Printed = "printed";
 

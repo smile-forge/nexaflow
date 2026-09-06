@@ -42,6 +42,9 @@ internal sealed class StaffGeometry
     /// <summary>Half-spaces of a pitch above the bottom staff line (0 = bottom line, 8 = top line).</summary>
     public int HalfSpacesAbove(Pitch p) => p.DiatonicIndex - BottomLineIndex;
 
+    /// <summary>The same, for a reading that carries a diatonic index rather than a Model.Pitch.</summary>
+    public int HalfSpacesAbove(int diatonicIndex) => diatonicIndex - BottomLineIndex;
+
     /// <summary>The diatonic index at which the n-th sharp/flat of a key signature is drawn.</summary>
     public int KeyAccidentalIndex(int order, bool sharp) =>
         sharp ? _sharpIndices[order] : _flatIndices[order];

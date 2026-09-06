@@ -49,7 +49,7 @@ public sealed class ResolveNotes : IAstStage
     {
         var context = ResolveContext.Of(line);
 
-        var facts = new List<(AbcPitch? Pitch, AbcLength Length)>();
+        var facts = new List<(AbcPitch? Pitch, AbcLength Length, AbcLength Written)>();
         Read(line, context, AbcLength.Of(1, 1), facts);
 
         if (facts.Count == 0) return line;
@@ -66,7 +66,7 @@ public sealed class ResolveNotes : IAstStage
     /// which is what lets the second pass be a plain walk with a counter.
     /// </summary>
     private static void Read(ContentNode node, AbcContext context, AbcLength scale,
-                             List<(AbcPitch? Pitch, AbcLength Length)> facts)
+                             List<(AbcPitch? Pitch, AbcLength Length, AbcLength Written)> facts)
     {
         // Accidentals last a bar, and only within a bar: the state is per measure, so it starts here and
         // is not carried out again.
@@ -75,7 +75,7 @@ public sealed class ResolveNotes : IAstStage
     }
 
     private static void Walk(ContentNode node, ref AbcContext context, AbcLength scale,
-                             Dictionary<int, int> sounding, List<(AbcPitch?, AbcLength)> facts)
+                             Dictionary<int, int> sounding, List<(AbcPitch?, AbcLength, AbcLength)> facts)
     {
         var broken = 0;
 
@@ -128,13 +128,13 @@ public sealed class ResolveNotes : IAstStage
                         if (member.Kind == AbcKinds.Note)
                             facts.Add(Sounds(member, context, scale, sounding));
 
-                    facts.Add((null, Lasts(child, context, scale)));
+                    facts.Add((null, Lasts(child, context, scale), Lasts(child, context, One)));
                     Break(facts, ref broken);
                     continue;
                 }
 
                 case AbcKinds.Rest:
-                    facts.Add((null, Rests(child, context, scale)));
+                    facts.Add((null, Rests(child, context, scale), Rests(child, context, One)));
                     Break(facts, ref broken);
                     continue;
 
@@ -150,7 +150,7 @@ public sealed class ResolveNotes : IAstStage
     /// by the time the event has been added both halves of the pair are in hand — which is the whole
     /// reason for reading the line before rewriting it.
     /// </summary>
-    private static void Break(List<(AbcPitch? Pitch, AbcLength Length)> facts, ref int broken)
+    private static void Break(List<(AbcPitch? Pitch, AbcLength Length, AbcLength Written)> facts, ref int broken)
     {
         if (broken == 0 || facts.Count < 2) { broken = 0; return; }
 
@@ -162,8 +162,10 @@ public sealed class ResolveNotes : IAstStage
         // between them they still last exactly as long as the two notes did.
         var (longer, shorter) = broken > 0 ? (facts.Count - 2, facts.Count - 1) : (facts.Count - 1, facts.Count - 2);
 
-        facts[longer] = (facts[longer].Pitch, facts[longer].Length * dotted);
-        facts[shorter] = (facts[shorter].Pitch, facts[shorter].Length * halved);
+        // A broken rhythm changes what is written as well as what is heard: the pair really is a dotted
+        // note and a short one, and that is how both are drawn.
+        facts[longer] = (facts[longer].Pitch, facts[longer].Length * dotted, facts[longer].Written * dotted);
+        facts[shorter] = (facts[shorter].Pitch, facts[shorter].Length * halved, facts[shorter].Written * halved);
         broken = 0;
     }
 
@@ -171,14 +173,14 @@ public sealed class ResolveNotes : IAstStage
     private static AbcLength Dot(int dots) => AbcLength.Of((1L << (dots + 1)) - 1, 1L << dots);
 
     /// <summary>What a note sounds and how long it lasts.</summary>
-    private static (AbcPitch? Pitch, AbcLength Length) Sounds(
+    private static (AbcPitch? Pitch, AbcLength Length, AbcLength Written) Sounds(
         ContentNode note, AbcContext context, AbcLength scale, Dictionary<int, int> sounding)
     {
         if (note.Part(AbcRoles.Letter)?.Text is not { Length: 1 } letter)
-            return (null, AbcLength.Zero);
+            return (null, AbcLength.Zero, AbcLength.Zero);
 
         var step = AbcTheory.StepLetters.IndexOf(char.ToUpperInvariant(letter[0]));
-        if (step < 0) return (null, AbcLength.Zero);
+        if (step < 0) return (null, AbcLength.Zero, AbcLength.Zero);
 
         var octave = char.IsUpper(letter[0]) ? 4 : 5;
         foreach (var mark in note.Part(AbcRoles.Octave)?.Text ?? "")
@@ -208,8 +210,13 @@ public sealed class ResolveNotes : IAstStage
             alter = AbcTheory.KeyAlterFor(step, context.Fifths);
         }
 
-        return (new AbcPitch(step, Math.Clamp(alter, -2, 2), octave), Lasts(note, context, scale));
+        return (new AbcPitch(step, Math.Clamp(alter, -2, 2), octave),
+                Lasts(note, context, scale),
+                Lasts(note, context, One));
     }
+
+    /// <summary>No scaling at all - what a note would last if nothing were compressing it.</summary>
+    private static readonly AbcLength One = new(1, 1);
 
     private static AbcLength Lasts(ContentNode node, AbcContext context, AbcLength scale) =>
         context.Unit * AbcTheory.Factor(node.Part(AbcRoles.Length)?.Text) * scale;
@@ -240,7 +247,9 @@ public sealed class ResolveNotes : IAstStage
 
     // ── Pass two: hang the answers where they belong ────────────────────────
 
-    private static ContentNode Attach(ContentNode node, List<(AbcPitch? Pitch, AbcLength Length)> facts, ref int at)
+    private static ContentNode Attach(ContentNode node,
+                                      List<(AbcPitch? Pitch, AbcLength Length, AbcLength Written)> facts,
+                                      ref int at)
     {
         if (node.Kind == AbcKinds.Chord)
         {
@@ -249,11 +258,11 @@ public sealed class ResolveNotes : IAstStage
                 members.Add(child.Kind == AbcKinds.Note ? Told(child, facts, ref at) : child);
 
             var chord = node.With(members);
-            return at < facts.Count ? Length(chord, facts[at++].Length) : chord;
+            return at < facts.Count ? Length(chord, facts[at++]) : chord;
         }
 
         if (node.Kind is AbcKinds.Note) return Told(node, facts, ref at);
-        if (node.Kind is AbcKinds.Rest) return at < facts.Count ? Length(node, facts[at++].Length) : node;
+        if (node.Kind is AbcKinds.Rest) return at < facts.Count ? Length(node, facts[at++]) : node;
 
         if (node.IsLeaf) return node;
 
@@ -270,20 +279,25 @@ public sealed class ResolveNotes : IAstStage
         return moved ? node.With(rebuilt) : node;
     }
 
-    private static ContentNode Told(ContentNode note, List<(AbcPitch? Pitch, AbcLength Length)> facts, ref int at)
+    private static ContentNode Told(ContentNode note,
+                                    List<(AbcPitch? Pitch, AbcLength Length, AbcLength Written)> facts,
+                                    ref int at)
     {
         if (at >= facts.Count) return note;
 
-        var (pitch, length) = facts[at++];
-        return pitch is { } sounds
+        var fact = facts[at++];
+        return fact.Pitch is { } sounds
             ? note.Saying(
                 (AbcKinds.Note, AbcRoles.Pitch, sounds.ToString()),
-                (AbcKinds.Length, AbcRoles.Duration, length.ToString()))
+                (AbcKinds.Length, AbcRoles.Duration, fact.Length.ToString()),
+                (AbcKinds.Length, AbcRoles.Written, fact.Written.ToString()))
             : note;
     }
 
-    private static ContentNode Length(ContentNode node, AbcLength length) =>
-        node.Saying(AbcKinds.Length, AbcRoles.Duration, length.ToString());
+    private static ContentNode Length(ContentNode node, (AbcPitch? Pitch, AbcLength Length, AbcLength Written) fact) =>
+        node.Saying(
+            (AbcKinds.Length, AbcRoles.Duration, fact.Length.ToString()),
+            (AbcKinds.Length, AbcRoles.Written, fact.Written.ToString()));
 
     // ── Reading the answers back ────────────────────────────────────────────
 
@@ -294,4 +308,12 @@ public sealed class ResolveNotes : IAstStage
     /// <summary>How long this event lasts, in quarter notes.</summary>
     public static AbcLength LengthOf(ContentNode node) =>
         node.Said(AbcRoles.Duration) is { } text ? AbcLength.Parse(text) : AbcLength.Zero;
+
+    /// <summary>
+    /// The value this event is <em>written</em> as, which is not always how long it lasts. A triplet
+    /// eighth sounds for a third of a quarter and is drawn as an eighth - the number over the group says
+    /// the rest - so choosing a note head from what it sounds draws a dotted sixteenth, which is wrong.
+    /// </summary>
+    public static AbcLength WrittenOf(ContentNode node) =>
+        node.Said(AbcRoles.Written) is { } text ? AbcLength.Parse(text) : LengthOf(node);
 }

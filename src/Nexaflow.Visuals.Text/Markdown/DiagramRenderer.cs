@@ -34,6 +34,7 @@ public static class DiagramRenderer
         new GraphDiagramHandler(new NomnomlParser()),          // nomnoml
         new QrDiagramHandler(),                                // qr
         new BarcodeDiagramHandler(),                           // barcode
+        new AbcDiagramHandler(),                               // abc (music)
         new DataMatrixDiagramHandler(),                        // datamatrix
         new Pdf417DiagramHandler(),                            // pdf417
         new AztecDiagramHandler(),                             // aztec
