@@ -120,6 +120,9 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
         || data.GetDataPresent(DataFormats.FileDrop)
         || data.GetDataPresent(DataFormats.Bitmap);
 
+    /// <summary>Nothing here is a file on disk, so no drop can land on its own source.</summary>
+    public bool IsSelfDrop(IDataObject data, string destinationPath) => false;
+
     public string GetDropDescription(IDataObject data, string? targetFolderName, bool isMove)
         => "Create post-it";
 

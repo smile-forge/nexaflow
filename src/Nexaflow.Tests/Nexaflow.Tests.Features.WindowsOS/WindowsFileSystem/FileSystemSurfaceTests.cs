@@ -166,6 +166,38 @@ public class FileSystemSurfaceTests
         Assert.IsFalse(target.CanAcceptDrop(new DataObject(DataFormats.Text, "hello")));
     }
 
+    /// <summary>
+    /// Dropping something onto itself is refused while the cursor is still over it, so the drop never
+    /// happens at all. It used to be caught only after the fact, by the planner, which meant an ordinary
+    /// click that drifted the four pixels Windows calls a drag produced a copy attempt and an error
+    /// about copying a folder into itself — for a gesture nobody made on purpose.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("winfs-drag-drop")]
+    public void ADropOntoTheThingBeingDraggedIsRefusedBeforeItHappens()
+    {
+        var folder = Path.Combine(_scratch, "folder");
+        var other = Path.Combine(_scratch, "other");
+        Directory.CreateDirectory(folder);
+        Directory.CreateDirectory(other);
+
+        var vm = AtScratch(out _);
+        var target = new FileSystemDropTarget(vm);
+        var dragged = new DataObject(DataFormats.FileDrop, new[] { folder });
+
+        Assert.IsTrue(target.IsSelfDrop(dragged, folder), "the folder being dragged is not a destination");
+        Assert.IsTrue(target.IsSelfDrop(dragged, folder + Path.DirectorySeparatorChar),
+                      "a trailing separator is the same folder");
+        Assert.IsTrue(target.IsSelfDrop(dragged, folder.ToUpperInvariant()),
+                      "Windows paths do not care about case, so neither does this");
+
+        Assert.IsFalse(target.IsSelfDrop(dragged, other), "somewhere else is a real destination");
+        Assert.IsFalse(target.IsSelfDrop(dragged, _scratch),
+                       "the folder it already lives in is a real destination — that lands as \"Copy of folder\"");
+        Assert.IsFalse(target.IsSelfDrop(dragged, string.Empty));
+        Assert.IsFalse(target.IsSelfDrop(new DataObject(DataFormats.Text, "hello"), folder));
+    }
+
     [TestMethod]
     [CoversNode("winfs-drag-drop")]
     public async Task DroppingCopiesTheFileIn_AndMovingTakesTheOriginal()
@@ -210,6 +242,205 @@ public class FileSystemSurfaceTests
 
         shell.DidNotReceiveWithAnyArgs().ShowError(default!);
         Assert.AreEqual(0, vm.Operations.Operations.Count, "nothing was queued either");
+    }
+
+    // ── Right-drag: the destination is asked, then told ───────────────────────
+
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public void ThePromptForARightDragNamesWhereItWouldLand_AndPromisesNothingYet()
+    {
+        var vm = AtScratch(out _);
+        var target = new FileSystemDropTarget(vm);
+
+        Assert.AreEqual("Drop on Projects to choose", target.GetChoicePrompt("Projects"));
+        StringAssert.Contains(target.GetChoicePrompt(null), Path.GetFileName(_scratch),
+                              "over the background it is the current folder that would receive the drop");
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public void OnlyAFileDropIsWorthOfferingAChoiceAbout()
+    {
+        var dest = Path.Combine(_scratch, "dest");
+        Directory.CreateDirectory(dest);
+        var vm = AtScratch(out _);
+        var target = new FileSystemDropTarget(vm);
+
+        Assert.IsNull(target.Capture(new DataObject(DataFormats.Text, "hello"), dest));
+        Assert.IsNull(target.Capture(new DataObject(DataFormats.FileDrop, Array.Empty<string>()), dest));
+        Assert.IsNull(target.Capture(new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" }), string.Empty),
+                      "a drop that resolved no destination has no question to ask");
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public void TheHoverIsWhatRemembersWhichButtonIsDragging_BecauseTheDropCannotBeAsked()
+    {
+        var latch = new DropChoiceLatch();
+        Assert.IsFalse(latch.OffersChoice, "nothing has been dragged over anything yet");
+
+        latch.Observe(DragDropKeyStates.RightMouseButton);
+
+        // The drop IS the release, so the key state it reports has no button in it at all. Asking the
+        // drop which button started the drag answered "the left one" every time, and a right-drag
+        // silently copied instead of offering the choice.
+        Assert.IsTrue(latch.OffersChoice,
+                      "the hover said right-button, and that is the answer the drop has to use");
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public void AnOrdinaryDragTakesTheLatchBackOnItsWayPast()
+    {
+        // Nothing resets the latch on purpose: every hover reports afresh, so a stale "offers a choice"
+        // cannot outlive the next drag over the same target.
+        var latch = new DropChoiceLatch();
+
+        latch.Observe(DragDropKeyStates.RightMouseButton);
+        latch.Observe(DragDropKeyStates.LeftMouseButton);
+
+        Assert.IsFalse(latch.OffersChoice);
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public async Task TheChosenActionIsTheOneCarriedOut_LongAfterTheDataObjectHasGone()
+    {
+        var source = Path.Combine(_scratch, "source");
+        var dest = Path.Combine(_scratch, "dest");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(dest);
+        var copied = Path.Combine(source, "copied.txt");
+        var moved = Path.Combine(source, "moved.txt");
+        File.WriteAllText(copied, "x");
+        File.WriteAllText(moved, "y");
+
+        var vm = AtScratch(out _);
+        var target = new FileSystemDropTarget(vm);
+
+        // Capture and Execute are deliberately separated by the menu: the data object is only valid
+        // inside the drop callback, and the answer arrives after it has returned.
+        var copyPlan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { copied }), dest);
+        var movePlan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { moved }), dest);
+        Assert.IsNotNull(copyPlan);
+        Assert.IsNotNull(movePlan);
+        Assert.AreEqual("dest", copyPlan.DestinationLabel);
+
+        target.Execute(copyPlan, DropChoice.Copy);
+        await vm.Operations.Operations[^1].Completion;
+
+        Assert.IsTrue(File.Exists(Path.Combine(dest, "copied.txt")));
+        Assert.IsTrue(File.Exists(copied), "choosing Copy leaves the original where it was");
+
+        target.Execute(movePlan, DropChoice.Move);
+        await vm.Operations.Operations[^1].Completion;
+
+        Assert.IsTrue(File.Exists(Path.Combine(dest, "moved.txt")));
+        Assert.IsFalse(File.Exists(moved), "choosing Move takes it");
+    }
+
+    /// <summary>
+    /// The reported bug, as an assertion: right-drag a folder in, choose Copy, and it arrives — then
+    /// open any context menu over the list and dismiss it, and the whole copy ran a second time. The
+    /// menu outlives its own dismissal and its commands still hold the plan, so the plan is what has to
+    /// refuse: it is carried out once however many times it is asked.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public async Task AChosenDropIsCarriedOutOnce_HoweverManyTimesItIsAskedAgain()
+    {
+        var source = Path.Combine(_scratch, "source");
+        var dest = Path.Combine(_scratch, "dest");
+        Directory.CreateDirectory(source);
+        Directory.CreateDirectory(dest);
+        File.WriteAllText(Path.Combine(source, "once.txt"), "x");
+
+        var vm = AtScratch(out _);
+        var target = new FileSystemDropTarget(vm);
+
+        var plan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { source }), dest);
+        Assert.IsNotNull(plan);
+
+        target.Execute(plan, DropChoice.Copy);
+        await vm.Operations.Operations[^1].Completion;
+
+        int queued = vm.Operations.Operations.Count;
+        Assert.AreEqual(1, queued, "the chosen copy");
+
+        // Whatever reaches the command again — a stale menu item, a replayed click — gets nowhere.
+        target.Execute(plan, DropChoice.Copy);
+        target.Execute(plan, DropChoice.Move);
+
+        Assert.AreEqual(queued, vm.Operations.Operations.Count,
+                        "asking a spent plan again queues nothing; the folder is not copied twice");
+        Assert.IsTrue(Directory.Exists(Path.Combine(dest, "source")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(dest, "Copy of source")),
+                       "a second copy would have landed beside the first under an auto-renamed name");
+    }
+
+    /// <summary>
+    /// Dropping onto the folder the sources already sit in: a copy lands beside them as "Copy of x", but
+    /// a move has nowhere to go. The planner has always dropped that silently, which made "Move here" a
+    /// menu item that took the click and did nothing — so the menu asks the planner and greys it.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public void MovingSomethingToWhereItAlreadyIsIsNotOffered_ThoughCopyingItIs()
+    {
+        var here = Path.Combine(_scratch, "here");
+        Directory.CreateDirectory(here);
+        var file = Path.Combine(here, "a.txt");
+        File.WriteAllText(file, "x");
+
+        var vm = AtScratch(out _);
+        var target = new FileSystemDropTarget(vm);
+
+        var ontoItself = target.Capture(new DataObject(DataFormats.FileDrop, new[] { file }), here);
+        Assert.IsNotNull(ontoItself);
+
+        Assert.IsTrue(target.CanExecute(ontoItself, DropChoice.Copy),
+                      "a copy beside itself is a real thing — it lands as \"Copy of a.txt\"");
+        Assert.IsFalse(target.CanExecute(ontoItself, DropChoice.Move),
+                       "a move to where it already is has nothing to do");
+
+        // Somewhere else, both are on offer.
+        var elsewhere = Path.Combine(_scratch, "elsewhere");
+        Directory.CreateDirectory(elsewhere);
+        var away = target.Capture(new DataObject(DataFormats.FileDrop, new[] { file }), elsewhere);
+        Assert.IsNotNull(away);
+
+        Assert.IsTrue(target.CanExecute(away, DropChoice.Copy));
+        Assert.IsTrue(target.CanExecute(away, DropChoice.Move));
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public void AFolderDroppedIntoItselfIsOfferedNeither()
+    {
+        var folder = Path.Combine(_scratch, "folder");
+        var inside = Path.Combine(folder, "inside");
+        Directory.CreateDirectory(inside);
+
+        var vm = AtScratch(out _);
+        var target = new FileSystemDropTarget(vm);
+
+        var plan = target.Capture(new DataObject(DataFormats.FileDrop, new[] { folder }), inside);
+        Assert.IsNotNull(plan);
+
+        Assert.IsFalse(target.CanExecute(plan, DropChoice.Copy));
+        Assert.IsFalse(target.CanExecute(plan, DropChoice.Move));
+    }
+
+    [TestMethod]
+    [CoversNode("winfs-right-drag-menu")]
+    public void APlanIsClaimableOnlyOnce()
+    {
+        var plan = new DropPlan([@"C:\a.txt"], @"C:\dest", "dest");
+
+        Assert.IsTrue(plan.TryClaim());
+        Assert.IsFalse(plan.TryClaim());
+        Assert.IsFalse(plan.TryClaim());
     }
 
     // ── Ribbon pinning ────────────────────────────────────────────────────────
