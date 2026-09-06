@@ -139,6 +139,29 @@ It earns its keep. The construct list had nothing like `|  |  |  | E4E2E2 |` —
 of a line that open nothing — and `GroupBars` was dropping the first two of them. Six tunes in ten
 thousand showed it; the shape is in the construct list now, so the cheap run catches it too.
 
+**Is the drawing right?** The corpus ships a picture beside every tune, made by an engraver that was never
+ours, and `AbcPictureSweepTests` holds our page against it. Four things had to be settled before that
+number meant anything:
+
+- **A control, or the mean is unreadable.** Every page is also scored against a *different* tune's
+  picture. Two pages of music share most of their ink just by both being pages of music, so 0.49 against
+  your own reference is only worth knowing beside 0.38 against a stranger's. The gap, and how often a page
+  beats its own control, is the whole of what the sweep can see.
+- **Shape first, because line breaking would swamp it.** Two engravings that break into different numbers
+  of systems are different pictures however well each is drawn. So the sweep searches its own render width
+  for the one whose page is the shape the reference is, scores there, and reports how close it got —
+  because a shape it cannot match is telling you about line breaking rather than about note heads.
+- **Detail chosen by measurement, not taste.** Swept over 24/56/96/160, how often a page beats a
+  stranger's picture peaks at 56 and falls away above it. Two engravers agree about where the music is and
+  disagree about every pixel of it, so asking at pixel scale is asking a question neither can answer.
+- **Bucketed by how much there is to get wrong.** A two-bar jig and a five-system hymn are different
+  problems, and a mean over both says which we are bad at only by accident.
+
+**And the buckets say the sweep is blind on the easy half.** Under 48 notes it separates by 0.04 and beats
+its control 58% of the time — barely above a coin. Over 320 notes it separates by 0.31 and beats it 91%.
+That is not the engraver being better at hard tunes: it is that any two short pages look alike, so there
+is nothing for a fuzzy comparison to catch hold of. The long tail is where the evidence is.
+
 **The corpus is read as bytes and never re-encoded.** It was built by something that read UTF-8 as
 Latin-1, so a good third of it carries mojibake (`AntÃ­fona`). That is not a defect in the fixture — it is
 exactly the input a claim of "the parser only ever copies" has to survive, and a test that normalised it

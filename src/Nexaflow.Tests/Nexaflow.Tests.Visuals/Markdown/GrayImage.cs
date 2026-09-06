@@ -4,12 +4,18 @@ using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace Nexaflow.Tests.Visuals.Markdown.Latex;
+namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
 /// A rendering reduced to how much ink is at each pixel: 0 is paper, 1 is full ink. Colour, alpha and
 /// which renderer drew it stop mattering here, which is the point - two engines never agree on a
 /// pixel, and this is the form in which they can be asked whether they agree on a shape.
+///
+/// <para>
+/// It sits above the languages rather than beside one of them because the question is the same for all of
+/// them: a formula held against LaTeX's own rendering and a tune held against an engraver's are one
+/// measurement asked twice. Which was not obvious until the second caller wanted it.
+/// </para>
 /// </summary>
 internal sealed class GrayImage
 {
