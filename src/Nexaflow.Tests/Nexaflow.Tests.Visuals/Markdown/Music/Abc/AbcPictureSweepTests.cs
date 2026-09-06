@@ -56,19 +56,17 @@ public class AbcPictureSweepTests
     /// <summary>How many tunes a run takes when nothing says otherwise.</summary>
     private const int DefaultSample = 400;
 
+    /// <summary>Where the search starts, and how far either way it is allowed to go.</summary>
+    private const double FirstGuess = 620;
+    private const double Narrowest = 260;
+    private const double Widest = 2600;
+
     /// <summary>
-    /// The widths our page is measured at, looking for the one whose shape is the reference's. Coarse on
-    /// purpose: the aim is the same number of systems, and a system is a hundred-odd pixels wide, so a
-    /// finer search buys nothing but time.
-    /// <para>
-    /// Wider than looks necessary at both ends, because a search that runs out is a search that reports a
-    /// bad shape match for a page it simply could not reach. A fifth of the first thousand chose the
-    /// widest candidate there was, at a mean shape of 0.78 — which is the sweep hitting its own ceiling
-    /// and blaming the engraver for it.
-    /// </para>
+    /// A page taller than this is one nobody would print and one nothing should rasterise. It is a guard
+    /// rather than a limit: the search should never ask for such a page, and if it does, something is
+    /// wrong that a memory profile would find long after the machine had stopped responding.
     /// </summary>
-    private static readonly double[] Widths =
-        [280, 340, 420, 520, 620, 740, 880, 1040, 1240, 1500, 1800, 2200];
+    private const double Absurd = 30000;
 
     /// <summary>
     /// The height both pictures are brought to before they are compared. Sixteen is right for a formula,
@@ -143,7 +141,7 @@ public class AbcPictureSweepTests
             var best = Fitted(abc, wanted);
             if (best is not { } fit) return new Scored(name, 0, 0, 0, 0, notes, "it engraved to nothing");
 
-            var ours = GrayImage.FromBitmap(Raster(fit.Element, fit.Size));
+            var ours = GrayImage.FromBitmap(Raster(fit.Element, fit.Size, reference.Height));
             var overlap = GrayImage.InkOverlap(ours, reference, Detail);
 
             // The same page against a picture of a different tune. Whatever two pages of music share just
@@ -173,6 +171,7 @@ public class AbcPictureSweepTests
 
     /// <summary>
     /// Our page at the width whose shape is closest to the reference's, and how close that came.
+    ///
     /// <para>
     /// <see cref="Scored.Shape"/> is the ratio of the two aspect ratios, the smaller over the larger, so 1
     /// is a perfect match and 0.5 means one page is twice the other's shape. It is reported beside the
@@ -180,39 +179,106 @@ public class AbcPictureSweepTests
     /// we broke the lines somewhere else, and a low overlap at a <em>good</em> shape says we drew the same
     /// page differently.
     /// </para>
+    /// <para>
+    /// <strong>Searched rather than enumerated, and that is not an optimisation.</strong> A page gets both
+    /// shorter and wider as the width grows, so its aspect climbs with the width and can be bisected. A
+    /// list of candidate widths instead measures every tune at every width — including the narrow ones,
+    /// where a long tune lays out into hundreds of systems that are then thrown away. Twelve of those in
+    /// flight per thread took the working set to 97GB and the machine to a standstill: the run was three
+    /// cores busy out of thirty-two and paging the rest of the time.
+    /// </para>
+    /// <para>
+    /// So the search starts where most pages are, walks the way the shape says, and only ever lays out a
+    /// width it has a reason to. It also keeps nothing but the numbers, and rebuilds the winner at the
+    /// end — one extra layout against eleven held alive.
+    /// </para>
     /// </summary>
     private static (FrameworkElement Element, Size Size, double Width, double Shape)? Fitted(string abc, double wanted)
     {
-        (FrameworkElement Element, Size Size, double Width, double Shape)? best = null;
+        (double Width, double Shape)? best = null;
+        double? low = null, high = null;
 
-        foreach (var width in Widths)
+        // Walk outward from the first guess until the wanted shape is bracketed, or an end is reached.
+        var at = FirstGuess;
+        for (var step = 0; step < 6; step++)
         {
-            var element = new AbcScore(abc, MarkdownPalette.Light, 0);
-            element.Measure(new Size(width, double.PositiveInfinity));
-            element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
+            if (Shaped(abc, at) is not { } seen) break;
 
-            var size = element.DesiredSize;
-            if (size.Width < 1 || size.Height < 1) continue;
+            Remember(at, seen.Shape);
+            if (Math.Abs(seen.Aspect - wanted) < 0.001) break;
 
-            var shape = Closeness(size.Width / size.Height, wanted);
-            if (best is { } had && shape <= had.Shape) continue;
-
-            best = (element, size, width, shape);
+            if (seen.Aspect < wanted) { low = at; if (high is not null || at >= Widest) break; at = Math.Min(at * 1.6, Widest); }
+            else { high = at; if (low is not null || at <= Narrowest) break; at = Math.Max(at / 1.6, Narrowest); }
         }
 
-        return best;
+        // Then halve the bracket a few times. Four is plenty: the answer is a whole number of systems, and
+        // the widths that produce one are a coarse grid however finely this looks between them.
+        if (low is { } from && high is { } to)
+            for (var step = 0; step < 4; step++)
+            {
+                var middle = (from + to) / 2;
+                if (Shaped(abc, middle) is not { } seen) break;
+
+                Remember(middle, seen.Shape);
+                if (seen.Aspect < wanted) from = middle; else to = middle;
+            }
+
+        if (best is not { } winner) return null;
+
+        var element = new AbcScore(abc, MarkdownPalette.Light, 0);
+        element.Measure(new Size(winner.Width, double.PositiveInfinity));
+        element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
+
+        return element.DesiredSize.Width < 1 || element.DesiredSize.Height < 1
+            ? null
+            : (element, element.DesiredSize, winner.Width, winner.Shape);
+
+        void Remember(double width, double shape)
+        {
+            if (best is { } had && shape <= had.Shape) return;
+            best = (width, shape);
+        }
+
+        (double Aspect, double Shape)? Shaped(string tune, double width)
+        {
+            var probe = new AbcScore(tune, MarkdownPalette.Light, 0);
+            probe.Measure(new Size(width, double.PositiveInfinity));
+
+            var size = probe.DesiredSize;
+            if (size.Width < 1 || size.Height < 1 || size.Height > Absurd) return null;
+
+            var aspect = size.Width / size.Height;
+            return (aspect, Closeness(aspect, wanted));
+        }
     }
 
     /// <summary>How alike two aspect ratios are: the smaller over the larger, so 1 is the same shape.</summary>
     private static double Closeness(double ours, double theirs) =>
         ours <= 0 || theirs <= 0 ? 0 : Math.Min(ours, theirs) / Math.Max(ours, theirs);
 
-    private static BitmapSource Raster(FrameworkElement element, Size size)
+    /// <summary>
+    /// Our page, rasterised to about the height the reference was.
+    ///
+    /// <para>
+    /// <strong>Matching the resolution is part of the comparison, not a detail of it.</strong> The corpus
+    /// pictures are thumbnails of a printed page, and the scaling that made them has all but erased the
+    /// thin strokes: at 800×129 the staff lines and stems are gone and only the note heads survive.
+    /// Rasterising ours crisply and comparing would hold solid staff lines against nothing, and score us
+    /// down for ink the reference no longer has rather than for ink we drew wrongly.
+    /// </para>
+    /// <para>
+    /// So ours is squeezed through the same loss. Not to flatter the number — it barely moves — but so
+    /// that what is left in both pictures is the same kind of thing.
+    /// </para>
+    /// </summary>
+    private static BitmapSource Raster(FrameworkElement element, Size size, int wanted)
     {
+        var scale = Math.Clamp(wanted / Math.Max(size.Height, 1), 0.05, 1.0);
+
         var bitmap = new RenderTargetBitmap(
-            Math.Max(1, (int)Math.Ceiling(size.Width)),
-            Math.Max(1, (int)Math.Ceiling(size.Height)),
-            96, 96, PixelFormats.Pbgra32);
+            Math.Max(1, (int)Math.Ceiling(size.Width * scale)),
+            Math.Max(1, (int)Math.Ceiling(size.Height * scale)),
+            96 * scale, 96 * scale, PixelFormats.Pbgra32);
 
         bitmap.Render(element);
         return bitmap;
