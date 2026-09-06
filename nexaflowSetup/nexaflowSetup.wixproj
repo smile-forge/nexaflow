@@ -32,8 +32,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="WixToolset.UI.wixext" Version="*" />
-    <PackageReference Include="WixToolset.Util.wixext" Version="*" />
+    <!--
+      Pinned to the WixToolset.Sdk version above rather than floating. A floating spec makes NuGet
+      re-check the feed on every restore, so a slow, offline or skipped restore resolves nothing — and
+      WiX then reports the UI extension as "The Package element contains an unhandled extension element
+      'WixUI'", which reads as a broken Package.wxs rather than as a restore that never happened. It
+      resolved to 7.0.0 regardless; saying so lets it come from the local cache. Bump with the SDK.
+    -->
+    <PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="7.0.0" />
   </ItemGroup>
 
   <!--

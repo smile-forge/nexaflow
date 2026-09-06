@@ -41,6 +41,23 @@
     -->
     <Variable Name="InstallTools" bal:Overridable="yes" Type="numeric" Value="0" />
 
+    <!--
+      Backs the Options page's "Install location" box. It was never declared, so the box opened EMPTY
+      and the page could not be completed without typing a path by hand — and since the Tools checkbox
+      shares that page, opting into nfi.exe meant inventing an install path first.
+
+      Defaulted to where the MSI puts itself anyway (ProgramFiles ▸ Manufacturer ▸ ProductName — see
+      Folders.wxs), so the page is answerable by pressing Next. Overridable so an unattended install can
+      redirect it alongside InstallTools.
+
+      Type MUST be "formatted", not "string": Burn stores a string variable's value verbatim and does not
+      recursively format it, so [InstallFolder] would expand to the literal text "[ProgramFiles64Folder]…"
+      and the MSI would try to install to a folder of that name. "formatted" evaluates the value when it
+      is read, which is what turns the token into a real path.
+    -->
+    <Variable Name="InstallFolder" bal:Overridable="yes" Type="formatted"
+              Value="[ProgramFiles64Folder]Smile-forge\Nexaflow" />
+
     <Chain>
       <ExePackage Id="NetDesktopRuntime10"
                   DisplayName=".NET 10 Desktop Runtime (x64)"
@@ -68,6 +85,9 @@
         <!-- Drives the MSI's Tools feature Level (Package.wxs). The MSI declares INSTALLTOOLS
              Secure="yes" so it survives the handoff to the elevated execute sequence. -->
         <MsiProperty Name="INSTALLTOOLS" Value="[InstallTools]" />
+        <!-- Hands the Options page's location to the MSI. Without it the path was collected and then
+             ignored — the MSI fell back to its own default, so the box was decorative as well as blank. -->
+        <MsiProperty Name="INSTALLFOLDER" Value="[InstallFolder]" />
       </MsiPackage>
     </Chain>
 

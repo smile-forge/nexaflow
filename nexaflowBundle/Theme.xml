@@ -24,6 +24,11 @@
         <Page Name="Install">
             <Label X="11" Y="84" Width="-11" Height="34" FontId="3" DisablePrefix="yes">#(loc.InstallMessage)</Label>
             <Hypertext Name="EulaHyperlink" X="11" Y="125" Width="-11" Height="51" TabStop="yes" FontId="3" HideWhenDisabled="yes">#(loc.InstallLicenseLinkText)</Hypertext>
+            <!-- On this page rather than under Options, because Options is where the install location is
+                 chosen and most people never open it — an opt-in nobody sees is an opt-in nobody takes.
+                 Bound by Name to the bundle's InstallTools variable (Bundle.wxs), which is passed to the
+                 MSI as INSTALLTOOLS and switches the optional Tools feature on. -->
+            <Checkbox Name="InstallTools" X="11" Y="190" Width="-11" Height="17" TabStop="yes" FontId="3">#(loc.InstallToolsCheckbox)</Checkbox>
             <Checkbox Name="EulaAcceptCheckbox" X="-11" Y="-41" Width="260" Height="17" TabStop="yes" FontId="3" HideWhenDisabled="yes">#(loc.InstallAcceptCheckbox)</Checkbox>
             <Button Name="InstallUpdateButton" X="11" Y="-11" Width="200" Height="23" TabStop="yes" FontId="0" EnableCondition="WixStdBAUpdateAvailable" HideWhenDisabled="yes">#(loc.UpdateButton)</Button>
             <Button Name="OptionsButton" X="-171" Y="-11" Width="75" Height="23" TabStop="yes" FontId="0" VisibleCondition="NOT WixStdBASuppressOptionsUI">
@@ -48,9 +53,6 @@
                 <RadioButton X="11" Y="180" Height="20" Width="-11" Value="PerUser" EnableCondition="WixBundleAuthoredScope = 2 OR WixBundleAuthoredScope = 3" HideWhenDisabled="yes" FontId="3">#(loc.OptionsPerUserScopeText)</RadioButton>
                 <RadioButton X="11" Y="200" Height="20" Width="-11" Value="PerMachine" EnableCondition="WixBundleAuthoredScope = 2 OR WixBundleAuthoredScope = 3" HideWhenDisabled="yes" FontId="3">#(loc.OptionsPerMachineScopeText)</RadioButton>
             </RadioButtons>
-            <!-- Bound by Name to the bundle's InstallTools variable (Bundle.wxs), which is passed to the
-                 MSI as INSTALLTOOLS and switches the optional Tools feature on. -->
-            <Checkbox Name="InstallTools" X="11" Y="228" Width="-11" Height="17" TabStop="yes" FontId="3">#(loc.OptionsInstallToolsCheckbox)</Checkbox>
             <Button Name="OptionsOkButton" X="-91" Y="-11" Width="75" Height="23" TabStop="yes" FontId="0">
                 <Text>#(loc.OptionsOkButton)</Text>
                 <ChangePageAction Page="Install" />
