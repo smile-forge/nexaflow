@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace Nexaflow.Services.Initiatives.Product.Model;
 
@@ -88,6 +89,30 @@ public sealed class PendingSnaplinks
 
     /// <summary>Node ids this branch has changed links for, in a stable order.</summary>
     public IReadOnlyList<string> TouchedNodes => [.. Nodes.Keys.Order(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Every link set this branch has deferred, named the way putting one back has to name it — the exact
+    /// footprint <see cref="ApplyTo"/> overlays.
+    /// <para>
+    /// The two describing the same thing is the point. A write that peels off only the sets the command in
+    /// hand mentioned leaves the rest of the overlay in the tree it saves, and a command that mentions no
+    /// link at all — <c>set-status</c>, <c>add-node</c>, <c>doctor --fix</c> — peels off nothing and writes
+    /// the branch's whole unmerged set into the tree every other worktree reads.
+    /// </para>
+    /// </summary>
+    [JsonIgnore]
+    public IEnumerable<(string NodeId, string? Concern)> Targets
+    {
+        get
+        {
+            foreach (var (nodeId, entry) in Nodes)
+            {
+                if (entry.Links is not null) yield return (nodeId, null);
+                if (entry.Concerns is { } concerns)
+                    foreach (var tag in concerns.Keys) yield return (nodeId, tag);
+            }
+        }
+    }
 }
 
 /// <summary>The link sets one node has had changed on a branch. A null member means "not touched here".</summary>

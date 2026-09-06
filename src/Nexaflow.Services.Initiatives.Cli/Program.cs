@@ -127,11 +127,26 @@ internal static class Program
     /// between the graph agreeing with the command that just ran and agreeing a debounce later — and it
     /// skips re-reading a file we produced to learn something we already knew.
     /// </para>
+    /// <para>
+    /// It is also where a branch's deferred links come back off. Everything loaded through
+    /// <see cref="TryLoad"/> arrives with the caller's pending set overlaid, and the shared tree must never
+    /// see it — so peeling it off belongs to the write itself, not to each verb that makes one. Leaving it
+    /// to the verbs is exactly how it failed: only the snaplink verbs restored anything, and only the sets
+    /// their own arguments named, so <c>set-status</c>, <c>add-node</c> and <c>doctor --fix</c> each wrote
+    /// one branch's unmerged links into the tree every other worktree reads.
+    /// </para>
     /// </summary>
     private static void SaveTree(string root, ProductStore store, ProductState state)
     {
+        var deferred = PendingBranch(root) is { } branch ? PendingStoreFor(root).Load(branch) : null;
+        if (deferred is { IsEmpty: false }) RestoreSharedLinks(state, store.Load(), [.. deferred.Targets]);
+
         store.SaveTree(state.Nodes);
         if (Host is { } host && PathsEqual(host.ProductRoot, root)) host.TreeSaved(state);
+
+        // The caller goes on working with — and reporting on — the branch's own view, which is not what the
+        // file now says. TreeSaved has already taken its copy, so putting it back publishes nothing.
+        deferred?.ApplyTo(state);
     }
 
     /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
@@ -2747,10 +2762,14 @@ internal static class Program
     }
 
     /// <summary>
-    /// Puts the touched link sets back to what the shared tree holds, so writing the tree lands everything
-    /// else this run changed without carrying the branch's links along with it. A node that does not exist
-    /// in the shared tree yet is being created by this same run, so it lands with no links — its links are
-    /// in the pending set, waiting for the branch that creates the files they name.
+    /// Puts the named link sets back to what the shared tree holds, so a state carrying a branch's deferred
+    /// links can still be written without carrying them along. A node that does not exist in the shared tree
+    /// yet is being created by this same run, so it lands with no links — its links are in the pending set,
+    /// waiting for the branch that creates the files they name.
+    /// <para>
+    /// The caller passes the whole of the branch's <see cref="PendingSnaplinks.Targets"/>, never just the sets
+    /// the command in hand named: the overlay went on whole, so it has to come off whole.
+    /// </para>
     /// </summary>
     private static void RestoreSharedLinks(ProductState state, ProductState shared,
                                            IReadOnlyList<(string NodeId, string? Concern)> touched)
@@ -2991,27 +3010,18 @@ internal static class Program
             return Error;
         }
 
-        var store  = new ProductStore(root);
-        var branch = touchedLinks is { Count: > 0 } ? PendingBranch(root) : null;
+        var store = new ProductStore(root);
 
         // A node is a plan, and the shared tree is deliberately forward-looking about those — so it is
         // written at once. A snaplink is a claim that a file exists and contains something, and from an
-        // unmerged branch that claim is not true anywhere but here. So a link change on a branch goes to the
-        // branch's pending set and not into the shared tree. In the main checkout there is no branch to
-        // defer to and the write happens normally.
-        if (branch is null) SaveTree(root, store, state);
-        else
-        {
-            var pending = CapturePending(state, root, branch, touchedLinks!);
+        // unmerged branch that claim is not true anywhere but here, so it is recorded against the branch
+        // instead. Recording it is all that happens here: SaveTree keeps the shared tree free of every set
+        // this branch has deferred, this run's included, so one batch can add a node and change a snaplink
+        // and have the node land while the link stays with the branch.
+        if (touchedLinks is { Count: > 0 } && PendingBranch(root) is { } branch)
+            CapturePending(state, root, branch, touchedLinks);
 
-            // The tree is still written — with the touched link sets put back as the SHARED tree has them.
-            // Restoring rather than skipping the write is what lets one batch add a node and change a
-            // snaplink: the node lands, the link stays with the branch. Skipping would lose the node.
-            RestoreSharedLinks(state, store.Load(), touchedLinks!);
-            SaveTree(root, store, state);
-
-            pending.ApplyTo(state);   // back to the branch's view, so the validation below reports on it
-        }
+        SaveTree(root, store, state);
 
         // Validated against the in-memory state either way, so a branch sees its own links resolved against
         // its own tree rather than the shared tree's older idea of them.
