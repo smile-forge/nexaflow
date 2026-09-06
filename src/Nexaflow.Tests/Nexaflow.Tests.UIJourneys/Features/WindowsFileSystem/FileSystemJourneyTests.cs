@@ -5,6 +5,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
+using FlaUI.Core.WindowsAPI;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem.UI;
 
@@ -43,6 +44,9 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         _folder = Path.Combine(Path.GetTempPath(), "nexaflow-fs-journey-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_folder);
         File.WriteAllText(Path.Combine(_folder, "existing.txt"), "x");   // for the existence warning
+
+        // Enough rows that a band can cross several and still leave empty space to start the drag in.
+        for (int i = 1; i <= 5; i++) File.WriteAllText(Path.Combine(_folder, $"bulk-{i}.txt"), "x");
 
         _sourceTemplate = Path.Combine(Path.GetTempPath(),
             "nexaflow-tplsrc-" + Guid.NewGuid().ToString("N") + ".md");
@@ -101,11 +105,65 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         Wait.UntilInputIsProcessed();
     }
 
+    /// <summary>
+    /// Band-selects rows by dragging from the empty space below them, and reports how many ended up
+    /// selected — <c>-1</c> when the gesture could not be posed at all (no list, no rows, or the rows
+    /// fill the list so there is no empty space to start in), which is a skip rather than a failure.
+    /// </summary>
+    private int BandSelectUpwards(int rowsToCover, bool holdCtrl = false)
+    {
+        var list = WaitForId("FileListView", 6);
+        if (list is null) return -1;
+
+        var rows = list.FindAllChildren(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ListItem))
+                       .OrderBy(r => r.BoundingRectangle.Top)
+                       .ToArray();
+        if (rows.Length <= rowsToCover) return -1;
+
+        var listRect = list.BoundingRectangle;
+        var last     = rows[^1].BoundingRectangle;
+        var target   = rows[^rowsToCover].BoundingRectangle;
+
+        int startY = last.Bottom + 10;
+        if (startY >= listRect.Bottom - 4) return -1;   // the rows reach the bottom: nowhere to press
+
+        int x      = target.Left + target.Width / 2;
+        var start  = new System.Drawing.Point(x, startY);
+        int endY   = target.Top + target.Height / 2;
+
+        FlaUI.Core.Input.Mouse.Position = start;
+        if (holdCtrl) Keyboard.Press(VirtualKeyShort.CONTROL);
+        FlaUI.Core.Input.Mouse.Down(FlaUI.Core.Input.MouseButton.Left);
+        try
+        {
+            // Several steps rather than one jump: the band has to arm on a move that clears the drag
+            // threshold and then track, which is two separate things happening to the same gesture.
+            for (int step = 1; step <= 6; step++)
+            {
+                FlaUI.Core.Input.Mouse.Position =
+                    new System.Drawing.Point(x, startY + (endY - startY) * step / 6);
+                Wait.UntilInputIsProcessed();
+                System.Threading.Thread.Sleep(30);
+            }
+        }
+        finally
+        {
+            FlaUI.Core.Input.Mouse.Up(FlaUI.Core.Input.MouseButton.Left);
+            if (holdCtrl) Keyboard.Release(VirtualKeyShort.CONTROL);
+        }
+
+        Wait.UntilInputIsProcessed();
+        System.Threading.Thread.Sleep(250);
+
+        return list.Patterns.Selection.Pattern.Selection.Value.Length;
+    }
+
     [TestMethod]
     [CoversNode("win-file-system-ui")]
     [CoversNode("winfs-create")]
     [CoversNode("winfs-create-template")]
     [CoversNode("winfs-act-rename")]
+    [CoversNode("winfs-marquee-select")]
     public void FileSystem_Controls_RespondInOnePass()
     {
         // ── The tab loads with its primary elements ──────────────────────────────────────
@@ -213,6 +271,23 @@ public class FileSystemJourneyTests : UiJourneyTestBase
                 Check("Confirming the prompt renames the file",
                       () => WaitForFs(() => File.Exists(Path.Combine(_folder, "renamed.txt"))));
             }
+        }
+
+        // ── Band-select: press below the rows and drag up across them ────────────────────
+        // The gesture the list had no answer for: click, Ctrl-click and Shift-click all worked, but a
+        // drag starting in the empty space did nothing at all.
+        int banded = BandSelectUpwards(rowsToCover: 3);
+        if (banded < 0)
+        {
+            Check("Band-select could not be posed (no empty space below the rows)", () => true);
+        }
+        else
+        {
+            Check("Dragging a band up over three rows selects exactly those three", () => banded == 3);
+
+            int withCtrl = BandSelectUpwards(rowsToCover: 2, holdCtrl: true);
+            Check("Ctrl+band adds to the selection instead of replacing it",
+                  () => withCtrl < 0 || withCtrl > 3);
         }
 
         // ── A template defined in Options reaches the create overlay ─────────────────────

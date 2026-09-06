@@ -87,7 +87,7 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
         : $"{Verb} {SourceSummary} to {TargetLabel}";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFinished), nameof(CanCancel), nameof(CanRetry), nameof(IsPaused), nameof(IsActive), nameof(StatusGlyph))]
+    [NotifyPropertyChangedFor(nameof(IsFinished), nameof(CanCancel), nameof(CanRetry), nameof(IsPaused), nameof(IsActive), nameof(StatusGlyph), nameof(IsIndeterminate))]
     private FileOperationState _state = FileOperationState.Queued;
 
     /// <summary>0–1, or -1 while there is no total to measure against.</summary>
@@ -118,12 +118,22 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
 
     // ── What the panel binds to ───────────────────────────────────────────────
 
-    /// <summary>No byte total yet, so the bar sweeps rather than fills.</summary>
-    public bool IsIndeterminate => Fraction < 0;
+    /// <summary>
+    /// No byte total yet, so the bar sweeps rather than fills — but only while there is still something
+    /// to wait for. A finished row kept sweeping forever: nothing that ends without a byte total (a
+    /// cancelled scan, a delete) ever sets a fraction, so "no total" stayed true after "no work left"
+    /// became true, and a row reading "Stopped." went on animating underneath it.
+    /// </summary>
+    public bool IsIndeterminate => Fraction < 0 && !IsFinished;
 
     public double Percent => Fraction < 0 ? 0 : Fraction * 100;
 
-    public bool CanCancel => !IsFinished;
+    /// <summary>
+    /// Offered until the cancel has been heard — not until the run has actually stopped. A row that
+    /// goes on offering Cancel while it is already cancelling invites the same click again, which was
+    /// how "I clicked cancel and it did nothing" read from the other side of the screen.
+    /// </summary>
+    public bool CanCancel => !IsFinished && State is not FileOperationState.Cancelling;
 
     /// <summary>Work is actually happening, so the glyph pulses.</summary>
     public bool IsActive  => State is FileOperationState.Scanning or FileOperationState.Running;
@@ -132,11 +142,12 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
 
     public string StatusGlyph => State switch
     {
-        FileOperationState.Completed => "✓",
-        FileOperationState.Failed    => "!",
-        FileOperationState.Cancelled => "✕",
-        FileOperationState.Paused    => "⏸",
-        _                            => "↻",
+        FileOperationState.Completed  => "✓",
+        FileOperationState.Failed     => "!",
+        FileOperationState.Cancelled  => "✕",
+        FileOperationState.Cancelling => "⏳",
+        FileOperationState.Paused     => "⏸",
+        _                             => "↻",
     };
 
     // ── Driving it ────────────────────────────────────────────────────────────
@@ -145,7 +156,14 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
     public void Cancel()
     {
         _pauseAnswer?.TrySetResult(PauseDecision.Cancel);
-        if (!IsFinished) State = FileOperationState.Cancelling;
+        if (!IsFinished)
+        {
+            State  = FileOperationState.Cancelling;
+            // Said here rather than waiting for the next progress tick: a run parked inside one long
+            // directory enumeration may not produce another for a while, and that silence is the whole
+            // complaint. Finish() overwrites it with the outcome.
+            Detail = "Stopping…";
+        }
         try { _cts.Cancel(); } catch (ObjectDisposedException) { }
     }
 
@@ -188,7 +206,10 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
         Fraction    = p.BytesTotal > 0 ? Math.Clamp((double)p.BytesDone / p.BytesTotal, 0, 1)
                     : p.ItemsTotal > 0 ? Math.Clamp((double)p.ItemsDone / p.ItemsTotal, 0, 1)
                     : -1;
-        Detail      = DescribeProgress(p);
+        // A cancel that has been heard says so, and keeps saying so. Left to report progress, a cancelling
+        // run reads exactly like a running one — same glyph, same bytes-per-second, same estimate — so the
+        // only evidence the click landed was that it eventually stopped, some minutes later.
+        Detail      = State is FileOperationState.Cancelling ? "Stopping…" : DescribeProgress(p);
     }
 
     internal void SetState(FileOperationState state) => State = state;

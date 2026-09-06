@@ -123,15 +123,20 @@ public sealed class FileOperationQueue : IFileOperationHost
         Operations.Add(op);
         Changed?.Invoke();
 
-        _shell.QueueBackgroundTask(
-            task,
-            onComplete: _ =>
-            {
-                if (op.State is FileOperationState.Completed) onSucceeded?.Invoke();
-                Announce(op);
-                Retire(op);
-            },
-            ct: op.Token);
+        // Hung off the operation finishing, not off the task returning. The task reports its outcome
+        // through PublishOnUi — a post to the UI thread — so when it returns the row has not been told
+        // yet: op.State still read "Running", Retire only retires a completed one, and so it walked away
+        // from every clean copy it was there to clear. Rows piled up marked "Done." because the state
+        // they were being judged on had not arrived. Completion is set inside Finish, so by the time
+        // this runs the state is the real one, whichever it turned out to be.
+        _ = op.Completion.ContinueWith(_ => PublishOnUi(() =>
+        {
+            if (op.State is FileOperationState.Completed) onSucceeded?.Invoke();
+            Announce(op);
+            Retire(op);
+        }), TaskScheduler.Default);
+
+        _shell.QueueBackgroundTask(task, ct: op.Token);
     }
 
     /// <summary>
@@ -225,11 +230,14 @@ public sealed class FileOperationQueue : IFileOperationHost
         _shell.RequestRefresh();
     }
 
-    /// <summary>A clean run clears itself out of the way; one with something to say stays until it is
-    /// dismissed.</summary>
+    /// <summary>
+    /// A run with nothing left to say clears itself out of the way; one carrying a problem stays until
+    /// it is dismissed. A cancelled run has nothing to say either — the user is the one who stopped it —
+    /// so it goes the same way a clean one does rather than sitting there reading "Stopped." for ever.
+    /// </summary>
     private void Retire(FileOperation op)
     {
-        if (op.State is not FileOperationState.Completed) return;
+        if (op.State is not (FileOperationState.Completed or FileOperationState.Cancelled)) return;
 
         _ = Task.Delay(TimeSpan.FromSeconds(5)).ContinueWith(_ =>
             PublishOnUi(() => Operations.Remove(op)), TaskScheduler.Default);
