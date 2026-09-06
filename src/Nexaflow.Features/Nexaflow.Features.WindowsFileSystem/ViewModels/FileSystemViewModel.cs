@@ -480,10 +480,10 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
     public IReadOnlyList<FileActionViewModel> BuildContextActions(IReadOnlyList<FileSystemEntry> entries)
     {
-        // In This PC mode the only entries are drives, and a drive is a valid folder-action target (the
-        // anyDrives path below resolves through FilterFolderActions). Bail only when nothing was clicked —
-        // right-clicking a drive here used to fall through to an empty menu.
-        if (_isThisPcMode && !entries.Any(e => e.IsThisPcItem)) return [];
+        // In This PC mode there is no open folder, so an empty selection has no target and the menu is empty.
+        // Anything that WAS clicked is a target though — a drive in the list, or a folder in the directory
+        // tree, which builds its own entry and is not restricted to what the list happens to be showing.
+        if (_isThisPcMode && entries.Count == 0) return [];
 
         var canPerform = _actionRegistry.SnapshotCanPerform();
 
