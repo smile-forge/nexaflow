@@ -19,13 +19,31 @@ namespace Nexaflow.Tests.IO.Common;
 internal sealed class ZipTestHandler : IArchiveHandler
 {
     public string Name => "Zip (test)";
-    public ArchiveCapabilities Capabilities => ArchiveCapabilities.List | ArchiveCapabilities.Extract;
+    public ArchiveCapabilities Capabilities =>
+        ArchiveCapabilities.List | ArchiveCapabilities.Extract | ArchiveCapabilities.Create;
 
     public bool CanHandle(string fileName)
         => fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
 
     public IArchiveSession Open(Stream container, string fileName, ArchiveOpenOptions? options = null)
         => new Session(new ZipArchive(container, ZipArchiveMode.Read, leaveOpen: false));
+
+    /// <summary>Writes entries one at a time, pulling each through its own
+    /// <see cref="ArchiveWriteEntry.OpenContent"/> — the shape every real writer has, and the one the
+    /// VFS relies on to count bytes and honour a cancellation without the handler knowing.</summary>
+    public void Write(Stream target, string fileName, IReadOnlyList<ArchiveWriteEntry> entries,
+                      ArchiveWriteOptions? options = null)
+    {
+        using var zip = new ZipArchive(target, ZipArchiveMode.Create, leaveOpen: true);
+        foreach (var e in entries)
+        {
+            if (e.IsDirectory || e.OpenContent is null) continue;
+            var entry = zip.CreateEntry(e.Path);
+            using var src = e.OpenContent();
+            using var dst = entry.Open();
+            src.CopyTo(dst);
+        }
+    }
 
     private sealed class Session(ZipArchive archive) : IArchiveSession
     {

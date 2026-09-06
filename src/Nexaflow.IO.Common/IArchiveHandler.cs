@@ -43,6 +43,10 @@ public sealed class ArchiveWriteEntry
     public System.DateTime Modified { get; init; } = System.DateTime.Now;
     /// <summary>Opens the entry's content for reading. Null for directories.</summary>
     public System.Func<Stream>? OpenContent { get; init; }
+
+    /// <summary>Uncompressed byte length when known, so a write can report determinate progress.
+    /// 0 means unknown, which reports as an item count rather than a byte total.</summary>
+    public long Length { get; init; }
 }
 
 /// <summary>A read session over one opened archive. Disposing releases the underlying container stream.</summary>

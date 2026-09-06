@@ -233,9 +233,7 @@ public class FileOperationsPanelTests
     [TestMethod]
     public void AnOperationThatMovesNoBytesShowsItemProgress()
     {
-        var request = new FileTransferRequest(TransferKind.Delete,
-            [new TransferItem("x", "x")], ConflictPolicy.Fail);
-        var op = new FileOperation(TransferKind.Delete, request, targetLabel: string.Empty, recycle: false);
+        var op = new FileOperation("Deleting", "x", targetLabel: string.Empty, itemsTotal: 1);
 
         op.Publish(new TransferProgress(TransferPhase.Running,
             BytesDone: 0, BytesTotal: 0, ItemsDone: 3, ItemsTotal: 12,

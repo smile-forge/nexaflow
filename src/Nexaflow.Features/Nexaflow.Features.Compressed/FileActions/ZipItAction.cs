@@ -4,20 +4,24 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Nexaflow.Features.Compressed.FileActions;
 
 /// <summary>Compresses the selection into a sibling archive of the configured default format — a folder,
 /// a file, or a whole multi-selection of either in one archive. (A format-pick overlay is offered once
 /// more than one create-capable format is installed.)</summary>
-public sealed class ZipItAction(IShellServices shell, CompressedConfig config) : IFileAction, IFolderAction, ICacheable
+public sealed class ZipItAction(IShellServices shell, CompressedConfig config,
+                               IFileOperationHost? operations = null)
+    : IFileAction, IFolderAction, ICacheable
 {
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;
     public string Icon => "📦";
     public string DisplayName => "Zip It";
 
-    public bool RequiresRefresh => true;
+    public bool RequiresRefresh => false;   // the queue refreshes when the operation finishes
     public bool CanPerformAction => true;
 
     // ── IFileAction ──────────────────────────────────────────────────────────
@@ -56,11 +60,9 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config) :
         bool isFolder = Directory.Exists(trimmed);
         var  baseName = isFolder ? name : Path.GetFileNameWithoutExtension(name);
 
-        return Compress(parent, baseName, $"'{name}'", dest =>
-        {
-            if (isFolder) VirtualFileSystem.Instance.CreateArchive(dest, trimmed);
-            else          VirtualFileSystem.Instance.CreateArchive(dest, new[] { trimmed });
-        });
+        return isFolder
+            ? Compress(parent, baseName, $"'{name}'", name, trimmed, null)
+            : Compress(parent, baseName, $"'{name}'", name, null, [trimmed]);
     }
 
     /// <summary>Compresses the whole selection — files, folders or a mix — into ONE archive beside it,
@@ -85,26 +87,94 @@ public sealed class ZipItAction(IShellServices shell, CompressedConfig config) :
             parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var baseName = string.IsNullOrEmpty(folderName) ? "Archive" : folderName;
 
-        return Compress(parent, baseName, $"{items.Count} items",
-                        dest => VirtualFileSystem.Instance.CreateArchive(dest, items));
+        return Compress(parent, baseName, $"{items.Count} items", $"{items.Count} items", null, items);
     }
 
     /// <summary>Writes an archive of the configured format at a free name under <paramref name="parent"/>,
-    /// reporting any refusal or failure against <paramref name="subject"/>.</summary>
-    private bool Compress(string parent, string baseName, string subject, Action<string> write)
+    /// reporting any refusal or failure against <paramref name="subject"/>. Exactly one of
+    /// <paramref name="sourceDir"/> and <paramref name="sources"/> is given.</summary>
+    private bool Compress(string parent, string baseName, string subject, string rowLabel,
+                          string? sourceDir, IReadOnlyList<string>? sources)
     {
+        string dest;
         try
         {
-            var ext  = NormalizeFormat(config.DefaultFormat);
-            var dest = UniqueArchivePath(parent, baseName, ext);
+            var ext = NormalizeFormat(config.DefaultFormat);
+            dest = UniqueArchivePath(parent, baseName, ext);
 
             if (!VirtualFileSystem.Instance.CanCreate(Path.GetFileName(dest)))
             {
                 shell.ShowError($"No installed provider can create a '{config.DefaultFormat}' archive.");
                 return false;
             }
+        }
+        catch (Exception ex)
+        {
+            shell.ShowError($"Could not zip {subject}: {ex.Message}");
+            return false;
+        }
 
-            write(dest);
+        // No host means nobody is showing progress, so there is nothing to be gained by going async.
+        if (operations is null) return CompressNow(dest, subject, sourceDir, sources);
+
+        // Claim the name before returning. It was picked synchronously but the write is now seconds away,
+        // so without this two Zip Its in quick succession would both pick it and the second would replace
+        // the first. WriteNewArchive already replaces an existing file, so a placeholder costs nothing.
+        try { File.Create(dest).Dispose(); }
+        catch (Exception ex)
+        {
+            shell.ShowError($"Could not zip {subject}: {ex.Message}");
+            return false;
+        }
+
+        _ = operations.Run(
+            new FileOperationRequest("Compressing", rowLabel, Path.GetFileName(dest), dest),
+            (progress, ct) => Task.Run(() => Build(dest, subject, sourceDir, sources, progress, ct),
+                                       CancellationToken.None));
+        return true;
+    }
+
+    /// <summary>
+    /// The write as the progress row wants it: every outcome described in the result rather than thrown.
+    /// A run that does not finish takes the placeholder with it, so a cancelled zip leaves nothing behind
+    /// — the temp is already the VFS's to clear.
+    /// </summary>
+    private static TransferResult Build(string dest, string subject, string? sourceDir,
+                                        IReadOnlyList<string>? sources,
+                                        IProgress<TransferProgress> progress, CancellationToken ct)
+    {
+        try
+        {
+            if (sourceDir is not null) VirtualFileSystem.Instance.CreateArchive(dest, sourceDir, progress, ct);
+            else                       VirtualFileSystem.Instance.CreateArchive(dest, sources!, progress, ct);
+            return new TransferResult(true, 0, 0, [], [], [], []);
+        }
+        catch (OperationCanceledException)
+        {
+            Discard(dest);
+            return new TransferResult(false, 0, 0, [], [], [], []);
+        }
+        catch (Exception ex)
+        {
+            Discard(dest);
+            return new TransferResult(true, 0, 0,
+                [new TransferItemFailure(dest, "compress", 0, $"Could not zip {subject}: {ex.Message}")],
+                [], [], []);
+        }
+    }
+
+    private static void Discard(string dest)
+    {
+        try { File.Delete(dest); } catch { /* best effort */ }
+    }
+
+    /// <summary>The original blocking path, kept for when there is no progress row to run in.</summary>
+    private bool CompressNow(string dest, string subject, string? sourceDir, IReadOnlyList<string>? sources)
+    {
+        try
+        {
+            if (sourceDir is not null) VirtualFileSystem.Instance.CreateArchive(dest, sourceDir);
+            else                       VirtualFileSystem.Instance.CreateArchive(dest, sources!);
             return true;
         }
         catch (Exception ex)
