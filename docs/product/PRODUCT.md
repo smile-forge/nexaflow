@@ -1,8 +1,8 @@
 # Nexaflow — product status
 
-_Version **v1.5.0** · 2026-08-20_
+_Version **v1.6.0** · 2026-09-06_
 
-**91% shipping** — 1174/1286 components done (108 should · 0 faulted · 4 shouldn't)
+**88% shipping** — 1262/1426 components done (160 should · 0 faulted · 4 shouldn't)
 
 ## Tree
 
@@ -167,6 +167,7 @@ _Version **v1.5.0** · 2026-08-20_
       - **Hex + ASCII Surface** — _done_ — The drawing itself is an OnRender over a byte window - what is asserted is which rows that window is, since every visible-range bug shows up there: the scroll clamps at the last row, the cursor is scrolled back into view from either direction, and a row change repaints.
       - **Text Evaluation Pane** — _done_
       - **Selection & Status Bar** — _done_
+        - **Zoom** — _done_
       - **Toolbar** — _done_
         - **Edit Modes** — _done_
         - **Go To Offset** — _done_
@@ -306,6 +307,7 @@ _Version **v1.5.0** · 2026-08-20_
         - **ETL** — _should_
         - **EVTX** — _should_
       - **Search (?)** — _should_
+      - **Open Actions** — _should_
   - **Markdown** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_
@@ -319,6 +321,8 @@ _Version **v1.5.0** · 2026-08-20_
     - **UI** — _done_
       - **Document Surface** — _done_
         - **Inline (live) editor** — _done_
+          - **Caret crossing** — _should_
+          - **Drop text in** — _done_
         - **Source-only editor** — _done_
         - **Render-mode context menu** — _done_ — A themed WPF ContextMenu built in code-behind over the RichTextBox selection; needs a focused, rendered control and has no view-model state. Covered by the UI journey's presence check.
       - **Editor toolbar** — _done_
@@ -331,6 +335,9 @@ _Version **v1.5.0** · 2026-08-20_
         - **Quote button** — _done_
         - **Code-block button** — _done_
         - **Clipboard buttons** — _done_ — Cut/Copy/Paste drive the RichTextBox selection + the system clipboard — no view-model state to assert. Presence and enablement are covered by the UI journey.
+      - **Status Bar** — _should_
+        - **Zoom** — _done_
+        - **Document Stats** — _done_
     - **Functionality** — _done_
       - **Block model + edit keys** — _done_
       - **Block-level undo** — _done_
@@ -395,16 +402,22 @@ _Version **v1.5.0** · 2026-08-20_
       - **Folder viewlet** — _done_ — Summary is computed in the view code-behind (Loaded -> Refresh) from the shared ProductStore/aggregator; the AI surface (GetContext/GetClientTools) delegates to ProductTools (covered by ProductToolsTests) and opening delegates to IShellServices.OpenTab. No isolable view-model to unit-test.
       - **Create .product action** — _done_
       - **Snaplink validation** — _done_
+        - **Ast advisories (non-gating)** — _done_
       - **Test-coverage reconcile** — _done_
       - **Graph load** — _done_
       - **Layout (force / focus / hybrid)** — _done_
       - **Graph build** — _done_
+        - **View / code-behind pairing** — _done_
+        - **Orphan detection** — _done_
+        - **Type mentions** — _done_
+        - **Paths and ranking** — _done_
       - **Graph cache** — _done_
       - **Neighbourhood realisation** — _done_
       - **Zoom LOD** — _done_
       - **Node cap** — _done_
       - **Shared Report Rendering** — _done_
       - **Graph Query & Rendering** — _done_
+      - **Structural editing** — _done_
     - **UI** — _done_
       - **Sunburst View** — _should_
         - **Sunburst View** — _done_
@@ -448,8 +461,8 @@ _Version **v1.5.0** · 2026-08-20_
           - **product_add_node_snaplink** — _done_ — Writes tree.json; auto-runs (SafeOperation) - review.
           - **product_set_concern_status** — _done_ — Writes tree.json; auto-runs (SafeOperation) - review.
           - **product_add_concern_snaplink** — _done_ — Writes tree.json; auto-runs (SafeOperation) - review.
-          - **product_remove_node_snaplink** — _done_ — Approval-gated removal.
-          - **product_remove_concern_snaplink** — _done_ — Approval-gated removal.
+          - **product_remove_node_snaplink** — _done_ — Approval-gated removal. Names one link by index or by an unambiguous substring; all=true is the deliberate clear-the-list form, because naming nothing removes nothing.
+          - **product_remove_concern_snaplink** — _done_ — Approval-gated removal. Same index / match / all=true addressing as the node form.
           - **product_add_concern** — _done_ — Approval-gated.
           - **product_remove_concern** — _done_ — Approval-gated.
           - **product_find** — _done_
@@ -463,6 +476,7 @@ _Version **v1.5.0** · 2026-08-20_
           - **product_remove_node** — _done_
           - **product_remap_snaplinks** — _done_
           - **product_doctor** — _done_
+          - **product_set_snaplink** — _done_ — Sets fields; clearing is what removes. Same line as product_edit_node.
         - **Knowledge graph commands** — _done_
           - **graph_search** — _done_
           - **graph_context** — _done_
@@ -726,6 +740,7 @@ _Version **v1.5.0** · 2026-08-20_
       - **Confined-Window Editing** — _done_
       - **File Splitting** — _done_
       - **Search In File** — _should_
+      - **Open Actions** — _should_
     - **AI Integration** — _should_
       - **Context — get_context** — _done_ — Honest and visible-slice-aware: filename, path, dirty/editing state, encoding, total line count, and the actual on-screen numbered lines. Faithfully reflects the window the user sees.
       - **Act — client tools** — _should_ — Full parity: read, search, line-edit, find/replace and save all funnel through the same TextViewModel/OverlayTextFile the user drives.
@@ -819,11 +834,11 @@ _Version **v1.5.0** · 2026-08-20_
       - **Pin Action / Tab to Ribbon** — _done_
       - **Modal Overlays** — _done_
         - **Confirmation Overlay** — _done_
-        - **Input Prompt Overlay** — _done_ — A single-field modal with Enter to confirm and Esc to cancel. The one behaviour worth having - pre-selecting the base name so a rename does not eat the extension - is a TextBox selection call in the view with no state behind it; the journey covers that the prompt appears.
         - **Define New (association wizard)** — _done_ — The wizard writes a filemap or external-app rule and then scopes it to this file, this folder or the whole PC. Every rule it can produce is asserted where it lands - FileMapPathSpecificityTests for the scoping, ExternalAppRegistryTests and CriterionValidityTests for the app definitions - so a test here would re-assert those through a multi-step form.
       - **Options Editors** — _done_
         - **External Apps Editor** — _done_
         - **File Type Actions Editor** — _done_
+      - **File Operations Panel** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest: path, folder/file counts, selection, plus each active viewlet's line. (Counts can lag mid-load - not readiness-gated.)
       - **Act - client tools** — _done_ — Full Explorer parity - read + write, delete is soft (Recycle Bin). Path-confined to the current root, except the deliberate unconfined This-PC / no-folder mode (flagged High risk).
@@ -1021,6 +1036,7 @@ _Version **v1.5.0** · 2026-08-20_
       - **Camera Maths** — _done_
       - **Categorical Tinting** — _done_
       - **Unrendered Content Report** — _done_
+      - **Open Actions** — _should_
   - **Notebook** — _done_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and readiness-gated: kernel plus code/markdown cell counts and a preview of the first fifteen cells, held back until the file has actually parsed. Before the gate existed a notebook pinned the instant it opened reported the empty python/0/0 stub as though that were the file.
@@ -1162,6 +1178,47 @@ _Version **v1.5.0** · 2026-08-20_
       - **Load Gate** — _done_
       - **Open Actions** — _done_
   - **Solver** — _should_
+    - **UI** — _should_
+      - **Definition Area** — _should_
+        - **Mode Rail** — _should_
+        - **Calc Input** — _should_
+        - **Markdown Editors** — _should_ — The editor is Visuals.Text's InlineMarkdownEditor, tested there. What this feature adds is an instance per tab: single-formula is what an editor IS, so flipping it live would ask one editor to reinterpret a document mid-edit, and the tab switch would have to swap the text underneath it - which a focused editor refuses.
+        - **Single-formula mode** — _should_
+        - **Rendered / source toggle** — _should_
+      - **Palette** — _should_
+        - **Calculator Keypad** — _should_
+        - **Shift Pages** — _should_
+        - **Symbol Navigator** — _should_
+        - **Symbol Tree** — _should_
+        - **Key Insertion** — _should_
+        - **Angle Toggle** — _should_
+        - **Palette Visibility** — _should_
+        - **Recently Used** — _done_
+        - **Navigator Breadcrumb** — _done_
+      - **Chip Strip** — _should_
+        - **Chip Offers** — _should_
+        - **Chip Run** — _should_
+      - **Result List** — _should_
+        - **Result Cell** — _should_
+        - **Copy Result** — _should_ — One line onto the system clipboard. There is no seam worth extracting: a test would assert that Clipboard.SetText was called, which is a test of WPF. Covered by the UI journey instead.
+        - **Use As Definition** — _should_
+        - **Remove Result** — _should_
+    - **Functionality** — _should_
+      - **Expression Parsing** — _should_ — Two parsers read the same formula: XamlMath typesets it, AngouriMath calculates it. The typesetter is now the gate - a definition it could not read is never offered to the engine, so what wears a red wave on screen is exactly what has no chip, from one reading rather than two. It cannot be the whole answer: the typesetter has no opinion on whether a + has a right-hand side, so \sqrt{x^2+} sets perfectly and still reaches the engine. AngouriMath rejects it correctly but faults internally on the way (ANTLR recovery leaves a rule value unassigned and the grammar actions dereference it) - caught, so nothing breaks, but it breaks into a debugger. Worth an upstream issue, and worth collapsing to one parser eventually.
+      - **Solver Registry** — _should_
+      - **Evaluate** — _should_
+      - **Algebra** — _should_
+      - **Calculus** — _should_
+      - **Statistics** — _should_
+      - **AI Solve** — _should_
+      - **Settings** — _should_
+    - **AI Integration** — _should_
+      - **Context - get_context** — _should_
+      - **Act - client tools** — _should_
+        - **solver_read_state** — _should_
+        - **solver_set_definition** — _should_
+        - **solver_run_chip** — _should_
+      - **Preview - IContextPreview** — _should_
   - **Email** — _should_
     - **AI Integration** — _should_
       - **Context - get_context** — _done_ — Honest and content-rich: subject/from/to/cc/date/attachment names + the full body (up to 4000 chars) - more than the visible pane. Guidance says the AI cannot send from here.
@@ -1263,6 +1320,8 @@ _Version **v1.5.0** · 2026-08-20_
   - **Executable Inspector** — _should_
     - **UI** — _should_
     - **Functionality** — _should_
+      - **Open Actions** — _should_
+      - **AV Scan Action** — _should_
     - **AI Integration** — _should_
   - **PDF** — _should_
     - **Functionality** — _should_
@@ -1361,17 +1420,42 @@ _Version **v1.5.0** · 2026-08-20_
         - **ordered lists** — _done_
         - **Indented Code Blocks** — _done_
         - **Fenced Code Blocks** — _done_
+          - **Syntax-highlighted code** — _should_
         - **Inline Code** — _done_
         - **Emphasis** — _done_
         - **Strong** — _done_
         - **Inline Links** — _done_
         - **Reference Links** — _done_
         - **Images** — _done_
+          - **Remote images** — _should_
         - **AutoLinks** — _done_
         - **Hard Breaks** — _done_
         - **Soft line breaks** — _done_
         - **Backslash escapes** — _done_
+        - **Raw HTML** — _should_
       - **Latex** — _should_
+        - **Source Map** — _done_
+        - **Shape-Following Caret** — _done_ — An empty formula draws a caret too. LatexLayout.Build returns null for empty input and the paint took that branch and returned before reaching the caret - so a Latex tab opened on an empty formula showed none until the first character was typed, and that keystroke looked like it summoned the caret when what it did was create the layout the caret was drawn from. Cost about a dozen wrong fixes aimed at focus, all plausible and none of them it. CaretIsDrawnTests asks the drawing rather than the state, which is the only question that tells those apart.
+          - **Two places at one character** — _done_
+        - **Formula Selection** — _done_
+          - **Canvas Selection In A Grid** — _done_
+          - **Moving cells in a grid** — _done_
+            - **Cells know their place** — _done_
+          - **Wash reads as picked out** — _done_
+        - **In-Formula Editing** — _done_ — Backspace acts on the ONE piece before the caret: made of parts (its parse node has slots) means go back to the source it was written as; anything else is taken whole, six characters of \alpha included, because a symbol is one thing on the page however many letters spelled it. An earlier rule asked which pieces hide source instead and got both interesting cases wrong - it un-rendered an alpha nobody wanted to respell, and un-rendered x^2 when the caret was after the 2 (which in \frac{4}{x^2} then emptied the denominator and drew a hole). Measured side by side before changing: LatexTree.SymbolBefore and IsComposite. A revealed stretch then moves like the text it is being shown as - one character per arrow - because stepping by layout stops maps every position inside it to the single point where it sits in the typeset formula, and the caret jumps over the one place the reader wanted to edit.
+          - **Drag a term to a new place** — _should_ — A full parse and typeset measured 1.5-5ms in Debug, dominated by fixed overhead rather than formula size, and is only paid when the drop point crosses a caret stop - not per pixel - so the live preview keeps up with a hand.
+          - **Holes** — _done_ — Two surgical changes in the fork: PlaceholderAtom/PlaceholderBox (four hairlines at the font's x-height, not a resized glyph), and the parser making one wherever an argument parsed to nothing - StandardCommands.ReadArgument, script arguments, and ReadArgumentFormula for the built-ins that read their own (\frac, \sqrt). It exists in the parse and NEVER in the source: the source keeps saying {}, which is what gets saved, copied and solved. An earlier attempt wrote \square into the source instead and was wrong - it made the placeholder something the reader could keep. The span is empty and sits where the contents would begin, so typing lands inside the braces; the diagnostic covers the braces, because a wave needs something to sit under. One carve-out was needed: standing for some of the source is what normally makes a piece pointable, and a hole stands for nothing by definition - see MarkInk and ILayoutNode.Stands.
+            - **Holes are asked for** — _done_
+          - **Palette keys take the selection** — _done_ — Which slot needs no new data: CaretBack already says where the key expects to be typed next, and that is the same place. Every structural key on the palette is a Literal with a CaretBack rather than a Wrapping key, so before this the whole palette replaced a selection instead of taking it.
+          - **Shown as written** — _done_
+          - **Smart paste** — _done_
+        - **Prose Seam** — _done_
+        - **Painting From The Tree** — _done_
+        - **Diagnostics** — _done_
+        - **Part Roles** — _done_
+        - **Editing through the tree** — _done_ — LatexTree.Write and LatexTree.Move return a LatexWrite (new source + where the caret goes). The tree is a reading of the source, so changed source is a changed tree: re-reading it is what re-lays out and repaints, which is how one call reaches the picture. A full writable AST would need a LaTeX writer over ~40 atom types in the fork; this gets the same guarantee from the spans, which the fork span work already made exact.
+        - **Brackets are one thing** — _done_ — FencedAtom already had Slots; nothing needed adding. What was missing was applying the rule that already existed for a fraction's bar: a piece with a span but no role is the enclosing construct's own drawing. A bracket goes further than a bar though - it is not decoration, it carries meaning only as a pair, and one without its partner cannot be parsed at all - so LatexTree.Owning climbs to the group for backspace AND for selection. It climbs only into something that IS a construct (IsComposite), or a tree with no parse behind it would let every step qualify and walk to the top. \Bigl[ and \Bigr] stay independent, correctly: in LaTeX they are two symbols that merely happen to be sized alike. Slots were considered for the delimiters and rejected - a slot is a place content goes, and a bracket is not one.
+        - **Dirac notation** — _done_
       - **Mermaid** — _should_
         - **Graph / Flowchart** — _done_
         - **Quadrant Chart** — _done_
@@ -1390,10 +1474,16 @@ _Version **v1.5.0** · 2026-08-20_
         - **Sankey** — _done_
         - **ER Diagram** — _done_
         - **Venn** — _done_
-        - **timeline** — _should_
-        - **Journey** — _should_
-        - **C4Context** — _should_
-        - **Block** — _should_
+        - **Timeline** — _done_
+        - **User Journey** — _done_
+        - **C4 diagrams** — _should_
+          - **Macro syntax** — _done_
+          - **Elements** — _done_
+          - **Boundaries** — _done_
+          - **Relationships** — _done_
+          - **Styling and legend** — _done_
+          - **C4 sequence** — _done_
+        - **Block diagram** — _done_
         - **Architecture** — _done_
         - **Cynefin** — _done_
         - **Swimlanes** — _done_
@@ -1402,6 +1492,7 @@ _Version **v1.5.0** · 2026-08-20_
         - **Pipe tables** — _done_
         - **Grid tables** — _done_
         - **Task Lists** — _done_
+          - **Clickable checkboxes** — _should_
         - **Emphasis Extra** — _done_
         - **Autolinks** — _done_
         - **Definition Lists** — _done_
@@ -1444,9 +1535,39 @@ _Version **v1.5.0** · 2026-08-20_
           - **MIDI Playback** — _should_
           - **Selection** — _done_
       - **Diagram Text Selection** — _should_
+      - **QR Code** — _done_
+        - **Symbol Encoder** — _done_
+        - **Payload Types** — _done_
+        - **Block Syntax** — _done_
+        - **Rendering** — _done_
+      - **Barcode** — _done_
+        - **Symbologies** — _done_
+        - **Block Syntax** — _done_
+        - **Rendering** — _done_
+        - **Editable Value** — _done_
+        - **Symbol Tree** — _should_
+      - **2D Symbol Layer** — _done_
+      - **Data Matrix** — _done_
+        - **Symbol Encoder** — _done_
+        - **Payload Types** — _done_
+        - **Block Syntax** — _done_
+        - **Rendering** — _done_
+      - **PDF417** — _done_
+        - **Symbol Encoder** — _done_
+        - **Block Syntax** — _done_
+        - **Rendering** — _done_
+      - **Aztec Code** — _done_
+        - **Symbol Encoder** — _done_
+        - **Symbol Layout** — _done_
+        - **Block Syntax** — _done_
+        - **Rendering** — _done_
+        - **Aztec Runes** — _should_
+        - **Reader-initialisation symbols** — _should_
+        - **Structured append** — _should_
     - **Code/Text Editor** — _done_
       - **Editor Host** — _done_
       - **Highlighting Host** — _done_
+        - **Colour preview** — _done_
       - **CodeBlockView** — _done_
       - **Selectable Markdown** — _done_
       - **Markdown Pipeline** — _done_
@@ -1468,10 +1589,14 @@ _Version **v1.5.0** · 2026-08-20_
       - **Jinja** — _done_
       - **JSON** — _done_
       - **SQL / GraphQL (detected, no grammar)** — _should_
+      - **XAML / XML** — _done_
     - **Highlight Queries** — _done_
     - **Embedded Languages** — _done_
     - **Parse Tree (AI)** — _done_
     - **Code Outline / Structure** — _done_
+    - **Native grammars (built from source)** — _done_
+    - **PowerShell / YAML grammars** — _should_
+    - **Structural editing engine** — _done_
   - **Visuals.Terminal** — _done_
     - **Terminal View** — _done_
     - **Command Classifier** — _done_
@@ -1486,14 +1611,53 @@ _Version **v1.5.0** · 2026-08-20_
     - **Glob** — _done_
     - **Virtual File System** — _done_
       - **Pass-through mounts** — _done_
+      - **Archive Progress & Cancellation** — _should_
     - **Codec / Archive Contracts** — _done_
     - **Text Transforms & Hashing** — _done_
   - **Visuals.Common** — _done_
     - **Shared Controls** — _done_
+      - **Text Zoom** — _done_
     - **Value Converters** — _done_
     - **Formatters** — _done_
     - **Collections** — _done_
   - **Visuals.Web** — _done_
+  - **Maths** — _should_
+    - **LaTeX Parse Tree** — _should_
+      - **Reads back what was written** — _done_
+      - **Holds what it cannot read** — _done_
+      - **Part roles** — _done_
+      - **Grids** — _done_
+      - **Edited as a tree** — _should_
+      - **Read into what a builder can act on** — _should_
+    - **Typesetting engine** — _done_
+      - **Boxes built from the parse tree** — _should_
+  - **Initiatives (product tree + graph)** — _should_
+    - **Product tree** — _should_
+      - **Tree model and status roll-up** — _done_
+      - **Tree operations** — _done_
+      - **Store, snapshots and release exports** — _done_
+      - **Root location and worktrees** — _done_
+      - **Per-branch pending changes** — _done_
+    - **Snaplinks** — _should_
+      - **Validation (gating)** — _done_
+      - **Remap after a rename** — _done_
+      - **Ast advisories (non-gating)** — _done_
+      - **Test-coverage reconcile** — _done_
+      - **Structure lint** — _done_
+    - **Knowledge graph** — _should_
+      - **Extraction and build** — _done_
+      - **Name resolution and confidence** — _done_
+      - **Archive, cache and freshness** — _done_
+      - **Queries** — _done_
+      - **Structural editing** — _done_
+      - **Community detection** — _done_
+      - **Cycle detection** — _should_
+      - **Entry points as a first-class kind** — _should_
+      - **Visibility on nodes** — _should_
+      - **Event wiring edges** — _should_
+    - **Hosting and daemon** — _should_
+      - **Resident host** — _done_
+      - **Daemon IPC** — _done_
 - **Core UX** — _should_
   - **Themes** — _done_
     - **Dark** — _done_
@@ -1507,12 +1671,18 @@ _Version **v1.5.0** · 2026-08-20_
       - **Layered Assembly** — _done_
       - **Base Palette** — _done_
       - **Region Tokens** — _done_
+        - **Per-feature region tokens** — _should_
       - **ThemedRegion + Scene Backdrops** — _done_
         - **OceanReefScene** — _done_
         - **ForestScene** — _done_
         - **GothicScene** — _done_
         - **SandstoneWall** — _done_
         - **SunnyScene** — _done_
+        - **Battery Scene Suppression** — _done_
+        - **AnimatedScene Base** — _done_
+        - **Reduce-motion switch** — _should_
+        - **ArcticScene** — _done_
+        - **FlowerbedScene** — _done_
       - **Categorical Swatch Bank** — _done_
       - **Code Colour Palette (TextSwatch)** — _done_
       - **Semantic Status Tokens** — _done_
@@ -1520,6 +1690,9 @@ _Version **v1.5.0** · 2026-08-20_
       - **Theme Selection (Options)** — _done_
       - **Theme Switch (Window Restart)** — _done_
       - **Freeze-on-Merge** — _done_
+      - **Immersive theme tuning** — _should_
+    - **Arctic** — _done_
+    - **Flowers** — _done_
   - **Ribbon** — _done_
     - **Ribbon Bar** — _done_
       - **Ribbon Button (full)** — _done_
@@ -1573,6 +1746,7 @@ _Version **v1.5.0** · 2026-08-20_
       - **Conditional Enable (DisabledIf)** — _done_
     - **Save / Validate / Dirty Tracking** — _done_
     - **Shell Settings** — _done_
+      - **Text Size** — _done_
     - **Voice Settings** — _done_
     - **File-Type Actions Editor** — _done_
     - **Workspaces (Profiles) Editor** — _done_
@@ -1584,6 +1758,7 @@ _Version **v1.5.0** · 2026-08-20_
       - **Workspace Identity Page** — _done_
     - **About Page** — _done_
       - **Reset Config (Danger)** — _done_
+      - **System components** — _done_
     - **Setup Wizard** — _done_
       - **What's New Step** — _done_
       - **Mandatory Config Steps** — _done_
@@ -1668,6 +1843,7 @@ _Version **v1.5.0** · 2026-08-20_
     - **Tab Drag / Tear-off Source** — _done_
     - **Tab Context Menu** — _done_
     - **Pin Tab to Ribbon** — _done_
+    - **Tab Label** — _should_
   - **Main Window Frame** — _done_
     - **Custom Title Bar / Window Controls** — _done_
     - **Top Bar** — _done_
@@ -1680,6 +1856,14 @@ _Version **v1.5.0** · 2026-08-20_
       - **Clear Input Button** — _done_
       - **AI Bar Resize Splitter** — _done_
   - **Taskbar Jump List** — _done_
+  - **Crash Log** — _done_
+- **OptionalTools** — _should_
+  - **nfi CLI** — _should_
+    - **Verb surface and argument parsing** — _done_
+    - **Self-location** — _done_
+    - **Batch scripting** — _done_
+    - **Daemon client** — _done_
+    - **Test coverage collection** — _done_
 
 ## Needs attention
 
@@ -1689,9 +1873,8 @@ _Nothing faulted._
 
 | Concern | Done |
 |---|---|
-| i18n | 0/1286 |
-| theming | 609/1286 |
-| tests | 982/1286 |
-| docs | 1/1286 |
-| AI Ready | 0/1286 |
-| Expanded | 25/1286 |
+| theming | 640/1426 |
+| tests | 1104/1426 |
+| docs | 2/1426 |
+| AI Ready | 0/1426 |
+| Expanded | 25/1426 |
