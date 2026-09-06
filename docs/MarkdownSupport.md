@@ -891,6 +891,29 @@ left, the bar lines running through, the voice names at the left of the first li
 clef its `V:` asked for. Voices the source barred differently stack honestly instead — forcing a grid onto
 parts that disagree about where the bars are would misalign every bar after the first difference.
 
+**What it reads and does not act on.** Everything below parses and round-trips — the tree holds every
+character of it — and nothing downstream does anything with it yet. That is the honest shape of a gap in
+this design: the reading is never the thing that is missing.
+
+| | |
+|---|---|
+| Voice overlays (`&`) | read, and marked *read and not engraved* so a reader is told |
+| `Q:` tempo, on a line or inline | read; no tempo is printed anywhere |
+| `%%` stylesheet directives | read as comments; none is obeyed |
+| `P:` parts | read as a field; the part order is not applied |
+| A mid-tune `T:` | read; not printed as a section heading |
+| Clef **inference** | a voice takes the clef its `V:` or `K:` names, and the treble otherwise. It does not read one off the part's range, so a bass line that names no clef sits in ledger lines |
+
+**What the corpus does and does not say.** Ten thousand real tunes are held against the reading
+(`AbcCorpusTests`, parse-level, no fonts): every one round-trips exactly, the parser only ever copies, and
+no pipeline stage changes the source. A sample of them is engraved as well (`AbcCorpusRenderTests`): none
+throws, almost none comes out empty, and every piece that names source names source the tune has.
+
+**None of that says the drawing is right.** The corpus ships a reference picture beside every tune and
+nothing here has ever looked at one. A ranking sweep against them — the shape `LatexPictureSweepTests`
+already has, with `GrayImage.InkOverlap` — is the missing oracle, and until it exists "it engraves" is the
+strongest claim available.
+
 Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
 ([`MusicBlockExtension`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs), registered
 via `UseMusicNotation()`). The opening fence carries an optional dialect tag; the dialect is
