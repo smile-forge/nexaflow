@@ -303,13 +303,13 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-context-menu")]
-    public void InThisPcModeAMenuOnlyOpensOverADrive()
+    public void InThisPcModeOnlyAnEmptySelectionHasNoTarget()
     {
         var (shell, ai, configs) = Deps();
         var vm = FileSystemViewModel.CreateThisPc(shell, ai, configs);
 
-        Assert.AreEqual(0, vm.BuildContextActions([new FileSystemEntry { Name = "not a drive" }]).Count,
-                        "there is nothing but drives at This PC — anything else is not a target");
+        Assert.AreEqual(0, vm.BuildContextActions([]).Count,
+                        "This PC has no open folder, so a right-click on nothing has nothing to act on");
     }
 
     private static bool SpinWaitFor(Func<bool> until)

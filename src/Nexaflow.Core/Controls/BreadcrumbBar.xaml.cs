@@ -5,7 +5,10 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Automation;
+using System.Windows.Input;
 using System.Windows.Media;
+using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
 
 namespace Nexaflow.Core.Controls;
@@ -58,6 +61,9 @@ public partial class BreadcrumbBar : UserControl
     private void Refresh()
     {
         _segs = Segments?.ToList() ?? [];
+        // Right-clicking the bar itself — a separator, the gap after the last crumb — answers with where you
+        // are: the deepest crumb that names a location. Crumbs that name one of their own override this below.
+        ContextMenu = CopyPathMenu(_segs.LastOrDefault(s => !string.IsNullOrEmpty(s.Path))?.Path);
         ApplyLayout();
     }
 
@@ -217,6 +223,9 @@ public partial class BreadcrumbBar : UserControl
             ToolTip  = seg.Label
         };
 
+        // Null when the crumb names no location — the right-click then bubbles to the bar's own menu.
+        btn.ContextMenu = CopyPathMenu(seg.Path);
+
         if (seg.TargetPageKind is { } pageKind)
         {
             btn.Click += (_, _) => OpenTabRequested?.Invoke(pageKind, seg.TargetPageParams);
@@ -266,4 +275,36 @@ public partial class BreadcrumbBar : UserControl
         btn.Click += (_, _) => popup.IsOpen = !popup.IsOpen;
         return btn;
     }
+
+    // ── Copy path ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The <b>Copy path</b> menu for a crumb (or for the bar) that names a location, or <c>null</c> when it
+    /// names none — a null <see cref="FrameworkElement.ContextMenu"/> lets the right-click bubble to the
+    /// nearest ancestor that has one, which is how a pathless crumb still answers with the current location.
+    /// </summary>
+    private static ContextMenu? CopyPathMenu(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+
+        var item = new MenuItem
+        {
+            Header           = "Copy path",
+            Command          = CopyPathCommand,
+            CommandParameter = path,
+        };
+        AutomationProperties.SetAutomationId(item, "Breadcrumb_CopyPath");
+
+        var menu = new ContextMenu();
+        menu.Items.Add(item);
+        return menu;
+    }
+
+    /// <summary>Shared by every crumb's menu item; the path it copies is the item's command parameter.</summary>
+    private static readonly ICommand CopyPathCommand = new RelayCommand<string>(path =>
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        // Another process can hold the clipboard open; failing to copy is not worth an error dialog.
+        try { Clipboard.SetText(path); } catch { /* clipboard busy */ }
+    });
 }

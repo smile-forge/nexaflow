@@ -23,6 +23,13 @@ public class CopyFilesConformance : FileActionConformanceTests
 }
 
 [TestClass]
+[CoversNode("winfs-act-copy-path")]
+public class CopyPathsConformance : FileActionConformanceTests
+{
+    protected override IFileAction CreateAction() => new CopyPaths();
+}
+
+[TestClass]
 [CoversNode("winfs-action-strip")]
 public class CutFilesConformance : FileActionConformanceTests
 {

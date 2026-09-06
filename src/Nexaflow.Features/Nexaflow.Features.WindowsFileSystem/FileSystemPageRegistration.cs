@@ -154,6 +154,8 @@ public sealed class FileSystemPageRegistration(
             return new BreadcrumbSegment
             {
                 Label    = seg.Label,
+                // "This PC" is a place, not a path — it has nothing to copy, so the crumb offers no Copy path.
+                Path     = string.IsNullOrEmpty(capturedPath) ? null : capturedPath,
                 Navigate = isLast ? null : (string.IsNullOrEmpty(capturedPath)
                     ? () => page.ViewModel.GoToThisPc(rebuildTree: true)
                     : () => page.ViewModel.NavigateTo(capturedPath))

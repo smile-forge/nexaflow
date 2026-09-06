@@ -94,6 +94,21 @@ public class ThisPcDriveActionsTests
     }
 
     [TestMethod]
+    public void RightClickingATreeFolderInThisPcMode_StillOffersFolderActions()
+    {
+        // The directory tree keeps showing folders while the LIST is at This PC, and it builds its own entry
+        // for the node under the cursor. The guard used to read "not a drive → not a target", which left a
+        // tree folder with an empty menu — no Copy path, no Properties — purely because of what the list
+        // happened to be showing.
+        var vm = ThisPc();
+
+        var actions = vm.BuildContextActions(
+            [new FileSystemEntry { Name = "docs", FullPath = @"C:\docs", IsDirectory = true }]);
+
+        CollectionAssert.Contains(actions.Select(a => a.DisplayName).ToList(), "Folder Only");
+    }
+
+    [TestMethod]
     public void MultipleDrivesSelected_StillResolveTheDriveActions()
     {
         var vm = ThisPc();

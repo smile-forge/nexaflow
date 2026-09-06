@@ -254,6 +254,41 @@ git -C <repo> commit -m "Add <repo> source submodule, tracking nexaflow"
 
 ## Wiring rules (consuming the source in Nexaflow)
 
+### List the whole closure in `Nexaflow.slnx`, not just what you reference
+
+A `ProjectReference` into `external/` is not enough on its own. **Every project in its transitive closure
+must also be listed in `Nexaflow.slnx`** (the `/External/` folder), mapped `<Platform Project="AnyCPU" />`.
+Two separate failures come from getting this wrong, and they look nothing alike:
+
+- **Not listed at all → restore.** Visual Studio's solution restore only covers the projects the solution
+  *lists*, so a `ProjectReference` to one it has never restored fails with **NU1105** "unable to find project
+  information". The command line never sees this (it follows the reference transitively), and a warm `obj/`
+  hides it locally — so it surfaces first on a cold clone or a fresh worktree.
+- **Listed in part → configuration split.** This is the subtler one, and it shipped in 1.6. A submodule whose
+  projects share one output directory keyed by configuration (DiscUtils: `OutputPath = ..\$(Configuration)`)
+  becomes a single unit that everyone must evaluate with the *same* configuration. List some of its projects
+  and not others and the sub-graph splits: the listed ones take the solution's `Debug`, while the unlisted
+  ones are evaluated with `$(Configuration)` unset — which the fork's `Directory.Build.props` defaults to
+  `Release`, precisely because that is how VS evaluates an out-of-solution reference. The command line
+  survives it (MSBuild treats each *(project, global properties)* pair as its own node, builds both trees, and
+  every reference resolves). **Visual Studio builds one side only**, and the other side's reference dangles:
+
+  ```
+  Metadata file '...\external\DiscUtils\Library\Release\netstandard2.1\DiscUtils.Xfs.dll' could not be found
+  ```
+
+  Which is why `dotnet build` was green while VS could not compile at all — the classic shape of this bug.
+
+DiscUtils is therefore listed in full: all 27 projects in the closure of the three
+`Nexaflow.Features.VirtualDisk` references. Compute a closure with:
+
+```powershell
+dotnet msbuild <the.csproj> -t:GenerateRestoreGraphFile -p:RestoreGraphOutputPath=graph.dg   # or just walk the ProjectReferences
+```
+
+`ExternalProjectClosureTests` (in `Nexaflow.Tests.Features.Architecture`) walks it for you and fails when
+the solution is missing an entry, so this cannot rot again.
+
 ### Native grammar submodules (the `ProjectReference` exception)
 
 `tree-sitter-xml` is a **C** grammar, not a .NET library — there is no `.csproj`, so rule "`ProjectReference`,
