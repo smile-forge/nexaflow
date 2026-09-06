@@ -148,6 +148,115 @@ public class AbcBuilderTests
         Assert.AreEqual("|]", layout.Abc.Substring(lines[1].Sits().Start, lines[1].Sits().Length));
     });
 
+    // ── What is drawn beside the notes ──────────────────────────────────────
+
+    [TestMethod]
+    public void ATieAndASlurAreCurvesThatNobodyTyped() => UiThread.Run(() =>
+    {
+        var layout = AbcLayout.Build("X:1\nL:1/8\nK:C\nA-A (BcdB)|\n", 500, Brushes.Black, 1.0);
+
+        var ties = layout.Root.SelfAndDescendants().Where(n => n.Kind == "tie").ToList();
+        var slurs = layout.Root.SelfAndDescendants().Where(n => n.Kind == "slur").ToList();
+
+        Assert.AreEqual(1, ties.Count);
+        Assert.AreEqual(1, slurs.Count);
+
+        // Neither carries a part. The `-` and the `(` that asked for them are marks on the notes either
+        // side; the arc between is how those are drawn. A curve that named a stretch of source would offer
+        // itself as a caret stop spanning both notes — and being shallower than either, it would win.
+        foreach (var curve in ties.Concat(slurs))
+        {
+            Assert.IsNull(curve.Part, $"a {curve.Kind} says it was written");
+            Assert.IsFalse(curve.IsInk, $"a {curve.Kind} offers itself for selection");
+            Assert.IsTrue(curve.Bounds.Width > 0 && curve.Bounds.Height > 0, $"a {curve.Kind} drew nothing");
+        }
+    });
+
+    [TestMethod]
+    public void AndASlurAcrossASystemBreakIsDrawnAtBothEnds() => UiThread.Run(() =>
+    {
+        // Narrow enough that the tune cannot sit on one line, with a slur running over the break.
+        var layout = AbcLayout.Build(
+            "X:1\nL:1/8\nK:C\n(ABcd ABcd|ABcd ABcd|ABcd ABcd|ABcd ABcd)|\n", 300, Brushes.Black, 1.0);
+
+        var systems = layout.Root.Children.Count(n => n.Kind == "system");
+        var pieces = layout.Root.SelfAndDescendants().Count(n => n.Kind == "slur");
+
+        Assert.IsTrue(systems >= 2, "the tune should not fit on one line at this width");
+        Assert.AreEqual(2, pieces, "out to the right margin, and in from the left of the next");
+    });
+
+    [TestMethod]
+    public void ADecorationIsDrawnWhereItsKindBelongs() => UiThread.Run(() =>
+    {
+        var plain = AbcLayout.Build("X:1\nK:C\nA|\n", 400, Brushes.Black, 1.0);
+        var marked = AbcLayout.Build("X:1\nK:C\n.HA|\n", 400, Brushes.Black, 1.0);
+
+        // A staccato hugs the head and a fermata stacks clear of the staff, but both are marks on the same
+        // piece — so what says they landed is that the piece drew more than a bare note does.
+        Assert.IsTrue(Marks(Note(marked)) > Marks(Note(plain)), "neither mark was drawn");
+
+        // …and the tune got taller to make room for the one that lives outside the staff.
+        Assert.IsTrue(marked.Size.Height > plain.Size.Height, "no room was reserved above the staff");
+    });
+
+    [TestMethod]
+    public void GraceNotesAreDrawnOnTheNoteTheyBelongTo() => UiThread.Run(() =>
+    {
+        var plain = AbcLayout.Build("X:1\nK:C\nA|\n", 400, Brushes.Black, 1.0);
+        var graced = AbcLayout.Build("X:1\nK:C\n{gAG}A|\n", 400, Brushes.Black, 1.0);
+
+        var note = Note(graced);
+
+        Assert.IsTrue(Marks(note) > Marks(Note(plain)), "the grace notes were not drawn");
+        Assert.AreEqual("A", graced.Abc.Substring(note.Sits().Start, note.Sits().Length),
+            "and they hang off the note they precede, so selecting it takes them with it");
+    });
+
+    [TestMethod]
+    public void ARepeatBracketRunsFromItsNumberToWhereTheRepeatEnds() => UiThread.Run(() =>
+    {
+        var layout = AbcLayout.Build(
+            "X:1\nL:1/8\nK:G\n|:GABc dedB|1 dedB dedB:|2 c2ec B2dB|]\n", 700, Brushes.Black, 1.0);
+
+        var brackets = layout.Root.SelfAndDescendants().Where(n => n.Kind == "volta").ToList();
+
+        Assert.AreEqual(2, brackets.Count, "a first-time bracket and a second-time one");
+
+        // Each names the number somebody wrote, which is what makes it something a reader can point at.
+        var written = brackets.Select(b => layout.Abc.Substring(b.Sits().Start, b.Sits().Length)).ToList();
+        CollectionAssert.AreEqual(new[] { "1", "2" }, written);
+
+        Assert.IsTrue(brackets[0].Bounds.Right <= brackets[1].Bounds.Left + 1,
+            "the first bracket stops where the second begins");
+    });
+
+    [TestMethod]
+    public void APlacedAnnotationGoesWhereItsQuotesSaid() => UiThread.Run(() =>
+    {
+        var layout = AbcLayout.Build("""
+            X:1
+            K:C
+            "^over"A "_under"B|
+
+            """.ReplaceLineEndings("\n").Replace("            ", ""), 500, Brushes.Black, 1.0);
+
+        var staff = layout.Root.SelfAndDescendants().First(n => n.Kind == "staff-line").Bounds;
+        var notes = layout.Root.SelfAndDescendants().Where(n => n.Kind == "note").ToList();
+
+        Assert.AreEqual(2, notes.Count);
+        Assert.IsTrue(notes[0].Bounds.Top < staff.Top, "the text above reaches over the staff");
+        Assert.IsTrue(notes[1].Bounds.Bottom > staff.Bottom, "and the text below reaches under it");
+    });
+
+    /// <summary>The first note in a tune.</summary>
+    private static ILayoutNode Note(AbcLayout layout) =>
+        layout.Root.SelfAndDescendants().First(n => n.Kind == "note");
+
+    /// <summary>How many things a piece of layout drew — the cheap way to ask whether a mark landed.</summary>
+    private static int Marks(ILayoutNode node) =>
+        node.SelfAndDescendants().OfType<AbcLayoutNode>().Sum(n => n.Marks.Count);
+
     [TestMethod]
     public void ItPaintsWithoutFaulting() => UiThread.Run(() =>
     {

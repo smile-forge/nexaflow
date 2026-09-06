@@ -59,6 +59,7 @@ internal static class ScoreMetrics
     public const double VoltaRow     = 1.9 * S;     // repeat brackets above
     public const double SectionRow   = 1.8 * S;     // a mid-tune T: heading
     public const double LyricRow     = 1.55 * S;    // one verse of note-aligned lyrics below
+    public const double MarkRow      = 1.35 * S;    // one row of fermatas / ornaments / bowings above
 
     // Type.
     public const double TitleSize    = 15;
@@ -72,4 +73,15 @@ internal static class ScoreMetrics
     /// <summary>Articulations and ornaments are drawn a size down from the notes — at full staff scale a
     /// Bravura accent reads as big as the note head it belongs to.</summary>
     public const double MarkScale = 0.78;
+
+    // Curves. A tie or a slur is a filled crescent rather than a stroked arc: thin where it meets a note
+    // head and thickest in the middle, which is what an engraved one looks like and what a stroked Bézier
+    // of even thickness never does.
+    public const double CurveThick = 0.22 * S;      // the crescent at its widest
+    public const double CurveRise  = 0.9 * S;       // how far a short curve bows away from the notes
+    public const double CurveMaxRise = 2.2 * S;     // …and how far the longest one is allowed to
+    public const double CurveClear = 0.55 * S;      // between a curve and the head it springs from
+
+    /// <summary>The repeat bracket's down-tick at each end.</summary>
+    public const double VoltaTick = 0.9 * S;
 }

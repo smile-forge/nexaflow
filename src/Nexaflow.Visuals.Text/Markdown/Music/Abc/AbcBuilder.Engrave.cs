@@ -30,6 +30,14 @@ internal sealed partial class AbcBuilder
         public double Right;
         public int LyricVerses;
         public bool HasChordRow;
+        public bool HasVoltaRow;
+
+        /// <summary>How many rows of marks stack above the notation, and how many below.</summary>
+        public int MarksAbove;
+        public int TextBelow;
+
+        /// <summary>The piece of layout this system was drawn into, for the curves drawn over it after.</summary>
+        public AbcLayoutNode? Node;
     }
 
     private double _noteHead;
@@ -52,6 +60,10 @@ internal sealed partial class AbcBuilder
 
         foreach (var system in systems) Draw(root, system);
 
+        // Ties and slurs last, because a curve may run from one system to the next and neither can be
+        // drawn until both are placed.
+        Curves(systems);
+
         var extent = Extent(root);
         return (root, new Size(Math.Ceiling(extent.Right + RightMargin), Math.Ceiling(extent.Bottom + S)));
     }
@@ -70,11 +82,25 @@ internal sealed partial class AbcBuilder
             ? Smufl.Advance(Glyph(ev.Accidentals.First(a => a is not null)!.Value), S) + AccGap
             : 0;
 
+        // Grace notes are crushed in before the head, in room of their own: they take no time and still
+        // take space, which is the one place notation and arithmetic disagree.
+        ev.GraceWidth = ev.Graces.Count == 0
+            ? 0
+            : GraceGap + (ev.Graces.Count * ((_noteHead * GraceScale) + GraceStep));
+
         var natural = SlotBase + (SlotRate * Math.Sqrt(Math.Max(ev.Quarters, 0.03125)));
         var floor = _noteHead + SlotFloor;
         var dots = ev.Dots > 0 ? DotGap + (ev.Dots * (Smufl.Advance(Smufl.AugmentationDot, S) + DotSpacing)) : 0;
 
-        ev.SlotWidth = Math.Max(natural, floor) + ev.AccidentalWidth + dots;
+        ev.SlotWidth = Math.Max(natural, floor) + ev.AccidentalWidth + ev.GraceWidth + dots;
+
+        // Text put beside a note rather than over it has to be paid for in the line, or it prints on top
+        // of the next note along.
+        foreach (var (text, where) in ev.Annotations)
+        {
+            if (where is not (AnnotationPlacement.Left or AnnotationPlacement.Right)) continue;
+            ev.SlotWidth += ScoreText.Width(text, ChordSize, _ppd) + (0.4 * S);
+        }
 
         // A syllable is centred under its head and so charges the note only half of itself — the other half
         // is its neighbour's problem. Charging the full width made a line of long and short words lurch.
@@ -226,7 +252,8 @@ internal sealed partial class AbcBuilder
 
                 foreach (var ev in bar.Events)
                 {
-                    ev.X = x + ev.AccidentalWidth;
+                    // Left to right within the slot: grace notes, the accidental, then the head.
+                    ev.X = x + ev.GraceWidth + ev.AccidentalWidth;
                     x += ev.SlotWidth;
                 }
 
@@ -264,14 +291,34 @@ internal sealed partial class AbcBuilder
                 }
 
                 system.LyricVerses = Math.Max(system.LyricVerses, ev.Lyrics.Count);
-                system.HasChordRow |= ev.ChordSymbol is not null;
+                system.HasChordRow |= ev.ChordSymbol is not null
+                                      || ev.Annotations.Any(a => a.Where == AnnotationPlacement.Above);
+                system.MarksAbove = Math.Max(system.MarksAbove, ev.StaffMarks.Count);
+                system.TextBelow = Math.Max(system.TextBelow,
+                                            ev.Annotations.Count(a => a.Where == AnnotationPlacement.Below));
+
+                foreach (var (half, _) in ev.Graces)
+                {
+                    var at = StaffGeometry.For(system.Row.Clef).HalfSpacesAbove(half);
+                    highest = Math.Max(highest, at);
+                    lowest = Math.Min(lowest, at);
+                }
             }
+
+            system.HasVoltaRow = system.Bars.Any(b => b.Volta is not null);
 
             // A stem reaches about three and a half spaces past the head it is on, whichever way it points.
             system.Above = Math.Max(0, (highest - 8) * (S / 2)) + StemLen;
             system.Below = Math.Max(0, -lowest * (S / 2)) + StemLen;
 
+            // Everything outside the staff is measured from the notation rather than from a fixed pad: a
+            // chord symbol belongs above the music, and how high that is depends on how high the music
+            // went. Stacked in the order they are read outward from the staff.
+            system.Above += system.MarksAbove * MarkRow;
             if (system.HasChordRow) system.Above += ChordRow;
+            if (system.HasVoltaRow) system.Above += VoltaRow;
+
+            system.Below += system.TextBelow * ChordRow;
 
             system.StaffTop = y + system.Above;
             y = system.StaffTop + StaffHeight + system.Below + (system.LyricVerses * LyricRow) + SystemGap;
@@ -284,12 +331,14 @@ internal sealed partial class AbcBuilder
     {
         var geometry = StaffGeometry.For(system.Row.Clef);
         var node = root.Adding(new AbcLayoutNode(Rect.Empty, "system"));
+        system.Node = node;
 
         Staff(node, system);
         Head(node, system, geometry);
 
         foreach (var bar in system.Bars) Draw(node, system, geometry, bar);
 
+        Voltas(node, system);
         node.Covering(Extent(node));
     }
 
@@ -464,10 +513,139 @@ internal sealed partial class AbcBuilder
             Ledgers(node, system, ev.X, half);
         }
 
+        Graces(node, system, geometry, ev);
         Dots(node, system, ev.X + _noteHead, geometry.HalfSpacesAbove(ev.Heads[^1]), ev.Dots);
+        Marks(node, system, geometry, ev);
         ChordSymbol(node, system, ev);
+        Annotations(node, system, ev);
         Lyrics(node, system, ev);
         return node;
+    }
+
+    /// <summary>
+    /// Grace notes: cue-size heads crushed in before the main one, beamed where there are several and
+    /// slashed for an acciaccatura.
+    /// <para>
+    /// They belong to the note they precede — which is why they hang off its piece of layout rather than
+    /// standing beside it. Selecting the note takes them with it, which is what a reader means.
+    /// </para>
+    /// </summary>
+    private void Graces(AbcLayoutNode node, System system, StaffGeometry geometry, Event ev)
+    {
+        if (ev.Graces.Count == 0) return;
+
+        var width = _noteHead * GraceScale;
+        var step = width + GraceStep;
+        var x = ev.X - ev.AccidentalWidth - ev.GraceWidth + GraceGap;
+
+        double? firstStem = null;
+        double? lastStem = null;
+        var top = double.MaxValue;
+
+        foreach (var (pitch, _) in ev.Graces)
+        {
+            var half = geometry.HalfSpacesAbove(pitch);
+            var y = Y(system, half);
+
+            Mark(node, Smufl.NoteheadBlack, new Point(x, y), GraceScale);
+            for (var line = 10; line <= half; line += 2) Ledger(node, system, x, line, width);
+            for (var line = -2; line >= half; line -= 2) Ledger(node, system, x, line, width);
+
+            // A grace note always stems up, whatever it sits on: the group is read as an ornament of the
+            // note after it rather than as music of its own, and a run of them reads as one gesture.
+            var stemTop = y - (StemLen * GraceScale);
+            var stemX = x + width - (StemThick / 2);
+            Rule(node, stemX - (StemThick / 2), stemTop, StemThick, y - stemTop);
+
+            firstStem ??= stemX;
+            lastStem = stemX;
+            top = Math.Min(top, stemTop);
+
+            x += step;
+        }
+
+        if (ev.Graces.Count > 1 && firstStem is { } from && lastStem is { } to)
+            Rule(node, from, top, to - from, BeamThick * GraceScale);
+
+        if (!ev.GraceSlashed || firstStem is not { } slashAt) return;
+
+        // The slash of an acciaccatura, through the stem of the first grace note.
+        var slash = new LineGeometry(new Point(slashAt - (0.5 * S), top + (0.9 * S)),
+                                     new Point(slashAt + (0.5 * S), top - (0.2 * S)));
+        slash.Freeze();
+        node.Drew(new GeometryMark(slash, null, null, StemThick * 1.6));
+        node.Covering(slash.Bounds);
+    }
+
+    /// <summary>
+    /// The marks on an event: the ones that hug the head, and the ones that stack clear of the staff.
+    /// <para>
+    /// Two rules rather than one, because they answer different questions. A staccato dot means <em>this
+    /// note</em> and so sits against it, on the side the stem is not; a fermata means <em>this moment</em>
+    /// and so sits above the staff whatever the note is doing, where the eye reads it along the line.
+    /// </para>
+    /// </summary>
+    private void Marks(AbcLayoutNode node, System system, StaffGeometry geometry, Event ev)
+    {
+        if (ev.HeadMarks.Count == 0 && ev.StaffMarks.Count == 0) return;
+
+        var halves = ev.Heads.Length > 0
+            ? ev.Heads.Select(geometry.HalfSpacesAbove).ToList()
+            : [Engraving.MiddleLine];
+
+        var down = StemsDown(halves);
+        var at = down ? halves.Max() + 2 : halves.Min() - 2;
+
+        foreach (var glyph in ev.HeadMarks)
+        {
+            var ink = Smufl.Ink(glyph, S, MarkScale);
+            Mark(node, glyph,
+                 new Point(ev.X + ((_noteHead - Smufl.Advance(glyph, S, MarkScale)) / 2), Y(system, at)),
+                 MarkScale);
+
+            at += down ? 2 : -2;
+            _ = ink;
+        }
+
+        // Above the staff and above whatever the notation already reached, so a run of high notes pushes
+        // its fermatas up with it rather than colliding.
+        var y = system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)
+                + (system.HasChordRow ? ChordRow : 0) + MarkRow;
+
+        foreach (var glyph in ev.StaffMarks)
+        {
+            Mark(node, glyph,
+                 new Point(ev.X + ((_noteHead - Smufl.Advance(glyph, S, MarkScale)) / 2), y),
+                 MarkScale);
+
+            y += MarkRow;
+        }
+    }
+
+    /// <summary>Text put where the quotes said to put it, rather than over the note like a chord name.</summary>
+    private void Annotations(AbcLayoutNode node, System system, Event ev)
+    {
+        var below = 0;
+
+        foreach (var (text, where) in ev.Annotations)
+        {
+            if (text.Length == 0) continue;
+
+            var glyphs = ScoreText.Build(text, ChordSize, _ppd);
+
+            var at = where switch
+            {
+                AnnotationPlacement.Above => new Point(ev.X, system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)),
+                AnnotationPlacement.Below => new Point(
+                    ev.X,
+                    system.StaffTop + StaffHeight + system.Below - (system.TextBelow * ChordRow) + (below++ * ChordRow)),
+                AnnotationPlacement.Left => new Point(ev.X - glyphs.Width - (0.3 * S), system.StaffTop + S),
+                _ => new Point(ev.X + _noteHead + (0.3 * S), system.StaffTop + S),
+            };
+
+            node.Drew(new TextMark(glyphs, at, null));
+            node.Covering(new Rect(at, new Size(glyphs.Width, glyphs.Height)));
+        }
     }
 
     /// <summary>
@@ -615,10 +793,16 @@ internal sealed partial class AbcBuilder
         for (var line = -2; line >= half; line -= 2) Ledger(node, system, x, line);
     }
 
-    private void Ledger(AbcLayoutNode node, System system, double x, int half)
+    private void Ledger(AbcLayoutNode node, System system, double x, int half, double? head = null)
     {
-        var bounds = new Rect(x - LedgerExt, Y(system, half) - (LedgerThick / 2),
-                              _noteHead + (2 * LedgerExt), LedgerThick);
+        var width = head ?? _noteHead;
+        Rule(node, x - LedgerExt, Y(system, half) - (LedgerThick / 2), width + (2 * LedgerExt), LedgerThick);
+    }
+
+    /// <summary>A filled rectangle recorded on a piece — a staff line, a stem, a beam, a ledger.</summary>
+    private static void Rule(AbcLayoutNode node, double x, double y, double width, double height)
+    {
+        var bounds = new Rect(x, y, Math.Max(width, 0), Math.Max(height, 0));
         node.Drew(new RuleMark(bounds, null));
         node.Covering(bounds);
     }
@@ -665,7 +849,8 @@ internal sealed partial class AbcBuilder
     /// The number over a tuplet, centred on the notes it covers.
     /// <para>
     /// Without it a triplet is three eighths that do not add up, and a reader has no way to know the tune
-    /// is not simply wrong. It goes on the side the stems are not, so it never collides with a beam.
+    /// is not simply wrong. It goes on the side the stems point, clear of the beam — which is where a
+    /// reader looks for it, and is the opposite of where a mark on a head goes.
     /// </para>
     /// </summary>
     private void Tuplets(AbcLayoutNode into, System system, StaffGeometry geometry, Bar bar)
@@ -693,8 +878,8 @@ internal sealed partial class AbcBuilder
                 var left = events[0].X;
                 var right = events[^1].X + _noteHead;
                 var y = down
-                    ? Y(system, halves.Max()) - StemLen - glyphs.Height
-                    : Y(system, halves.Min()) + StemLen;
+                    ? Y(system, halves.Min()) + StemLen
+                    : Y(system, halves.Max()) - StemLen - glyphs.Height;
 
                 var node = into.Adding(new AbcLayoutNode(Rect.Empty, "tuplet"));
                 var where = new Point(((left + right) / 2) - (glyphs.Width / 2), y);
@@ -768,6 +953,179 @@ internal sealed partial class AbcBuilder
             dot.Freeze();
             on.Drew(GeometryMark.Filled(dot));
             on.Covering(bounds);
+        }
+    }
+
+    /// <summary>Whether a bar line ends the music rather than merely dividing it.</summary>
+    private static bool Closes(ContentPart? line) =>
+        line?.Node.Print() is { } written && (written.Contains(']') || written == "||");
+
+    // ── Curves ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Ties and slurs, drawn last because a curve can run from one system to the next and neither end can
+    /// be placed until both systems are.
+    ///
+    /// <para>
+    /// A curve that crosses a break is drawn as two pieces — out to the right edge, and in from the left —
+    /// which is what an engraver does and what the layout model already allows: two pieces may share one
+    /// part, as a fraction's box and its bar do.
+    /// </para>
+    /// <para>
+    /// <strong>A curve carries no part.</strong> Nobody typed it — the <c>-</c> and the <c>(</c> that
+    /// asked for it are marks on the notes either side, and the arc between them is how those are drawn.
+    /// Giving it one looked tempting and is wrong twice over: it would offer itself as a caret stop
+    /// spanning both notes, and being a shallower node than either it would win, so the caret would take
+    /// the whole arc's height wherever a tie began.
+    /// </para>
+    /// </summary>
+    private void Curves(List<System> systems)
+    {
+        var placed = new List<(Event Event, System System)>();
+        foreach (var system in systems)
+            foreach (var ev in system.Bars.SelectMany(b => b.Events))
+                placed.Add((ev, system));
+
+        Ties(placed);
+        Slurs(placed);
+    }
+
+    private void Ties(List<(Event Event, System System)> placed)
+    {
+        for (var at = 0; at < placed.Count - 1; at++)
+        {
+            if (!placed[at].Event.TieStart) continue;
+            Curve(placed[at], placed[at + 1], "tie");
+        }
+    }
+
+    /// <summary>
+    /// Slurs, matched with a stack because ABC allows them to nest: <c>((AA)A)</c> is two slurs, and the
+    /// one that closes first is the one that opened last.
+    /// </summary>
+    private void Slurs(List<(Event Event, System System)> placed)
+    {
+        var open = new Stack<int>();
+
+        for (var at = 0; at < placed.Count; at++)
+        {
+            for (var i = 0; i < placed[at].Event.SlurOpen; i++) open.Push(at);
+
+            for (var i = 0; i < placed[at].Event.SlurClose && open.Count > 0; i++)
+            {
+                var from = open.Pop();
+                if (from == at) continue;
+                Curve(placed[from], placed[at], "slur");
+            }
+        }
+    }
+
+    /// <summary>
+    /// One curve from one event to another, in as many pieces as there are systems between them.
+    /// </summary>
+    private void Curve((Event Event, System System) from, (Event Event, System System) to, string kind)
+    {
+        if (from.System.Node is null || to.System.Node is null) return;
+
+        var above = !StemsDown(Halves(from.Event, from.System)) || StemsDown(Halves(to.Event, to.System));
+
+        var start = new Point(from.Event.X + (_noteHead / 2), Springs(from, above));
+        var end = new Point(to.Event.X + (_noteHead / 2), Springs(to, above));
+
+        if (ReferenceEquals(from.System, to.System))
+        {
+            Draw(from.System.Node, start, end, above, kind);
+            return;
+        }
+
+        // Broken over a system end: out to the right margin, and in from the left of the next.
+        Draw(from.System.Node, start, new Point(from.System.Right - (0.5 * S), start.Y), above, kind);
+        Draw(to.System.Node, new Point(to.System.HeadWidth - (0.5 * S), end.Y), end, above, kind);
+    }
+
+    /// <summary>Where a curve leaves a note: clear of the head, on the side away from the stems.</summary>
+    private double Springs((Event Event, System System) at, bool above)
+    {
+        var halves = Halves(at.Event, at.System);
+        return above
+            ? Y(at.System, halves.Max()) - CurveClear
+            : Y(at.System, halves.Min()) + CurveClear;
+    }
+
+    private static List<int> Halves(Event ev, System system)
+    {
+        var geometry = StaffGeometry.For(system.Row.Clef);
+        return ev.Heads.Length > 0
+            ? [.. ev.Heads.Select(geometry.HalfSpacesAbove)]
+            : [Engraving.MiddleLine];
+    }
+
+    /// <summary>
+    /// The crescent itself: two Béziers with the same ends, bowing by different amounts, so it is thin
+    /// where it meets a head and thickest in the middle. A stroked arc of even thickness reads as a
+    /// drawing of a slur rather than as one.
+    /// </summary>
+    private static void Draw(AbcLayoutNode into, Point from, Point to, bool above, string kind)
+    {
+        var span = Math.Abs(to.X - from.X);
+        if (span < 1) return;
+
+        var rise = Math.Clamp(CurveRise + (span * 0.06), CurveRise, CurveMaxRise) * (above ? -1 : 1);
+        var middle = new Point((from.X + to.X) / 2, ((from.Y + to.Y) / 2) + rise);
+        var inner = new Point(middle.X, middle.Y - (CurveThick * (above ? -1 : 1)));
+
+        var path = new PathGeometry();
+        var figure = new PathFigure { StartPoint = from, IsClosed = true, IsFilled = true };
+        figure.Segments.Add(new QuadraticBezierSegment(middle, to, false));
+        figure.Segments.Add(new QuadraticBezierSegment(inner, from, false));
+        path.Figures.Add(figure);
+        path.Freeze();
+
+        var node = into.Adding(new AbcLayoutNode(path.Bounds, kind));
+        node.Drew(GeometryMark.Filled(path));
+    }
+
+    // ── Repeat brackets ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The numbered bracket over a repeat: <c>|1 … :|2 …</c>.
+    /// <para>
+    /// It runs from the bar the number was written on to the bar that ends the repeat, or to the next
+    /// number, or to the end of the system — whichever comes first. Which is three answers to one
+    /// question and is why this is worked out here rather than drawn bar by bar.
+    /// </para>
+    /// </summary>
+    private void Voltas(AbcLayoutNode into, System system)
+    {
+        for (var at = 0; at < system.Bars.Count; at++)
+        {
+            if (system.Bars[at].Volta is not { } part) continue;
+
+            var to = at;
+            while (to < system.Bars.Count && !system.Bars[to].EndsRepeat
+                   && (to == at || system.Bars[to].Volta is null)) to++;
+
+            var last = Math.Min(to, system.Bars.Count - 1);
+            var left = system.Bars[at].X;
+            var right = system.Bars[last].X + system.Bars[last].Width;
+            var y = system.StaffTop - system.Above;
+
+            var node = into.Adding(new AbcLayoutNode(Rect.Empty, "volta", part));
+
+            Rule(node, left, y, right - left, StaffLineThick * 1.6);
+            Rule(node, left, y, StaffLineThick * 1.6, VoltaTick);
+
+            // Closed on the right where what it covers stops — a repeat end, or a line that ends the
+            // music. Left open otherwise, which is how a bracket says it carries on into the next line.
+            if (system.Bars[last].EndsRepeat || Closes(system.Bars[last].Closed))
+                Rule(node, right - (StaffLineThick * 1.6), y, StaffLineThick * 1.6, VoltaTick);
+
+            if (system.Bars[at].VoltaLabel is not { Length: > 0 } label) continue;
+
+            var glyphs = ScoreText.Build(label + ".", VoltaSize, _ppd);
+            var where = new Point(left + (0.45 * S), y + (0.28 * S));
+            node.Drew(new TextMark(glyphs, where, null));
+            node.Covering(new Rect(where, new Size(glyphs.Width, glyphs.Height)));
         }
     }
 

@@ -886,8 +886,8 @@ beamed pair to select the pair, drag for a run — then:
 …all of them on the selection, or on the note the caret has just passed. A right-click offers the same set
 as a small ribbon, so nobody has to remember a key. Design: [docs/markdown-ast.md](markdown-ast.md).
 
-What ```abc does not draw yet: slurs, ties, repeat brackets, grace notes, decorations, annotations,
-multi-voice systems, and the title/credit prose the `#%` path emits as real paragraphs.
+What ```abc does not draw yet: multi-voice systems, and the title/credit prose the `#%` path emits as
+real paragraphs.
 
 Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
 ([`MusicBlockExtension`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs), registered

@@ -87,9 +87,32 @@ internal sealed partial class AbcBuilder
         public string? ChordSymbol;
         public List<(int Verse, string Text, bool Hyphen, bool Melisma)> Lyrics = [];
 
+        /// <summary>Marks that hug the head, on the side the stem is not: staccato, tenuto, accent.</summary>
+        public List<int> HeadMarks = [];
+
+        /// <summary>Marks that stack clear of the staff: a fermata, an ornament, a bowing, a segno.</summary>
+        public List<int> StaffMarks = [];
+
+        /// <summary>Text placed relative to this event by the character that opened its quotes.</summary>
+        public List<(string Text, AnnotationPlacement Where)> Annotations = [];
+
+        /// <summary>True when a tie runs from this event to the next of the same pitch.</summary>
+        public bool TieStart;
+
+        /// <summary>How many slurs open on this event, and how many close on it. ABC allows nesting.</summary>
+        public int SlurOpen;
+        public int SlurClose;
+
+        /// <summary>Grace notes crushed in before it, each a half-space and a written value.</summary>
+        public List<(int Half, int Value)> Graces = [];
+
+        /// <summary>True for an acciaccatura — the group is drawn with a slash through its stem.</summary>
+        public bool GraceSlashed;
+
         // Placed, once the system is laid out.
         public double SlotWidth;
         public double AccidentalWidth;
+        public double GraceWidth;
         public double X;
 
         public bool Beamable => BaseValue >= 8 && !IsRest;
@@ -109,6 +132,13 @@ internal sealed partial class AbcBuilder
         public double SignatureWidth;
         public KeySignature? KeyChange;
         public (int Beats, int Unit)? MeterChange;
+
+        /// <summary>The repeat bracket opening at this bar — ABC's <c>|1</c> or <c>[2</c> — and its label.</summary>
+        public ContentPart? Volta;
+        public string? VoltaLabel;
+
+        /// <summary>True when the line closing this bar ends a repeat, which is where a bracket stops.</summary>
+        public bool EndsRepeat;
     }
 
     /// <summary>One line of music, which is where a system may break.</summary>
@@ -173,14 +203,56 @@ internal sealed partial class AbcBuilder
                     Gather(inside, bar, null);
                 }
 
+                bar.EndsRepeat = Printed(bar.Closed).Contains(':');
                 if (bar.Events.Count > 0 || bar.Closed is not null) row.Bars.Add(bar);
             }
 
+            Brackets(row);
             if (row.Bars.Count > 0) { rows.Add(row); started = true; }
         }
 
         return rows;
     }
+
+    /// <summary>
+    /// Which bar each repeat bracket opens at.
+    /// <para>
+    /// A number is written straight after a bar line — <c>|1</c> — so it belongs to the bar that line
+    /// opens rather than to the one it closed. Which is a fact about two bars and is settled here, once
+    /// the row is read, rather than by every reader that meets a number.
+    /// </para>
+    /// </summary>
+    private static void Brackets(Row row)
+    {
+        for (var at = 0; at < row.Bars.Count; at++)
+        {
+            if (Volta(row.Bars[at].Opened) is { } opening)
+            {
+                row.Bars[at].Volta = opening.Part;
+                row.Bars[at].VoltaLabel = opening.Label;
+            }
+
+            if (Volta(row.Bars[at].Closed) is not { } closing || at + 1 >= row.Bars.Count) continue;
+
+            row.Bars[at + 1].Volta = closing.Part;
+            row.Bars[at + 1].VoltaLabel = closing.Label;
+        }
+    }
+
+    /// <summary>The repeat-bracket number written on a bar line, or nothing.</summary>
+    private static (ContentPart Part, string Label)? Volta(ContentPart? line)
+    {
+        if (line is null) return null;
+
+        foreach (var piece in line.SelfAndDescendants())
+            if (piece.Kind == AbcKinds.Volta)
+                return (piece, piece.Node.Text);
+
+        return null;
+    }
+
+    /// <summary>What a part was written as, or nothing where there is no part.</summary>
+    private static string Printed(ContentPart? part) => part?.Node.Print() ?? "";
 
     /// <summary>Everything in a bar that takes time, in written order, with the groups it was written into.</summary>
     private void Gather(ContentPart piece, Bar bar, ContentPart? beam)
@@ -222,8 +294,29 @@ internal sealed partial class AbcBuilder
                 return;
 
             case AbcKinds.Annotation:
-                // A chord symbol is written before the note it belongs to, so it is held until one arrives.
-                _pendingChordSymbol = ChordSymbolOf(piece.Node.Text);
+                // Written before the note it belongs to, so it is held until one arrives.
+                Quoted(piece.Node.Text);
+                return;
+
+            case AbcKinds.Decoration:
+                Decorate(piece.Node.Text);
+                return;
+
+            case AbcKinds.Grace:
+                Graces(piece);
+                return;
+
+            case AbcKinds.SlurOpen:
+                _pendingSlurs++;
+                return;
+
+            case AbcKinds.SlurClose:
+                if (bar.Events.Count > 0) bar.Events[^1].SlurClose++;
+                return;
+
+            case AbcKinds.Tie:
+                // A tie is written after the note it runs from, so it is the one already in hand.
+                if (bar.Events.Count > 0) bar.Events[^1].TieStart = true;
                 return;
 
             default:
@@ -300,8 +393,106 @@ internal sealed partial class AbcBuilder
     private Event Taking(Event ev)
     {
         ev.ChordSymbol = _pendingChordSymbol;
+        ev.Annotations.AddRange(_pendingAnnotations);
+        ev.HeadMarks.AddRange(_pendingHeadMarks);
+        ev.StaffMarks.AddRange(_pendingStaffMarks);
+        ev.Graces.AddRange(_pendingGraces);
+        ev.GraceSlashed = _pendingGraceSlash;
+        ev.SlurOpen = _pendingSlurs;
+
         _pendingChordSymbol = null;
+        _pendingAnnotations.Clear();
+        _pendingHeadMarks.Clear();
+        _pendingStaffMarks.Clear();
+        _pendingGraces.Clear();
+        _pendingGraceSlash = false;
+        _pendingSlurs = 0;
+
         return ev;
+    }
+
+    // Everything written before an event belongs to it, and is held until it arrives. A list rather than
+    // a field because a note may wear several: `.~!trill!A` is three marks on one head.
+    private readonly List<(string Text, AnnotationPlacement Where)> _pendingAnnotations = [];
+    private readonly List<int> _pendingHeadMarks = [];
+    private readonly List<int> _pendingStaffMarks = [];
+    private readonly List<(int Half, int Value)> _pendingGraces = [];
+    private bool _pendingGraceSlash;
+    private int _pendingSlurs;
+
+    /// <summary>
+    /// A double-quoted run: a bare one names a chord, and one led by a placement character is text put
+    /// where that character says.
+    /// </summary>
+    private void Quoted(string quoted)
+    {
+        if (quoted.Length < 2) return;
+        var text = quoted[1..^1];
+        if (text.Length == 0) return;
+
+        var where = text[0] switch
+        {
+            '^' or '@' => AnnotationPlacement.Above,
+            '_' => AnnotationPlacement.Below,
+            '<' => AnnotationPlacement.Left,
+            '>' => AnnotationPlacement.Right,
+            _ => (AnnotationPlacement?)null,
+        };
+
+        if (where is null) { _pendingChordSymbol = text; return; }
+
+        _pendingAnnotations.Add((text[1..], where.Value));
+    }
+
+    /// <summary>
+    /// A decoration, sorted by where it goes. An articulation hugs the head on the side away from the
+    /// stem; an ornament, a fermata, a bowing or a navigation sign stacks clear of the staff. Which is a
+    /// fact about the mark rather than about the note, so it is decided once, here.
+    /// </summary>
+    private void Decorate(string written)
+    {
+        var name = written.Length > 2 && written[0] == '!' && written[^1] == '!'
+            ? written[1..^1].Trim().ToLowerInvariant()
+            : written;
+
+        switch (name)
+        {
+            case "." or "staccato": _pendingHeadMarks.Add(Smufl.ArticStaccatoAbove); return;
+            case "tenuto": _pendingHeadMarks.Add(Smufl.ArticTenutoAbove); return;
+            case "L" or "accent" or "emphasis" or ">": _pendingHeadMarks.Add(Smufl.ArticAccentAbove); return;
+            case "marcato" or "^": _pendingHeadMarks.Add(Smufl.ArticMarcatoAbove); return;
+
+            case "H" or "fermata": _pendingStaffMarks.Add(Smufl.FermataAbove); return;
+            case "T" or "trill": _pendingStaffMarks.Add(Smufl.OrnamentTrill); return;
+            case "~" or "roll" or "turn": _pendingStaffMarks.Add(Smufl.OrnamentTurn); return;
+            case "P" or "uppermordent" or "pralltriller": _pendingStaffMarks.Add(Smufl.OrnamentMordent); return;
+            case "M" or "lowermordent" or "mordent": _pendingStaffMarks.Add(Smufl.OrnamentLowerMordent); return;
+            case "u" or "upbow": _pendingStaffMarks.Add(Smufl.StringsUpBow); return;
+            case "v" or "downbow": _pendingStaffMarks.Add(Smufl.StringsDownBow); return;
+            case "S" or "segno": _pendingStaffMarks.Add(Smufl.Segno); return;
+            case "O" or "coda": _pendingStaffMarks.Add(Smufl.Coda); return;
+        }
+    }
+
+    /// <summary>
+    /// The grace notes crushed in before the next event. Their pitches come off the tree the same way a
+    /// real note's does; what makes them grace notes is where they were written, not what they are.
+    /// </summary>
+    private void Graces(ContentPart group)
+    {
+        _pendingGraceSlash = group.Part(Roles.Name)?.Node.Text == "/";
+
+        foreach (var member in group.Children)
+        {
+            if (member.Kind != AbcKinds.Note || member.Part(AbcRoles.Letter) is null) continue;
+
+            var pitch = ResolveNotes.PitchOf(member.Node) ?? default;
+            var (value, _) = Value(ResolveNotes.WrittenOf(member.Node).Quarters);
+            _pendingGraces.Add((pitch.DiatonicIndex, Math.Max(value, 8)));
+        }
+
+        // A lone grace note is conventionally slashed, whether or not the source asked.
+        if (_pendingGraces.Count == 1) _pendingGraceSlash = true;
     }
 
     /// <summary>The accidental written in front of a note, in semitones, or null where none was.</summary>
@@ -309,14 +500,6 @@ internal sealed partial class AbcBuilder
         note.Part(AbcRoles.Accidental)?.Node.Text is { Length: > 0 } mark
             ? mark[0] switch { '^' => mark.Length, '_' => -mark.Length, _ => 0 }
             : null;
-
-    /// <summary>What a chord symbol says, or null where the quotes held a placed annotation instead.</summary>
-    private static string? ChordSymbolOf(string quoted)
-    {
-        if (quoted.Length < 2) return null;
-        var text = quoted[1..^1];
-        return text.Length == 0 || text[0] is '^' or '_' or '<' or '>' or '@' ? null : text;
-    }
 
     /// <summary>
     /// A written note value and its dots, from a length in quarter notes. Chosen rather than computed,
