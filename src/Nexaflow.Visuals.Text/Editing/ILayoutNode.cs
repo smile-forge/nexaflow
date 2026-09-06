@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -136,14 +137,3 @@ public static class LayoutNodeExtensions
                               : new SourcePlace(node.Naming()?.Start ?? 0, 0);
 }
 
-
-/// <summary>Convenience over <see cref="ISourcePart"/>, so the arithmetic is written once.</summary>
-public static class SourcePartExtensions
-{
-    /// <summary>One past the last source character this part is named by.</summary>
-    public static int End(this ISourcePart part) => part.Start + part.Length;
-
-    /// <summary>Whether this part's stretch of source wholly contains another's.</summary>
-    public static bool Covers(this ISourcePart part, ISourcePart other) =>
-        other.Start >= part.Start && other.End() <= part.End();
-}

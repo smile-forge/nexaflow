@@ -1,0 +1,60 @@
+{
+  "branch": "claude/abc-music-rendering-1eccb8",
+  "nodes": {
+    "abc-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcParser.cs",
+          "class": "AbcParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentNode.cs",
+          "class": "ContentNode"
+        }
+      ]
+    },
+    "abc-ast-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/AstPipeline.cs",
+          "class": "AstPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs",
+          "class": "AbcPipeline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/Abc/AbcPipelineTests.cs",
+            "class": "AbcPipelineTests"
+          }
+        ]
+      }
+    },
+    "abc-ast-roundtrip": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/Abc/AbcRoundTripTests.cs",
+            "class": "AbcRoundTripTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "abc-ast",
+    "abc-ast-pipeline",
+    "abc-ast-roundtrip"
+  ]
+}

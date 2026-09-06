@@ -2,6 +2,7 @@ using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 

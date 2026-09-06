@@ -1,3 +1,5 @@
+using Nexaflow.Markdown.Ast;
+
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>

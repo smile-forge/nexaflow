@@ -1,5 +1,6 @@
 using Nexaflow.Maths.Latex;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 

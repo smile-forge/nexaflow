@@ -1,4 +1,5 @@
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 

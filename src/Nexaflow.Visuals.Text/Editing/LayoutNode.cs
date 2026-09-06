@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Windows;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Editing;
 

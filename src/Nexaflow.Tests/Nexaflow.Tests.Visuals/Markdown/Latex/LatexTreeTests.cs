@@ -5,6 +5,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Maths.Latex;
 using Nexaflow.Tests.Visuals.Editing;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 

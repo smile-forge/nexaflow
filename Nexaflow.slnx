@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
@@ -206,6 +206,9 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Maths/Nexaflow.Tests.Maths.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Nexaflow.Tests.Markdown.csproj">
+      <Platform Project="x64" />
+    </Project>
     <!-- The typesetting engine's own suite, ingested with it. F#/xunit, and run from its own directory
          because of the test runner — see the global.json beside it. -->
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Typesetting/Nexaflow.Tests.Typesetting.fsproj">
@@ -227,6 +230,12 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="src/Nexaflow.IO.Common/Nexaflow.IO.Common.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- The rendering domain, WPF-free: one formal syntax tree every rendered language is read into, the
+       pipeline of stages that re-read it, and the per-language parsers. Music lives here; maths and the
+       rest follow. See docs/markdown-ast.md. -->
+  <Project Path="src/Nexaflow.Markdown/Nexaflow.Markdown.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- The maths domain, WPF-free: the LaTeX parse tree that owns its text. Under both Visuals.Text
