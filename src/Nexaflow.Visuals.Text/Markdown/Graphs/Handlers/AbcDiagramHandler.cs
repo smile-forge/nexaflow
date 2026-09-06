@@ -22,6 +22,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 /// the offset an element reports is the fence body's own, biased by
 /// <see cref="DiagramRenderOptions.SourceOffset"/> onto the markdown block it came from.
 /// </para>
+/// <para>
+/// What comes back is an <see cref="AbcScore"/> rather than the engraved music alone: a title is words a
+/// reader wants to select, and words painted into a picture are words nobody can reach. The caret still
+/// finds the score inside it — the editing host walks the tree for the block, so a wrapper is nothing to
+/// it.
+/// </para>
 /// </summary>
 public sealed class AbcDiagramHandler : IDiagramHandler
 {
@@ -32,5 +38,5 @@ public sealed class AbcDiagramHandler : IDiagramHandler
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) =>
-        new AbcElement(source, options.Palette) { SourceStart = options.SourceOffset };
+        new AbcScore(source, options.Palette, options.SourceOffset);
 }

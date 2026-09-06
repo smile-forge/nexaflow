@@ -74,20 +74,62 @@ public class AbcFenceTests
         Assert.AreEqual(score.Source, Document.Substring(editable.SourceStart, score.Source.Length));
     });
 
+    [TestMethod]
+    public void TheProseAroundATuneIsTextRatherThanPicture() => UiThread.Run(() =>
+    {
+        // A title painted into the drawing is words nobody can select, and the words around a tune are
+        // exactly the ones a reader wants to copy.
+        var tune = "X:1\nT:Speed the Plough\nT:a second title\nR:reel\nC:Trad.\nO:England\n"
+                 + "S:Sussex\nK:G\nGABc dedB|\n";
+
+        var element = new AbcScore(tune, MarkdownPalette.Dark, 0);
+
+        var written = Descendants(element).OfType<System.Windows.Controls.TextBlock>()
+            .Select(t => t.Text)
+            .ToList();
+
+        CollectionAssert.Contains(written, "Speed the Plough");
+        CollectionAssert.Contains(written, "a second title");
+        CollectionAssert.Contains(written, "reel");
+        CollectionAssert.Contains(written, "Trad. (England)", "the composer with the origin in brackets");
+        CollectionAssert.Contains(written, "Source: Sussex", "labelled the way an engraver labels it");
+
+        // …and the music is still in there for the caret to find.
+        Assert.IsNotNull(Inside(element));
+    });
+
     private static AbcElement? Inside(DependencyObject root) => Descendants(root).OfType<AbcElement>().FirstOrDefault();
 
+    /// <summary>
+    /// Everything under a root, by both trees, each thing once.
+    /// <para>
+    /// Both trees, because an element that has never been measured has no visual children and the block is
+    /// only reachable logically — and each thing once, because the two trees overlap and a walk that
+    /// followed them independently visits the same element down two paths until the stack runs out.
+    /// </para>
+    /// </summary>
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
-        yield return root;
+        var seen = new HashSet<DependencyObject>();
+        var pending = new Stack<DependencyObject>([root]);
 
-        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
-        for (var i = 0; i < count; i++)
-            foreach (var child in Descendants(System.Windows.Media.VisualTreeHelper.GetChild(root, i)))
-                yield return child;
+        while (pending.Count > 0)
+        {
+            var node = pending.Pop();
+            if (!seen.Add(node)) continue;
+            yield return node;
 
-        if (root is FrameworkElement { } element)
+            // Only a Visual has visual children, and the logical tree holds things that are not one — a
+            // Grid's ColumnDefinitions among them, which the visual helper throws on rather than skipping.
+            if (node is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D)
+            {
+                var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+                for (var i = 0; i < count; i++) pending.Push(System.Windows.Media.VisualTreeHelper.GetChild(node, i));
+            }
+
+            if (node is not FrameworkElement element) continue;
             foreach (var child in LogicalTreeHelper.GetChildren(element).OfType<DependencyObject>())
-                foreach (var deeper in Descendants(child))
-                    yield return deeper;
+                pending.Push(child);
+        }
     }
 }
