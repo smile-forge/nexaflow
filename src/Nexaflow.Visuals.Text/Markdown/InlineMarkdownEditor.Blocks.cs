@@ -277,6 +277,11 @@ public partial class InlineMarkdownEditor
         if (ctrl && e.Key is Key.C or Key.X) return false;
         if (ctrl) { BlurBlock(); return false; }
 
+        // Whatever the block wants for itself, before any of the shared handling. A score claims Page Up
+        // and Page Down for an octave and the sharpen/flatten and lengthen/shorten keys; a formula claims
+        // none of them. Asked of the seam rather than of the type, so the host never learns what a note is.
+        if (block.HandleKey(e.Key, Keyboard.Modifiers)) return true;
+
         switch (e.Key)
         {
             case Key.Left:
@@ -289,8 +294,7 @@ public partial class InlineMarkdownEditor
             case Key.Down:
                 // Inside a fraction or a script there is somewhere to go; otherwise let the editor move
                 // the caret to another line, which means leaving the block.
-                if (block is FormulaElement vertical
-                    && vertical.MoveCaretVertically(up: e.Key == Key.Up, extend: shift)) return true;
+                if (block.MoveCaretVertically(up: e.Key == Key.Up, extend: shift)) return true;
                 BlurBlock();
                 return false;
 
@@ -309,7 +313,7 @@ public partial class InlineMarkdownEditor
                 // any other and is typed here rather than left to arrive as text input: handing the key
                 // back sent it to the document, which put the space in the next paragraph it could find
                 // and took the caret there with it.
-                if (block is FormulaElement spacing) { spacing.Commit(" "); return true; }
+                if (block.Commit(" ")) return true;
                 block.Type(' ');
                 return true;
 
@@ -321,7 +325,7 @@ public partial class InlineMarkdownEditor
                 return true;
 
             case Key.Enter:
-                if (block is FormulaElement entering) { entering.Commit(" "); return true; }
+                if (block.Commit(" ")) return true;
                 // Never a block split: the caret is inside one piece of content, not between two
                 // paragraphs — and content that is one line has no second line to start, so this does
                 // nothing at all rather than tearing the document in half behind it.
@@ -330,7 +334,7 @@ public partial class InlineMarkdownEditor
             case Key.Tab:
                 // Through the holes of whatever was just inserted, so a construct is filled by typing
                 // and tabbing. Only while there are holes left; otherwise Tab is the document's.
-                return block is FormulaElement holed && holed.SelectNextPlaceholder(forward: !shift);
+                return block.SelectNextPlaceholder(forward: !shift);
 
             case Key.Escape:
                 BlurBlock();
@@ -351,7 +355,7 @@ public partial class InlineMarkdownEditor
             // A newline settles a formula's half-written command, and means nothing to a one-line value.
             if (character is '\r' or '\n')
             {
-                if (block is FormulaElement formula) formula.Commit();
+                block.Commit(" ");
                 continue;
             }
 

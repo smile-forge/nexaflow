@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Input;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Visuals.Text.Editing;
@@ -140,4 +142,42 @@ public interface IEditableBlock : IInteractiveBlock
     /// on that side — the block has no idea what surrounds it.
     /// </summary>
     event EventHandler<BlockExit>? Exited;
+
+    // ── Keys that are genuinely not shared ──────────────────────────────────
+    //
+    // Everything above is what any rendered content wants. What follows is what only some of it wants —
+    // moving between the parts of a fraction, settling a command with a space, tabbing through the holes
+    // of a half-written construct, moving a note an octave. These used to be `is FormulaElement` tests in
+    // the host, which was honest while a formula was the only block with keys of its own and stopped being
+    // so at the second. Defaulted to declining, so a block with no use for one never has to say so, and
+    // the key falls back to the document exactly as it did.
+
+    /// <summary>
+    /// A key the block wants before the shared handling gets it. False leaves it to the host.
+    /// <para>
+    /// Asked first, and asked of every block, so a content type can claim a key nothing else uses — a
+    /// score claims Page Up and Page Down to move a note an octave — without the host learning what a
+    /// note is.
+    /// </para>
+    /// </summary>
+    bool HandleKey(Key key, ModifierKeys modifiers) => false;
+
+    /// <summary>Moves the caret onto the row above or below inside the content. False if there is none.</summary>
+    bool MoveCaretVertically(bool up, bool extend) => false;
+
+    /// <summary>
+    /// Settles what is being typed, optionally writing <paramref name="text"/> as it goes — a space that
+    /// finishes a command name, an Enter that finishes the construct. False when there was nothing to
+    /// settle.
+    /// </summary>
+    bool Commit(string text) => false;
+
+    /// <summary>Selects the next place something still has to be written. False when there are none.</summary>
+    bool SelectNextPlaceholder(bool forward) => false;
+
+    /// <summary>
+    /// A small ribbon of the actions this block offers on what is selected, for the host to show where the
+    /// reader right-clicked. Null from anything with none, which is what puts the ordinary text menu back.
+    /// </summary>
+    FrameworkElement? BuildRibbon() => null;
 }

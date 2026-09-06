@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
@@ -309,6 +309,12 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>Moves the caret to the line above or below — across a fraction bar, out of a script.</summary>
+    bool IEditableBlock.Commit(string text) { Commit(text); return true; }
+
+    bool IEditableBlock.MoveCaretVertically(bool up, bool extend) => MoveCaretVertically(up, extend);
+
+    bool IEditableBlock.SelectNextPlaceholder(bool forward) => SelectNextPlaceholder(forward);
+
     public bool MoveCaretVertically(bool up, bool extend = false)
     {
         var next = _layout?.Tree.StepVertical(_state.Caret, up);

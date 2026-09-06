@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -1093,6 +1093,17 @@ public partial class InlineMarkdownEditor : UserControl
     private void OnPreviewMouseRightButtonUp(object? sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
+
+        // A block under the pointer gets first refusal: a score offers an octave, a length and an
+        // accidental, none of which the document's formatting bar could name. Asked of the block rather
+        // than of its type, so the host never learns what a note is.
+        if (InteractiveBlockAtPoint(e.GetPosition(_rtb)) is Editing.IEditableBlock editable
+            && editable is UIElement hosting
+            && editable.BuildRibbon() is { } ribbon)
+        {
+            OpenBlockRibbon(editable, ribbon, e.GetPosition(hosting));
+            return;
+        }
 
         // While editing a block, offer the formatting mini-toolbar; otherwise the plain Cut/Copy menu.
         if (_active >= 0) { OpenEditBar(); return; }

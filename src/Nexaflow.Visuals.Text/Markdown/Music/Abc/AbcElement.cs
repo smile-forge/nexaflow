@@ -26,9 +26,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// out of the shared queries as soon as the layout says what each piece was drawn from.
 /// </para>
 /// </summary>
-public sealed class AbcElement : FrameworkElement, IInteractiveBlock
+public sealed partial class AbcElement : FrameworkElement
 {
-    private readonly string _abc;
+    private string _abc;
     private readonly Brush _ink;
     private readonly Brush _wash;
 
@@ -118,6 +118,7 @@ public sealed class AbcElement : FrameworkElement, IInteractiveBlock
         PaintSelection(dc, layout);
         layout.Paint(dc, _ink);
         PaintDiagnostics(dc, layout);
+        PaintCaret(dc, layout);
     }
 
     private void PaintSelection(DrawingContext dc, AbcLayout layout)

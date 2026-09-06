@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Windows;
+using Nexaflow.Visuals.Text.Editing;
 using System.Windows.Input;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -77,10 +79,43 @@ public partial class InlineMarkdownEditor
 
     private void OpenEditBar()
     {
+        RestoreEditBar();
         _editBar.SetClipboardState(canCut: !_rtb.Selection.IsEmpty, canPaste: ClipboardHasContent());
         _editBarPopup.IsOpen = false;   // re-anchor at the current mouse point if already open
         _editBarPopup.IsOpen = true;
     }
 
     private void CloseEditBar() => _editBarPopup.IsOpen = false;
+
+    // ── A block's own ribbon ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Shows whatever ribbon the block under the pointer offered, in the popup the formatting bar already
+    /// uses — same placement, same focus guard, same fade.
+    /// <para>
+    /// The right-click also puts the caret in the block and selects what was clicked, because a ribbon
+    /// with nothing selected would have nothing to act on: a reader who right-clicks a note means that
+    /// note. A right-click inside an existing selection leaves it alone, which is what every editor does.
+    /// </para>
+    /// </summary>
+    private void OpenBlockRibbon(IEditableBlock block, FrameworkElement ribbon, Point at)
+    {
+        if (block.Selection.Count == 0)
+        {
+            block.BeginPointerSelect(at);
+            block.EndPointerSelect();
+        }
+
+        if (!ReferenceEquals(_caretBlock, block)) FocusBlock(block);
+
+        _editBarPopup.IsOpen = false;
+        _editBarPopup.Child = ribbon;
+        _editBarPopup.IsOpen = true;
+    }
+
+    /// <summary>Puts the document's own formatting bar back, after a block borrowed the popup.</summary>
+    private void RestoreEditBar()
+    {
+        if (!ReferenceEquals(_editBarPopup.Child, _editBar)) _editBarPopup.Child = _editBar;
+    }
 }

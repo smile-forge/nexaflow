@@ -240,7 +240,8 @@ public static class AbcParser
         }
     }
 
-    internal static bool IsNoteLetter(char c) => c is >= 'A' and <= 'G' or >= 'a' and <= 'g';
+    /// <summary>Whether this letter names a note. Public because an editor asks it of every keystroke.</summary>
+    public static bool IsNoteLetter(char c) => c is >= 'A' and <= 'G' or >= 'a' and <= 'g';
 
     // ── Notes, rests and chords ─────────────────────────────────────────────
 

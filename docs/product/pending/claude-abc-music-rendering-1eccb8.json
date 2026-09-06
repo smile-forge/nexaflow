@@ -13,7 +13,16 @@
           "doc": "src/Nexaflow.Markdown/Ast/ContentNode.cs",
           "class": "ContentNode"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/Abc/AbcCorpusTests.cs",
+            "class": "AbcCorpusTests"
+          }
+        ]
+      }
     },
     "abc-ast-pipeline": {
       "links": [
@@ -76,14 +85,48 @@
           }
         ]
       }
+    },
+    "abc-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcEdit.cs",
+          "class": "AbcEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcElement.Editing.cs",
+          "class": "AbcElement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcRibbon.cs",
+          "class": "AbcRibbon"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/Abc/AbcEditTests.cs",
+            "class": "AbcEditTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcElementTests.cs",
+            "class": "AbcElementTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 9,
   "touched_nodes": [
     "abc-ast",
     "abc-ast-pipeline",
     "abc-ast-roundtrip",
+    "abc-editing",
     "abc-layout"
   ]
 }

@@ -873,6 +873,19 @@ There are two ways to write music, and they are different engines rather than tw
   LilyPond through the shared `Score` IR and its own engraver. The two meet, and the older one goes, when
   LilyPond moves across.
 
+**Editing it.** A ```abc block is written on in place. Click a note head to select the note, click a
+beamed pair to select the pair, drag for a run — then:
+
+| | |
+|---|---|
+| `A`–`G` | a note, in the octave the one before it was in |
+| Page Up / Page Down | an octave up or down |
+| `#` / `_` | a semitone up or down, spelled out |
+| `+` / `-` | longer or shorter |
+
+…all of them on the selection, or on the note the caret has just passed. A right-click offers the same set
+as a small ribbon, so nobody has to remember a key. Design: [docs/markdown-ast.md](markdown-ast.md).
+
 What ```abc does not draw yet: slurs, ties, repeat brackets, grace notes, decorations, annotations,
 multi-voice systems, and the title/credit prose the `#%` path emits as real paragraphs.
 

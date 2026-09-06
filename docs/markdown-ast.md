@@ -144,6 +144,52 @@ Latin-1, so a good third of it carries mojibake (`AntÃ­fona`). That is not a d
 exactly the input a claim of "the parser only ever copies" has to survive, and a test that normalised it
 first would be testing a tune nobody has.
 
+## Editing
+
+An edit is an operation on the tree, and the source is how the tree is written down.
+
+**Part in, new whole root out, print, re-read, rebuild.** What an edit hands back is *provisional*: the
+stages between the parser and the builder do not re-derive themselves when a tree changes underneath
+them — a note whose accidental has just moved still carries the pitch worked out for the old one — so an
+edit prints, and the source it prints as is read back and built from. One path, always taken, therefore
+always right. It is also why editing a tree is worth the trouble: an edit expressed against a part knows
+what it touched, so trouble afterwards can be blamed on the keystroke that caused it rather than guessed
+at by diffing a string.
+
+ABC makes this unusually cheap. **A note is four leaves** — an optional accidental, the letter, optional
+octave marks, an optional length — so each gesture rewrites one leaf and nothing else. A tune somebody
+lined up by hand still reads that way afterwards.
+
+| Gesture | What it writes |
+|---|---|
+| `A`–`G` | a note in the octave the one before it was in |
+| Page Up / Page Down | `C,` → `C` → `c` → `c'`, case and marks together |
+| `#` / `_` | one semitone up or down, **from what the note sounds** — see below |
+| `+` / `-` | double or halve the written length; dots survive |
+
+**The accidental gesture asks what the note sounds, not what is written in front of it**, and that is the
+difference between a gesture that works and one that surprises. A bare `F` in G major is an F sharp, so
+flattening it must write `=F`: taking an accidental away would leave the key signature to sharpen it
+again. The stage worked the sounding pitch out already, and this is what those facts are for.
+
+Plain typing is not an edit operation. A letter inserted at the caret needs no reshaping — ABC has no
+construct that must be bracketed when it grows — so the element splices it, exactly as the formula editor
+splices a character its own tree did not have to reshape.
+
+### The seam
+
+`IEditableBlock` is the whole of what a document needs to drive rendered content: its source, its layout,
+what is selected, what could not be read, a caret that can be handed in at an edge and handed back out,
+and the keys that change it. A block that implements it is selected across, arrowed into, typed in and
+spliced back by host code that knows nothing about what it holds.
+
+What is *not* shared is declared on the same interface rather than recognised by type:
+`HandleKey`, `MoveCaretVertically`, `Commit`, `SelectNextPlaceholder`, `BuildRibbon` — all defaulted to
+declining. A formula claims Space, Enter and Tab; a score claims Page Up, Page Down and the
+sharpen/lengthen keys; a barcode claims none, and says nothing. These used to be `is FormulaElement` tests
+in the host, which was honest while a formula was the only block with keys of its own and stopped being so
+at the second.
+
 ## What a new language has to bring
 
 1. A parser producing `ContentNode`s, obeying both invariants, and a `Kinds`/`Roles` set of its own.
