@@ -38,6 +38,18 @@ internal sealed partial class AbcBuilder
 
         /// <summary>The piece of layout this system was drawn into, for the curves drawn over it after.</summary>
         public AbcLayoutNode? Node;
+
+        /// <summary>
+        /// Which bracketed system this staff belongs to. Staves sharing one are simultaneous: they get one
+        /// bar grid, a bracket down the left, and bar lines running through them.
+        /// </summary>
+        public int Bracket;
+
+        public bool FirstOfBracket;
+        public bool LastOfBracket;
+
+        /// <summary>Whether this staff prints its voice's name at the left — the first system does.</summary>
+        public bool ShowName;
     }
 
     private double _noteHead;
@@ -60,8 +72,9 @@ internal sealed partial class AbcBuilder
 
         foreach (var system in systems) Draw(root, system);
 
-        // Ties and slurs last, because a curve may run from one system to the next and neither can be
-        // drawn until both are placed.
+        // A bracket joins staves that are already placed, and a curve may run from one system to the
+        // next — neither can be drawn until every staff has landed.
+        Brackets(root, systems);
         Curves(systems);
 
         var extent = Extent(root);
@@ -141,7 +154,13 @@ internal sealed partial class AbcBuilder
     /// <summary>The room the clef, key signature and meter take at the head of a system.</summary>
     private double HeadWidth(Row row)
     {
-        var width = LeftMargin + Smufl.Advance(StaffGeometry.For(row.Clef).ClefGlyph, S) + (0.6 * S);
+        // A voice's name is printed to the left of its clef, so it has to be paid for before the clef is
+        // placed — otherwise every staff in a part song starts at a different x and the grid is gone.
+        var named = row is { Index: 0, Name: { Length: > 0 } name }
+            ? ScoreText.Width(name, CreditSize, _ppd) + (0.6 * S)
+            : 0;
+
+        var width = LeftMargin + named + Smufl.Advance(StaffGeometry.For(row.Clef).ClefGlyph, S) + (0.6 * S);
         width += KeyWidth(KeySignature.FromFifths(row.Context.Fifths), row.Clef);
         if (width > 0) width += 0.4 * S;
         return width + MeterWidth() + (0.6 * S);
@@ -166,19 +185,97 @@ internal sealed partial class AbcBuilder
     {
         var systems = new List<System>();
         var available = width - RightMargin;
+        var bracket = 0;
 
-        foreach (var row in rows)
+        // The parts that sound together, in the order they were written. ABC writes one voice's line after
+        // another and leaves the reader to count, so this is the counting.
+        foreach (var together in rows.GroupBy(r => (r.Voice.Length == 0 ? "" : "v", r.Index))
+                                     .OrderBy(g => rows.IndexOf(g.First())))
         {
-            foreach (var bar in row.Bars) Measure(bar, row);
+            var parts = together.ToList();
+            foreach (var row in parts)
+                foreach (var bar in row.Bars) Measure(bar, row);
 
-            var head = HeadWidth(row);
+            var shared = Share(parts);
+            var head = parts.Max(HeadWidth);
+            var from = systems.Count;
+
+            foreach (var row in parts) Break(systems, row, head, available, bracket);
+
+            // Only what shares a bar grid is bracketed. A bracket drawn over voices that disagree about
+            // where the bars are would run a line through music that is not simultaneous.
+            if (shared) Bracketed(systems, from, parts.Count);
+            bracket++;
+        }
+
+        return systems;
+    }
+
+    /// <summary>
+    /// One bar grid for the whole bracket: bar <em>n</em> is as wide as the widest voice's bar
+    /// <em>n</em>, so the lines run straight down and a reader can read across the parts.
+    /// <para>
+    /// Only where the voices agree about where the bars are. Where they do not — which real tunebooks do,
+    /// and which is nobody's mistake — they are left at their own widths and stack honestly rather than
+    /// being forced into a grid that would misalign every bar after the first difference.
+    /// </para>
+    /// </summary>
+    private static bool Share(List<Row> parts)
+    {
+        if (parts.Count < 2) return false;
+
+        var bars = parts[0].Bars.Count;
+        if (bars == 0 || parts.Any(p => p.Bars.Count != bars)) return false;
+
+        for (var at = 0; at < bars; at++)
+        {
+            var widest = parts.Max(p => p.Bars[at].Width);
+            foreach (var part in parts) part.Bars[at].Width = widest;
+        }
+
+        return true;
+    }
+
+    /// <summary>Marks the run of staves just laid out as one bracketed system.</summary>
+    private static void Bracketed(List<System> systems, int from, int voices)
+    {
+        // Only where every voice broke the same way. A bracket that joined staves holding different bars
+        // would draw a line through music that is not simultaneous.
+        var made = systems.Count - from;
+        if (voices < 2 || made % voices != 0) return;
+
+        var lines = made / voices;
+
+        for (var line = 0; line < lines; line++)
+            for (var voice = 0; voice < voices; voice++)
+            {
+                var at = from + (voice * lines) + line;
+                systems[at].Bracket = line + 1;
+                systems[at].FirstOfBracket = voice == 0;
+                systems[at].LastOfBracket = voice == voices - 1;
+            }
+
+        // Staves that sound together have to be drawn together, which means ordering them line by line
+        // rather than voice by voice.
+        var reordered = new List<System>(made);
+        for (var line = 0; line < lines; line++)
+            for (var voice = 0; voice < voices; voice++)
+                reordered.Add(systems[from + (voice * lines) + line]);
+
+        for (var i = 0; i < made; i++) systems[from + i] = reordered[i];
+    }
+
+    /// <summary>One voice's line, broken into as many systems as the page needs.</summary>
+    private void Break(List<System> systems, Row row, double head, double available, int bracket)
+    {
+        {
             var total = row.Bars.Sum(b => b.Width);
             var room = Math.Max(available - head, 4 * S);
 
             var lines = Math.Max(1, (int)Math.Ceiling(total / room));
             var each = total / lines;
 
-            var current = new System { Row = row, HeadWidth = head };
+            var current = new System { Row = row, HeadWidth = head, ShowName = row.Index == 0 };
             var used = 0.0;
 
             foreach (var bar in row.Bars)
@@ -200,9 +297,8 @@ internal sealed partial class AbcBuilder
             }
 
             if (current.Bars.Count > 0) systems.Add(current);
+            _ = bracket;
         }
-
-        return systems;
     }
 
     /// <summary>
@@ -321,7 +417,12 @@ internal sealed partial class AbcBuilder
             system.Below += system.TextBelow * ChordRow;
 
             system.StaffTop = y + system.Above;
-            y = system.StaffTop + StaffHeight + system.Below + (system.LyricVerses * LyricRow) + SystemGap;
+
+            // A staff that sounds with the next one is set close to it; a new system gets a full gap. The
+            // difference is what tells a reader whether two lines are played together or one after another,
+            // and it is the only thing that does.
+            var gap = system.Bracket > 0 && !system.LastOfBracket ? StaffGap : SystemGap;
+            y = system.StaffTop + StaffHeight + system.Below + (system.LyricVerses * LyricRow) + gap;
         }
     }
 
@@ -358,6 +459,16 @@ internal sealed partial class AbcBuilder
     private void Head(AbcLayoutNode into, System system, StaffGeometry geometry)
     {
         var x = LeftMargin + (0.4 * S);
+
+        if (system.ShowName && system.Row.Name is { Length: > 0 } name)
+        {
+            var glyphs = ScoreText.Build(name, CreditSize, _ppd);
+            var at = new Point(x, system.StaffTop + (StaffHeight / 2) - (glyphs.Height / 2));
+
+            var node = into.Adding(new AbcLayoutNode(new Rect(at, new Size(glyphs.Width, glyphs.Height)), "voice"));
+            node.Drew(new TextMark(glyphs, at, null));
+            x += glyphs.Width + (0.6 * S);
+        }
 
         var clefY = Y(system, geometry.ClefRefHalfSpaces);
         Glyph(into, "clef", geometry.ClefGlyph, new Point(x, clefY));
@@ -959,6 +1070,67 @@ internal sealed partial class AbcBuilder
     /// <summary>Whether a bar line ends the music rather than merely dividing it.</summary>
     private static bool Closes(ContentPart? line) =>
         line?.Node.Print() is { } written && (written.Contains(']') || written == "||");
+
+    // ── Bracketed systems ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// What says two staves are played together rather than one after another: a bracket down their left,
+    /// and bar lines running through the gap between them.
+    ///
+    /// <para>
+    /// Both are drawn after every staff has been placed, because both are about the space <em>between</em>
+    /// two staves and neither exists until both have a position. The bar lines are taken off the topmost
+    /// staff of the group, which is only correct because the group shares one bar grid — where the voices
+    /// disagreed about where the bars are, nothing was bracketed and nothing is drawn.
+    /// </para>
+    /// </summary>
+    private static void Brackets(AbcLayoutNode root, List<System> systems)
+    {
+        for (var at = 0; at < systems.Count; at++)
+        {
+            if (systems[at].Bracket == 0 || !systems[at].FirstOfBracket) continue;
+
+            var last = at;
+            while (last + 1 < systems.Count
+                   && systems[last + 1].Bracket == systems[at].Bracket
+                   && !systems[last].LastOfBracket) last++;
+
+            if (last == at) continue;
+
+            var top = systems[at].StaffTop;
+            var bottom = systems[last].StaffTop + StaffHeight;
+            var node = root.Adding(new AbcLayoutNode(Rect.Empty, "bracket"));
+
+            // Clamped to the left edge rather than placed a bracket's width outside it: the margin is two
+            // pixels, so a bracket drawn where it belongs is half off the page.
+            var x = Math.Max(0, LeftMargin - BracketWidth);
+            Rule(node, x, top, BracketWidth, bottom - top);
+
+            // A short hook at each end, which is what tells the eye the line is a bracket and not the
+            // start of a bar.
+            Rule(node, x, top, BracketWidth * 2, StaffLineThick * 2);
+            Rule(node, x, bottom - (StaffLineThick * 2), BracketWidth * 2, StaffLineThick * 2);
+
+            Through(node, systems, at, last);
+        }
+    }
+
+    /// <summary>The bar lines continued down the gaps between the staves of one bracketed system.</summary>
+    private static void Through(AbcLayoutNode node, List<System> systems, int from, int to)
+    {
+        foreach (var bar in systems[from].Bars)
+        {
+            if (bar.Closed is null) continue;
+            var x = bar.X + bar.Width - BarlineWidth(bar.Closed) + (0.25 * S);
+
+            for (var at = from; at < to; at++)
+                Rule(node,
+                     x,
+                     systems[at].StaffTop + StaffHeight,
+                     ThinBarline,
+                     systems[at + 1].StaffTop - (systems[at].StaffTop + StaffHeight));
+        }
+    }
 
     // ── Curves ──────────────────────────────────────────────────────────────
 

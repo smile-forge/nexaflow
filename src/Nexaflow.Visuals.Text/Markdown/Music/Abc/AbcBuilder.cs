@@ -147,6 +147,13 @@ internal sealed partial class AbcBuilder
         public List<Bar> Bars = [];
         public AbcContext Context;
         public ClefKind Clef = ClefKind.Treble;
+
+        /// <summary>Which voice wrote it, and how many of that voice's lines came before it.</summary>
+        public string Voice = "";
+        public int Index;
+
+        /// <summary>What to print at the left of the first system, where a voice has a name.</summary>
+        public string? Name;
     }
 
     // ── Reading it ──────────────────────────────────────────────────────────
@@ -165,18 +172,36 @@ internal sealed partial class AbcBuilder
         var meter = ((int Beats, int Unit)?)null;
         var started = false;
 
+        // How many lines each voice has written. Two voices' n-th lines sound together, which is the whole
+        // of what makes a system a system: ABC writes the parts one after another and leaves the reader to
+        // count.
+        var lines = new Dictionary<string, int>();
+        var names = new Dictionary<string, string>();
+        var clefs = new Dictionary<string, ClefKind>();
+
         foreach (var line in _reading.Root.Children)
         {
             if (line.Kind == AbcKinds.Field)
             {
-                // A field between lines changes what the next system opens with, and the change is printed
-                // at the head of the bar it reaches. Only once the music has started, though: the header's
-                // own K: and M: are what every system opens with, and printing them again at the head of
-                // the first bar sets the meter twice on the first line of every tune.
-                if (!started) continue;
-
                 var name = line.Part(Roles.Name)?.Text ?? "";
                 var value = line.Part(AbcRoles.Value)?.Node.Text ?? "";
+
+                // What a voice is called and which clef it asks for are settled wherever the V: is written,
+                // which for a part song is in the header — before any music has started. Reading these
+                // under the guard below is how the first voice lost both.
+                if (name.StartsWith('V'))
+                {
+                    var (id, label) = VoiceName(value);
+                    if (label is not null) names[id] = label;
+                    if (ClefIn(value) is { } asked) clefs[id] = asked;
+                    continue;
+                }
+
+                // A key or meter written between lines changes what the next system opens with, and the
+                // change is printed at the head of the bar it reaches. Only once the music has started: the
+                // header's own K: and M: are what every system opens with, and printing them again at the
+                // head of the first bar sets the meter twice on the first line of every tune.
+                if (!started) continue;
 
                 if (name.StartsWith('K')) key = KeyOf(value);
                 if (name.StartsWith('M')) meter = AbcTheory.Meter(value);
@@ -186,7 +211,16 @@ internal sealed partial class AbcBuilder
             if (line.Kind != AbcKinds.Line) continue;
 
             var context = ResolveContext.Of(line.Node);
-            var row = new Row { Context = context, Clef = ClefOf(line) };
+            var row = new Row
+            {
+                Context = context,
+                Clef = ClefOf(line) ?? clefs.GetValueOrDefault(context.Voice, ClefKind.Treble),
+                Voice = context.Voice,
+                Index = lines.TryGetValue(context.Voice, out var seen) ? seen : 0,
+                Name = names.GetValueOrDefault(context.Voice),
+            };
+
+            lines[context.Voice] = row.Index + 1;
 
             foreach (var piece in line.Children)
             {
@@ -253,6 +287,28 @@ internal sealed partial class AbcBuilder
 
     /// <summary>What a part was written as, or nothing where there is no part.</summary>
     private static string Printed(ContentPart? part) => part?.Node.Print() ?? "";
+
+    /// <summary>
+    /// A <c>V:</c> field's id and the name it asks to be labelled with — <c>V:1 clef=treble name="Soprano"</c>.
+    /// </summary>
+    private static (string Id, string? Name) VoiceName(string field)
+    {
+        var id = field.Split([' ', '\t'], 2)[0].Trim();
+
+        var at = field.IndexOf("name=", StringComparison.OrdinalIgnoreCase);
+        if (at < 0) at = field.IndexOf("nm=", StringComparison.OrdinalIgnoreCase);
+        if (at < 0) return (id, null);
+
+        var value = field[(field.IndexOf('=', at) + 1)..].TrimStart();
+        if (value.StartsWith('"'))
+        {
+            var close = value.IndexOf('"', 1);
+            return (id, close > 0 ? value[1..close] : null);
+        }
+
+        var word = value.Split([' ', '\t'], 2)[0].Trim();
+        return (id, word.Length > 0 ? word : null);
+    }
 
     /// <summary>Everything in a bar that takes time, in written order, with the groups it was written into.</summary>
     private void Gather(ContentPart piece, Bar bar, ContentPart? beam)
@@ -535,20 +591,27 @@ internal sealed partial class AbcBuilder
         AbcTheory.Fifths(field) is { } fifths ? KeySignature.FromFifths(fifths) : null;
 
     /// <summary>
-    /// The clef a line asks for, or the one its range suggests. A voice that names none and never climbs
-    /// above middle C is a bass part, and printing it in treble buries it in ledger lines.
+    /// The clef a line asks for inline, or null where it asks for none — in which case its voice's own
+    /// <c>V:</c> answers, and failing that the treble does.
     /// </summary>
-    private static ClefKind ClefOf(ContentPart line)
+    private static ClefKind? ClefOf(ContentPart line)
     {
         foreach (var piece in line.SelfAndDescendants())
         {
-            if (piece.Kind != AbcKinds.InlineField && piece.Kind != AbcKinds.Field) continue;
-            var value = piece.Part(AbcRoles.Value)?.Node.Text ?? "";
-            if (value.Contains("clef=bass", StringComparison.OrdinalIgnoreCase)) return ClefKind.Bass;
-            if (value.Contains("clef=alto", StringComparison.OrdinalIgnoreCase)) return ClefKind.Alto;
-            if (value.Contains("clef=tenor", StringComparison.OrdinalIgnoreCase)) return ClefKind.Tenor;
+            if (piece.Kind is not (AbcKinds.InlineField or AbcKinds.Field)) continue;
+            if (ClefIn(piece.Part(AbcRoles.Value)?.Node.Text ?? "") is { } asked) return asked;
         }
 
-        return ClefKind.Treble;
+        return null;
+    }
+
+    /// <summary>The clef a field's value names, or null. Written on a <c>K:</c> as often as on a <c>V:</c>.</summary>
+    private static ClefKind? ClefIn(string value)
+    {
+        if (value.Contains("clef=bass", StringComparison.OrdinalIgnoreCase)) return ClefKind.Bass;
+        if (value.Contains("clef=alto", StringComparison.OrdinalIgnoreCase)) return ClefKind.Alto;
+        if (value.Contains("clef=tenor", StringComparison.OrdinalIgnoreCase)) return ClefKind.Tenor;
+        if (value.Contains("clef=treble", StringComparison.OrdinalIgnoreCase)) return ClefKind.Treble;
+        return null;
     }
 }

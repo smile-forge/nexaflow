@@ -249,6 +249,89 @@ public class AbcBuilderTests
         Assert.IsTrue(notes[1].Bounds.Bottom > staff.Bottom, "and the text below reaches under it");
     });
 
+    // ── Parts that sound together ───────────────────────────────────────────
+
+    private const string PartSong =
+        "X:1\nM:4/4\nL:1/8\nK:C\nV:1 clef=treble name=!Soprano!\nCDEF GABc|cBAG FEDC|\n"
+      + "V:2 clef=bass name=!Bass!\nC,D,E,F, G,A,B,C|CB,A,G, F,E,D,C,|\n";
+
+    [TestMethod]
+    public void TwoVoicesAreBracketedIntoOneSystem() => UiThread.Run(() =>
+    {
+        var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
+
+        var systems = layout.Root.Children.Where(n => n.Kind == "system").ToList();
+        var brackets = layout.Root.Children.Where(n => n.Kind == "bracket").ToList();
+
+        Assert.AreEqual(2, systems.Count, "one staff per voice");
+        Assert.AreEqual(1, brackets.Count, "and one bracket joining them");
+
+        // It reaches from the top staff to the bottom one, which is the whole of what it says. Staff line
+        // to staff line, not the full height of the ink: a beam reaching above the top staff is not
+        // something the bracket is joining.
+        var top = Staff(systems[0]);
+        var bottom = Staff(systems[1]);
+
+        Assert.AreEqual(top.Top, brackets[0].Bounds.Top, 1.0, "it starts at the top staff");
+        Assert.AreEqual(bottom.Bottom, brackets[0].Bounds.Bottom, 1.0, "and finishes at the bottom one");
+
+        static Rect Staff(ILayoutNode system)
+        {
+            var lines = system.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
+            return new Rect(lines[0].Bounds.TopLeft, lines[^1].Bounds.BottomRight);
+        }
+    });
+
+    [TestMethod]
+    public void AndTheirBarsLineUp() => UiThread.Run(() =>
+    {
+        var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
+
+        var systems = layout.Root.Children.Where(n => n.Kind == "system").ToList();
+        var lines = systems
+            .Select(s => s.SelfAndDescendants().Where(n => n.Kind == "barline").Select(n => n.Bounds.X).ToList())
+            .ToList();
+
+        Assert.AreEqual(lines[0].Count, lines[1].Count, "the voices are barred the same way");
+        for (var at = 0; at < lines[0].Count; at++)
+            Assert.AreEqual(lines[0][at], lines[1][at], 1.0, $"bar line {at} is not above its partner");
+    });
+
+    [TestMethod]
+    public void AndEachTakesTheClefAndNameItsVoiceAskedFor() => UiThread.Run(() =>
+    {
+        // Both are written on the V: line, which is in the header — before any music. Reading them under
+        // the guard that stops the header's meter being printed twice is how the first voice lost both.
+        var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
+
+        Assert.AreEqual(2, layout.Root.SelfAndDescendants().Count(n => n.Kind == "voice"),
+            "both voices are named at the left");
+
+        // The bass part is written low. In the treble clef it would hang far below the staff on ledger
+        // lines; in the clef it asked for it sits on it.
+        var systems = layout.Root.Children.Where(n => n.Kind == "system").ToList();
+        var bass = systems[1].SelfAndDescendants().Where(n => n.Kind == "note").ToList();
+        var staff = systems[1].SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
+
+        Assert.IsTrue(bass.Count > 0);
+        Assert.IsTrue(bass.All(n => n.Bounds.Bottom < staff[^1].Bounds.Bottom + (3 * 8)),
+            "the bass part is buried in ledger lines, so it was drawn in the wrong clef");
+    });
+
+    [TestMethod]
+    public void ButVoicesBarredDifferentlyStackHonestlyInstead() => UiThread.Run(() =>
+    {
+        // Real tunebooks do this, and it is nobody's mistake. Forcing a grid onto voices that disagree
+        // about where the bars are would misalign every bar after the first difference.
+        var uneven = "X:1\nM:4/4\nL:1/8\nK:C\nV:1\nCDEF GABc|cBAG|\nV:2\nC,D,E,F,|G,A,B,C|CB,A,G,|\n";
+
+        var layout = AbcLayout.Build(uneven, 700, Brushes.Black, 1.0);
+
+        Assert.AreEqual(2, layout.Root.Children.Count(n => n.Kind == "system"));
+        Assert.AreEqual(0, layout.Root.Children.Count(n => n.Kind == "bracket"),
+            "nothing may be bracketed that is not simultaneous");
+    });
+
     /// <summary>The first note in a tune.</summary>
     private static ILayoutNode Note(AbcLayout layout) =>
         layout.Root.SelfAndDescendants().First(n => n.Kind == "note");

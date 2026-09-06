@@ -886,8 +886,10 @@ beamed pair to select the pair, drag for a run — then:
 …all of them on the selection, or on the note the caret has just passed. A right-click offers the same set
 as a small ribbon, so nobody has to remember a key. Design: [docs/markdown-ast.md](markdown-ast.md).
 
-What ```abc does not draw yet: multi-voice systems, and the title/credit prose the `#%` path emits as
-real paragraphs.
+A part song is a **bracketed system**: one staff per voice, sharing one bar grid, with a bracket down the
+left, the bar lines running through, the voice names at the left of the first line, and each voice in the
+clef its `V:` asked for. Voices the source barred differently stack honestly instead — forcing a grid onto
+parts that disagree about where the bars are would misalign every bar after the first difference.
 
 Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
 ([`MusicBlockExtension`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs), registered
