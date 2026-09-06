@@ -3,7 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Nexaflow.Core.Controls">
 
-    <ScrollViewer Padding="20,12">
+    <!-- Horizontal scrolling disabled on purpose: a ScrollViewer that may scroll sideways measures its
+         content at INFINITE width, and under that a Width="*" column stops meaning "share the viewport"
+         and starts meaning "as wide as the child asks for". Nothing then holds a row to the panel, so
+         opening the theme dropdown scrolled the whole page sideways and took the 180px label column off
+         the left edge — which read as the combo widening. It also clipped the wrapping descriptions
+         mid-word, because they were never given a width to wrap at. -->
+    <ScrollViewer Padding="20,12" HorizontalScrollBarVisibility="Disabled">
         <StackPanel x:Name="RootPanel">
 
             <!-- ── Theme ── -->
