@@ -1,0 +1,26 @@
+{
+  "branch": "claude/nfi-worktree-filtering-def3c1",
+  "nodes": {
+    "initiatives-pending": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Product/PendingSnaplinksTests.cs",
+            "class": "PendingSnaplinksTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/PendingIsolationTests.cs",
+            "class": "PendingIsolationTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "initiatives-pending"
+  ]
+}
