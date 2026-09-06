@@ -63,9 +63,16 @@ internal sealed class FileTransferTask(
 
             queue.PublishOnUi(() => op.Finish(result));
         }
+        catch (OperationCanceledException)
+        {
+            // A stop that lands after the gate but inside the scan, which DOES throw — unlike the run,
+            // which reports a cancellation as an ordinary result. Without this the general catch below
+            // reads it as a fault and the row says "Failed" for an operation the user stopped on purpose.
+            queue.PublishOnUi(() => op.Finish(Cancelled()));
+        }
         catch (Exception ex)
         {
-            // The engine does not throw; anything arriving here is a genuine bug, and swallowing it
+            // The run does not throw; anything else arriving here is a genuine bug, and swallowing it
             // would leave a row spinning forever. Report it as the operation's own failure.
             queue.PublishOnUi(() => op.Finish(Faulted(ex)));
         }
