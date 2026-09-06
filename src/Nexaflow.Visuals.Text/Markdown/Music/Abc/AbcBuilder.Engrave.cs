@@ -387,7 +387,11 @@ internal sealed partial class AbcBuilder
             if (!ReferenceEquals(ev.Beam, beam))
             {
                 beam = ev.Beam;
-                if (beam is not null && ev.Beamable)
+
+                // Whether the group beams is decided by what is IN it, not by what happens to start it.
+                // `c2ec` is written as one run and beams its two eighths under the quarter that opens it;
+                // asking the first event whether it could be beamed left those two wearing flags.
+                if (beam is not null)
                 {
                     holder = node.Adding(new AbcLayoutNode(Rect.Empty, "beam", beam));
                     run = [];
