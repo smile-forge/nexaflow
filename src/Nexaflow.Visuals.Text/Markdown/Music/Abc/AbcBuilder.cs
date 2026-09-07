@@ -10,6 +10,7 @@ using Nexaflow.Markdown.Music.Abc.Stages;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
@@ -71,7 +72,7 @@ internal sealed partial class AbcBuilder
     private int? MeterSign;
 
     /// <summary>Engraves a tune to fit <paramref name="width"/>, and says how big it came out.</summary>
-    public static (AbcLayoutNode Root, Size Size) Build(
+    public static (LayoutNode Root, Size Size) Build(
         ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing = null)
     {
         var builder = new AbcBuilder(reading, ink, pixelsPerDip, spacing ?? ScoreSpacing.Current);

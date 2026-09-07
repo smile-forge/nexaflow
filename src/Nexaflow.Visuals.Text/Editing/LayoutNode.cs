@@ -120,6 +120,70 @@ public class LayoutNode : ILayoutNode
     }
 
     /// <summary>
+    /// Grows this piece to cover something it drew, and everything holding it to cover this.
+    ///
+    /// <para>
+    /// Upward, because a piece is made before it is filled — a note before its head, a bar before its
+    /// notes — so growing only the piece itself would leave every container the size it was when it was
+    /// made. Each drawing says once where it went and the whole chain above it learns; the alternative is a
+    /// <c>foreach child</c> at the end of every method that builds one, and the one that gets forgotten is a
+    /// container reporting a rectangle smaller than what it holds.
+    /// </para>
+    /// <para>
+    /// <strong>Deliberately not called by <see cref="Add"/>.</strong> Whether a parent's rectangle is the
+    /// union of its children is a fact about the content, not about layout trees: a typeset formula's
+    /// container bounds are the height and depth it reserves on its line, so a subscript hangs below the
+    /// very node that holds it and growing to fit would be wrong. Content whose containers <em>are</em>
+    /// bounding boxes calls this as it draws.
+    /// </para>
+    /// </summary>
+    public void Covering(Rect what)
+    {
+        if (what.IsEmpty || what.Width < 0 || what.Height < 0) return;
+
+        var union = Bounds;
+        if (union.IsEmpty || (union.Width == 0 && union.Height == 0)) Bounds = what;
+        else
+        {
+            union.Union(what);
+            Bounds = union;
+        }
+
+        (Parent as LayoutNode)?.Covering(what);
+    }
+
+    /// <summary>
+    /// A piece drawn from a stretch of source, or from nothing anybody wrote.
+    ///
+    /// <para>
+    /// Ink follows the part, which is the ordinary convention: something a reader typed is something they
+    /// can point at, and a rule, a beam or a guard pattern the drawing invented is not. Content that draws
+    /// something pointable which nobody wrote — a hole waiting to be typed into — says so with the other
+    /// constructor.
+    /// </para>
+    /// </summary>
+    public LayoutNode(Rect bounds, string kind, ISourcePart? part = null)
+        : this(bounds, part, kind, isInk: part is { Length: > 0 })
+    {
+    }
+
+    /// <summary>
+    /// Adds a child and grows to hold it, giving back the child so a builder can go on filling it.
+    ///
+    /// <para>
+    /// For content whose containers <em>are</em> bounding boxes — a bar is as tall as what is in it — which
+    /// is most of them. <see cref="Add"/> stays the bare version for content where a container's rectangle
+    /// means something else; see <see cref="Covering"/>.
+    /// </para>
+    /// </summary>
+    public LayoutNode Holding(LayoutNode child)
+    {
+        Add(child);
+        Covering(child.Bounds);
+        return child;
+    }
+
+    /// <summary>
     /// Gathers children this node already has under <paramref name="group"/>, which takes their place
     /// where the first of them sat.
     ///

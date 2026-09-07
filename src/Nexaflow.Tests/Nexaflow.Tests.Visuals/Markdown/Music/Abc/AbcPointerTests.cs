@@ -4,6 +4,7 @@ using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -63,6 +64,34 @@ public class AbcPointerTests
                 Assert.AreEqual(note, layout.Root.NodeAt(Middle(piece))?.Selectable(),
                     $"a press on a {Kind(piece)} did not come back as the note it draws");
             }
+    });
+
+    [TestMethod]
+    public void APressPutsTheCaretDownWhereItLanded() => UiThread.Run(() =>
+    {
+        // Asked of what the caret is *for* rather than of a private field. With nothing selected, a note
+        // gesture acts on the note the caret is in — so sharpening after a press on the third note says
+        // both that a caret exists and that it landed there. Before a press put one down the caret sat at
+        // nought whatever the reader did, and this sharpened nothing at all.
+        //
+        // Pressed right of the head's centre, which is the half that means "after this one". Left of it
+        // puts the caret in front of the note and the gesture then reaches the note before, exactly as
+        // backspace does in a line of text.
+        var element = new AbcElement("X:1\nL:1/4\nK:C\nA B c d |\n", MarkdownPalette.Light);
+        element.Measure(new Size(700, double.PositiveInfinity));
+        element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
+
+        var third = element.Layout!.Root.SelfAndDescendants()
+            .Where(n => (n as LayoutNode)?.Kind == "note")
+            .ElementAt(2);
+
+        element.BeginPointerSelect(new Point(third.Bounds.Right - 1, third.Bounds.Y + (third.Bounds.Height / 2)));
+        element.EndPointerSelect();
+        element.ClearSelection();
+
+        element.Type('#');
+
+        StringAssert.Contains(element.Source, "^c", "the sharp went somewhere else: " + element.Source);
     });
 
     [TestMethod]

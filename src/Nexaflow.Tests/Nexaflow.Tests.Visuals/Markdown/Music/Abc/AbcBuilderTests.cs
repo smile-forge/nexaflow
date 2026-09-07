@@ -194,7 +194,7 @@ public class AbcBuilderTests
         var layout = AbcLayout.Build(
             "X:1\nL:1/8\nK:C\n(ABcd ABcd|ABcd ABcd|ABcd ABcd|ABcd ABcd)|\n", 300, Brushes.Black, 1.0);
 
-        var systems = layout.Root.Children.Count(n => n.Kind == "system");
+        var systems = layout.Root.SelfAndDescendants().Count(n => n.Kind == "system");
         var pieces = layout.Root.SelfAndDescendants().Count(n => n.Kind == "slur");
 
         Assert.IsTrue(systems >= 2, "the tune should not fit on one line at this width");
@@ -275,8 +275,8 @@ public class AbcBuilderTests
     {
         var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
 
-        var systems = layout.Root.Children.Where(n => n.Kind == "system").ToList();
-        var brackets = layout.Root.Children.Where(n => n.Kind == "bracket").ToList();
+        var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
+        var brackets = layout.Root.SelfAndDescendants().Where(n => n.Kind == "bracket").ToList();
 
         Assert.AreEqual(2, systems.Count, "one staff per voice");
         Assert.AreEqual(1, brackets.Count, "and one bracket joining them");
@@ -302,7 +302,7 @@ public class AbcBuilderTests
     {
         var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
 
-        var systems = layout.Root.Children.Where(n => n.Kind == "system").ToList();
+        var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         var lines = systems
             .Select(s => s.SelfAndDescendants().Where(n => n.Kind == "barline").Select(n => n.Bounds.X).ToList())
             .ToList();
@@ -324,7 +324,7 @@ public class AbcBuilderTests
 
         // The bass part is written low. In the treble clef it would hang far below the staff on ledger
         // lines; in the clef it asked for it sits on it.
-        var systems = layout.Root.Children.Where(n => n.Kind == "system").ToList();
+        var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         var bass = systems[1].SelfAndDescendants().Where(n => n.Kind == "note").ToList();
         var staff = systems[1].SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
 
@@ -342,8 +342,8 @@ public class AbcBuilderTests
 
         var layout = AbcLayout.Build(uneven, 700, Brushes.Black, 1.0);
 
-        Assert.AreEqual(2, layout.Root.Children.Count(n => n.Kind == "system"));
-        Assert.AreEqual(0, layout.Root.Children.Count(n => n.Kind == "bracket"),
+        Assert.AreEqual(2, layout.Root.SelfAndDescendants().Count(n => n.Kind == "system"));
+        Assert.AreEqual(0, layout.Root.SelfAndDescendants().Count(n => n.Kind == "bracket"),
             "nothing may be bracketed that is not simultaneous");
     });
 
@@ -407,7 +407,7 @@ public class AbcBuilderTests
 
     /// <summary>How many things a piece of layout drew — the cheap way to ask whether a mark landed.</summary>
     private static int Marks(ILayoutNode node) =>
-        node.SelfAndDescendants().OfType<AbcLayoutNode>().Sum(n => n.Marks.Count);
+        node.SelfAndDescendants().OfType<LayoutNode>().Sum(n => n.Marks.Count);
 
     [TestMethod]
     public void ItPaintsWithoutFaulting() => UiThread.Run(() =>
@@ -434,7 +434,7 @@ public class AbcBuilderTests
     {
         var layout = AbcLayout.Build(SpeedThePlough, 600, Brushes.Black, 1.0);
 
-        var systems = layout.Root.Children.Where(n => n.Kind == "system").ToList();
+        var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         Assert.IsTrue(systems.Count >= 2, "the tune should not fit on one line at this width");
 
         var rights = systems.Take(systems.Count - 1).Select(s => s.Bounds.Right).ToList();

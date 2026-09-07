@@ -18,23 +18,39 @@ namespace Nexaflow.Markdown.Music.Abc;
 /// </summary>
 public sealed record AbcHeader
 {
+    /// <summary>
+    /// One line of the prose around a tune: what it says, and the field it was written in.
+    ///
+    /// <para>
+    /// The part is what makes it selectable. A title drawn from a string is a picture of words; a title
+    /// drawn from a part is words a reader can drag across, copy and retype, because everything that
+    /// selects works from the stretch of source a piece was drawn from. It is the same link a note head
+    /// carries, and it is the only thing that makes prose and music one document rather than a drawing
+    /// with captions.
+    /// </para>
+    /// </summary>
+    public readonly record struct Prose(string Text, ContentPart? Part)
+    {
+        public override string ToString() => Text;
+    }
+
     /// <summary>The tune's name — the first <c>T:</c>, printed above the first system.</summary>
-    public string? Title { get; init; }
+    public Prose? Title { get; init; }
 
     /// <summary>Further <c>T:</c> lines, printed under the title in a smaller face.</summary>
-    public IReadOnlyList<string> Subtitles { get; init; } = [];
+    public IReadOnlyList<Prose> Subtitles { get; init; } = [];
 
     /// <summary>The rhythm (<c>R:</c>) — printed at the top left, in italics.</summary>
-    public string? Rhythm { get; init; }
+    public Prose? Rhythm { get; init; }
 
     /// <summary>The composer (<c>C:</c>) — printed at the top right.</summary>
-    public string? Composer { get; init; }
+    public Prose? Composer { get; init; }
 
     /// <summary>Where the tune comes from (<c>O:</c>) — printed in brackets after the composer.</summary>
-    public string? Origin { get; init; }
+    public Prose? Origin { get; init; }
 
     /// <summary>Lines printed under the score, each already labelled the way an engraver labels it.</summary>
-    public IReadOnlyList<string> Footer { get; init; } = [];
+    public IReadOnlyList<Prose> Footer { get; init; } = [];
 
     /// <summary>Where the tune was collected (<c>S:</c>) — read, kept, and not printed.</summary>
     public string? Source { get; init; }
@@ -63,9 +79,10 @@ public sealed record AbcHeader
     /// </summary>
     public static AbcHeader Of(ContentReading reading)
     {
-        var titles = new List<string>();
-        var footer = new List<string>();
-        string? rhythm = null, composer = null, origin = null, source = null, transcription = null;
+        var titles = new List<Prose>();
+        var footer = new List<Prose>();
+        Prose? rhythm = null, composer = null, origin = null;
+        string? source = null, transcription = null;
 
         var started = false;
 
@@ -78,15 +95,16 @@ public sealed record AbcHeader
             if (line.Part(Roles.Name)?.Node.Text is not { Length: 2 } name) continue;
 
             var value = Written(line);
+            var part = line.Part(AbcRoles.Value);
             if (name[0] != 'W' && value.Trim().Length == 0) continue;
 
             switch (name[0])
             {
                 // A heading is a phrase rather than a layout, so its own spacing is noise.
-                case 'T' when !started: titles.Add(value.Trim()); break;
-                case 'R' when !started: rhythm ??= value.Trim(); break;
-                case 'C' when !started: composer ??= value.Trim(); break;
-                case 'O' when !started: origin ??= value.Trim(); break;
+                case 'T' when !started: titles.Add(new Prose(value.Trim(), part)); break;
+                case 'R' when !started: rhythm ??= new Prose(value.Trim(), part); break;
+                case 'C' when !started: composer ??= new Prose(value.Trim(), part); break;
+                case 'O' when !started: origin ??= new Prose(value.Trim(), part); break;
 
                 // Read wherever they are written, because they are about the tune rather than part of its
                 // heading. `S:` and `Z:` are deliberately not printed: where a tune was collected and who
@@ -94,17 +112,17 @@ public sealed record AbcHeader
                 // name. They are kept — a details panel is the place for them — and they are not drawn.
                 case 'S': source ??= value.Trim(); break;
                 case 'Z': transcription ??= value.Trim(); break;
-                case 'N': footer.Add("Notes: " + value.Trim()); break;
+                case 'N': footer.Add(new Prose("Notes: " + value.Trim(), part)); break;
 
                 // Kept as written, indentation and blank lines included. A verse is laid out by whoever
                 // typed it — the second line of a stanza is indented under the first, and an empty `W:`
                 // is the gap between stanzas — so trimming it is not tidying, it is discarding the only
                 // formatting the field has.
-                case 'W': footer.Add(value); break;
+                case 'W': footer.Add(new Prose(value, part)); break;
             }
         }
 
-        while (footer.Count > 0 && footer[^1].Trim().Length == 0) footer.RemoveAt(footer.Count - 1);
+        while (footer.Count > 0 && footer[^1].Text.Trim().Length == 0) footer.RemoveAt(footer.Count - 1);
 
         return new AbcHeader
         {
@@ -129,13 +147,21 @@ public sealed record AbcHeader
         return value.StartsWith(' ') ? value[1..] : value;
     }
 
-    /// <summary>The composer with the origin in brackets after it, which is how the two are printed.</summary>
-    public string? Credit =>
+    /// <summary>
+    /// The composer with the origin in brackets after it, which is how the two are printed.
+    /// <para>
+    /// It names the composer's own field where there is one, because that is the half a reader means by
+    /// pointing at it; a tune with only an origin names that instead. Two fields drawn as one line can
+    /// only stand for one of them, and the alternative — drawing them as two pieces — would put a gap
+    /// between a name and its bracket that no engraver leaves.
+    /// </para>
+    /// </summary>
+    public Prose? Credit =>
         (Composer, Origin) switch
         {
             (null, null) => null,
-            (null, { } where) => $"({where})",
+            (null, { } where) => new Prose($"({where.Text})", where.Part),
             ({ } who, null) => who,
-            var (who, where) => $"{who} ({where})",
+            var (who, where) => new Prose($"{who.Value.Text} ({where!.Value.Text})", who.Value.Part),
         };
 }

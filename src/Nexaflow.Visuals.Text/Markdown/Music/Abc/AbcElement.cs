@@ -243,9 +243,19 @@ public sealed partial class AbcElement : FrameworkElement
         if (_layout is null) return;
 
         InteractiveSelection.Own(this);
-        _anchor = _layout.Root.NodeAt(Unscaled(pointInElement));
+        var at = Unscaled(pointInElement);
+
+        _anchor = _layout.Root.NodeAt(at);
         _dragging = true;
         Select(_anchor, _anchor);
+
+        // A press puts the caret down as well as picking something up. Without this a tune drew no caret at
+        // all — `_hasCaret` was only ever set by an edit, so a reader had to change something before there
+        // was any sign of where a change would go. The host has already handed this block the keys by the
+        // time it gets here, so the caret is not a lie about where they are going.
+        _caret = _layout.Root.PlaceAt(at);
+        _hasCaret = true;
+        Blinking(true);
     }
 
     public void ExtendPointerSelect(Point pointInElement)

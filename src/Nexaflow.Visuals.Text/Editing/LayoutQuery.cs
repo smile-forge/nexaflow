@@ -36,6 +36,45 @@ public static class LayoutQuery
         Deepest(root, point) ?? Nearest(root, point);
 
     /// <summary>
+    /// The source offset a press at <paramref name="point"/> means: the near end of whatever it landed on,
+    /// so pressing the left half of a note puts the caret before it and the right half after it.
+    /// </summary>
+    /// <remarks>
+    /// The near end rather than the start, because a caret is a place between things and a press is a
+    /// reader saying which side of one they want to be on. Always the start would make it impossible to
+    /// get past the last note of a tune by clicking.
+    /// </remarks>
+    public static int OffsetAt(this ILayoutNode root, Point point)
+    {
+        if (root.NodeAt(point) is not { } node) return root.Sits().Start;
+
+        var at = node.Sits();
+        if (at.Length <= 0) return at.Start;
+
+        return point.X <= node.Bounds.X + (node.Bounds.Width / 2) ? at.Start : at.End;
+    }
+
+    /// <summary>
+    /// Where the caret goes for a press: the offset, and which of the bars drawn at that offset.
+    /// <para>
+    /// One offset can be two places on the page — after a note and before the next are the same character
+    /// boundary drawn a hand's width apart — so the press also has to say which of them it meant, and the
+    /// nearest by column is what it meant.
+    /// </para>
+    /// </summary>
+    public static CaretPlace PlaceAt(this ILayoutNode root, Point point)
+    {
+        var offset = root.OffsetAt(point);
+        var bars = root.CaretBars(offset);
+
+        var level = 0;
+        for (var at = 1; at < bars.Count; at++)
+            if (Math.Abs(bars[at].X - point.X) < Math.Abs(bars[level].X - point.X) - Hair) level = at;
+
+        return new CaretPlace(offset, level);
+    }
+
+    /// <summary>
     /// The drawn thing under the point. Only leaves are candidates — they are what actually put ink on the
     /// page — and blank space inside a container belongs to nobody, which is what stops a press in the gap
     /// between two terms coming back with the start of the whole line.

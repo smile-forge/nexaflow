@@ -24,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// </summary>
 internal sealed class AbcLayout
 {
-    private AbcLayout(string abc, ContentReading reading, AbcLayoutNode root, Size size,
+    private AbcLayout(string abc, ContentReading reading, LayoutNode root, Size size,
                       IReadOnlyList<Diagnostic> diagnostics)
     {
         Abc = abc;
@@ -41,7 +41,7 @@ internal sealed class AbcLayout
     public ContentReading Reading { get; }
 
     /// <summary>What was drawn where — every question about the tune's shape goes here.</summary>
-    public AbcLayoutNode Root { get; }
+    public LayoutNode Root { get; }
 
     /// <summary>The engraved size in element pixels.</summary>
     public Size Size { get; }
@@ -110,26 +110,7 @@ internal sealed class AbcLayout
     public void Paint(DrawingContext dc, Brush foreground, ILayoutNode? subtree = null) =>
         Walk(dc, foreground, subtree ?? Root);
 
-    /// <summary>
-    /// One piece and everything inside it, through whatever it has been moved by.
-    ///
-    /// <para>
-    /// Descended rather than flattened, because <see cref="ILayoutNode.Offset"/> nests: a note moved
-    /// inside a bar that has itself been moved has to end up displaced by both, and a transform stack is
-    /// what says that once. A tree nobody has moved pushes nothing and paints exactly as a flat walk
-    /// would.
-    /// </para>
-    /// </summary>
-    private static void Walk(DrawingContext dc, Brush foreground, ILayoutNode node)
-    {
-        var moved = node.Offset.X != 0 || node.Offset.Y != 0;
-        if (moved) dc.PushTransform(new TranslateTransform(node.Offset.X, node.Offset.Y));
-
-        if (node is AbcLayoutNode piece)
-            foreach (var mark in piece.Marks) mark.PaintOn(dc, foreground);
-
-        foreach (var child in node.Children) Walk(dc, foreground, child);
-
-        if (moved) dc.Pop();
-    }
+    /// <summary>The whole tree, or one piece of it, painted by the shared walk.</summary>
+    private static void Walk(DrawingContext dc, Brush foreground, ILayoutNode node) =>
+        LayoutPainter.Paint(dc, node, foreground);
 }

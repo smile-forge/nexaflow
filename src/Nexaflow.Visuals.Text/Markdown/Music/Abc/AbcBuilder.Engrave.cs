@@ -46,7 +46,7 @@ internal sealed partial class AbcBuilder
         public int TextBelow;
 
         /// <summary>The piece of layout this system was drawn into, for the curves drawn over it after.</summary>
-        public AbcLayoutNode? Node;
+        public LayoutNode? Node;
 
         /// <summary>
         /// Which bracketed system this staff belongs to. Staves sharing one are simultaneous: they get one
@@ -75,14 +75,14 @@ internal sealed partial class AbcBuilder
     /// last system is, and a lyric's run does not stop at a system's edge. See <see cref="Order"/>.
     /// </para>
     /// </summary>
-    private readonly List<(Event Event, AbcLayoutNode Node)> _heads = [];
-    private readonly List<(Event Event, AbcLayoutNode Node)> _chords = [];
-    private readonly List<(Event Event, int Verse, AbcLayoutNode Node)> _sung = [];
-    private readonly List<AbcLayoutNode> _sections = [];
+    private readonly List<(Event Event, LayoutNode Node)> _heads = [];
+    private readonly List<(Event Event, LayoutNode Node)> _chords = [];
+    private readonly List<(Event Event, int Verse, LayoutNode Node)> _sung = [];
+    private readonly List<LayoutNode> _sections = [];
 
     // ── The whole of it ─────────────────────────────────────────────────────
 
-    private (AbcLayoutNode Root, Size Size) Engrave(double width)
+    private (LayoutNode Root, Size Size) Engrave(double width)
     {
         _noteHead = Smufl.Advance(Smufl.NoteheadBlack, S);
         if (_noteHead <= 0) _noteHead = 1.18 * S;
@@ -90,22 +90,41 @@ internal sealed partial class AbcBuilder
         var rows = Read();
         var systems = Wrap(rows, Math.Max(width, 12 * S));
 
-        var root = new AbcLayoutNode(Rect.Empty, "score");
-        if (systems.Count == 0) return (root, new Size(0, 0));
+        var root = new LayoutNode(Rect.Empty, "score");
+        var music = root.Holding(new LayoutNode(Rect.Empty, "music"));
 
-        Justify(systems, width);
-        Stack(systems);
+        if (systems.Count > 0)
+        {
+            Justify(systems, width);
+            Stack(systems, 0);
 
-        foreach (var system in systems) Draw(root, system);
+            foreach (var system in systems) Draw(music, system);
 
-        // A bracket joins staves that are already placed, and a curve may run from one system to the
-        // next — neither can be drawn until every staff has landed.
-        Brackets(root, systems);
-        Curves(systems);
+            // A bracket joins staves that are already placed, and a curve may run from one system to the
+            // next — neither can be drawn until every staff has landed.
+            Brackets(music, systems);
+            Curves(systems);
+        }
+
+        // The words are set to the width the music actually took rather than to the page it was offered. A
+        // tune shorter than the window is engraved narrower than it, and a title centred on the window would
+        // sit off to one side of the music it names.
+        var header = AbcHeader.Of(_reading);
+        var page = music.Bounds.IsEmpty ? width : music.Bounds.Right + RightMargin;
+
+        // …and the music moves down to make room for them, which is one number rather than laying it all out
+        // again: the heading cannot be measured until it is set, and it is set to a width the music decides.
+        var top = Heading(root, header, page);
+        if (top > 0) music.Move(new Vector(0, top));
+
+        Verses(root, header, page, Extent(root).Bottom);
+
         Nothing(root);
         Order();
 
         var extent = Extent(root);
+        if (extent.Width <= 0 && extent.Height <= 0) return (root, new Size(0, 0));
+
         return (root, new Size(Math.Ceiling(extent.Right + RightMargin), Math.Ceiling(extent.Bottom + S)));
     }
 
@@ -591,9 +610,9 @@ internal sealed partial class AbcBuilder
     /// symbol belongs above the music, and how high that is depends on how high the music went.
     /// </para>
     /// </summary>
-    private static void Stack(List<System> systems)
+    private static void Stack(List<System> systems, double below)
     {
-        var y = S;
+        var y = below + S;
 
         foreach (var system in systems)
         {
@@ -659,10 +678,10 @@ internal sealed partial class AbcBuilder
 
     // ── Drawing it ──────────────────────────────────────────────────────────
 
-    private void Draw(AbcLayoutNode root, System system)
+    private void Draw(LayoutNode root, System system)
     {
         var geometry = StaffGeometry.For(system.Row.Clef);
-        var node = root.Adding(new AbcLayoutNode(Rect.Empty, "system"));
+        var node = root.Holding(new LayoutNode(Rect.Empty, "system"));
         system.Node = node;
 
         Staff(node, system);
@@ -670,7 +689,7 @@ internal sealed partial class AbcBuilder
 
         foreach (var bars in Sections(system.Bars))
         {
-            var section = node.Adding(new AbcLayoutNode(Rect.Empty, "section", Spanning(bars)));
+            var section = node.Holding(new LayoutNode(Rect.Empty, "section", Spanning(bars)));
             foreach (var bar in bars) Draw(section, system, geometry, bar);
             _sections.Add(section);
         }
@@ -740,19 +759,19 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>The five lines. Nobody wrote them, so they carry no part and cannot be selected.</summary>
-    private void Staff(AbcLayoutNode into, System system)
+    private void Staff(LayoutNode into, System system)
     {
         for (var line = 0; line < 5; line++)
         {
             var y = system.StaffTop + (line * S);
             var bounds = new Rect(LeftMargin, y - (StaffLineThick / 2), system.Right - LeftMargin, StaffLineThick);
-            var rule = into.Adding(new AbcLayoutNode(bounds, "staff-line"));
+            var rule = into.Holding(new LayoutNode(bounds, "staff-line"));
             rule.Drew(new RuleMark(bounds, null));
         }
     }
 
     /// <summary>The clef, the key signature and the meter, at the head of the system.</summary>
-    private void Head(AbcLayoutNode into, System system, StaffGeometry geometry)
+    private void Head(LayoutNode into, System system, StaffGeometry geometry)
     {
         var x = LeftMargin + (0.4 * S);
 
@@ -761,7 +780,7 @@ internal sealed partial class AbcBuilder
             var glyphs = ScoreText.Build(name, CreditSize, _ppd);
             var at = new Point(x, system.StaffTop + (StaffHeight / 2) - (glyphs.Height / 2));
 
-            var node = into.Adding(new AbcLayoutNode(new Rect(at, new Size(glyphs.Width, glyphs.Height)), "voice"));
+            var node = into.Holding(new LayoutNode(new Rect(at, new Size(glyphs.Width, glyphs.Height)), "voice"));
             node.Drew(new TextMark(glyphs, at, null));
             x += glyphs.Width + (0.6 * S);
         }
@@ -774,7 +793,7 @@ internal sealed partial class AbcBuilder
         if (system.ShowMeter) Meter(into, system, x, system.Row.Context.Beats, system.Row.Context.BeatUnit);
     }
 
-    private double DrawKeySignature(AbcLayoutNode into, System system, StaffGeometry geometry, double x, int fifths)
+    private double DrawKeySignature(LayoutNode into, System system, StaffGeometry geometry, double x, int fifths)
     {
         var count = Math.Min(Math.Abs(fifths), 7);
         if (count == 0) return x;
@@ -792,7 +811,7 @@ internal sealed partial class AbcBuilder
         return x + (0.4 * S);
     }
 
-    private void Meter(AbcLayoutNode into, System system, double x, int beats, int unit, int? asked = null)
+    private void Meter(LayoutNode into, System system, double x, int beats, int unit, int? asked = null)
     {
         // A sign where the tune wrote one — `M:C` and `M:C|` are asking for the symbol rather than for
         // the figures they happen to count as.
@@ -825,9 +844,9 @@ internal sealed partial class AbcBuilder
         static string Digits(int value) => value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private void Draw(AbcLayoutNode into, System system, StaffGeometry geometry, Bar bar)
+    private void Draw(LayoutNode into, System system, StaffGeometry geometry, Bar bar)
     {
-        var node = into.Adding(new AbcLayoutNode(Rect.Empty, "measure", bar.Part));
+        var node = into.Holding(new LayoutNode(Rect.Empty, "measure", bar.Part));
 
         var x = bar.X;
         if (bar.Opened is not null) x = Barline(node, system, bar.Opened, x);
@@ -838,10 +857,10 @@ internal sealed partial class AbcBuilder
 
         // Beamed runs are nodes of their own: the beam is drawn on the group and the notes it joins hang
         // under it. Everything else hangs straight off the bar.
-        var drawn = new Dictionary<Event, AbcLayoutNode>();
-        var groups = new List<(ContentPart Part, AbcLayoutNode Node, List<Event> Events)>();
+        var drawn = new Dictionary<Event, LayoutNode>();
+        var groups = new List<(ContentPart Part, LayoutNode Node, List<Event> Events)>();
 
-        AbcLayoutNode holder = node;
+        LayoutNode holder = node;
         ContentPart? beam = null;
         List<Event>? run = null;
 
@@ -856,7 +875,7 @@ internal sealed partial class AbcBuilder
                 // asking the first event whether it could be beamed left those two wearing flags.
                 if (beam is not null)
                 {
-                    holder = node.Adding(new AbcLayoutNode(Rect.Empty, "beam", beam));
+                    holder = node.Holding(new LayoutNode(Rect.Empty, "beam", beam));
                     run = [];
                     groups.Add((beam, holder, run));
                 }
@@ -919,10 +938,10 @@ internal sealed partial class AbcBuilder
     /// special-cased. It is also the unit a drag would move: one node, and its whole drawing with it.
     /// </para>
     /// </summary>
-    private AbcLayoutNode Draw(AbcLayoutNode into, System system, StaffGeometry geometry, Event ev,
+    private LayoutNode Draw(LayoutNode into, System system, StaffGeometry geometry, Event ev,
                                Event? before)
     {
-        var node = into.Adding(new AbcLayoutNode(Rect.Empty, ev.IsRest ? "rest" : "note", ev.Part));
+        var node = into.Holding(new LayoutNode(Rect.Empty, ev.IsRest ? "rest" : "note", ev.Part));
 
         if (ev.Invisible)
         {
@@ -975,8 +994,8 @@ internal sealed partial class AbcBuilder
     /// names nothing.
     /// </para>
     /// </summary>
-    private static AbcLayoutNode Piece(AbcLayoutNode into, string kind) =>
-        into.Adding(new AbcLayoutNode(Rect.Empty, kind));
+    private static LayoutNode Piece(LayoutNode into, string kind) =>
+        into.Holding(new LayoutNode(Rect.Empty, kind));
 
     /// <summary>
     /// Grace notes: cue-size heads crushed in before the main one, beamed where there are several and
@@ -986,7 +1005,7 @@ internal sealed partial class AbcBuilder
     /// standing beside it. Selecting the note takes them with it, which is what a reader means.
     /// </para>
     /// </summary>
-    private void Graces(AbcLayoutNode node, System system, StaffGeometry geometry, Event ev)
+    private void Graces(LayoutNode node, System system, StaffGeometry geometry, Event ev)
     {
         if (ev.Graces.Count == 0) return;
 
@@ -1057,7 +1076,7 @@ internal sealed partial class AbcBuilder
     /// and so sits above the staff whatever the note is doing, where the eye reads it along the line.
     /// </para>
     /// </summary>
-    private void Marks(AbcLayoutNode node, System system, StaffGeometry geometry, Event ev)
+    private void Marks(LayoutNode node, System system, StaffGeometry geometry, Event ev)
     {
         if (ev.HeadMarks.Count == 0 && ev.StaffMarks.Count == 0) return;
 
@@ -1106,7 +1125,7 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>Text put where the quotes said to put it, rather than over the note like a chord name.</summary>
-    private void Annotations(AbcLayoutNode node, System system, Event ev)
+    private void Annotations(LayoutNode node, System system, Event ev)
     {
         var below = 0;
 
@@ -1142,7 +1161,7 @@ internal sealed partial class AbcBuilder
     /// and a note that worked its own direction out would attach its stem to the other side of its head and
     /// run it away from the beam — which draws as a stray line across the staff and is how this was found.
     /// </param>
-    private void Stem(AbcLayoutNode node, System system, StaffGeometry geometry, Event ev, bool flags,
+    private void Stem(LayoutNode node, System system, StaffGeometry geometry, Event ev, bool flags,
                       double? toY = null, bool? stemsDown = null)
     {
         if (ev.IsRest || ev.Heads.Length == 0) return;
@@ -1177,8 +1196,8 @@ internal sealed partial class AbcBuilder
     /// does not have.
     /// </para>
     /// </summary>
-    private void Beam(AbcLayoutNode group, System system, StaffGeometry geometry, List<Event> events,
-                      Dictionary<Event, AbcLayoutNode> drawn)
+    private void Beam(LayoutNode group, System system, StaffGeometry geometry, List<Event> events,
+                      Dictionary<Event, LayoutNode> drawn)
     {
         if (events.Count == 0) return;
 
@@ -1233,7 +1252,7 @@ internal sealed partial class AbcBuilder
                 bar.Figures.Add(figure);
                 bar.Freeze();
 
-                var piece = group.Adding(new AbcLayoutNode(bar.Bounds, "beam-bar"));
+                var piece = group.Holding(new LayoutNode(bar.Bounds, "beam-bar"));
                 piece.Drew(GeometryMark.Filled(bar));
             }
         }
@@ -1270,13 +1289,13 @@ internal sealed partial class AbcBuilder
 
     // ── The small pieces ────────────────────────────────────────────────────
 
-    private void Ledgers(AbcLayoutNode node, System system, double x, int half)
+    private void Ledgers(LayoutNode node, System system, double x, int half)
     {
         for (var line = 10; line <= half; line += 2) Ledger(node, system, x, line);
         for (var line = -2; line >= half; line -= 2) Ledger(node, system, x, line);
     }
 
-    private void Ledger(AbcLayoutNode node, System system, double x, int half, double? head = null)
+    private void Ledger(LayoutNode node, System system, double x, int half, double? head = null)
     {
         var width = head ?? _noteHead;
         Rule(Piece(node, "ledger"), x - LedgerExt, Y(system, half) - (LedgerThick / 2),
@@ -1284,14 +1303,14 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>A filled rectangle recorded on a piece — a staff line, a stem, a beam, a ledger.</summary>
-    private static void Rule(AbcLayoutNode node, double x, double y, double width, double height)
+    private static void Rule(LayoutNode node, double x, double y, double width, double height)
     {
         var bounds = new Rect(x, y, Math.Max(width, 0), Math.Max(height, 0));
         node.Drew(new RuleMark(bounds, null));
         node.Covering(bounds);
     }
 
-    private void Dots(AbcLayoutNode node, System system, double x, int half, int dots)
+    private void Dots(LayoutNode node, System system, double x, int half, int dots)
     {
         // A dot never sits on a line: a note on one takes its dots in the space above.
         var at = half % 2 == 0 ? half + 1 : half;
@@ -1304,7 +1323,7 @@ internal sealed partial class AbcBuilder
         }
     }
 
-    private void ChordSymbol(AbcLayoutNode node, System system, Event ev)
+    private void ChordSymbol(LayoutNode node, System system, Event ev)
     {
         if (ev.ChordSymbol is not { Length: > 0 } text) return;
 
@@ -1315,7 +1334,7 @@ internal sealed partial class AbcBuilder
         // Its own piece, naming the `"Am"` that was typed. A chord is a thing a reader picks out on its
         // own — to read down the changes, to copy them, to retype one — and it cannot be any of that while
         // it is a mark drawn on the note underneath it.
-        var chord = node.Adding(new AbcLayoutNode(bounds, "chord", ev.ChordPart));
+        var chord = node.Holding(new LayoutNode(bounds, "chord", ev.ChordPart));
         chord.Drew(new TextMark(glyphs, at, null));
         _chords.Add((ev, chord));
     }
@@ -1331,7 +1350,7 @@ internal sealed partial class AbcBuilder
     /// out as one unbroken line without anything needing to know how long the run is.
     /// </para>
     /// </summary>
-    private void Lyrics(AbcLayoutNode node, System system, Event ev, Event? before)
+    private void Lyrics(LayoutNode node, System system, Event ev, Event? before)
     {
         foreach (var (verse, _, text, hyphen, melisma, part) in ev.Lyrics)
         {
@@ -1352,14 +1371,14 @@ internal sealed partial class AbcBuilder
             // Drawn under the note and written a line away, and the layout says the first while the part
             // says the second. The two trees are free to look nothing alike, which is the only reason a
             // syllable can be picked out of a verse without the note coming with it.
-            var sung = node.Adding(new AbcLayoutNode(bounds, "syllable", part));
+            var sung = node.Holding(new LayoutNode(bounds, "syllable", part));
             sung.Drew(new TextMark(glyphs, at, null));
             _sung.Add((ev, verse, sung));
         }
     }
 
     /// <summary>The rule under a note whose word was sung on an earlier one.</summary>
-    private void Held(AbcLayoutNode node, System system, Event ev, Event? before, int verse, double y)
+    private void Held(LayoutNode node, System system, Event ev, Event? before, int verse, double y)
     {
         var to = ev.X + (_noteHead / 2);
 
@@ -1392,7 +1411,7 @@ internal sealed partial class AbcBuilder
     /// them, which is why it read as upside down.
     /// </para>
     /// </summary>
-    private void GraceSlur(AbcLayoutNode node, System system, StaffGeometry geometry, Event ev,
+    private void GraceSlur(LayoutNode node, System system, StaffGeometry geometry, Event ev,
                            double from, double fromY)
     {
         if (ev.Heads.Length == 0) return;
@@ -1413,7 +1432,7 @@ internal sealed partial class AbcBuilder
     /// reader looks for it, and is the opposite of where a mark on a head goes.
     /// </para>
     /// </summary>
-    private void Tuplets(AbcLayoutNode into, System system, StaffGeometry geometry, Bar bar)
+    private void Tuplets(LayoutNode into, System system, StaffGeometry geometry, Bar bar)
     {
         var at = 0;
 
@@ -1441,7 +1460,7 @@ internal sealed partial class AbcBuilder
                     ? Y(system, halves.Min()) + StemLen
                     : Y(system, halves.Max()) - StemLen - glyphs.Height;
 
-                var node = into.Adding(new AbcLayoutNode(Rect.Empty, "tuplet"));
+                var node = into.Holding(new LayoutNode(Rect.Empty, "tuplet"));
                 var where = new Point(((left + right) / 2) - (glyphs.Width / 2), y);
                 node.Drew(new TextMark(glyphs, where, null));
                 node.Covering(new Rect(where, new Size(glyphs.Width, glyphs.Height)));
@@ -1455,21 +1474,21 @@ internal sealed partial class AbcBuilder
     /// The line that closes a bar. It carries a part, because somebody wrote it: a reader can point at one,
     /// and a selection of every note in a bar has to cover it before it can grow into the bar.
     /// </summary>
-    private void Barline(AbcLayoutNode into, System system, Bar bar)
+    private void Barline(LayoutNode into, System system, Bar bar)
     {
         if (bar.Closed is null) return;
         Barline(into, system, bar.Closed, bar.X + bar.Width - BarlineWidth(bar.Closed) + (0.25 * S));
     }
 
     /// <summary>Draws one bar line at <paramref name="from"/>, and says where it ended.</summary>
-    private double Barline(AbcLayoutNode into, System system, ContentPart line, double from)
+    private double Barline(LayoutNode into, System system, ContentPart line, double from)
     {
         var written = line.Node.Print();
         var x = from;
         var top = system.StaffTop;
         var height = StaffHeight;
 
-        var node = into.Adding(new AbcLayoutNode(Rect.Empty, "barline", line));
+        var node = into.Holding(new LayoutNode(Rect.Empty, "barline", line));
 
         foreach (var mark in written)
         {
@@ -1498,14 +1517,14 @@ internal sealed partial class AbcBuilder
         if (node.Bounds.IsEmpty) node.Covering(new Rect(x, top, ThinBarline, height));
         return x;
 
-        void Rule(AbcLayoutNode on, double at, double y, double thickness, double tall)
+        void Rule(LayoutNode on, double at, double y, double thickness, double tall)
         {
             var bounds = new Rect(at, y, thickness, tall);
             on.Drew(new RuleMark(bounds, null));
             on.Covering(bounds);
         }
 
-        void Dot(AbcLayoutNode on, double at, double y)
+        void Dot(LayoutNode on, double at, double y)
         {
             var size = 0.32 * S;
             var bounds = new Rect(at, y - (size / 2), size, size);
@@ -1533,7 +1552,7 @@ internal sealed partial class AbcBuilder
     /// disagreed about where the bars are, nothing was bracketed and nothing is drawn.
     /// </para>
     /// </summary>
-    private static void Brackets(AbcLayoutNode root, List<System> systems)
+    private static void Brackets(LayoutNode root, List<System> systems)
     {
         for (var at = 0; at < systems.Count; at++)
         {
@@ -1548,7 +1567,7 @@ internal sealed partial class AbcBuilder
 
             var top = systems[at].StaffTop;
             var bottom = systems[last].StaffTop + StaffHeight;
-            var node = root.Adding(new AbcLayoutNode(Rect.Empty, "bracket"));
+            var node = root.Holding(new LayoutNode(Rect.Empty, "bracket"));
 
             // Clamped to the left edge rather than placed a bracket's width outside it: the margin is two
             // pixels, so a bracket drawn where it belongs is half off the page.
@@ -1565,7 +1584,7 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>The bar lines continued down the gaps between the staves of one bracketed system.</summary>
-    private static void Through(AbcLayoutNode node, List<System> systems, int from, int to)
+    private static void Through(LayoutNode node, List<System> systems, int from, int to)
     {
         foreach (var bar in systems[from].Bars)
         {
@@ -1616,9 +1635,9 @@ internal sealed partial class AbcBuilder
     /// too many of those to keep in step, and the promise is cheaper to keep than to check.
     /// </para>
     /// </summary>
-    private static void Nothing(AbcLayoutNode root)
+    private static void Nothing(LayoutNode root)
     {
-        foreach (var node in root.SelfAndDescendants().OfType<AbcLayoutNode>())
+        foreach (var node in root.SelfAndDescendants().OfType<LayoutNode>())
             if (node.IsInk && (node.Bounds.IsEmpty || node.Bounds.Width <= 0 || node.Bounds.Height <= 0))
                 node.NotInk();
     }
@@ -1769,14 +1788,14 @@ internal sealed partial class AbcBuilder
     /// which is the handle a reader would take hold of.
     /// </para>
     /// </summary>
-    private AbcLayoutNode Joining(Event from, Event to, System system, string kind)
+    private LayoutNode Joining(Event from, Event to, System system, string kind)
     {
         if (Head(from) is not { } one || Head(to) is not { } other) return Hanging(system, kind);
 
         // Up from each until the two are siblings: a note and a note, or a note and the beam group
         // holding the other — the things the curve connects, at whatever size those turn out to be.
         var above = new HashSet<ILayoutNode>(one.Ancestors());
-        if (other.Ancestors().FirstOrDefault(above.Contains) is not AbcLayoutNode common
+        if (other.Ancestors().FirstOrDefault(above.Contains) is not LayoutNode common
             || common.Kind is not ("measure" or "beam")
             || Under(one, common) is not { } left
             || Under(other, common) is not { } right
@@ -1785,15 +1804,15 @@ internal sealed partial class AbcBuilder
             return Hanging(system, kind);
         }
 
-        return common.Gathering([left, right], kind + "-set");
+        return common.Regroup([left, right], new LayoutNode(Rect.Empty, kind + "-set"));
     }
 
     /// <summary>A curve's own piece on the line, for one that reaches further than any bar.</summary>
-    private static AbcLayoutNode Hanging(System system, string kind) =>
-        system.Node!.Adding(new AbcLayoutNode(Rect.Empty, kind + "-set"));
+    private static LayoutNode Hanging(System system, string kind) =>
+        system.Node!.Holding(new LayoutNode(Rect.Empty, kind + "-set"));
 
     /// <summary>The piece drawn for an event, or null for one that drew no head.</summary>
-    private AbcLayoutNode? Head(Event ev)
+    private LayoutNode? Head(Event ev)
     {
         foreach (var (of, node) in _heads)
             if (ReferenceEquals(of, ev)) return node;
@@ -1801,10 +1820,10 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>The ancestor of a piece that is a child of <paramref name="parent"/>, or itself.</summary>
-    private static AbcLayoutNode? Under(AbcLayoutNode node, ILayoutNode parent)
+    private static LayoutNode? Under(LayoutNode node, ILayoutNode parent)
     {
         for (ILayoutNode? at = node; at is not null; at = at.Parent)
-            if (ReferenceEquals(at.Parent, parent)) return at as AbcLayoutNode;
+            if (ReferenceEquals(at.Parent, parent)) return at as LayoutNode;
         return null;
     }
 
@@ -1830,7 +1849,7 @@ internal sealed partial class AbcBuilder
     /// where it meets a head and thickest in the middle. A stroked arc of even thickness reads as a
     /// drawing of a slur rather than as one.
     /// </summary>
-    private static void Draw(AbcLayoutNode into, Point from, Point to, bool above, string kind)
+    private static void Draw(LayoutNode into, Point from, Point to, bool above, string kind)
     {
         var span = Math.Abs(to.X - from.X);
         if (span < 1) return;
@@ -1846,7 +1865,7 @@ internal sealed partial class AbcBuilder
         path.Figures.Add(figure);
         path.Freeze();
 
-        var node = into.Adding(new AbcLayoutNode(path.Bounds, kind));
+        var node = into.Holding(new LayoutNode(path.Bounds, kind));
         node.Drew(GeometryMark.Filled(path));
     }
 
@@ -1860,7 +1879,7 @@ internal sealed partial class AbcBuilder
     /// question and is why this is worked out here rather than drawn bar by bar.
     /// </para>
     /// </summary>
-    private void Voltas(AbcLayoutNode into, System system)
+    private void Voltas(LayoutNode into, System system)
     {
         for (var at = 0; at < system.Bars.Count; at++)
         {
@@ -1875,7 +1894,7 @@ internal sealed partial class AbcBuilder
             var right = system.Bars[last].X + system.Bars[last].Width;
             var y = system.StaffTop - system.Above;
 
-            var node = into.Adding(new AbcLayoutNode(Rect.Empty, "volta", part));
+            var node = into.Holding(new LayoutNode(Rect.Empty, "volta", part));
 
             Rule(node, left, y, right - left, StaffLineThick * 1.6);
             Rule(node, left, y, StaffLineThick * 1.6, VoltaTick);
@@ -1908,9 +1927,9 @@ internal sealed partial class AbcBuilder
     /// <summary>Where a half-space above the bottom staff line lands on the page.</summary>
     private static double Y(System system, int half) => system.StaffTop + StaffHeight - (half * (S / 2));
 
-    private void Glyph(AbcLayoutNode into, string kind, int codepoint, Point baseline)
+    private void Glyph(LayoutNode into, string kind, int codepoint, Point baseline)
     {
-        var node = into.Adding(new AbcLayoutNode(Rect.Empty, kind));
+        var node = into.Holding(new LayoutNode(Rect.Empty, kind));
         Mark(node, codepoint, baseline);
     }
 
@@ -1918,7 +1937,7 @@ internal sealed partial class AbcBuilder
     /// Records a glyph on a piece. Drawn as a filled outline rather than as text, deliberately: WPF's text
     /// pipeline gamma-corrects glyph coverage and visibly fattens a music font's thin strokes.
     /// </summary>
-    private void Mark(AbcLayoutNode node, int codepoint, Point baseline, double scale = 1.0)
+    private void Mark(LayoutNode node, int codepoint, Point baseline, double scale = 1.0)
     {
         if (Smufl.Outline(codepoint, baseline, S, scale) is not { } outline)
         {
