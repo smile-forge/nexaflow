@@ -101,7 +101,7 @@ public partial class InlineMarkdownEditor : UserControl
         // looks like, and leaving it to whoever put the editor on screen means every host has to
         // remember, get the timing right, and re-do it on every path that hands focus over. Missing it
         // showed as no caret at all until the first keystroke, which was quietly doing the adopting.
-        _rtb.GotKeyboardFocus += (_, _) => { if (SingleFormula && !EditAsSource) FocusFormulaAtCaret(); };
+        _rtb.GotKeyboardFocus += (_, _) => { if (IsSingleBlock && !EditAsSource) FocusBlockAtCaret(); };
 
         _rtb.PreviewTextInput  += OnPreviewTextInput;
         _rtb.PreviewKeyDown    += OnPreviewKeyDown;
@@ -161,7 +161,7 @@ public partial class InlineMarkdownEditor : UserControl
             // notice that the keyboard is in an editor whose formula has nobody drawing its caret.
             // Without it the first keystroke does the adopting, which is why the caret appeared only
             // once something had been typed.
-            if (SingleFormula && !EditAsSource && _rtb.IsKeyboardFocusWithin) FocusFormulaAtCaret();
+            if (IsSingleBlock && !EditAsSource && _rtb.IsKeyboardFocusWithin) FocusBlockAtCaret();
         };
 
         // Right-click formatting toolbar (shown while editing). It takes focus while open, so guard the
@@ -315,37 +315,77 @@ public partial class InlineMarkdownEditor : UserControl
     }
 
     /// <summary>
-    /// Makes the editor a single formula rather than a document: one block that never splits into more,
-    /// with <see cref="Markdown"/> carrying the LaTeX itself.
+    /// Makes the editor a single block of one language rather than a document — <c>latex</c> for a
+    /// formula, <c>abc</c> for a tune, any fenced language the renderer knows — with
+    /// <see cref="Markdown"/> carrying that language's own text and nothing else. Empty for a document,
+    /// which is the default and what every ordinary markdown surface wants.
+    ///
     /// <para>
-    /// The maths fence is the editor's own business here. The host hands it LaTeX and gets LaTeX back —
-    /// the <c>$$</c> goes on to have the block typeset and comes off again on the way out, so it is
-    /// never typed, never shown, and never something the host has to remember. A host that fences for
-    /// itself ends up holding two ideas of what the text is and has to keep them in step through every
-    /// keystroke; this is that bookkeeping, done once, where the block model already lives.
+    /// The fence is the editor's own business here. The host hands it LaTeX, or ABC, and gets the same
+    /// back — the <c>$$</c> or the <c>```abc</c> goes on to have the block rendered and comes off again
+    /// on the way out, so it is never typed, never shown, and never something the host has to remember.
+    /// A host that fences for itself ends up holding two ideas of what the text is and has to keep them
+    /// in step through every keystroke; this is that bookkeeping, done once, where the block model
+    /// already lives.
     /// </para>
     /// <para>
-    /// Only for a surface that <em>is</em> one formula, like the Solver's Latex tab. Anything that could
-    /// hold a document — its Text tab, the markdown editor, the scratchpad — leaves this alone and keeps
-    /// blocks, headings, diagrams and maths of its own.
+    /// That is also what lets a file <em>be</em> one block. A <c>.abc</c> file is a tune, not a markdown
+    /// document that happens to contain one, so the fence exists for exactly as long as it takes to
+    /// render and the bytes on disk never carry it.
+    /// </para>
+    /// <para>
+    /// Only for a surface that <em>is</em> one block, like the Solver's Latex tab or a tune opened from
+    /// disk. Anything that could hold a document — the Solver's Text tab, a markdown file, the
+    /// scratchpad — leaves this empty and keeps blocks, headings, diagrams and maths of its own.
     /// </para>
     /// </summary>
-    public static readonly DependencyProperty SingleFormulaProperty =
-        DependencyProperty.Register(nameof(SingleFormula), typeof(bool), typeof(InlineMarkdownEditor),
-            new PropertyMetadata(false, (d, _) => ((InlineMarkdownEditor)d).RenderAll()));
+    public static readonly DependencyProperty SingleBlockProperty =
+        DependencyProperty.Register(nameof(SingleBlock), typeof(string), typeof(InlineMarkdownEditor),
+            new PropertyMetadata(null, (d, _) => ((InlineMarkdownEditor)d).RebuildForBlockMode()));
 
-    public bool SingleFormula
+    public string? SingleBlock
     {
-        get => (bool)GetValue(SingleFormulaProperty);
-        set => SetValue(SingleFormulaProperty, value);
+        get => (string?)GetValue(SingleBlockProperty);
+        set => SetValue(SingleBlockProperty, value);
     }
 
+    /// <summary>Whether this editor is one block rather than a document.</summary>
+    private bool IsSingleBlock => !string.IsNullOrWhiteSpace(SingleBlock);
+
     /// <summary>
-    /// The markdown block <paramref name="index"/> is rendered from — the LaTeX inside its fence when
-    /// this editor is one formula, and the block's own text otherwise.
+    /// What goes either side of the text to make it the block it is.
+    /// <para>
+    /// Maths is the exception in markdown rather than the rule: it is delimited, not fenced, and a
+    /// <c>```latex</c> block is a listing of LaTeX source rather than a formula. Everything else is a
+    /// fence named by its language, which is the same shape a host would write by hand.
+    /// </para>
+    /// </summary>
+    private (string Open, string Close) Fence =>
+        SingleBlock?.Trim().ToLowerInvariant() switch
+        {
+            null or "" => ("", ""),
+            "latex" or "math" or "tex" => ("$$\n", "\n$$"),
+            var language => ("```" + language + "\n", "\n```"),
+        };
+
+    /// <summary>
+    /// The markdown block <paramref name="index"/> is rendered from — the block's own text inside the
+    /// fence this editor owns, and the text as it stands otherwise.
     /// </summary>
     private string SourceToRender(int index) =>
-        SingleFormula ? "$$\n" + _blocks[index] + "\n$$" : _blocks[index];
+        IsSingleBlock ? Fence.Open + _blocks[index] + Fence.Close : _blocks[index];
+
+    /// <summary>
+    /// Re-reads the markdown under the new block mode. Switching between a document and one block changes
+    /// how the same text splits, so re-rendering alone would leave the blocks as the old mode cut them.
+    /// </summary>
+    private void RebuildForBlockMode()
+    {
+        var markdown = Markdown ?? string.Empty;
+        _blocks = IsSingleBlock ? [markdown] : MarkdownBlocks.Split(markdown);
+        _active = -1;
+        RenderAll();
+    }
 
     /// <summary>
     /// Holds the block being edited open as the characters that were typed, instead of letting it
@@ -421,7 +461,7 @@ public partial class InlineMarkdownEditor : UserControl
         // A surface whose whole content is one rendered sub-block is an input field, not a document:
         // it starts at the left like the content of every other field, instead of drifting about the
         // middle as it is typed. A document says nothing and each kind sits where it normally sits.
-        SubblockAlignment = SingleFormula ? HorizontalAlignment.Left : null,
+        SubblockAlignment = IsSingleBlock ? HorizontalAlignment.Left : null,
     };
 
     private void OnPaletteChanged()
@@ -474,7 +514,7 @@ public partial class InlineMarkdownEditor : UserControl
         self.ClearNativeSession();                   // external truth replaces any stale native edit
         // One formula is one block however many lines it runs to — splitting it on a blank line would
         // make half of it a paragraph of prose.
-        self._blocks = self.SingleFormula
+        self._blocks = self.IsSingleBlock
             ? [incoming]
             : MarkdownBlocks.Split(incoming);
         self._active = -1;
@@ -581,7 +621,7 @@ public partial class InlineMarkdownEditor : UserControl
     {
         // Nothing arrives here as a block when the editor is one formula — it arrives as more of that
         // formula, wherever the caret is.
-        if (SingleFormula)
+        if (IsSingleBlock)
         {
             if (InsertLatexAtCaret(markdown)) return;   // a formula holds the caret: it types it in
 
@@ -776,7 +816,7 @@ public partial class InlineMarkdownEditor : UserControl
                 {
                     // One formula has no "below it" to start something new in — the click means the end
                     // of the formula, which is where the caret would have gone anyway.
-                    if (!SingleFormula && _blocks[^1].Trim().Length != 0)
+                    if (!IsSingleBlock && _blocks[^1].Trim().Length != 0)
                         { _blocks.Add(string.Empty); PushMarkdown(); }
                     block = _blocks.Count - 1; off = _blocks[^1].Length;
                 }
@@ -1230,7 +1270,7 @@ public partial class InlineMarkdownEditor : UserControl
     /// Whether what is pasted here belongs in a formula — one that holds the caret, or a surface whose
     /// whole content is one.
     /// </summary>
-    private bool PastesIntoBlock => _caretBlock is not null || SingleFormula;
+    private bool PastesIntoBlock => _caretBlock is not null || IsSingleBlock;
 
     /// <summary>
     /// Puts the clipboard into the formula, the way typed text goes in rather than as a block beside it.
@@ -1411,7 +1451,7 @@ public partial class InlineMarkdownEditor : UserControl
             {
                 // One formula has nowhere to split to: Enter is a line inside the expression, the same
                 // as Shift+Enter, rather than the start of a second formula.
-                if (SingleFormula)
+                if (IsSingleBlock)
                 {
                     var (at, upTo) = SelectionInActiveBlock();
                     EditActive(at, upTo, "\n");
@@ -1645,7 +1685,7 @@ public partial class InlineMarkdownEditor : UserControl
         MarkdownInlineSerializer.TrySerialize(para, _rtb.Selection.End,   esc, out var upToEnd);
         ClearNativeSession();
 
-        if (SingleFormula) return false;    // nowhere to split to
+        if (IsSingleBlock) return false;    // nowhere to split to
 
         _blocks[b] = prefix + upToStart;
         _blocks.Insert(b + 1, full[Math.Min(upToEnd.Length, full.Length)..]);
@@ -1776,7 +1816,7 @@ public partial class InlineMarkdownEditor : UserControl
         if (_active < 0) return;
 
         // One formula takes everything pasted as more of itself.
-        if (SingleFormula) { EditActive(from, to, pasted); return; }
+        if (IsSingleBlock) { EditActive(from, to, pasted); return; }
 
         // A multi-block paste becomes multiple blocks; a single-block paste edits in place.
         var parts = MarkdownBlocks.Split(pasted);
@@ -1839,7 +1879,7 @@ public partial class InlineMarkdownEditor : UserControl
         // Held open as source there is no formula to have an opinion: the block is the document's own
         // text, and the document's selection is the only selection there is. Clearing it there is what
         // made the source view unselectable — every sweep of the pointer was undone as it was made.
-        if (SingleFormula && _active < 0) { ClearDocumentSelection(); return; }
+        if (IsSingleBlock && _active < 0) { ClearDocumentSelection(); return; }
 
         foreach (var element in EmbeddedBlocks())
         {
@@ -1901,7 +1941,7 @@ public partial class InlineMarkdownEditor : UserControl
 
             // A click in the empty space below the text starts a fresh trailing block — unless the
             // editor is one formula, where there is nothing below it to start.
-            if (clickPoint is { } pt && IsBelowContent(pt) && !SingleFormula)
+            if (clickPoint is { } pt && IsBelowContent(pt) && !IsSingleBlock)
             {
                 if (_blocks[^1].Trim().Length != 0) { _blocks.Add(string.Empty); PushMarkdown(); }
                 Activate(_blocks.Count - 1, 0);
@@ -2046,7 +2086,7 @@ public partial class InlineMarkdownEditor : UserControl
         // Hand the caret back to the formula that now stands where the old one did. Also the first
         // moment a formula exists to hand it to at all: the document is not built until the editor is
         // shown, which is exactly when a tab switch focuses it and asks for a caret.
-        if (EditAsSource || !SingleFormula) return;
+        if (EditAsSource || !IsSingleBlock) return;
         if (caretWas is null && !_rtb.IsKeyboardFocusWithin) return;
 
         if (FocusFormulaAtCaret() && caretWas is { } at) FocusedFormula!.TakeCaret(at);
@@ -2060,7 +2100,7 @@ public partial class InlineMarkdownEditor : UserControl
         // bug that makes the whole tab feel wrong — clicking a number, or simply focusing the editor,
         // would replace the typeset maths with its own LaTeX. The caret belongs to the formula, which
         // is the thing being looked at and typed into. Source is reached by asking for it.
-        if (SingleFormula && !EditAsSource) { FocusFormulaAtCaret(); return; }
+        if (IsSingleBlock && !EditAsSource) { FocusBlockAtCaret(); return; }
 
         SyncNativeModel();                                  // entering source mode commits a Word-style edit
         ClearNativeSession();
@@ -2158,7 +2198,7 @@ public partial class InlineMarkdownEditor : UserControl
 
         // An empty formula is not an empty block: it is the formula you are about to write, and it has
         // to be there for the caret to go into and the first character to be typed at.
-        if (text.Trim().Length == 0 && !SingleFormula)
+        if (text.Trim().Length == 0 && !IsSingleBlock)
         {
             // Empty block while it is not being edited: a thin clickable line.
             var ph = new Paragraph(new Run(" ")) { Foreground = Pal.TextMuted, Tag = index };

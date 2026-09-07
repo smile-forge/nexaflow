@@ -41,18 +41,40 @@ internal sealed partial class AbcBuilder
     private readonly Brush _ink;
     private readonly double _ppd;
 
-    private AbcBuilder(ContentReading reading, Brush ink, double pixelsPerDip)
+    private AbcBuilder(ContentReading reading, Brush ink, double pixelsPerDip, ScoreSpacing spacing)
     {
         _reading = reading;
         _ink = ink;
         _ppd = pixelsPerDip <= 0 ? 1.0 : pixelsPerDip;
+        _spacing = spacing;
     }
+
+    /// <summary>How much air this engraving puts between things — see <see cref="ScoreSpacing"/>.</summary>
+    private readonly ScoreSpacing _spacing;
+
+    /// <summary>Whether the tune said what its meter is, rather than being assumed into 4/4.</summary>
+    private bool MeterWritten;
+
+    /// <summary>
+    /// The symbol the tune's <em>opening</em> meter asked for, where it asked for one: <c>C</c> is common
+    /// time and <c>C|</c> cut time, and both are drawn as a sign rather than as figures.
+    ///
+    /// <para>
+    /// Kept because working the meter out throws the question away. <c>M:C|</c> and <c>M:2/2</c> count the
+    /// same and are not written the same, and printing "2/2" over a tune whose writer put <c>C|</c> is
+    /// answering a question nobody asked.
+    /// </para>
+    /// <para>
+    /// The opening one only — a meter written mid-tune carries its own sign on the bar it changes at.
+    /// </para>
+    /// </summary>
+    private int? MeterSign;
 
     /// <summary>Engraves a tune to fit <paramref name="width"/>, and says how big it came out.</summary>
     public static (AbcLayoutNode Root, Size Size) Build(
-        ContentReading reading, double width, Brush ink, double pixelsPerDip)
+        ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing = null)
     {
-        var builder = new AbcBuilder(reading, ink, pixelsPerDip);
+        var builder = new AbcBuilder(reading, ink, pixelsPerDip, spacing ?? ScoreSpacing.Current);
         return builder.Engrave(width);
     }
 
@@ -85,7 +107,15 @@ internal sealed partial class AbcBuilder
         public int TupletNumber;
 
         public string? ChordSymbol;
-        public List<(int Verse, string Text, bool Hyphen, bool Melisma)> Lyrics = [];
+
+        /// <summary>The <c>"Am"</c> that named it — what selecting the chord selects.</summary>
+        public ContentPart? ChordPart;
+
+        /// <summary>
+        /// The syllables sung on this event: which verse, what it says, and the characters it was written
+        /// with — which are in the <c>w:</c> line, nowhere near the note.
+        /// </summary>
+        public List<(int Verse, int At, string Text, bool Hyphen, bool Melisma, ContentPart? Part)> Lyrics = [];
 
         /// <summary>Marks that hug the head, on the side the stem is not: staccato, tenuto, accent.</summary>
         public List<int> HeadMarks = [];
@@ -131,7 +161,16 @@ internal sealed partial class AbcBuilder
         /// <summary>Room taken at the head of this bar by a key or meter written in the middle of a tune.</summary>
         public double SignatureWidth;
         public KeySignature? KeyChange;
-        public (int Beats, int Unit)? MeterChange;
+        /// <summary>
+        /// The meter this bar changes to, and the sign it was written as where it was written as one.
+        ///
+        /// <para>
+        /// The sign travels with the change rather than sitting on the builder. A tune may write several
+        /// meters — <c>M:C</c> then <c>M:C|</c> then <c>M:6/8</c> — and one field holding "the sign" ends
+        /// up holding the last one, which is the wrong answer for every bar including the last.
+        /// </para>
+        /// </summary>
+        public (int Beats, int Unit, int? Sign)? MeterChange;
 
         /// <summary>The repeat bracket opening at this bar — ABC's <c>|1</c> or <c>[2</c> — and its label.</summary>
         public ContentPart? Volta;
@@ -154,6 +193,18 @@ internal sealed partial class AbcBuilder
 
         /// <summary>What to print at the left of the first system, where a voice has a name.</summary>
         public string? Name;
+
+        /// <summary>
+        /// The <c>w:</c> lines sung under this row, in the order they were written — verse 0 first.
+        ///
+        /// <para>
+        /// Kept so a syllable can be given the characters it was written with. The layout tree and the
+        /// parse tree need not look alike, and here they deliberately do not: a syllable is drawn under
+        /// the note it is sung on and written in a line of its own, so what joins the two is the index the
+        /// aligning stage worked out, resolved here.
+        /// </para>
+        /// </summary>
+        public List<ContentPart> Verses = [];
     }
 
     // ── Reading it ──────────────────────────────────────────────────────────
@@ -169,21 +220,38 @@ internal sealed partial class AbcBuilder
     {
         var rows = new List<Row>();
         var key = (KeySignature?)null;
-        var meter = ((int Beats, int Unit)?)null;
+        var meter = ((int Beats, int Unit, int? Sign)?)null;
         var started = false;
 
         // How many lines each voice has written. Two voices' n-th lines sound together, which is the whole
         // of what makes a system a system: ABC writes the parts one after another and leaves the reader to
         // count.
+        // Whether the tune ever said what its meter is. A reader assumes 4/4 when nothing says
+        // otherwise — every engraver does — but assuming it and *printing* it are different claims, and
+        // printing one nobody wrote puts a time signature on a tune that has none.
+        MeterWritten = false;
+        MeterSign = null;
+
         var lines = new Dictionary<string, int>();
         var names = new Dictionary<string, string>();
         var clefs = new Dictionary<string, ClefKind>();
+
+        // The row a trailing backslash left open, if the line before this one ended with one.
+        Row? continuing = null;
+
+        // …and the row a `w:` line belongs under, which is simply the last one read.
+        Row? sungUnder = null;
 
         foreach (var line in _reading.Root.Children)
         {
             if (line.Kind == AbcKinds.Field)
             {
                 var name = line.Part(Roles.Name)?.Text ?? "";
+                if (name.StartsWith('M') && AbcTheory.Meter(line.Part(AbcRoles.Value)?.Node.Text ?? "") is not null)
+                {
+                    MeterWritten = true;
+                    if (!started) MeterSign = Sign(line.Part(AbcRoles.Value)?.Node.Text ?? "");
+                }
                 var value = line.Part(AbcRoles.Value)?.Node.Text ?? "";
 
                 // What a voice is called and which clef it asks for are settled wherever the V: is written,
@@ -204,23 +272,46 @@ internal sealed partial class AbcBuilder
                 if (!started) continue;
 
                 if (name.StartsWith('K')) key = KeyOf(value);
-                if (name.StartsWith('M')) meter = AbcTheory.Meter(value);
+                if (name.StartsWith('M') && AbcTheory.Meter(value) is { } wrote)
+                    meter = (wrote.Beats, wrote.Unit, Sign(value));
+                continue;
+            }
+
+            if (line.Kind == AbcKinds.LyricLine)
+            {
+                // Sung under whichever row was last read — the same pairing the aligning stage made, and
+                // the reason a syllable can be handed the characters it was written with.
+                if (line.Part(AbcRoles.Value) is { } sung) sungUnder?.Verses.Add(sung);
                 continue;
             }
 
             if (line.Kind != AbcKinds.Line) continue;
 
             var context = ResolveContext.Of(line.Node);
-            var row = new Row
-            {
-                Context = context,
-                Clef = ClefOf(line) ?? clefs.GetValueOrDefault(context.Voice, ClefKind.Treble),
-                Voice = context.Voice,
-                Index = lines.TryGetValue(context.Voice, out var seen) ? seen : 0,
-                Name = names.GetValueOrDefault(context.Voice),
-            };
 
-            lines[context.Voice] = row.Index + 1;
+            // A line the one before it left open with a backslash goes on the same row. That is what the
+            // backslash means: the tune carries on, and where the source happened to wrap is not where the
+            // engraver should break. Written out a bar to a line — which real tunebooks do, because it
+            // lines the chord symbols up in the file — it otherwise gives one system per bar, and a page
+            // of forty single-bar staves.
+            Row row;
+            if (continuing is { } open && open.Voice == context.Voice)
+            {
+                row = open;
+            }
+            else
+            {
+                row = new Row
+                {
+                    Context = context,
+                    Clef = ClefOf(line) ?? clefs.GetValueOrDefault(context.Voice, ClefKind.Treble),
+                    Voice = context.Voice,
+                    Index = lines.TryGetValue(context.Voice, out var seen) ? seen : 0,
+                    Name = names.GetValueOrDefault(context.Voice),
+                };
+
+                lines[context.Voice] = row.Index + 1;
+            }
 
             foreach (var piece in line.Children)
             {
@@ -241,12 +332,57 @@ internal sealed partial class AbcBuilder
                 if (bar.Events.Count > 0 || bar.Closed is not null) row.Bars.Add(bar);
             }
 
+            // Held back while the row is still open, so the brackets are worked out over the whole of it
+            // and it is added to the tune exactly once.
+            if (Continues(line)) { continuing = row; continue; }
+
+            continuing = null;
+            sungUnder = row;
             Brackets(row);
-            if (row.Bars.Count > 0) { rows.Add(row); started = true; }
+            if (row.Bars.Count > 0 && !rows.Contains(row)) { rows.Add(row); started = true; }
         }
 
+        Sung(rows);
         return rows;
     }
+
+    /// <summary>
+    /// Hands every syllable the characters it was written with.
+    ///
+    /// <para>
+    /// It happens here, after the whole tune is read, because a <c>w:</c> line comes <em>after</em> the
+    /// music it is sung under: when an event is built its verses do not exist yet. The aligning stage
+    /// already worked out which piece of which verse lands on which note, so this is only the lookup —
+    /// and the two trees are free to look nothing alike, which is exactly what lets a syllable be drawn
+    /// under a note and written a line away.
+    /// </para>
+    /// </summary>
+    private static void Sung(List<Row> rows)
+    {
+        foreach (var row in rows)
+            foreach (var bar in row.Bars)
+                foreach (var ev in bar.Events)
+                    for (var i = 0; i < ev.Lyrics.Count; i++)
+                    {
+                        var sung = ev.Lyrics[i];
+                        if (sung.Verse >= row.Verses.Count) continue;
+
+                        var pieces = row.Verses[sung.Verse].Children;
+                        if (sung.At < 0 || sung.At >= pieces.Count) continue;
+
+                        ev.Lyrics[i] = sung with { Part = pieces[sung.At] };
+                    }
+    }
+
+    /// <summary>
+    /// Whether a music line ends with a backslash, which says the tune carries on into the next one.
+    /// <para>
+    /// It is trivia to the parser — it prints and reads back and means nothing to the notes — and it is the
+    /// engraver it speaks to: it says where a system may <em>not</em> break.
+    /// </para>
+    /// </summary>
+    private static bool Continues(ContentPart line) =>
+        line.SelfAndDescendants().Any(p => p.Kind == AbcKinds.Continuation);
 
     /// <summary>
     /// Which bar each repeat bracket opens at.
@@ -351,7 +487,7 @@ internal sealed partial class AbcBuilder
 
             case AbcKinds.Annotation:
                 // Written before the note it belongs to, so it is held until one arrives.
-                Quoted(piece.Node.Text);
+                Quoted(piece);
                 return;
 
             case AbcKinds.Decoration:
@@ -383,6 +519,7 @@ internal sealed partial class AbcBuilder
     }
 
     private string? _pendingChordSymbol;
+    private ContentPart? _pendingChordPart;
 
     private Event Note(ContentPart note, ContentPart? beam)
     {
@@ -399,7 +536,7 @@ internal sealed partial class AbcBuilder
             Dots = dots,
             Quarters = ResolveNotes.LengthOf(note.Node).Quarters,
             Beam = beam,
-            Lyrics = [.. AlignLyrics.Of(note.Node)],
+            Lyrics = [.. AlignLyrics.Of(note.Node).Select(l => (l.Verse, l.At, l.Text, l.Hyphen, l.Melisma, (ContentPart?)null))],
         });
     }
 
@@ -422,7 +559,7 @@ internal sealed partial class AbcBuilder
             Dots = dots,
             Quarters = quarters,
             Beam = beam,
-            Lyrics = [.. AlignLyrics.Of(chord.Node)],
+            Lyrics = [.. AlignLyrics.Of(chord.Node).Select(l => (l.Verse, l.At, l.Text, l.Hyphen, l.Melisma, (ContentPart?)null))],
         });
     }
 
@@ -449,6 +586,7 @@ internal sealed partial class AbcBuilder
     private Event Taking(Event ev)
     {
         ev.ChordSymbol = _pendingChordSymbol;
+        ev.ChordPart = _pendingChordPart;
         ev.Annotations.AddRange(_pendingAnnotations);
         ev.HeadMarks.AddRange(_pendingHeadMarks);
         ev.StaffMarks.AddRange(_pendingStaffMarks);
@@ -457,6 +595,7 @@ internal sealed partial class AbcBuilder
         ev.SlurOpen = _pendingSlurs;
 
         _pendingChordSymbol = null;
+        _pendingChordPart = null;
         _pendingAnnotations.Clear();
         _pendingHeadMarks.Clear();
         _pendingStaffMarks.Clear();
@@ -480,8 +619,9 @@ internal sealed partial class AbcBuilder
     /// A double-quoted run: a bare one names a chord, and one led by a placement character is text put
     /// where that character says.
     /// </summary>
-    private void Quoted(string quoted)
+    private void Quoted(ContentPart piece)
     {
+        var quoted = piece.Node.Text;
         if (quoted.Length < 2) return;
         var text = quoted[1..^1];
         if (text.Length == 0) return;
@@ -495,7 +635,7 @@ internal sealed partial class AbcBuilder
             _ => (AnnotationPlacement?)null,
         };
 
-        if (where is null) { _pendingChordSymbol = text; return; }
+        if (where is null) { _pendingChordSymbol = text; _pendingChordPart = piece; return; }
 
         _pendingAnnotations.Add((text[1..], where.Value));
     }
@@ -536,7 +676,9 @@ internal sealed partial class AbcBuilder
     /// </summary>
     private void Graces(ContentPart group)
     {
-        _pendingGraceSlash = group.Part(Roles.Name)?.Node.Text == "/";
+        // Slashed when, and only when, a slash was written. ABC spells the two out — `{g}` is an
+        // appoggiatura and `{/g}` an acciaccatura — so there is nothing here to infer.
+        _pendingGraceSlash = group.Node.Print().StartsWith("{/", StringComparison.Ordinal);
 
         foreach (var member in group.Children)
         {
@@ -547,9 +689,15 @@ internal sealed partial class AbcBuilder
             _pendingGraces.Add((pitch.DiatonicIndex, Math.Max(value, 8)));
         }
 
-        // A lone grace note is conventionally slashed, whether or not the source asked.
-        if (_pendingGraces.Count == 1) _pendingGraceSlash = true;
     }
+
+    /// <summary>The sign a meter was written as, where it was written as one rather than as figures.</summary>
+    private static int? Sign(string value) => value.Trim() switch
+    {
+        "C" => Smufl.TimeSigCommon,
+        "C|" => Smufl.TimeSigCutCommon,
+        _ => null,
+    };
 
     /// <summary>The accidental written in front of a note, in semitones, or null where none was.</summary>
     private static int? Written(ContentPart note) =>

@@ -77,6 +77,92 @@ public static class LayoutQuery
         return best;
     }
 
+    /// <summary>
+    /// The first thing a selection could hold, climbing from here: this node if the source named it, and
+    /// otherwise the nearest thing above it that it did.
+    ///
+    /// <para>
+    /// Where selection starts, every time. What a reader points at is a glyph, a stem, a syllable — most
+    /// of which name nothing on their own — and what they mean by pointing at it is the smallest written
+    /// thing it is part of. Climbing is the only way to get from one to the other, and it is why nothing
+    /// here ever needs to know what a node contains.
+    /// </para>
+    /// </summary>
+    public static ILayoutNode? Selectable(this ILayoutNode node) =>
+        node.Part is { Length: > 0 } ? node : NamedAncestor(node);
+
+    /// <summary>
+    /// One step from here along an axis — the next thing to select when a selection grows that way, or
+    /// null when there is nothing that way.
+    ///
+    /// <para>
+    /// The step is taken on the parent that orders this node (<see cref="ILayoutNode.Across"/> or
+    /// <see cref="ILayoutNode.Down"/>), and what comes back is climbed to the first thing the source
+    /// named — usually itself, and not always.
+    /// </para>
+    /// <para>
+    /// <strong>A node that declares neither still steps</strong>, on the tree that draws it: sideways to
+    /// the next thing its parent holds, and vertically to the nearest thing on the row above or below.
+    /// Declaring an axis is how a builder says something the drawing does not — that a syllable belongs
+    /// with the other syllables of its verse rather than with the note above it — and where there is
+    /// nothing to correct, where a thing is drawn is a perfectly good account of what is beside it. So
+    /// this is not a feature only declared content gets; it is the ordinary behaviour, which declaring
+    /// an axis overrides.
+    /// </para>
+    /// <para>
+    /// Deliberately one step and no more. A run is walked by taking them, so nothing has to hold what the
+    /// run <em>is</em> — which is what lets a lyric carry on across systems, a maths block stop at its own
+    /// edge, and a diagram stay inside its subtree, all from the same code and without any of them being
+    /// asked to pretend it is a row.
+    /// </para>
+    /// </summary>
+    public static ILayoutNode? Step(this ILayoutNode node, bool vertical, bool forward)
+    {
+        if ((vertical ? node.Down : node.Across) is { } ordering)
+            return Beside(ordering.Children, node, forward);
+
+        return vertical ? Stacked(node, forward) : Beside(node.Parent?.Children, node, forward);
+    }
+
+    /// <summary>The member one place along from this one, climbed to the first thing the source named.</summary>
+    private static ILayoutNode? Beside(IReadOnlyList<ILayoutNode>? members, ILayoutNode node, bool forward)
+    {
+        if (members is null) return null;
+
+        var at = -1;
+        for (var i = 0; i < members.Count; i++)
+            if (ReferenceEquals(members[i], node)) { at = i; break; }
+
+        var to = at + (forward ? 1 : -1);
+        return at < 0 || to < 0 || to >= members.Count ? null : members[to].Selectable();
+    }
+
+    /// <summary>
+    /// A step up or down taken on the tree that draws things, for content that declared no stack of its
+    /// own: the row above or below within whatever holds this, and the thing on it nearest to where this
+    /// one starts.
+    /// <para>
+    /// Nearest by column rather than first on the row, because moving down a line is meant to keep your
+    /// place across it — the same rule the caret follows through a fraction.
+    /// </para>
+    /// </summary>
+    private static ILayoutNode? Stacked(ILayoutNode node, bool forward)
+    {
+        if (node.Parent is not { } parent) return null;
+
+        var rows = parent.Rows();
+        var mine = rows.FindIndex(row => row.Any(n => ReferenceEquals(n, node)));
+        if (mine < 0) return null;
+
+        var to = mine + (forward ? 1 : -1);
+        if (to < 0 || to >= rows.Count) return null;
+
+        return rows[to]
+            .OrderBy(n => Math.Abs(n.Bounds.X - node.Bounds.X))
+            .Select(n => n.Selectable())
+            .FirstOrDefault(n => n is not null);
+    }
+
     /// <summary>The nearest thing containing this node that the source actually named.</summary>
     private static ILayoutNode? NamedAncestor(ILayoutNode node) =>
         node.Ancestors().FirstOrDefault(a => a.Part is { Length: > 0 });
@@ -99,16 +185,34 @@ public static class LayoutQuery
         }
     }
 
+    /// <summary>
+    /// The ink nearest the point, for a press that landed on nothing: between a head and the end of its
+    /// stem, in the air over a bar, past the last note on a line.
+    ///
+    /// <para>
+    /// <strong>The deeper wins a tie, and that is the whole of it.</strong> A press inside a bar is nought
+    /// away from the note, from the bar, from the line and from the tune, because each of them contains
+    /// it - so with distance alone the winner was whichever came first in the walk, which is the
+    /// outermost. Pressing beside a note selected the entire bar, and the two ends of a drag disagreed
+    /// about which layer they were on depending on whether each happened to land on a glyph.
+    /// </para>
+    /// </summary>
     private static ILayoutNode? Nearest(ILayoutNode root, Point point)
     {
         ILayoutNode? best = null;
         var bestDistance = double.MaxValue;
+        var bestDepth = -1;
 
         foreach (var node in root.Ink())
         {
             var distance = DistanceTo(node.Bounds, point);
-            if (distance >= bestDistance) continue;
+            if (distance > bestDistance) continue;
+
+            var depth = node.Ancestors().Count();
+            if (distance == bestDistance && depth <= bestDepth) continue;
+
             bestDistance = distance;
+            bestDepth = depth;
             best = node;
         }
 

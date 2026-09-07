@@ -241,9 +241,26 @@ public sealed partial class AbcElement : IEditableBlock
 
     private int Caret() => Math.Clamp(_caret.Offset, 0, _abc.Length);
 
+    /// <summary>
+    /// The caret one place along, or the selection one piece along when it is being extended.
+    ///
+    /// <para>
+    /// <strong>Both live here, and deliberately.</strong> The host asks this for every left and right
+    /// arrow, with <paramref name="extend"/> saying whether Shift was down; a block that also claimed the
+    /// key for itself would leave two handlers writing one selection from two different ideas of what a
+    /// selection is — which is the shape of every keyboard bug this app has had.
+    /// </para>
+    /// <para>
+    /// Extending walks the run the piece belongs to, so Shift and an arrow sweeps a verse or a line of
+    /// notes exactly as dragging along it would. Where nothing declares a run there is nothing to walk,
+    /// and it falls back to moving the caret — which is what it has always done.
+    /// </para>
+    /// </summary>
     public bool MoveCaret(bool forward, bool extend)
     {
         if (_layout is null) return false;
+
+        if (extend && Extend(vertical: false, forward)) return true;
 
         if (_layout.Root.Step(_caret, forward) is not { } next)
         {
@@ -257,8 +274,14 @@ public sealed partial class AbcElement : IEditableBlock
         return true;
     }
 
+    /// <summary>
+    /// Up and down: the selection through what sounds together when it is being extended, and otherwise
+    /// the caret. Same seam, same reason as <see cref="MoveCaret"/>.
+    /// </summary>
     bool IEditableBlock.MoveCaretVertically(bool up, bool extend)
     {
+        if (extend && Extend(vertical: true, forward: !up)) return true;
+
         if (_layout?.Root.StepVertical(Caret(), up) is not { } next) return false;
 
         _caret = CaretPlace.At(next);

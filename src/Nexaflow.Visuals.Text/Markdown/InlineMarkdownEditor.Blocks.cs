@@ -125,6 +125,46 @@ public partial class InlineMarkdownEditor
     /// The caret-taking element rendered for one block of the model, whatever kind it is — the seam an
     /// arrow key crosses into.
     /// </summary>
+    /// <summary>
+    /// Makes sure the block the caret is over holds it, whatever kind of block that is — a formula, a
+    /// tune, anything that takes a caret of its own.
+    ///
+    /// <para>
+    /// The formula-only version of this is why a single block of any other language rendered and then
+    /// could not be typed into: the editor adopted a <c>FormulaElement</c> or nothing, so a tune drew a
+    /// caret no keystroke ever reached. Adopting by the <see cref="IEditableBlock"/> seam instead is the
+    /// same behaviour for maths and the only thing that makes the rest of them editable at all.
+    /// </para>
+    /// </summary>
+    public bool FocusBlockAtCaret()
+    {
+        // Without the keyboard the block would draw a caret no keystroke ever reached, which is a worse
+        // lie than no caret at all.
+        if (!_rtb.IsKeyboardFocusWithin) { _rtb.Focus(); Keyboard.Focus(_rtb); }
+        if (_caretBlock is not null) return true;
+
+        var index = _rtb.CaretPosition is { } caret ? BlockIndexAtPointer(caret) : -1;
+        var found = (index >= 0 ? EditableInBlock(index) : null) ?? FirstEditable();
+        if (found is null) return false;
+
+        FocusBlock(found);
+
+        // A formula takes a character offset; everything else is told the caret arrived from the end,
+        // which is what the document does when the caret arrows in from the text beside it.
+        if (found is FormulaElement formula) formula.TakeCaret(formula.Latex.Length);
+        else found.TakeCaretArriving(new CaretArrival(BlockExit.After, CaretStep.Character, null));
+
+        return true;
+    }
+
+    /// <summary>The first block anywhere in the document that takes a caret.</summary>
+    private IEditableBlock? FirstEditable()
+    {
+        foreach (var block in _rtb.Document.Blocks)
+            if (EditableIn(block) is { } found) return found;
+        return null;
+    }
+
     private IEditableBlock? EditableInBlock(int index)
     {
         if (index < 0) return null;
@@ -388,14 +428,18 @@ public partial class InlineMarkdownEditor
             // the delimiters have to go back on. Bare when the editor owns the fence: it puts one back
             // to typeset, and a fence stored here as well would be re-fenced on every keystroke until
             // the block was nothing but $$.
-            _blocks[index] = SingleFormula ? block.Source : $"$$\n{block.Source}\n$$";
+            _blocks[index] = IsSingleBlock ? block.Source : $"$$\n{block.Source}\n$$";
         }
         else
         {
             // Everything else occupies a run inside its block — a formula among prose, a barcode's value
             // inside its fence — and the edit goes back exactly where that run was.
+            // A block that names where it sits names it inside what it was rendered from — which, when
+            // this editor owns the fence, is longer at the front than what is stored. Rebasing here is
+            // what keeps the two the same string: without it every edit to a fenced single block splices
+            // at the offset of its own opening fence and eats the first few characters of the content.
             var source = _blocks[index];
-            var start  = Math.Clamp(block.SourceStart, 0, source.Length);
+            var start  = Math.Clamp(block.SourceStart - (IsSingleBlock ? Fence.Open.Length : 0), 0, source.Length);
             var length = Math.Clamp(_caretRun, 0, source.Length - start);
 
             _blocks[index] = string.Concat(source.AsSpan(0, start), block.Source, source.AsSpan(start + length));
@@ -410,10 +454,10 @@ public partial class InlineMarkdownEditor
     {
         if (sender is not IEditableBlock block) return;
 
-        // When one formula is the whole editor there is nowhere to step out to. Handing the caret to
+        // When one block is the whole editor there is nowhere to step out to. Handing the caret to
         // the document anyway let the RichTextBox take it somewhere of its own choosing — the start of
         // the line, then off the right-hand edge, then down — for a key that should have done nothing.
-        if (SingleFormula && block is FormulaElement)
+        if (IsSingleBlock)
         {
             block.TakeCaretArriving(new CaretArrival(side, CaretStep.Character, null));
             return;

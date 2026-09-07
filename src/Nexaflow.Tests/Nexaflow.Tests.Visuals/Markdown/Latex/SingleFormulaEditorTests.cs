@@ -594,7 +594,7 @@ public class SingleFormulaEditorTests
 
             Assert.AreEqual(@"\frac{a}{b}", editor.Markdown, "and it still holds what it was given");
         },
-        e => { e.SingleFormula = true; e.Visibility = System.Windows.Visibility.Collapsed; }));
+        e => { e.SingleBlock = "latex"; e.Visibility = System.Windows.Visibility.Collapsed; }));
     }
 
     // ── One caret ───────────────────────────────────────────────────────────
@@ -614,7 +614,7 @@ public class SingleFormulaEditorTests
             Assert.AreEqual(Brushes.Transparent, rtb.CaretBrush,
                 "and the document is not drawing a second one beside it");
 
-            editor.SingleFormula = false;   // rebuilds the document, which takes the caret back
+            editor.SingleBlock = null;   // rebuilds the document, which takes the caret back
             Assert.IsNull(editor.FocusedFormula);
             Assert.AreNotEqual(Brushes.Transparent, rtb.CaretBrush,
                 "the document draws it again once nothing else is");
@@ -625,7 +625,7 @@ public class SingleFormulaEditorTests
 
     /// <summary>Runs <paramref name="test"/> against an editor holding <paramref name="latex"/> as one formula.</summary>
     private static void RunInFormula(string latex, System.Action<InlineMarkdownEditor, RichTextBox> test) =>
-        UiThread.Run(() => MarkdownEditorHarness.Run(latex, test, e => e.SingleFormula = true));
+        UiThread.Run(() => MarkdownEditorHarness.Run(latex, test, e => e.SingleBlock = "latex"));
 
     /// <summary>The formula holding the caret, having handed it the caret if nothing had it.</summary>
     private static FormulaElement Focused(InlineMarkdownEditor editor)

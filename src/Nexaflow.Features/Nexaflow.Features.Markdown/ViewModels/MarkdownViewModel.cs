@@ -34,6 +34,18 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// <summary>Heading title-path to scroll to once rendered (set when opened from a snaplink), or null.</summary>
     public IReadOnlyList<string>? InitialHeading { get; }
 
+    /// <summary>
+    /// The fenced language this whole file is, or null when it is an ordinary markdown document.
+    ///
+    /// <para>
+    /// Handed straight to the editor, which then owns the fence: <see cref="Markdown"/> holds the tune, or
+    /// the formula, exactly as the file does, and the <c>```abc</c> exists only for as long as it takes to
+    /// render. So <see cref="Save"/> needs to know nothing about any of this — what it writes is what was
+    /// read, and a file that was never markdown never gains a wrapper by having been opened here.
+    /// </para>
+    /// </summary>
+    public string? SingleBlock { get; }
+
     private readonly IShellServices _shell;
 
     [ObservableProperty]
@@ -73,6 +85,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         FilePath       = filePath;
         _shell         = shell;
         InitialHeading = initialHeading;
+        SingleBlock    = SingleBlockFiles.LanguageOf(filePath);
         _savedText = VirtualFileSystem.Instance.Exists(filePath)
             ? VirtualFileSystem.Instance.ReadAllText(filePath).ReplaceLineEndings("\n")
             : string.Empty;

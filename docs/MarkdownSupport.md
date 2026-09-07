@@ -947,6 +947,35 @@ the Plough* — the tune both sample docs print — from ABC and from LilyPond a
 note, duration for duration, bar line for bar line. It is the only test that can catch one parser drifting from the
 other, and it doubles as the guarantee that neither sample document contains a wrong note.
 
+### A tune can also be a file
+
+`.abc` opens in the **markdown tab**, as the one block it is rather than as a document that contains one.
+
+The mechanism is `InlineMarkdownEditor.SingleBlock` — a fenced language name, or empty for a document. The
+editor owns the fence: the host hands it the tune, the editor puts a ```` ```abc ```` around it to render,
+and takes it off again on the way out. So `MarkdownViewModel.Markdown` holds ABC and nothing else, `Save`
+writes exactly what was read, and **the bytes on disk never carry a wrapper**. A file that was never
+markdown does not become markdown by having been opened.
+
+That property was already there for maths — it is how the Solver's LaTeX tab has always worked, with `$$`
+instead of a fence — and was called `SingleFormula`. ABC is what made it worth generalising: the concept is
+"one block of one language", and only the delimiters were ever LaTeX's.
+
+| Touch point | Where |
+|---|---|
+| Which extensions are one block, and in what language | [`SingleBlockFiles`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/SingleBlockFiles.cs) — one row per file type |
+| The tab that opens | [`ShowMusicAction`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/FileActions/ShowMusicAction.cs), experience `/text/music` |
+| The extension → experience mapping | `default-filemap.json` |
+| The editor property | [`InlineMarkdownEditor.SingleBlock`](../src/Nexaflow.Visuals.Text/Markdown/InlineMarkdownEditor.cs) |
+
+Adding another notation is a row in `SingleBlockFiles`, a filemap entry, and nothing else — the reading,
+the rendering, the inline editing, the dirty tracking and the saving are the markdown tab's, unchanged.
+
+**One thing this fixed on the way past.** The editor only ever adopted a `FormulaElement` when a single
+block took focus, so any other language rendered and then could not be typed into — a caret no keystroke
+reached. Adoption now goes through the `IEditableBlock` seam, which is the same behaviour for maths and the
+only thing that makes the rest of them editable at all.
+
 ### ABC coverage
 
 | Construct | Written | Engraved as |

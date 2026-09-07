@@ -94,6 +94,95 @@ internal sealed class GrayImage
     }
 
     /// <summary>
+    /// How far apart the staff lines are, in this picture's own pixels, or null where nothing on it looks
+    /// like a staff.
+    ///
+    /// <para>
+    /// <strong>Measured at the right-hand end of the systems, because that is the only clear stave on the
+    /// page.</strong> Everywhere else a row of ink is as likely to be note heads, a beam, a lyric or a
+    /// chord symbol, and a profile of the whole page dutifully measures those instead — the spacing it
+    /// returns is then half the real one, because heads sit on lines <em>and</em> in spaces. Past the last
+    /// note of a line there is nothing left but the five lines themselves.
+    /// </para>
+    /// <para>
+    /// Five taps rather than a peak search, because five evenly spaced lines is what a staff <em>is</em> —
+    /// plus two taps just outside it, subtracted. Those are what settle the octave question, and they had
+    /// to be added: on their own the five taps will happily lock onto the pitch between one staff and the
+    /// next, landing every tap on a line of a different staff and scoring beautifully. What tells the two
+    /// apart is that a real staff has nothing above its top line or below its bottom one, and a stack of
+    /// staves has another staff. The taps between the lines are subtracted for the same reason at half the
+    /// spacing, where every other tap falls in a space.
+    /// </para>
+    /// <para>
+    /// This exists because a rendering cannot be held against a picture whose scale is unknown. Where the
+    /// reference was engraved at is not recorded anywhere — but it is <em>in</em> the picture, one
+    /// measurement away, and one number per tune beats one number for a whole corpus that was drawn at as
+    /// many sizes as it has tunes.
+    /// </para>
+    /// </summary>
+    public double? StaffSpace(double from = 2.0, double to = 22.0, double step = 0.05)
+    {
+        if (this.IsEmpty) return null;
+
+        var (x, _, width, _) = this.InkBounds(0.05f);
+        if (width < 40) return null;
+
+        // The right end of the systems: past the last note, and short of the closing bar line.
+        var right = x + width - 1;
+        var lo = (int)(right - (0.12 * width));
+        var hi = (int)(right - (0.01 * width));
+        if (hi - lo < 6) return null;
+
+        var profile = new double[this.Height];
+        for (var y = 0; y < this.Height; y++)
+        {
+            var total = 0.0;
+            for (var at = lo; at <= hi; at++) total += this[at, y];
+            profile[y] = total / (hi - lo + 1);
+        }
+
+        var most = profile.Max();
+        if (most <= 0) return null;
+        for (var y = 0; y < profile.Length; y++) profile[y] /= most;
+
+        double? best = null;
+        var strongest = double.MinValue;
+
+        for (var space = from; space <= to; space += step)
+        {
+            var top = double.MinValue;
+            for (var y = 0.0; y + (4 * space) < this.Height; y += 0.25)
+            {
+                var on = 0.0;
+                for (var line = 0; line < 5; line++) on += Sample(profile, y + (line * space));
+
+                var between = 0.0;
+                for (var gap = 0; gap < 4; gap++) between += Sample(profile, y + ((gap + 0.5) * space));
+
+                var outside = Sample(profile, y - space) + Sample(profile, y + (5 * space));
+
+                var got = on - (0.8 * between) - (1.5 * outside);
+                if (got > top) top = got;
+            }
+
+            if (top <= strongest) continue;
+            strongest = top;
+            best = space;
+        }
+
+        return best;
+
+        static double Sample(double[] of, double y)
+        {
+            if (y < 0 || y > of.Length - 1) return 0;
+            var below = (int)y;
+            var above = Math.Min(below + 1, of.Length - 1);
+            var part = y - below;
+            return (of[below] * (1 - part)) + (of[above] * part);
+        }
+    }
+
+    /// <summary>
     /// Trims the paper away. Two renderers pad their output differently and there is nothing to learn
     /// from that, so every comparison starts from the ink and nothing else.
     /// </summary>

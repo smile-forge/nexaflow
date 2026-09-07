@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Documents;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -92,7 +94,11 @@ public class AbcFenceTests
         CollectionAssert.Contains(written, "a second title");
         CollectionAssert.Contains(written, "reel");
         CollectionAssert.Contains(written, "Trad. (England)", "the composer with the origin in brackets");
-        CollectionAssert.Contains(written, "Source: Sussex", "labelled the way an engraver labels it");
+
+        // Where a tune was collected is a fact ABOUT the tune rather than part of it, so it is read and
+        // kept — a details panel is the place for it — and it is not drawn.
+        CollectionAssert.DoesNotContain(written, "Source: Sussex");
+        Assert.AreEqual("Sussex", AbcHeader.Of(ContentReading.Of(AbcPipeline.Read(tune))).Source);
 
         // …and the music is still in there for the caret to find.
         Assert.IsNotNull(Inside(element));

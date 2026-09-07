@@ -68,6 +68,13 @@
     ]
   },
   {
+    "ExperienceId": "/text/music",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.abc" }
+    ]
+  },
+  {
     "ExperienceId": "/document/pdf",
     "Source": "User",
     "Criteria": [

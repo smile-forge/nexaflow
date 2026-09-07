@@ -51,6 +51,7 @@ public static class TestSampleData
     private static readonly ISampleSet[] Sets =
     [
         new MarkdownSamples(),
+        new MusicSamples(),
         new TabularSamples(),
         new TextSamples(),
         new CodeSamples(),

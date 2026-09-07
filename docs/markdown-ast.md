@@ -144,23 +144,53 @@ ours, and `AbcPictureSweepTests` holds our page against it. Four things had to b
 number meant anything:
 
 - **A control, or the mean is unreadable.** Every page is also scored against a *different* tune's
-  picture. Two pages of music share most of their ink just by both being pages of music, so 0.49 against
+  picture. Two pages of music share most of their ink just by both being pages of music, so 0.52 against
   your own reference is only worth knowing beside 0.38 against a stranger's. The gap, and how often a page
   beats its own control, is the whole of what the sweep can see.
-- **Shape first, because line breaking would swamp it.** Two engravings that break into different numbers
-  of systems are different pictures however well each is drawn. So the sweep searches its own render width
-  for the one whose page is the shape the reference is, scores there, and reports how close it got —
-  because a shape it cannot match is telling you about line breaking rather than about note heads.
+- **Ours is given the reference's own width, because that is what a window does.** A score is not a
+  picture: its width is whatever it is asked to fit into, and everything else follows from that. So the
+  reference's ink is measured, our page is given those pixels plus a couple of air, and what comes out is
+  compared. Handing the engraver a width and asking what it does with it is a test of the thing rather
+  than a way around it.
+- **And at their size, which is measured off each reference rather than chosen once.** Every reference is
+  fitted to an 800×600 box (2,397 of 2,400 sampled touch an edge exactly), so a thumbnail was scaled by
+  whatever it took to fit and its pixels are not a page's pixels. The corpus is therefore drawn at as many
+  sizes as it has tunes: over 720 sampled the staff space runs from 4.0px to 6.5px, asking our notation for
+  anything from half its natural size to four fifths. A mean is the one answer guaranteed to fit none of
+  them. So each reference is asked how big its own staff is — `GrayImage.StaffSpace` — and ours is drawn at
+  exactly that. `NEXAFLOW_ABC_ZOOM` still pins every tune to one size, which is occasionally what you want
+  to look at and never what you want to measure.
+- **Measured off the empty stave at the right end of the systems**, which is the only clear staff on the
+  page: past the last note the lyrics and the note heads have stopped and five lines are all that is left.
+  A profile of the whole page measures note heads instead and returns half the true spacing, because heads
+  sit on lines *and* in spaces. The template is five taps at the spacing, minus the four between them and
+  two just outside — the outer pair are what stop it locking onto the pitch between one staff and the next,
+  which scores just as well on five taps alone and is wrong by a whole system.
+- **Shape is read, not aimed at.** Aspect ratio is not a property of a score anybody wants. But given the
+  same width at the same size, a page half the other's shape has twice its systems — so the number is kept
+  as a diagnostic that separates a low score meaning *we drew it differently* from one meaning *we broke
+  it differently*.
 - **Detail chosen by measurement, not taste.** Swept over 24/56/96/160, how often a page beats a
   stranger's picture peaks at 56 and falls away above it. Two engravers agree about where the music is and
   disagree about every pixel of it, so asking at pixel scale is asking a question neither can answer.
 - **Bucketed by how much there is to get wrong.** A two-bar jig and a five-system hymn are different
   problems, and a mean over both says which we are bad at only by accident.
 
-**And the buckets say the sweep is blind on the easy half.** Under 48 notes it separates by 0.04 and beats
-its control 58% of the time — barely above a coin. Over 320 notes it separates by 0.31 and beats it 91%.
-That is not the engraver being better at hard tunes: it is that any two short pages look alike, so there
-is nothing for a fuzzy comparison to catch hold of. The long tail is where the evidence is.
+**Both pictures are cropped to their ink first**, which is not tidying. The corpus fits every picture into
+a box, so the file's own width is the box's rather than the page's — and the page's is the number the whole
+comparison is built on.
+
+**And the buckets say the sweep is blind on the easy half.** Under 48 notes it separates by 0.07 and beats
+its control 66% of the time. Over 320 notes it separates by 0.33 and beats it 92%. That is not the engraver
+being better at hard tunes: it is that any two short pages look alike, so there is nothing for a fuzzy
+comparison to catch hold of. The long tail is where the evidence is.
+
+**Where it stands.** Over all ten thousand: 0.525 against its own picture against 0.382 against a
+stranger's, and 75% of pages beat their own control. 6,221 of them match the reference's shape to within
+3%, and those separate by 0.196 and beat their control 84% of the time. The 2,232 that come out below 0.70
+of the reference's shape separate by 0.018 and beat it 53% — a coin — so that band is a line-breaking
+difference rather than a drawing one, and it is where the next look belongs. Six tunes engrave to nothing,
+and all six are a header with no music under it.
 
 **The corpus is read as bytes and never re-encoded.** It was built by something that read UTF-8 as
 Latin-1, so a good third of it carries mojibake (`AntÃ­fona`). That is not a defect in the fixture — it is

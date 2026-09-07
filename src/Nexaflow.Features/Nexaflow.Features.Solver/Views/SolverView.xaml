@@ -234,7 +234,7 @@
                                                      AutomationProperties.AutomationId="Solver_LatexInput"
                                                      Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
                                                      Markdown="{Binding LatexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     SingleFormula="True"
+                                                     SingleBlock="latex"
                                                      EditAsSource="{Binding ShowsSource}"
                                                      ContentPadding="10,8"
                                                      Placeholder="Type a formula…"/>

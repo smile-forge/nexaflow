@@ -30,6 +30,25 @@ public static class AbcParser
     /// <summary>The field letters ABC 2.1 defines. A line starting with any of them and a colon is a field.</summary>
     private const string FieldLetters = "ABCDFGHIKLMmNOPQRrSsTUVWwXZ+";
 
+    /// <summary>
+    /// <c>E:</c>, which 2.1 dropped and the world kept writing.
+    ///
+    /// <para>
+    /// It was <em>elemskip</em> in ABC 1.6 and abcm2ps still honours it, so tunes carry it — 26 in the
+    /// ten-thousand corpus, holding things like <c>Comp.</c> and <c>Nivel 4</c>. Left out of the list
+    /// above, such a line falls through to the music reader, where <c>E</c> is a perfectly good note: the
+    /// tune gains a stray E and a whole system to put it on.
+    /// </para>
+    /// <para>
+    /// It is kept separate because it is the one letter where the ambiguity is real. <c>::</c> is a bar
+    /// line, so <c>E::</c> is a note followed by one and has to stay music; a single colon after a note is
+    /// not anything, so <c>E:</c> can only be the field. Six of the seven note letters are already in the
+    /// list above on exactly that reasoning — E was the odd one out rather than the principled exception.
+    /// </para>
+    /// </summary>
+    private static bool IsElemskip(string line) =>
+        line.Length >= 2 && line[0] == 'E' && line[1] == ':' && (line.Length < 3 || line[2] != ':');
+
     /// <summary>The single characters that decorate the note after them. None is a note letter.</summary>
     private const string Decorations = ".~HLMOPSTuv";
 
@@ -86,7 +105,7 @@ public static class AbcParser
             var comment = CommentAt(value);
             if (comment < 0)
             {
-                if (value.Length > 0) pieces.Add(ContentNode.Leaf(AbcKinds.Text, value, AbcRoles.Value));
+                if (value.Length > 0) pieces.Add(Value(value, kind));
             }
             else
             {
@@ -96,10 +115,13 @@ public static class AbcParser
         }
         else if (body.StartsWith('%'))
         {
+            // Not music, and saying so is what keeps a leading `%%directive` from ending the header.
+            kind = AbcKinds.Blank;
             pieces.Add(ContentNode.Leaf(Kinds.Comment, body, Roles.Trivia));
         }
         else if (body.Trim().Length == 0)
         {
+            kind = AbcKinds.Blank;
             if (body.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Space, body, Roles.Trivia));
         }
         else
@@ -112,12 +134,75 @@ public static class AbcParser
         return ContentNode.Branch(kind, pieces);
     }
 
+    /// <summary>
+    /// A field's value. One leaf for every field but a lyric, which is split into the syllables it is
+    /// made of so each has characters of its own to be selected and edited by.
+    /// </summary>
+    private static ContentNode Value(string value, string kind) =>
+        kind == AbcKinds.LyricLine
+            ? ContentNode.Branch(AbcKinds.Text, Sung(value), AbcRoles.Value)
+            : ContentNode.Leaf(AbcKinds.Text, value, AbcRoles.Value);
+
+    /// <summary>
+    /// A verse cut into syllables and the marks between them, in order and losing nothing — printing the
+    /// pieces back gives the line exactly as it was written.
+    ///
+    /// <para>
+    /// The marks are ABC's own: a space or a hyphen ends a syllable (and the hyphen is drawn), <c>_</c>
+    /// holds the last one over another note, <c>*</c> skips a note and <c>|</c> jumps to the next bar. A
+    /// backslash escapes a hyphen that is part of a word, so it stays inside the syllable.
+    /// </para>
+    /// </summary>
+    private static List<ContentNode> Sung(string value)
+    {
+        var pieces = new List<ContentNode>();
+        var word = new System.Text.StringBuilder();
+
+        void Flush()
+        {
+            if (word.Length == 0) return;
+            pieces.Add(ContentNode.Leaf(AbcKinds.Syllable, word.ToString()));
+            word.Clear();
+        }
+
+        for (var at = 0; at < value.Length; at++)
+        {
+            var c = value[at];
+
+            if (c == '\\' && at + 1 < value.Length && value[at + 1] == '-')
+            {
+                word.Append(value, at, 2);
+                at++;
+                continue;
+            }
+
+            if (c is not ('-' or ' ' or '\t' or '_' or '*' or '|'))
+            {
+                word.Append(c);
+                continue;
+            }
+
+            Flush();
+
+            // A run of blanks is one gap; a run of marks is not one mark. `__` is a syllable held over two
+            // notes and `**` skips two, so collapsing them would sing the rest of the verse a note early.
+            var from = at;
+            if (c is ' ' or '	')
+                while (at + 1 < value.Length && value[at + 1] is ' ' or '	') at++;
+
+            pieces.Add(ContentNode.Leaf(AbcKinds.LyricMark, value[from..(at + 1)], Roles.Separator));
+        }
+
+        Flush();
+        return pieces;
+    }
+
     /// <summary>Whether this line is an information field, and which one.</summary>
     private static bool IsField(string line, out char letter)
     {
         letter = '\0';
         if (line.Length < 2 || line[1] != ':') return false;
-        if (!FieldLetters.Contains(line[0])) return false;
+        if (!FieldLetters.Contains(line[0]) && !IsElemskip(line)) return false;
 
         letter = line[0];
         return true;

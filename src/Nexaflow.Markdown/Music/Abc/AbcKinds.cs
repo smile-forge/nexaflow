@@ -17,6 +17,20 @@ public static class AbcKinds
     /// <summary>One line, whatever kind — the unit that carries its own terminator.</summary>
     public const string Line = "line";
 
+    /// <summary>
+    /// A line with no music on it: empty, or nothing but a comment.
+    ///
+    /// <para>
+    /// Told apart from <see cref="Line"/> because everything downstream asks "has the music started" and
+    /// answers it by looking for the first one. A tune whose file opens with a <c>%%wordsfont</c> line —
+    /// which is common, and which ABC readers ignore — otherwise has its music start at line zero, so
+    /// every <c>T:</c>, <c>C:</c> and <c>R:</c> after it is read as belonging to the middle of the tune
+    /// and none of them is printed. The title simply does not appear, on a file that looks perfectly
+    /// ordinary.
+    /// </para>
+    /// </summary>
+    public const string Blank = "blank";
+
     /// <summary>An information field on a line of its own: <c>X:1</c>, <c>T:…</c>, <c>K:G</c>.</summary>
     public const string Field = "field";
 
@@ -25,6 +39,26 @@ public static class AbcKinds
 
     /// <summary>A <c>w:</c> line — syllables to be aligned under the notes above.</summary>
     public const string LyricLine = "lyric-line";
+
+    /// <summary>
+    /// One syllable of a <c>w:</c> line — the characters a reader would select if they picked one word
+    /// out of a verse.
+    ///
+    /// <para>
+    /// A lyric line used to be one leaf holding the whole verse, which meant a syllable existed only as a
+    /// worked-out fact hung under the note it is sung on: no width, no place in the source, and so
+    /// nothing to select or edit. Splitting the line into its syllables is what gives each one characters
+    /// of its own to point at. The line still prints exactly as it was written — the pieces are adjacent
+    /// and in order, so printing them in order is the line.
+    /// </para>
+    /// </summary>
+    public const string Syllable = "syllable";
+
+    /// <summary>
+    /// What separates two syllables and says how they join: a space, a hyphen, a held <c>_</c>, a skipped
+    /// <c>*</c>, a bar jump <c>|</c>.
+    /// </summary>
+    public const string LyricMark = "lyric-mark";
 
     /// <summary>A note: an optional accidental, a letter, optional octave marks, an optional length.</summary>
     public const string Note = "note";

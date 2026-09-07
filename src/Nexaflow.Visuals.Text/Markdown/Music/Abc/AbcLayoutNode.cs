@@ -22,7 +22,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// </summary>
 internal sealed class AbcLayoutNode : LayoutNode
 {
-    public AbcLayoutNode(Rect bounds, string kind, ContentPart? part = null)
+    public AbcLayoutNode(Rect bounds, string kind, ISourcePart? part = null)
         : base(bounds, part, kind, isInk: part is { Length: > 0 })
     {
     }
@@ -45,18 +45,33 @@ internal sealed class AbcLayoutNode : LayoutNode
     public AbcLayoutNode Adding(AbcLayoutNode child)
     {
         Add(child);
+        Covering(child.Bounds);
         return child;
     }
 
-    /// <summary>Grows this piece to cover something it drew. Bounds are the union of the marks on them.</summary>
+    /// <summary>
+    /// Grows this piece to cover something it drew, and everything holding it to cover this.
+    ///
+    /// <para>
+    /// Upward, because a piece is made before it is filled — a note before its head, a bar before its
+    /// notes — so growing only the piece itself would leave every container the size it was when it was
+    /// made. Each drawing says once where it went and the whole chain above it learns; the alternative
+    /// is a <c>foreach child</c> at the end of every method that builds one, and the one that gets
+    /// forgotten is a container that reports a rectangle smaller than what it holds.
+    /// </para>
+    /// </summary>
     public void Covering(Rect what)
     {
         if (what.IsEmpty || what.Width < 0 || what.Height < 0) return;
 
         var union = Bounds;
-        if (union.IsEmpty || (union.Width == 0 && union.Height == 0)) { Bounds = what; return; }
+        if (union.IsEmpty || (union.Width == 0 && union.Height == 0)) Bounds = what;
+        else
+        {
+            union.Union(what);
+            Bounds = union;
+        }
 
-        union.Union(what);
-        Bounds = union;
+        (Parent as AbcLayoutNode)?.Covering(what);
     }
 }

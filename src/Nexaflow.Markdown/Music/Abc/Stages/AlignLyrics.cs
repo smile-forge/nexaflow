@@ -44,7 +44,9 @@ public sealed class AlignLyrics : IAstStage
 
                 case AbcKinds.LyricLine when music >= 0:
                 {
-                    var sung = Sing(lines[music], Syllables(lines[at].Part(AbcRoles.Value)?.Text ?? ""), verse++);
+                    // Printed rather than read off the node: a lyric's value is the syllables it was split
+                    // into, so its characters are its children's rather than its own.
+                    var sung = Sing(lines[music], Syllables(lines[at].Part(AbcRoles.Value)), verse++);
                     if (ReferenceEquals(sung, lines[music])) continue;
 
                     lines[music] = sung;
@@ -67,68 +69,59 @@ public sealed class AlignLyrics : IAstStage
 
     // ── Reading a w: line ───────────────────────────────────────────────────
 
-    /// <summary>One syllable, and what it does to the note it lands on.</summary>
-    private readonly record struct Syllable(string Text, bool Hyphen, bool Melisma, bool Skip, bool NextBar);
+    /// <summary>One syllable, what it does to the note it lands on, and where it was written.</summary>
+    /// <param name="At">
+    /// Which piece of the verse it is, so whatever draws it can find the characters again. The layout tree
+    /// and this tree need not look alike — a syllable is drawn under a note in the music line and written
+    /// in the <c>w:</c> line, two different branches — and an index is what lets one point at the other
+    /// without either having to hold a reference into the other.
+    /// </param>
+    private readonly record struct Syllable(string Text, bool Hyphen, bool Melisma, bool Skip, bool NextBar,
+                                            int At);
 
     /// <summary>
-    /// A <c>w:</c> line, cut into the pieces that land on notes. Everything here is about counting, and
-    /// the pieces that land on nothing — a bar jump, a skipped note — are kept as pieces so the counting
-    /// stays a single walk.
+    /// A <c>w:</c> line, cut into the pieces that land on notes.
+    ///
+    /// <para>
+    /// Read off the pieces the parser already split the line into rather than scanned again here. Two
+    /// scanners with the same rules is one rule written twice, and the parser's is the one that has
+    /// characters attached to its answer.
+    /// </para>
+    /// <para>
+    /// Everything here is about counting, and the pieces that land on nothing — a bar jump, a skipped
+    /// note — are kept as pieces so the counting stays a single walk.
+    /// </para>
     /// </summary>
-    private static List<Syllable> Syllables(string line)
+    private static List<Syllable> Syllables(ContentNode? value)
     {
         var pieces = new List<Syllable>();
-        var word = new System.Text.StringBuilder();
+        if (value is null) return pieces;
 
-        void Flush(bool hyphen)
+        var children = value.Children;
+
+        for (var at = 0; at < children.Count; at++)
         {
-            if (word.Length == 0 && !hyphen) return;
-            pieces.Add(new Syllable(word.ToString().Replace("~", " "), hyphen, false, false, false));
-            word.Clear();
-        }
+            var piece = children[at];
 
-        for (var at = 0; at < line.Length; at++)
-        {
-            var c = line[at];
-
-            switch (c)
+            if (piece.Kind == AbcKinds.Syllable)
             {
-                case '\\' when at + 1 < line.Length && line[at + 1] == '-':
-                    word.Append('-');
-                    at++;
-                    continue;
+                // `~` is ABC's way of writing a space inside one syllable — two words sung on one note.
+                var hyphen = at + 1 < children.Count && children[at + 1].Text.StartsWith('-');
+                pieces.Add(new Syllable(piece.Text.Replace("~", " ").Replace("\\-", "-"),
+                                        hyphen, false, false, false, at));
+                continue;
+            }
 
-                case '-':
-                    Flush(hyphen: true);
-                    continue;
+            if (piece.Kind != AbcKinds.LyricMark) continue;
 
-                case ' ':
-                case '\t':
-                    Flush(hyphen: false);
-                    continue;
-
-                case '_':
-                    Flush(hyphen: false);
-                    pieces.Add(new Syllable("", false, Melisma: true, false, false));
-                    continue;
-
-                case '*':
-                    Flush(hyphen: false);
-                    pieces.Add(new Syllable("", false, false, Skip: true, false));
-                    continue;
-
-                case '|':
-                    Flush(hyphen: false);
-                    pieces.Add(new Syllable("", false, false, false, NextBar: true));
-                    continue;
-
-                default:
-                    word.Append(c);
-                    continue;
+            switch (piece.Text[0])
+            {
+                case '_': pieces.Add(new Syllable("", false, Melisma: true, false, false, at)); break;
+                case '*': pieces.Add(new Syllable("", false, false, Skip: true, false, at)); break;
+                case '|': pieces.Add(new Syllable("", false, false, false, NextBar: true, at)); break;
             }
         }
 
-        Flush(hyphen: false);
         return pieces;
     }
 
@@ -160,10 +153,12 @@ public sealed class AlignLyrics : IAstStage
             if (syllable.Skip) return node;
             if (syllable.NextBar) { skipping = true; return node; }
 
+            // The verse, which piece of it, and what it says. The index is what lets whatever draws this
+            // find the characters again in the `w:` line, which is somewhere else entirely in this tree.
             return node.Saying(
                 AbcKinds.Text,
                 AbcRoles.Lyric,
-                $"{verse}:{(syllable.Melisma ? "_" : syllable.Text)}{(syllable.Hyphen ? "-" : "")}");
+                $"{verse}:{syllable.At}:{(syllable.Melisma ? "_" : syllable.Text)}{(syllable.Hyphen ? "-" : "")}");
         }
 
         if (node.Kind == AbcKinds.Measure)
@@ -192,7 +187,7 @@ public sealed class AlignLyrics : IAstStage
     // ── Reading the answers back ────────────────────────────────────────────
 
     /// <summary>The syllables sung on this event, one per verse, in verse order.</summary>
-    public static IEnumerable<(int Verse, string Text, bool Hyphen, bool Melisma)> Of(ContentNode node)
+    public static IEnumerable<(int Verse, int At, string Text, bool Hyphen, bool Melisma)> Of(ContentNode node)
     {
         foreach (var derived in node.Children)
         {
@@ -202,14 +197,16 @@ public sealed class AlignLyrics : IAstStage
             {
                 if (fact.Role != AbcRoles.Lyric) continue;
 
-                var split = fact.Text.IndexOf(':');   // the verse number, then the syllable
-                if (split < 0 || !int.TryParse(fact.Text[..split], out var verse)) continue;
+                // verse : which piece of it : what it says
+                var parts = fact.Text.Split(':', 3);
+                if (parts.Length < 3 || !int.TryParse(parts[0], out var verse)
+                    || !int.TryParse(parts[1], out var at)) continue;
 
-                var text = fact.Text[(split + 1)..];
+                var text = parts[2];
                 var hyphen = text.EndsWith('-');
                 if (hyphen) text = text[..^1];
 
-                yield return (verse, text == "_" ? "" : text, hyphen, text == "_");
+                yield return (verse, at, text == "_" ? "" : text, hyphen, text == "_");
             }
         }
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Markdown.Ast;
@@ -50,9 +51,23 @@ public class AbcBuilderTests
             {
                 if (node.Part is null) continue;
 
-                Assert.IsInstanceOfType<ContentPart>(node.Part, $"{what}: {node.Kind} names something else");
-                Assert.IsTrue(parts.Contains((ContentPart)node.Part),
-                    $"{what}: {node.Kind} names a part that is not in this reading");
+                // Either a part of this reading, or - for a grouping the notation declares no node for,
+                // which is what a section is - a stretch whose two ends are both ends of parts that are.
+                // The second is what stops a span being a licence to name any two numbers: it has to
+                // begin where something written begins and finish where something written finishes.
+                if (node.Part is ContentPart part)
+                {
+                    Assert.IsTrue(parts.Contains(part),
+                        $"{what}: {node.Kind} names a part that is not in this reading");
+                }
+                else
+                {
+                    Assert.IsInstanceOfType<SourceSpan>(node.Part, $"{what}: {node.Kind} names something else");
+                    Assert.IsTrue(parts.Any(p => p.Start == node.Part.Start),
+                        $"{what}: {node.Kind} spans from {node.Part.Start}, where nothing was written");
+                    Assert.IsTrue(parts.Any(p => p.End() == node.Part.End()),
+                        $"{what}: {node.Kind} spans to {node.Part.End()}, where nothing was written");
+                }
 
                 var at = node.Sits();
                 Assert.IsTrue(at.Start >= 0 && at.End <= abc.Length,
@@ -331,6 +346,60 @@ public class AbcBuilderTests
         Assert.AreEqual(0, layout.Root.Children.Count(n => n.Kind == "bracket"),
             "nothing may be bracketed that is not simultaneous");
     });
+
+    [TestMethod]
+    public void ZoomingOutReEngravesRatherThanShrinksThePicture() => UiThread.Run(() =>
+    {
+        // Both are given the same room to engrave in — one has it directly, the other because zooming out
+        // is what buys it. So they are the same page, drawn at two sizes.
+        var big = Engraved(SpeedThePlough, 840, zoom: 1.0);
+        var small = Engraved(SpeedThePlough, 420, zoom: 0.5);
+
+        Assert.IsTrue(small.DesiredSize.Width <= 421, $"it overflowed its room: {small.DesiredSize.Width:F0}");
+        Assert.AreEqual(big.DesiredSize.Width / 2, small.DesiredSize.Width, 1.5, "the same page, half the size");
+        Assert.AreEqual(big.DesiredSize.Height / 2, small.DesiredSize.Height, 1.5);
+
+        // …which is the half worth stating: a smaller notation gets MORE bars on a line, so it is not the
+        // same page at all when the room is what stays fixed.
+        var cramped = Engraved(SpeedThePlough, 420, zoom: 1.0);
+        Assert.IsTrue(small.DesiredSize.Height < cramped.DesiredSize.Height,
+            $"in the same {420}px, zoomed out came to {small.DesiredSize.Height:F0} and full size to "
+            + $"{cramped.DesiredSize.Height:F0}");
+    });
+
+    [TestMethod]
+    public void AndAClickStillLandsOnTheNoteItLooksLikeItLandsOn() => UiThread.Run(() =>
+    {
+        // The layout is in its own coordinates whatever the zoom, so a pointer has to be divided by it on
+        // the way in. Without that every note but the first is off by however far it was scaled — which is
+        // invisible on the first bar of a short tune and wrong everywhere else.
+        const string Tune = "X:1\nL:1/4\nK:C\nCDEF GABc|\n";
+
+        var big = Engraved(Tune, 840, zoom: 1.0);
+        var at = new Point(big.DesiredSize.Width * 0.72, big.DesiredSize.Height / 2);
+
+        big.BeginPointerSelect(at);
+        ((IEditableBlock)big).HandleKey(Key.PageUp, ModifierKeys.None);
+        Assert.AreNotEqual(Tune, big.Source, "the point has to be over a note for this to prove anything");
+
+        // The same page at half the size, clicked in the same place on it. InteractiveSelection owns one
+        // selection for the whole process, so the first is finished with before the second starts.
+        var small = Engraved(Tune, 420, zoom: 0.5);
+
+        small.BeginPointerSelect(new Point(at.X / 2, at.Y / 2));
+        ((IEditableBlock)small).HandleKey(Key.PageUp, ModifierKeys.None);
+
+        Assert.AreEqual(big.Source, small.Source, "the same click, and the same note under it");
+    });
+
+    /// <summary>A score, measured and arranged into a given width at a given zoom.</summary>
+    private static AbcElement Engraved(string abc, double available, double zoom)
+    {
+        var element = new AbcElement(abc, MarkdownPalette.Dark) { Zoom = zoom };
+        element.Measure(new Size(available, double.PositiveInfinity));
+        element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
+        return element;
+    }
 
     /// <summary>The first note in a tune.</summary>
     private static ILayoutNode Note(AbcLayout layout) =>

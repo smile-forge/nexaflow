@@ -138,14 +138,22 @@ public class WpfScoreRendererTests
         Assert.IsTrue(measure.Start <= 10 && measure.End >= 10 && measure.End > measure.Start,
             "clicking the background selects the note's whole measure");
 
-        // A drag extends note-by-note from the anchor.
-        var from = se.HeadCenterOf(8)!.Value;
+        // A drag extends note-by-note from the anchor. Anchored on the first note, so there is always a
+        // measure after it to extend into however many notes the spacing puts on a line.
+        var from = se.HeadCenterOf(0)!.Value;
         se.BeginPointerSelect(from);
         se.ExtendPointerSelect(new Point(se.DesiredSize.Width - 30, from.Y));
         se.EndPointerSelect();
         var grown = se.SelectedRange!.Value;
-        Assert.AreEqual(8, grown.Start, "drag anchors on the initial note");
-        Assert.IsTrue(grown.End > 15, "drag extends past the anchor's measure");
+        Assert.AreEqual(0, grown.Start, "drag anchors on the initial note");
+
+        // Past the first measure, rather than past a particular note number: how many notes a line holds is
+        // a spacing decision, and an assertion that names one is really asserting the current spacing curve.
+        se.BeginPointerSelect(new Point(from.X, from.Y + 30));
+        se.EndPointerSelect();
+        var first = se.SelectedRange!.Value;
+
+        Assert.IsTrue(grown.End > first.End, "drag extends past the anchor's measure");
 
         bool fired = false;
         se.SelectionChanged += (_, __) => fired = true;

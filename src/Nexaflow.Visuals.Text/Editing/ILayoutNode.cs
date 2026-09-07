@@ -27,7 +27,15 @@ public interface ILayoutNode
     /// <summary>Where it sits, in element pixels with the content's top-left at (0,0).</summary>
     Rect Bounds { get; }
 
-    /// <summary>Its parent, or null at the root.</summary>
+    /// <summary>
+    /// Its parent for <em>drawing</em> — what contains it, and what its position is measured inside. Null
+    /// at the root.
+    /// </summary>
+    /// <remarks>
+    /// One of three. Containment answers where a thing sits and how much room it takes; it is the wrong
+    /// question for a selection, which is about what a thing belongs <em>with</em>. See
+    /// <see cref="Across"/> and <see cref="Down"/>.
+    /// </remarks>
     ILayoutNode? Parent { get; }
 
     /// <summary>Its children, in reading order.</summary>
@@ -52,6 +60,47 @@ public interface ILayoutNode
     bool IsInk { get; }
 
     /// <summary>
+    /// The parent that orders this node among its neighbours <em>sideways</em> — what a selection steps
+    /// through when it grows left or right. Null when nothing is beside it, which is most nodes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>A second parent, and a third in <see cref="Down"/>.</strong> <see cref="Parent"/> answers
+    /// what draws this and how much room it takes. That is not what a selection follows: a syllable is
+    /// drawn under the note it is sung on and belongs with the <em>other syllables of its verse</em>. One
+    /// tree cannot answer both, which is why a note and its lyric could not be picked apart.
+    /// </para>
+    /// <para>
+    /// <strong>It is only ever walked upward.</strong> Selection starts at the node under the pointer,
+    /// climbs to the first thing that names a piece of the source, and then asks this parent for the one
+    /// after or before it. Nothing starts at the top and comes down, and nothing enumerates a whole run —
+    /// so this is a way to take a step, not a group anybody belongs to. That distinction is what keeps it
+    /// honest outside a grid: a lyric runs from the start of a tune to the end and across every system,
+    /// while a maths block ends at its own edge and a diagram's selection is only ever within one subtree.
+    /// None of those is a lane, and imposing one would be a lie about all three.
+    /// </para>
+    /// <para>
+    /// The members are the parent's <see cref="Children"/>, but a member's <see cref="Parent"/> still
+    /// points at what draws it. That asymmetry is load-bearing: nothing that walks containment to paint
+    /// or to measure can reach one of these, so no node is drawn or descended twice.
+    /// </para>
+    /// <para>
+    /// <strong>Null is a working answer, not a gap.</strong> A node with neither of these selects exactly
+    /// as it does today, off the containment tree — which is why LaTeX and the barcodes carried on
+    /// unchanged while this arrived.
+    /// </para>
+    /// </remarks>
+    ILayoutNode? Across => null;
+
+    /// <summary>
+    /// The parent that orders this node among its neighbours <em>vertically</em> — what a selection steps
+    /// through when it grows up or down. A note and the syllables sung on it; a matrix cell and its
+    /// column.
+    /// </summary>
+    /// <remarks>See <see cref="Across"/>: the same idea on the other axis, and the same rules.</remarks>
+    ILayoutNode? Down => null;
+
+    /// <summary>
     /// Whether a caret inside this is somewhere other than beside it — a script, a fraction, a root:
     /// one thing made of parts, each meaning something to it. A run of terms is not one, and neither is
     /// a box the typesetter made to hold a run.
@@ -64,6 +113,25 @@ public interface ILayoutNode
     /// </para>
     /// </summary>
     bool IsEnclosure { get; }
+
+    /// <summary>
+    /// How far this piece has been moved from where it was laid out, taking everything drawn inside it
+    /// along. Zero for anything nobody has moved, which is nearly everything.
+    ///
+    /// <para>
+    /// This is why the tree is built as a tree of <em>things</em> rather than a list of marks. A note is
+    /// a node holding its head, its stem and its dots; a moment is a node holding the note, the chord
+    /// named over it and the words sung under it. Each of those is something a reader might take hold
+    /// of, and moving one is a number written here rather than the content laid out again - which is
+    /// the difference between dragging a note and re-engraving a page per mouse move.
+    /// </para>
+    /// <para>
+    /// <see cref="Bounds"/> is always where the piece is <em>now</em>, moved or not, so nothing that
+    /// hit-tests, selects or measures has to know about this at all. Only a painter does, because the
+    /// marks under a moved node were recorded where it used to be.
+    /// </para>
+    /// </summary>
+    Vector Offset => default;
 
     /// <summary>
     /// What kind of thing it is, in the content's own vocabulary — enough to recognise a row or a grid.

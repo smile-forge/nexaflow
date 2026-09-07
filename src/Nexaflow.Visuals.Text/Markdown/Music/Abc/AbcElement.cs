@@ -6,6 +6,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Editing;
 
+using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+
 namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
 /// <summary>
@@ -37,6 +39,17 @@ public sealed partial class AbcElement : FrameworkElement
     private double _engravedFor;
 
     private ILayoutNode? _anchor;
+
+    /// <summary>
+    /// The far end of the selection — where the last step left it, and where the next one starts from.
+    ///
+    /// <para>
+    /// Kept beside <see cref="_anchor"/> so a keyboard selection grows the way a drag does: one end
+    /// pinned, the other walking. Without it every keystroke would re-anchor and the selection could only
+    /// ever be one piece long.
+    /// </para>
+    /// </summary>
+    private ILayoutNode? _reach;
     private IReadOnlyList<(int Start, int Length)> _selection = [];
     private bool _dragging;
 
@@ -70,6 +83,29 @@ public sealed partial class AbcElement : FrameworkElement
     /// </summary>
     public int SourceStart { get; init; }
 
+    /// <summary>
+    /// How large the notation is drawn, as a multiple of its natural size. 1 is the size the engraver was
+    /// designed at; 0.8 is a page that fits more music and asks more of the reader's eyes.
+    ///
+    /// <para>
+    /// It is a <em>render</em> scale rather than a bitmap one, which is the whole point: the tune is
+    /// engraved into the room a smaller notation leaves — <c>available / zoom</c> — so zooming out fits
+    /// more bars on a line rather than shrinking a picture of the same line breaks. That is what a reader
+    /// dragging a zoom control expects, and it is why the layout has to be told rather than the painter.
+    /// </para>
+    /// </summary>
+    public double Zoom { get; init; } = 1.0;
+
+    /// <summary>The zoom, clamped to what can actually be drawn.</summary>
+    private double Scale => Math.Clamp(Zoom, 0.2, 4.0);
+
+    /// <summary>
+    /// How much air to leave between things, or null for what the engraver normally uses — see
+    /// <see cref="ScoreSpacing"/>. Set only to compare two engravings without the comparison being about
+    /// this.
+    /// </summary>
+    public ScoreSpacing? Spacing { get; init; }
+
     /// <summary>What is selected inside it, in the tune's own offsets.</summary>
     public IReadOnlyList<(int Start, int Length)> Selection => _selection;
 
@@ -99,13 +135,19 @@ public sealed partial class AbcElement : FrameworkElement
         var available = availableSize.Width;
         if (double.IsInfinity(available) || double.IsNaN(available) || available <= 0) available = 900;
 
-        if (_layout is null || Math.Abs(_engravedFor - available) > 0.5)
+        // Engraved into the room a smaller notation leaves, then drawn at that size — so zooming out
+        // fits more bars per line instead of shrinking a picture of the same ones. The width itself is
+        // whatever it was given: how wide a page is inside its margins is the block's business, not the
+        // engraver's.
+        var room = available / Scale;
+
+        if (_layout is null || Math.Abs(_engravedFor - room) > 0.5)
         {
-            _layout = AbcLayout.Build(_abc, available, _ink, _ppd);
-            _engravedFor = available;
+            _layout = AbcLayout.Build(_abc, room, _ink, _ppd, spacing: Spacing);
+            _engravedFor = room;
         }
 
-        return new Size(Math.Ceiling(_layout.Size.Width), Math.Ceiling(_layout.Size.Height));
+        return new Size(Math.Ceiling(_layout.Size.Width * Scale), Math.Ceiling(_layout.Size.Height * Scale));
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -115,11 +157,21 @@ public sealed partial class AbcElement : FrameworkElement
         // A transparent fill makes the whole element hit-testable — the gaps between glyphs included.
         dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, RenderSize.Width, RenderSize.Height));
 
+        // Everything below is in the layout's own coordinates. The scale is pushed once, here, so nothing
+        // that reads the tree has to know about it — and a pointer coming the other way is divided by it.
+        var scaled = Math.Abs(Scale - 1.0) > 0.001;
+        if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
+
         PaintSelection(dc, layout);
         layout.Paint(dc, _ink);
         PaintDiagnostics(dc, layout);
         PaintCaret(dc, layout);
+
+        if (scaled) dc.Pop();
     }
+
+    /// <summary>A point on the element, in the coordinates the layout was built in.</summary>
+    private Point Unscaled(Point at) => new(at.X / Scale, at.Y / Scale);
 
     private void PaintSelection(DrawingContext dc, AbcLayout layout)
     {
@@ -132,7 +184,12 @@ public sealed partial class AbcElement : FrameworkElement
             if (!_selection.Any(range => at.Start >= range.Start && at.Start + at.Length <= range.Start + range.Length))
                 continue;
 
+            // Nothing with no area, because `Rect.Inflate` throws on an empty one — and an exception out
+            // of OnRender does not lose a wash, it stops WPF drawing the element ever again. A drag that
+            // happened to cover a piece that drew nothing took the whole score off the page.
             var bounds = node.Bounds;
+            if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) continue;
+
             bounds.Inflate(0.25 * ScoreWash, 0.25 * ScoreWash);
             dc.DrawRectangle(_wash, null, bounds);
         }
@@ -165,7 +222,7 @@ public sealed partial class AbcElement : FrameworkElement
         if (_layout is null) return;
 
         InteractiveSelection.Own(this);
-        _anchor = _layout.Root.NodeAt(pointInElement);
+        _anchor = _layout.Root.NodeAt(Unscaled(pointInElement));
         _dragging = true;
         Select(_anchor, _anchor);
     }
@@ -173,7 +230,7 @@ public sealed partial class AbcElement : FrameworkElement
     public void ExtendPointerSelect(Point pointInElement)
     {
         if (!_dragging || _layout is null) return;
-        Select(_anchor, _layout.Root.NodeAt(pointInElement));
+        Select(_anchor, _layout.Root.NodeAt(Unscaled(pointInElement)));
     }
 
     public void EndPointerSelect() => _dragging = false;
@@ -182,6 +239,7 @@ public sealed partial class AbcElement : FrameworkElement
     {
         _dragging = false;
         _anchor = null;
+        _reach = null;
         if (_selection.Count == 0) return;
 
         _selection = [];
@@ -200,9 +258,44 @@ public sealed partial class AbcElement : FrameworkElement
 
         var chosen = ContentSelection.Between(_layout.Root, from, to);
         _selection = chosen.Ranges;
+        _anchor = from;
+        _reach = to;
 
         InvalidateVisual();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Grows the selection one piece along an axis — what Shift and an arrow key mean.
+    ///
+    /// <para>
+    /// The same walk a drag takes, driven a step at a time instead of by a pointer: the anchor stays put
+    /// and the far end moves, so holding an arrow sweeps a verse or a run of notes exactly as dragging
+    /// along it would. False when there is nothing that way, which is the host's cue to do whatever it
+    /// does with an arrow at the edge of a block.
+    /// </para>
+    /// <para>
+    /// With nothing selected yet it starts from the caret's own piece, so a reader who has just clicked
+    /// into a tune can select from there without having to drag first.
+    /// </para>
+    /// </summary>
+    public bool Extend(bool vertical, bool forward)
+    {
+        if (_layout is null) return false;
+
+        var from = _reach ?? _anchor ?? _layout.Root.NodeAt(new Point(0, 0));
+        if (from?.Selectable() is not { } at) return false;
+
+        if (at.Step(vertical, forward) is not { } next) return false;
+
+        Select(_anchor ?? at, next);
+
+        // The caret goes where the eye went. Leaving it behind is what lets a plain arrow after a Shift
+        // arrow jump back to somewhere the reader stopped looking three keystrokes ago.
+        var sits = next.Sits();
+        if (sits.Length > 0) _caret = CaretPlace.At(Math.Clamp(sits.Start + sits.Length, 0, _abc.Length));
+
+        return true;
     }
 
     // ── Hosted directly ─────────────────────────────────────────────────────

@@ -7,6 +7,8 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Editing;
 
+using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+
 namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
 /// <summary>
@@ -54,8 +56,13 @@ internal sealed class AbcLayout
     /// A stretch to show as the characters written rather than read as music — the piece being edited,
     /// which has to be seen exactly as typed while the tune around it stays engraved.
     /// </param>
+    /// <param name="spacing">
+    /// How much air to leave between things, or null for what the engraver normally uses. A caller passes
+    /// something else only to compare two engravings without the comparison being about this.
+    /// </param>
     public static AbcLayout Build(string abc, double width, Brush ink, double pixelsPerDip,
-                                  (int Start, int Length)? shownAsWritten = null)
+                                  (int Start, int Length)? shownAsWritten = null,
+                                  ScoreSpacing? spacing = null)
     {
         // One reading, every time, whatever the caret is doing. What cannot be drawn and what is being
         // typed are both settled before this — they come back as pieces that say so, and the builder sets
@@ -63,7 +70,7 @@ internal sealed class AbcLayout
         var tree = AbcPipeline.Read(abc, Draws, shownAsWritten);
         var reading = ContentReading.Of(tree);
 
-        var (root, size) = AbcBuilder.Build(reading, width, ink, pixelsPerDip);
+        var (root, size) = AbcBuilder.Build(reading, width, ink, pixelsPerDip, spacing);
 
         // Asked of the tree rather than collected on the way through it. A piece that could not be read
         // carries the reason, so there is one place the answer lives and no second list to fall out of step
@@ -100,12 +107,29 @@ internal sealed class AbcLayout
     /// Paints the tune, or one piece of it, by walking the tree it was engraved into. The same walk that
     /// answers a hit test, so the picture and the answers cannot disagree about where anything is.
     /// </summary>
-    public void Paint(DrawingContext dc, Brush foreground, ILayoutNode? subtree = null)
+    public void Paint(DrawingContext dc, Brush foreground, ILayoutNode? subtree = null) =>
+        Walk(dc, foreground, subtree ?? Root);
+
+    /// <summary>
+    /// One piece and everything inside it, through whatever it has been moved by.
+    ///
+    /// <para>
+    /// Descended rather than flattened, because <see cref="ILayoutNode.Offset"/> nests: a note moved
+    /// inside a bar that has itself been moved has to end up displaced by both, and a transform stack is
+    /// what says that once. A tree nobody has moved pushes nothing and paints exactly as a flat walk
+    /// would.
+    /// </para>
+    /// </summary>
+    private static void Walk(DrawingContext dc, Brush foreground, ILayoutNode node)
     {
-        foreach (var node in (subtree ?? Root).SelfAndDescendants())
-        {
-            if (node is not AbcLayoutNode piece) continue;
+        var moved = node.Offset.X != 0 || node.Offset.Y != 0;
+        if (moved) dc.PushTransform(new TranslateTransform(node.Offset.X, node.Offset.Y));
+
+        if (node is AbcLayoutNode piece)
             foreach (var mark in piece.Marks) mark.PaintOn(dc, foreground);
-        }
+
+        foreach (var child in node.Children) Walk(dc, foreground, child);
+
+        if (moved) dc.Pop();
     }
 }

@@ -30,6 +30,25 @@ public interface ISourcePart
 }
 
 /// <summary>
+/// A stretch of source that no one part of the tree names, for a piece of layout standing for several
+/// that do.
+///
+/// <para>
+/// A section of a tune is the case it was written for: a run of bars between one double bar and the next
+/// is a thing a reader points at, copies and transposes, and the parser has no node for it because
+/// nothing in the notation declares one — the bars simply stop. Rather than invent a parse-tree node for
+/// a grouping that is a fact about the <em>music</em>, the piece of layout says which characters it
+/// covers and everything that selects, copies or replaces goes on working unchanged.
+/// </para>
+/// <para>
+/// It is not a licence to skip the parse tree. A part is the answer wherever one exists, because a part
+/// survives an edit and a pair of numbers does not; this is for a grouping there is genuinely no part
+/// for.
+/// </para>
+/// </summary>
+public readonly record struct SourceSpan(int Start, int Length) : ISourcePart;
+
+/// <summary>
 /// Where a piece of layout sits in the source — a stretch of it, or a point in it.
 ///
 /// <para>

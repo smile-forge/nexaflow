@@ -98,6 +98,7 @@
                                      BaseFontSize="{Binding Zoom.FontSize}"
                                      AutomationProperties.AutomationId="Markdown_Editor"
                                      Visibility="{Binding SourceOnly, Converter={StaticResource InvBoolVis}}"
+                                     SingleBlock="{Binding SingleBlock, Mode=OneTime}"
                                      Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
             <!-- Source-only: the whole document as raw markdown -->

@@ -11,6 +11,9 @@ public static class ViewerMap
     public static readonly (string SubDir, string ViewerId)[] BySet =
     [
         ("markdown", "MarkdownView"),
+        // A tune is not a markdown document, but it opens in the markdown tab — as the one fenced
+        // block it is, saved back with no fence. Same viewer, different experience id.
+        ("music",    "MarkdownView"),
         ("tabular",  "TabularView"),
         ("text",     "TextView"),
         ("json",     "JsonView"),

@@ -33,8 +33,15 @@ internal static class ScoreMetrics
     // proportional-but-compressed curve, so a whole note is roughly three times an eighth rather than eight
     // times it. SlotFloor is the collision guard: no note head may come closer to the next than this, which is
     // what stops a septuplet's heads from touching.
-    public const double SlotBase  = 0.85 * S;
-    public const double SlotRate  = 2.1 * S;
+    public const double SlotBase  = 1.0 * S;
+    public const double SlotRate  = 2.35 * S;
+
+    // …except between two notes of one beam group, which keep the tighter pair. A beam is a statement that
+    // these notes belong together, and the way that is said on paper is that they sit closer to each other
+    // than to what is either side of the group. Opening the spacing everywhere undoes the beam's own
+    // meaning: four quavers evenly spaced across a bar are four quavers, not a group of four.
+    public const double GroupBase = 0.85 * S;
+    public const double GroupRate = 2.1 * S;
     public const double SlotFloor = 0.5 * S;        // added to the note-head width
     public const double TupletFloor = 0.55;         // …and a tuplet never compresses below this fraction
 
@@ -59,6 +66,30 @@ internal static class ScoreMetrics
     public const double VoltaRow     = 1.9 * S;     // repeat brackets above
     public const double SectionRow   = 1.8 * S;     // a mid-tune T: heading
     public const double LyricRow     = 1.55 * S;    // one verse of note-aligned lyrics below
+
+    /// <summary>
+    /// The air between the lowest thing the notation drew and the top of the first line of words.
+    /// <para>
+    /// Words sat directly under the reach of the music, which for a phrase of low notes put the tops of
+    /// the letters a pixel under the ledger lines. Read at a glance the two ran together and the lyric
+    /// looked like part of the staff. It is a clearance rather than part of <c>LyricRow</c> because it is
+    /// paid once, under the music, not again between every verse.
+    /// </para>
+    /// </summary>
+    public const double LyricClear   = 0.9 * S;
+
+    /// <summary>
+    /// The air between what opens a line — clef, key, meter — and the first note of it.
+    /// <para>
+    /// It used to be carried by the gap after the time signature, so a tune that printed no meter had no
+    /// gap at all and its first note sat against the key signature. The opening of a line is a statement
+    /// about the whole line rather than part of the first bar, and it needs to read as one.
+    /// </para>
+    /// </summary>
+    public const double HeadGap      = 0.9 * S;
+
+    /// <summary>How thick the line under a held syllable is drawn.</summary>
+    public const double MelismaThick = 0.09 * S;
     public const double MarkRow      = 1.35 * S;    // one row of fermatas / ornaments / bowings above
 
     // Type.

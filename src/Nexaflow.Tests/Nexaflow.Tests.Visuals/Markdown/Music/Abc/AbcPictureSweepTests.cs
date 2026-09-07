@@ -13,6 +13,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -32,13 +33,31 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 /// here should be read as one.
 /// </para>
 /// <para>
-/// <strong>Line breaking is the thing that would swamp it, so it is normalised away first.</strong> The
-/// reference was drawn at a width nobody recorded and then scaled to fit a thumbnail; we choose our own.
-/// Two engravings of one tune that break into different numbers of systems are different pictures however
-/// well each is drawn, and comparing them would rank the whole corpus by an accident of width. So the
-/// sweep looks for the width at which <em>our</em> page is the shape theirs is, and scores there — and it
-/// reports how well it managed, because a tune whose shape we cannot match at any width is telling us
-/// something about our line breaking rather than about our note heads.
+/// <strong>Ours is drawn at their width, and line breaking is then part of what is measured.</strong> The
+/// reference was drawn at a width nobody recorded — but the picture is evidence of it, so its ink is
+/// measured and our page is given that many pixels plus a couple of air. That is the honest comparison and
+/// it is also the useful one: a score has to be width-aware to sit in a window at all, so handing it a
+/// width and asking what it does with it is a test of the thing rather than a way around it.
+/// </para>
+/// <para>
+/// <strong>And at their size, which is measured rather than guessed.</strong> Every reference is fitted to
+/// an 800×600 box — 2,397 of 2,400 sampled touch an edge exactly — so a thumbnail was scaled by whatever it
+/// took to fit, and its pixels are not a page's pixels. The corpus is therefore drawn at as many sizes as
+/// it has tunes: four taken at random want our notation at 0.56, 0.81, 0.62 and 0.46 of its natural size.
+/// No single number can stand in for that, and a mean is the one answer guaranteed to fit none of them.
+/// </para>
+/// <para>
+/// So each reference is asked how big its own staff is — <see cref="GrayImage.StaffSpace"/>, measured off
+/// the empty stave at the right end of its systems — and ours is drawn at exactly that. The zoom is a real
+/// render scale, so the tune is engraved into the room that notation leaves and breaks its lines where
+/// theirs did, rather than being a shrunk picture of our own line breaks.
+/// </para>
+/// <para>
+/// That leaves the comparison with nothing declared and nothing searched for: same width, same staff size,
+/// and every difference left is an engraving difference. The shape number becomes something to read rather
+/// than aim at — a score is not a picture and its aspect ratio is not a property anybody wants, but at a
+/// shared width and size a page half the other's shape has twice its systems, which separates a low score
+/// meaning <em>we drew it differently</em> from one meaning <em>we broke it differently</em>.
 /// </para>
 /// <para>
 /// Opt-in and local. <c>NEXAFLOW_ABC_CORPUS</c> points at the corpus; everything written goes beside it
@@ -56,17 +75,39 @@ public class AbcPictureSweepTests
     /// <summary>How many tunes a run takes when nothing says otherwise.</summary>
     private const int DefaultSample = 400;
 
-    /// <summary>Where the search starts, and how far either way it is allowed to go.</summary>
-    private const double FirstGuess = 620;
-    private const double Narrowest = 260;
-    private const double Widest = 2600;
+    /// <summary>
+    /// The zoom to draw at when the reference will not say how big its own staff is — a handful of pages
+    /// with no clear stave anywhere on them. Overridable with <c>NEXAFLOW_ABC_ZOOM</c>, which also pins
+    /// every tune to one size, which is occasionally what you want to look at and never what you want to
+    /// measure.
+    /// </summary>
+    private static readonly double? Pinned =
+        double.TryParse(Environment.GetEnvironmentVariable("NEXAFLOW_ABC_ZOOM"),
+                        NumberStyles.Float, CultureInfo.InvariantCulture, out var asked) && asked > 0
+            ? asked
+            : null;
+
+    /// <summary>What to draw at when nothing has been measured and nothing pinned.</summary>
+    private const double Guessed = 0.65;
+
+    /// <summary>
+    /// The size to draw this tune at: whatever makes our staff the size of the staff in its own reference.
+    /// </summary>
+    private static double ZoomFor(GrayImage reference) =>
+        Pinned ?? (reference.StaffSpace() is { } space and > 0 ? space / ScoreMetrics.S : Guessed);
+
+    /// <summary>
+    /// The air our page is given beyond the reference's ink. A couple of pixels: enough that the last note
+    /// of a line is not pressed against the edge, few enough that it cannot buy an extra bar.
+    /// </summary>
+    private const int Margin = 4;
 
     /// <summary>
     /// A page taller than this is one nobody would print and one nothing should rasterise. It is a guard
-    /// rather than a limit: the search should never ask for such a page, and if it does, something is
-    /// wrong that a memory profile would find long after the machine had stopped responding.
+    /// rather than a limit: a tune given a sane width should never reach it, and one that does is a bug
+    /// that a memory profile would find long after the machine had stopped responding.
     /// </summary>
-    private const double Absurd = 30000;
+    private const double Absurd = 20000;
 
     /// <summary>
     /// The height both pictures are brought to before they are compared. Sixteen is right for a formula,
@@ -83,7 +124,7 @@ public class AbcPictureSweepTests
     /// overlapped somebody <em>else's</em> reference.
     /// </summary>
     private sealed record Scored(string Name, double Overlap, double Shape, double Width, double Control,
-                                 int Notes, string? Trouble);
+                                 int Notes, double Stretch, double Zoom, string? Trouble);
 
     [TestMethod]
     public void HowCloseIsThisToWhatAnEngraverDrew()
@@ -123,6 +164,101 @@ public class AbcPictureSweepTests
             + $"{drawn.Average(s => s.Control):F4} against a stranger's — the sweep is measuring nothing");
     }
 
+    /// <summary>
+    /// One tune drawn our way with the engraver's own picture underneath it, saved beside the corpus.
+    ///
+    /// <para>
+    /// The sweep gives a number over ten thousand tunes and cannot say what is wrong with any of them. This
+    /// is the other half of that loop: pick a tune, look at the two pages together at the size and width the
+    /// sweep used, and see what the number was complaining about. Both are cropped to their ink and stacked
+    /// on the same width, so a difference in where a note sits is a difference you can see.
+    /// </para>
+    /// <para>
+    /// <c>NEXAFLOW_ABC_SHOW</c> names the tunes, comma separated; with none it takes one from each end of
+    /// the corpus and one from the middle.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void ShowOneAgainstTheEngraversOwnPicture()
+    {
+        if (Corpus() is not { } corpus) { Assert.Inconclusive(Missing); return; }
+
+        var asked = (Environment.GetEnvironmentVariable("NEXAFLOW_ABC_SHOW") ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        var chosen = asked.Count > 0
+            ? corpus.Items.Where(t => asked.Contains(Path.GetFileNameWithoutExtension(t.Abc))).ToList()
+            : [corpus.Items[0], corpus.Items[corpus.Count / 2], corpus.Items[^1]];
+
+        Assert.IsTrue(chosen.Count > 0, "none of those tunes are in the corpus");
+
+        var into = Path.Combine(corpus.Root, "sweep");
+        Directory.CreateDirectory(into);
+
+        foreach (var tune in chosen)
+            UiThread.Run(() =>
+            {
+                var name = Path.GetFileNameWithoutExtension(tune.Abc);
+                var theirs = new BitmapImage(new Uri(tune.Image));
+                var reference = GrayImage.Load(tune.Image).CropToInk();
+                var width = reference.Width + Margin;
+                var zoom = ZoomFor(reference);
+
+                var element = new AbcScore(Text(tune.Abc), MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
+                element.Measure(new Size(width, double.PositiveInfinity));
+                element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
+
+                var file = Path.Combine(into, $"{name}-at-{zoom:F2}.png");
+                Save(Stack(element, element.DesiredSize, theirs), file);
+                Console.WriteLine(file);
+            });
+    }
+
+    /// <summary>Ours over theirs, on one white page, each labelled.</summary>
+    private static BitmapSource Stack(FrameworkElement ours, Size size, BitmapSource theirs)
+    {
+        const double Gap = 14;
+        const double Label = 16;
+
+        var width = Math.Max(size.Width, theirs.PixelWidth);
+        var height = Label + size.Height + Gap + Label + theirs.PixelHeight;
+
+        var drawing = new DrawingVisual();
+        using (var dc = drawing.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
+
+            Caption(dc, "ours", 0);
+            dc.PushTransform(new TranslateTransform(0, Label));
+            dc.DrawRectangle(new VisualBrush(ours), null, new Rect(0, 0, size.Width, size.Height));
+            dc.Pop();
+
+            var below = Label + size.Height + Gap;
+            Caption(dc, "the engraver’s", below);
+            dc.DrawImage(theirs, new Rect(0, below + Label, theirs.PixelWidth, theirs.PixelHeight));
+        }
+
+        var bitmap = new RenderTargetBitmap(
+            (int)Math.Ceiling(width), (int)Math.Ceiling(height), 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(drawing);
+        return bitmap;
+
+        static void Caption(DrawingContext dc, string what, double y) =>
+            dc.DrawText(
+                new FormattedText(what, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                                  new Typeface("Segoe UI"), 11, Brushes.Gray, 1.0),
+                new Point(2, y + 1));
+    }
+
+    private static void Save(BitmapSource bitmap, string path)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
+    }
+
     // ── Scoring one tune ────────────────────────────────────────────────────
 
     private static Scored Score((string Abc, string Image) tune, string other)
@@ -131,29 +267,48 @@ public class AbcPictureSweepTests
 
         try
         {
-            var reference = GrayImage.Load(tune.Image);
-            if (reference.IsEmpty) return new Scored(name, 0, 0, 0, 0, 0, "the reference is empty");
+            // Cropped because a margin is a fact about the picture rather than about the engraving, and
+            // because it is the ink that says how wide the page it came from was.
+            var theirs = GrayImage.Load(tune.Image).CropToInk();
+            if (theirs.IsEmpty) return new Scored(name, 0, 0, 0, 0, 0, 0, 0, "the reference is empty");
 
             var abc = Text(tune.Abc);
-            var wanted = (double)reference.Width / reference.Height;
             var notes = Notes(abc);
+            var width = theirs.Width + Margin;
+            var zoom = ZoomFor(theirs);
 
-            var best = Fitted(abc, wanted);
-            if (best is not { } fit) return new Scored(name, 0, 0, 0, 0, notes, "it engraved to nothing");
+            var element = new AbcScore(abc, MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
+            element.Measure(new Size(width, double.PositiveInfinity));
 
-            var ours = GrayImage.FromBitmap(Raster(fit.Element, fit.Size, reference.Height));
-            var overlap = GrayImage.InkOverlap(ours, reference, Detail);
+            var size = element.DesiredSize;
+            if (size.Width < 1 || size.Height < 1)
+                return new Scored(name, 0, 0, width, 0, notes, 0, zoom, "it engraved to nothing");
+            if (size.Height > Absurd)
+                return new Scored(name, 0, 0, width, 0, notes, 0, zoom,
+                                  $"it engraved {size.Height:F0}px tall in {width}px of width");
+
+            element.Arrange(new Rect(new Point(0, 0), size));
+
+            var ours = Raster(element, size).CropToInk();
+            if (ours.IsEmpty) return new Scored(name, 0, 0, width, 0, notes, 0, zoom, "it drew no ink");
+
+            var overlap = GrayImage.InkOverlap(ours, theirs, Detail);
 
             // The same page against a picture of a different tune. Whatever two pages of music share just
             // by both being pages of music, this is it — and the gap between the two numbers is the whole
             // of what the sweep can actually see.
-            var control = GrayImage.InkOverlap(ours, GrayImage.Load(other), Detail);
+            var control = GrayImage.InkOverlap(ours, GrayImage.Load(other).CropToInk(), Detail);
 
-            return new Scored(name, overlap, fit.Shape, fit.Width, control, notes, null);
+            var us = (double)ours.Width / ours.Height;
+            var them = (double)theirs.Width / theirs.Height;
+
+            // Which way it is off, not just how far. Below one, our page is the taller of the two, which
+            // at a shared width means more systems on it — so the notation is still too big.
+            return new Scored(name, overlap, Closeness(us, them), width, control, notes, us / them, zoom, null);
         }
         catch (Exception ex)
         {
-            return new Scored(name, 0, 0, 0, 0, 0, $"{ex.GetType().Name}: {ex.Message}");
+            return new Scored(name, 0, 0, 0, 0, 0, 0, 0, $"{ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -170,118 +325,45 @@ public class AbcPictureSweepTests
             .Count(n => n.Kind == AbcKinds.Note && n.Part(AbcRoles.Letter) is not null);
 
     /// <summary>
-    /// Our page at the width whose shape is closest to the reference's, and how close that came.
-    ///
-    /// <para>
-    /// <see cref="Scored.Shape"/> is the ratio of the two aspect ratios, the smaller over the larger, so 1
-    /// is a perfect match and 0.5 means one page is twice the other's shape. It is reported beside the
-    /// overlap rather than folded into it, because they are different complaints: a low shape number says
-    /// we broke the lines somewhere else, and a low overlap at a <em>good</em> shape says we drew the same
-    /// page differently.
-    /// </para>
-    /// <para>
-    /// <strong>Searched rather than enumerated, and that is not an optimisation.</strong> A page gets both
-    /// shorter and wider as the width grows, so its aspect climbs with the width and can be bisected. A
-    /// list of candidate widths instead measures every tune at every width — including the narrow ones,
-    /// where a long tune lays out into hundreds of systems that are then thrown away. Twelve of those in
-    /// flight per thread took the working set to 97GB and the machine to a standstill: the run was three
-    /// cores busy out of thirty-two and paging the rest of the time.
-    /// </para>
-    /// <para>
-    /// So the search starts where most pages are, walks the way the shape says, and only ever lays out a
-    /// width it has a reason to. It also keeps nothing but the numbers, and rebuilds the winner at the
-    /// end — one extra layout against eleven held alive.
-    /// </para>
+    /// How alike two aspect ratios are: the smaller over the larger, so 1 is the same shape. With both
+    /// pages at the same width and the same size, that is a report on line breaking — a page of ours half
+    /// their shape is a page with twice their systems on it.
     /// </summary>
-    private static (FrameworkElement Element, Size Size, double Width, double Shape)? Fitted(string abc, double wanted)
-    {
-        (double Width, double Shape)? best = null;
-        double? low = null, high = null;
-
-        // Walk outward from the first guess until the wanted shape is bracketed, or an end is reached.
-        var at = FirstGuess;
-        for (var step = 0; step < 6; step++)
-        {
-            if (Shaped(abc, at) is not { } seen) break;
-
-            Remember(at, seen.Shape);
-            if (Math.Abs(seen.Aspect - wanted) < 0.001) break;
-
-            if (seen.Aspect < wanted) { low = at; if (high is not null || at >= Widest) break; at = Math.Min(at * 1.6, Widest); }
-            else { high = at; if (low is not null || at <= Narrowest) break; at = Math.Max(at / 1.6, Narrowest); }
-        }
-
-        // Then halve the bracket a few times. Four is plenty: the answer is a whole number of systems, and
-        // the widths that produce one are a coarse grid however finely this looks between them.
-        if (low is { } from && high is { } to)
-            for (var step = 0; step < 4; step++)
-            {
-                var middle = (from + to) / 2;
-                if (Shaped(abc, middle) is not { } seen) break;
-
-                Remember(middle, seen.Shape);
-                if (seen.Aspect < wanted) from = middle; else to = middle;
-            }
-
-        if (best is not { } winner) return null;
-
-        var element = new AbcScore(abc, MarkdownPalette.Light, 0);
-        element.Measure(new Size(winner.Width, double.PositiveInfinity));
-        element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
-
-        return element.DesiredSize.Width < 1 || element.DesiredSize.Height < 1
-            ? null
-            : (element, element.DesiredSize, winner.Width, winner.Shape);
-
-        void Remember(double width, double shape)
-        {
-            if (best is { } had && shape <= had.Shape) return;
-            best = (width, shape);
-        }
-
-        (double Aspect, double Shape)? Shaped(string tune, double width)
-        {
-            var probe = new AbcScore(tune, MarkdownPalette.Light, 0);
-            probe.Measure(new Size(width, double.PositiveInfinity));
-
-            var size = probe.DesiredSize;
-            if (size.Width < 1 || size.Height < 1 || size.Height > Absurd) return null;
-
-            var aspect = size.Width / size.Height;
-            return (aspect, Closeness(aspect, wanted));
-        }
-    }
-
-    /// <summary>How alike two aspect ratios are: the smaller over the larger, so 1 is the same shape.</summary>
     private static double Closeness(double ours, double theirs) =>
         ours <= 0 || theirs <= 0 ? 0 : Math.Min(ours, theirs) / Math.Max(ours, theirs);
 
+    /// <summary>How much bigger ours is drawn before being brought back down to the reference's size.</summary>
+    private const int Supersample = 4;
+
     /// <summary>
-    /// Our page, rasterised to about the height the reference was.
+    /// Our page at the reference's size, drawn large and then reduced — which is how the reference got
+    /// there too.
     ///
     /// <para>
-    /// <strong>Matching the resolution is part of the comparison, not a detail of it.</strong> The corpus
-    /// pictures are thumbnails of a printed page, and the scaling that made them has all but erased the
-    /// thin strokes: at 800×129 the staff lines and stems are gone and only the note heads survive.
-    /// Rasterising ours crisply and comparing would hold solid staff lines against nothing, and score us
-    /// down for ink the reference no longer has rather than for ink we drew wrongly.
+    /// <strong>The line weight is the reason.</strong> A staff line is a hair: a ninth of a staff space, so
+    /// at the sizes these thumbnails were made it is well under a pixel. Rasterised directly it either
+    /// vanishes or snaps to a full black pixel, and neither is what the reference has — the reference was
+    /// engraved large and scaled down, which leaves that hair as a soft grey line a pixel or so wide.
+    /// Drawing ours the same way puts the two pages in the same condition, so what is being compared is
+    /// the engraving rather than one rasteriser's idea of a sub-pixel stroke.
     /// </para>
     /// <para>
-    /// So ours is squeezed through the same loss. Not to flatter the number — it barely moves — but so
-    /// that what is left in both pictures is the same kind of thing.
+    /// It is deliberately a property of the <em>check</em> and not of the app. On screen a crisp hairline
+    /// is the better staff line and this would only blur it; here the point is to match how the reference
+    /// was made.
     /// </para>
     /// </summary>
-    private static BitmapSource Raster(FrameworkElement element, Size size, int wanted)
+    private static GrayImage Raster(FrameworkElement element, Size size)
     {
-        var scale = Math.Clamp(wanted / Math.Max(size.Height, 1), 0.05, 1.0);
+        var wide = Math.Max(1, (int)Math.Ceiling(size.Width));
+        var tall = Math.Max(1, (int)Math.Ceiling(size.Height));
 
         var bitmap = new RenderTargetBitmap(
-            Math.Max(1, (int)Math.Ceiling(size.Width * scale)),
-            Math.Max(1, (int)Math.Ceiling(size.Height * scale)),
-            96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            wide * Supersample, tall * Supersample,
+            96 * Supersample, 96 * Supersample, PixelFormats.Pbgra32);
 
         bitmap.Render(element);
-        return bitmap;
+        return GrayImage.FromBitmap(bitmap).ResampleToHeight(tall);
     }
 
     // ── What the run says ───────────────────────────────────────────────────
@@ -306,7 +388,24 @@ public class AbcPictureSweepTests
         text.AppendLine(CultureInfo.InvariantCulture, $"mean control      {control:F4}   against a different tune's picture");
         text.AppendLine(CultureInfo.InvariantCulture, $"separation        {mean - control:F4}   the whole of what this sweep can see");
         text.AppendLine(CultureInfo.InvariantCulture, $"beat its control  {beat:P1}   of tunes scored higher against their own picture");
-        text.AppendLine(CultureInfo.InvariantCulture, $"mean shape match  {shape:F4}   (1 = our page is the shape theirs is)");
+        text.AppendLine(CultureInfo.InvariantCulture, $"mean shape match  {shape:F4}   (1 = we broke the lines where they did)");
+        // The size each reference asked for. The spread is the finding: it is why a fixed zoom cannot be
+        // right, and why this is measured per tune rather than chosen once.
+        var zooms = drawn.Select(z => z.Zoom).Where(v => v > 0).OrderBy(v => v).ToList();
+        if (zooms.Count > 0)
+            text.AppendLine(CultureInfo.InvariantCulture,
+                $"drawn at zoom     {zooms[zooms.Count / 2]:F2}   median of what each reference asked for"
+                + $" (a tenth under {zooms[zooms.Count / 10]:F2}, a tenth over {zooms[zooms.Count * 9 / 10]:F2})"
+                + $", into its own ink width + {Margin}px");
+
+        // Which way the shape is off, which is the half that says what to do about it. At a shared width a
+        // page can only differ in shape by having a different number of systems on it, so below one means
+        // ours has more of them — the notation is too big — and above one means it has fewer.
+        var stretch = drawn.Select(s => s.Stretch).Where(v => v > 0).OrderBy(v => v).ToList();
+        if (stretch.Count > 0)
+            text.AppendLine(CultureInfo.InvariantCulture,
+                $"and came out      {stretch[stretch.Count / 2]:F2}x their shape   "
+                + $"(under 1 = more systems than theirs, so the notation is still too big)");
         text.AppendLine();
         text.AppendLine("by how many notes there are to get wrong");
         foreach (var (from, to) in new[] { (0, 16), (16, 48), (48, 128), (128, 320), (320, int.MaxValue) })
@@ -367,10 +466,11 @@ public class AbcPictureSweepTests
         }
 
         text.AppendLine();
-        text.AppendLine("worst first — name, overlap, control, shape, notes, the width we drew at");
+        text.AppendLine("worst first — name, overlap, control, shape, notes, width, stretch, zoom");
         foreach (var one in all)
             text.AppendLine(CultureInfo.InvariantCulture,
-                $"  {one.Name}  {one.Overlap:F4}  {one.Control:F4}  {one.Shape:F4}  {one.Notes,5}  {one.Width:F0}");
+                $"  {one.Name}  {one.Overlap:F4}  {one.Control:F4}  {one.Shape:F4}  {one.Notes,5}"
+                + $"  {one.Width:F0}  {one.Stretch:F2}x  {one.Zoom:F2}");
 
         File.WriteAllText(Path.Combine(into, "abc-picture-sweep.txt"), text.ToString());
         Console.WriteLine(text.ToString()[..Math.Min(2000, text.Length)]);
