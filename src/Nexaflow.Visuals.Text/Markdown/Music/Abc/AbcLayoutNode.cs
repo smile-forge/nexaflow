@@ -50,6 +50,14 @@ internal sealed class AbcLayoutNode : LayoutNode
     }
 
     /// <summary>
+    /// Gathers pieces this one already holds under a new piece of their own — see
+    /// <see cref="LayoutNode.Regroup{TGroup}"/>. A tie is the reason: it joins two notes and can only be
+    /// built once both of them are on the page.
+    /// </summary>
+    public AbcLayoutNode Gathering(IReadOnlyList<AbcLayoutNode> members, string kind) =>
+        Regroup(members, new AbcLayoutNode(Rect.Empty, kind));
+
+    /// <summary>
     /// Grows this piece to cover something it drew, and everything holding it to cover this.
     ///
     /// <para>

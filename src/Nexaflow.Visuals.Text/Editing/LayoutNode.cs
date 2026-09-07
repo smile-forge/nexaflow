@@ -119,6 +119,54 @@ public class LayoutNode : ILayoutNode
         return child;
     }
 
+    /// <summary>
+    /// Gathers children this node already has under <paramref name="group"/>, which takes their place
+    /// where the first of them sat.
+    ///
+    /// <para>
+    /// For a thing that is only known once its parts are drawn. A tie joins two notes and cannot be laid
+    /// out until both have landed, so the notes are drawn first and what joins them is built around them
+    /// afterwards — a re-parenting rather than a nesting.
+    /// </para>
+    /// <para>
+    /// The group is handed in rather than made here so that a tree stays one node type all the way down;
+    /// a score's pieces carry their own drawing and a plain node would carry none.
+    /// </para>
+    /// <para>
+    /// Only members this node actually holds, and it says so rather than quietly ignoring one: a group
+    /// standing over children that belong to somebody else would be two parents claiming one subtree, and
+    /// every walk that paints or measures would meet it twice.
+    /// </para>
+    /// </summary>
+    public TGroup Regroup<TGroup>(IReadOnlyList<LayoutNode> members, TGroup group)
+        where TGroup : LayoutNode
+    {
+        var at = _children.Count;
+
+        foreach (var member in members)
+        {
+            var was = _children.IndexOf(member);
+            if (was < 0)
+                throw new System.InvalidOperationException(
+                    $"{group.Kind}: {member.Kind} is not a child of {Kind}");
+
+            at = System.Math.Min(at, was);
+        }
+
+        group.Parent = this;
+
+        foreach (var member in members)
+        {
+            _children.Remove(member);
+            member.Parent = group;
+            group._children.Add(member);
+            group.Bounds = group.Bounds.IsEmpty ? member.Bounds : Rect.Union(group.Bounds, member.Bounds);
+        }
+
+        _children.Insert(System.Math.Min(at, _children.Count), group);
+        return group;
+    }
+
     /// <summary>What this piece drew, in the order it drew it.</summary>
     public IReadOnlyList<LayoutMark> Marks => _marks;
 

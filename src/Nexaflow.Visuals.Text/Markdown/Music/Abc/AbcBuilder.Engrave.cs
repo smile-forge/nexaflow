@@ -1646,9 +1646,14 @@ internal sealed partial class AbcBuilder
     /// </summary>
     private void Order()
     {
-        // Along each layer, in the order they were engraved — which is the order they are read. The
-        // sections are a layer like any other: stepping sideways from one is the next section of the
-        // tune, across a line break like everything else here.
+        // Along each layer, in the order they were engraved — which is the order they are read.
+        //
+        // A run is the layout's own order with the lines ignored, and that is the whole of what declaring
+        // one adds. Containment already puts the notes of a bar in order and the bars of a line in order,
+        // and stepping off the end of one falls into the next by itself. What containment cannot say is
+        // that the last note of a line and the first of the next are neighbours — a line break is a fact
+        // about the paper rather than about the tune. The chords and the verses are that same order with
+        // everything that is not a chord, or not a syllable of that verse, left out.
         Along([.. _sections.Select(s => (ILayoutNode)s)]);
         Along([.. _heads.Select(h => (ILayoutNode)h.Node)]);
         Along([.. _chords.Select(c => (ILayoutNode)c.Node)]);
@@ -1735,13 +1740,72 @@ internal sealed partial class AbcBuilder
 
         if (ReferenceEquals(from.System, to.System))
         {
-            Draw(from.System.Node, start, end, above, kind);
+            Draw(Joining(from.Event, to.Event, from.System, kind), start, end, above, kind);
             return;
         }
 
-        // Broken over a system end: out to the right margin, and in from the left of the next.
-        Draw(from.System.Node, start, new Point(from.System.Right - (0.5 * S), start.Y), above, kind);
-        Draw(to.System.Node, new Point(to.System.HeadWidth - (0.5 * S), end.Y), end, above, kind);
+        // Broken over a system end, where it is not one tie at all but two — out to the right margin, and
+        // in from the left of the next. That the two halves are one thing is a fact about what was
+        // written and the parse tree is where that fact lives; on the page they are two curves in two
+        // lines, and the layout is a picture of the page.
+        Draw(Hanging(from.System, kind), start, new Point(from.System.Right - (0.5 * S), start.Y), above, kind);
+        Draw(Hanging(to.System, kind), new Point(to.System.HeadWidth - (0.5 * S), end.Y), end, above, kind);
+    }
+
+    /// <summary>
+    /// The piece a curve is drawn into: one holding both of the things it joins where they share a
+    /// parent, and otherwise one on the line.
+    ///
+    /// <para>
+    /// Made after the fact, because a curve cannot be laid out until both its ends have landed — which is
+    /// why the notes are gathered under it rather than drawn inside it.
+    /// </para>
+    /// <para>
+    /// <strong>It sits at whatever level can span what it joins.</strong> Two notes of a bar, or a note
+    /// and the beamed group the other is in, share a parent and are gathered there. A tie across a bar
+    /// line joins things in two different bars, and lifting them out would leave a bar that no longer
+    /// holds its own notes and so can never be selected as one — so that tie is a piece of the line, which
+    /// is the smallest thing that reaches across a bar. Either way there is a piece standing for the tie,
+    /// which is the handle a reader would take hold of.
+    /// </para>
+    /// </summary>
+    private AbcLayoutNode Joining(Event from, Event to, System system, string kind)
+    {
+        if (Head(from) is not { } one || Head(to) is not { } other) return Hanging(system, kind);
+
+        // Up from each until the two are siblings: a note and a note, or a note and the beam group
+        // holding the other — the things the curve connects, at whatever size those turn out to be.
+        var above = new HashSet<ILayoutNode>(one.Ancestors());
+        if (other.Ancestors().FirstOrDefault(above.Contains) is not AbcLayoutNode common
+            || common.Kind is not ("measure" or "beam")
+            || Under(one, common) is not { } left
+            || Under(other, common) is not { } right
+            || ReferenceEquals(left, right))
+        {
+            return Hanging(system, kind);
+        }
+
+        return common.Gathering([left, right], kind + "-set");
+    }
+
+    /// <summary>A curve's own piece on the line, for one that reaches further than any bar.</summary>
+    private static AbcLayoutNode Hanging(System system, string kind) =>
+        system.Node!.Adding(new AbcLayoutNode(Rect.Empty, kind + "-set"));
+
+    /// <summary>The piece drawn for an event, or null for one that drew no head.</summary>
+    private AbcLayoutNode? Head(Event ev)
+    {
+        foreach (var (of, node) in _heads)
+            if (ReferenceEquals(of, ev)) return node;
+        return null;
+    }
+
+    /// <summary>The ancestor of a piece that is a child of <paramref name="parent"/>, or itself.</summary>
+    private static AbcLayoutNode? Under(AbcLayoutNode node, ILayoutNode parent)
+    {
+        for (ILayoutNode? at = node; at is not null; at = at.Parent)
+            if (ReferenceEquals(at.Parent, parent)) return at as AbcLayoutNode;
+        return null;
     }
 
     /// <summary>Where a curve leaves a note: clear of the head, on the side away from the stems.</summary>
