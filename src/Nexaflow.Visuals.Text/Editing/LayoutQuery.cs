@@ -601,44 +601,6 @@ public static class LayoutQuery
         return rows;
     }
 
-    /// <summary>
-    /// This node's cells as rows and columns, or nothing when it is not a grid.
-    /// <para>
-    /// A grid is what makes selection behave like a canvas rather than like a line of text: drag down a
-    /// column and you get the column, across and you get the row, and corner to corner you get the block
-    /// between them. The rows come from the tree, so this is not a matter of clustering rectangles into
-    /// bands and hoping.
-    /// </para>
-    /// <para>
-    /// Two rows of two is the least that counts. A fraction stacks a numerator, a rule and a denominator,
-    /// which is rows without columns — it is not a grid, and dragging from a numerator to a denominator
-    /// must mean the fraction rather than a column of it.
-    /// </para>
-    /// </summary>
-    public static IReadOnlyList<IReadOnlyList<ILayoutNode>> Grid(this ILayoutNode node)
-    {
-        var rows = node.Rows();
-        if (rows.Count < 2) return [];
-
-        var grid = new List<IReadOnlyList<ILayoutNode>>();
-        foreach (var row in rows)
-        {
-            var cells = row.SelectMany(Cells).ToList();
-            if (cells.Count < 2) return [];
-            if (grid.Count > 0 && cells.Count != grid[0].Count) return [];
-            grid.Add(cells);
-        }
-
-        return grid;
-    }
-
-    /// <summary>What a row is made of: the things inside it that hold ink, left to right.</summary>
-    private static IEnumerable<ILayoutNode> Cells(ILayoutNode row)
-    {
-        var inside = row.Children.Where(c => c.Ink().Any()).OrderBy(c => c.Bounds.X).ToList();
-        return inside.Count > 0 ? inside : row.Ink().Any() ? [row] : [];
-    }
-
     // ── Geometry helpers ────────────────────────────────────────────────────
 
     /// <summary>

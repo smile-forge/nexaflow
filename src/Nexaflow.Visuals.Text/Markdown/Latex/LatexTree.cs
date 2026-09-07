@@ -54,6 +54,69 @@ public sealed class LatexTree
         Size = size;
         Diagnostics = trouble ?? [];
         _stops = [.. root.CaretStops()];
+
+                Lanes();
+    }
+
+    /// <summary>
+    /// Declares which cells of a matrix read across and which read down, so a drag over one means what it
+    /// does on a sheet.
+    ///
+    /// <para>
+    /// The shape comes from the parse tree, which knows a matrix is a table and says which row and column
+    /// every cell is in. Nothing here clusters rectangles into bands or counts separators — the previous
+    /// answer did exactly that, and it only ever worked for a matrix because a matrix is the one thing
+    /// whose rows all hold the same number of things.
+    /// </para>
+    /// <para>
+    /// A cell is found by what it <em>contains</em> rather than by what it says, because most cells say
+    /// nothing: the typesetter makes a box per cell and the box names no source. So the piece standing for
+    /// a cell is the lowest one holding all the ink written inside it — which for a cell holding a single
+    /// letter is that letter, and for one holding <c>4b^{2}+3</c> is the box around the five of them.
+    /// </para>
+    /// </summary>
+    private void Lanes()
+    {
+        foreach (var grid in TexGrid.In(Reading.Root.Node))
+        {
+            var cells = new LayoutNode?[grid.RowCount, grid.ColumnCount];
+
+            foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(cell);
+
+            for (var row = 0; row < grid.RowCount; row++)
+                Declare(Enumerable.Range(0, grid.ColumnCount).Select(at => cells[row, at]), across: true, "row");
+
+            for (var column = 0; column < grid.ColumnCount; column++)
+                Declare(Enumerable.Range(0, grid.RowCount).Select(at => cells[at, column]), across: false, "column");
+        }
+
+        static void Declare(IEnumerable<LayoutNode?> lane, bool across, string kind)
+        {
+            var members = lane.OfType<LayoutNode>().Distinct().ToList();
+            if (members.Count > 1) LayoutNode.Ordering([.. members], across, kind);
+        }
+    }
+
+    /// <summary>
+    /// The piece standing for one cell: the lowest node holding every piece of ink written inside it, or
+    /// null for a cell that drew nothing — one squared off so that "the third column" means the same in
+    /// every row.
+    /// </summary>
+    private LayoutNode? Holding(TexCell cell)
+    {
+        var inside = Root.Ink()
+            .Where(n => n.Sits() is { Length: > 0 } at && at.Start >= cell.Start && at.End <= cell.End)
+            .ToList();
+
+        if (inside.Count == 0) return null;
+
+        var lowest = inside[0];
+
+        foreach (var node in inside)
+            while (lowest is not null && !ReferenceEquals(lowest, node) && !node.Ancestors().Contains(lowest))
+                lowest = lowest.Parent;
+
+        return lowest as LayoutNode;
     }
 
     /// <summary>The source this tree was built from.</summary>

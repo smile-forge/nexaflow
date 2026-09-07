@@ -51,7 +51,7 @@ public sealed class ContentSelection
         // failing all three the plain run of source, which is what most things are.
         if (Along(root, anchor, focus) is { } run) return run;
         if (Stacked(root, anchor, focus) is { } stack) return stack;
-        if (Block(anchor, focus) is { } block) return block;
+        
 
         var (one, other) = (anchor.Sits(), focus.Sits());
         var from = System.Math.Min(one.Start, other.Start);
@@ -63,6 +63,27 @@ public sealed class ContentSelection
 
     /// <summary>One whole node, as a selection.</summary>
     public static ContentSelection Of(ILayoutNode? node) => node is null ? None : new([node]);
+
+    /// <summary>
+    /// The piece a selection steps from: the first thing on a run of its own, and failing that the first
+    /// thing the source named.
+    ///
+    /// <para>
+    /// Two climbs, because a run is not always declared on the thing that names source. A note declares its
+    /// own — it is a note that belongs with the other notes — while a matrix cell is a box the typesetter
+    /// made around whatever was written in it, so the cell carries the run and the letters inside it carry
+    /// the source. Climbing to the run first is what lets one drag mean "the next cell" and a shorter one
+    /// inside a cell mean "the next term".
+    /// </para>
+    /// <para>
+    /// Where nothing declares a run at all this is exactly <see cref="LayoutQuery.Selectable"/>, which is
+    /// what everything selected by before any of this existed.
+    /// </para>
+    /// </summary>
+    private static ILayoutNode? Stepping(ILayoutNode node) =>
+        new[] { node }.Concat(node.Ancestors())
+            .FirstOrDefault(at => at.Across is not null || at.Down is not null)
+        ?? node.Selectable();
 
     /// <summary>
     /// The block of cells a drag covers, or null when it is not a drag across cells at all — which is the
@@ -100,7 +121,7 @@ public sealed class ContentSelection
     /// </summary>
     private static ContentSelection? Along(ILayoutNode root, ILayoutNode anchor, ILayoutNode focus)
     {
-        if (anchor.Selectable() is not { } from || focus.Selectable() is not { } to) return null;
+        if (Stepping(anchor) is not { } from || Stepping(focus) is not { } to) return null;
         if (ReferenceEquals(from, to)) return null;
 
         foreach (var vertical in new[] { false, true })
@@ -194,7 +215,7 @@ public sealed class ContentSelection
     /// </summary>
     private static ContentSelection? Stacked(ILayoutNode root, ILayoutNode anchor, ILayoutNode focus)
     {
-        if (anchor.Selectable() is not { } from || focus.Selectable() is not { } to) return null;
+        if (Stepping(anchor) is not { } from || Stepping(focus) is not { } to) return null;
         if (ReferenceEquals(from, to)) return null;
         if (from.Across is not { } run || to.Across is null || to.Down is null) return null;
         if (ReferenceEquals(run, to.Across)) return null;   // one run: Along has already answered
@@ -203,31 +224,56 @@ public sealed class ContentSelection
         if (Downward(from, to) is not { } downward) return null;
 
         var block = new List<ILayoutNode>();
+        var rows = new Dictionary<ILayoutNode, List<ILayoutNode>>();
 
         foreach (var column in columns)
         {
-            // A note with nothing named over it and nothing sung under it is in no stack at all, and it
-            // is still a column of the block - it is simply a column of one. Reading its stack as itself
-            // is the whole of that case, and it is why nothing here asks whether a stack exists.
+            // A piece with nothing named over it and nothing sung under it is in no stack at all, and it is
+            // still a column of the block — a column of one. Reading its stack as itself is the whole of that
+            // case, and it is why nothing here asks whether a stack exists.
             var stack = column.Down?.Children ?? [column];
 
             var mine = Holding(stack, from.Across);
             if (mine < 0) continue;
 
-            // A stack with nothing in the run the drag reaches for is not a stack to skip: the note is
-            // still between the two, it simply has no word under it. It gives everything from where the
-            // anchor's run sits to whichever end the reach was headed for.
+            // A stack with nothing in the run the drag reaches for is not a stack to skip: the piece is still
+            // between the two, it simply has no word under it. It gives everything from where the anchor's run
+            // sits to whichever end the reach was headed for.
             var theirs = Holding(stack, to.Across);
             if (theirs < 0) theirs = downward ? stack.Count - 1 : 0;
 
             var (top, bottom) = mine <= theirs ? (mine, theirs) : (theirs, mine);
-            for (var row = top; row <= bottom; row++) block.AddRange(stack[row].Ink());
+
+            for (var at = top; at <= bottom; at++)
+            {
+                var ink = stack[at].Ink().ToList();
+                if (ink.Count == 0) continue;
+
+                block.AddRange(ink);
+
+                var along = stack[at].Across ?? stack[at];
+                        if (!rows.TryGetValue(along, out var gathered)) rows[along] = gathered = [];
+                gathered.AddRange(ink);
+            }
         }
 
         if (block.Count == 0) return null;
 
-        var chosen = LayoutQuery.Promote(block);
-        return new ContentSelection([.. chosen], Joined(root, chosen));
+        // One range per row, from its first chosen piece to its last — the separators between them included,
+        // because pieces chosen as a block are adjacent by construction and what lies between two of them is
+        // the grid's own punctuation. A selected row reading as three selected digits with the `&` between
+        // them conspicuously unselected is not what anybody dragged.
+        //
+        // What separates two ROWS is deliberately not swallowed, which is why this does not go through Joined:
+        // selecting every cell of a matrix and deleting it should leave a matrix with empty cells, not a
+        // matrix with its rows run together.
+        var ranges = rows.Values.Select(ink =>
+        {
+            var start = ink.Min(n => n.Sits().Start);
+            return (start, ink.Max(n => n.Sits().End) - start);
+        });
+
+        return new ContentSelection([.. LayoutQuery.Promote(block)], LayoutQuery.Merge(ranges));
     }
 
     /// <summary>
@@ -282,116 +328,4 @@ public sealed class ContentSelection
             if (ReferenceEquals(stack[i].Across, run)) return i;
         return -1;
     }
-
-    private static ContentSelection? Block(ILayoutNode anchor, ILayoutNode focus)
-    {
-        if (Placed(anchor) is not { } from || Placed(focus) is not { } to) return null;
-
-        // Two lanes that share nothing are two grids, and there is no block between them.
-        if (!ReferenceEquals(from.Column, to.Column) && !Meets(from.Column, to.Column)) return null;
-
-        var (top, bottom) = from.Row <= to.Row ? (from.Row, to.Row) : (to.Row, from.Row);
-        var (left, right) = from.Along <= to.Along ? (from.Along, to.Along) : (to.Along, from.Along);
-
-        // One cell is a drag inside it, not a block of cells: what was dragged over within a cell is a
-        // run of terms like any other. Answering "the whole cell" is what made every term in a matrix
-        // impossible to pick out on its own.
-        if (top == bottom && left == right) return null;
-
-        var block = new List<ILayoutNode>();
-        var ranges = new List<(int Start, int Length)>();
-        var column = from.Column.Children;
-
-        for (var row = top; row <= bottom && row < column.Count; row++)
-        {
-            var along = column[row].Across?.Children ?? [column[row]];
-
-            // A cell is a container the builder wrapped the content in, and may name nothing itself;
-            // what stands for it in the source is whatever it holds.
-            var ink = Enumerable.Range(left, right - left + 1)
-                .Where(at => at < along.Count)
-                .SelectMany(at => along[at].Ink())
-                .ToList();
-            if (ink.Count == 0) continue;
-
-            block.AddRange(ink);
-
-            // One range per row, from its first selected cell to its last — separators included. Cells
-            // chosen as a block are adjacent by construction, so everything between two of them is the
-            // grid's own punctuation and belongs to the selection. Taking each cell separately instead
-            // would leave a selected row reading as three selected digits with the `&` between them
-            // conspicuously unselected.
-            var start = ink.Min(n => n.Sits().Start);
-            ranges.Add((start, ink.Max(n => n.Sits().End) - start));
-        }
-
-        return block.Count == 0
-            ? null
-            : new ContentSelection([.. LayoutQuery.Promote(block)], LayoutQuery.Merge(ranges));
-    }
-
-    /// <summary>
-    /// Where a node sits in its lanes — the cell it is, its place along its run and down its stack — or
-    /// null when it is in no lanes at all.
-    /// <para>
-    /// The node pointed at is often inside a cell rather than being one, so this walks out to the first
-    /// ancestor that is in a lane. That is the same reach the grid version had, said as a walk instead of
-    /// as a search through every cell.
-    /// </para>
-    /// </summary>
-    private static (ILayoutNode Cell, ILayoutNode Column, int Row, int Along)? Placed(ILayoutNode node) =>
-        Inferred(node);
-
-    /// <summary>
-    /// The same answer for a builder that has not declared its lanes yet, worked out from the geometry.
-    ///
-    /// <para>
-    /// <strong>Transitional, and the only thing still asking a rectangle what it belongs to.</strong> A
-    /// grid is recognised here rather than declared: rows come from clustering children by vertical
-    /// overlap, and a grid is a stack of rows that happen to hold the same number of cells. That is why
-    /// it only ever worked for a matrix — a score's rows overlap nothing, and its lanes hold different
-    /// numbers of things.
-    /// </para>
-    /// <para>
-    /// It goes when the last builder declares <see cref="ILayoutNode.Across"/> and
-    /// <see cref="ILayoutNode.Down"/>, and <c>LayoutQuery.Grid</c> goes with it. Nothing new should be
-    /// written against it.
-    /// </para>
-    /// </summary>
-    private static (ILayoutNode Cell, ILayoutNode Column, int Row, int Along)? Inferred(ILayoutNode node)
-    {
-        var grid = node.Ancestors().FirstOrDefault(a => a.Grid().Count > 0);
-        if (grid is null) return null;
-
-        var cells = grid.Grid();
-
-        for (var row = 0; row < cells.Count; row++)
-            for (var along = 0; along < cells[row].Count; along++)
-            {
-                var cell = cells[row][along];
-                if (cell != node && !node.Ancestors().Contains(cell)) continue;
-
-                // A stack the block walk can index down, built to match what the rows say.
-                var column = LayoutNode.Ordering(
-                    [.. cells.Where(r => along < r.Count).Select(r => r[along])], across: false, "column");
-
-                foreach (var r in cells) LayoutNode.Ordering([.. r], across: true, "row");
-
-                return (cell, column, row, along);
-            }
-
-        return null;
-    }
-
-    /// <summary>Where a node sits in one of its lanes.</summary>
-    private static int At(ILayoutNode lane, ILayoutNode member)
-    {
-        for (var i = 0; i < lane.Children.Count; i++)
-            if (ReferenceEquals(lane.Children[i], member)) return i;
-        return -1;
-    }
-
-    /// <summary>Whether two stacks are stacks of the same thing — they hold a row in common.</summary>
-    private static bool Meets(ILayoutNode one, ILayoutNode other) =>
-        one.Children.Any(a => other.Children.Any(b => ReferenceEquals(a.Across, b.Across)));
 }

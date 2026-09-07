@@ -19,10 +19,22 @@ namespace Nexaflow.Tests.Visuals.Editing;
 [CoversNode("latex-selection")]
 public class ContentSelectionTests
 {
-    /// <summary>A 3x3 grid: rows of cells, each cell wrapping its content the way a typesetter does.</summary>
+    /// <summary>
+    /// A 3x3 grid: rows of cells, each cell wrapping its content the way a typesetter does — and each cell
+    /// told which run it reads along and which stack it lines up in.
+    ///
+    /// <para>
+    /// Declared rather than recognised, which is the whole change. A grid used to be a shape found in the
+    /// geometry — rows clustered by vertical overlap, and a grid was a stack of rows that happened to hold
+    /// the same number of things. That only ever worked for a matrix, because a matrix is the one thing
+    /// whose rows are all the same length.
+    /// </para>
+    /// </summary>
     private static LayoutNode Matrix()
     {
         var root = new LayoutNode(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid", isInk: false);
+        var cells = new LayoutNode[3, 3];
+
         for (var r = 0; r < 3; r++)
         {
             var row = root.Add(new LayoutNode(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row", isInk: false));
@@ -30,8 +42,16 @@ public class ContentSelectionTests
             {
                 var cell = row.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), new TestPart(r * 3 + c, 1), "cell", isInk: false));
                 cell.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), new TestPart(r * 3 + c, 1), "char", isInk: true));
+                cells[r, c] = cell;
             }
         }
+
+        for (var r = 0; r < 3; r++)
+            LayoutNode.Ordering([cells[r, 0], cells[r, 1], cells[r, 2]], across: true, "row");
+
+        for (var c = 0; c < 3; c++)
+            LayoutNode.Ordering([cells[0, c], cells[1, c], cells[2, c]], across: false, "column");
+
         return root;
     }
 
@@ -122,7 +142,7 @@ public class ContentSelectionTests
         // not a column of it — which is exactly the guarantee promotion gives.
         var root = Fraction();
 
-        Assert.AreEqual(0, root.Children.First().Grid().Count, "a numerator, a rule and a denominator");
+
 
         var selection = ContentSelection.Between(root, Cell(root, 6), Cell(root, 11));
 
@@ -151,23 +171,32 @@ public class ContentSelectionTests
     // ── The grid itself ─────────────────────────────────────────────────────
 
     [TestMethod]
-    public void AGridIsRowsAndColumnsOfTheTree()
+    public void ACellKnowsWhatItReadsAlongAndWhatItStacksWith()
     {
-        var cells = Matrix().Grid();
+        // The two runs are the whole of what makes a sheet a sheet, and they are facts the builder wrote
+        // down rather than a shape anybody found. Asked of a cell, because that is where selection asks:
+        // it climbs from what was pointed at to the first thing on a run.
+        var grid = Matrix();
+        var middle = Cell(grid, 4).Ancestors().First(n => n.Across is not null);
 
-        Assert.AreEqual(3, cells.Count);
-        Assert.IsTrue(cells.All(r => r.Count == 3));
         CollectionAssert.AreEqual(
-            new[] { 6, 7, 8 },
-            cells[2].Select(c => c.Sits().Start).ToArray(),
-            "and in reading order, left to right");
+            new[] { 3, 4, 5 },
+            middle.Across!.Children.Select(c => c.Sits().Start).ToArray(),
+            "along its row, left to right");
+
+        CollectionAssert.AreEqual(
+            new[] { 1, 4, 7 },
+            middle.Down!.Children.Select(c => c.Sits().Start).ToArray(),
+            "down its column, top to bottom");
     }
 
     [TestMethod]
-    public void ARaggedThingIsNotAGrid()
+    public void SomethingThatDeclaredNoRunsSelectsAsARunOfTerms()
     {
-        // Rows of different widths are a stack of rows, not a sheet, and block selection would have to
-        // invent an answer for the cells that are not there.
+        // Rows of different widths used to be refused as a grid, because block selection would have had to
+        // invent an answer for the cells that are not there. Nothing refuses anything now: a builder that
+        // declared no runs gets the behaviour everything had before any of this — the stretch from one
+        // piece to the other, grown out to whole constructs.
         var root = new LayoutNode(new Rect(0, 0, 70, 40), new TestPart(0, 5), "rows", isInk: false);
 
         var first = root.Add(new LayoutNode(new Rect(0, 0, 70, 13), new TestPart(0, 3), "row", isInk: false));
@@ -178,6 +207,9 @@ public class ContentSelectionTests
         for (var c = 0; c < 2; c++)
             second.Add(new LayoutNode(new Rect(c * 25, 20, 10, 13), new TestPart(3 + c, 1), "char", isInk: true));
 
-        Assert.AreEqual(0, root.Grid().Count);
+        var selection = ContentSelection.Between(root, Cell(root, 1), Cell(root, 3));
+
+        Assert.AreEqual(1, selection.Ranges.Count, "one stretch, not a block of cells that are not there");
+        Assert.AreEqual((1, 3), selection.Ranges[0]);
     }
 }
