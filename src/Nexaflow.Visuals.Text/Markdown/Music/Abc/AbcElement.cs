@@ -51,6 +51,12 @@ public sealed partial class AbcElement : FrameworkElement
     /// </summary>
     private ILayoutNode? _reach;
     private IReadOnlyList<(int Start, int Length)> _selection = [];
+
+    /// <summary>
+    /// The pieces the selection is <em>of</em>, where it came from pointing at them. Null for one handed
+    /// in as a stretch of source, which is all a search hit or a host has to give.
+    /// </summary>
+    private ContentSelection? _chosen;
     private bool _dragging;
 
     /// <summary>Raised whenever what is selected inside the tune changes.</summary>
@@ -177,13 +183,8 @@ public sealed partial class AbcElement : FrameworkElement
     {
         if (_selection.Count == 0) return;
 
-        foreach (var node in layout.Root.Ink())
+        foreach (var node in Washed(layout))
         {
-            var at = node.Sits();
-            if (at.Length <= 0) continue;
-            if (!_selection.Any(range => at.Start >= range.Start && at.Start + at.Length <= range.Start + range.Length))
-                continue;
-
             // Nothing with no area, because `Rect.Inflate` throws on an empty one — and an exception out
             // of OnRender does not lose a wash, it stops WPF drawing the element ever again. A drag that
             // happened to cover a piece that drew nothing took the whole score off the page.
@@ -194,6 +195,26 @@ public sealed partial class AbcElement : FrameworkElement
             dc.DrawRectangle(_wash, null, bounds);
         }
     }
+
+    /// <summary>
+    /// What to draw the wash over: the ink of the pieces that were actually chosen.
+    ///
+    /// <para>
+    /// Asking instead which ink <em>lies inside the chosen stretch of source</em> gives a different and
+    /// wrong answer, because a container names the whole run it holds. A beamed pair covers the same
+    /// characters as the two notes in it, so a drag over the two washed the group's rectangle as well —
+    /// a box reaching from the beam to whatever else the group had come to hold.
+    /// </para>
+    /// <para>
+    /// A selection set from outside — a search hit, the host handing one in — has no nodes behind it, and
+    /// there the stretch of source is genuinely all there is to go on.
+    /// </para>
+    /// </summary>
+    private IEnumerable<ILayoutNode> Washed(AbcLayout layout) =>
+        _chosen is { IsEmpty: false } chosen
+            ? chosen.Nodes.SelectMany(node => node.Ink())
+            : layout.Root.Ink().Where(node => node.Sits() is { Length: > 0 } at
+                  && _selection.Any(range => at.Start >= range.Start && at.End <= range.Start + range.Length));
 
     private const double ScoreWash = 6.0;
 
@@ -240,6 +261,7 @@ public sealed partial class AbcElement : FrameworkElement
         _dragging = false;
         _anchor = null;
         _reach = null;
+        _chosen = null;
         if (_selection.Count == 0) return;
 
         _selection = [];
@@ -258,6 +280,7 @@ public sealed partial class AbcElement : FrameworkElement
 
         var chosen = ContentSelection.Between(_layout.Root, from, to);
         _selection = chosen.Ranges;
+        _chosen = chosen;
         _anchor = from;
         _reach = to;
 

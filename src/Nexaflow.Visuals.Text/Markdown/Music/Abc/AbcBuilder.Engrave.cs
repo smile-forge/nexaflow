@@ -867,22 +867,24 @@ internal sealed partial class AbcBuilder
                 }
             }
 
-            // What stands in the bar is the note on its own, or - where something is named over it or sung
-            // under it - a note-set holding the three side by side. None of the three is drawn inside
-            // another: a chord symbol sits in the air above the staff and a syllable in the lyric row
-            // below, and containment is supposed to say where ink went. Hung off the note they made it a
-            // node with children, which a pointer descends straight past, so half the notes in a tune
-            // could not be clicked at all and the press landed on the bar. What says the three belong
-            // together is `Order`, not this.
-            var sings = !ev.Invisible && (ev.ChordSymbol is { Length: > 0 } || ev.Lyrics.Count > 0);
-            var unit = sings ? holder.Adding(new AbcLayoutNode(Rect.Empty, "note-set")) : holder;
+            drawn[ev] = Draw(holder, system, geometry, ev, system.LastDrawn);
 
-            drawn[ev] = Draw(unit, system, geometry, ev, system.LastDrawn);
-
-            if (sings)
+            // The chord named over a note and the words sung under it hang off the bar, beside the note
+            // rather than inside it. None of the three is drawn within another - a chord symbol sits in
+            // the air above the staff and a syllable in the lyric row below - and containment is
+            // supposed to say where ink went and how much room it takes. Hung off the note they made it
+            // a node with children, which a pointer descends straight past, so half the notes in a tune
+            // could not be clicked at all and the press landed on the bar.
+            //
+            // Nor are the three wrapped in a box of their own. That box would have to live inside the
+            // beam group when the note is beamed, and it would drag the group's rectangle down through
+            // the lyric row - a beam that reports itself as seventy pixels tall because of a word. What
+            // groups the three is the moment `Order` declares, which is a way to step between them and
+            // not a thing anybody draws. This is the case those parents exist for.
+            if (!ev.Invisible)
             {
-                if (!ev.IsRest) ChordSymbol(unit, system, ev);
-                Lyrics(unit, system, ev, system.LastDrawn);
+                if (!ev.IsRest) ChordSymbol(node, system, ev);
+                Lyrics(node, system, ev, system.LastDrawn);
             }
 
             if (!ev.IsRest && !ev.Invisible) _heads.Add((ev, drawn[ev]));

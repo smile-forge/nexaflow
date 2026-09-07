@@ -227,6 +227,7 @@ public sealed partial class AbcElement : IEditableBlock
         _layout = AbcLayout.Build(_abc, _engravedFor > 0 ? _engravedFor : 680, _ink, _ppd);
 
         _selection = keepSelection is { Length: > 0 } wrote ? [(wrote.Start, wrote.Length)] : [];
+        _chosen = null;
         _caret = CaretPlace.At(Math.Clamp(caret, 0, _abc.Length));
         _hasCaret = true;
 
@@ -295,6 +296,7 @@ public sealed partial class AbcElement : IEditableBlock
         if (_layout is null) return;
 
         _selection = length <= 0 ? [] : [(Math.Max(0, start), Math.Min(length, _abc.Length - Math.Max(0, start)))];
+        _chosen = null;
         InvalidateVisual();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
