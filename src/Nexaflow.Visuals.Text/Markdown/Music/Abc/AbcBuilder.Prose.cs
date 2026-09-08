@@ -7,6 +7,7 @@ using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 using Nexaflow.Visuals.Text.Editing;
 using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
@@ -154,7 +155,7 @@ internal sealed partial class AbcBuilder
     /// <para>
     /// Where it goes is the only part of this that is about music — a title is centred over the first
     /// system, a composer is right against the margin, a verse is set in from the staff. That the words
-    /// become a piece of the tree naming the field they were written in is not, and is done by
+    /// become pieces of the tree naming what they were written as is not, and is done by
     /// <see cref="LayoutText.Place"/> for anything that draws words at all.
     /// </para>
     /// </summary>
@@ -164,9 +165,26 @@ internal sealed partial class AbcBuilder
                            FontWeight? weight = null, FontStyle? style = null)
     {
         var node = LayoutText.Place(root, ScoreText.Build(prose.Text, size, _ppd, weight, style),
-                                    new Point(at ?? LeftMargin, y), room, align, prose.Part, kind);
+                                    new Point(at ?? LeftMargin, y), room, align, prose.Part, kind,
+                                    Letters(prose));
 
         root.Covering(node.Bounds);
         return y + node.Bounds.Height + ProseLine;
     }
+
+    /// <summary>
+    /// Where each character of a line of prose was written, so it can be selected a letter at a time — or
+    /// null where the text is not the source, and no character of one is a character of the other.
+    ///
+    /// <para>
+    /// Worked out here because only the reading knows it. A title is the characters between the colon and
+    /// the end of its line; a note field is printed as "Notes: …" and a composer and an origin are set as
+    /// one line, and for those two there is no character-by-character answer to give.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<ISourcePart>? Letters(AbcHeader.Prose prose) =>
+        prose is { IsWritten: true, Part: { } part }
+            ? [.. Enumerable.Range(0, prose.Text.Length)
+                  .Select(at => (ISourcePart)new SourceSpan(part.Start + at, 1))]
+            : null;
 }

@@ -16,8 +16,14 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 public class LayoutNode : ILayoutNode
 {
-    private readonly List<ILayoutNode> _children = [];
-    private readonly List<LayoutMark> _marks = [];
+    // Both lazily made, because most pieces have neither. A tree that gives every character of a title a
+        // piece of its own has thousands of leaves that hold nothing and draw nothing, and two empty lists
+        // apiece is two allocations apiece for nothing at all.
+        private List<ILayoutNode>? _children;
+        private List<LayoutMark>? _marks;
+
+        private static readonly ILayoutNode[] Nothing = [];
+        private static readonly LayoutMark[] Undrawn = [];
 
     public LayoutNode(Rect bounds, ISourcePart? part, string kind, bool isInk)
     {
@@ -29,7 +35,7 @@ public class LayoutNode : ILayoutNode
 
     public Rect Bounds { get; internal set; }
     public ILayoutNode? Parent { get; private set; }
-    public IReadOnlyList<ILayoutNode> Children => _children;
+    public IReadOnlyList<ILayoutNode> Children => _children ?? (IReadOnlyList<ILayoutNode>)Nothing;
 
     /// <summary>
     /// What this piece was drawn from. Handed in by the builder, which is the only thing that holds both
@@ -99,7 +105,7 @@ public class LayoutNode : ILayoutNode
 
         foreach (var member in members)
         {
-            parent._children.Add(member);
+            (parent._children ??= []).Add(member);
             if (member is not LayoutNode node) continue;
 
             if (across) node.Across = parent;
@@ -115,7 +121,7 @@ public class LayoutNode : ILayoutNode
     public LayoutNode Add(LayoutNode child)
     {
         child.Parent = this;
-        _children.Add(child);
+        (_children ??= []).Add(child);
         return child;
     }
 
@@ -205,11 +211,12 @@ public class LayoutNode : ILayoutNode
     public TGroup Regroup<TGroup>(IReadOnlyList<LayoutNode> members, TGroup group)
         where TGroup : LayoutNode
     {
-        var at = _children.Count;
+        var mine = _children ??= [];
+                var at = mine.Count;
 
         foreach (var member in members)
         {
-            var was = _children.IndexOf(member);
+            var was = mine.IndexOf(member);
             if (was < 0)
                 throw new System.InvalidOperationException(
                     $"{group.Kind}: {member.Kind} is not a child of {Kind}");
@@ -221,24 +228,24 @@ public class LayoutNode : ILayoutNode
 
         foreach (var member in members)
         {
-            _children.Remove(member);
-            member.Parent = group;
-            group._children.Add(member);
+            mine.Remove(member);
+                        member.Parent = group;
+                        (group._children ??= []).Add(member);
             group.Bounds = group.Bounds.IsEmpty ? member.Bounds : Rect.Union(group.Bounds, member.Bounds);
         }
 
-        _children.Insert(System.Math.Min(at, _children.Count), group);
+        mine.Insert(System.Math.Min(at, mine.Count), group);
         return group;
     }
 
     /// <summary>What this piece drew, in the order it drew it.</summary>
-    public IReadOnlyList<LayoutMark> Marks => _marks;
+    public IReadOnlyList<LayoutMark> Marks => _marks ?? (IReadOnlyList<LayoutMark>)Undrawn;
 
     /// <summary>
     /// Records a mark against this piece. Held here rather than in a picture of its own so that painting
     /// and asking are the same walk over the same tree — see <see cref="LayoutMark"/>.
     /// </summary>
-    public void Drew(LayoutMark mark) => _marks.Add(mark);
+    public void Drew(LayoutMark mark) => (_marks ??= []).Add(mark);
 
     public override string ToString() =>
         $"{Kind}{(Part is { } p ? $"[{p.Start},{p.Length}]" : "")}{(IsInk ? "*" : "")} {Bounds}";

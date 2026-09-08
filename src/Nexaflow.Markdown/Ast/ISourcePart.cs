@@ -26,7 +26,20 @@ public interface ISourcePart
     int Start { get; }
 
     /// <summary>How many source characters it is named by. Zero for a part standing for none.</summary>
-    int Length { get; }
+        int Length { get; }
+
+        /// <summary>
+        /// A stretch of this part, as a part in its own right — the character at <paramref name="at"/>, a
+        /// word, a line.
+        /// </summary>
+        /// <remarks>
+        /// Asked of the part rather than made by the caller, so that nothing outside this assembly has to
+        /// know what a part is made of. Drawn content needs it to name pieces the parse tree has no node
+        /// for: a title is one field and a reader selects it a letter at a time, and each letter has to be
+        /// able to say where it was written. A content type whose parts mean more than the characters they
+        /// span overrides this to keep that meaning.
+        /// </remarks>
+        
 }
 
 /// <summary>

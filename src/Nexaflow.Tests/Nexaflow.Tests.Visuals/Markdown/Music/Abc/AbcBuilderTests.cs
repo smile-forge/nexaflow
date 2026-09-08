@@ -63,10 +63,8 @@ public class AbcBuilderTests
                 else
                 {
                     Assert.IsInstanceOfType<SourceSpan>(node.Part, $"{what}: {node.Kind} names something else");
-                    Assert.IsTrue(parts.Any(p => p.Start == node.Part.Start),
-                        $"{what}: {node.Kind} spans from {node.Part.Start}, where nothing was written");
-                    Assert.IsTrue(parts.Any(p => p.End() == node.Part.End()),
-                        $"{what}: {node.Kind} spans to {node.Part.End()}, where nothing was written");
+                                        Assert.IsTrue(parts.Any(p => p.Covers(node.Part)),
+                                            $"{what}: {node.Kind} spans {node.Part.Start}+{node.Part.Length}, which is not inside anything written");
                 }
 
                 var at = node.Sits();
