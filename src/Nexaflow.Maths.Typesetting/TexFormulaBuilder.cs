@@ -1054,37 +1054,14 @@ public static class TexFormulaBuilder
     }
 
     /// <summary>The accent this command names, or null when it names none.</summary>
-    private static SymbolAtom? Accent(string name)
-    {
-        try
-        {
-            var symbol = SymbolAtom.GetAtom(name.TrimStart('\\'));
-            return symbol.Type == TexAtomType.Accent ? symbol : null;
-        }
-        catch (SymbolNotFoundException)
-        {
-            return null;
-        }
-    }
+    private static SymbolAtom? Accent(string name) =>
+        SymbolAtom.TryGetAtom(name.TrimStart('\\'), out var symbol) && symbol.Type == TexAtomType.Accent
+            ? symbol
+            : null;
 
     private static Atom? Symbol(string name, ITexPart part, string? style)
     {
-        try
-        {
-            var symbol = SymbolAtom.GetAtom(name);
-            Tag(symbol, part);
-
-            // A big operator is never merely a symbol: every sum and integral gets its own atom whether
-            // or not anything was written above or below it, because how its limits would be set is part
-            // of what it is. Both halves carry the part — the sign is the operator's own drawing of
-            // itself — and both need to, because a script arriving later keeps the sign and builds a new
-            // operator round it, so a sign that knew nothing would come out of \sum_{i=0}^{n} knowing
-            // nothing still.
-            return symbol.Type == TexAtomType.BigOperator
-                ? Tag(TexFormulaParser.BigOperatorOf(symbol), part)
-                : symbol;
-        }
-        catch (SymbolNotFoundException)
+        if (!SymbolAtom.TryGetAtom(name, out var symbol))
         {
             // Not a symbol, so perhaps a primitive: a thing with no LaTeX spelling, which is therefore not
             // something the reader could have expanded for us. A strut is the common case — `\,` and `\;`
@@ -1092,6 +1069,17 @@ public static class TexFormulaBuilder
             // space that was merely typed, which the spacing rules would have put there anyway.
             return StandardCommands.PrimitiveOf(name) is { } primitive ? Tag(primitive, part) : null;
         }
+
+        Tag(symbol, part);
+
+        // A big operator is never merely a symbol: every sum and integral gets its own atom whether or not
+        // anything was written above or below it, because how its limits would be set is part of what it
+        // is. Both halves carry the part — the sign is the operator's own drawing of itself — and both need
+        // to, because a script arriving later keeps the sign and builds a new operator round it, so a sign
+        // that knew nothing would come out of \sum_{i=0}^{n} knowing nothing still.
+        return symbol.Type == TexAtomType.BigOperator
+            ? Tag(TexFormulaParser.BigOperatorOf(symbol), part)
+            : symbol;
     }
 
     // ── Bookkeeping ─────────────────────────────────────────────────────────

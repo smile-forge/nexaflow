@@ -95,18 +95,18 @@ public class LayoutNode : ILayoutNode
         var bounds = Rect.Empty;
         foreach (var member in members) bounds = Rect.Union(bounds, member.Bounds);
 
-        var lane = new LayoutNode(bounds, part, kind, isInk: false);
+        var parent = new LayoutNode(bounds, part, kind, isInk: false);
 
         foreach (var member in members)
         {
-            lane._children.Add(member);
+            parent._children.Add(member);
             if (member is not LayoutNode node) continue;
 
-            if (across) node.Across = lane;
-            else node.Down = lane;
-        }
+            if (across) node.Across = parent;
+                        else node.Down = parent;
+                    }
 
-        return lane;
+                    return parent;
     }
     public bool IsEnclosure { get; internal set; }
     public string Kind { get; }

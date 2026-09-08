@@ -86,24 +86,6 @@ public sealed class ContentSelection
         ?? node.Selectable();
 
     /// <summary>
-    /// The block of cells a drag covers, or null when it is not a drag across cells at all — which is the
-    /// caller's cue to read it as an ordinary run of source.
-    ///
-    /// <para>
-    /// Read off the lanes the builder declared rather than off a grid recognised in the geometry. A
-    /// node's place is its index along <see cref="ILayoutNode.Across"/> and its index down
-    /// <see cref="ILayoutNode.Down"/>, so the block between two of them is two spans and a walk — and a
-    /// thing behaves like a grid because it was built as one, not because its rows happened to come out
-    /// the same length.
-    /// </para>
-    /// <para>
-    /// Which is also how this stopped being about matrices. Anything laid out in lanes selects this way:
-    /// a verse of lyrics reads along its own line, a note and the syllables sung on it stack, and
-    /// dragging between them means the block — the same behaviour, from the same code, because the score
-    /// says what lines up instead of leaving it to be guessed.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// What a drag from one node to another means when the builder ordered them along an axis — the run
     /// of things between the two, taken a step at a time.
     ///

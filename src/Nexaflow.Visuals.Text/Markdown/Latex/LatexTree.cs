@@ -55,7 +55,7 @@ public sealed class LatexTree
         Diagnostics = trouble ?? [];
         _stops = [.. root.CaretStops()];
 
-                Lanes();
+                Order();
     }
 
     /// <summary>
@@ -69,19 +69,21 @@ public sealed class LatexTree
     /// whose rows all hold the same number of things.
     /// </para>
     /// <para>
-    /// A cell is found by what it <em>contains</em> rather than by what it says, because most cells say
-    /// nothing: the typesetter makes a box per cell and the box names no source. So the piece standing for
-    /// a cell is the lowest one holding all the ink written inside it — which for a cell holding a single
-    /// letter is that letter, and for one holding <c>4b^{2}+3</c> is the box around the five of them.
+    /// The ink is gathered once and only when there is a table to gather it for. A formula with no matrix
+    /// walks nothing, and one with a matrix walks its tree once rather than once per cell — which is a
+    /// difference of nine walks on the smallest interesting case and rather more on a real one.
     /// </para>
     /// </summary>
-    private void Lanes()
+    private void Order()
     {
+        List<ILayoutNode>? ink = null;
+
         foreach (var grid in TexGrid.In(Reading.Root.Node))
         {
-            var cells = new LayoutNode?[grid.RowCount, grid.ColumnCount];
+            ink ??= [.. Root.Ink().Where(n => n.Sits().Length > 0)];
 
-            foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(cell);
+            var cells = new LayoutNode?[grid.RowCount, grid.ColumnCount];
+            foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(ink, cell);
 
             for (var row = 0; row < grid.RowCount; row++)
                 Declare(Enumerable.Range(0, grid.ColumnCount).Select(at => cells[row, at]), across: true, "row");
@@ -90,9 +92,12 @@ public sealed class LatexTree
                 Declare(Enumerable.Range(0, grid.RowCount).Select(at => cells[at, column]), across: false, "column");
         }
 
-        static void Declare(IEnumerable<LayoutNode?> lane, bool across, string kind)
-        {
-            var members = lane.OfType<LayoutNode>().Distinct().ToList();
+        // Not a group anybody belongs to: it is a parent a cell steps from, and it exists only so that
+            // "what is next to me" has an answer. Two members at least, because one thing in a row has
+            // nothing to step to and a parent saying so is a parent worth nothing.
+            static void Declare(IEnumerable<LayoutNode?> cells, bool across, string kind)
+            {
+                var members = cells.OfType<LayoutNode>().Distinct().ToList();
             if (members.Count > 1) LayoutNode.Ordering([.. members], across, kind);
         }
     }
@@ -101,20 +106,27 @@ public sealed class LatexTree
     /// The piece standing for one cell: the lowest node holding every piece of ink written inside it, or
     /// null for a cell that drew nothing — one squared off so that "the third column" means the same in
     /// every row.
+    ///
+    /// <para>
+    /// Found by what it <em>contains</em> rather than by what it says, because most cells say nothing: the
+    /// typesetter makes a box per cell and the box names no source. For a cell holding one letter the
+    /// answer is that letter; for one holding <c>4b^{2}+3</c> it is the box around the five of them.
+    /// </para>
     /// </summary>
-    private LayoutNode? Holding(TexCell cell)
+    private static LayoutNode? Holding(List<ILayoutNode> ink, TexCell cell)
     {
-        var inside = Root.Ink()
-            .Where(n => n.Sits() is { Length: > 0 } at && at.Start >= cell.Start && at.End <= cell.End)
-            .ToList();
+        ILayoutNode? lowest = null;
 
-        if (inside.Count == 0) return null;
+        foreach (var node in ink)
+        {
+            var at = node.Sits();
+            if (at.Start < cell.Start || at.End > cell.End) continue;
 
-        var lowest = inside[0];
+            if (lowest is null) { lowest = node; continue; }
 
-        foreach (var node in inside)
             while (lowest is not null && !ReferenceEquals(lowest, node) && !node.Ancestors().Contains(lowest))
                 lowest = lowest.Parent;
+        }
 
         return lowest as LayoutNode;
     }

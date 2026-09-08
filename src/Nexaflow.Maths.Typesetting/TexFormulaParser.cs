@@ -107,28 +107,24 @@ public class TexFormulaParser
 
     internal static IReadOnlyList<IReadOnlyList<string>> DelimiterNames => delimiterNames;
 
-    internal static string GetDelimeterMapping(char character)
-    {
-        try
-        {
-            return delimeters[character];
-        }
-        catch (KeyNotFoundException)
-        {
-            throw new DelimiterMappingNotFoundException(character);
-        }
-    }
+    /// <summary>
+    /// The command a delimiter character stands for, or null when it stands for none.
+    ///
+    /// <para>
+    /// The table is an array the width of the font's character codes, with a null wherever nothing is
+    /// mapped — so a miss was never the KeyNotFoundException this used to catch, and a character past the
+    /// end of it threw an IndexOutOfRangeException that nothing caught at all.
+    /// </para>
+    /// </summary>
+    internal static string? DelimiterMapping(char character) =>
+        character < delimeters.Count ? delimeters[character] : null;
 
-    internal static SymbolAtom? GetDelimiterSymbol(string? name)
-    {
-        if (name == null)
-            return null;
-
-        var result = SymbolAtom.GetAtom(name);
-        if (!result.IsDelimeter)
-            return null;
-        return result;
-    }
+    /// <summary>
+    /// The delimiter this name stands for, or null when it names none — either because nothing is called
+    /// that, or because what is is not a delimiter.
+    /// </summary>
+    internal static SymbolAtom? GetDelimiterSymbol(string? name) =>
+        name is not null && SymbolAtom.TryGetAtom(name, out var symbol) && symbol.IsDelimeter ? symbol : null;
 
     private static bool IsSymbol(char c) => !char.IsLetterOrDigit(c);
 
@@ -174,34 +170,13 @@ public class TexFormulaParser
         new(symbol, null, null, sideLimitOperators.Contains(symbol.Name) ? false : (bool?)null);
 
     /// <summary>The delimiter this character stands for, or null when it stands for none.</summary>
-    internal static SymbolAtom? DelimiterOf(char character)
-    {
-        // `.` is how a fence is written with one end left open — \left. \right) — so no delimiter is
-        // the right answer rather than a failure.
-        if (character == '.') return null;
-
-        try
-        {
-            return GetDelimiterSymbol(GetDelimeterMapping(character));
-        }
-        catch (DelimiterMappingNotFoundException)
-        {
-            return null;
-        }
-    }
+    internal static SymbolAtom? DelimiterOf(char character) =>
+        // `.` is how a fence is written with one end left open — \left. \right) — so no delimiter is the
+        // right answer rather than a failure.
+        character == '.' ? null : GetDelimiterSymbol(DelimiterMapping(character));
 
     /// <summary>The delimiter this command names, or null when it names none.</summary>
-    internal static SymbolAtom? DelimiterOf(string name)
-    {
-        try
-        {
-            return GetDelimiterSymbol(name);
-        }
-        catch (SymbolNotFoundException)
-        {
-            return null;
-        }
-    }
+    internal static SymbolAtom? DelimiterOf(string name) => GetDelimiterSymbol(name);
 
     /// <summary>
     /// Whether anything here has a reading for a command at all — a command parser, a macro, a style or a
@@ -215,22 +190,11 @@ public class TexFormulaParser
     /// is the useful thing to do.
     /// </para>
     /// </summary>
-    internal bool Knows(string command)
-    {
-        if (StandardCommands.Dictionary.ContainsKey(command)) return true;
-        if (textStyles.Contains(command)) return true;
-        if (embeddedCommands.Contains(command)) return true;
-
-        try
-        {
-            SymbolAtom.GetAtom(command);
-            return true;
-        }
-        catch (SymbolNotFoundException)
-        {
-            return false;
-        }
-    }
+    internal bool Knows(string command) =>
+        StandardCommands.Dictionary.ContainsKey(command)
+        || textStyles.Contains(command)
+        || embeddedCommands.Contains(command)
+        || SymbolAtom.TryGetAtom(command, out _);
 
     /// <summary>
     /// Whether there is a drawing for this command, given its name as it was written, backslash and
