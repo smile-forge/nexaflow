@@ -225,18 +225,33 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The ink nearest the point, for a press that landed on nothing: between a head and the end of its
-    /// stem, in the air over a bar, past the last note on a line.
+    /// The ink nearest the point, for a press that landed on nothing: between two note heads, in the air
+    /// over a bar, past the last note on a line.
     ///
     /// <para>
-    /// <strong>The deeper wins a tie, and that is the whole of it.</strong> A press inside a bar is nought
-    /// away from the note, from the bar, from the line and from the tune, because each of them contains
-    /// it - so with distance alone the winner was whichever came first in the walk, which is the
-    /// outermost. Pressing beside a note selected the entire bar, and the two ends of a drag disagreed
-    /// about which layer they were on depending on whether each happened to land on a glyph.
+    /// <strong>Something that holds selectable things of its own is the last resort, not the first.</strong>
+    /// A beamed group's rectangle covers the notes it joins, so a press in the gap between two heads is
+    /// nought away from the group and a little way from either note — and the group won. Dragging along a
+    /// run of notes flickered between two notes and the whole group, every time the pointer crossed a gap.
+    /// A group is something a reader gets by covering it, not by aiming between its members.
+    /// </para>
+    /// <para>
+    /// This is the fallback only. A press that actually lands on a construct's own drawing — a fraction's
+    /// bar, a radical's sign — still means that construct, because there the reader really did point at it.
+    /// </para>
+    /// <para>
+    /// The deeper wins a tie among equals, which is what makes a press inside a bar mean the note it landed
+    /// on rather than the bar: both contain it, so both are nought away, and document order was deciding.
     /// </para>
     /// </summary>
-    private static ILayoutNode? Nearest(ILayoutNode root, Point point)
+    private static ILayoutNode? Nearest(ILayoutNode root, Point point) =>
+        Nearest(root, point, alone: true) ?? Nearest(root, point, alone: false);
+
+    /// <param name="alone">
+    /// Whether to consider only pieces holding no other selectable piece — the things a reader points at,
+    /// as opposed to the things they cover.
+    /// </param>
+    private static ILayoutNode? Nearest(ILayoutNode root, Point point, bool alone)
     {
         ILayoutNode? best = null;
         var bestDistance = double.MaxValue;
@@ -244,6 +259,8 @@ public static class LayoutQuery
 
         foreach (var node in root.Ink())
         {
+            if (alone && Holds(node)) continue;
+
             var distance = DistanceTo(node.Bounds, point);
             if (distance > bestDistance) continue;
 
@@ -257,6 +274,10 @@ public static class LayoutQuery
 
         return best;
     }
+
+    /// <summary>Whether this piece holds a selectable piece of its own — whether it is a group.</summary>
+    private static bool Holds(ILayoutNode node) =>
+        node.SelfAndDescendants().Skip(1).Any(inside => inside.Part is { Length: > 0 });
 
     /// <summary>Every piece of ink the rectangle touches.</summary>
     public static IReadOnlyList<ILayoutNode> NodesIn(this ILayoutNode root, Rect area) =>

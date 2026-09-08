@@ -64,25 +64,32 @@ public static class AbcEdit
         steps == 0 ? null : Rewrite(reading, notes, note => Stretched(note, steps));
 
     /// <summary>
-    /// What to type for a new note of <paramref name="letter"/> at <paramref name="caret"/>: the letter,
-    /// in the octave the note before it was in.
+    /// What to type for a new note of <paramref name="letter"/> at <paramref name="caret"/>: the letter, in
+    /// the octave the note before it was in, and for as long as that note lasted.
     ///
     /// <para>
-    /// Carried from the note before rather than fixed, because a melody typed left to right stays where
-    /// the writer is looking. Typing <c>G</c> after <c>c'</c> means the G above it, not the G two octaves
-    /// down — anything else makes the reader chase the tune back to where they were.
+    /// Both carried from the note before rather than fixed, and for the same reason — a melody typed left to
+    /// right stays where the writer is looking. Typing <c>G</c> after <c>c'</c> means the G above it, not
+    /// the G two octaves down, and typing it after a run of crotchets means another crotchet.
+    /// </para>
+    /// <para>
+    /// The length is the one a reader notices. A bare letter is one unit note length, which for anything
+    /// under three quarters to the bar is a <em>semiquaver</em> — so typing a note into a jig gave a
+    /// semiquaver among its quavers, which is correct ABC and reads as a bug. Nothing about the tune says
+    /// the writer wanted the shortest note the header allows; what they were just looking at does.
     /// </para>
     /// </summary>
     public static string NoteAt(ContentReading reading, int caret, char letter)
     {
         if (!AbcParser.IsNoteLetter(letter)) return letter.ToString();
 
-        var octave = Before(reading, caret) is { } previous ? Sounding(previous) : 5;
+        var previous = Before(reading, caret);
+
+        var octave = previous is { } sounding ? Sounding(sounding) : 5;
         var step = AbcTheory.StepLetters.IndexOf(char.ToUpperInvariant(letter));
         if (step < 0) return letter.ToString();
 
-        // The nearest octave to the note before it, so a step up a scale never jumps a register.
-        return Spell(step, octave);
+        return Spell(step, octave) + (previous?.Part(AbcRoles.Length)?.Text ?? "");
     }
 
     // ── Working out what each gesture writes ────────────────────────────────

@@ -5,6 +5,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown;
+using System.Collections.Generic;
+using System;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -46,6 +48,38 @@ public class AbcPointerTests
             Assert.AreEqual(note, hit,
                 $"a press on the note at {note.Bounds.X:F0} came back as a {Kind(hit)}");
         }
+    });
+
+    [TestMethod]
+    public void SweepingAlongTheNotesNeverLandsOnTheGroupTheyAreIn() => UiThread.Run(() =>
+    {
+        // Reported from the app: "selecting a single note is difficult with the group selecting flickering
+        // in and out as the mouse drags across". A beamed group's rectangle covers the notes it joins, so a
+        // point in the gap between two heads was nought away from the group and a little way from either
+        // note — and the group won. Every gap the pointer crossed flipped the selection from a note to six.
+        //
+        // Swept a pixel at a time along the row the heads sit on, which is the gesture that failed.
+        var layout = AbcLayout.Build("X:1\nL:1/8\nK:G\nGABc dedB|dedB dedB|\n", 900, Brushes.Black, 1.0);
+        var notes = Every(layout, "note");
+
+        Assert.IsTrue(notes.Count >= 8, $"only {notes.Count} notes — the tune did not engrave");
+
+        var row = notes[0].Bounds.Y + (notes[0].Bounds.Height / 2);
+        var trouble = new List<string>();
+
+        for (var x = notes[0].Bounds.X; x <= notes[^1].Bounds.Right; x += 1)
+        {
+            var at = layout.Root.NodeAt(new Point(x, row))?.Selectable();
+            if (at is null) { trouble.Add($"{x:F0}: nothing"); continue; }
+
+            // Anything holding a selectable piece of its own is a group, and a group is something a reader
+            // gets by covering it rather than by aiming between its members.
+            if (at.SelfAndDescendants().Skip(1).Any(n => n.Part is { Length: > 0 }))
+                trouble.Add($"{x:F0}: {Kind(at)}");
+        }
+
+        Assert.AreEqual(0, trouble.Count,
+            "the sweep landed on a group at " + string.Join(", ", trouble.Take(6)));
     });
 
     [TestMethod]
@@ -92,6 +126,40 @@ public class AbcPointerTests
         element.Type('#');
 
         StringAssert.Contains(element.Source, "^c", "the sharp went somewhere else: " + element.Source);
+    });
+
+    [TestMethod]
+    public void APressLandsTheCaretBesideWhateverItIsNearest() => UiThread.Run(() =>
+    {
+        // Reported from the app: "you cannot really insert the caret in a blank spot in the score or where
+        // you might want it, it seems to put it at the start of that block rather than where you clicked".
+        // A press on nothing takes the nearest ink, and the nearest ink was whichever container's rectangle
+        // happened to cover the gap — a bar, or the beamed group — whose source begins at its first note.
+        // So every press between notes gave the same answer.
+        const string Tune = "X:1\nL:1/4\nK:C\nA B c d | e f g a |\n";
+
+        var layout = AbcLayout.Build(Tune, 900, Brushes.Black, 1.0);
+        var notes = Every(layout, "note");
+        var row = notes[0].Bounds.Y + (notes[0].Bounds.Height / 2);
+
+        // Pressed in the gap just after each note: the caret belongs to that note, not to the bar.
+        for (var at = 0; at < notes.Count - 1; at++)
+        {
+            var gap = new Point(notes[at].Bounds.Right + 3, row);
+            var offset = layout.Root.OffsetAt(gap);
+
+            Assert.AreEqual(notes[at].Sits().End, offset,
+                $"a press just past the note at {notes[at].Sits().Start} landed at {offset}"
+                + $" ({Tune[Math.Max(0, offset - 1)]}|{Tune[Math.Min(Tune.Length - 1, offset)]})");
+        }
+
+        // …and past the end of the music, which is where a reader aims to add to it. Not the last note
+            // necessarily — the bar line after it is a real thing and is genuinely nearer — but past it, and
+            // nowhere near the start of the block, which is the answer that was being given.
+            var beyond = layout.Root.OffsetAt(new Point(notes[^1].Bounds.Right + 40, row));
+
+            Assert.IsTrue(beyond >= notes[^1].Sits().End,
+                $"a press past the last note landed at {beyond}, before the note ending at {notes[^1].Sits().End}");
     });
 
     [TestMethod]
