@@ -45,7 +45,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// Where every piece of the symbol landed, what it drew, and which characters of the value each
     /// piece stands for. Null only until the first encode, which the constructor does.
     /// </summary>
-    private BarcodeLayout? _layout;
+    private Laid? _layout;
 
     private readonly List<(int Start, int Length)> _selection = [];
     private int? _caret;
@@ -113,8 +113,15 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// <summary>
     /// Whether the caret belongs in this symbol at all — whether any of what it prints really is the
     /// value. False for every format that transforms its input, which is most of them.
+    ///
+    /// <para>
+    /// Asked of the tree rather than recorded beside it: a piece that names a stretch of source is a
+    /// piece somebody typed, and a symbol with none of those is one nobody can type into. Nothing about
+    /// that question is barcode-shaped.
+    /// </para>
     /// </summary>
-    public bool AcceptsCaret => _layout?.AcceptsCaret ?? false;
+    public bool AcceptsCaret =>
+        _layout is { } laid && laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
 
     // ── What the document around it needs ──────────────────────────────────
 
@@ -519,13 +526,17 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         var ink = Brush(_block.LineColor, _palette.BarcodeDark);
 
-        layout.Paint(dc, ink, underTheText: DrawSelection);
+        // In two layers, so the selection wash lands over the bars and under the digits: a wash drawn over
+        // the number greys the very thing it is meant to be pointing at.
+        LayoutPainter.Paint(dc, layout.Root, ink, mark => mark is not TextMark);
+        DrawSelection(dc);
+        LayoutPainter.Paint(dc, layout.Root, ink, mark => mark is TextMark);
 
         DrawDiagnostics(dc, layout);
         DrawCaret(dc, layout);
 
         // The strike across the symbol. Last, so it sits over the bars it is about.
-        if (_encodeError is not null && layout.Bars is { } bars)
+        if (_encodeError is not null && Of(layout, "Bars") is { Exists: true, Bounds: var bars })
         {
             double y = bars.Y + _block.BarHeight / 2;
             dc.DrawRectangle(_palette.Danger, null, new Rect(
@@ -584,13 +595,36 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             ? [(0, _block.Value.Length)]
             : ContentSelection.Between(root, anchor, focus).Ranges;
 
-    private void DrawDiagnostics(DrawingContext dc, BarcodeLayout layout)
+    /// <summary>
+    /// The wave every editor has drawn under a mistake for thirty years — it needs no explaining, and the
+    /// reason is a hover away.
+    ///
+    /// <para>
+    /// Under the characters that carry the value, which is what the tree already says: a piece naming a
+    /// stretch of source is a piece the reader wrote, and those are exactly the ones the error is about.
+    /// </para>
+    /// </summary>
+    private void DrawDiagnostics(DrawingContext dc, Laid layout)
     {
-        if (_encodeError is null || layout.LabelRuns.Count == 0) return;
+        if (_encodeError is null) return;
 
-        // The wave every editor has drawn under a mistake for thirty years — it needs no explaining, and
-        // the reason is a hover away.
-        dc.DrawGeometry(null, new Pen(_palette.Danger, 1.2), Squiggle.Under(layout.LabelRuns));
+        var runs = layout.Root.Ink()
+            .Where(piece => piece.Part is { Length: > 0 })
+            .Select(piece => piece.Bounds)
+            .ToList();
+
+        if (runs.Count == 0) return;
+
+        dc.DrawGeometry(null, new Pen(_palette.Danger, 1.2), Squiggle.Under(runs));
+    }
+
+    /// <summary>The one piece of a kind, or nothing — how the element asks the tree for a landmark.</summary>
+    private static Piece Of(Laid layout, string kind)
+    {
+        foreach (var piece in layout.Root.SelfAndDescendants())
+            if (piece.Kind == kind) return piece;
+
+        return default;
     }
 
     /// <summary>
@@ -602,7 +636,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// digits are readable in, the caret between them is readable in too.
     /// </para>
     /// </summary>
-    private void DrawCaret(DrawingContext dc, BarcodeLayout layout)
+    private void DrawCaret(DrawingContext dc, Laid layout)
     {
         if (_caret is not { } at || !_caretVisible) return;
 

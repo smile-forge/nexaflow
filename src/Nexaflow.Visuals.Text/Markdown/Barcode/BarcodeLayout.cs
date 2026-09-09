@@ -79,41 +79,16 @@ internal sealed class BarcodeLayout
         _dpi = pixelsPerDip;
     }
 
-    /// <summary>Every piece of the symbol, where it landed and what it drew.</summary>
-    public LayoutTree Tree { get; private set; } = null!;
+    /// <summary>What it made: every piece of the symbol, where it landed and what it drew.</summary>
+    private Laid _laid = Laid.Nothing;
 
-    /// <summary>The whole symbol, as a piece.</summary>
-    public Piece Root => Tree.Root;
-
-    /// <summary>What the element wants to be.</summary>
-    public Size Size { get; private set; }
-
-    /// <summary>
-    /// Whether the caret belongs in this symbol at all: whether any of what it prints is the value.
-    /// <para>
-    /// True for the formats that print what they are given, and for the caption of a publication, which
-    /// carries the number as it was written. False for a printed number that was worked out — where the
-    /// reader edits the block source instead, and is not offered a caret that would be editing one string
-    /// while pointing at another.
-    /// </para>
-    /// </summary>
-    public bool AcceptsCaret { get; private set; }
-
-    /// <summary>Where the human-readable rows sit, for measuring a press that landed near them.</summary>
-    public Rect LabelBounds { get; private set; }
-
-    /// <summary>Each printed run of the value, for waving under what would not encode.</summary>
-    public IReadOnlyList<Rect> LabelRuns { get; private set; } = [];
-
-    /// <summary>Where the bars themselves sit, for a strike drawn across them.</summary>
-    public Rect? Bars { get; private set; }
-
-    public static BarcodeLayout Build(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
-                                      MarkdownPalette palette, double pixelsPerDip)
+    /// <summary>Lays a barcode out, and gives back the tree and nothing barcode-shaped at all.</summary>
+    public static Laid Build(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
+                             MarkdownPalette palette, double pixelsPerDip)
     {
         var layout = new BarcodeLayout(block, pattern, placeholder, palette, pixelsPerDip);
         layout.Lay();
-        return layout;
+        return layout._laid;
     }
 
     // ── Laying it out ─────────────────────────────────────────────────────
@@ -182,7 +157,7 @@ internal sealed class BarcodeLayout
         // tying this to the label instead made the guards grow whenever the text did.
         _guardDrop = _block.BarWidth * GuardExtensionModules;
 
-        Size = new Size(
+        var size = new Size(
             content + _block.Margin * 2,
             captionHeight + _block.BarHeight + LabelHeight + _block.Margin * 2);
 
@@ -192,7 +167,7 @@ internal sealed class BarcodeLayout
 
         // The ground the symbol is printed on. A barcode paints its own light field whatever the theme,
         // because a scanner needs dark bars on a light one.
-        build.Draw(new RuleMark(new Rect(Size), Brush(_block.Background, _palette.BarcodeLight)));
+        build.Draw(new RuleMark(new Rect(size), Brush(_block.Background, _palette.BarcodeLight)));
 
         LayBars(build);
 
@@ -206,9 +181,7 @@ internal sealed class BarcodeLayout
         LayLabel(build, symbol, groups, barsWidth, gap);
 
         build.Close();
-        Tree = build.Seal();
-
-        AcceptsCaret = Root.SelfAndDescendants().Any(piece => piece.Kind == nameof(BarcodeKind.Character));
+        _laid = new Laid(build.Seal(), size, []);
     }
 
     /// <summary>
@@ -318,7 +291,7 @@ internal sealed class BarcodeLayout
         // As tall as the well the guards drop into, whether or not a run of ink reaches the bottom of it.
         into.Covers(new Rect(0, 0, width, _block.BarHeight + _guardDrop));
 
-        Bars = new Rect(_barsLeft, _barsTop, width, _block.BarHeight);
+        
 
         // Faint when they are a stand-in, so the error reads as the subject and they read as the shape it
         // would have taken.
@@ -405,10 +378,11 @@ internal sealed class BarcodeLayout
             into.Close();
         }
 
-        LabelRuns = underlined;
-        LabelBounds = placed.Count == 0
-            ? new Rect(_barsLeft, belowTop, barsWidth, LabelHeight)
-            : placed.Aggregate(placed[0], Rect.Union);
+        // Neither the runs nor their hull are kept. Where the number sits is what the pieces say, and the
+        // wave a broken value wears goes under the characters that carry it — which is the same wave every
+        // other kind of content draws, from the same question asked of the same tree.
+        _ = underlined;
+        _ = placed;
 
         double Centred(BarcodeTextRun group, FormattedText glyphs, double bars) =>
             group.Modules > 0
@@ -451,23 +425,6 @@ internal sealed class BarcodeLayout
     }
 
     // ── Painting ──────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Paints the symbol by walking its own tree. Everything drawn is a mark recorded while it was laid
-    /// out, so what is on the page and what the queries answer about cannot come apart.
-    /// <para>
-    /// In two layers, so that a caller with something of its own to put between them — a selection wash —
-    /// lands over the bars and under the digits, which is where it was always drawn.
-    /// </para>
-    /// </summary>
-    public void Paint(DrawingContext dc, Brush foreground, Action<DrawingContext>? underTheText = null)
-    {
-        LayoutPainter.Paint(dc, Root, foreground, mark => mark is not TextMark);
-
-        underTheText?.Invoke(dc);
-
-        LayoutPainter.Paint(dc, Root, foreground, mark => mark is TextMark);
-    }
 
     private static Brush Brush(HexColor? explicitColor, Brush fallback)
     {
