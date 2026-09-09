@@ -41,7 +41,7 @@ public sealed partial class AbcElement : IEditableBlock
     /// <summary>Raised when a caret movement ran off an end — the host puts it in the prose beside.</summary>
     public event EventHandler<BlockExit>? Exited;
 
-    ILayoutNode? IEditableBlock.Root => _layout?.Root;
+    Piece IEditableBlock.Root => _layout?.Root ?? default;
 
     // ── Typing ──────────────────────────────────────────────────────────────
 

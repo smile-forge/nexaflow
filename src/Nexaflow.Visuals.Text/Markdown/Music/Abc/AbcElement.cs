@@ -38,7 +38,7 @@ public sealed partial class AbcElement : FrameworkElement
     private double _ppd = 1.0;
     private double _engravedFor;
 
-    private ILayoutNode? _anchor;
+    private Piece _anchor;
 
     /// <summary>
     /// The far end of the selection — where the last step left it, and where the next one starts from.
@@ -49,7 +49,7 @@ public sealed partial class AbcElement : FrameworkElement
     /// ever be one piece long.
     /// </para>
     /// </summary>
-    private ILayoutNode? _reach;
+    private Piece _reach;
     private IReadOnlyList<(int Start, int Length)> _selection = [];
 
     /// <summary>
@@ -210,10 +210,10 @@ public sealed partial class AbcElement : FrameworkElement
     /// there the stretch of source is genuinely all there is to go on.
     /// </para>
     /// </summary>
-    private IEnumerable<ILayoutNode> Washed(AbcLayout layout) =>
+    private IEnumerable<Piece> Washed(AbcLayout layout) =>
         _chosen is { IsEmpty: false } chosen
-            ? chosen.Nodes.SelectMany(node => node.Ink())
-            : layout.Root.Ink().Where(node => node.Sits() is { Length: > 0 } at
+            ? chosen.Pieces.SelectMany(piece => piece.Ink())
+            : layout.Root.Ink().Where(piece => piece.Sits() is { Length: > 0 } at
                   && _selection.Any(range => at.Start >= range.Start && at.End <= range.Start + range.Length));
 
     private const double ScoreWash = 6.0;
@@ -245,7 +245,7 @@ public sealed partial class AbcElement : FrameworkElement
         InteractiveSelection.Own(this);
         var at = Unscaled(pointInElement);
 
-        _anchor = _layout.Root.NodeAt(at);
+        _anchor = _layout.Root.PieceAt(at);
         _dragging = true;
         Select(_anchor, _anchor);
 
@@ -261,7 +261,7 @@ public sealed partial class AbcElement : FrameworkElement
     public void ExtendPointerSelect(Point pointInElement)
     {
         if (!_dragging || _layout is null) return;
-        Select(_anchor, _layout.Root.NodeAt(Unscaled(pointInElement)));
+        Select(_anchor, _layout.Root.PieceAt(Unscaled(pointInElement)));
     }
 
     public void EndPointerSelect() => _dragging = false;
@@ -269,8 +269,8 @@ public sealed partial class AbcElement : FrameworkElement
     public void ClearSelection()
     {
         _dragging = false;
-        _anchor = null;
-        _reach = null;
+        _anchor = default;
+        _reach = default;
         _chosen = null;
         if (_selection.Count == 0) return;
 
@@ -284,7 +284,7 @@ public sealed partial class AbcElement : FrameworkElement
     /// What a sweep from one piece to another means. The answer is the shared one: whole constructs, grown
     /// out of the ink between them, so a drag across half a beamed run comes back as the run.
     /// </summary>
-    private void Select(ILayoutNode? from, ILayoutNode? to)
+    private void Select(Piece from, Piece to)
     {
         if (_layout is null || from is null || to is null) { ClearSelection(); return; }
 
@@ -316,12 +316,14 @@ public sealed partial class AbcElement : FrameworkElement
     {
         if (_layout is null) return false;
 
-        var from = _reach ?? _anchor ?? _layout.Root.NodeAt(new Point(0, 0));
-        if (from?.Selectable() is not { } at) return false;
+        var from = _reach.Exists ? _reach
+                 : _anchor.Exists ? _anchor
+                 : _layout.Root.PieceAt(new Point(0, 0));
 
-        if (at.Step(vertical, forward) is not { } next) return false;
+        if (from.Selectable() is not { Exists: true } at) return false;
+        if (at.Step(vertical, forward) is not { Exists: true } next) return false;
 
-        Select(_anchor ?? at, next);
+        Select(_anchor.Exists ? _anchor : at, next);
 
         // The caret goes where the eye went. Leaving it behind is what lets a plain arrow after a Shift
         // arrow jump back to somewhere the reader stopped looking three keystrokes ago.

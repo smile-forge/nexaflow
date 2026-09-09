@@ -127,6 +127,17 @@ public sealed class LayoutBuilder
     }
 
     /// <summary>
+    /// How far the piece being built has reached so far, in its own frame — what its extent would be if it
+    /// were closed now.
+    ///
+    /// <para>
+    /// For the one thing a builder legitimately has to ask part-way through: where to put what comes next.
+    /// Verses go under the music, and how far down that is depends on what the music turned out to be.
+    /// </para>
+    /// </summary>
+    public Rect Reached => _open.Count == 0 ? Rect.Empty : _open.Peek().Box;
+
+    /// <summary>
     /// Records a mark against the piece being built, in that piece's own frame. The piece grows to hold
     /// it — a mark says how far it reaches, so nothing has to be told twice.
     /// </summary>

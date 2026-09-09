@@ -72,7 +72,7 @@ internal sealed partial class AbcBuilder
     private int? MeterSign;
 
     /// <summary>Engraves a tune to fit <paramref name="width"/>, and says how big it came out.</summary>
-    public static (LayoutNode Root, Size Size) Build(
+    public static (LayoutTree Tree, Size Size) Build(
         ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing = null)
     {
         var builder = new AbcBuilder(reading, ink, pixelsPerDip, spacing ?? ScoreSpacing.Current);

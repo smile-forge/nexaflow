@@ -44,7 +44,7 @@ internal sealed partial class AbcBuilder
     /// the rhythm at the left and the composer at the right. Gives back the room it took, which is where
     /// the music starts.
     /// </summary>
-    private double Heading(LayoutNode root, AbcHeader header, double width)
+    private double Heading(AbcHeader header, double width)
     {
         var y = 0.0;
 
@@ -53,11 +53,11 @@ internal sealed partial class AbcBuilder
         var room = Inside(width);
 
         if (header.Title is { } title)
-            y = Written(root, title, "title", y, room, TitleSize, TextAlignment.Center,
+            y = Written(title, "title", y, room, TitleSize, TextAlignment.Center,
                         weight: FontWeights.SemiBold);
 
         foreach (var subtitle in header.Subtitles)
-            y = Written(root, subtitle, "subtitle", y, room, SubtitleSize, TextAlignment.Center);
+            y = Written(subtitle, "subtitle", y, room, SubtitleSize, TextAlignment.Center);
 
         // The rhythm at the left and the composer at the right, on one line — which is where an engraver
         // puts them, and why they share a y rather than being stacked.
@@ -66,11 +66,11 @@ internal sealed partial class AbcBuilder
             var row = y;
 
             if (header.Rhythm is { } left)
-                y = Math.Max(y, Written(root, left, "rhythm", row, room, CreditSize, TextAlignment.Left,
+                y = Math.Max(y, Written(left, "rhythm", row, room, CreditSize, TextAlignment.Left,
                                         style: FontStyles.Italic));
 
             if (header.Credit is { } right)
-                y = Math.Max(y, Written(root, right, "credit", row, room, CreditSize, TextAlignment.Right));
+                y = Math.Max(y, Written(right, "credit", row, room, CreditSize, TextAlignment.Right));
         }
 
         return y > 0 ? y + ProseGap : 0;
@@ -82,7 +82,7 @@ internal sealed partial class AbcBuilder
     /// A blank line among them is the gap between two stanzas, so it takes room and draws nothing.
     /// </para>
     /// </summary>
-    private void Verses(LayoutNode root, AbcHeader header, double width, double top)
+    private void Verses(AbcHeader header, double width, double top)
     {
         if (header.Footer.Count == 0) return;
 
@@ -92,7 +92,7 @@ internal sealed partial class AbcBuilder
         if (ColumnBreak(header.Footer) is not { } split)
         {
             foreach (var line in header.Footer)
-                y = Verse(root, line, y, LeftMargin + VerseIndent, room - VerseIndent);
+                y = Verse(line, y, LeftMargin + VerseIndent, room - VerseIndent);
             return;
         }
 
@@ -101,17 +101,17 @@ internal sealed partial class AbcBuilder
 
         for (var at = 0; at < header.Footer.Count; at++)
             if (at < split)
-                left = Verse(root, header.Footer[at], left, LeftMargin + VerseIndent, column - VerseIndent);
+                left = Verse(header.Footer[at], left, LeftMargin + VerseIndent, column - VerseIndent);
             else
-                right = Verse(root, header.Footer[at], right, LeftMargin + column + VerseIndent,
-                              column - VerseIndent);
+                right = Verse(header.Footer[at], right, LeftMargin + column + VerseIndent,
+                                              column - VerseIndent);
     }
 
     /// <summary>One line of the verses — or the gap between two stanzas, which is a line that is empty.</summary>
-    private double Verse(LayoutNode root, AbcHeader.Prose line, double y, double x, double room) =>
+    private double Verse(AbcHeader.Prose line, double y, double x, double room) =>
         line.Text.Trim().Length == 0
             ? y + (FooterSize * 0.7)
-            : Written(root, line, "verse", y, room, FooterSize, TextAlignment.Left, at: x);
+            : Written(line, "verse", y, room, FooterSize, TextAlignment.Left, at: x);
 
     /// <summary>The width prose is set in: the page, less the margins the music keeps either side.</summary>
     private static double Inside(double width) => Math.Max(4 * S, width - LeftMargin - RightMargin);
@@ -160,16 +160,18 @@ internal sealed partial class AbcBuilder
     /// </para>
     /// </summary>
     /// <returns>The y the next line starts at.</returns>
-    private double Written(LayoutNode root, AbcHeader.Prose prose, string kind, double y, double room,
+    private double Written(AbcHeader.Prose prose, string kind, double y, double room,
                            double size, TextAlignment align, double? at = null,
                            FontWeight? weight = null, FontStyle? style = null)
     {
-        var node = LayoutText.Place(root, ScoreText.Build(prose.Text, size, _ppd, weight, style),
-                                    new Point(at ?? LeftMargin, y), room, align, prose.Part, kind,
-                                    Letters(prose));
+        var glyphs = ScoreText.Build(prose.Text, size, _ppd, weight, style);
 
-        root.Covering(node.Bounds);
-        return y + node.Bounds.Height + ProseLine;
+        LayoutText.Place(_build, glyphs, new Point(at ?? LeftMargin, y), room, align, prose.Part, kind,
+                         Letters(prose));
+
+        // Asked of the type engine after it has been given its room, because that is when it knows: a title
+        // too wide for its page is a paragraph, and how tall it is depends on where it broke.
+        return y + glyphs.Height + ProseLine;
     }
 
     /// <summary>

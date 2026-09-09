@@ -24,12 +24,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// </summary>
 internal sealed class AbcLayout
 {
-    private AbcLayout(string abc, ContentReading reading, LayoutNode root, Size size,
+    private AbcLayout(string abc, ContentReading reading, LayoutTree tree, Size size,
                       IReadOnlyList<Diagnostic> diagnostics)
     {
         Abc = abc;
         Reading = reading;
-        Root = root;
+        Tree = tree;
         Size = size;
         Diagnostics = diagnostics;
     }
@@ -41,7 +41,10 @@ internal sealed class AbcLayout
     public ContentReading Reading { get; }
 
     /// <summary>What was drawn where — every question about the tune's shape goes here.</summary>
-    public LayoutNode Root { get; }
+    public LayoutTree Tree { get; }
+
+    /// <summary>The whole tune, as a piece.</summary>
+    public Piece Root => Tree.Root;
 
     /// <summary>The engraved size in element pixels.</summary>
     public Size Size { get; }
@@ -70,7 +73,7 @@ internal sealed class AbcLayout
         var tree = AbcPipeline.Read(abc, Draws, shownAsWritten);
         var reading = ContentReading.Of(tree);
 
-        var (root, size) = AbcBuilder.Build(reading, width, ink, pixelsPerDip, spacing);
+        var (tree, size) = AbcBuilder.Build(reading, width, ink, pixelsPerDip, spacing);
 
         // Asked of the tree rather than collected on the way through it. A piece that could not be read
         // carries the reason, so there is one place the answer lives and no second list to fall out of step
@@ -84,7 +87,7 @@ internal sealed class AbcLayout
             })
             .ToList();
 
-        return new AbcLayout(abc, reading, root, size, trouble);
+        return new AbcLayout(abc, reading, tree, size, trouble);
     }
 
     /// <summary>
@@ -107,10 +110,6 @@ internal sealed class AbcLayout
     /// Paints the tune, or one piece of it, by walking the tree it was engraved into. The same walk that
     /// answers a hit test, so the picture and the answers cannot disagree about where anything is.
     /// </summary>
-    public void Paint(DrawingContext dc, Brush foreground, ILayoutNode? subtree = null) =>
-        Walk(dc, foreground, subtree ?? Root);
-
-    /// <summary>The whole tree, or one piece of it, painted by the shared walk.</summary>
-    private static void Walk(DrawingContext dc, Brush foreground, ILayoutNode node) =>
-        LayoutPainter.Paint(dc, node, foreground);
+    public void Paint(DrawingContext dc, Brush foreground, Piece subtree = default) =>
+        LayoutPainter.Paint(dc, subtree.Exists ? subtree : Root, foreground);
 }
