@@ -19,7 +19,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 /// then a rendering of the value rather than the value, and a caret placed in it would be editing one
 /// string while pointing at another — so it takes no caret, and the reader edits it in the source behind
 /// it. Which parts are which is worked out in <see cref="BarcodePart"/> and asked here as
-/// <see cref="BarcodeLayout.AcceptsCaret"/>.
+/// <see cref="BarcodeBuilder.AcceptsCaret"/>.
 /// </para>
 /// <para>
 /// Where the two are the same string — a Code 128, and a value that will not encode at all, which is
@@ -449,7 +449,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// value each piece stands for.
     /// </summary>
     private void Rebuild() =>
-        _layout = BarcodeLayout.Build(
+        _layout = BarcodeBuilder.Build(
             _block, _pattern, Placeholder, _palette, VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
     /// <summary>

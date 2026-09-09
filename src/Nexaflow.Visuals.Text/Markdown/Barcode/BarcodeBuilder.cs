@@ -36,7 +36,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 /// run of text is not the sum of its characters measured separately.
 /// </para>
 /// </summary>
-internal sealed class BarcodeLayout : ContentBuilder
+internal sealed class BarcodeBuilder : ContentBuilder
 {
     /// <summary>
     /// The face the human-readable line is set in. OCR-B is what the retail standards actually specify —
@@ -69,7 +69,7 @@ internal sealed class BarcodeLayout : ContentBuilder
     private double _labelSize;
     private double _barsLeft, _barsTop, _guardDrop;
 
-    private BarcodeLayout(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
+    private BarcodeBuilder(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
                                                 MarkdownPalette palette, double pixelsPerDip)
                               : base(block.Value)
                           {
@@ -85,7 +85,7 @@ internal sealed class BarcodeLayout : ContentBuilder
     public static Laid Build(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
                              MarkdownPalette palette, double pixelsPerDip)
     {
-        var layout = new BarcodeLayout(block, pattern, placeholder, palette, pixelsPerDip);
+        var layout = new BarcodeBuilder(block, pattern, placeholder, palette, pixelsPerDip);
         return layout.Lay();
     }
 
