@@ -168,8 +168,8 @@ public sealed partial class AbcElement : FrameworkElement
         var scaled = Math.Abs(Scale - 1.0) > 0.001;
         if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
 
+        LayoutPainter.Paint(dc, layout.Root, _ink);
         PaintSelection(dc, layout);
-        layout.Paint(dc, _ink);
         PaintDiagnostics(dc, layout);
         PaintCaret(dc, layout);
 

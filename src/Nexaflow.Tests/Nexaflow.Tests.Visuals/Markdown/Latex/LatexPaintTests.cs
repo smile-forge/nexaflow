@@ -72,12 +72,12 @@ public class LatexPaintTests
         var layout = LatexLayout.Build(@"\textcolor{red}{x} + y", Scale);
         Assert.IsNotNull(layout);
 
-        var black = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black));
-        var white = Draw(layout.Size, dc => layout.Paint(dc, Brushes.White));
+        var black = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Tree.Root, Brushes.Black));
+        var white = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Tree.Root, Brushes.White));
         Assert.AreNotEqual(black, white, "the theme's colour never reached the glyphs");
 
-        var reddish = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black), Colors.Red);
-        var plain = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black), Colors.White);
+        var reddish = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Tree.Root, Brushes.Black), Colors.Red);
+        var plain = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Tree.Root, Brushes.Black), Colors.White);
         Assert.AreNotEqual(reddish, plain,
             "a red glyph on red paper should vanish — the \\textcolor was overwritten by the theme");
     });
@@ -94,8 +94,8 @@ public class LatexPaintTests
         var fraction = layout.Tree.Root.SelfAndDescendants()
             .First(n => n.Sits().Start == 0 && n.Sits().Length == 13);
 
-        var whole = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black));
-        var part = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black, fraction));
+        var whole = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Tree.Root, Brushes.Black));
+        var part = Draw(layout.Size, dc => LayoutPainter.PaintOne(dc, fraction, Brushes.Black));
 
         Assert.AreNotEqual(whole, part, "painting one term drew the whole formula");
 

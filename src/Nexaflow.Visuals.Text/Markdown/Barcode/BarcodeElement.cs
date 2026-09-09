@@ -516,8 +516,8 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// <summary>
     /// Paints the symbol out of its own layout, with the reader's own marks over it.
     /// <para>
-    /// The selection wash goes between the two layers the layout paints in, so it lands over the bars and
-    /// under the digits — a wash drawn over the number greys the very thing it is meant to be pointing at.
+    /// The wash goes over the drawing, as it does everywhere else on the page: it is translucent, so what
+    /// it marks shows through it, and the painter never has to be told what a barcode is made of.
     /// </para>
     /// </summary>
     protected override void OnRender(DrawingContext dc)
@@ -526,11 +526,12 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         var ink = Brush(_block.LineColor, _palette.BarcodeDark);
 
-        // In two layers, so the selection wash lands over the bars and under the digits: a wash drawn over
-        // the number greys the very thing it is meant to be pointing at.
-        LayoutPainter.Paint(dc, layout.Root, ink, mark => mark is not TextMark);
+        // The drawing, then the wash over it — the one order everything on the page is painted in. A
+        // selection wash is translucent, so laid over the digits it tints them rather than hiding them, and
+        // nothing has to be told that a barcode has two kinds of ink. This used to paint the bars, then the
+        // wash, then the digits, which is the same picture reached by explaining a barcode to the painter.
+        LayoutPainter.Paint(dc, layout.Root, ink);
         DrawSelection(dc);
-        LayoutPainter.Paint(dc, layout.Root, ink, mark => mark is TextMark);
 
         DrawDiagnostics(dc, layout);
         DrawCaret(dc, layout);

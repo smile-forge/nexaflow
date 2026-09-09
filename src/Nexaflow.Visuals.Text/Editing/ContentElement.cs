@@ -176,8 +176,8 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
         var scaled = Math.Abs(Scale - 1.0) > 0.001;
         if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
 
-        PaintSelection(dc, laid);
         LayoutPainter.Paint(dc, laid.Root, _ink);
+        PaintSelection(dc, laid);
         PaintDiagnostics(dc, laid);
         PaintCaret(dc, laid);
 

@@ -803,13 +803,13 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             return;
         }
 
+        LayoutPainter.Paint(dc, _layout.Tree.Root, _palette.Text);
+
         // Every stretch washes itself. A column of a matrix is three of them with the rest of the matrix
         // in between, and washing from the first to the last would highlight the lot.
         foreach (var range in _state.Selection)
             foreach (var rect in _layout.Tree.RangeRects(range.Start, range.Length))
                 dc.DrawRectangle(_wash, null, Marked(rect));
-
-        _layout.Paint(dc, _palette.Text);
 
         // A wave under whatever could not be read, drawn over the formula rather than instead of it: the
         // parts that did parse are still worth looking at, and the reader needs to see which part is not.
@@ -870,12 +870,12 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private void PaintPreview(DrawingContext dc)
     {
         var preview = _preview!;
-        preview.Paint(dc, _palette.Text);
+        LayoutPainter.Paint(dc, preview.Tree.Root, _palette.Text);
 
         // Over the top rather than instead of: painting all of it and then the carried part again is
         // what keeps this to two calls, and the second colour is the one that shows.
         foreach (var node in Carried(preview))
-            preview.Paint(dc, _palette.Accent, node);
+            LayoutPainter.PaintOne(dc, node, _palette.Accent);
     }
 
     /// <summary>

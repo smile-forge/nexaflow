@@ -130,39 +130,4 @@ public sealed class LatexLayout
             return null;
         }
     }
-
-    /// <summary>
-    /// Paints the formula into <paramref name="dc"/> in the tree's own coordinates, so a caret or a
-    /// selection wash drawn from it lands exactly where the glyphs did.
-    /// <para>
-    /// The picture is walked out of the tree rather than typeset again. That is what makes the tree
-    /// trustworthy: structure, geometry and drawing all came out of the one pass, so they cannot disagree
-    /// about where anything is. It also means a single term can be painted on its own — see
-    /// <paramref name="subtree"/> — which is what a caret blink or a term-by-term reveal needs, and why
-    /// the caller no longer has to cache the whole formula as one drawing to stay affordable.
-    /// </para>
-    /// <para>
-    /// The foreground is passed per paint because it is the theme's, and the theme can change without the
-    /// formula doing so. Only marks the formula gave no colour of its own take it; a <c>	extcolor</c>
-    /// keeps what it asked for.
-    /// </para>
-    /// <para>
-    /// Two layers, in the typesetter's own order: every wash goes down first and then all the ink over it,
-    /// so a <c>\colorbox</c> behind one term cannot paint over the glyphs of another. That is a question
-    /// about marks, which is why the shared painter can answer it and this no longer walks the tree itself.
-    /// </para>
-    /// </summary>
-    /// <param name="subtree">One piece to paint, or nothing for the whole formula.</param>
-    public void Paint(DrawingContext dc, Brush foreground, Piece subtree = default)
-    {
-        var from = subtree.Exists ? subtree : Tree.Root;
-        if (!from.Exists) return;
-
-        LayoutPainter.PaintOne(dc, from, foreground, mark => mark is WashMark);
-
-        var ink = new DrawingGroup();
-        using (var layer = ink.Open()) LayoutPainter.PaintOne(layer, from, foreground, mark => mark is not WashMark);
-        ink.Freeze();
-        dc.DrawDrawing(ink);
-    }
 }

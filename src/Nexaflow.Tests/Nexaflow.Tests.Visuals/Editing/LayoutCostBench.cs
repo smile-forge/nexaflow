@@ -61,11 +61,11 @@ public class LayoutCostBench
 
         foreach (var (what, abc) in Tunes)
             lines.Add(Measure(what, () => AbcLayout.Build(abc, 700, Brushes.Black, 1.0),
-                              layout => (layout.Root, layout.Size, (Action<DrawingContext>)(dc => layout.Paint(dc, Brushes.Black)))));
+                              layout => (layout.Root, layout.Size, (Action<DrawingContext>)(dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black)))));
 
         foreach (var (what, latex) in Formulas)
             lines.Add(Measure(what, () => LatexLayout.Build(latex, 22)!,
-                              layout => (layout.Tree.Root, layout.Size, dc => layout.Paint(dc, Brushes.Black))));
+                              layout => (layout.Tree.Root, layout.Size, dc => LayoutPainter.Paint(dc, layout.Tree.Root, Brushes.Black))));
 
         lines.Add("");
         File.AppendAllLines(Path.Combine(into, "layout-cost.txt"), lines);

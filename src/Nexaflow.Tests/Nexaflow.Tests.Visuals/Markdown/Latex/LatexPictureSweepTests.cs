@@ -291,7 +291,7 @@ public class LatexPictureSweepTests
         {
             dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
             dc.PushTransform(new TranslateTransform(pad, pad));
-            layout.Paint(dc, Brushes.Black);
+            LayoutPainter.Paint(dc, layout.Tree.Root, Brushes.Black);
             dc.Pop();
         }
 

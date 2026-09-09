@@ -90,11 +90,4 @@ internal sealed class AbcLayout
     ];
 
     // ── Painting ────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Paints the tune, or one piece of it, by walking the tree it was engraved into. The same walk that
-    /// answers a hit test, so the picture and the answers cannot disagree about where anything is.
-    /// </summary>
-    public void Paint(DrawingContext dc, Brush foreground, Piece subtree = default) =>
-        LayoutPainter.PaintOne(dc, subtree.Exists ? subtree : Root, foreground);
 }
