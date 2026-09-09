@@ -38,7 +38,7 @@ public class AbcDragTests
     [TestMethod]
     public void EveryDragAcrossItComesBackWithAnAnswer() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(AuldGreyCat, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(AuldGreyCat, 900, Brushes.Black, 1.0);
         var pieces = layout.Root.SelfAndDescendants().Where(n => n.IsInk).ToList();
 
         Assert.IsTrue(pieces.Count > 20, $"only {pieces.Count} pieces — the tune did not engrave");
@@ -53,7 +53,7 @@ public class AbcDragTests
                     var chosen = ContentSelection.Between(layout.Root, from, to);
 
                     foreach (var (start, length) in chosen.Ranges)
-                        if (start < 0 || length < 0 || start + length > layout.Abc.Length)
+                        if (start < 0 || length < 0 || start + length > AuldGreyCat.Length)
                             trouble.Add($"{Kind(from)}→{Kind(to)}: range {start}+{length} is outside the tune");
                 }
                 catch (Exception ex)
@@ -103,7 +103,7 @@ public class AbcDragTests
         // drawn at all.
         foreach (var (what, abc) in AbcConstructs.Everything.Concat([("the Auld Grey Cat", AuldGreyCat)]))
         {
-            var layout = AbcLayout.Build(abc, 700, Brushes.Black, 1.0);
+            var layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
 
             foreach (var node in layout.Root.SelfAndDescendants().Where(n => n.IsInk))
                 Assert.IsTrue(!node.Bounds.IsEmpty && node.Bounds.Width > 0 && node.Bounds.Height > 0,
@@ -165,7 +165,7 @@ public class AbcDragTests
         const string Meters =
             "X:1\nM:4/4\nK:C\nA4|\nM:C\nA4|\nM:C|\nA4|\nM:6/8\nA3A3|\nM:none\nA4|\n";
 
-        var layout = AbcLayout.Build(Meters, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Meters, 900, Brushes.Black, 1.0);
 
         var ends = layout.Root.SelfAndDescendants()
             .Where(n => Kind(n) == "system")

@@ -44,8 +44,17 @@ public class AbcBuilderTests
     {
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = AbcLayout.Build(abc, 700, Brushes.Black, 1.0);
-            var parts = layout.Reading.Root.SelfAndDescendants().ToHashSet();
+            var layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
+
+            // Read again here rather than taken from the builder, which hands back a layout and nothing else.
+            // So the parts cannot be matched by identity, and are matched by what they are and where they are
+            // written instead — see the root check below, which is what identity was really buying.
+            var parts = ContentReading.Of(AbcPipeline.Read(abc, AbcBuilder.Draws, null)).Root
+                .SelfAndDescendants()
+                .Select(p => (p.Kind, p.Start, p.Length))
+                .ToHashSet();
+
+            ContentPart? root = null;
 
             foreach (var node in layout.Root.SelfAndDescendants())
             {
@@ -57,14 +66,21 @@ public class AbcBuilderTests
                 // begin where something written begins and finish where something written finishes.
                 if (node.Part is ContentPart part)
                 {
-                    Assert.IsTrue(parts.Contains(part),
+                    Assert.IsTrue(parts.Contains((part.Kind, part.Start, part.Length)),
                         $"{what}: {node.Kind} names a part that is not in this reading");
+
+                    // And every part on every piece comes from one tree. That is what the identity check used
+                    // to prove: a builder that mixed two readings would put pointers into a tune nobody is
+                    // looking at on half the picture, and each of them would pass the check above on its own.
+                    var mine = part.Ancestors().LastOrDefault() ?? part;
+                    root ??= mine;
+                    Assert.AreSame(root, mine, $"{what}: {node.Kind} was drawn from a different reading");
                 }
                 else
                 {
                     Assert.IsInstanceOfType<SourceSpan>(node.Part, $"{what}: {node.Kind} names something else");
-                                        Assert.IsTrue(parts.Any(p => p.Covers(node.Part)),
-                                            $"{what}: {node.Kind} spans {node.Part.Start}+{node.Part.Length}, which is not inside anything written");
+                    Assert.IsTrue(parts.Any(p => node.Part.Start >= p.Start && node.Part.End() <= p.Start + p.Length),
+                        $"{what}: {node.Kind} spans {node.Part.Start}+{node.Part.Length}, which is not inside anything written");
                 }
 
                 var at = node.Sits();
@@ -77,7 +93,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void AndWhatNobodyWroteIsDrawnWithoutBeingSelectable() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(SpeedThePlough, 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(SpeedThePlough, 700, Brushes.Black, 1.0);
 
         foreach (var node in layout.Root.SelfAndDescendants())
         {
@@ -96,7 +112,7 @@ public class AbcBuilderTests
     {
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = AbcLayout.Build(abc, 700, Brushes.Black, 1.0);
+            var layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
 
             if (!abc.Contains('|') && !abc.Contains("ABc")) continue;
 
@@ -108,7 +124,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void ANoteIsWhatAClickOnItsHeadMeans() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build("X:1\nK:C\nCDEF|\n", 400, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nK:C\nCDEF|\n", 400, Brushes.Black, 1.0);
 
         var notes = layout.Root.SelfAndDescendants().Where(n => n.Kind == "note").ToList();
         Assert.AreEqual(4, notes.Count);
@@ -122,14 +138,14 @@ public class AbcBuilderTests
         }
 
         // And each one names exactly the letter that was typed.
-        var written = notes.Select(n => layout.Abc.Substring(n.Sits().Start, n.Sits().Length)).ToList();
+        var written = notes.Select(n => "X:1\nK:C\nCDEF|\n".Substring(n.Sits().Start, n.Sits().Length)).ToList();
         CollectionAssert.AreEqual(new[] { "C", "D", "E", "F" }, written);
     });
 
     [TestMethod]
     public void AndABeamedRunIsWhatADragAcrossItMeans() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build("X:1\nL:1/8\nK:C\nABcd efga|\n", 500, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nL:1/8\nK:C\nABcd efga|\n", 500, Brushes.Black, 1.0);
 
         var beams = layout.Root.SelfAndDescendants().Where(n => n.Kind == "beam").ToList();
         Assert.AreEqual(2, beams.Count, "two runs of four");
@@ -140,13 +156,13 @@ public class AbcBuilderTests
         var swept = ContentSelection.Between(layout.Root, notes[0], notes[^1]);
 
         Assert.AreEqual(1, swept.Ranges.Count, "the run is one stretch of source, not four");
-        Assert.AreEqual("ABcd", layout.Abc.Substring(swept.Ranges[0].Start, swept.Ranges[0].Length));
+        Assert.AreEqual("ABcd", "X:1\nL:1/8\nK:C\nABcd efga|\n".Substring(swept.Ranges[0].Start, swept.Ranges[0].Length));
     });
 
     [TestMethod]
     public void ABarLineCanBePointedAtBecauseSomebodyWroteIt() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build("X:1\nK:C\nCDE|FGA|]\n", 400, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nK:C\nCDE|FGA|]\n", 400, Brushes.Black, 1.0);
 
         var lines = layout.Root.SelfAndDescendants().Where(n => n.Kind == "barline").ToList();
 
@@ -157,8 +173,8 @@ public class AbcBuilderTests
             Assert.IsTrue(line.IsInk, "…so it can be selected");
         }
 
-        Assert.AreEqual("|", layout.Abc.Substring(lines[0].Sits().Start, lines[0].Sits().Length));
-        Assert.AreEqual("|]", layout.Abc.Substring(lines[1].Sits().Start, lines[1].Sits().Length));
+        Assert.AreEqual("|", "X:1\nK:C\nCDE|FGA|]\n".Substring(lines[0].Sits().Start, lines[0].Sits().Length));
+        Assert.AreEqual("|]", "X:1\nK:C\nCDE|FGA|]\n".Substring(lines[1].Sits().Start, lines[1].Sits().Length));
     });
 
     // ── What is drawn beside the notes ──────────────────────────────────────
@@ -166,7 +182,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void ATieAndASlurAreCurvesThatNobodyTyped() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build("X:1\nL:1/8\nK:C\nA-A (BcdB)|\n", 500, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nL:1/8\nK:C\nA-A (BcdB)|\n", 500, Brushes.Black, 1.0);
 
         var ties = layout.Root.SelfAndDescendants().Where(n => n.Kind == "tie").ToList();
         var slurs = layout.Root.SelfAndDescendants().Where(n => n.Kind == "slur").ToList();
@@ -189,7 +205,7 @@ public class AbcBuilderTests
     public void AndASlurAcrossASystemBreakIsDrawnAtBothEnds() => UiThread.Run(() =>
     {
         // Narrow enough that the tune cannot sit on one line, with a slur running over the break.
-        var layout = AbcLayout.Build(
+        var layout = AbcBuilder.Build(
             "X:1\nL:1/8\nK:C\n(ABcd ABcd|ABcd ABcd|ABcd ABcd|ABcd ABcd)|\n", 300, Brushes.Black, 1.0);
 
         var systems = layout.Root.SelfAndDescendants().Count(n => n.Kind == "system");
@@ -202,8 +218,8 @@ public class AbcBuilderTests
     [TestMethod]
     public void ADecorationIsDrawnWhereItsKindBelongs() => UiThread.Run(() =>
     {
-        var plain = AbcLayout.Build("X:1\nK:C\nA|\n", 400, Brushes.Black, 1.0);
-        var marked = AbcLayout.Build("X:1\nK:C\n.HA|\n", 400, Brushes.Black, 1.0);
+        var plain = AbcBuilder.Build("X:1\nK:C\nA|\n", 400, Brushes.Black, 1.0);
+        var marked = AbcBuilder.Build("X:1\nK:C\n.HA|\n", 400, Brushes.Black, 1.0);
 
         // A staccato hugs the head and a fermata stacks clear of the staff, but both are marks on the same
         // piece — so what says they landed is that the piece drew more than a bare note does.
@@ -216,20 +232,20 @@ public class AbcBuilderTests
     [TestMethod]
     public void GraceNotesAreDrawnOnTheNoteTheyBelongTo() => UiThread.Run(() =>
     {
-        var plain = AbcLayout.Build("X:1\nK:C\nA|\n", 400, Brushes.Black, 1.0);
-        var graced = AbcLayout.Build("X:1\nK:C\n{gAG}A|\n", 400, Brushes.Black, 1.0);
+        var plain = AbcBuilder.Build("X:1\nK:C\nA|\n", 400, Brushes.Black, 1.0);
+        var graced = AbcBuilder.Build("X:1\nK:C\n{gAG}A|\n", 400, Brushes.Black, 1.0);
 
         var note = Note(graced);
 
         Assert.IsTrue(Marks(note) > Marks(Note(plain)), "the grace notes were not drawn");
-        Assert.AreEqual("A", graced.Abc.Substring(note.Sits().Start, note.Sits().Length),
+        Assert.AreEqual("A", "X:1\nK:C\n{gAG}A|\n".Substring(note.Sits().Start, note.Sits().Length),
             "and they hang off the note they precede, so selecting it takes them with it");
     });
 
     [TestMethod]
     public void ARepeatBracketRunsFromItsNumberToWhereTheRepeatEnds() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(
+        var layout = AbcBuilder.Build(
             "X:1\nL:1/8\nK:G\n|:GABc dedB|1 dedB dedB:|2 c2ec B2dB|]\n", 700, Brushes.Black, 1.0);
 
         var brackets = layout.Root.SelfAndDescendants().Where(n => n.Kind == "volta").ToList();
@@ -237,7 +253,7 @@ public class AbcBuilderTests
         Assert.AreEqual(2, brackets.Count, "a first-time bracket and a second-time one");
 
         // Each names the number somebody wrote, which is what makes it something a reader can point at.
-        var written = brackets.Select(b => layout.Abc.Substring(b.Sits().Start, b.Sits().Length)).ToList();
+        var written = brackets.Select(b => "X:1\nL:1/8\nK:G\n|:GABc dedB|1 dedB dedB:|2 c2ec B2dB|]\n".Substring(b.Sits().Start, b.Sits().Length)).ToList();
         CollectionAssert.AreEqual(new[] { "1", "2" }, written);
 
         Assert.IsTrue(brackets[0].Bounds.Right <= brackets[1].Bounds.Left + 1,
@@ -247,7 +263,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void APlacedAnnotationGoesWhereItsQuotesSaid() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build("""
+        var layout = AbcBuilder.Build("""
             X:1
             K:C
             "^over"A "_under"B|
@@ -271,7 +287,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void TwoVoicesAreBracketedIntoOneSystem() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
 
         var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         var brackets = layout.Root.SelfAndDescendants().Where(n => n.Kind == "bracket").ToList();
@@ -298,7 +314,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void AndTheirBarsLineUp() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
 
         var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         var lines = systems
@@ -315,7 +331,7 @@ public class AbcBuilderTests
     {
         // Both are written on the V: line, which is in the header — before any music. Reading them under
         // the guard that stops the header's meter being printed twice is how the first voice lost both.
-        var layout = AbcLayout.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(PartSong.Replace('!', '"'), 700, Brushes.Black, 1.0);
 
         Assert.AreEqual(2, layout.Root.SelfAndDescendants().Count(n => n.Kind == "voice"),
             "both voices are named at the left");
@@ -338,7 +354,7 @@ public class AbcBuilderTests
         // about where the bars are would misalign every bar after the first difference.
         var uneven = "X:1\nM:4/4\nL:1/8\nK:C\nV:1\nCDEF GABc|cBAG|\nV:2\nC,D,E,F,|G,A,B,C|CB,A,G,|\n";
 
-        var layout = AbcLayout.Build(uneven, 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(uneven, 700, Brushes.Black, 1.0);
 
         Assert.AreEqual(2, layout.Root.SelfAndDescendants().Count(n => n.Kind == "system"));
         Assert.AreEqual(0, layout.Root.SelfAndDescendants().Count(n => n.Kind == "bracket"),
@@ -400,7 +416,7 @@ public class AbcBuilderTests
     }
 
     /// <summary>The first note in a tune.</summary>
-    private static Piece Note(AbcLayout layout) =>
+    private static Piece Note(Laid layout) =>
         layout.Root.SelfAndDescendants().First(n => n.Kind == "note");
 
     /// <summary>How many things a piece of layout drew — the cheap way to ask whether a mark landed.</summary>
@@ -436,7 +452,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void EveryLineButAShortLastOneSharesOneWidth() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(SpeedThePlough, 600, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(SpeedThePlough, 600, Brushes.Black, 1.0);
 
         var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         Assert.IsTrue(systems.Count >= 2, "the tune should not fit on one line at this width");

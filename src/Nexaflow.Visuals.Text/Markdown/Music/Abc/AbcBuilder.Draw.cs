@@ -76,7 +76,7 @@ internal sealed partial class AbcBuilder
         _noteHead = Smufl.Advance(Smufl.NoteheadBlack, S);
         if (_noteHead <= 0) _noteHead = 1.18 * S;
 
-        var rows = Read();
+        var rows = Rows();
         var systems = Wrap(rows, Math.Max(width, 12 * S));
 
         if (systems.Count > 0) Justify(systems, width);

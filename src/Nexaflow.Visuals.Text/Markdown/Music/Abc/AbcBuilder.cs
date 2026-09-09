@@ -36,18 +36,42 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// and are shared with the engraver the <c>#%</c> block still uses.
 /// </para>
 /// </summary>
-internal sealed partial class AbcBuilder
+internal sealed partial class AbcBuilder : ContentBuilder
 {
-    private readonly ContentReading _reading;
+    /// <summary>
+    /// How big to set source that could not be engraved at all. A fixed size rather than one derived from
+    /// the staff, because in that case there is no staff — this is the fallback for an engraver that threw,
+    /// so nothing it would have measured can be trusted.
+    /// </summary>
+    private const double SourceSize = 13;
+
+    private readonly double _width;
     private readonly Brush _ink;
     private readonly double _ppd;
+    private readonly (int Start, int Length)? _shownAsWritten;
 
-    private AbcBuilder(ContentReading reading, Brush ink, double pixelsPerDip, ScoreSpacing spacing)
+    private ContentReading _reading = ContentReading.Of(AbcPipeline.Read(string.Empty));
+
+    /// <param name="abc">The tune, as it is written.</param>
+    /// <param name="width">How much room it has to lay itself out in.</param>
+    /// <param name="shownAsWritten">
+    /// A stretch to show as the characters written rather than read as music — the piece being edited,
+    /// which has to be seen exactly as typed while the tune around it stays engraved.
+    /// </param>
+    /// <param name="spacing">
+    /// How much air to leave between things, or null for what the engraver normally uses. A caller passes
+    /// something else only to compare two engravings without the comparison being about this.
+    /// </param>
+    public AbcBuilder(string abc, double width, Brush ink, double pixelsPerDip,
+                      (int Start, int Length)? shownAsWritten = null,
+                      ScoreSpacing? spacing = null)
+        : base(abc)
     {
-        _reading = reading;
+        _width = width;
         _ink = ink;
         _ppd = pixelsPerDip <= 0 ? 1.0 : pixelsPerDip;
-        _spacing = spacing;
+        _shownAsWritten = shownAsWritten;
+        _spacing = spacing ?? ScoreSpacing.Current;
     }
 
     /// <summary>How much air this engraving puts between things — see <see cref="ScoreSpacing"/>.</summary>
@@ -72,20 +96,31 @@ internal sealed partial class AbcBuilder
     private int? MeterSign;
 
     /// <summary>
-    /// Engraves a tune to fit <paramref name="width"/>, and hands back nothing music-shaped: a tree of
-    /// pieces, how much room it wants, and whatever could not be read.
+    /// Reads and engraves a tune in one call — the shape most callers want, since a builder that has laid
+    /// its source out has nothing else to say.
     /// </summary>
-    public static Laid Build(
-        ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing = null)
+    public static Laid Build(string abc, double width, Brush ink, double pixelsPerDip,
+                             (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null) =>
+        new AbcBuilder(abc, width, ink, pixelsPerDip, shownAsWritten, spacing).Lay();
+
+    /// <summary>
+    /// Reads the tune and engraves it to fit, and hands back nothing music-shaped: a tree of pieces, how
+    /// much room it wants, and whatever could not be read.
+    /// </summary>
+    protected override Laid Read()
     {
-        var builder = new AbcBuilder(reading, ink, pixelsPerDip, spacing ?? ScoreSpacing.Current);
-        var (tree, size) = builder.Engrave(width);
+        // One reading, every time, whatever the caret is doing. What cannot be drawn and what is being
+        // typed are both settled before this — they come back as parts that say so, and the engraving sets
+        // them without having to know which of the two it is looking at.
+        _reading = ContentReading.Of(AbcPipeline.Read(Source, Draws, _shownAsWritten));
+
+        var (tree, size) = Engrave(_width);
 
         // Asked of the reading rather than collected on the way through it. A piece that could not be read
         // carries the reason, so there is one place the answer lives and no second list to fall out of step
         // with it — and a piece being typed carries nothing, which is how it draws without being complained
         // about.
-        var trouble = reading.Root.SelfAndDescendants()
+        var trouble = _reading.Root.SelfAndDescendants()
             .Where(part => part.Trouble is not null && part.Length > 0)
             .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Warning, part.Trouble!)
             {
@@ -95,6 +130,33 @@ internal sealed partial class AbcBuilder
 
         return new Laid(tree, size, trouble);
     }
+
+    /// <summary>
+    /// How a tune sets characters it could not engrave: monospaced, so a reader can count the bar lines in
+    /// what they wrote.
+    /// </summary>
+    protected override FormattedText Characters(string text) =>
+        new(text,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Consolas"),
+            SourceSize,
+            Brushes.Black,   // never used: the mark takes the theme's ink at paint time
+            _ppd);
+
+    /// <summary>
+    /// Whether the engraver has a drawing for a named decoration. Asked of the builder rather than of a
+    /// table, because what can be drawn is a fact about an engraver: asking the tables instead is what once
+    /// put a red wave under a LaTeX command the builder set perfectly well.
+    /// </summary>
+    internal static bool Draws(string decoration) => Decorations.Contains(decoration.ToLowerInvariant());
+
+    private static readonly HashSet<string> Decorations =
+    [
+        "staccato", "tenuto", "accent", "emphasis", "marcato", "upbow", "downbow", "fermata", "trill",
+        "roll", "turn", "uppermordent", "pralltriller", "lowermordent", "mordent", "segno", "coda",
+        ">", "^",
+    ];
 
     // ── What there is to draw ───────────────────────────────────────────────
 
@@ -234,7 +296,7 @@ internal sealed partial class AbcBuilder
     /// they were written, and a mid-tune key change belongs to the bar it takes effect at.
     /// </para>
     /// </summary>
-    private List<Row> Read()
+    private List<Row> Rows()
     {
         var rows = new List<Row>();
         var key = (KeySignature?)null;

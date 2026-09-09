@@ -51,10 +51,10 @@ public class AbcCorpusRenderTests
         {
             var abc = Text(file);
 
-            AbcLayout layout;
+            Laid layout;
             try
             {
-                layout = AbcLayout.Build(abc, 700, Brushes.Black, 1.0);
+                layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
             }
             catch (Exception ex)
             {

@@ -34,7 +34,7 @@ public sealed partial class AbcElement : FrameworkElement
     private readonly Brush _ink;
     private readonly Brush _wash;
 
-    private AbcLayout? _layout;
+    private Laid? _laid;
     private double _ppd = 1.0;
     private double _engravedFor;
 
@@ -116,10 +116,10 @@ public sealed partial class AbcElement : FrameworkElement
     public IReadOnlyList<(int Start, int Length)> Selection => _selection;
 
     /// <summary>Whatever could not be read or drawn.</summary>
-    public IReadOnlyList<Diagnostic> Diagnostics => _layout?.Diagnostics ?? [];
+    public IReadOnlyList<Diagnostic> Diagnostics => _laid?.Trouble ?? [];
 
     /// <summary>The engraved tune, for the shared queries — or null before it has been measured.</summary>
-    internal AbcLayout? Layout => _layout;
+    internal Laid? Layout => _laid;
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token — never a literal.</summary>
     private static Brush Wash(MarkdownPalette palette)
@@ -147,18 +147,18 @@ public sealed partial class AbcElement : FrameworkElement
         // engraver's.
         var room = available / Scale;
 
-        if (_layout is null || Math.Abs(_engravedFor - room) > 0.5)
+        if (_laid is null || Math.Abs(_engravedFor - room) > 0.5)
         {
-            _layout = AbcLayout.Build(_abc, room, _ink, _ppd, spacing: Spacing);
+            _laid = new AbcBuilder(_abc, room, _ink, _ppd, spacing: Spacing).Lay();
             _engravedFor = room;
         }
 
-        return new Size(Math.Ceiling(_layout.Size.Width * Scale), Math.Ceiling(_layout.Size.Height * Scale));
+        return new Size(Math.Ceiling(_laid.Size.Width * Scale), Math.Ceiling(_laid.Size.Height * Scale));
     }
 
     protected override void OnRender(DrawingContext dc)
     {
-        var layout = _layout ??= AbcLayout.Build(_abc, 680, _ink, _ppd);
+        var layout = _laid ??= new AbcBuilder(_abc, 680, _ink, _ppd).Lay();
 
         // A transparent fill makes the whole element hit-testable — the gaps between glyphs included.
         dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, RenderSize.Width, RenderSize.Height));
@@ -179,7 +179,7 @@ public sealed partial class AbcElement : FrameworkElement
     /// <summary>A point on the element, in the coordinates the layout was built in.</summary>
     private Point Unscaled(Point at) => new(at.X / Scale, at.Y / Scale);
 
-    private void PaintSelection(DrawingContext dc, AbcLayout layout)
+    private void PaintSelection(DrawingContext dc, Laid layout)
     {
         if (_selection.Count == 0) return;
 
@@ -210,7 +210,7 @@ public sealed partial class AbcElement : FrameworkElement
     /// there the stretch of source is genuinely all there is to go on.
     /// </para>
     /// </summary>
-    private IEnumerable<Piece> Washed(AbcLayout layout) =>
+    private IEnumerable<Piece> Washed(Laid layout) =>
         _chosen is { IsEmpty: false } chosen
             ? chosen.Pieces.SelectMany(piece => piece.Ink())
             : layout.Root.Ink().Where(piece => piece.Sits() is { Length: > 0 } at
@@ -218,9 +218,9 @@ public sealed partial class AbcElement : FrameworkElement
 
     private const double ScoreWash = 6.0;
 
-    private void PaintDiagnostics(DrawingContext dc, AbcLayout layout)
+    private void PaintDiagnostics(DrawingContext dc, Laid layout)
     {
-        foreach (var trouble in layout.Diagnostics)
+        foreach (var trouble in layout.Trouble)
             foreach (var node in layout.Root.Ink().Where(trouble.Covers))
                 dc.DrawGeometry(null, WavePen, Squiggle.Under(node.Bounds));
     }
@@ -240,12 +240,12 @@ public sealed partial class AbcElement : FrameworkElement
 
     public void BeginPointerSelect(Point pointInElement)
     {
-        if (_layout is null) return;
+        if (_laid is null) return;
 
         InteractiveSelection.Own(this);
         var at = Unscaled(pointInElement);
 
-        _anchor = _layout.Root.PieceAt(at);
+        _anchor = _laid.Root.PieceAt(at);
         _dragging = true;
         Select(_anchor, _anchor);
 
@@ -253,15 +253,15 @@ public sealed partial class AbcElement : FrameworkElement
         // all — `_hasCaret` was only ever set by an edit, so a reader had to change something before there
         // was any sign of where a change would go. The host has already handed this block the keys by the
         // time it gets here, so the caret is not a lie about where they are going.
-        _caret = _layout.Root.PlaceAt(at);
+        _caret = _laid.Root.PlaceAt(at);
         _hasCaret = true;
         Blinking(true);
     }
 
     public void ExtendPointerSelect(Point pointInElement)
     {
-        if (!_dragging || _layout is null) return;
-        Select(_anchor, _layout.Root.PieceAt(Unscaled(pointInElement)));
+        if (!_dragging || _laid is null) return;
+        Select(_anchor, _laid.Root.PieceAt(Unscaled(pointInElement)));
     }
 
     public void EndPointerSelect() => _dragging = false;
@@ -286,9 +286,9 @@ public sealed partial class AbcElement : FrameworkElement
     /// </summary>
     private void Select(Piece from, Piece to)
     {
-        if (_layout is null || !from.Exists || !to.Exists) { ClearSelection(); return; }
+        if (_laid is null || !from.Exists || !to.Exists) { ClearSelection(); return; }
 
-        var chosen = ContentSelection.Between(_layout.Root, from, to);
+        var chosen = ContentSelection.Between(_laid.Root, from, to);
         _selection = chosen.Ranges;
         _chosen = chosen;
         _anchor = from;
@@ -314,11 +314,11 @@ public sealed partial class AbcElement : FrameworkElement
     /// </summary>
     public bool Extend(bool vertical, bool forward)
     {
-        if (_layout is null) return false;
+        if (_laid is null) return false;
 
         var from = _reach.Exists ? _reach
                  : _anchor.Exists ? _anchor
-                 : _layout.Root.PieceAt(new Point(0, 0));
+                 : _laid.Root.PieceAt(new Point(0, 0));
 
         if (from.Selectable() is not { Exists: true } at) return false;
         if (at.Step(vertical, forward) is not { Exists: true } next) return false;

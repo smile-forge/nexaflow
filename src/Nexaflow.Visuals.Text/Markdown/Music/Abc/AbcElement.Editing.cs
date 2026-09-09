@@ -41,7 +41,7 @@ public sealed partial class AbcElement : IEditableBlock
     /// <summary>Raised when a caret movement ran off an end — the host puts it in the prose beside.</summary>
     public event EventHandler<BlockExit>? Exited;
 
-    Piece IEditableBlock.Root => _layout?.Root ?? default;
+    Piece IEditableBlock.Root => _laid?.Root ?? default;
 
     // ── Typing ──────────────────────────────────────────────────────────────
 
@@ -52,29 +52,29 @@ public sealed partial class AbcElement : IEditableBlock
     /// </summary>
     public void Type(char character)
     {
-        if (_layout is null) return;
+        if (_laid is null) return;
 
         switch (character)
         {
             case '#':
-                Gesture(notes => AbcEdit.Accidental(_layout.Reading, notes, 1));
+                Gesture(notes => AbcEdit.Accidental(Reading, notes, 1));
                 return;
 
             case '_' when Target().Count > 0:
-                Gesture(notes => AbcEdit.Accidental(_layout.Reading, notes, -1));
+                Gesture(notes => AbcEdit.Accidental(Reading, notes, -1));
                 return;
 
             case '+':
-                Gesture(notes => AbcEdit.Length(_layout.Reading, notes, 1));
+                Gesture(notes => AbcEdit.Length(Reading, notes, 1));
                 return;
 
             case '-' when Target().Count > 0:
-                Gesture(notes => AbcEdit.Length(_layout.Reading, notes, -1));
+                Gesture(notes => AbcEdit.Length(Reading, notes, -1));
                 return;
 
             default:
                 Splice(AbcParser.IsNoteLetter(character)
-                    ? AbcEdit.NoteAt(_layout.Reading, Caret(), character)
+                    ? AbcEdit.NoteAt(Reading, Caret(), character)
                     : character.ToString());
                 return;
         }
@@ -82,7 +82,7 @@ public sealed partial class AbcElement : IEditableBlock
 
     public bool Backspace()
     {
-        if (_layout is null) return false;
+        if (_laid is null) return false;
 
         if (_selection.Count > 0) { Cut(); return true; }
 
@@ -95,7 +95,7 @@ public sealed partial class AbcElement : IEditableBlock
 
     public bool Delete()
     {
-        if (_layout is null) return false;
+        if (_laid is null) return false;
 
         if (_selection.Count > 0) { Cut(); return true; }
 
@@ -159,9 +159,9 @@ public sealed partial class AbcElement : IEditableBlock
     /// </summary>
     private IReadOnlyList<ContentPart> Target()
     {
-        if (_layout is null) return [];
+        if (_laid is null) return [];
 
-        var notes = _layout.Reading.Root.SelfAndDescendants()
+        var notes = Reading.Root.SelfAndDescendants()
             .Where(p => p.Kind == AbcKinds.Note && !p.Derived && p.Part(AbcRoles.Letter) is not null)
             .ToList();
 
@@ -182,28 +182,28 @@ public sealed partial class AbcElement : IEditableBlock
     /// </summary>
     public bool HandleKey(Key key, ModifierKeys modifiers)
     {
-        if (_layout is null || modifiers.HasFlag(ModifierKeys.Control)) return false;
+        if (_laid is null || modifiers.HasFlag(ModifierKeys.Control)) return false;
 
         switch (key)
         {
             case Key.PageUp:
-                Gesture(notes => AbcEdit.Octave(_layout.Reading, notes, 1));
+                Gesture(notes => AbcEdit.Octave(Reading, notes, 1));
                 return true;
 
             case Key.PageDown:
-                Gesture(notes => AbcEdit.Octave(_layout.Reading, notes, -1));
+                Gesture(notes => AbcEdit.Octave(Reading, notes, -1));
                 return true;
 
             // The shift-less spellings of + and -, which arrive as keys rather than as text on a numeric
             // keypad and on the top row of most layouts.
             case Key.Add:
             case Key.OemPlus when modifiers.HasFlag(ModifierKeys.Shift):
-                Gesture(notes => AbcEdit.Length(_layout.Reading, notes, 1));
+                Gesture(notes => AbcEdit.Length(Reading, notes, 1));
                 return true;
 
             case Key.Subtract:
             case Key.OemMinus when Target().Count > 0:
-                Gesture(notes => AbcEdit.Length(_layout.Reading, notes, -1));
+                Gesture(notes => AbcEdit.Length(Reading, notes, -1));
                 return true;
 
             default:
@@ -224,7 +224,7 @@ public sealed partial class AbcElement : IEditableBlock
     private void Apply(string abc, int caret, AstWrite? keepSelection = null)
     {
         _abc = abc;
-        _layout = AbcLayout.Build(_abc, _engravedFor > 0 ? _engravedFor : 680, _ink, _ppd);
+        _laid = new AbcBuilder(_abc, _engravedFor > 0 ? _engravedFor : 680, _ink, _ppd).Lay();
 
         _selection = keepSelection is { Length: > 0 } wrote ? [(wrote.Start, wrote.Length)] : [];
         _chosen = null;
@@ -259,11 +259,11 @@ public sealed partial class AbcElement : IEditableBlock
     /// </summary>
     public bool MoveCaret(bool forward, bool extend)
     {
-        if (_layout is null) return false;
+        if (_laid is null) return false;
 
         if (extend && Extend(vertical: false, forward)) return true;
 
-        if (_layout.Root.Step(_caret, forward) is not { } next)
+        if (_laid.Root.Step(_caret, forward) is not { } next)
         {
             Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
             return false;
@@ -283,7 +283,7 @@ public sealed partial class AbcElement : IEditableBlock
     {
         if (extend && Extend(vertical: true, forward: !up)) return true;
 
-        if (_layout?.Root.StepVertical(Caret(), up) is not { } next) return false;
+        if (_laid?.Root.StepVertical(Caret(), up) is not { } next) return false;
 
         _caret = CaretPlace.At(next);
         if (!extend) _selection = [];
@@ -293,7 +293,7 @@ public sealed partial class AbcElement : IEditableBlock
 
     public void SelectRange(int start, int length)
     {
-        if (_layout is null) return;
+        if (_laid is null) return;
 
         _selection = length <= 0 ? [] : [(Math.Max(0, start), Math.Min(length, _abc.Length - Math.Max(0, start)))];
         _chosen = null;
@@ -308,9 +308,9 @@ public sealed partial class AbcElement : IEditableBlock
     /// </summary>
     public void TakeCaretArriving(CaretArrival arrival)
     {
-        if (_layout is null) return;
+        if (_laid is null) return;
 
-        var stops = _layout.Root.CaretStops();
+        var stops = _laid.Root.CaretStops();
         if (stops.Count == 0) { Exited?.Invoke(this, arrival.Edge); return; }
 
         _caret = CaretPlace.At(arrival switch
@@ -332,7 +332,7 @@ public sealed partial class AbcElement : IEditableBlock
         var best = 0;
         var distance = double.MaxValue;
 
-        foreach (var node in _layout!.Root.Ink())
+        foreach (var node in _laid!.Root.Ink())
         {
             foreach (var (offset, x) in new[] { (node.Sits().Start, node.Bounds.X), (node.Sits().End, node.Bounds.Right) })
             {
@@ -377,7 +377,7 @@ public sealed partial class AbcElement : IEditableBlock
     }
 
     /// <summary>The caret bar, taking its height from whatever ink it abuts.</summary>
-    private void PaintCaret(DrawingContext dc, AbcLayout layout)
+    private void PaintCaret(DrawingContext dc, Laid layout)
     {
         if (!_hasCaret || !_caretOn) return;
 
@@ -392,16 +392,47 @@ public sealed partial class AbcElement : IEditableBlock
     /// keys reach, because a reader who cannot remember which key sharpens a note should not have to.
     /// </summary>
     FrameworkElement? IEditableBlock.BuildRibbon() =>
-        _layout is null ? null : new AbcRibbon(action =>
+        _laid is null ? null : new AbcRibbon(action =>
         {
             switch (action)
             {
-                case AbcAction.OctaveUp: Gesture(n => AbcEdit.Octave(_layout.Reading, n, 1)); return;
-                case AbcAction.OctaveDown: Gesture(n => AbcEdit.Octave(_layout.Reading, n, -1)); return;
-                case AbcAction.Longer: Gesture(n => AbcEdit.Length(_layout.Reading, n, 1)); return;
-                case AbcAction.Shorter: Gesture(n => AbcEdit.Length(_layout.Reading, n, -1)); return;
-                case AbcAction.Sharpen: Gesture(n => AbcEdit.Accidental(_layout.Reading, n, 1)); return;
-                case AbcAction.Flatten: Gesture(n => AbcEdit.Accidental(_layout.Reading, n, -1)); return;
+                case AbcAction.OctaveUp: Gesture(n => AbcEdit.Octave(Reading, n, 1)); return;
+                case AbcAction.OctaveDown: Gesture(n => AbcEdit.Octave(Reading, n, -1)); return;
+                case AbcAction.Longer: Gesture(n => AbcEdit.Length(Reading, n, 1)); return;
+                case AbcAction.Shorter: Gesture(n => AbcEdit.Length(Reading, n, -1)); return;
+                case AbcAction.Sharpen: Gesture(n => AbcEdit.Accidental(Reading, n, 1)); return;
+                case AbcAction.Flatten: Gesture(n => AbcEdit.Accidental(Reading, n, -1)); return;
             }
         });
+
+    /// <summary>
+    /// The tune, read — what a note gesture acts on. An octave, an accidental and a length are changes to
+    /// notes in a parse tree rather than to the characters spelling them.
+    ///
+    /// <para>
+    /// Read here rather than kept by the builder, because a builder hands back a <see cref="Laid"/> and
+    /// nothing else. Reading a tune costs about fourteen microseconds — measured — so doing it per gesture
+    /// is free, and it cannot go stale, which a reading cached beside the source can.
+    /// </para>
+    /// </summary>
+    private ContentReading Reading
+    {
+        get
+        {
+            // One reading per source, and the same one every time it is asked for. A gesture finds the notes
+            // it acts on in this tree and then hands the tree back to be rewritten, and both halves have to be
+            // the same reading — parts are matched by identity, so a second reading of the same characters
+            // sends the edit to a note that merely looks like the one that was pointed at.
+            if (_reading is null || _readingOf != _abc)
+            {
+                _readingOf = _abc;
+                _reading = ContentReading.Of(AbcPipeline.Read(_abc, AbcBuilder.Draws, null));
+            }
+
+            return _reading;
+        }
+    }
+
+    private ContentReading? _reading;
+    private string? _readingOf;
 }

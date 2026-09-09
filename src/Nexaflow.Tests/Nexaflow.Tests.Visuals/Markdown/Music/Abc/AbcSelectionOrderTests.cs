@@ -36,7 +36,7 @@ public class AbcSelectionOrderTests
     [TestMethod]
     public void ASyllableIsItsOwnPieceAndNamesItsOwnCharacters() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(Tune, 600, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Tune, 600, Brushes.Black, 1.0);
         var sung = Of(layout, "syllable");
 
         Assert.AreEqual(16, sung.Count, "eight notes, two verses");
@@ -45,7 +45,7 @@ public class AbcSelectionOrderTests
         // order the score declared, because tree order interleaves the verses — every note carries its
         // first verse and its second before the next note is reached.
         var written = Verse(sung[0]).Take(3)
-            .Select(n => layout.Abc.Substring(n.Sits().Start, n.Sits().Length)).ToList();
+            .Select(n => Tune.Substring(n.Sits().Start, n.Sits().Length)).ToList();
 
         CollectionAssert.AreEqual(new[] { "one", "two", "three" }, written,
                                   "a syllable should name its own word in the w: line");
@@ -54,17 +54,17 @@ public class AbcSelectionOrderTests
     [TestMethod]
     public void AChordIsItsOwnPieceAndNamesWhatWasTyped() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(Tune, 600, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Tune, 600, Brushes.Black, 1.0);
         var chords = Of(layout, "chord");
 
         Assert.AreEqual(1, chords.Count);
-        Assert.AreEqual("\"Am\"", layout.Abc.Substring(chords[0].Sits().Start, chords[0].Sits().Length));
+        Assert.AreEqual("\"Am\"", Tune.Substring(chords[0].Sits().Start, chords[0].Sits().Length));
     });
 
     [TestMethod]
     public void AVerseRunsTheLengthOfTheTuneAndTheBarLineDoesNotStopIt() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(Tune, 600, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Tune, 600, Brushes.Black, 1.0);
         var first = Of(layout, "syllable")[0];
 
         // Stepping sideways walks the verse — across the bar line, which is the point.
@@ -78,7 +78,7 @@ public class AbcSelectionOrderTests
     [TestMethod]
     public void AndDownFromANoteIsWhatSoundsWithIt() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(Tune, 600, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Tune, 600, Brushes.Black, 1.0);
         var note = Of(layout, "note")[0];
 
         // The chord is over it, so up is the chord and down is verse one, then verse two.
@@ -87,13 +87,13 @@ public class AbcSelectionOrderTests
 
         var second = note.Step(vertical: true, forward: true)!.Step(vertical: true, forward: true);
         Assert.AreEqual("syllable", Kind(second));
-        Assert.AreEqual("ay", layout.Abc.Substring(second!.Sits().Start, second.Sits().Length));
+        Assert.AreEqual("ay", Tune.Substring(second!.Sits().Start, second.Sits().Length));
     });
 
     [TestMethod]
     public void ASyllableSelectsWithoutTheNoteComingWithIt() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(Tune, 600, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Tune, 600, Brushes.Black, 1.0);
         var sung = Of(layout, "syllable");
 
         var verse = Verse(sung[0]);
@@ -101,7 +101,7 @@ public class AbcSelectionOrderTests
 
         Assert.AreEqual(1, swept.Ranges.Count, "three words of one verse is one stretch of source");
         Assert.AreEqual("one two three",
-                        layout.Abc.Substring(swept.Ranges[0].Start, swept.Ranges[0].Length),
+                        Tune.Substring(swept.Ranges[0].Start, swept.Ranges[0].Length),
                         "dragging along a verse should give the verse, not the notes above it");
     });
 
@@ -184,7 +184,7 @@ public class AbcSelectionOrderTests
         return run;
     }
 
-    private static System.Collections.Generic.List<Piece> Of(AbcLayout layout, string kind) =>
+    private static System.Collections.Generic.List<Piece> Of(Laid layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => n.Kind == kind)];
 
     private static string? Kind(Piece node) => node.Exists ? node.Kind : null;

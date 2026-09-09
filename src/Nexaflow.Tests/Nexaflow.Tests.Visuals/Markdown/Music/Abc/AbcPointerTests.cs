@@ -36,7 +36,7 @@ public class AbcPointerTests
     [TestMethod]
     public void PressingANoteMeansTheNoteAndNotTheBarItIsIn() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(Sung, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Sung, 900, Brushes.Black, 1.0);
         var notes = Every(layout, "note");
 
         Assert.IsTrue(notes.Count >= 8, $"only {notes.Count} notes — the tune did not engrave");
@@ -59,7 +59,7 @@ public class AbcPointerTests
         // note — and the group won. Every gap the pointer crossed flipped the selection from a note to six.
         //
         // Swept a pixel at a time along the row the heads sit on, which is the gesture that failed.
-        var layout = AbcLayout.Build("X:1\nL:1/8\nK:G\nGABc dedB|dedB dedB|\n", 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nL:1/8\nK:G\nGABc dedB|dedB dedB|\n", 900, Brushes.Black, 1.0);
         var notes = Every(layout, "note");
 
         Assert.IsTrue(notes.Count >= 8, $"only {notes.Count} notes — the tune did not engrave");
@@ -88,7 +88,7 @@ public class AbcPointerTests
         // A head, a stem, a ledger line and a dot are how a note is drawn, not anything anybody typed.
         // Each is a node so that a press lands on it and climbs — which is the same rule that resolves a
         // staff line, said once rather than per piece.
-        var layout = AbcLayout.Build(Sung, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Sung, 900, Brushes.Black, 1.0);
 
         foreach (var note in Every(layout, "note"))
             foreach (var piece in note.Children)
@@ -138,7 +138,7 @@ public class AbcPointerTests
         // So every press between notes gave the same answer.
         const string Tune = "X:1\nL:1/4\nK:C\nA B c d | e f g a |\n";
 
-        var layout = AbcLayout.Build(Tune, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
         var notes = Every(layout, "note");
         var row = notes[0].Bounds.Y + (notes[0].Bounds.Height / 2);
 
@@ -165,7 +165,7 @@ public class AbcPointerTests
     [TestMethod]
     public void ADragAlongTheNotesTakesTheNotesAndNothingAbleToBeAboveOrBelowThem() => UiThread.Run(() =>
     {
-        var layout = AbcLayout.Build(Sung, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Sung, 900, Brushes.Black, 1.0);
         var notes = Every(layout, "note");
 
         var swept = ContentSelection.Between(layout.Root, notes[0], notes[3]);
@@ -189,7 +189,7 @@ public class AbcPointerTests
         // The other axis, and the reason the two are declared separately: down from a note is what sounds
         // with it, and the block between two of those is a rectangle of the score — the same gesture a
         // matrix answers, from the same code, because the builder said what lines up.
-        var layout = AbcLayout.Build(Sung, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(Sung, 900, Brushes.Black, 1.0);
         var (notes, sung) = (Every(layout, "note"), Every(layout, "syllable"));
 
         var block = ContentSelection.Between(layout.Root, notes[0], sung[2]).Pieces.ToList();
@@ -207,7 +207,7 @@ public class AbcPointerTests
         // from a bar to a whole line.
         const string TwoParts = "X:1\nK:G\n|:GABc dedB:|\"Em\"c2ec B2dB||\n";
 
-        var layout = AbcLayout.Build(TwoParts, 900, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(TwoParts, 900, Brushes.Black, 1.0);
         var sections = Every(layout, "section");
 
         Assert.AreEqual(2, sections.Count,
@@ -221,7 +221,7 @@ public class AbcPointerTests
                 "a section holds no notes, so it is a section of nothing");
     });
 
-    private static System.Collections.Generic.List<Piece> Every(AbcLayout layout, string kind) =>
+    private static System.Collections.Generic.List<Piece> Every(Laid layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
 
     private static Point Middle(Piece node) =>

@@ -86,7 +86,7 @@ public class AbcFenceTests
         var tune = "X:1\nT:Speed the Plough\nT:a second title\nR:reel\nC:Trad.\nO:England\n"
                  + "S:Sussex\nK:G\nGABc dedB|\nW:a verse printed under the score\n";
 
-        var layout = AbcLayout.Build(tune, 700, System.Windows.Media.Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(tune, 700, System.Windows.Media.Brushes.Black, 1.0);
 
         foreach (var (kind, text) in new[]
         {
@@ -125,7 +125,7 @@ public class AbcFenceTests
         // The point of engraving the words rather than stacking text around the drawing: one selection
         // model, so the two ends of a drag are the same kind of thing.
         var tune = "X:1\nT:Speed the Plough\nK:G\nGABc dedB|\n";
-        var layout = AbcLayout.Build(tune, 700, System.Windows.Media.Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build(tune, 700, System.Windows.Media.Brushes.Black, 1.0);
 
         var title = layout.Root.SelfAndDescendants().First(n => n.Kind == "title");
         var note = layout.Root.SelfAndDescendants().First(n => n.Kind == "note");
