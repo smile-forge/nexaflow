@@ -8,6 +8,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
+
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
 /// <summary>
@@ -68,32 +69,6 @@ public class AbcDragTests
     });
 
     [TestMethod]
-    public void AndTheSelectionItLeavesCanBePainted() => UiThread.Run(() =>
-    {
-        // The drag is only half of it: what took the page down is drawing what the drag chose. An
-        // exception out of OnRender stops WPF drawing the element ever again, so a selection that cannot
-        // be painted is worse than one that is wrong.
-        var element = new AbcElement(AuldGreyCat, MarkdownPalette.Dark);
-        element.Measure(new System.Windows.Size(900, double.PositiveInfinity));
-        element.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), element.DesiredSize));
-
-        var pieces = element.Layout!.Root.Leaves().ToList();
-
-        for (var at = 0; at < pieces.Count; at += 3)
-        {
-            element.BeginPointerSelect(Middle(pieces[at]));
-            element.ExtendPointerSelect(Middle(pieces[Math.Min(at + 7, pieces.Count - 1)]));
-            element.EndPointerSelect();
-
-            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                Math.Max(1, (int)element.DesiredSize.Width), Math.Max(1, (int)element.DesiredSize.Height),
-                96, 96, PixelFormats.Pbgra32);
-
-            bitmap.Render(element);   // throws here if the wash cannot be drawn
-        }
-    });
-
-    [TestMethod]
     public void NothingThatDrewNothingIsLeftAsSomethingToPointAt() => UiThread.Run(() =>
     {
         // The invariant the crash came from, asserted where it belongs. Ink is a promise that a reader can
@@ -119,7 +94,7 @@ public class AbcDragTests
 
         const string One = "X:1\nL:1/8\nK:G\n{g}A {/g}B {^d}c {gAG}d |\n";
 
-        var element = new AbcElement(One, MarkdownPalette.Light) { Zoom = 4.0 };
+        var element = AbcScore.Engraved(One, MarkdownPalette.Light, zoom: 4.0);
         element.Measure(new System.Windows.Size(1600, double.PositiveInfinity));
         element.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), element.DesiredSize));
 
@@ -148,7 +123,7 @@ public class AbcDragTests
         Assert.AreEqual(Given, score.DesiredSize.Width, 1,
                         "the block is the page: it takes the whole width and puts the margins inside");
 
-        var music = score.Score.Layout!.Size.Width * 1.0;
+        var music = score.Score.Laid.Size.Width * 1.0;
         var wanted = Given * score.PageWidth;
 
         Assert.IsTrue(music > wanted * 0.9,

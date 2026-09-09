@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
+
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
 /// <summary>
@@ -56,7 +57,7 @@ public class AbcFenceTests
 
         var scores = document.Blocks
             .SelectMany(b => b is BlockUIContainer { Child: { } child } ? Descendants(child) : [])
-            .OfType<AbcElement>()
+            .OfType<Nexaflow.Visuals.Text.Editing.ContentElement>()
             .ToList();
 
         Assert.AreEqual(1, scores.Count, "the editor's surface has to render it too, or the caret has nothing to enter");
@@ -122,7 +123,7 @@ public class AbcFenceTests
         Assert.IsTrue(swept.Pieces.Contains(title), "…and it did not include the title it started on");
     });
 
-    private static AbcElement? Inside(DependencyObject root) => Descendants(root).OfType<AbcElement>().FirstOrDefault();
+    private static Nexaflow.Visuals.Text.Editing.ContentElement? Inside(DependencyObject root) => Descendants(root).OfType<Nexaflow.Visuals.Text.Editing.ContentElement>().FirstOrDefault();
 
     /// <summary>
     /// Everything under a root, by both trees, each thing once.

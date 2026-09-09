@@ -50,6 +50,7 @@ public sealed class FormulaElement : ContentElement
 
         SourceChanged += (_, _) => LatexChanged?.Invoke(this, EventArgs.Empty);
 
+        WashPad = scale * 0.14;
         Rebuild();
     }
 
@@ -64,7 +65,7 @@ public sealed class FormulaElement : ContentElement
     /// box here is its advance and its own height, so washing it exactly leaves an <c>a</c> showing the
     /// wash through its counter and nowhere else, and an <c>i</c> as a stripe too narrow to notice.
     /// </summary>
-    protected override double WashPad => _scale * 0.14;
+
 
     /// <summary>
     /// Typesets the whole formula, with the stretch being written set as the characters that were typed.

@@ -11,6 +11,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
+
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
 /// <summary>
@@ -80,7 +81,7 @@ public class AbcSelectionPicture
 
     private static RenderTargetBitmap Shot(string fromKind, int fromAt, string toKind, int toAt)
     {
-        var element = new AbcElement(Tune, MarkdownPalette.Light);
+        var element = AbcScore.Engraved(Tune, MarkdownPalette.Light);
         element.Measure(new Size(760, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 
@@ -99,8 +100,8 @@ public class AbcSelectionPicture
         return shot;
     }
 
-    private static List<Piece> Every(AbcElement element, string kind) =>
-        [.. element.Layout!.Root.SelfAndDescendants().Where(n => n.Kind == kind)];
+    private static List<Piece> Every(Nexaflow.Visuals.Text.Editing.ContentElement element, string kind) =>
+        [.. element.Laid.Root.SelfAndDescendants().Where(n => n.Kind == kind)];
 
     private static Point Middle(Piece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));

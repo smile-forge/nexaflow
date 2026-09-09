@@ -36,14 +36,51 @@ public sealed class AbcScore : StackPanel
                     double pageWidth = 0.8)
     {
         PageWidth = pageWidth;
-        Score = new AbcElement(abc, palette) { SourceStart = sourceStart, Zoom = zoom };
+        Score = Engraved(abc, palette, sourceStart, zoom);
 
         HorizontalAlignment = HorizontalAlignment.Stretch;
         Children.Add(Score);
     }
 
+    /// <summary>
+    /// The engraved music, as a plain <see cref="ContentElement"/> driven by the engraver.
+    ///
+    /// <para>
+    /// There used to be an <c>AbcElement</c> here: three hundred and fifty lines that measured a layout,
+    /// painted it, hit-tested it and held a selection — the same three hundred and fifty the formula and the
+    /// barcode each had their own copy of, drifting apart as one or another was fixed. Its selection wash
+    /// went over the leaves rather than the bands, which is the visible difference and was the wrong one:
+    /// washing a run of source as one band is what stops a selection reading as a row of disconnected
+    /// blocks.
+    /// </para>
+    /// <para>
+    /// What is genuinely the music's is all in the engraver — how much air goes between things, how a tune
+    /// that will not read is shown, how wide a system may run. Everything else a score needs it now shares
+    /// with everything else on the page.
+    /// </para>
+    /// </summary>
+    public static Editing.ContentElement Engraved(string abc, MarkdownPalette palette, int sourceStart = 0,
+                                                  double zoom = 1.0, ScoreSpacing? spacing = null)
+    {
+        var ink = palette.Text;
+
+        return new Editing.ContentElement(abc, palette,
+            (state, room, pixelsPerDip) => AbcBuilder.Build(
+                state.Source, room, ink, pixelsPerDip,
+                shownAsWritten: state.Raw is { } raw ? (raw.Start, raw.End - raw.Start) : null,
+                spacing: spacing))
+        {
+            SourceStart = sourceStart,
+            Zoom = zoom,
+
+            // A stave is drawn at a size where two pixels of air round a note head is nothing — the wash has
+            // to clear the stem and the ledger lines to read as covering the note at all.
+            WashPad = 6.0,
+        };
+    }
+
     /// <summary>The engraved music — what the caret enters and what an edit changes.</summary>
-    public AbcElement Score { get; }
+    public Editing.ContentElement Score { get; }
 
     /// <summary>
     /// How much of the width this block is given it actually occupies, centred, with the rest left as

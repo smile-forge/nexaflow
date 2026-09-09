@@ -304,7 +304,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// type size, which is the content's.
     /// </para>
     /// </summary>
-    protected virtual double WashPad => 2.0;
+    public double WashPad { get; init; } = 2.0;
 
     /// <summary>Whether the caret is shown. A read-only surface still allows selecting and copying.</summary>
     public bool IsReadOnly { get; init; }

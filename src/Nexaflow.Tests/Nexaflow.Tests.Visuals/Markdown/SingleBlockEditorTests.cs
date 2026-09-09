@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
+
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
@@ -38,7 +39,7 @@ public class SingleBlockEditorTests
         MarkdownEditorHarness.Run(Tune, (editor, _) =>
         {
             // Engraved, so the fence went on…
-            Assert.IsNotNull(Find<AbcElement>(editor), "the block did not render as music");
+            Assert.IsNotNull(Find<Nexaflow.Visuals.Text.Editing.ContentElement>(editor), "the block did not render as music");
 
             // …and came off again, so what the host holds is the tune and nothing else.
             Assert.AreEqual(Tune, editor.Markdown);
@@ -52,11 +53,11 @@ public class SingleBlockEditorTests
         // The same text, told it is two different things. With a language it engraves; without one it is a
         // markdown document, and four lines of ABC are four lines of prose.
         MarkdownEditorHarness.Run(Tune, (editor, _) =>
-            Assert.IsNotNull(Find<AbcElement>(editor)), e => e.SingleBlock = "abc");
+            Assert.IsNotNull(Find<Nexaflow.Visuals.Text.Editing.ContentElement>(editor)), e => e.SingleBlock = "abc");
 
         MarkdownEditorHarness.Run(Tune, (editor, _) =>
         {
-            Assert.IsNull(Find<AbcElement>(editor), "with no language it should not have engraved anything");
+            Assert.IsNull(Find<Nexaflow.Visuals.Text.Editing.ContentElement>(editor), "with no language it should not have engraved anything");
             Assert.AreEqual(Tune, editor.Markdown, "and the text is untouched either way");
         });
     });
