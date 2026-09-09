@@ -10,6 +10,12 @@ using Nexaflow.Visuals.Text.Markdown;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
+/// What moving part of some content came to: the source it produced, where the caret goes, and the
+/// stretch it wrote — what to mark out while it is still being carried.
+/// </summary>
+public readonly record struct Moved(string Source, int Caret, EditRange Wrote);
+
+/// <summary>
 /// The surface every piece of embedded, rendered, editable content is drawn on: it lays the content out,
 /// paints it, and owns the pointer, the selection and the caret.
 ///
@@ -17,8 +23,25 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// <strong>There is one of these, whatever is in it.</strong> A tune, a formula and a barcode were three
 /// elements doing the same work three times — the same wash, the same wave, the same blinking bar, the
 /// same drag grown out to whole constructs — because each had its own idea of what a laid-out thing was.
-/// They no longer do: a builder makes a <see cref="Laid"/> and everything after that is this. Something
-/// nobody has thought of yet costs a builder and an <see cref="IContent"/>, and nothing here changes.
+/// They no longer do: a builder makes a <see cref="Laid"/>, and everything after that is here.
+/// </para>
+/// <para>
+/// The editing model is <see cref="EditState"/>: source, caret, selection, and the stretch shown as
+/// itself, with every operation over them. Typing is typing regardless of the source, so a note letter
+/// and a backslash arrive by the same road and differ only in what <see cref="Typing"/> makes of them.
+/// </para>
+/// <para>
+/// What a kind of content still gets to say is the short list below — the questions a parse tree can
+/// answer and a layout cannot. Every one declines by default, so content with nothing to say says
+/// nothing and gets the ordinary behaviour.
+/// </para>
+/// <para>
+/// <strong>A plain string may yet want a sibling.</strong> Three of the shared answers are a walk of the
+/// whole tree per keystroke — the caret stops, the rectangles a selection washes, and snapping a range
+/// out to whole things. For a formula that is forty pieces and free; for a paragraph it would be one
+/// piece per character and the walk would be the cost of typing. Where prose arrives, the answer is a
+/// sibling of this that overrides those three with what a string can answer directly — stops are every
+/// offset, the wash is a run measure, and snapping is word boundaries — rather than a flag in here.
 /// </para>
 /// <para>
 /// The gesture is split into <see cref="BeginPointerSelect"/> / <see cref="ExtendPointerSelect"/> /
@@ -28,42 +51,48 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// or even to a neighbouring paragraph. The host hit-tests geometrically and drives the three methods.
 /// </para>
 /// </summary>
-public sealed class ContentElement : FrameworkElement, IEditableBlock
+public abstract class ContentElement : FrameworkElement, IEditableBlock
 {
-    private readonly IContent _content;
-    private readonly Brush _ink;
+    private static readonly TimeSpan BlinkRate = TimeSpan.FromMilliseconds(600);
+
     private readonly Brush _wash;
 
-    private Laid? _laid;
+    private EditState _state;
+    private Laid _laid = Laid.Nothing;
     private double _ppd = 1.0;
     private double _laidFor;
 
-    private Piece _anchor;
+    private DispatcherTimer? _blink;
+    private bool _caretVisible = true;
 
     /// <summary>
-    /// The far end of the selection — where the last step left it, and where the next one starts from.
-    ///
-    /// <para>
-    /// Kept beside <see cref="_anchor"/> so a keyboard selection grows the way a drag does: one end
-    /// pinned, the other walking. Without it every keystroke would re-anchor and the selection could only
-    /// ever be one piece long.
-    /// </para>
+    /// Which of the bars at the caret's offset it is drawn as — see <see cref="CaretPlace"/>. Kept beside
+    /// the state because it is about the picture rather than the text: the same offset can be drawn in
+    /// two places, and which one the reader is at survives a keystroke.
     /// </summary>
-    private Piece _reach;
-
-    private IReadOnlyList<(int Start, int Length)> _selection = [];
+    private int _level;
 
     /// <summary>
-    /// The pieces the selection is <em>of</em>, where it came from pointing at them. Null for one handed
-    /// in as a stretch of source, which is all a search hit or a host has to give.
+    /// Which of the bars at the caret sits at — nought is innermost. Content that writes through its own
+    /// structure needs it: a caret that has stepped out of a construct is past it, so what is typed there
+    /// follows the construct rather than joining it.
     /// </summary>
-    private ContentSelection? _chosen;
+    protected int Level => _level;
+
+    private int _anchor;
+    private Piece _anchorNode;
+    private Point _pressedAt;
     private bool _dragging;
 
-    private CaretPlace _caret;
-    private bool _hasCaret;
-    private bool _caretOn;
-    private DispatcherTimer? _blink;
+    private bool _moving;
+    private int _dropAt;
+    private Point? _dropPoint;
+    private Laid? _preview;
+    private Moved? _previewOf;
+    private (int Start, int End) _previewMoved;
+
+    /// <summary>Raised whenever the caret moves inside the content.</summary>
+    public event EventHandler? CaretMoved;
 
     /// <summary>Raised whenever what is selected inside the content changes.</summary>
     public event EventHandler? SelectionChanged;
@@ -74,29 +103,95 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>Raised when a caret movement ran off an end — the host puts it in the prose beside.</summary>
     public event EventHandler<BlockExit>? Exited;
 
-    public ContentElement(IContent content, MarkdownPalette palette)
+    protected ContentElement(string source, MarkdownPalette palette)
     {
-        _content = content;
-        _ink = palette.Text;
+        Palette = palette;
         _wash = Wash(palette);
+        _state = EditState.For(source ?? string.Empty);
 
         SnapsToDevicePixels = true;
-        HorizontalAlignment = HorizontalAlignment.Center;
-        Cursor = Cursors.Hand;
+        Cursor = Cursors.IBeam;
 
         // Never take keyboard focus. Content is hosted inside a RichTextBox's FlowDocument, and an embedded
         // element that can be focused ends up as the focus target the window restores to on re-activation —
         // at which point the RichTextBox reconciles its caret against a text-tree node that holds no text,
         // and faults deep inside the splay tree.
         Focusable = false;
+
+        Unloaded += (_, _) => StopBlinking();
     }
 
-    /// <summary>What is inside it — for the host, which sometimes has a reason to ask.</summary>
-    public IContent Content => _content;
+    /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
+    protected MarkdownPalette Palette { get; }
 
-    public string Source => _content.Source;
+    /// <summary>What is laid out. Always something: a builder always makes a layout.</summary>
+    public Laid Laid => _laid;
 
-    public int SourceStart => _content.SourceStart;
+    /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
+    protected EditState State => _state;
+
+    /// <summary>How many pixels of device per pixel of layout, for anything measuring its own text.</summary>
+    protected double PixelsPerDip => _ppd;
+
+    // ── What a kind of content gets to say ──────────────────────────────────
+
+    /// <summary>
+    /// Lays the source out to fit the room it is given.
+    ///
+    /// <para>
+    /// The <em>state</em> rather than the string, because what is being typed changes what is drawn: a
+    /// stretch shown as its own characters is set into the layout rather than painted over it, which is
+    /// the only way the rest of the content can be laid out knowing it is there.
+    /// </para>
+    /// </summary>
+    protected abstract Laid Lay(EditState state, double room, double pixelsPerDip);
+
+    /// <summary>
+    /// What writing <paramref name="text"/> means, where this content has something to say about it.
+    ///
+    /// <para>
+    /// Two kinds of answer live here and they are the same kind: a rule about how the source is
+    /// <em>written</em> — a backslash opens a command and letters extend it — and a rule about what the
+    /// text means to the <em>structure</em>, which is how a 3 typed after <c>x^2</c> becomes twenty-three
+    /// rather than an x squared beside a 3.
+    /// </para>
+    /// <para>
+    /// Null leaves it to the element, which splices the characters in where the caret is.
+    /// </para>
+    /// </summary>
+    protected virtual EditState? Typing(EditState state, string text) => null;
+
+    /// <summary>
+    /// What backspace means behind something drawn from more source than it shows — un-rendering a
+    /// command back to the characters that spelled it. Null for the ordinary answer, which is to take one
+    /// character.
+    /// </summary>
+    protected virtual EditState? Backspacing(EditState state) => null;
+
+    /// <summary>
+    /// What pointing at a piece means, when it is not a thing in its own right — half of a bracket pair
+    /// means the group, because one bracket without its partner cannot be read at all.
+    /// </summary>
+    protected virtual Piece Pointing(Piece piece) => piece;
+
+    /// <summary>
+    /// The places still waiting to be written in, in reading order — what Tab walks. Empty for content
+    /// with no notion of an unfilled argument, which is most of it.
+    /// </summary>
+    protected virtual IReadOnlyList<Piece> Holes() => [];
+
+    /// <summary>
+    /// What moving the selected stretches to <paramref name="to"/> would produce — a term carried to a new
+    /// place in a formula, a column dragged across a matrix.
+    /// <para>
+    /// Merged into where it lands rather than dropped there, which is why only the content can answer:
+    /// what has to be re-braced, re-spaced or re-separated is a fact about its structure. Null from
+    /// content where dragging a selection means nothing, and then nothing is carried.
+    /// </para>
+    /// </summary>
+    protected virtual Moved? Moving(EditState state, int to, Point? at) => null;
+
+    // ── Shape and colour ────────────────────────────────────────────────────
 
     /// <summary>
     /// How large the content is drawn, as a multiple of its natural size.
@@ -110,16 +205,48 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
     /// </summary>
     public double Zoom { get; init; } = 1.0;
 
-    private double Scale => Math.Clamp(Zoom, 0.2, 4.0);
+    /// <summary>The render scale, kept somewhere a reader could plausibly want to be.</summary>
+    protected double Scale => Math.Clamp(Zoom, 0.2, 4.0);
 
-    /// <summary>What is laid out, or nothing before it has been measured.</summary>
-    public Laid? Laid => _laid;
+    /// <summary>
+    /// How far a selection wash reaches past the ink it marks.
+    ///
+    /// <para>
+    /// A box the exact size of a glyph is a poor way to say "this is picked out". Text does not do it
+    /// either: a selected character is washed over the whole line box, not over its own outline, which is
+    /// why a selected <c>i</c> reads as selected at all. Stated by the content, because it belongs to the
+    /// type size, which is the content's.
+    /// </para>
+    /// </summary>
+    protected virtual double WashPad => 2.0;
 
-    public Piece Root => _laid?.Root ?? default;
+    /// <summary>Whether the caret is shown. A read-only surface still allows selecting and copying.</summary>
+    public bool IsReadOnly { get; init; }
 
-    public IReadOnlyList<(int Start, int Length)> Selection => _selection;
+    /// <summary>Whether this element currently owns the caret.</summary>
+    public bool HasCaret { get; private set; }
 
-    public IReadOnlyList<Diagnostic> Diagnostics => _laid?.Trouble ?? [];
+    /// <summary>Where the caret sits, as an offset into <see cref="Source"/>.</summary>
+    public int Caret => _state.Caret;
+
+    /// <summary>The start of the selected source range.</summary>
+    public int SelectionStart => _state.SelectionStart;
+
+    /// <summary>How much source is selected; zero when nothing is.</summary>
+    public int SelectionLength => _state.SelectionLength;
+
+    /// <summary>The selected source, or empty.</summary>
+    public string SelectedText => _state.SelectedText;
+
+    /// <summary>Whether any of the source could not be read.</summary>
+    public bool HasError => _laid.Trouble.Count > 0;
+
+    /// <summary>
+    /// The stretch being shown as the characters written rather than set — a command mid-spelling — or
+    /// null when all of it is read.
+    /// </summary>
+    public (int Start, int Length)? ShownAsWritten =>
+        _state.Raw is { Length: > 0 } zone ? (zone.Start, zone.Length) : null;
 
     /// <summary>
     /// Whether the caret belongs in this content at all — whether any of what it draws is the source.
@@ -130,10 +257,9 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
     /// number it worked out is the case that needs it, and nothing about the question is barcode-shaped.
     /// </para>
     /// </summary>
-    public bool AcceptsCaret =>
-        _laid is { } laid && laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
+    public bool AcceptsCaret => _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
 
-    /// <summary>A translucent wash from the theme accent, falling back to the highlight token — never a literal.</summary>
+    /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
     private static Brush Wash(MarkdownPalette palette)
     {
         if (palette.Accent is not SolidColorBrush accent) return palette.Marked;
@@ -143,403 +269,47 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
         return brush;
     }
 
-    // ── Laying out and painting ─────────────────────────────────────────────
+    // ── What the document around it needs (IEditableBlock) ──────────────────
 
-    protected override Size MeasureOverride(Size availableSize)
-    {
-        _ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        if (_ppd <= 0) _ppd = 1.0;
-
-        var available = availableSize.Width;
-        if (double.IsInfinity(available) || double.IsNaN(available) || available <= 0) available = 900;
-
-        var room = available / Scale;
-
-        if (_laid is null || Math.Abs(_laidFor - room) > 0.5)
-        {
-            _laid = _content.Lay(room, _ppd);
-            _laidFor = room;
-        }
-
-        return new Size(Math.Ceiling(_laid.Size.Width * Scale), Math.Ceiling(_laid.Size.Height * Scale));
-    }
-
-    protected override void OnRender(DrawingContext dc)
-    {
-        var laid = _laid ??= _content.Lay(680, _ppd);
-
-        // A transparent fill makes the whole element hit-testable — the gaps between glyphs included.
-        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, RenderSize.Width, RenderSize.Height));
-
-        // Everything below is in the tree's own coordinates. The scale is pushed once, here, so nothing
-        // that reads the tree has to know about it — and a pointer coming the other way is divided by it.
-        var scaled = Math.Abs(Scale - 1.0) > 0.001;
-        if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
-
-        LayoutPainter.Paint(dc, laid.Root, _ink);
-        PaintSelection(dc, laid);
-        PaintDiagnostics(dc, laid);
-        PaintCaret(dc, laid);
-
-        _content.PaintOver(dc, laid, _ink);
-
-        if (scaled) dc.Pop();
-    }
-
-    /// <summary>A point on the element, in the coordinates the content was laid out in.</summary>
-    private Point Unscaled(Point at) => new(at.X / Scale, at.Y / Scale);
-
-    private void PaintSelection(DrawingContext dc, Laid laid)
-    {
-        if (_selection.Count == 0) return;
-
-        foreach (var piece in Washed(laid))
-        {
-            // Nothing with no area, because `Rect.Inflate` throws on an empty one — and an exception out
-            // of OnRender does not lose a wash, it stops WPF drawing the element ever again. A drag that
-            // happened to cover a piece that drew nothing took the whole score off the page.
-            var bounds = piece.Bounds;
-            if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) continue;
-
-            bounds.Inflate(0.25 * WashPad, 0.25 * WashPad);
-            dc.DrawRectangle(_wash, null, bounds);
-        }
-    }
+    /// <inheritdoc />
+    public string Source => _state.Source;
 
     /// <summary>
-    /// What to draw the wash over: the ink of the pieces that were actually chosen.
-    ///
-    /// <para>
-    /// Asking instead which ink <em>lies inside the chosen stretch of source</em> gives a different and
-    /// wrong answer, because a container names the whole run it holds. A beamed pair covers the same
-    /// characters as the two notes in it, so a drag over the two washed the group's rectangle as well —
-    /// a box reaching from the beam to whatever else the group had come to hold.
-    /// </para>
-    /// <para>
-    /// A selection set from outside — a search hit, the host handing one in — has no pieces behind it, and
-    /// there the stretch of source is genuinely all there is to go on.
-    /// </para>
+    /// Where this content's source sits inside the block that produced it, delimiters excluded — what a
+    /// host needs to put an edit back where it came from. Negative when the whole block is this content.
     /// </summary>
-    private IEnumerable<Piece> Washed(Laid laid) =>
-        _chosen is { IsEmpty: false } chosen
-            ? chosen.Pieces.SelectMany(piece => piece.Ink())
-            : laid.Root.Ink().Where(piece => piece.Sits() is { Length: > 0 } at
-                  && _selection.Any(range => at.Start >= range.Start && at.End <= range.Start + range.Length));
+    public int SourceStart { get; set; } = -1;
 
-    private const double WashPad = 6.0;
+    /// <summary>How much of the block's source this occupies. Kept current as it is edited.</summary>
+    public int SourceLength { get; set; }
 
-    private void PaintDiagnostics(DrawingContext dc, Laid laid)
-    {
-        foreach (var trouble in laid.Trouble)
-            foreach (var piece in laid.Root.Ink().Where(trouble.Covers))
-                dc.DrawGeometry(null, WavePen, Squiggle.Under(piece.Bounds));
-    }
+    /// <summary>Whether the whole markdown block is this content rather than a run inside one.</summary>
+    public bool IsWholeBlock => SourceStart < 0;
 
-    private static readonly Pen WavePen = Frozen();
+    /// <inheritdoc />
+    public Piece Root => _laid.Root;
 
-    private static Pen Frozen()
-    {
-        var brush = new SolidColorBrush(Color.FromArgb(0xC0, 0xD0, 0x60, 0x60));
-        brush.Freeze();
-        var pen = new Pen(brush, 1.0);
-        pen.Freeze();
-        return pen;
-    }
+    /// <inheritdoc />
+    public IReadOnlyList<(int Start, int Length)> Selection =>
+        [.. _state.Selection.Select(range => (range.Start, range.Length))];
 
-    /// <summary>The caret bar, taking its height from whatever ink it abuts.</summary>
-    private void PaintCaret(DrawingContext dc, Laid laid)
-    {
-        if (!_hasCaret || !_caretOn) return;
-
-        var bar = laid.Root.CaretRect(_caret);
-        dc.DrawRectangle(_ink, null, new Rect(bar.X, bar.Y, Math.Max(bar.Width, 1.2), Math.Max(bar.Height, 4)));
-    }
-
-    // ── Pointer ─────────────────────────────────────────────────────────────
-
-    public void BeginPointerSelect(Point pointInElement)
-    {
-        if (_laid is null) return;
-
-        InteractiveSelection.Own(this);
-        var at = Unscaled(pointInElement);
-
-        _anchor = _laid.Root.PieceAt(at);
-        _dragging = true;
-        Select(_anchor, _anchor);
-
-        // A press puts the caret down as well as picking something up. Without this content drew no caret
-        // at all until something was changed, so a reader had to edit before there was any sign of where an
-        // edit would go. The host has already handed this block the keys by the time it gets here, so the
-        // caret is not a lie about where they are going.
-        if (AcceptsCaret)
-        {
-            _caret = _laid.Root.PlaceAt(at);
-            _hasCaret = true;
-            Blinking(true);
-        }
-    }
-
-    public void ExtendPointerSelect(Point pointInElement)
-    {
-        if (!_dragging || _laid is null) return;
-        Select(_anchor, _laid.Root.PieceAt(Unscaled(pointInElement)));
-    }
-
-    public void EndPointerSelect() => _dragging = false;
-
-    public bool PointerDoubleClick(Point pointInElement)
-    {
-        if (_laid is null) return false;
-
-        // The whole of whatever was pointed at, grown out to the largest construct that covers it — which
-        // for content that is one word is the word, and for a tune is the note.
-        var at = _laid.Root.PieceAt(Unscaled(pointInElement)).Selectable();
-        if (!at.Exists) return false;
-
-        InteractiveSelection.Own(this);
-        Select(at, at);
-        return true;
-    }
-
-    public void ClearSelection()
-    {
-        _dragging = false;
-        _anchor = default;
-        _reach = default;
-        _chosen = null;
-        if (_selection.Count == 0) return;
-
-        _selection = [];
-        InteractiveSelection.Release(this);
-        InvalidateVisual();
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// What a sweep from one piece to another means. The answer is the shared one: whole constructs, grown
-    /// out of the ink between them, so a drag across half a beamed run comes back as the run.
-    /// </summary>
-    private void Select(Piece from, Piece to)
-    {
-        if (_laid is null || !from.Exists || !to.Exists) { ClearSelection(); return; }
-
-        var chosen = ContentSelection.Between(_laid.Root, from, to);
-        _selection = chosen.Ranges;
-        _chosen = chosen;
-        _anchor = from;
-        _reach = to;
-
-        InvalidateVisual();
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Grows the selection one piece along an axis — what Shift and an arrow key mean.
-    ///
-    /// <para>
-    /// The same walk a drag takes, driven a step at a time instead of by a pointer: the anchor stays put
-    /// and the far end moves, so holding an arrow sweeps a verse or a run of notes exactly as dragging
-    /// along it would. False when there is nothing that way, which is the host's cue to do whatever it
-    /// does with an arrow at the edge of a block.
-    /// </para>
-    /// </summary>
-    public bool Extend(bool vertical, bool forward)
-    {
-        if (_laid is null) return false;
-
-        var from = _reach.Exists ? _reach
-                 : _anchor.Exists ? _anchor
-                 : _laid.Root.PieceAt(new Point(0, 0));
-
-        if (from.Selectable() is not { Exists: true } at) return false;
-        if (at.Step(vertical, forward) is not { Exists: true } next) return false;
-
-        Select(_anchor.Exists ? _anchor : at, next);
-
-        // The caret goes where the eye went. Leaving it behind is what lets a plain arrow after a Shift
-        // arrow jump back to somewhere the reader stopped looking three keystrokes ago.
-        var sits = next.Sits();
-        if (sits.Length > 0) _caret = CaretPlace.At(Math.Clamp(sits.Start + sits.Length, 0, Source.Length));
-
-        return true;
-    }
-
-    // ── Typing ──────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Types a character: whatever the content makes of it, and failing that the character itself, spliced
-    /// in where the caret is.
-    /// </summary>
-    public void Type(char character)
-    {
-        if (_laid is null) return;
-
-        if (_content.Type(character, Caret(), _selection) is { } edited) { Apply(edited); return; }
-
-        Splice(_content.Typing(character, Caret()) ?? character.ToString());
-    }
-
-    public bool Backspace()
-    {
-        if (_laid is null) return false;
-        if (_selection.Count > 0) { Cut(); return true; }
-
-        var at = Caret();
-        if (at <= 0) return false;
-
-        Replace(at - 1, 1, "", at - 1);
-        return true;
-    }
-
-    public bool Delete()
-    {
-        if (_laid is null) return false;
-        if (_selection.Count > 0) { Cut(); return true; }
-
-        var at = Caret();
-        if (at >= Source.Length) return false;
-
-        Replace(at, 1, "", at);
-        return true;
-    }
-
-    /// <summary>Everything selected, taken out, leaving the caret where it was.</summary>
-    private void Cut()
-    {
-        var ranges = _selection.OrderByDescending(range => range.Start).ToList();
-        var source = Source;
-
-        foreach (var (start, length) in ranges)
-            source = source.Remove(start, Math.Min(length, source.Length - start));
-
-        Apply(new Edited(source, ranges[^1].Start));
-    }
-
-    private void Splice(string text)
-    {
-        if (_selection.Count > 0) { Cut(); if (text.Length == 0) return; }
-
-        var at = Caret();
-        Replace(at, 0, text, at + text.Length);
-    }
-
-    private void Replace(int start, int length, string with, int caret)
-    {
-        var source = Source;
-
-        start = Math.Clamp(start, 0, source.Length);
-        length = Math.Clamp(length, 0, source.Length - start);
-
-        Apply(new Edited(string.Concat(source.AsSpan(0, start), with, source.AsSpan(start + length)), caret));
-    }
-
-    /// <summary>
-    /// The content as it now stands: re-read, laid out again, and handed to the document that holds it.
-    ///
-    /// <para>
-    /// One path, always taken. An edit can put anything anywhere — a bar line that re-bars the rest of a
-    /// line, a field that changes the key under every note after it — so asking whether a change was
-    /// contained is not worth answering cheaply.
-    /// </para>
-    /// </summary>
-    private void Apply(Edited edited)
-    {
-        _content.Source = edited.Source;
-        _laid = _content.Lay(_laidFor > 0 ? _laidFor : 680, _ppd);
-
-        _selection = edited.Select is { Length: > 0 } keep ? [keep] : [];
-        _chosen = null;
-        _caret = CaretPlace.At(Math.Clamp(edited.Caret, 0, Source.Length));
-        _hasCaret = true;
-
-        InvalidateMeasure();
-        InvalidateVisual();
-
-        SourceChanged?.Invoke(this, EventArgs.Empty);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>A key the content claims for itself — a score's Page Up for an octave.</summary>
-    public bool HandleKey(Key key, ModifierKeys modifiers)
-    {
-        if (_laid is null) return false;
-        if (_content.Press(key, modifiers, Caret(), _selection) is not { } edited) return false;
-
-        Apply(edited);
-        return true;
-    }
-
-    FrameworkElement? IEditableBlock.BuildRibbon() => _content.Ribbon(Caret(), _selection, Apply);
+    /// <inheritdoc />
+    public IReadOnlyList<Diagnostic> Diagnostics => _laid.Trouble;
 
     // ── The caret ───────────────────────────────────────────────────────────
 
-    private int Caret() => Math.Clamp(_caret.Offset, 0, Source.Length);
-
-    /// <summary>
-    /// The caret one place along, or the selection one piece along when it is being extended.
-    ///
-    /// <para>
-    /// <strong>Both live here, and deliberately.</strong> The host asks this for every left and right
-    /// arrow, with <paramref name="extend"/> saying whether Shift was down; a block that also claimed the
-    /// key for itself would leave two handlers writing one selection from two different ideas of what a
-    /// selection is — which is the shape of every keyboard bug this app has had.
-    /// </para>
-    /// </summary>
-    public bool MoveCaret(bool forward, bool extend)
+    /// <summary>Gives this content the caret at <paramref name="offset"/>.</summary>
+    /// <param name="level">Which of the bars drawn there — see <see cref="CaretPlace"/>.</param>
+    public void TakeCaret(int offset, int level = 0)
     {
-        if (_laid is null) return false;
-
-        if (extend && Extend(vertical: false, forward)) return true;
-
-        if (_laid.Root.Step(_caret, forward) is not { } next)
-        {
-            Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
-            return false;
-        }
-
-        _caret = next;
-        if (!extend) _selection = [];
-        InvalidateVisual();
-        return true;
+        HasCaret = !IsReadOnly;
+        Apply(_state.MoveCaretTo(Snap(offset)), notify: false, level: level);
+        if (HasCaret) StartBlinking();
     }
 
-    /// <summary>
-    /// Up and down: the selection through what sounds together when it is being extended, and otherwise
-    /// the caret. Same seam, same reason as <see cref="MoveCaret"/>.
-    /// </summary>
-    bool IEditableBlock.MoveCaretVertically(bool up, bool extend)
+    /// <inheritdoc />
+    public virtual void TakeCaretArriving(CaretArrival arrival)
     {
-        if (extend && Extend(vertical: true, forward: !up)) return true;
-        if (_laid?.Root.StepVertical(Caret(), up) is not { } next) return false;
-
-        _caret = CaretPlace.At(next);
-        if (!extend) _selection = [];
-        InvalidateVisual();
-        return true;
-    }
-
-    public void SelectRange(int start, int length)
-    {
-        if (_laid is null) return;
-
-        var from = Math.Max(0, start);
-        _selection = length <= 0 ? [] : [(from, Math.Min(length, Source.Length - from))];
-        _chosen = null;
-
-        InvalidateVisual();
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Takes the caret from the prose beside it, at the place the reader was coming from. Content wide
-    /// enough for a column to mean something takes a caret arriving from the line above under where it
-    /// left, rather than at the beginning.
-    /// </summary>
-    public void TakeCaretArriving(CaretArrival arrival)
-    {
-        if (_laid is null) return;
-
         // Nothing drawn here is the source, so there is nowhere in it to stand. The caret is handed
         // straight on the way it was already going, and the reader arrows over the content as they would
         // over a word — rather than into it, to find that no key does anything.
@@ -549,22 +319,19 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
             return;
         }
 
-        var stops = _laid.Root.CaretStops();
+        var stops = _laid.Stops;
         if (stops.Count == 0) { Exited?.Invoke(this, arrival.Edge); return; }
 
-        InteractiveSelection.Own(this);
+        // Content wide enough for a column to mean something takes a caret arriving from the line above
+        // under where it left, rather than at the beginning.
+        if (arrival is { Step: CaretStep.Line, Column: { } column }) { TakeCaret(Nearest(column)); return; }
+        if (arrival.Edge == BlockExit.Before) { TakeCaret(stops[0]); return; }
 
-        _caret = CaretPlace.At(arrival switch
-        {
-            { Step: CaretStep.Line, Column: { } column } => Nearest(column),
-            { Edge: BlockExit.Before } => stops[0],
-            _ => stops[^1],
-        });
-
-        _hasCaret = true;
-        _selection = [];
-        Blinking(true);
-        InvalidateVisual();
+        // Arriving from the text after it, the caret is outside everything in the content — so it takes
+        // the outermost bar at the end. Landing on the innermost instead would put it inside a trailing
+        // exponent, raised and half-height, having been walked into from the far side.
+        var end = stops[^1];
+        TakeCaret(end, level: Math.Max(0, _laid.Root.CaretBars(Snap(end)).Count - 1));
     }
 
     /// <summary>The caret stop nearest a column, for a caret arriving from another line.</summary>
@@ -573,7 +340,7 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
         var best = 0;
         var distance = double.MaxValue;
 
-        foreach (var piece in _laid!.Root.Ink())
+        foreach (var piece in _laid.Root.Ink())
         {
             var at = piece.Sits();
             var where = piece.Bounds;
@@ -591,64 +358,604 @@ public sealed class ContentElement : FrameworkElement, IEditableBlock
         return best;
     }
 
+    /// <inheritdoc />
     public void ReleaseCaret()
     {
-        _hasCaret = false;
-        Blinking(false);
+        if (!HasCaret) return;
+        HasCaret = false;
+        StopBlinking();
         InvalidateVisual();
     }
 
-    private void Blinking(bool on)
+    /// <summary>
+    /// Blinks the caret, because a still one is easy to lose among the glyphs. It runs only while this
+    /// content holds the caret and is torn down on unload, so a page of them leaves no timers behind.
+    /// </summary>
+    private void StartBlinking()
     {
-        if (!on)
-        {
-            _blink?.Stop();
-            _caretOn = false;
-            return;
-        }
+        _caretVisible = true;
+        if (_blink is not null) { _blink.Stop(); _blink.Start(); return; }
 
-        _caretOn = true;
-        _blink ??= Ticking();
-        _blink.Stop();
+        _blink = new DispatcherTimer(BlinkRate, DispatcherPriority.Normal, OnBlink, Dispatcher);
         _blink.Start();
     }
 
-    private DispatcherTimer Ticking()
+    private void StopBlinking()
     {
-        // Windows' own caret rate. WPF does not surface GetCaretBlinkTime, and a P/Invoke for one number
-        // is not worth the trouble; this is the default every version has shipped.
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(530) };
-        timer.Tick += (_, _) => { _caretOn = !_caretOn; InvalidateVisual(); };
-        return timer;
+        _blink?.Stop();
+        _blink = null;
+        _caretVisible = true;
     }
 
-    /// <summary>Lays the content out again, because something outside it changed.</summary>
-    public void Refresh()
+    private void OnBlink(object? sender, EventArgs e)
     {
-        _laid = null;
-        InvalidateMeasure();
+        if (!HasCaret) { StopBlinking(); return; }
+        _caretVisible = !_caretVisible;
         InvalidateVisual();
     }
 
-    // ── Hosted directly ─────────────────────────────────────────────────────
-    //
-    // These only matter when the element is not inside a RichTextBox — a read-only preview, or a test.
+    /// <summary>Shows the caret and restarts the cycle — it must never be mid-blink while you type.</summary>
+    protected void HoldCaretVisible()
+    {
+        if (!HasCaret) return;
+        _caretVisible = true;
+        _blink?.Stop();
+        _blink?.Start();
+    }
 
+    /// <summary>
+    /// Moves the caret one stop. False when it ran off an end, having raised <see cref="Exited"/> — the
+    /// host then takes over.
+    /// </summary>
+    public bool MoveCaret(bool forward, bool extend = false)
+    {
+        // A stretch being shown as its characters is text, and moves like text: one character at a time.
+        // Stepping by layout stops cannot reach into it — every position inside maps to the one point
+        // where it sits in the laid-out content — so the caret jumped clean over the thing the reader had
+        // just asked to see, which is the only place they wanted to edit.
+        if (_state.Raw is { } zone && zone.Holds(_state.Caret))
+        {
+            var step = _state.Caret + (forward ? 1 : -1);
+            if (step >= zone.Start && step <= zone.End) { MoveTo(CaretPlace.At(step), extend); return true; }
+        }
+
+        if (_laid.Root.Step(new CaretPlace(_state.Caret, _level), forward) is not { } next)
+        {
+            Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
+            return false;
+        }
+
+        MoveTo(next, extend);
+        return true;
+    }
+
+    /// <summary>Up and down — across a fraction bar, out of a script, from a note to the word under it.</summary>
+    public bool MoveCaretVertically(bool up, bool extend = false)
+    {
+        if (_laid.Root.StepVertical(_state.Caret, up) is not { } next) return false;
+
+        MoveTo(CaretPlace.At(next), extend);
+        return true;
+    }
+
+    private void MoveTo(CaretPlace place, bool extend)
+    {
+        // Extending is about a stretch of source, and a stretch has no levels — which of the bars at its
+        // far end the caret would have been drawn as says nothing about what is picked out.
+        if (extend) ExtendSelectionTo(place.Offset);
+        else Apply(_state.MoveCaretTo(place.Offset), notify: false, level: place.Level);
+    }
+
+    private int Snap(int offset)
+    {
+        var clamped = Math.Clamp(offset, 0, _state.Source.Length);
+
+        // Inside the stretch being written every character is its own stop, so the caret goes exactly
+        // where it was put; the settled content snaps to the places a caret may rest.
+        return _state.Raw is { } zone && zone.Holds(clamped) ? clamped : _laid.NearestStop(clamped);
+    }
+
+    // ── Typing ──────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public void Type(char character) => Write(character.ToString());
+
+    /// <summary>
+    /// Writes text at the caret: whatever the content makes of it, and failing that the characters
+    /// themselves, spliced in where the caret is.
+    /// </summary>
+    protected void Write(string text)
+    {
+        if (IsReadOnly) return;
+
+        Apply(Typing(_state, text) ?? _state.Write(text), notify: true);
+    }
+
+    /// <summary>
+    /// Inserts text at the caret, replacing any selection — how a palette key types itself.
+    /// <paramref name="caretBack"/> walks the caret into a template's first hole.
+    /// </summary>
+    public void Insert(string text, int caretBack = 0)
+    {
+        if (IsReadOnly) return;
+
+        // Something picked out and a construct with a hole in it: what you picked goes in the hole.
+        if (_state.HasSelection && WrapSelectionInto(text, caretBack)) return;
+
+        // A palette key and a pasted formula land in a construct the same way a typed character does.
+        // Only when the template wants the caret walked back into a hole of its own, which is about the
+        // text and not the structure.
+        if (caretBack == 0 && Typing(_state, text) is { } written) { Apply(written, notify: true); return; }
+
+        Apply(_state.Insert(text, caretBack), notify: true);
+    }
+
+    /// <summary>
+    /// Puts what is selected into the hole of <paramref name="template"/> the caret would have gone to,
+    /// filling its other holes with boxes.
+    /// <para>
+    /// Which hole is not a new thing to know: <paramref name="caretBack"/> already says where a key
+    /// expects to be typed next, and that is the same place — a <c>\frac</c> pressed over a selected
+    /// <c>3+7</c> means a fraction <em>of</em> <c>3+7</c>, in its numerator, because the numerator is
+    /// where you would have typed it.
+    /// </para>
+    /// </summary>
+    private bool WrapSelectionInto(string template, int caretBack)
+    {
+        var at = template.Length - caretBack;
+        if (at <= 0 || at >= template.Length) return false;
+        if (template[at - 1] != '{' || template[at] != '}') return false;
+
+        Apply(_state.Insert(template[..at] + _state.SelectedText + template[at..]), notify: true);
+
+        // The template's other arguments are still empty, and the builder has just drawn a hole in each.
+        // Selecting the first is what makes the next keystroke fill it.
+        SelectNextPlaceholder();
+        return true;
+    }
+
+    /// <summary>Wraps the selection, or inserts the pair at the caret.</summary>
+    public void Wrap(string before, string after)
+    {
+        if (IsReadOnly) return;
+        Apply(_state.Wrap(before, after), notify: true);
+    }
+
+    /// <summary>
+    /// Backspace. Behind something drawn from more source than it shows, this un-renders it rather than
+    /// deleting a character of it. False when there was nothing to delete, which is the host's cue that
+    /// backspace should now remove the content itself.
+    /// </summary>
+    public bool Backspace()
+    {
+        if (IsReadOnly) return false;
+        if (_state is { Caret: 0, SelectionLength: 0 }) return false;
+
+        Apply(Backspacing(_state) ?? _state.Backspace(), notify: true);
+        return true;
+    }
+
+    /// <summary>Forward delete. False when the caret is already at the end.</summary>
+    public bool Delete()
+    {
+        if (IsReadOnly) return false;
+        if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
+
+        Apply(_state.Delete(), notify: true);
+        return true;
+    }
+
+    /// <summary>
+    /// Settles whatever is half-written, as space or Enter does — which is to say, writes the character.
+    /// <para>
+    /// There is nothing else to settling: a non-letter after a control word ends it, and that rule lives
+    /// with the content's typing rule where it belongs. A separate "commit" was a second way to say the
+    /// same thing, and the two could disagree.
+    /// </para>
+    /// </summary>
+    bool IEditableBlock.Commit(string text) { if (!IsReadOnly) Settle(text); return true; }
+
+    /// <summary>
+    /// Ends whatever is half-written. Typing the character, which is all settling is — content whose source
+    /// needs something <em>added</em> to say where a half-written thing stopped overrides this, and should
+    /// not have to.
+    /// </summary>
+    protected virtual void Settle(string separator) => Write(separator);
+
+    /// <summary>
+    /// Selects the next place still waiting to be written in, so a construct inserted whole can be filled
+    /// by typing and tabbing rather than by aiming at each hole. False when there is none.
+    /// </summary>
+    public bool SelectNextPlaceholder(bool forward = true)
+    {
+        if (IsReadOnly) return false;
+
+        // Read off what was drawn rather than off the text: a hole is a symbol the builder put there, and
+        // the source it stands over is the empty braces the reader actually wrote.
+        var holes = Holes();
+        if (holes.Count == 0) return false;
+
+        // From wherever the caret is, wrapping round — the last hole tabs back to the first, because a
+        // construct being filled in is a loop until it is finished.
+        var here = _state.HasSelection ? _state.SelectionStart : _state.Caret;
+        var next = forward
+            ? holes.FirstOrDefault(hole => hole.Sits().Start > here, holes[0])
+            : holes.LastOrDefault(hole => hole.Sits().Start < here, holes[^1]);
+
+        // The caret goes into the hole rather than over it. A hole covers nothing — that is what makes it
+        // a hole — so what gets typed lands inside the braces and it stops being one.
+        TakeCaret(next.Sits().Start);
+        return true;
+    }
+
+    // ── Selection ───────────────────────────────────────────────────────────
+
+    /// <summary>Selects a source range, snapped out to whole constructs.</summary>
+    public void Select(int start, int length)
+    {
+        if (length <= 0) { ClearSelection(); return; }
+
+        var (from, snapped) = _laid.Root.Snap(start, length);
+
+        var next = _state.Select(from, snapped);
+        if (next.Selection.SequenceEqual(_state.Selection)) return;
+
+        Apply(next, notify: false);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <inheritdoc />
+    public void SelectRange(int start, int length) => Select(start, length);
+
+    /// <summary>Selects everything — what the host asks for when a selection sweeps straight over it.</summary>
+    public void SelectAll() => Select(0, _state.Source.Length);
+
+    /// <inheritdoc />
+    public void ClearSelection()
+    {
+        if (!_state.HasSelection) return;
+
+        Apply(_state.Select(0, 0), notify: false);
+        InteractiveSelection.Release(this);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ExtendSelectionTo(int offset) =>
+        Select(Math.Min(_anchor, offset), Math.Abs(offset - _anchor));
+
+    /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
+    private void SelectNodes(ContentSelection selection)
+    {
+        if (selection.IsEmpty) { ClearSelection(); return; }
+
+        var next = _state.Select([.. selection.Ranges.Select(range => new EditRange(range.Start, range.Length))]);
+        if (next.Selection.SequenceEqual(_state.Selection)) return;
+
+        Apply(next, notify: false);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ── Pointer, driven by the host ─────────────────────────────────────────
+
+    /// <inheritdoc />
+    public void BeginPointerSelect(Point pointInElement)
+    {
+        InteractiveSelection.Own(this);
+
+        var at = Unscaled(pointInElement);
+        _anchor = _laid.OffsetAt(at);
+        _anchorNode = _laid.PieceAt(at);
+        _pressedAt = pointInElement;
+        _dragging = true;
+
+        // Pressing on what is already selected is how a move begins — the reader is picking the term up,
+        // not starting a new selection over it. The selection is kept until the button comes back up, so a
+        // press that turns out to be an ordinary click can still fall through to placing the caret.
+        if (Covers(_anchor)) { _moving = true; _dropAt = _anchor; return; }
+
+        ClearSelection();
+
+        var place = _laid.PlaceAt(at);
+        TakeCaret(place.Offset, place.Level);
+    }
+
+    /// <summary>Whether <paramref name="offset"/> falls inside one of the selected stretches.</summary>
+    private bool Covers(int offset) =>
+        _state.Selection.Any(range => offset >= range.Start && offset <= range.End);
+
+    /// <inheritdoc />
+    public void ExtendPointerSelect(Point pointInElement)
+    {
+        if (!_dragging) return;
+
+        // A click is not a drag. The pointer moves a pixel or two under any real hand, and treating that
+        // as a selection meant clicking after a number selected it — so the next key typed replaced the
+        // number instead of following it.
+        if (!HasDragged(pointInElement)) return;
+
+        var at = Unscaled(pointInElement);
+
+        // Carrying something: the content is shown as it would read if it were let go here, with the
+        // carried part marked out, so the reader is choosing between finished results.
+        if (_moving)
+        {
+            var drop = _laid.OffsetAt(at);
+            if (drop == _dropAt) return;
+
+            _dropAt = drop;
+            _dropPoint = at;
+            BuildPreview();
+            HoldCaretVisible();
+            InvalidateMeasure();
+            InvalidateVisual();
+            return;
+        }
+
+        // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what
+        // makes a drag down a column select the column rather than everything written between its top
+        // cell and its bottom one.
+        if (_anchorNode.Exists && _laid.PieceAt(at) is { Exists: true } focus)
+        {
+            // Through whatever owns each end. Landing on a bracket means the group it opens or closes:
+            // half a pair is not a smaller selection, it is one that cannot be read.
+            SelectNodes(ContentSelection.Between(_laid.Root, Pointing(_anchorNode), Pointing(focus)));
+            return;
+        }
+
+        ExtendSelectionTo(_laid.OffsetAt(at));
+    }
+
+    /// <summary>
+    /// Whether the pointer has moved far enough from the press for this to be a drag rather than a click.
+    /// The system's own thresholds, so it matches every other drag the reader makes.
+    /// </summary>
+    private bool HasDragged(Point pointInElement) =>
+        Math.Abs(pointInElement.X - _pressedAt.X) >= SystemParameters.MinimumHorizontalDragDistance
+        || Math.Abs(pointInElement.Y - _pressedAt.Y) >= SystemParameters.MinimumVerticalDragDistance;
+
+    /// <inheritdoc />
+    public void EndPointerSelect()
+    {
+        _dragging = false;
+        if (!_moving) return;
+
+        _moving = false;
+        var settled = _previewOf;
+        ClearPreview();
+
+        if (IsReadOnly) return;
+
+        // The press never became a drag: an ordinary click on the selection, which places the caret there
+        // and drops the selection, as clicking a selection does everywhere.
+        if (settled is not { } moved) { ClearSelection(); TakeCaret(_anchor); return; }
+
+        // Exactly what was on screen a moment ago — settling is letting go of it, not recomputing
+        // something the reader has to check.
+        Apply(new EditState(moved.Source, moved.Caret), notify: true);
+    }
+
+    /// <summary>Lays the content out as it would read if what is carried were dropped where it is now.</summary>
+    private void BuildPreview()
+    {
+        ClearPreview();
+
+        if (Moving(_state, _dropAt, _dropPoint) is not { } moved) return;
+
+        _previewOf = moved;
+        _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
+        _preview = Lay(new EditState(moved.Source, moved.Caret), Room(), _ppd);
+    }
+
+    private void ClearPreview()
+    {
+        _preview = null;
+        _previewOf = null;
+        _previewMoved = default;
+    }
+
+    /// <inheritdoc />
+    public bool PointerDoubleClick(Point pointInElement)
+    {
+        // Select the thing under the pointer rather than letting the host drop the whole block into
+        // source-edit mode: inside content, "the word you clicked" is the symbol you clicked.
+        var at = Unscaled(pointInElement);
+        var here = _laid.OffsetAt(at);
+
+        var under = Pointing(_laid.PieceAt(at));
+        if (under.Exists && under.Sits() is { Length: > 0 } sits) Select(sits.Start, sits.Length);
+        else Select(Math.Max(0, here - 1), 1);
+
+        return true;
+    }
+
+    // Hosted in a plain panel (the read-only markdown view), the element does get its own mouse events.
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
+        base.OnMouseLeftButtonDown(e);
+        if (e.ClickCount == 2) { PointerDoubleClick(e.GetPosition(this)); return; }
+
         BeginPointerSelect(e.GetPosition(this));
         CaptureMouse();
-        e.Handled = true;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
+        base.OnMouseMove(e);
         if (_dragging) ExtendPointerSelect(e.GetPosition(this));
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
+        base.OnMouseLeftButtonUp(e);
+        if (IsMouseCaptured) ReleaseMouseCapture();
         EndPointerSelect();
-        ReleaseMouseCapture();
     }
+
+    // ── Applying an edit ────────────────────────────────────────────────────
+
+    /// <param name="level">
+    /// Which bar at the caret's offset. Innermost unless a step says otherwise, which is what makes an
+    /// edit, a click or a jump put the caret back inside whatever it is in.
+    /// </param>
+    protected void Apply(EditState next, bool notify, int level = 0)
+    {
+        var resized = next.Source != _state.Source || next.Raw != _state.Raw;
+        var moved = next.Caret != _state.Caret || level != _level;
+        var changed = next.Source != _state.Source;
+
+        _state = next;
+        _level = level;
+
+        if (resized) { Rebuild(); InvalidateMeasure(); }
+        if (moved || changed) HoldCaretVisible();   // never blink out mid-keystroke
+        InvalidateVisual();
+
+        if (moved) CaretMoved?.Invoke(this, EventArgs.Empty);
+        if (notify && changed) SourceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Lays the content out again, because something outside it changed.</summary>
+    public void Refresh()
+    {
+        Rebuild();
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
+    /// <summary>How much room the content has, in its own coordinates.</summary>
+    protected double Room() => (_laidFor > 0 ? _laidFor : 680) / Scale;
+
+    /// <summary>Lays it out again from the state as it now stands.</summary>
+    protected void Rebuild() => _laid = Lay(_state, Room(), _ppd);
+
+    // ── Layout and painting ─────────────────────────────────────────────────
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        _ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+
+        var room = double.IsInfinity(availableSize.Width) || availableSize.Width <= 0 ? 680 : availableSize.Width;
+        if (Math.Abs(room - _laidFor) > 0.5 || _laid.Tree.Count == 0)
+        {
+            _laidFor = room;
+            Rebuild();
+        }
+
+        // While something is being carried, what is on screen is what it would become, so that is what has
+        // to fit — otherwise the preview is clipped at the settled content's width.
+        var size = _preview?.Size ?? _laid.Size;
+        return new Size(Math.Ceiling(size.Width * Scale), Math.Ceiling(size.Height * Scale));
+    }
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        // A transparent fill makes the whole element hit-testable, gaps between glyphs included.
+        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, RenderSize.Width, RenderSize.Height));
+
+        // Everything below is in the content's own coordinates. The scale is pushed once, here, so nothing
+        // that reads the tree has to know about it — and a pointer coming the other way is divided by it.
+        var scaled = Math.Abs(Scale - 1.0) > 0.001;
+        if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
+
+        if (_preview is { } preview) PaintPreview(dc, preview);
+        else PaintContent(dc);
+
+        if (scaled) dc.Pop();
+    }
+
+    private void PaintContent(DrawingContext dc)
+    {
+        LayoutPainter.Paint(dc, _laid.Root, Palette.Text);
+
+        // Every stretch washes itself. A column of a matrix is three of them with the rest of the matrix
+        // in between, and washing from the first to the last would highlight the lot.
+        foreach (var range in _state.Selection)
+            foreach (var rect in _laid.Root.RangeRects(range.Start, range.Length))
+                dc.DrawRectangle(_wash, null, Marked(rect));
+
+        // A wave under whatever could not be read, drawn over the content rather than instead of it: the
+        // parts that did read are still worth looking at, and the reader needs to see which part is not.
+        foreach (var trouble in _laid.Trouble)
+        {
+            var runs = _laid.Root.RangeRects(trouble.Start, trouble.Length);
+            if (runs.Count == 0) continue;
+
+            var wave = new Pen(trouble.Severity == DiagnosticSeverity.Error ? Palette.Danger : Palette.Warning, 1.0);
+            wave.Freeze();
+            dc.DrawGeometry(null, wave, Squiggle.Under(runs));
+        }
+
+        PaintOver(dc);
+
+        if ((!HasCaret && !_moving) || IsReadOnly || !_caretVisible) return;
+
+        // While something is being carried the caret shows where it would land, not where it was picked
+        // up from — that is the one thing the reader needs to see before letting go.
+        var caret = _laid.Root.CaretRect(
+            _moving ? CaretPlace.At(_dropAt) : new CaretPlace(_state.Caret, _level));
+
+        DrawCaret(dc, caret.X, caret.Y, caret.Height);
+    }
+
+    /// <summary>
+    /// Anything the content draws over the shared picture — a strike through a symbol that will not
+    /// encode. Drawn after the ink and the wash, and before the caret.
+    /// </summary>
+    protected virtual void PaintOver(DrawingContext dc) { }
+
+    /// <summary>
+    /// Draws the content as it would read after the drop, with the carried part in the accent colour so
+    /// it can be picked out of something it has already merged into — by then it is set in place, braces
+    /// and spacing and all, and nothing else would distinguish it.
+    /// </summary>
+    private void PaintPreview(DrawingContext dc, Laid preview)
+    {
+        LayoutPainter.Paint(dc, preview.Root, Palette.Text);
+
+        // Over the top rather than instead of: painting all of it and then the carried part again is what
+        // keeps this to two calls, and the second colour is the one that shows.
+        foreach (var piece in Carried(preview))
+            LayoutPainter.PaintOne(dc, piece, Palette.Accent);
+    }
+
+    /// <summary>
+    /// The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried. Outermost
+    /// so that nothing is painted twice over — a piece and its own children are one drawing.
+    /// </summary>
+    private IEnumerable<Piece> Carried(Laid preview)
+    {
+        var (start, end) = _previewMoved;
+        if (end <= start) yield break;
+
+        var taken = new List<Piece>();
+        foreach (var piece in preview.Root.SelfAndDescendants())
+        {
+            if (piece.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
+            if (taken.Any(already => piece.Ancestors().Contains(already))) continue;
+
+            taken.Add(piece);
+            yield return piece;
+        }
+    }
+
+    /// <summary>A wash a little larger than what it marks — see <see cref="WashPad"/>.</summary>
+    private Rect Marked(Rect rect)
+    {
+        if (rect.IsEmpty || rect.Width <= 0 || rect.Height <= 0) return rect;
+
+        rect.Inflate(WashPad, WashPad);
+        return rect;
+    }
+
+    /// <summary>The caret itself. One place, so content that is empty draws the same one as any other.</summary>
+    private void DrawCaret(DrawingContext dc, double x, double y, double height)
+    {
+        var pen = new Pen(Palette.Accent, 1.4);
+        pen.Freeze();
+        dc.DrawLine(pen, new Point(x, y), new Point(x, y + Math.Max(height, 1)));
+    }
+
+    /// <summary>A point in the element's own pixels, read as a point in the content's.</summary>
+    protected Point Unscaled(Point point) =>
+        Math.Abs(Scale - 1.0) < 0.001 ? point : new Point(point.X / Scale, point.Y / Scale);
 }

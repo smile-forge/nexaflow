@@ -1,900 +1,197 @@
 using System;
-using System.Globalization;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using Nexaflow.Visuals.Text.Editing;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Threading;
+using Nexaflow.Visuals.Text.Markdown;
+// Ours, not WPF own: System.Windows has a ContentElement too, and it is a different idea entirely.
+using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
 /// <summary>
-/// A typeset formula you can click into and type in: it draws the maths, a selection wash over any part
-/// of it, a caret shaped like whatever it stands beside, and any half-written command shown literally
-/// where it will end up.
+/// A formula, drawn where it was written and edited in place.
+///
 /// <para>
-/// It owns pixels and gestures only. Where things are is <see cref="LatexLayout"/>'s answer and what an
-/// edit means is <see cref="EditState"/>'s; this holds no second opinion about either, which is what
-/// keeps clicking, arrowing, selecting and typing from each developing their own idea of the formula.
+/// <strong>Almost nothing is here.</strong> Laying out, painting, the wash, the wave, the blinking caret,
+/// the pointer, the selection grown out to whole constructs, arrow keys, backspace, the palette — all of
+/// it is <see cref="ContentElement"/>, and is the same code a tune and a barcode run. What is left is the
+/// handful of questions only a parse tree can answer, and each is one override.
 /// </para>
 /// <para>
-/// It follows <c>ScoreElement</c>, the other code-drawn block embedded in markdown, and for the same
-/// reasons: a <see cref="UIElement"/> inside a <c>RichTextBox</c> does not reliably receive mouse input,
-/// so the host hit-tests geometrically and drives <see cref="IInteractiveBlock"/>; and it must never take
-/// focus, or the <c>RichTextBox</c> faults reconciling its caret against a node holding no text. Keys
-/// arrive from the host for the same reason. The direct mouse handlers below only matter when it is
-/// hosted in a plain panel, as the read-only markdown view does.
+/// The scale is the type size the formula is set at, which is a fact about the formula rather than about
+/// the element: how large it is <em>drawn</em> is <see cref="ContentElement.Zoom"/>, and the two are
+/// different things — one changes what the typesetter chooses, the other how big the result appears.
 /// </para>
 /// </summary>
-public sealed class FormulaElement : FrameworkElement, IEditableBlock
+public sealed class FormulaElement : ContentElement
 {
-    private readonly MarkdownPalette _palette;
-    private readonly Brush _wash;
     private readonly double _scale;
     private readonly bool _inline;
 
-    private EditState _state;
-    private Laid _laid;
+    /// <summary>
+    /// The formula as TeX sees it, remade beside the layout every time the source changes. Its reading is
+    /// worked out only if something asks a question about the parse, so a keystroke that merely redraws
+    /// pays nothing for it.
+    /// </summary>
     private LatexTree _tree;
-    private DispatcherTimer? _blink;
-    private bool _caretVisible = true;
-    private int _anchor;
-    private Piece _anchorNode;
 
-    /// <summary>
-    /// Which of the bars at the caret's offset it is drawn as — see <see cref="CaretPlace"/>. Kept beside
-    /// the state rather than in it: an offset is what an edit is made of, and this is not. It survives a
-    /// deliberate step and nothing else, because <see cref="Apply"/> takes it as an argument that defaults
-    /// to the innermost, so every other route back through there puts the caret inside again.
-    /// </summary>
-    private int _level;
-    private Point _pressedAt;
-    private bool _dragging;
-
-    /// <summary>A term is being carried to a new place; <see cref="_dropAt"/> is where it would land.</summary>
-    private bool _moving;
-    private int _dropAt;
-
-    /// <summary>Where the pointer is, which says things an offset cannot - that a block is being held
-    /// between two columns of a matrix rather than over one of its cells.</summary>
-    private Point _dropPoint;
-
-    /// <summary>
-    /// The formula as it would read if the carried term were let go here, typeset for real and drawn
-    /// instead of the settled one — so the reader is choosing between finished formulas rather than
-    /// imagining what an insertion bar would produce. A full parse and typeset costs a few
-    /// milliseconds and is only paid when the drop point crosses a caret stop, not per pixel of mouse
-    /// movement, so it comfortably keeps up with a hand.
-    /// </summary>
-    private Laid? _preview;
-    private LatexWrite? _previewOf;
-    private (int Start, int End) _previewMoved;
-
-    /// <summary>
-    /// Windows' own caret rate. WPF does not surface <c>GetCaretBlinkTime</c>, and a P/Invoke for a
-    /// number that has been 530ms since Windows 95 is not worth the trouble.
-    /// </summary>
-    private static readonly TimeSpan BlinkRate = TimeSpan.FromMilliseconds(530);
-
-    /// <summary>Raised when the caret moves, so a host can follow it.</summary>
-    public event EventHandler? CaretMoved;
-
-    /// <summary>Raised when the selection changes, including when it is cleared.</summary>
-    public event EventHandler? SelectionChanged;
-
-    /// <summary>Raised whenever the source changes, so the host can fold it back into its own model.</summary>
+    /// <summary>Raised when the reader's own editing changed the LaTeX.</summary>
     public event EventHandler? LatexChanged;
 
-    /// <summary>
-    /// Raised when a caret movement ran off the end. The host answers by moving the caret into the text
-    /// on that side — this element has no idea what surrounds it.
-    /// </summary>
-    public event EventHandler<BlockExit>? Exited;
-
     public FormulaElement(string latex, MarkdownPalette palette, double scale, bool inline = false)
+        : base(latex ?? string.Empty, palette)
     {
-        _state = EditState.For(latex ?? string.Empty);
-        _palette = palette;
         _scale = scale;
         _inline = inline;
-        _wash = Wash(palette);
 
-        SnapsToDevicePixels = true;
-        Cursor = Cursors.IBeam;
+        // Set before the first lay-out, which the constructor does below; every later one replaces it.
+        _tree = new LatexTree(Source, Laid.Nothing, LatexBuilder.Draws);
 
-        // Never take keyboard focus — see the class remarks.
-        Focusable = false;
+        SourceChanged += (_, _) => LatexChanged?.Invoke(this, EventArgs.Empty);
 
-        // Subscribed once, here, rather than wherever the timer happens to be created: a formula that is
-        // clicked into and left repeatedly would otherwise collect a handler per visit.
-        Unloaded += (_, _) => StopBlinking();
-
-            Rebuild();
-        }
-
-    /// <summary>The source. Setting it re-typesets and puts the caret at the end.</summary>
-    public string Latex
-    {
-        get => _state.Source;
-        set
-        {
-            var next = value ?? string.Empty;
-            if (_state.Source == next) return;
-            Apply(EditState.For(next), notify: false);
-        }
+        Rebuild();
     }
 
-        /// <summary>The map behind what is drawn — always there, because a builder always makes one.</summary>
+    /// <summary>The LaTeX this is showing.</summary>
+    public string Latex => Source;
+
+    /// <summary>The map behind what is drawn — always there, because a builder always makes one.</summary>
     public LatexTree Layout => _tree;
 
     /// <summary>
-    /// Whether any of the source could not be read. It may still be drawing perfectly well around the
-    /// trouble — a formula stops being typeset entirely only when none of it could be laid out at all.
+    /// How far a selection wash reaches past the ink it marks, as a fraction of the type size. A glyph's
+    /// box here is its advance and its own height, so washing it exactly leaves an <c>a</c> showing the
+    /// wash through its counter and nowhere else, and an <c>i</c> as a stripe too narrow to notice.
     /// </summary>
-    public bool HasError => _laid.Trouble.Count > 0;
-
-    /// <summary>Whether the caret is shown. A read-only surface still allows selecting and copying.</summary>
-    public bool IsReadOnly { get; init; }
+    protected override double WashPad => _scale * 0.14;
 
     /// <summary>
-    /// Where this formula's LaTeX sits inside its markdown block, delimiters excluded — what a host
-    /// needs to put an edit back where it came from. Negative when the whole block is the formula, as a
-    /// <c>$$…$$</c> block is, and there is nothing to splice around.
-    /// </summary>
-    public int SourceStart { get; set; } = -1;
-
-    /// <summary>How much of the block's source this formula occupies. Kept current as it is edited.</summary>
-    public int SourceLength { get; set; }
-
-    /// <summary>Whether the whole markdown block is this formula rather than a run inside one.</summary>
-    public bool IsWholeBlock => SourceStart < 0;
-
-    /// <summary>Whether this element currently owns the caret.</summary>
-    public bool HasCaret { get; private set; }
-
-    /// <summary>Where the caret sits, as an offset into <see cref="Latex"/>.</summary>
-    public int Caret => _state.Caret;
-
-    /// <summary>The start of the selected source range.</summary>
-    public int SelectionStart => _state.SelectionStart;
-
-    /// <summary>How much source is selected; zero when nothing is.</summary>
-    public int SelectionLength => _state.SelectionLength;
-
-    /// <summary>The selected source, or empty.</summary>
-    public string SelectedText => _state.SelectedText;
-
-    /// <summary>
-    /// The stretch being shown as the characters written rather than typeset — a command mid-spelling,
-    /// or a construct un-rendered to be edited — or null when all of it is set as maths.
+    /// Typesets the whole formula, with the stretch being written set as the characters that were typed.
+    ///
     /// <para>
-    /// It is in the formula's own offsets, because the formula it is part of is typeset around it
-    /// rather than without it.
+    /// One layout over the real source, rather than a layout of the settled part with the raw characters
+    /// painted over it afterwards. Painting over could only ever work while the stretch was the last thing
+    /// in the formula: anywhere else it covered whatever followed, which is what un-rendering a fraction
+    /// in the middle of an expression looked like. Set through the typesetter it takes up room like
+    /// anything else, so the formula flows around it — and every offset the tree reports is an offset into
+    /// the source the reader is editing, with no mapping in between.
     /// </para>
     /// </summary>
-    public (int Start, int Length)? ShownAsWritten =>
-        _state.Raw is { Length: > 0 } zone ? (zone.Start, zone.Length) : null;
+    protected override Laid Lay(EditState state, double room, double pixelsPerDip)
+    {
+        var laid = LatexBuilder.Build(
+            state.Source, _scale, _inline, shownAsWritten: state.Raw, placeholders: !IsReadOnly,
+            pixelsPerDip: pixelsPerDip);
 
-    // ── What the document around it needs (IEditableBlock) ──────────────────
+        _tree = new LatexTree(state.Source, laid, LatexBuilder.Draws, state.Raw, !IsReadOnly);
+        return laid;
+    }
 
     /// <summary>
-    /// The seam's name for <see cref="LatexChanged"/>. A host driving every editable block alike listens
-    /// here; the pair of names costs nothing and keeps the element's own event called after its content.
+    /// LaTeX's two rules about how it is written: what the structure makes of the text, and what the
+    /// characters make of themselves.
+    ///
+    /// <para>
+    /// The tree gets first refusal, because the 3 after <c>x^2</c> belongs in the exponent and only the
+    /// construct holding it can say so. Then the spelling rule — a backslash opens a stretch shown as
+    /// itself and letters extend it — and failing both, the characters are typed as any characters are.
+    /// </para>
     /// </summary>
-    event EventHandler? IEditableBlock.SourceChanged
-    {
-        add    => LatexChanged += value;
-        remove => LatexChanged -= value;
-    }
-
-    /// <inheritdoc />
-    public string Source => _state.Source;
-
-    /// <inheritdoc />
-    public Piece Root => _laid.Root;
-
-    /// <inheritdoc />
-    IReadOnlyList<(int Start, int Length)> IEditableBlock.Selection =>
-        [.. _state.Selection.Select(r => (r.Start, r.Length))];
-
-    /// <inheritdoc />
-    public IReadOnlyList<Diagnostic> Diagnostics => _laid.Trouble ?? [];
-
-    /// <inheritdoc />
-    public void SelectRange(int start, int length) => Select(start, length);
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// A formula is one expression, read from its start — so only a step <em>along</em> the text can
-    /// land anywhere but the beginning of it, and then only at the end, which is the character you
-    /// stepped back onto. Up and down both land at the start, because a line step goes to where the
-    /// line begins and this whole formula is that line. <see cref="CaretArrival.Column"/> is ignored
-    /// for the same reason: landing part-way along because that is where the column fell would drop the
-    /// reader into the middle of a subscript they were only passing over.
-    /// </remarks>
-    public void TakeCaretArriving(CaretArrival arrival)
-    {
-        var backwards = arrival is { Step: CaretStep.Character, Edge: BlockExit.After };
-        if (!backwards) { TakeCaret(0); return; }
-
-        // Arriving from the text after the formula, the caret is outside everything in it — so it takes
-        // the outermost bar at the end. Landing on the innermost instead would put it inside a trailing
-        // exponent, raised and half-height, having been walked into from the far side of the formula.
-        var end = _state.Source.Length;
-        TakeCaret(end, level: _laid.Root.CaretBars(Snap(end)).Count - 1);
-    }
-
-    // ── Caret ownership ─────────────────────────────────────────────────────
-
-    /// <summary>Gives this formula the caret at <paramref name="offset"/>.</summary>
-    /// <param name="level">Which of the bars drawn there — see <see cref="CaretPlace"/>.</param>
-    public void TakeCaret(int offset, int level = 0)
-    {
-        HasCaret = !IsReadOnly;
-        Apply(_state.MoveCaretTo(Snap(offset)), notify: false, level: level);
-        if (HasCaret) StartBlinking();
-    }
+    protected override EditState? Typing(EditState state, string text) =>
+        WriteThroughTree(state, text) ?? (text.Length == 1 ? state.Typing(text[0]) : null);
 
     /// <summary>
-    /// Blinks the caret, because a still one is easy to lose among the glyphs. It runs only while this
-    /// formula holds the caret and is torn down on unload, so a page of formulas leaves no timers behind.
-    /// </summary>
-    private void StartBlinking()
-    {
-        _caretVisible = true;
-        if (_blink is not null) { _blink.Stop(); _blink.Start(); return; }
-
-        _blink = new DispatcherTimer(BlinkRate, DispatcherPriority.Normal, OnBlink, Dispatcher);
-        _blink.Start();
-    }
-
-    private void StopBlinking()
-    {
-        _blink?.Stop();
-        _blink = null;
-        _caretVisible = true;
-    }
-
-    private void OnBlink(object? sender, EventArgs e)
-    {
-        if (!HasCaret) { StopBlinking(); return; }
-        _caretVisible = !_caretVisible;
-        InvalidateVisual();
-    }
-
-    /// <summary>Shows the caret and restarts the cycle — it must never be mid-blink while you type.</summary>
-    private void HoldCaretVisible()
-    {
-        if (!HasCaret) return;
-        _caretVisible = true;
-        _blink?.Stop();
-        _blink?.Start();
-    }
-
-    /// <inheritdoc />
-    /// <summary>Gives up the caret (the host moved it into the text, or to another formula).</summary>
-    public void ReleaseCaret()
-    {
-        if (!HasCaret) return;
-        HasCaret = false;
-        StopBlinking();
-        InvalidateVisual();
-    }
-
-    /// <summary>
-    /// Moves the caret one stop. Returns false when it ran off an end, having raised
-    /// <see cref="Exited"/> — the host then takes over.
-    /// </summary>
-    public bool MoveCaret(bool forward, bool extend = false)
-    {
-        // A stretch being shown as its characters is text, and moves like text: one character at a
-        // time. Stepping by layout stops cannot reach into it — every position inside maps to the one
-        // point where it sits in the typeset formula — so the caret jumped clean over the thing the
-        // reader had just asked to see, which is the only place they wanted to edit.
-        if (_state.Raw is { } zone && zone.Holds(_state.Caret))
-        {
-            var step = _state.Caret + (forward ? 1 : -1);
-            if (step >= zone.Start && step <= zone.End) { MoveTo(CaretPlace.At(step), extend); return true; }
-        }
-
-        var next = _laid.Root.Step(new CaretPlace(_state.Caret, _level), forward);
-        if (next is null)
-        {
-            Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
-            return false;
-        }
-
-        MoveTo(next.Value, extend);
-        return true;
-    }
-
-    /// <summary>Moves the caret to the line above or below — across a fraction bar, out of a script.</summary>
-    bool IEditableBlock.Commit(string text) { Commit(text); return true; }
-
-    bool IEditableBlock.MoveCaretVertically(bool up, bool extend) => MoveCaretVertically(up, extend);
-
-    bool IEditableBlock.SelectNextPlaceholder(bool forward) => SelectNextPlaceholder(forward);
-
-    public bool MoveCaretVertically(bool up, bool extend = false)
-    {
-        var next = _laid.Root.StepVertical(_state.Caret, up);
-        if (next is null) return false;
-
-        MoveTo(CaretPlace.At(next.Value), extend);
-        return true;
-    }
-
-    private void MoveTo(CaretPlace place, bool extend)
-    {
-        // Extending is about a stretch of source, and a stretch has no levels — which of the bars at its
-        // far end the caret would have been drawn as says nothing about what is picked out.
-        if (extend) ExtendSelectionTo(place.Offset);
-        else Apply(_state.MoveCaretTo(place.Offset), notify: false, level: place.Level);
-    }
-
-    // ── Editing ─────────────────────────────────────────────────────────────
-
-    /// <summary>Types one character at the caret. No-op when read-only.</summary>
-    public void Type(char character)
-    {
-        if (IsReadOnly) return;
-        if (WriteThroughTree(character.ToString())) return;
-
-        // LaTeX's own rule about how it is written gets first refusal — a backslash opens a stretch shown
-        // as itself — and anything it declines is typed the way any character is.
-        Apply(_state.Typing(character) ?? _state.Type(character), notify: true);
-    }
-
-    /// <summary>
-    /// Lets the tree make the edit, when the caret is somewhere a construct has an opinion about — the
-    /// 3 after <c>x^2</c> belongs in the exponent, and only the construct holding it can say so. Returns
-    /// false when the position belongs to no construct in particular and the caller should write the
-    /// text itself.
+    /// Lets the tree make the edit, when the caret is somewhere a construct has an opinion about — the 3
+    /// after <c>x^2</c> belongs in the exponent. Null when the position belongs to no construct in
+    /// particular and the caller should write the text itself.
     /// </summary>
     /// <remarks>
-    /// Deliberately declined mid-command and mid-selection. A half-written command is being shown as
-    /// the characters it is spelled with, so the layout is a step behind the source and the tree would
-    /// be answering about a formula the reader is not looking at; a selection is a replacement, which
-    /// is a different edit. Whitespace is declined too — a space is how you say "out of this script",
-    /// so it must never be the thing that grows one.
+    /// Deliberately declined mid-command and mid-selection. A half-written command is being shown as the
+    /// characters it is spelled with, so the layout is a step behind the source and the tree would be
+    /// answering about a formula the reader is not looking at; a selection is a replacement, which is a
+    /// different edit. Whitespace is declined too — a space is how you say "out of this script", so it
+    /// must never be the thing that grows one.
     /// </remarks>
-    private bool WriteThroughTree(string text)
+    private EditState? WriteThroughTree(EditState state, string text)
     {
-        if (_state.HasSelection || _state.Raw is not null) return false;
-        if (string.IsNullOrWhiteSpace(text)) return false;
+        if (state.HasSelection || state.Raw is not null) return null;
+        if (string.IsNullOrWhiteSpace(text)) return null;
 
         // Only from inside. A caret that has stepped out of a construct is past it — that is what the
         // place means and the whole reason it exists — so a 3 typed there follows `x^2` rather than
         // joining its exponent, and the same keystroke one bar to the left still makes it twenty-three.
-        if (_level > 0) return false;
+        if (Level > 0) return null;
 
-        if (_tree.Write(_state.Caret, text) is not { } written) return false;
-
-        // The source coming back changed is the tree changed: applying it re-reads, re-lays out and
-        // repaints, so one call carries the edit all the way to the picture.
-        Apply(new EditState(written.Latex, written.Caret), notify: true);
-        return true;
+        return _tree.Write(state.Caret, text) is { } written
+            ? new EditState(written.Latex, written.Caret)
+            : null;
     }
 
     /// <summary>
-    /// Settles a half-written command, as space or Enter does — which is to say, types the character.
+    /// Backspace behind a rendered command un-renders it rather than deleting a character of it — there
+    /// is source to go back to, which the reader cannot see. A symbol has nothing hidden behind it: an α
+    /// is one thing on the page however many letters spelled it, so it is simply taken.
+    /// </summary>
+    protected override EditState? Backspacing(EditState state)
+    {
+        if (state.HasSelection || state.Raw is not null) return null;
+
+        if (_tree.SymbolBefore(state.Caret) is not { Exists: true } symbol) return null;
+        if (symbol.Sits() is not { Length: > 1 } place) return null;
+
+        var span = (Start: place.Start, Length: place.Length);
+
+        return _tree.IsComposite(symbol) ? state.Backspace(span) : state.Remove(span.Start, span.Length);
+    }
+
+    /// <summary>
+    /// A delimiter is drawn by the fence that holds it. A bracket carries meaning only as a pair — one
+    /// without its partner cannot be read at all — so pointing at one means the group.
+    /// </summary>
+    protected override Piece Pointing(Piece piece) => _tree.Owning(piece);
+
+    /// <summary>The arguments left empty, which the typesetter drew a box for. Tab walks these.</summary>
+    protected override IReadOnlyList<Piece> Holes() => _tree.Placeholders;
+
+    /// <summary>
+    /// A term carried to a new place, merged into where it lands rather than dropped there: a term dragged
+    /// into an unbraced exponent has to brace it, and a command dragged against a letter has to keep a
+    /// space. Both are facts about the structure, so both are the tree's.
+    /// </summary>
+    protected override Moved? Moving(EditState state, int to, Point? at) =>
+        _tree.Move([.. state.Selection.Select(range => (range.Start, range.Length))], to, at) is { } moved
+            ? new Moved(moved.Latex, moved.Caret, moved.Wrote)
+            : null;
+
+    /// <summary>
+    /// A formula is one expression, read from its start — so only a step <em>along</em> the text can land
+    /// anywhere but the beginning of it, and then only at the end, which is the character you stepped back
+    /// onto. Up and down both land at the start, because a line step goes to where the line begins and the
+    /// whole formula is that line. The column is ignored for the same reason: landing part-way along
+    /// because that is where it fell would drop the reader into the middle of a subscript.
+    /// </summary>
+    public override void TakeCaretArriving(CaretArrival arrival)
+    {
+        if (arrival is not { Step: CaretStep.Character, Edge: BlockExit.After }) { TakeCaret(0); return; }
+
+        base.TakeCaretArriving(arrival);
+    }
+
+    /// <summary>
+    /// Ends a stretch being shown as written, as space or Enter does.
     ///
     /// <para>
-    /// There is nothing else to settling. A non-letter after a control word ends it, and that rule lives
-    /// with the typing rule where it belongs; a separate "commit" was a second way to say the same thing,
-    /// and the two could disagree.
+    /// <strong>This override should not exist.</strong> Settling is typing the character, and the base
+    /// does exactly that — except that LaTeX has to <em>add</em> a space after a control word, to say
+    /// where the name stopped, since dropping it silently turns <c>\alpha x</c> into the unknown command
+    /// <c>\alphax</c>. That is only true because the builder captures a pass made by an engine handed a
+    /// finished parse, so there is nowhere to say "the command stops here" except in the characters. Fix
+    /// the builder and this goes.
     /// </para>
     /// </summary>
-    public void Commit(string separator = " ")
-    {
-        if (IsReadOnly) return;
+    protected override void Settle(string separator) => Apply(State.Settle(separator), notify: true);
 
-        Apply(_state.Settle(separator), notify: true);
-    }
-
-    /// <summary>
-    /// Selects the next box still waiting to be written in, so a construct inserted whole can be filled
-    /// by typing and tabbing rather than by aiming at each hole. False when there is none — the caller's
-    /// cue to let Tab mean whatever it otherwise means.
-    /// </summary>
-    public bool SelectNextPlaceholder(bool forward = true)
-    {
-        if (IsReadOnly) return false;
-
-        // Read off the drawn formula rather than the text: a hole is a symbol the typesetter put there,
-        // and the source it stands over is the empty braces the reader actually wrote.
-        var boxes = _tree.Placeholders ?? [];
-        if (boxes.Count == 0) return false;
-
-        // From wherever the caret is, wrapping round — the last hole tabs back to the first, because
-        // a construct being filled in is a loop until it is finished.
-        var here = _state.HasSelection ? _state.SelectionStart : _state.Caret;
-        var next = forward
-            ? boxes.FirstOrDefault(b => b.Sits().Start > here, boxes[0])
-            : boxes.LastOrDefault(b => b.Sits().Start < here, boxes[^1]);
-
-        // The caret goes into the hole rather than over it. A hole covers nothing — that is what makes
-        // it a hole — so there is nothing to select and nothing to delete first: what gets typed lands
-        // inside the braces, and the hole stops being one because the argument is no longer empty.
-        TakeCaret(next.Sits().Start);
-        return true;
-    }
-
-    /// <summary>
-    /// Inserts text at the caret, replacing any selection — how a palette key types itself.
-    /// <paramref name="caretBack"/> walks the caret into a template's first hole.
-    /// </summary>
-    public void Insert(string text, int caretBack = 0)
-    {
-        if (IsReadOnly) return;
-
-        // Something picked out and a construct with a hole in it: what you picked goes in the hole.
-        if (_state.HasSelection && WrapSelectionInto(text, caretBack)) return;
-
-        // A palette key and a pasted formula land in a construct the same way a typed character does —
-        // \beta pressed after x^2 belongs in the exponent. Only when the template wants the caret
-        // walked back into a hole of its own, which is about the text and not the structure.
-        if (caretBack == 0 && WriteThroughTree(text)) return;
-
-        Apply(_state.Insert(text, caretBack), notify: true);
-    }
-
-    /// <summary>
-    /// Puts what is selected into the hole of <paramref name="template"/> the caret would have gone
-    /// to, filling its other holes with boxes.
-    /// <para>
-    /// Which hole is not a new thing to know: <paramref name="caretBack"/> already says where a key
-    /// expects to be typed into next, and that is the same place — a <c>\frac</c> pressed over a
-    /// selected <c>3+7</c> means a fraction <em>of</em> <c>3+7</c>, in its numerator, because the
-    /// numerator is where you would have typed it. Without this, every structural key replaced what
-    /// was picked out instead of taking it, which is not a thing anyone has ever wanted a palette to do.
-    /// </para>
-    /// Returns false when the template has no hole there, and the key inserts as it otherwise would.
-    /// </summary>
-    private bool WrapSelectionInto(string template, int caretBack)
-    {
-        var at = template.Length - caretBack;
-        if (at <= 0 || at >= template.Length) return false;
-        if (template[at - 1] != '{' || template[at] != '}') return false;
-
-        var built = template[..at] + _state.SelectedText + template[at..];
-        Apply(_state.Insert(built), notify: true);
-
-        // The template's other arguments are still empty, and the typesetter has just drawn a hole in
-        // each. Selecting the first is what makes the next keystroke fill it.
-        SelectNextPlaceholder();
-        return true;
-    }
-
-    /// <summary>Wraps the selection, or inserts the pair at the caret.</summary>
-    public void Wrap(string before, string after)
-    {
-        if (IsReadOnly) return;
-        Apply(_state.Wrap(before, after), notify: true);
-    }
-
-    /// <summary>
-    /// Backspace. Behind a rendered command this un-renders it rather than deleting a character of it —
-    /// see <see cref="EditState.Backspace"/>. Returns false when there was nothing to delete, which
-    /// is the host's cue that backspace should now remove the formula itself.
-    /// </summary>
-    public bool Backspace()
-    {
-        if (IsReadOnly) return false;
-        if (_state is { Caret: 0, SelectionLength: 0 }) return false;
-
-        var here = _state.Caret;
-        var symbol = _state.HasSelection || _state.Raw is not null
-            ? default
-            : _tree.SymbolBefore(here);
-
-        if (symbol.Exists && symbol.Sits() is { Length: > 1 } place)
-        {
-            var span = (Start: place.Start, Length: place.Length);
-
-            // A construct goes back to the source it was written as — there is source to go back to. A
-            // symbol has nothing hidden behind it, so it is simply taken: an α is one thing on the page
-            // however many letters spelled it, and backspace over one thing removes it.
-            Apply(_tree.IsComposite(symbol) ? _state.Backspace(span) : _state.Remove(span.Start, span.Length),
-                  notify: true);
-            return true;
-        }
-
-        Apply(_state.Backspace(), notify: true);
-        return true;
-    }
-
-    /// <summary>Forward delete. Returns false when the caret is already at the end.</summary>
-    public bool Delete()
-    {
-        if (IsReadOnly) return false;
-        if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
-        Apply(_state.Delete(), notify: true);
-        return true;
-    }
-
-    // ── Selection ───────────────────────────────────────────────────────────
-
-    /// <summary>Selects a source range, snapped out to whole constructs.</summary>
-    public void Select(int start, int length)
-    {
-        if (length <= 0) { ClearSelection(); return; }
-
-        var (from, snapped) = _laid.Root.Snap(start, length);
-
-        var next = _state.Select(from, snapped);
-        if (next.Selection.SequenceEqual(_state.Selection)) return;
-        Apply(next, notify: false);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>Selects everything — what the host asks for when a selection sweeps straight over it.</summary>
-    public void SelectAll() => Select(0, _state.Source.Length);
-
-    /// <inheritdoc />
-    public void ClearSelection()
-    {
-        if (!_state.HasSelection) return;
-        Apply(_state.Select(0, 0), notify: false);
-        InteractiveSelection.Release(this);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void ExtendSelectionTo(int offset) =>
-        Select(Math.Min(_anchor, offset), Math.Abs(offset - _anchor));
-
-    // ── Pointer, driven by the host ─────────────────────────────────────────
-
-    /// <inheritdoc />
-    public void BeginPointerSelect(Point pointInElement)
-    {
-        
-        InteractiveSelection.Own(this);
-
-        _anchor = _laid.OffsetAt(pointInElement);
-        _anchorNode = _laid.PieceAt(pointInElement);
-        _pressedAt = pointInElement;
-        _dragging = true;
-
-        // Pressing on what is already selected is how a move begins — the reader is picking the term
-        // up, not starting a new selection over it. The selection is kept until the button comes back
-        // up, so a press that turns out to be an ordinary click can still fall through to placing the
-        // caret without the selection having flickered away in between.
-        if (Covers(_anchor)) { _moving = true; _dropAt = _anchor; return; }
-
-        ClearSelection();
-
-        var place = _laid.PlaceAt(pointInElement);
-        TakeCaret(place.Offset, place.Level);
-    }
-
-    /// <summary>Whether <paramref name="offset"/> falls inside one of the selected stretches.</summary>
-    private bool Covers(int offset) =>
-        _state.Selection.Any(r => offset >= r.Start && offset <= r.End);
-
-    /// <inheritdoc />
-    public void ExtendPointerSelect(Point pointInElement)
-    {
-        if (!_dragging) return;
-
-        // A click is not a drag. The pointer moves a pixel or two under any real hand, and treating
-        // that as a selection meant clicking after a number selected it — so the next key typed
-        // replaced the number instead of following it, and the formula could not be edited at all.
-        // Nothing is selected until the pointer has travelled as far as the system asks of a drag.
-        if (!HasDragged(pointInElement)) return;
-
-        // Carrying a term: the formula is shown as it would read if it were let go here, with the
-        // carried part marked out, so the reader is choosing between finished formulas.
-        if (_moving)
-        {
-            var drop = _laid.OffsetAt(pointInElement);
-            if (drop == _dropAt) return;
-
-            _dropAt = drop;
-            _dropPoint = pointInElement;
-            BuildPreview();
-            HoldCaretVisible();
-            InvalidateMeasure();
-            InvalidateVisual();
-            return;
-        }
-
-        // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what
-        // makes a drag down a column select the column rather than everything written between its top
-        // cell and its bottom one.
-        if (_anchorNode.Exists && _laid.PieceAt(pointInElement) is { Exists: true } focus)
-        {
-            // Through whatever owns each end. Landing on a bracket means the group it opens or closes:
-            // half a pair is not a smaller selection, it is one that cannot be read.
-            SelectNodes(ContentSelection.Between(
-                _laid.Root, _tree.Owning(_anchorNode), _tree.Owning(focus)));
-            return;
-        }
-
-        ExtendSelectionTo(_laid.OffsetAt(pointInElement));
-    }
-
-    /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
-    private void SelectNodes(ContentSelection selection)
-    {
-        if (selection.IsEmpty) { ClearSelection(); return; }
-
-        var ranges = selection.Ranges.Select(r => new EditRange(r.Start, r.Length)).ToList();
-
-        var next = _state.Select(ranges);
-        if (next.Selection.SequenceEqual(_state.Selection)) return;
-
-        Apply(next, notify: false);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Whether the pointer has moved far enough from the press for this to be a drag rather than a
-    /// click. The system's own thresholds, so it matches every other drag the reader makes.
-    /// </summary>
-    private bool HasDragged(Point pointInElement) =>
-        Math.Abs(pointInElement.X - _pressedAt.X) >= SystemParameters.MinimumHorizontalDragDistance
-        || Math.Abs(pointInElement.Y - _pressedAt.Y) >= SystemParameters.MinimumVerticalDragDistance;
-
-    /// <inheritdoc />
-    public void EndPointerSelect()
-    {
-        _dragging = false;
-        if (!_moving) return;
-
-        _moving = false;
-        var settled = _previewOf;
-        ClearPreview();
-
-        if (IsReadOnly) return;
-
-        // The press never became a drag: an ordinary click on the selection, which places the caret
-        // there and drops the selection, as clicking a selection does everywhere.
-        if (settled is not { } moved) { ClearSelection(); TakeCaret(_anchor); return; }
-
-        // Exactly the formula that was on screen a moment ago — settling is letting go of it, not
-        // recomputing something the reader has to check.
-        Apply(new EditState(moved.Latex, moved.Caret), notify: true);
-    }
-
-    /// <summary>Typesets the formula as it would read if the carried term were dropped where it is now.</summary>
-    private void BuildPreview()
-    {
-        ClearPreview();
-        
-
-        var ranges = _state.Selection.Select(r => (r.Start, r.Length)).ToList();
-
-        if (_tree.Move(ranges, _dropAt, _dropPoint) is not { } moved) return;
-
-        _previewOf = moved;
-        _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
-        _preview = LatexBuilder.Build(moved.Latex, _scale, _inline);
-    }
-
-    private void ClearPreview()
-    {
-        _preview = null;
-        _previewOf = null;
-        _previewMoved = default;
-    }
-
-    /// <inheritdoc />
-    public bool PointerDoubleClick(Point pointInElement)
-    {
-        
-
-        // Select the construct under the pointer rather than letting the host drop the whole block into
-        // source-edit mode: inside a formula, "the word you clicked" is the symbol you clicked.
-        var here = _laid.OffsetAt(pointInElement);
-        var atom = _tree.SymbolBefore(here);
-        if (atom.Exists && atom.Sits() is { Length: > 0 } at) Select(at.Start, at.Length);
-        else Select(Math.Max(0, here - 1), 1);
-        return true;
-    }
-
-    // Hosted in a plain panel (the read-only markdown view), the element does get its own mouse events.
-    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
-    {
-        base.OnMouseLeftButtonDown(e);
-        if (e.ClickCount == 2) { PointerDoubleClick(e.GetPosition(this)); return; }
-        BeginPointerSelect(e.GetPosition(this));
-        CaptureMouse();
-    }
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        base.OnMouseMove(e);
-        if (_dragging) ExtendPointerSelect(e.GetPosition(this));
-    }
-
-    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
-    {
-        base.OnMouseLeftButtonUp(e);
-        if (IsMouseCaptured) ReleaseMouseCapture();
-        EndPointerSelect();
-    }
-
-    // ── Layout and painting ─────────────────────────────────────────────────
-
-    /// <param name="level">
-    /// Which bar at the caret's offset — see <see cref="_level"/>. Innermost unless a step says otherwise,
-    /// which is what makes an edit, a click or a jump put the caret back inside whatever it is in.
-    /// </param>
-    private void Apply(EditState next, bool notify, int level = 0)
-    {
-        var resized = next.Source != _state.Source || next.Raw != _state.Raw;
-        var moved = next.Caret != _state.Caret || level != _level;
-        var changed = next.Source != _state.Source;
-
-        _state = next;
-        _level = level;
-        if (resized) { Rebuild(); InvalidateMeasure(); }
-        if (moved || changed) HoldCaretVisible();   // never blink out mid-keystroke
-        InvalidateVisual();
-
-        if (moved) CaretMoved?.Invoke(this, EventArgs.Empty);
-        if (notify && changed) LatexChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
-    /// Typesets the whole formula, with the stretch being written set as the characters that were typed.
-    /// <para>
-    /// One layout over the real source, rather than a layout of the settled part with the raw characters
-    /// painted over it afterwards. Painting over could only ever work while the stretch was the last
-    /// thing in the formula: anywhere else it covered whatever followed, which is what un-rendering a
-    /// fraction in the middle of an expression looked like. Set through the typesetter it takes up room
-    /// like anything else, so the formula flows around it — and every offset the tree reports is an
-    /// offset into the source the reader is editing, with no mapping in between.
-    /// </para>
-    /// </summary>
-    private void Rebuild()
-    {
-        _laid = LatexBuilder.Build(
-            _state.Source, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly,
-            pixelsPerDip: VisualTreeHelper.GetDpi(this).PixelsPerDip);
-
-        // The formula as TeX sees it, over the layout that was just made. Its reading is worked out only if
-        // something asks a question about the parse, so a keystroke that only redraws pays nothing for it.
-        _tree = new LatexTree(_state.Source, _laid, LatexBuilder.Draws, _state.Raw, !IsReadOnly);
-    }
-
-
-
-    private int Snap(int offset)
-    {
-        var clamped = Math.Clamp(offset, 0, _state.Source.Length);
-
-        // Inside the stretch being written every character is its own stop, so the caret goes exactly
-        // where it was put; the settled formula snaps to the places a caret may rest.
-        return _state.Raw is { } zone && zone.Holds(clamped) ? clamped : _laid.NearestStop(clamped);
-    }
-
-    protected override Size MeasureOverride(Size availableSize)
-    {
-        // While a term is being carried, the formula on screen is the one it would become, so that is
-        // the one that has to fit — otherwise the preview is clipped at the settled formula's width.
-        if (_preview is { } preview)
-            return new Size(Math.Ceiling(preview.Size.Width), Math.Ceiling(preview.Size.Height));
-
-        // Whatever is being written is set into the formula rather than drawn over it, so the layout own
-        // size already accounts for it. Source that would not typeset is in there too, as its own
-        // characters, which is why there is no second answer here.
-        return new Size(Math.Ceiling(_laid.Size.Width), Math.Ceiling(_laid.Size.Height));
-    }
-
-    protected override void OnRender(DrawingContext dc)
-    {
-        // A transparent fill makes the whole element hit-testable, gaps between glyphs included.
-        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, RenderSize.Width, RenderSize.Height));
-
-        if (_preview is not null) { PaintPreview(dc); return; }
-
-        LayoutPainter.Paint(dc, _laid.Root, _palette.Text);
-
-        // Every stretch washes itself. A column of a matrix is three of them with the rest of the matrix
-        // in between, and washing from the first to the last would highlight the lot.
-        foreach (var range in _state.Selection)
-            foreach (var rect in _laid.Root.RangeRects(range.Start, range.Length))
-                dc.DrawRectangle(_wash, null, Marked(rect));
-
-        // A wave under whatever could not be read, drawn over the formula rather than instead of it: the
-        // parts that did parse are still worth looking at, and the reader needs to see which part is not.
-        foreach (var trouble in _laid.Trouble)
-        {
-            var runs = _laid.Root.RangeRects(trouble.Start, trouble.Length);
-            if (runs.Count == 0) continue;
-
-            var wave = new Pen(trouble.Severity == DiagnosticSeverity.Error ? _palette.Danger : _palette.Warning, 1.0);
-            wave.Freeze();
-            dc.DrawGeometry(null, wave, Squiggle.Under(runs));
-        }
-
-        // While a term is being carried the caret shows where it would land, not where it was picked
-        // up from — that is the one thing the reader needs to see before letting go. Inside a stretch
-        // being written it needs no special case: those characters are in the layout like any others,
-        // so the tree already knows where each of them sits.
-        var caret = _laid.Root.CaretRect(
-            _moving ? CaretPlace.At(_dropAt) : new CaretPlace(_state.Caret, _level));
-
-        if ((!HasCaret && !_moving) || IsReadOnly || !_caretVisible) return;
-        DrawCaret(dc, caret.X, caret.Y, caret.Height);
-    }
-
-    /// <summary>
-    /// How far a wash reaches past the ink it marks, as a fraction of the type size.
-    /// <para>
-    /// A box the exact size of a glyph is a poor way to say "this is picked out". Text does not do it
-    /// either: a selected character is washed over the whole line box, not over its own outline, which
-    /// is why a selected <c>i</c> reads as selected at all. A glyph's box here is its advance and its
-    /// own height, so washing it exactly leaves an <c>a</c> showing the wash through its counter and
-    /// nowhere else, and an <c>i</c> or an <c>l</c> as a stripe too narrow to notice.
-    /// </para>
-    /// </summary>
-    private const double WashReach = 0.14;
-
-    /// <summary>A wash a little larger than what it marks — see <see cref="WashReach"/>.</summary>
-    private Rect Marked(Rect rect)
-    {
-        var reach = _scale * WashReach;
-        rect.Inflate(reach, reach);
-        return rect;
-    }
-
-    /// <summary>The caret itself. One place, so a formula that is empty draws the same one as any other.</summary>
-    private void DrawCaret(DrawingContext dc, double x, double y, double height)
-    {
-        var pen = new Pen(_palette.Accent, 1.4);
-        pen.Freeze();
-        dc.DrawLine(pen, new Point(x, y), new Point(x, y + Math.Max(height, 1)));
-    }
-
-    /// <summary>
-    /// Draws the formula as it would read after the drop, with the carried term in the accent colour so
-    /// it can be picked out of a formula it has already merged into — by then it is set in place,
-    /// braces and spacing and all, and nothing else would distinguish it.
-    /// </summary>
-    private void PaintPreview(DrawingContext dc)
-    {
-        var preview = _preview!;
-        LayoutPainter.Paint(dc, preview.Root, _palette.Text);
-
-        // Over the top rather than instead of: painting all of it and then the carried part again is
-        // what keeps this to two calls, and the second colour is the one that shows.
-        foreach (var node in Carried(preview))
-            LayoutPainter.PaintOne(dc, node, _palette.Accent);
-    }
-
-    /// <summary>
-    /// The outermost pieces of <paramref name="preview"/> lying wholly inside the carried term.
-    /// Outermost so that nothing is painted twice over — a piece and its own children are one drawing.
-    /// </summary>
-    private IEnumerable<Piece> Carried(Laid preview)
-    {
-        var (start, end) = _previewMoved;
-        if (end <= start) yield break;
-
-        var taken = new List<Piece>();
-        foreach (var node in preview.Root.SelfAndDescendants())
-        {
-            if (node.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
-            if (taken.Any(t => node.Ancestors().Contains(t))) continue;
-
-            taken.Add(node);
-            yield return node;
-        }
-    }
-
-    /// <summary>
-    /// A translucent wash from the theme accent, falling back to the highlight token — never a literal.
-    /// Mirrors <c>ScoreElement</c>, so a selected formula and a selected bar of music look alike.
-    /// </summary>
-    private static Brush Wash(MarkdownPalette palette)
-    {
-        if (palette.Accent is not SolidColorBrush accent) return palette.Marked;
-        var brush = new SolidColorBrush(Color.FromArgb(0x3A, accent.Color.R, accent.Color.G, accent.Color.B));
-        brush.Freeze();
-        return brush;
-    }
+    /// <summary>Settles a half-written command — the host's Enter and space arrive here.</summary>
+    public void Commit(string separator = " ") { if (!IsReadOnly) Settle(separator); }
 }
