@@ -66,28 +66,41 @@ internal sealed class BarcodeBuilder : ContentBuilder
     private readonly MarkdownPalette _palette;
     private readonly double _dpi;
 
+    /// <summary>Why the value would not encode, or null — what the reader gets a wave and a hover for.</summary>
+    private readonly string? _trouble;
+
     private double _labelSize;
     private double _barsLeft, _barsTop, _guardDrop;
 
-    private BarcodeBuilder(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
-                                                MarkdownPalette palette, double pixelsPerDip)
-                              : base(block.Value)
-                          {
-                              _block = block;
-        _pattern = pattern;
-        _drawn = pattern ?? placeholder;
+    private BarcodeBuilder(BarcodeBlock block, MarkdownPalette palette, double pixelsPerDip)
+        : base(block.Value)
+    {
+        _block = block;
         _palette = palette;
         _dpi = pixelsPerDip;
+
+        // Reading the value is the builder's own business, exactly as parsing a formula is. It used to be the
+        // element's: the element encoded, kept the pattern and the reason beside each other, and handed both
+        // back in. That is a second copy of what a builder is for, and it is why "does it encode" had to be
+        // asked twice on every keystroke.
+        if (block.Value.Length == 0) _trouble = "A barcode needs a value.";
+        else if (BarcodeEncoder.TryEncode(block.Format, block.Value, out var encoded, out string? error))
+            _pattern = encoded;
+        else _trouble = error;
+
+        // A valid symbol in the asked-for format, drawn faint behind the error when the real value will not
+        // encode. A barcode-shaped absence reads as "this is a barcode, and it is wrong"; an empty gap reads
+        // as a rendering fault.
+        _drawn = _pattern ?? (BarcodeEncoder.TryEncode(
+            block.Format, BarcodeEncoder.SampleValue(block.Format), out var sample, out _) ? sample : null);
     }
 
-    /// <summary>What it made: every piece of the symbol, where it landed and what it drew.</summary>
     /// <summary>Lays a barcode out, and gives back the tree and nothing barcode-shaped at all.</summary>
-    public static Laid Build(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
-                             MarkdownPalette palette, double pixelsPerDip)
-    {
-        var layout = new BarcodeBuilder(block, pattern, placeholder, palette, pixelsPerDip);
-        return layout.Lay();
-    }
+    public static Laid Build(BarcodeBlock block, MarkdownPalette palette, double pixelsPerDip) =>
+        new BarcodeBuilder(block, palette, pixelsPerDip).Lay();
+
+    /// <summary>The symbol the value encodes to, or null while it will not encode.</summary>
+    public BarcodePattern? Encoded => _pattern;
 
     // ── Laying it out ─────────────────────────────────────────────────────
 
@@ -179,7 +192,12 @@ internal sealed class BarcodeBuilder : ContentBuilder
         LayLabel(build, symbol, groups, barsWidth, gap);
 
         build.Close();
-        return new Laid(build.Seal(), size, []);
+
+        // Reported over the whole value, because that is the span the reader has to change. The wave and
+        // the hover are the host's doing from here — a builder says what is wrong, not how to show it.
+        return new Laid(build.Seal(), size, _trouble is null
+            ? []
+            : [new Diagnostic(0, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _trouble)]);
     }
 
     /// <summary>
@@ -309,11 +327,23 @@ internal sealed class BarcodeBuilder : ContentBuilder
             double top = addOn ? lift : 0;
             double height = _block.BarHeight - (addOn ? lift : 0) + (IsGuard(_drawn, start) ? _guardDrop : 0);
 
-            into.Draw(new RuleMark(
-                new Rect(start * _block.BarWidth, top, length * _block.BarWidth, height), ink));
-        }
+                into.Draw(new RuleMark(
+                    new Rect(start * _block.BarWidth, top, length * _block.BarWidth, height), ink));
+            }
 
-        into.Close();
+            // The strike, last so it sits over the bars it is about. A barcode-shaped absence with a line
+            // through it reads as "this is a barcode and it is wrong"; the bars alone read as a real symbol.
+            // It is drawing, so it is a mark here rather than something the element paints afterwards from
+            // its own copy of whether the value encoded.
+            if (_trouble is not null)
+                into.Draw(new RuleMark(
+                    new Rect(0,
+                             _block.BarHeight / 2 - Math.Max(_block.BarHeight * 0.04, 1.5),
+                             width,
+                             Math.Max(_block.BarHeight * 0.08, 3)),
+                    _palette.Danger));
+
+            into.Close();
     }
 
     /// <summary>

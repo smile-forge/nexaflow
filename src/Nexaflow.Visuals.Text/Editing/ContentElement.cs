@@ -51,7 +51,7 @@ public readonly record struct Moved(string Source, int Caret, EditRange Wrote);
 /// or even to a neighbouring paragraph. The host hit-tests geometrically and drives the three methods.
 /// </para>
 /// </summary>
-public abstract class ContentElement : FrameworkElement, IEditableBlock
+public class ContentElement : FrameworkElement, IEditableBlock
 {
     private static readonly TimeSpan BlinkRate = TimeSpan.FromMilliseconds(600);
 
@@ -110,6 +110,20 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>Raised when a caret movement ran off an end — the host puts it in the prose beside.</summary>
     public event EventHandler<BlockExit>? Exited;
 
+    /// <summary>
+    /// Content whose builder is all there is to it — the ordinary case, and the one that makes a new kind of
+    /// content cost a builder and nothing else.
+    /// </summary>
+    /// <param name="lay">
+    /// How to lay the source out. Handed the whole <see cref="EditState"/> rather than the string, because
+    /// what is being typed changes what is drawn.
+    /// </param>
+    public ContentElement(string source, MarkdownPalette palette, Func<EditState, double, double, Laid> lay)
+        : this(source, palette)
+    {
+        _lay = lay;
+    }
+
     protected ContentElement(string source, MarkdownPalette palette)
     {
         Palette = palette;
@@ -151,7 +165,11 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
     /// the only way the rest of the content can be laid out knowing it is there.
     /// </para>
     /// </summary>
-    protected abstract Laid Lay(EditState state, double room, double pixelsPerDip);
+    protected virtual Laid Lay(EditState state, double room, double pixelsPerDip) =>
+        _lay is { } build ? build(state, room, pixelsPerDip) : Laid.Nothing;
+
+    /// <summary>The builder, for content that needs no element of its own — see the constructor.</summary>
+    private readonly Func<EditState, double, double, Laid>? _lay;
 
     /// <summary>
     /// What writing <paramref name="text"/> means, where this content has something to say about it.
