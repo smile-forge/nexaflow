@@ -738,11 +738,11 @@ public sealed class LatexTree
         Innermost(node) is { } part && part.Parts.Any();
 
     /// <summary>
-    /// Whether this piece is a run of things rather than one thing — see <see cref="LatexLayoutCapture.IsRun"/>,
+    /// Whether this piece is a run of things rather than one thing — see <see cref="LatexCapture.IsRun"/>,
     /// which is the same question asked of the part a piece was drawn from.
     /// </summary>
     private bool IsSequence(Piece node) =>
-        Innermost(node) is { } part && LatexLayoutCapture.IsRun(part);
+        Innermost(node) is { } part && LatexCapture.IsRun(part);
 
     /// <summary>
     /// The part of the parse tree a piece was drawn from, typed — the link back that says what it

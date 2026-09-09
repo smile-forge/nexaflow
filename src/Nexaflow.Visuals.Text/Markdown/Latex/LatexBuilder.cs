@@ -89,7 +89,7 @@ public static class LatexBuilder
                 scale: scale,
                 systemTextFontName: systemFont);
 
-            var capture = new LatexLayoutCapture(scale, reading);
+            var capture = new LatexCapture(scale, reading);
             formula.RenderTo(capture, environment, 0, 0);
 
             // …which also settles the tree onto the origin. A shifted or transformed box can land above or

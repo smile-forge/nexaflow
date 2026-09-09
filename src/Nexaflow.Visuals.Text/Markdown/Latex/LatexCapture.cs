@@ -51,7 +51,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// scaled here so the tree is in the same pixels the element is painted in.
 /// </para>
 /// </summary>
-internal sealed class LatexLayoutCapture : IElementRenderer
+internal sealed class LatexCapture : IElementRenderer
 {
     private readonly LayoutBuilder _build = new();
     private readonly double _scale;
@@ -94,7 +94,7 @@ internal sealed class LatexLayoutCapture : IElementRenderer
     /// </summary>
     private bool _built;
 
-    public LatexLayoutCapture(double scale, TexReading reading)
+    public LatexCapture(double scale, TexReading reading)
     {
         _scale = scale;
         _reading = reading;

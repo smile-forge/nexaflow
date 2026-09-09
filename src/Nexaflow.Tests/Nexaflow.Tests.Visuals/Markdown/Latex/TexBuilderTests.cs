@@ -360,7 +360,7 @@ public class TexBuilderTests
     /// </summary>
     private static string Drawn(TexFormula formula, TexReading reading)
     {
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
@@ -542,7 +542,7 @@ public class TexBuilderTests
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
@@ -579,7 +579,7 @@ public class TexBuilderTests
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
