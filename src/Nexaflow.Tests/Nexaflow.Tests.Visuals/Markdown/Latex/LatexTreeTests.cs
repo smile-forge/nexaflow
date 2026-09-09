@@ -135,18 +135,6 @@ public class LatexTreeTests
     // ── Arrowing ────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void ArrowingOffTheEndReportsNowhereLeftToGo()
-    {
-        var tree = Latex();
-
-        Assert.IsNull(tree.Laid.Root.Step(0, forward: false), "there is nothing before the formula");
-        Assert.IsNull(tree.Laid.Root.Step(Fraction.Length, forward: true), "nor anything after it");
-
-        // Null is the signal the host needs: it is what hands the caret out into the surrounding prose.
-        Assert.IsNotNull(tree.Laid.Root.Step(0, forward: true));
-    }
-
-    [TestMethod]
     public void ThereIsNoVerticalMoveFromOutsideTheGlyphs()
     {
         // Offset 0 abuts nothing that was drawn — its caret spans every line, so it is on none of them.

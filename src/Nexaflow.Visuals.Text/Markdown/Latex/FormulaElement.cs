@@ -169,10 +169,10 @@ public sealed class FormulaElement : ContentElement
         if (state.HasSelection || state.Raw is not null) return null;
         if (string.IsNullOrWhiteSpace(text)) return null;
 
-        // Only from inside. A caret that has stepped out of a construct is past it — that is what the place
-        // means and the whole reason it exists — so a 3 typed there follows `x^2` rather than joining its
-        // exponent, and the same keystroke one bar to the left still makes it twenty-three.
-        if (Level > 0) return null;
+        // Only from inside. A caret that has stepped out of a construct is standing against the construct
+        // rather than against its contents — that is what a place means and the whole reason it is a piece —
+        // so a 3 typed there follows `x^2` instead of joining its exponent.
+        if (!Innermost) return null;
 
         return _tree.Write(state.Caret, text) is { } written
             ? new EditState(written.Latex, written.Caret)

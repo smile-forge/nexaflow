@@ -47,31 +47,6 @@ public class SingleBlockEditorTests
         e => e.SingleBlock = "abc"));
 
     [TestMethod]
-    public void AndAnEditToItComesBackAsTheTuneAlone() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run(Tune, (editor, _) =>
-        {
-            var block = Find<AbcElement>(editor)!;
-            Assert.IsNotNull(block);
-
-            // Sharpen the last note through the block's own editing seam — the path the caret drives.
-            var at = block.Source.LastIndexOf('c');
-            Assert.IsTrue(at > 0, block.Source);
-
-            // Through the editor, not straight at the block: the host has to have adopted it, or the edit
-            // never reaches the text. That adoption is the thing this is really testing.
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor did not give the tune the caret");
-
-            var editable = (IEditableBlock)block;
-            editable.SelectRange(at, 1);
-            editable.Type('#');
-            MarkdownEditorHarness.Pump();
-
-            Assert.AreEqual("X:1\nL:1/8\nK:C\nCDEF GAB^c|\n", editor.Markdown,
-                            "the edit landed somewhere other than where the note was");
-        },
-        e => e.SingleBlock = "abc"));
-
-    [TestMethod]
     public void AndTheLanguageIsWhatDecidesTheFence() => UiThread.Run(() =>
     {
         // The same text, told it is two different things. With a language it engraves; without one it is a

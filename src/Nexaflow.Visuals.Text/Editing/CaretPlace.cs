@@ -3,31 +3,42 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// Where a caret is: an offset in the source, and which of the bars drawn at that offset.
+/// Where a caret is: a piece of the layout, and which edge of it the caret stands against.
+///
 /// <para>
-/// An offset alone cannot say it. Two things a reader sees as different places are one position in the
-/// text — after the <c>6</c> and before the <c>+</c> of <c>6+5</c> are the same character boundary, and
-/// so are inside the exponent of <c>x^2</c> and past the whole script — and in a formula the difference
-/// is plain on the page: one is a hand's width to the left of the other, or half its height and raised.
-/// So the caret is the position <em>and</em> which side of the gap, or how far out of the construct, it
-/// is being drawn.
+/// An offset alone cannot say it, and that is the whole reason this exists. Two things a reader sees as
+/// different places are one position in the text — inside the exponent of <c>x^2</c> and past the whole
+/// script finish at the same character — and on the page the difference is plain: one is half the height
+/// of the other and raised off the line. The piece is what tells them apart, because the piece is what
+/// the caret is standing against.
 /// </para>
 /// <para>
-/// <see cref="Level"/> indexes the bars at the offset, in the order an arrow key visits them: against the
-/// thing that ends there first, then out through anything that ends where its contents do, then against
-/// the thing that starts there. Where two of those would be drawn in the same place they are one, so the
-/// reader never presses an arrow twice for a caret that does not appear to move.
+/// This used to be an offset and an index into the bars drawn there, which meant every question about
+/// the caret went through a list rebuilt from the offset, and the second bar of <c>x^2</c> — the one past
+/// the script — was invented by the layout rather than declared by anyone. Now a builder declares which
+/// edges of which pieces a caret may rest on (<see cref="Stops"/>) and a place is one of them.
 /// </para>
 /// <para>
-/// It survives a step and nothing else. Every edit, click and jump puts the caret back at level 0 —
-/// innermost, which is where a reader who has just typed something is — so nothing has to remember to
-/// clear it.
+/// <strong>It is only ever true of the tree it came from.</strong> A rebuild makes a new tree, so a place
+/// held across one is stale — and the caret goes back to the innermost place at its offset, which is
+/// where a reader who has just typed something is. The source offset is what survives an edit; this is
+/// what survives a step.
 /// </para>
 /// </summary>
-/// <param name="Offset">Offset into the source.</param>
-/// <param name="Level">Which bar at that offset, from innermost.</param>
-public readonly record struct CaretPlace(int Offset, int Level)
+/// <param name="Against">The piece the caret is standing against.</param>
+/// <param name="Trailing">Whether it is at that piece's far edge rather than its near one.</param>
+public readonly record struct CaretPlace(Piece Against, bool Trailing)
 {
-    /// <summary>The innermost place at an offset — what any position not arrived at by stepping means.</summary>
-    public static CaretPlace At(int offset) => new(offset, 0);
+    /// <summary>Whether this is anywhere at all.</summary>
+    public bool Exists => Against.Exists;
+
+    /// <summary>The offset in the source — which end of the piece depends on which edge this is.</summary>
+    public int Offset
+    {
+        get
+        {
+            var at = Against.Sits();
+            return Trailing ? at.Start + at.Length : at.Start;
+        }
+    }
 }

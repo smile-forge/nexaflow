@@ -103,9 +103,6 @@ public readonly record struct Piece
         Part is { } part ? new SourcePlace(part.Start, part.Length)
                          : new SourcePlace(Naming()?.Start ?? 0, 0);
 
-    /// <summary>Whether a caret inside it is somewhere other than beside it — a script, a fraction.</summary>
-        public bool IsEnclosure => _tree is not null && _tree.Piece(_at).IsEnclosure;
-
 
     /// <summary>Where a caret may rest against this piece — see <see cref="Editing.Stops"/>.</summary>
     public Stops Stops => _tree is null ? Stops.None : _tree.Piece(_at).Stops;

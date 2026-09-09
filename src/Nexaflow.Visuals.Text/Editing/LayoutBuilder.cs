@@ -50,8 +50,6 @@ public sealed class LayoutBuilder
         public int At;
         public Vector Offset;
         public Rect Box;
-    
-        public bool IsEnclosure;
         
         public Stops Stops;
         public bool Gathers;
@@ -106,7 +104,7 @@ public sealed class LayoutBuilder
     /// ledger line has none, because nobody wrote it.
     /// </param>
     public int Open(string kind, ISourcePart? part = null, Point at = default,
-                bool isEnclosure = false, Stops stops = Stops.Both,
+                Stops stops = Stops.Both,
                 bool gathers = true,
                     LayoutPaint? paints = null)
     {
@@ -116,7 +114,7 @@ public sealed class LayoutBuilder
         frame.Offset = new Vector(at.X, at.Y);
         frame.Box = Rect.Empty;
 
-                frame.IsEnclosure = isEnclosure;
+                
                 
         frame.Stops = stops;
         frame.Gathers = gathers;
@@ -212,7 +210,7 @@ public sealed class LayoutBuilder
             // be pointed at, hit-tested, washed or stood beside. Kept here rather than checked at each of
             // the places that trust it, because there are too many of those to keep in step.
 
-                        IsEnclosure = frame.IsEnclosure,
+                        
                         
             Stops = frame.Stops,
         };

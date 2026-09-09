@@ -28,7 +28,7 @@ public class BarcodeLayoutTests
     private static Piece UiRoot(string source)
     {
         Assert.IsTrue(BarcodeBlockParser.TryParse(source, out var block, out string? error), error);
-        return ((IEditableBlock)new BarcodeElement(block!, MarkdownPalette.Dark)).Root;
+        return new BarcodeElement(block!, MarkdownPalette.Dark).Root;
     }
 
     private static Piece[] Of(Piece root, BarcodeKind kind) =>

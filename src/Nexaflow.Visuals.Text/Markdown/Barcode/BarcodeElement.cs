@@ -33,7 +33,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 /// comes from <see cref="IEditableBlock"/>, so a host that can drive a formula drives this unchanged.
 /// </para>
 /// </summary>
-public sealed class BarcodeElement : FrameworkElement, IEditableBlock
+public sealed class BarcodeElement : FrameworkElement, IInteractiveBlock
 {
     private BarcodeBlock _block;
     private MarkdownPalette _palette;
@@ -48,30 +48,25 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     private Laid? _layout;
 
     private readonly List<(int Start, int Length)> _selection = [];
-    private int? _caret;
-
     /// <summary>
-    /// Which of the bars at the caret's offset it is drawn as. There is more than one wherever a piece of
+    /// What the caret is standing against. There is more than one place at an offset wherever a piece of
     /// the number ends and another begins somewhere else on the page — the two halves of a retail symbol,
-    /// with a guard between them — and those are different places to stand for one offset.
+    /// with a guard between them — and those are different places to stand for one character.
+    ///
+    /// <para>
+    /// Only ever true of the layout it was taken from, so it is worked out again whenever the symbol has
+    /// been encoded since — which puts the caret back at the innermost place at its offset.
+    /// </para>
     /// </summary>
-    private int _level;
 
     /// <summary>Where a pointer drag began, as a piece of the layout rather than as an offset.</summary>
     private Piece _dragAnchor;
 
     /// <summary>Where a shift-arrow selection started, so extending it walks from there and not from the caret.</summary>
-    private int? _keyAnchor;
-
     /// <summary>
     /// Windows' own caret rate. WPF does not surface <c>GetCaretBlinkTime</c>, and a P/Invoke for one
     /// number is not worth the trouble; this is the default every version has shipped.
     /// </summary>
-    private static readonly TimeSpan BlinkRate = TimeSpan.FromMilliseconds(530);
-
-    private DispatcherTimer? _blink;
-    private bool _caretVisible = true;
-
     public BarcodeElement(BarcodeBlock block, MarkdownPalette palette)
     {
         _block   = block;
@@ -87,17 +82,13 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         HorizontalAlignment = HorizontalAlignment.Left;
         Margin = new Thickness(0, 6, 0, 10);
 
-        Unloaded += (_, _) => StopBlinking();
+
 
         Encode();
     }
 
     /// <summary>The value changed under the reader's typing; the host puts it back in the block source.</summary>
-    public event EventHandler? ValueChanged;
-
     /// <inheritdoc/>
-    public event EventHandler<BlockExit>? Exited;
-
     /// <summary>Where the value sits in the block that produced it, for splicing an edit back.</summary>
     public int ValueStart => _block.ValueStart;
 
@@ -120,36 +111,19 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// that question is barcode-shaped.
     /// </para>
     /// </summary>
-    public bool AcceptsCaret =>
-        _layout is { } laid && laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
-
     // ── What the document around it needs ──────────────────────────────────
+    //
+    // A barcode is drawn, pressed and selected here; it is not edited here. Everything a caret needs — the
+    // caret itself, typing, backspacing and the seam that carried them — was a second copy of what
+    // ContentElement already does, kept in step by hand and drifting whenever the other copy moved. It is
+    // deleted rather than ported, and comes back when this element becomes a ContentElement like the
+    // formula did: one element, one caret, one edit model.
 
-    string IEditableBlock.Source => _block.Value;
+    /// <summary>Every piece of the symbol and where it landed — what the shared queries read.</summary>
+    public Piece Root => _layout?.Root ?? default;
 
-    /// <summary>
-    /// The seam's name for <see cref="ValueChanged"/> — what a host driving every editable block alike
-    /// listens to, while the element's own event stays named after the thing that changed.
-    /// </summary>
-    event EventHandler? IEditableBlock.SourceChanged
-    {
-        add    => ValueChanged += value;
-        remove => ValueChanged -= value;
-    }
-
-    /// <summary>
-    /// The value's place inside the fenced block that produced it. Never negative: a barcode is always a
-    /// run inside its fence, never the whole of the block the way a <c>$$</c> formula can be.
-    /// </summary>
-    int IEditableBlock.SourceStart => _block.ValueStart;
-
-    /// <summary>
-    /// Every piece of the symbol and where it landed, which is what the shared queries read to answer
-    /// where a press went, what a drag took and where the caret can stand.
-    /// </summary>
-    Piece IEditableBlock.Root => _layout?.Root ?? default;
-
-    IReadOnlyList<(int Start, int Length)> IEditableBlock.Selection => _selection;
+    /// <summary>What is picked out, for the host to copy.</summary>
+    public IReadOnlyList<(int Start, int Length)> Selection => _selection;
 
     /// <summary>
     /// The one thing that can be wrong here: the value is not something this format can carry. Reported
@@ -159,50 +133,6 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         _encodeError is null
             ? []
             : [new Diagnostic(0, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _encodeError)];
-
-    void IEditableBlock.SelectRange(int start, int length)
-    {
-        _selection.Clear();
-        if (length > 0) _selection.Add((start, length));
-        Refresh();
-    }
-
-    void IEditableBlock.TakeCaretArriving(CaretArrival arrival)
-    {
-        // Nothing printed here is the value, so there is nowhere in it to stand. The caret is handed
-        // straight on the way it was already going, and the reader arrows over the symbol as they would
-        // over a word — rather than into it, to find that no key does anything.
-        if (!AcceptsCaret)
-        {
-            Exited?.Invoke(this, arrival.Edge == BlockExit.Before ? BlockExit.After : BlockExit.Before);
-            return;
-        }
-
-        InteractiveSelection.Own(this);
-
-        // Stepping along the text lands on the character stepped onto; stepping onto a line lands where
-        // that line starts, whichever side the reader came from.
-        _caret = arrival.Step == CaretStep.Character && arrival.Edge == BlockExit.After
-            ? _block.Value.Length
-            : 0;
-
-        _level     = 0;
-        _keyAnchor = null;
-        _selection.Clear();
-        Refresh();
-    }
-
-    /// <summary>
-    /// Gives the caret back, and with it the selection — something else on the page now has both.
-    /// </summary>
-    public void ReleaseCaret()
-    {
-        _caret     = null;
-        _keyAnchor = null;
-        _selection.Clear();
-        InteractiveSelection.Release(this);
-        Refresh();
-    }
 
     /// <summary>
     /// Drops what is selected here, because another block or a click in the text took the selection.
@@ -217,7 +147,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     {
         if (_selection.Count == 0) return;
 
-        _keyAnchor = null;
+
         _selection.Clear();
         InteractiveSelection.Release(this);
         Refresh();
@@ -232,8 +162,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         _dragAnchor = root.PieceAt(pointInElement);
         _selection.Clear();
-        _caret = AcceptsCaret ? CaretNear(root, pointInElement) : null;
-        _level = 0;
+
         Refresh();
     }
 
@@ -247,8 +176,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         // from the value, which would stand for a stretch of source it does not cover.
         _selection.Clear();
         _selection.AddRange(Taken(root, _dragAnchor, focus));
-
-        if (AcceptsCaret) _caret = CaretNear(root, pointInElement);
+
         Refresh();
     }
 
@@ -259,167 +187,14 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         // A double click takes the whole value, which is the only word there is.
         InteractiveSelection.Own(this);
         _selection.Clear();
-        if (_block.Value.Length > 0) _selection.Add((0, _block.Value.Length));
-        if (AcceptsCaret) _caret = _block.Value.Length;
+        if (_block.Value.Length > 0) _selection.Add((0, _block.Value.Length));
         Refresh();
         return true;
-    }
-
-    /// <summary>
-    /// The caret offset nearest a point: the side of the piece under it that the point fell on.
-    /// <para>
-    /// Asked of the tree rather than measured against a list of positions, so the printed number being in
-    /// three pieces on two rows needs no special handling — the piece under the pointer already knows
-    /// which characters it is.
-    /// </para>
-    /// </summary>
-    private static int CaretNear(Piece root, Point point)
-    {
-        if (root.PieceAt(point) is not { Exists: true } piece) return 0;
-
-        var where = piece.Bounds;
-        return point.X <= where.X + where.Width / 2 ? piece.Sits().Start : piece.Sits().End;
     }
 
     // ── Editing ───────────────────────────────────────────────────────────
 
-    /// <summary>Types a character at the caret, replacing whatever is selected.</summary>
-    /// <returns>False when this block holds no caret, so the key was never its to take.</returns>
-    public bool Type(char character)
-    {
-        if (!AcceptsCaret || !TryPlace(out int start, out int length)) return false;
 
-        Replace(start, length, character.ToString());
-        _caret = start + 1;
-        return true;
-    }
-
-    /// <summary>
-    /// Where an edit would land: the selection if there is one, otherwise the caret.
-    /// <para>
-    /// False when the block holds neither. A block with no caret is not the one being typed into, and one
-    /// that acted anyway — by assuming the end of its value, say — would quietly edit something nobody was
-    /// looking at.
-    /// </para>
-    /// </summary>
-    private bool TryPlace(out int start, out int length)
-    {
-        if (_selection.Count > 0)
-        {
-            (start, length) = _selection[0];
-            return true;
-        }
-
-        if (_caret is { } at)
-        {
-            start  = Math.Clamp(at, 0, _block.Value.Length);
-            length = 0;
-            return true;
-        }
-
-        start = length = 0;
-        return false;
-    }
-
-    /// <summary>Backspace. False when there was nothing left to delete, so the document takes the key.</summary>
-    public bool Backspace()
-    {
-        if (!AcceptsCaret || !TryPlace(out int start, out int length)) return false;
-        if (length > 0) { Replace(start, length, string.Empty); _caret = start; return true; }
-        if (start == 0) return false;
-
-        Replace(start - 1, 1, string.Empty);
-        _caret = start - 1;
-        return true;
-    }
-
-    /// <summary>Forward delete. False when the caret is already at the end.</summary>
-    public bool Delete()
-    {
-        if (!AcceptsCaret || !TryPlace(out int start, out int length)) return false;
-        if (length > 0) { Replace(start, length, string.Empty); _caret = start; return true; }
-        if (start >= _block.Value.Length) return false;
-
-        Replace(start, 1, string.Empty);
-        _caret = start;
-        return true;
-    }
-
-    /// <summary>
-    /// Moves the caret one stop, extending the selection behind it when asked. False when it ran off an
-    /// end, having raised <see cref="Exited"/> so the host can put the caret in the text beside us.
-    /// <para>
-    /// A stop rather than a character, because the two are not the same thing here: a retail number is
-    /// broken at the guard bars, so the end of one group and the start of the next are one offset in two
-    /// places, and a reader arrowing along expects to visit both.
-    /// </para>
-    /// </summary>
-    public bool MoveCaret(bool forward, bool extend = false)
-    {
-        if (!AcceptsCaret || _layout?.Root is not { } root)
-        {
-            Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
-            return false;
-        }
-
-        var from = new CaretPlace(_caret ?? 0, _level);
-        if (root.Step(from, forward) is not { } next)
-        {
-            Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
-            return false;
-        }
-
-        if (extend)
-        {
-            // The anchor is where extending started, not where the caret is now — that is what lets a
-            // selection be walked back to nothing and out the other side without a second gesture.
-            _keyAnchor ??= from.Offset;
-            SelectBetween(_keyAnchor.Value, next.Offset);
-        }
-        else
-        {
-            _keyAnchor = null;
-            _selection.Clear();
-        }
-
-        _caret = next.Offset;
-        _level = next.Level;
-        Refresh();
-        return true;
-    }
-
-    /// <summary>Selects the stretch between two caret offsets, whichever way round they came.</summary>
-    private void SelectBetween(int a, int b)
-    {
-        _selection.Clear();
-        if (a == b) return;
-
-        InteractiveSelection.Own(this);
-        _selection.Add((Math.Min(a, b), Math.Abs(a - b)));
-    }
-
-    /// <summary>
-    /// The seam's typing verb. The public <see cref="Type(char)"/> reports whether the key was ours to
-    /// take; by the time the host calls this it already knows we hold the caret, so there is nothing to
-    /// report back.
-    /// </summary>
-    void IEditableBlock.Type(char character) => Type(character);
-
-    private void Replace(int start, int length, string with)
-    {
-        string value = _block.Value;
-        start  = Math.Clamp(start, 0, value.Length);
-        length = Math.Clamp(length, 0, value.Length - start);
-
-        _block = _block.With(string.Concat(value.AsSpan(0, start), with, value.AsSpan(start + length)));
-        _keyAnchor = null;
-        _selection.Clear();
-
-        Encode();
-        InvalidateMeasure();
-        Refresh();
-        ValueChanged?.Invoke(this, EventArgs.Empty);
-    }
 
     /// <summary>Re-reads the value into bars, keeping the reason when it cannot be read.</summary>
     private void Encode()
@@ -465,49 +240,10 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// <summary>Redraws, and keeps the caret visible while it is being moved or typed at.</summary>
     private void Refresh()
     {
-        HoldCaretVisible();
         InvalidateVisual();
     }
 
     // ── The caret's blink ─────────────────────────────────────────────────
-
-    /// <summary>
-    /// Blinks the caret, because a still one among a row of digits reads as part of the printing rather
-    /// than as an insertion point. It runs only while this barcode holds the caret and is torn down on
-    /// unload, so a page of barcodes leaves no timers behind.
-    /// </summary>
-    private void StartBlinking()
-    {
-        _caretVisible = true;
-        if (_blink is not null) { _blink.Stop(); _blink.Start(); return; }
-
-        _blink = new DispatcherTimer(BlinkRate, DispatcherPriority.Normal, OnBlink, Dispatcher);
-        _blink.Start();
-    }
-
-    private void StopBlinking()
-    {
-        _blink?.Stop();
-        _blink = null;
-        _caretVisible = true;
-    }
-
-    private void OnBlink(object? sender, EventArgs e)
-    {
-        if (_caret is null) { StopBlinking(); return; }
-
-        _caretVisible = !_caretVisible;
-        InvalidateVisual();
-    }
-
-    /// <summary>Shows the caret and restarts the cycle — it must never be mid-blink while you type.</summary>
-    private void HoldCaretVisible()
-    {
-        if (_caret is null) { StopBlinking(); return; }
-
-        _caretVisible = true;
-        StartBlinking();
-    }
 
     // ── Drawing ───────────────────────────────────────────────────────────
 
@@ -534,7 +270,6 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         DrawSelection(dc);
 
         DrawDiagnostics(dc, layout);
-        DrawCaret(dc, layout);
 
         // The strike across the symbol. Last, so it sits over the bars it is about.
         if (_encodeError is not null && Of(layout, "Bars") is { Exists: true, Bounds: var bars })
@@ -626,27 +361,6 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
             if (piece.Kind == kind) return piece;
 
         return default;
-    }
-
-    /// <summary>
-    /// The caret, in the same ink as the value it stands in.
-    /// <para>
-    /// Not the theme's text brush, which is what it used to be and what made it invisible: a barcode
-    /// paints its own light ground whatever the theme, because a scanner needs dark bars on a light
-    /// field — so under a dark theme the caret was drawn very nearly white on white. Whatever colour the
-    /// digits are readable in, the caret between them is readable in too.
-    /// </para>
-    /// </summary>
-    private void DrawCaret(DrawingContext dc, Laid layout)
-    {
-        if (_caret is not { } at || !_caretVisible) return;
-
-        var bar = layout.Root.CaretRect(new CaretPlace(at, _level));
-
-        // Wide enough to survive being scaled down to fit the column: at a hairline the caret thins to
-        // nothing on the first fractional scale and the reader is left typing blind.
-        dc.DrawRectangle(Brush(_block.LineColor, _palette.BarcodeDark), null,
-            new Rect(bar.X, bar.Y, Math.Max(1.5, _block.FontSize / 12), bar.Height));
     }
 
     // ── Brushes ───────────────────────────────────────────────────────────

@@ -28,7 +28,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// out of the shared queries as soon as the layout says what each piece was drawn from.
 /// </para>
 /// </summary>
-public sealed partial class AbcElement : FrameworkElement
+public sealed partial class AbcElement : FrameworkElement, IInteractiveBlock
 {
     private string _abc;
     private readonly Brush _ink;
@@ -171,7 +171,7 @@ public sealed partial class AbcElement : FrameworkElement
         LayoutPainter.Paint(dc, layout.Root, _ink);
         PaintSelection(dc, layout);
         PaintDiagnostics(dc, layout);
-        PaintCaret(dc, layout);
+
 
         if (scaled) dc.Pop();
     }
@@ -249,13 +249,7 @@ public sealed partial class AbcElement : FrameworkElement
         _dragging = true;
         Select(_anchor, _anchor);
 
-        // A press puts the caret down as well as picking something up. Without this a tune drew no caret at
-        // all — `_hasCaret` was only ever set by an edit, so a reader had to change something before there
-        // was any sign of where a change would go. The host has already handed this block the keys by the
-        // time it gets here, so the caret is not a lie about where they are going.
-        _caret = _laid.Root.PlaceAt(at);
-        _hasCaret = true;
-        Blinking(true);
+
     }
 
     public void ExtendPointerSelect(Point pointInElement)
@@ -325,10 +319,7 @@ public sealed partial class AbcElement : FrameworkElement
 
         Select(_anchor.Exists ? _anchor : at, next);
 
-        // The caret goes where the eye went. Leaving it behind is what lets a plain arrow after a Shift
-        // arrow jump back to somewhere the reader stopped looking three keystrokes ago.
-        var sits = next.Sits();
-        if (sits.Length > 0) _caret = CaretPlace.At(Math.Clamp(sits.Start + sits.Length, 0, _abc.Length));
+
 
         return true;
     }

@@ -56,9 +56,6 @@ internal readonly record struct Stored
     public required int MarkCount { get; init; }
 
 
-    /// <summary>Whether a caret inside it is somewhere other than beside it — a script, a fraction.</summary>
-    public required bool IsEnclosure { get; init; }
-
 
     /// <summary>Where a caret may rest against it — see <see cref="Editing.Stops"/>.</summary>
     public required Stops Stops { get; init; }
@@ -98,6 +95,9 @@ public sealed class LayoutTree
 
     private readonly List<int[]> _runs;
 
+    /// <summary>Worked out on the first ask and kept — see <see cref="Places"/>.</summary>
+    private IReadOnlyList<CaretPlace>? _places;
+
     internal LayoutTree(Stored[] pieces, LayoutMark[] marks, ISourcePart?[] parts, string[] kinds,
                         LayoutPaint?[] paints,
                         int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
@@ -128,6 +128,23 @@ public sealed class LayoutTree
     internal ref readonly Stored Piece(int at) => ref _pieces[at];
 
     internal ISourcePart? PartOf(int at) => _parts[at];
+
+    /// <summary>
+    /// Everywhere a caret may rest in this tree, in the order the right arrow visits them.
+    ///
+    /// <para>
+    /// It belongs here, with the part links, because that is what it is made of: only a piece naming a part
+    /// has stops, since a stop is somewhere text can be written and there is nothing to write into
+    /// otherwise. Worked out on the first ask rather than at seal time — a tree is settled onto the origin
+    /// after it is sealed, and a place is a mark on the page.
+    /// </para>
+    /// <para>
+    /// Once, not per question. Stepping the caret, snapping an offset to a stop and deciding what a press
+    /// means are all this same list read three ways, and rebuilding it for each was a walk of every piece
+    /// and a sort, per keystroke.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<CaretPlace> Places => _places ??= LayoutQuery.PlacesIn(Root);
 
     internal string KindOf(int at) => _kinds[at];
 

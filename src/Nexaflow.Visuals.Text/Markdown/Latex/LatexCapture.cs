@@ -148,17 +148,20 @@ internal sealed class LatexCapture : IElementRenderer
             new Point(origin.X - parent.X, origin.Y - parent.Y),
 
 
-            // Whether a caret can be inside this and then outside it is a question about the construct,
-            // and the part is the only thing that can answer it.
-            isEnclosure: owns is { } enclosing && enclosing.Parts.Any() && !IsRun(enclosing),
-
-            // A run of things is not a place of its own. Its ends are its contents' ends, so letting it
-            // declare stops there puts a second bar at an offset the reader sees one place at — and then
-            // the arrow key walks between two identical positions instead of leaving the formula.
+            // A run of things is not a place of its own. Its ends are its contents' ends — the first
+            // element starts where the run starts and the last finishes where it finishes, which is what
+            // makes it a run — so a stop of its own would be a second bar at an offset the reader sees
+            // one place at, and the arrow key would walk between two identical positions instead of
+            // leaving the formula.
             //
-            // The outermost is the exception, and not really an exception: the ends of the whole formula
-            // are where a reader arrives from the text either side, whatever the box there happens to be.
-            stops: _open.Count > 0 && owns is { } run && IsRun(run) ? Stops.None : Stops.Both,
+            // A run of things is not a place of its own: its ends are its contents' ends, so a stop there
+            // would be a second mark drawn where the reader sees one, and the arrow key would walk between
+            // two identical positions instead of leaving the formula.
+            //
+            // Unless the writer put something outside them, which is what `Covered` asks. `x + ` finishes
+            // with a space no element covers, and that space is exactly where a reader arriving from the
+            // text after it has to be able to stand.
+            stops: owns is { } run && IsRun(run) && Covered(run) ? Stops.None : Stops.Both,
 
 
             // A typeset box is the height and depth it reserves on its line rather than a box around what
@@ -250,6 +253,26 @@ internal sealed class LatexCapture : IElementRenderer
     /// </summary>
     internal static bool IsRun(Nexaflow.Maths.Latex.TexPart part) =>
         part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Maths.Latex.TexRole.Element);
+
+    /// <summary>
+    /// Whether the things in a run reach both of its ends, so that it has no edge of its own for a caret to
+    /// stand at.
+    ///
+    /// <para>
+    /// Nearly always true, and the exceptions are what this is for. <c>x + </c> ends in a space no element
+    /// covers, and a reader arriving from the text after the formula has to be able to stand past it — so
+    /// that run does have an end of its own and declares it. A run of one part is a wrapper rather than a
+    /// row: the layout draws it and its part as the same piece, so suppressing its stops would leave the
+    /// construct inside with nowhere to stand at all.
+    /// </para>
+    /// </summary>
+    private static bool Covered(Nexaflow.Maths.Latex.TexPart run)
+    {
+        var parts = run.Parts.ToList();
+        if (parts.Count < 2) return false;
+
+        return parts[0].Start <= run.Start && parts[^1].Start + parts[^1].Length >= run.Start + run.Length;
+    }
 
     public void RenderTransformed(Box box, IEnumerable<Transformation> transforms, double x, double y)
     {

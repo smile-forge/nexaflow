@@ -102,30 +102,22 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     }
 
     /// <summary>
-    /// The place a press means: the stop under the pointer, and which of the bars drawn there is nearest to
-    /// it — so pressing in the space a typesetter sets around an operator puts the caret in that space,
-    /// which is where the reader pointed and where the arrow key would have taken them.
-    ///
-    /// <para>
-    /// Ties go to the innermost. Two bars half a pixel apart — inside a trailing exponent and past the
-    /// script — are not something anyone can aim between, and the inner one is where a reader who has just
-    /// clicked behind a <c>2</c> means to be typing.
-    /// </para>
+    /// Everywhere a caret may rest, in the order the right arrow visits them. A caret is an index into this,
+    /// so stepping is arithmetic and there is nothing to search.
     /// </summary>
-    public CaretPlace PlaceAt(Point point)
+    public IReadOnlyList<CaretPlace> Places => Tree.Places;
+
+    /// <summary>Which stop a press means — see <see cref="LayoutQuery.StopNear"/>. -1 for nowhere to stand.</summary>
+    public int StopNear(Point point) => Root.StopNear(point);
+
+    /// <summary>One step along the places, or null at either end.</summary>
+    public int? Step(int at, bool forward)
     {
-        var offset = OffsetAt(point);
-        var bars = Root.CaretBars(offset);
-
-        var level = 0;
-        for (var at = 1; at < bars.Count; at++)
-            if (Math.Abs(bars[at].X - point.X) < Math.Abs(bars[level].X - point.X) - Hair) level = at;
-
-        return new CaretPlace(offset, level);
+        var to = at + (forward ? 1 : -1);
+        return to >= 0 && to < Places.Count ? to : null;
     }
 
-    /// <summary>Rounding slack — two bars within this of each other are not something anyone can aim between.</summary>
-    private const double Hair = 0.5;
+
 
     /// <summary>
     /// Whether this piece was shown rather than understood — inside a stretch the reader gave up on, so it

@@ -65,26 +65,6 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// Where the caret goes for a press: the offset, and which of the bars drawn at that offset.
-    /// <para>
-    /// One offset can be two places on the page — after a note and before the next are the same character
-    /// boundary drawn a hand's width apart — so the press also has to say which of them it meant, and the
-    /// nearest by column is what it meant.
-    /// </para>
-    /// </summary>
-    public static CaretPlace PlaceAt(this Piece root, Point point)
-    {
-        var offset = root.OffsetAt(point);
-        var bars = root.CaretBars(offset);
-
-        var level = 0;
-        for (var at = 1; at < bars.Count; at++)
-            if (Math.Abs(bars[at].X - point.X) < Math.Abs(bars[level].X - point.X) - Hair) level = at;
-
-        return new CaretPlace(offset, level);
-    }
-
-    /// <summary>
     /// The drawn thing under the point. Only leaves are candidates — they are what actually put ink on the
     /// page — and blank space inside a container belongs to nobody, which is what stops a press in the gap
     /// between two terms coming back with the start of the whole line.
@@ -169,6 +149,7 @@ public static class LayoutQuery
 
         return vertical ? Stacked(piece, forward) : Beside(piece, forward);
     }
+
 
     /// <summary>The sibling one place along, climbed to the first thing the source named.</summary>
     private static Piece Beside(Piece piece, bool forward)
@@ -396,47 +377,145 @@ public static class LayoutQuery
     // ── Caret ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Every bar that may be drawn at one offset, innermost first.
+    /// Works out everywhere a caret may rest, in the order the right arrow visits them. Asked once per
+    /// tree: <see cref="LayoutTree.Places"/> keeps the answer, beside the part links the stops ride on.
     ///
     /// <para>
-    /// One offset can be two places on the page: just inside a trailing exponent, and past it. Both are the
-    /// same character position and a reader means different things by them, so they are both here and
-    /// <see cref="CaretPlace"/> says which one the caret is at.
+    /// Read off what the builders declared, and nothing else. A piece says which of its edges a caret may
+    /// stand against (<see cref="Piece.Stops"/>) and the tree is honoured: a script inside a term finishes
+    /// where the term finishes, so both declare a stop at that character and the reader gets both — one
+    /// raised and half height, one back on the line. That is why a place is a piece rather than an offset.
     /// </para>
     /// <para>
-    /// Read off what the builders declared. A piece says where a caret may rest against it, and the tree is
-    /// honoured — a script inside a row ends where the row ends, so both declare a stop there and the reader
-    /// gets two bars. This used to be worked out from wherever a piece happened to name characters, with a
-    /// walk out through enclosures bolted on to recover the cases that missed.
+    /// This used to be a list of bars per offset, with a walk out through anything flagged as an enclosure
+    /// bolted on to recover the places nobody had declared. The flag has gone with the walk: a run declares
+    /// no stops of its own — its ends are its contents' ends, which is what makes it a run — and once that
+    /// is said in the builder, every place left is one somebody meant.
+    /// </para>
+    /// <para>
+    /// Innermost first at each offset, and trailing edges before leading ones: against the thing that ends
+    /// here, out through whatever else ends here, then against the thing that starts here. Where two would
+    /// be drawn as the one mark there is one place, so the reader never presses an arrow twice for a caret
+    /// that does not appear to move.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<Rect> CaretBars(this Piece root, int offset)
+    internal static IReadOnlyList<CaretPlace> PlacesIn(Piece root)
     {
-        var bars = new List<Rect>();
+        var declared = new List<(int Offset, int Edge, int Depth, Piece Piece)>();
 
-        // Innermost first, which is where a reader who has just typed means to be, and then out through the
-        // enclosures that finish here — a construct a caret can be inside and then outside of is two places
-        // at one offset, and the builder is what says which of them are. A run that merely ends where its
-        // last thing ends is not one, or the arrow key would walk between two identical positions instead of
-        // leaving the content.
-        foreach (var piece in Declaring(root, offset, Stops.After).OrderByDescending(p => p.Depth))
+        foreach (var piece in root.SelfAndDescendants())
         {
-            if (bars.Count > 0 && !piece.IsEnclosure) continue;
+            if (!piece.Stands()) continue;
 
-            var bar = Bar(piece, trailing: true);
-            if (bars.Count == 0 || !Coincide(bars[^1], bar)) bars.Add(bar);
+            var at = piece.Sits();
+            if (piece.Stops.HasFlag(Stops.After)) declared.Add((at.End, 0, piece.Depth, piece));
+            if (piece.Stops.HasFlag(Stops.Before)) declared.Add((at.Start, 1, piece.Depth, piece));
         }
 
-        foreach (var piece in Declaring(root, offset, Stops.Before).OrderByDescending(p => p.Depth))
+        declared.Sort((a, b) =>
+            a.Offset != b.Offset ? a.Offset.CompareTo(b.Offset)
+            : a.Edge != b.Edge ? a.Edge.CompareTo(b.Edge)
+            : b.Depth.CompareTo(a.Depth));
+
+        var places = new List<CaretPlace>();
+        foreach (var (offset, edge, _, piece) in declared)
         {
-            var bar = Bar(piece, trailing: false);
-            if (bars.Count == 0 || Math.Abs(bars[^1].X - bar.X) > Hair) bars.Add(bar);
+            var place = new CaretPlace(piece, Trailing: edge == 0);
+            if (places.Count > 0 && places[^1].Offset == offset && Drawn(places[^1], place)) continue;
+
+            places.Add(place);
         }
 
-        if (bars.Count > 0) return bars;
+        return places;
+    }
 
-        // Nothing declares a stop exactly here, which is the normal case straight after an edit: the caret
-        // lands wherever the text was cut. Stand it beside the nearest drawing rather than at the origin.
+    /// <summary>
+    /// Whether a place would be drawn as the mark already standing there, and so is not a second place.
+    ///
+    /// <para>
+    /// Two rules, because two different things put places at one offset. Trailing edges nest — a script
+    /// inside a term inside a row all finish at the same character — and height is the only thing telling
+    /// them apart, so every number has to agree. A leading edge is the far side of a boundary between two
+    /// things set beside each other, and there the caret is the same mark whether it takes this letter's
+    /// height or the last one's: the column is all that says anything. Without the split, <c>12g</c> would
+    /// offer two places between the 2 and the g, drawn one on top of the other, because the g has a
+    /// descender.
+    /// </para>
+    /// </summary>
+    private static bool Drawn(CaretPlace already, CaretPlace next)
+    {
+        var (standing, coming) = (already.CaretRect(), next.CaretRect());
+
+        return next.Trailing ? Coincide(standing, coming) : Math.Abs(standing.X - coming.X) <= Hair;
+    }
+
+    /// <summary>Whether two bars would be drawn as the same mark, and so are one place.</summary>
+    private static bool Coincide(Rect a, Rect b) =>
+        Math.Abs(a.X - b.X) <= Hair && Math.Abs(a.Y - b.Y) <= Hair && Math.Abs(a.Height - b.Height) <= Hair;
+
+    /// <summary>
+    /// Where and how tall to draw the caret: against the ink of the piece it stands on, which is what makes
+    /// it shrink and rise inside an exponent and take the numerator's height in a fraction.
+    /// </summary>
+    public static Rect CaretRect(this CaretPlace place) => Bar(place.Against, place.Trailing);
+
+    /// <summary>
+    /// Which stop is at an offset: the innermost, or the outermost for a caret arriving from outside the
+    /// content with everything here behind it. -1 when nothing declares a stop there — which is the ordinary
+    /// case straight after an edit, where the caret lands wherever the text was cut.
+    /// </summary>
+    public static int StopAt(this Piece root, int offset, bool outermost = false)
+    {
+        var places = Index(root);
+        var found = -1;
+
+        for (var at = 0; at < places.Count; at++)
+        {
+            if (places[at].Offset != offset) continue;
+            if (found < 0 || outermost) found = at;
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// Which stop a press means: the one at the offset it landed on, nearest by column. -1 when there is
+    /// nowhere to stand at all.
+    /// <para>
+    /// One offset can be several stops on the page — after a note and before the next are the same character
+    /// boundary drawn a hand's width apart — so the press also has to say which of them it meant.
+    /// </para>
+    /// </summary>
+    public static int StopNear(this Piece root, Point point)
+    {
+        var places = Index(root);
+        var offset = root.OffsetAt(point);
+        var best = -1;
+
+        for (var at = 0; at < places.Count; at++)
+        {
+            if (places[at].Offset != offset) continue;
+            if (best < 0) { best = at; continue; }
+
+            if (Math.Abs(places[at].CaretRect().X - point.X) < Math.Abs(places[best].CaretRect().X - point.X) - Hair)
+                best = at;
+        }
+
+        return best;
+    }
+
+    /// <summary>Everywhere a caret may rest, from the tree that worked it out — see <see cref="LayoutTree.Places"/>.</summary>
+    private static IReadOnlyList<CaretPlace> Index(Piece root) => root.Tree?.Places ?? [];
+
+    /// <summary>
+    /// Where to draw the caret at an offset, whether or not anything stands there. Beside the nearest
+    /// drawing when nothing does, rather than at the origin — which is the ordinary case straight after an
+    /// edit, where the caret lands wherever the text was cut.
+    /// </summary>
+    public static Rect CaretRect(this Piece root, int offset)
+    {
+        if (root.StopAt(offset) is >= 0 and var stop) return Index(root)[stop].CaretRect();
+
         Piece before = default, after = default;
         foreach (var piece in root.Leaves())
         {
@@ -445,55 +524,13 @@ public static class LayoutQuery
             if (at.Start >= offset && (!after.Exists || at.Start < after.Sits().Start)) after = piece;
         }
 
-        if (before.Exists) return [Bar(before, trailing: true)];
-        if (after.Exists) return [Bar(after, trailing: false)];
+        if (before.Exists) return Bar(before, trailing: true);
+        if (after.Exists) return Bar(after, trailing: false);
 
         var whole = root.Bounds;
         return whole.IsEmpty
-            ? [new Rect(0, 0, 0, 1)]
-            : [new Rect(whole.X, whole.Y, 0, Math.Max(whole.Height, 1))];
-    }
-
-    /// <summary>Every piece declaring a stop of this kind at this offset.</summary>
-    private static IEnumerable<Piece> Declaring(Piece root, int offset, Stops edge)
-    {
-        foreach (var piece in root.SelfAndDescendants())
-        {
-            if (!piece.Stands() || !piece.Stops.HasFlag(edge)) continue;
-
-            var at = piece.Sits();
-            if (edge == Stops.After ? at.End == offset : at.Start == offset) yield return piece;
-        }
-    }
-
-    /// <summary>Whether two bars would be drawn as the same mark, and so are one place.</summary>
-    private static bool Coincide(Rect a, Rect b) =>
-        Math.Abs(a.X - b.X) <= Hair && Math.Abs(a.Y - b.Y) <= Hair && Math.Abs(a.Height - b.Height) <= Hair;
-
-    /// <summary>
-    /// Where and how tall to draw the caret — the ink it abuts decides, which is what makes it shrink and
-    /// rise inside an exponent and take the numerator's height in a fraction.
-    /// </summary>
-    public static Rect CaretRect(this Piece root, CaretPlace place)
-    {
-        var bars = root.CaretBars(place.Offset);
-        return bars[Math.Clamp(place.Level, 0, bars.Count - 1)];
-    }
-
-    /// <summary>Where and how tall to draw the caret at an offset, read as innermost.</summary>
-    public static Rect CaretRect(this Piece root, int offset) => root.CaretRect(CaretPlace.At(offset));
-
-    /// <summary>Smaller in source, and among equals the outer one — a fraction rather than its bar.</summary>
-    private static bool Tighter(Piece candidate, Piece best)
-    {
-        var (mine, theirs) = (candidate.Sits().Length, best.Sits().Length);
-        return mine < theirs || (mine == theirs && candidate.Depth < best.Depth);
-    }
-
-    private static bool Wider(Piece candidate, Piece best)
-    {
-        var (mine, theirs) = (candidate.Sits().Length, best.Sits().Length);
-        return mine > theirs || (mine == theirs && candidate.Depth < best.Depth);
+            ? new Rect(0, 0, 0, 1)
+            : new Rect(whole.X, whole.Y, 0, Math.Max(whole.Height, 1));
     }
 
     private static Rect Bar(Piece against, bool trailing)
@@ -505,69 +542,47 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// Where a caret may rest, ascending — every stop the builders declared.
-    ///
-    /// <para>
-    /// Not "wherever a piece names characters", which is what this used to be. A builder knows whether what
-    /// it has made can be written before and after; the layout only knew where the source happened to fall.
-    /// </para>
+    /// Where a caret may rest, ascending — the offsets of the places, with the several at one offset counted
+    /// once. What snapping an arbitrary offset onto the content works from.
     /// </summary>
     public static IReadOnlyList<int> CaretStops(this Piece root)
     {
-        var stops = new SortedSet<int>();
+        var stops = new List<int>();
 
-        foreach (var piece in root.SelfAndDescendants())
-        {
-            if (!piece.Stands()) continue;
+        foreach (var place in Index(root))
+            if (stops.Count == 0 || stops[^1] != place.Offset) stops.Add(place.Offset);
 
-            var at = piece.Sits();
-            if (piece.Stops.HasFlag(Stops.Before)) stops.Add(at.Start);
-            if (piece.Stops.HasFlag(Stops.After)) stops.Add(at.End);
-        }
-
-        return [.. stops];
+        return stops;
     }
 
+
+
     /// <summary>
-    /// The next place in <paramref name="forward"/>'s direction, or null at the edge — which is the
-    /// host's cue to move the caret out of this content and into whatever surrounds it.
+    /// The first stop past an offset, or -1 at the edge — which is the host's cue to move the caret out of
+    /// this content and into whatever surrounds it.
+    ///
     /// <para>
-    /// Through the bars at the offset first, and only then on to the next one. That is what makes the
-    /// arrow key walk out of an exponent instead of leaving the formula from inside it, and what puts a
-    /// stop on each side of the space around an operator. Backwards it arrives at the far end of the
-    /// previous offset's bars, so the two directions retrace one another exactly.
+    /// For a caret standing where no stop is, which a stretch shown as its own characters leaves behind: the
+    /// reader arrows through it a character at a time and then has to rejoin the places the builder declared.
+    /// A caret that is already at one steps by index instead, and needs none of this.
     /// </para>
     /// </summary>
-    public static CaretPlace? Step(this Piece root, CaretPlace place, bool forward)
+    public static int StopPast(this Piece root, int offset, bool forward)
     {
-        if (forward && place.Level + 1 < root.CaretBars(place.Offset).Count)
-            return place with { Level = place.Level + 1 };
+        var places = Index(root);
 
-        if (!forward && place.Level > 0)
-            return place with { Level = place.Level - 1 };
-
-        if (root.Step(place.Offset, forward) is not { } next) return null;
-
-        return new CaretPlace(next, forward ? 0 : root.CaretBars(next).Count - 1);
-    }
-
-    /// <summary>
-    /// The next caret stop in <paramref name="forward"/>'s direction, or null at the edge — which is the
-    /// host's cue to move the caret out of this content and into whatever surrounds it.
-    /// </summary>
-    public static int? Step(this Piece root, int offset, bool forward)
-    {
-        var stops = root.CaretStops();
         if (forward)
         {
-            foreach (var stop in stops)
-                if (stop > offset) return stop;
-            return null;
+            for (var at = 0; at < places.Count; at++)
+                if (places[at].Offset > offset) return at;
+
+            return -1;
         }
 
-        for (var i = stops.Count - 1; i >= 0; i--)
-            if (stops[i] < offset) return stops[i];
-        return null;
+        for (var at = places.Count - 1; at >= 0; at--)
+            if (places[at].Offset < offset) return at;
+
+        return -1;
     }
 
     /// <summary>
@@ -580,12 +595,10 @@ public static class LayoutQuery
     /// </summary>
     public static int? StepVertical(this Piece root, int offset, bool up)
     {
-        // Whatever declares a stop here, innermost first — what the caret is actually standing against.
-        var from = Declaring(root, offset, Stops.After)
-            .Concat(Declaring(root, offset, Stops.Before))
-            .OrderByDescending(piece => piece.Depth)
-            .FirstOrDefault();
-
+        // Whatever the caret is actually standing against here, innermost — which is the first place at the
+        // offset, the order the index is already in.
+        var stop = root.StopAt(offset);
+                var from = stop < 0 ? default : Index(root)[stop].Against;
         if (!from.Exists) return null;
         var fromX = root.CaretRect(offset).X;
 

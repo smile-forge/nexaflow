@@ -63,20 +63,6 @@ public class AbcFenceTests
     });
 
     [TestMethod]
-    public void AndTheTuneKnowsWhereItSitsInTheBlockAroundIt() => UiThread.Run(() =>
-    {
-        var block = Markdig.Markdown.Parse(Document, MarkdownPipelineFactory.Default)
-            .OfType<Markdig.Syntax.FencedCodeBlock>()
-            .Single();
-
-        var score = Inside(BlockRenderer.Render(block, Document, MarkdownPalette.Dark))!;
-        var editable = (IEditableBlock)score;
-
-        // Whatever the host splices, the tune has to sit exactly where the element says it does.
-        Assert.AreEqual(score.Source, Document.Substring(editable.SourceStart, score.Source.Length));
-    });
-
-    [TestMethod]
     public void TheProseAroundATuneIsSelectableLikeTheMusic() => UiThread.Run(() =>
     {
         // A title is words a reader wants to copy, and the words around a tune are exactly the ones they

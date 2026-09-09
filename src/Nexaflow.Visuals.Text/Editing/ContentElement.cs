@@ -65,19 +65,26 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
     private DispatcherTimer? _blink;
     private bool _caretVisible = true;
 
-    /// <summary>
-    /// Which of the bars at the caret's offset it is drawn as — see <see cref="CaretPlace"/>. Kept beside
-    /// the state because it is about the picture rather than the text: the same offset can be drawn in
-    /// two places, and which one the reader is at survives a keystroke.
-    /// </summary>
-    private int _level;
 
     /// <summary>
-    /// Which of the bars at the caret sits at — nought is innermost. Content that writes through its own
-    /// structure needs it: a caret that has stepped out of a construct is past it, so what is typed there
-    /// follows the construct rather than joining it.
+    /// What the caret is standing at: an index into the layout's places, or -1 for a caret standing
+    /// somewhere none of them is. Kept beside the state because it is about the picture rather than the
+    /// text — one offset can be several places — and it is only ever true of the tree it was taken from,
+    /// so a rebuild works it out again from the offset, which is what survives an edit.
     /// </summary>
-    protected int Level => _level;
+    private int _at = -1;
+
+    /// <summary>
+    /// Whether the caret is at the innermost place at its offset — inside whatever ends there, rather than
+    /// stepped out past it.
+    ///
+    /// <para>
+    /// Content that writes through its own structure needs it, and it is the one thing a place says that an
+    /// offset cannot: a 3 typed just inside the exponent of <c>x^2</c> makes it twenty-three, and the same
+    /// keystroke one mark to the right follows the whole script instead.
+    /// </para>
+    /// </summary>
+    protected bool Innermost => _at < 0 || _at == _laid.Root.StopAt(_state.Caret);
 
     private int _anchor;
     private Piece _anchorNode;
@@ -359,16 +366,18 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
 
     // ── The caret ───────────────────────────────────────────────────────────
 
-    /// <summary>Gives this content the caret at <paramref name="offset"/>.</summary>
-    /// <param name="level">Which of the bars drawn there — see <see cref="CaretPlace"/>.</param>
-    public void TakeCaret(int offset, int level = 0)
+    /// <summary>Gives this content the caret at <paramref name="offset"/>, innermost of the places there.</summary>
+    public void TakeCaret(int offset) => TakeCaret(offset, -1);
+
+    /// <summary>Gives this content the caret at one particular place — what a press and a step both mean.</summary>
+    public void TakeCaret(int offset, int at)
     {
         HasCaret = !IsReadOnly;
-        Apply(_state.MoveCaretTo(Snap(offset)), notify: false, level: level);
+        Apply(_state.MoveCaretTo(Snap(offset)), notify: false, at);
         if (HasCaret) StartBlinking();
     }
 
-    /// <inheritdoc />
+
     public virtual void TakeCaretArriving(CaretArrival arrival)
     {
         // Nothing drawn here is the source, so there is nowhere in it to stand. The caret is handed
@@ -389,10 +398,10 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
         if (arrival.Edge == BlockExit.Before) { TakeCaret(stops[0]); return; }
 
         // Arriving from the text after it, the caret is outside everything in the content — so it takes
-        // the outermost bar at the end. Landing on the innermost instead would put it inside a trailing
+        // the outermost place at the end. Landing on the innermost instead would put it inside a trailing
         // exponent, raised and half-height, having been walked into from the far side.
-        var end = stops[^1];
-        TakeCaret(end, level: Math.Max(0, _laid.Root.CaretBars(Snap(end)).Count - 1));
+        var end = Snap(stops[^1]);
+                TakeCaret(end, _laid.Root.StopAt(end, outermost: true));
     }
 
     /// <summary>The caret stop nearest a column, for a caret arriving from another line.</summary>
@@ -477,34 +486,42 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
         if (_state.Raw is { } zone && zone.Holds(_state.Caret))
         {
             var step = _state.Caret + (forward ? 1 : -1);
-            if (step >= zone.Start && step <= zone.End) { MoveTo(CaretPlace.At(step), extend); return true; }
+            if (step >= zone.Start && step <= zone.End) { MoveTo(step, -1, extend); return true; }
         }
 
-        if (_laid.Root.Step(new CaretPlace(_state.Caret, _level), forward) is not { } next)
+        // One step along the places, or — for a caret standing where none of them is, which is what a
+        // stretch shown as its own characters leaves behind — the nearest one past the offset it is at.
+        var next = _at >= 0 ? _laid.Step(_at, forward) : Rejoining(forward);
+
+        if (next is not { } landed)
         {
             Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
             return false;
         }
 
-        MoveTo(next, extend);
+        MoveTo(_laid.Places[landed].Offset, landed, extend);
         return true;
     }
+
+    /// <summary>The place a caret standing nowhere rejoins the declared ones at, or null at the edge.</summary>
+    private int? Rejoining(bool forward) =>
+        _laid.Root.StopPast(_state.Caret, forward) is >= 0 and var at ? at : null;
 
     /// <summary>Up and down — across a fraction bar, out of a script, from a note to the word under it.</summary>
     public bool MoveCaretVertically(bool up, bool extend = false)
     {
         if (_laid.Root.StepVertical(_state.Caret, up) is not { } next) return false;
 
-        MoveTo(CaretPlace.At(next), extend);
+        MoveTo(next, _laid.Root.StopAt(next), extend);
         return true;
     }
 
-    private void MoveTo(CaretPlace place, bool extend)
+    private void MoveTo(int offset, int at, bool extend)
     {
-        // Extending is about a stretch of source, and a stretch has no levels — which of the bars at its
+        // Extending is about a stretch of source, and a stretch has no places — which of the marks at its
         // far end the caret would have been drawn as says nothing about what is picked out.
-        if (extend) ExtendSelectionTo(place.Offset);
-        else Apply(_state.MoveCaretTo(place.Offset), notify: false, level: place.Level);
+        if (extend) ExtendSelectionTo(offset);
+        else Apply(_state.MoveCaretTo(offset), notify: false, at);
     }
 
     private int Snap(int offset)
@@ -716,8 +733,7 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
 
         ClearSelection();
 
-        var place = _laid.PlaceAt(at);
-        TakeCaret(place.Offset, place.Level);
+        TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
     }
 
     /// <summary>Whether <paramref name="offset"/> falls inside one of the selected stretches.</summary>
@@ -854,20 +870,27 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
 
     // ── Applying an edit ────────────────────────────────────────────────────
 
-    /// <param name="level">
-    /// Which bar at the caret's offset. Innermost unless a step says otherwise, which is what makes an
-    /// edit, a click or a jump put the caret back inside whatever it is in.
+    /// <param name="at">
+    /// Which place the caret is standing at, when a step has just said. -1 otherwise, which puts it back at
+    /// the innermost place at its offset — where a reader who has just typed, clicked or jumped is.
     /// </param>
-    protected void Apply(EditState next, bool notify, int level = 0)
+    protected void Apply(EditState next, bool notify, int at = -1)
     {
         var resized = next.Source != _state.Source || next.Raw != _state.Raw;
-        var moved = next.Caret != _state.Caret || level != _level;
+        var was = (_state.Caret, _at);
         var changed = next.Source != _state.Source;
 
         _state = next;
-        _level = level;
 
         if (resized) { Rebuild(); InvalidateMeasure(); }
+
+        // An index is only ever true of the tree it was taken from, so one handed in from before a rebuild
+        // says nothing about the tree there is now — and the caret goes back to the innermost place at its
+        // offset. That is also why nothing has to remember to clear it.
+        _at = resized || at < 0 || at >= _laid.Places.Count ? _laid.Root.StopAt(_state.Caret) : at;
+
+        var moved = was != (_state.Caret, _at);
+
         if (moved || changed) HoldCaretVisible();   // never blink out mid-keystroke
         InvalidateVisual();
 
@@ -952,8 +975,9 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
 
         // While something is being carried the caret shows where it would land, not where it was picked
         // up from — that is the one thing the reader needs to see before letting go.
-        var caret = _laid.Root.CaretRect(
-            _moving ? CaretPlace.At(_dropAt) : new CaretPlace(_state.Caret, _level));
+        var caret = _moving || _at < 0
+            ? _laid.Root.CaretRect(_moving ? _dropAt : _state.Caret)
+            : _laid.Places[_at].CaretRect();
 
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
     }

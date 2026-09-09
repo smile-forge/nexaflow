@@ -217,16 +217,6 @@ public class LayoutQueryTests
     }
 
     [TestMethod]
-    public void ArrowingOffAnEndReportsNowhereLeftToGo()
-    {
-        var root = Fraction();
-
-        Assert.IsNull(root.Step(0, forward: false), "there is nothing before the content");
-        Assert.IsNull(root.Step(15, forward: true), "nor anything after it");
-        Assert.IsNotNull(root.Step(0, forward: true));
-    }
-
-    [TestMethod]
     public void ThereIsNoVerticalMoveOffASingleRow()
     {
         var build = new LayoutBuilder();
