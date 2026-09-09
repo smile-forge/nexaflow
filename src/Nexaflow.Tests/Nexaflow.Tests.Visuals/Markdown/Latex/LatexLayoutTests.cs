@@ -255,8 +255,19 @@ public class LatexLayoutTests
         WpfTeXEnvironment.Create(scale: Scale);
 
     [TestMethod]
-    public void NothingToTypesetIsNoLayout() => UiThread.Run(() =>
-        Assert.IsNull(LatexBuilder.Build("", Scale)));
+    public void NothingToTypesetIsStillSomewhereToType() => UiThread.Run(() =>
+    {
+        // A builder always makes a layout. An empty formula is not "no formula" — it is a formula being
+        // written, and the reader has to be able to see where their caret is before they type the first
+        // character. Answering null is what made the element carry a second measure, render and caret path
+        // of its own, and a Latex tab opened on an empty formula showed no caret at all until a keystroke
+        // brought a layout into being.
+        var empty = LatexBuilder.Build("", Scale);
+
+        Assert.IsTrue(empty.Laid.ShowsSource, "empty source is shown as itself");
+        Assert.IsTrue(empty.Laid.Size.Height > 0, "and takes a line's height, so there is a caret to draw");
+        CollectionAssert.AreEqual(new[] { 0 }, empty.Laid.Stops.ToArray(), "with exactly one place to stand");
+    });
 
     [TestMethod]
     public void WhatWasShownRatherThanReadIsMarkedAsSuch() => UiThread.Run(() =>

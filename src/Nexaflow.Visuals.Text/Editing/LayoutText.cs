@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -95,5 +96,52 @@ public static class LayoutText
             into.Covers(new Rect(0, 0, bounds.Width, bounds.Height));
             into.Close();
         }
+    }
+
+    /// <summary>What a piece laid out as its own characters is called — see <see cref="Shown"/>.</summary>
+    public const string SourceKind = "Source";
+
+    /// <summary>
+    /// The source itself, laid out as the characters it is written with — what a builder hands back when it
+    /// cannot read what it was given.
+    ///
+    /// <para>
+    /// A whole layout rather than a special case, which is the point. The caret, the selection, the hit
+    /// test and the painter all work on it unchanged, because it is a tree of pieces naming source like any
+    /// other — so nothing hosting content needs a second path for content that would not read, and a reader
+    /// can go on typing in the very thing that is broken until it is not.
+    /// </para>
+    /// <para>
+    /// One piece per character, so a selection can take part of it. That is the same treatment prose gets
+    /// and it matters more here: unreadable source is exactly what somebody is in the middle of fixing.
+    /// </para>
+    /// </summary>
+    /// <param name="source">
+    /// The characters the content was asked to read. Empty is allowed and is not an error — it is what an
+    /// empty formula in a document being written looks like, and it still wants somewhere to put a caret.
+    /// </param>
+    /// <param name="text">
+    /// How this content sets raw characters — its typeface and size, which are the content's own. It may
+    /// hold something other than <paramref name="source"/>: a blank stands in for empty source so the line
+    /// has a height, and then the characters name nothing, which is correct.
+    /// </param>
+    /// <param name="trouble">What went wrong, or nothing where the source was simply empty.</param>
+    public static Laid Shown(string source, FormattedText text, IReadOnlyList<Diagnostic> trouble)
+    {
+        source ??= string.Empty;
+
+        // Only where what is drawn is what was written. A blank standing in for empty source is not the
+        // reader's character and must not become a place they can put the caret.
+        var letters = text.Text.Length == source.Length
+            ? (IReadOnlyList<ISourcePart>)[.. Enumerable.Range(0, source.Length).Select(at => (ISourcePart)new SourceSpan(at, 1))]
+            : null;
+
+        var width = text.WidthIncludingTrailingWhitespace;
+        var height = text.Height;
+
+        var build = new LayoutBuilder();
+        Place(build, text, default, width, TextAlignment.Left, new SourceSpan(0, source.Length), SourceKind, letters);
+
+        return new Laid(build.Seal(), new Size(width, height), trouble);
     }
 }

@@ -132,4 +132,11 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     /// stands for characters rather than for meaning.
     /// </summary>
     public bool IsGuesswork(Piece piece) => Trouble.Any(trouble => trouble.Covers(piece));
+
+    /// <summary>
+    /// Whether this is the source shown as its own characters rather than the content read — see
+    /// <see cref="LayoutText.Shown"/>. True for source a builder could not make sense of, and for source
+    /// there is none of yet.
+    /// </summary>
+    public bool ShowsSource => Root.Kind == LayoutText.SourceKind;
 }

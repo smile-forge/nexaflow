@@ -35,7 +35,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private readonly bool _inline;
 
     private EditState _state;
-    private LatexTree? _layout;
+    private LatexTree _layout;
     private DispatcherTimer? _blink;
     private bool _caretVisible = true;
     private int _anchor;
@@ -109,8 +109,8 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // clicked into and left repeatedly would otherwise collect a handler per visit.
         Unloaded += (_, _) => StopBlinking();
 
-        Rebuild();
-    }
+            _layout = Built();
+        }
 
     /// <summary>The source. Setting it re-typesets and puts the caret at the end.</summary>
     public string Latex
@@ -124,14 +124,14 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         }
     }
 
-    /// <summary>The map behind the typeset part, or null while none of it will typeset.</summary>
-    public LatexTree? Layout => _layout;
+        /// <summary>The map behind what is drawn — always there, because a builder always makes one.</summary>
+    public LatexTree Layout => _layout;
 
     /// <summary>
     /// Whether any of the source could not be read. It may still be drawing perfectly well around the
     /// trouble — a formula stops being typeset entirely only when none of it could be laid out at all.
     /// </summary>
-    public bool HasError => _layout is null || _layout.Laid.Trouble.Count > 0;
+    public bool HasError => _layout.Laid.Trouble.Count > 0;
 
     /// <summary>Whether the caret is shown. A read-only surface still allows selecting and copying.</summary>
     public bool IsReadOnly { get; init; }
@@ -360,7 +360,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// </remarks>
     private bool WriteThroughTree(string text)
     {
-        if (_layout is null || _state.HasSelection || _state.Raw is not null) return false;
+        if (_state.HasSelection || _state.Raw is not null) return false;
         if (string.IsNullOrWhiteSpace(text)) return false;
 
         // Only from inside. A caret that has stepped out of a construct is past it — that is what the
@@ -520,7 +520,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     {
         if (length <= 0) { ClearSelection(); return; }
 
-        var (from, snapped) = _layout is null ? (start, length) : _layout.Laid.Root.Snap(start, length);
+        var (from, snapped) = _layout.Laid.Root.Snap(start, length);
 
         var next = _state.Select(from, snapped);
         if (next.Selection.SequenceEqual(_state.Selection)) return;
@@ -548,7 +548,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// <inheritdoc />
     public void BeginPointerSelect(Point pointInElement)
     {
-        if (_layout is null) return;
+        
         InteractiveSelection.Own(this);
 
         _anchor = _layout.Laid.OffsetAt(pointInElement);
@@ -575,7 +575,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// <inheritdoc />
     public void ExtendPointerSelect(Point pointInElement)
     {
-        if (!_dragging || _layout is null) return;
+        if (!_dragging) return;
 
         // A click is not a drag. The pointer moves a pixel or two under any real hand, and treating
         // that as a selection meant clicking after a number selected it — so the next key typed
@@ -661,7 +661,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private void BuildPreview()
     {
         ClearPreview();
-        if (_layout is null) return;
+        
 
         var ranges = _state.Selection.Select(r => (r.Start, r.Length)).ToList();
 
@@ -682,7 +682,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// <inheritdoc />
     public bool PointerDoubleClick(Point pointInElement)
     {
-        if (_layout is null) return false;
+        
 
         // Select the construct under the pointer rather than letting the host drop the whole block into
         // source-edit mode: inside a formula, "the word you clicked" is the symbol you clicked.
@@ -748,13 +748,19 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// offset into the source the reader is editing, with no mapping in between.
     /// </para>
     /// </summary>
-    private void Rebuild() => _layout = LatexBuilder.Build(
-        _state.Source, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly);
+    private void Rebuild() => _layout = Built();
+
+    /// <summary>
+    /// The formula as it now reads. Always something: source that will not typeset comes back as its own
+    /// characters with a wave under it, which is why nothing here has a second way of being a formula.
+    /// </summary>
+    private LatexTree Built() => LatexBuilder.Build(
+        _state.Source, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly,
+        pixelsPerDip: VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
     private int Snap(int offset)
     {
         var clamped = Math.Clamp(offset, 0, _state.Source.Length);
-        if (_layout is null) return clamped;
 
         // Inside the stretch being written every character is its own stop, so the caret goes exactly
         // where it was put; the settled formula snaps to the places a caret may rest.
@@ -768,14 +774,9 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (_preview is { } preview)
             return new Size(Math.Ceiling(preview.Laid.Size.Width), Math.Ceiling(preview.Laid.Size.Height));
 
-        if (_layout is null)
-        {
-            var source = Mono(_state.Source.Length == 0 ? " " : _state.Source);
-            return new Size(Math.Ceiling(source.WidthIncludingTrailingWhitespace), Math.Ceiling(source.Height));
-        }
-
-        // Whatever is being written is set into the formula rather than drawn over it, so the layout's
-        // own size already accounts for it.
+        // Whatever is being written is set into the formula rather than drawn over it, so the layout own
+        // size already accounts for it. Source that would not typeset is in there too, as its own
+        // characters, which is why there is no second answer here.
         return new Size(Math.Ceiling(_layout.Laid.Size.Width), Math.Ceiling(_layout.Laid.Size.Height));
     }
 
@@ -785,23 +786,6 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, RenderSize.Width, RenderSize.Height));
 
         if (_preview is not null) { PaintPreview(dc); return; }
-
-        if (_layout is null)
-        {
-            // Nothing typeset — an empty formula, or one none of which could be laid out. It is still
-            // a place the reader is writing in, so it still draws a caret. Not doing so is why a Latex
-            // tab opened on an empty formula showed none until the first character was typed: that
-            // keystroke was not summoning the caret, it was creating the layout the caret was being
-            // drawn from.
-            var source = Mono(_state.Source.Length == 0 ? " " : _state.Source);
-            dc.DrawText(source, new Point(0, 0));
-
-            if (!HasCaret || IsReadOnly || !_caretVisible) return;
-
-            var typed = Mono(_state.Source[..Math.Clamp(_state.Caret, 0, _state.Source.Length)]);
-            DrawCaret(dc, typed.WidthIncludingTrailingWhitespace, 0, source.Height);
-            return;
-        }
 
         LayoutPainter.Paint(dc, _layout.Laid.Root, _palette.Text);
 
@@ -897,16 +881,6 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             yield return node;
         }
     }
-
-    /// <summary>Source shown as text: a half-written command, or a formula that will not typeset at all.</summary>
-    private FormattedText Mono(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            new Typeface("Consolas"),
-            _scale * 0.6,
-            _palette.Accent,
-            VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
     /// <summary>
     /// A translucent wash from the theme accent, falling back to the highlight token — never a literal.

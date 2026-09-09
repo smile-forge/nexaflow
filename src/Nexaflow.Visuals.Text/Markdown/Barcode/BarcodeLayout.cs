@@ -36,7 +36,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 /// run of text is not the sum of its characters measured separately.
 /// </para>
 /// </summary>
-internal sealed class BarcodeLayout
+internal sealed class BarcodeLayout : ContentBuilder
 {
     /// <summary>
     /// The face the human-readable line is set in. OCR-B is what the retail standards actually specify —
@@ -70,9 +70,10 @@ internal sealed class BarcodeLayout
     private double _barsLeft, _barsTop, _guardDrop;
 
     private BarcodeLayout(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
-                          MarkdownPalette palette, double pixelsPerDip)
-    {
-        _block = block;
+                                                MarkdownPalette palette, double pixelsPerDip)
+                              : base(block.Value)
+                          {
+                              _block = block;
         _pattern = pattern;
         _drawn = pattern ?? placeholder;
         _palette = palette;
@@ -80,15 +81,12 @@ internal sealed class BarcodeLayout
     }
 
     /// <summary>What it made: every piece of the symbol, where it landed and what it drew.</summary>
-    private Laid _laid = Laid.Nothing;
-
     /// <summary>Lays a barcode out, and gives back the tree and nothing barcode-shaped at all.</summary>
     public static Laid Build(BarcodeBlock block, BarcodePattern? pattern, BarcodePattern? placeholder,
                              MarkdownPalette palette, double pixelsPerDip)
     {
         var layout = new BarcodeLayout(block, pattern, placeholder, palette, pixelsPerDip);
-        layout.Lay();
-        return layout._laid;
+        return layout.Lay();
     }
 
     // ── Laying it out ─────────────────────────────────────────────────────
@@ -108,7 +106,7 @@ internal sealed class BarcodeLayout
         Brushes.Black,
         _dpi);
 
-    private void Lay()
+        protected override Laid Read()
     {
         // What goes under a real barcode is what was encoded — several of these formats add a check digit,
         // and the retail ones break the number into groups and set one of them outside the bars. While the
@@ -181,7 +179,7 @@ internal sealed class BarcodeLayout
         LayLabel(build, symbol, groups, barsWidth, gap);
 
         build.Close();
-        _laid = new Laid(build.Seal(), size, []);
+        return new Laid(build.Seal(), size, []);
     }
 
     /// <summary>
@@ -443,4 +441,17 @@ internal sealed class BarcodeLayout
         faded.Freeze();
         return faded;
     }
+
+    /// <summary>
+    /// How a symbol sets characters it could not lay out at all — the same face its human-readable line
+    /// wears, because a barcode that failed still has to show the value somebody typed.
+    /// </summary>
+    protected override FormattedText Characters(string text) =>
+        new(text,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            MinimumLabelSize,
+            Brushes.Black,
+            _dpi);
 }
