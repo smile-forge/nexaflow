@@ -39,7 +39,7 @@ public class AbcDragTests
     public void EveryDragAcrossItComesBackWithAnAnswer() => UiThread.Run(() =>
     {
         var layout = AbcBuilder.Build(AuldGreyCat, 900, Brushes.Black, 1.0);
-        var pieces = layout.Root.SelfAndDescendants().Where(n => n.IsInk).ToList();
+        var pieces = layout.Root.Leaves().ToList();
 
         Assert.IsTrue(pieces.Count > 20, $"only {pieces.Count} pieces — the tune did not engrave");
 
@@ -77,7 +77,7 @@ public class AbcDragTests
         element.Measure(new System.Windows.Size(900, double.PositiveInfinity));
         element.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), element.DesiredSize));
 
-        var pieces = element.Layout!.Root.SelfAndDescendants().Where(n => n.IsInk).ToList();
+        var pieces = element.Layout!.Root.Leaves().ToList();
 
         for (var at = 0; at < pieces.Count; at += 3)
         {
@@ -105,7 +105,7 @@ public class AbcDragTests
         {
             var layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
 
-            foreach (var node in layout.Root.SelfAndDescendants().Where(n => n.IsInk))
+            foreach (var node in layout.Root.Leaves())
                 Assert.IsTrue(!node.Bounds.IsEmpty && node.Bounds.Width > 0 && node.Bounds.Height > 0,
                               $"{what}: a {Kind(node)} is ink and drew nothing");
         }

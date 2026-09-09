@@ -39,11 +39,11 @@ public class LayoutArenaTests
             {
                 build.Open("note", new Span(0, 1), new Point(10, 0));
                 {
-                    build.Open("accidental", null, new Point(-6, 0), isInk: false);
+                    build.Open("accidental", null, new Point(-6, 0));
                     build.Draw(new RuleMark(new Rect(0, 0, 4, 8), null));
                     build.Close();
 
-                    build.Open("head", null, isInk: false);
+                    build.Open("head", null);
                     build.Draw(new RuleMark(new Rect(0, 0, 9, 6), null));
                     build.Close();
                 }
@@ -139,22 +139,6 @@ public class LayoutArenaTests
     }
 
     [TestMethod]
-    public void APieceThatDrewNothingIsNotSomethingToPointAt()
-    {
-        var build = new LayoutBuilder();
-
-        build.Open("page", new Span(0, 3));
-        build.Open("empty", new Span(0, 1));   // named, and draws nothing at all
-        build.Close();
-        build.Close();
-
-        var tree = build.Seal();
-
-        Assert.IsFalse(Find(tree, "empty").IsInk,
-                       "ink is a promise a reader can point at the thing, and an empty rectangle cannot be");
-    }
-
-    [TestMethod]
     public void ARunIsWalkedOneStepAtATime()
     {
         var build = new LayoutBuilder();
@@ -201,11 +185,11 @@ public class LayoutArenaTests
             {
                 build.Open("note", new Span(0, 1), new Point(10, 0));
                 {
-                    build.Open("accidental", null, new Point(-6, 0), isInk: false);
+                    build.Open("accidental", null, new Point(-6, 0));
                     build.Draw(new RuleMark(new Rect(0, 0, 4, 8), null));
                     build.Close();
 
-                    build.Open("head", null, isInk: false);
+                    build.Open("head", null);
                     build.Draw(new RuleMark(new Rect(0, 0, 9, 6), null));
                     build.Close();
                 }

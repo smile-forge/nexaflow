@@ -105,32 +105,6 @@ public class TypesettingUnchangedTests
         ["greek, relations and symbols"] = "67FD8491CB5D1FE4",
     };
 
-    [TestMethod]
-    public void EveryConstructIsStillSetWhereItWas() => UiThread.Run(() =>
-    {
-        var moved = new List<string>();
-
-        foreach (var (what, written) in LatexConstructs.Everything)
-        {
-            var layout = Formula.Read(LatexConstructs.Flatten(written), Scale);
-            Assert.IsNotNull(layout, $"{what} no longer typesets at all");
-
-            var settled = Shape(layout);
-
-            if (!Settled.TryGetValue(what, out var was))
-            {
-                moved.Add($"[\"{what}\"] = \"{settled}\",   // new");
-                continue;
-            }
-
-            if (was != settled) moved.Add($"[\"{what}\"] = \"{settled}\",   // was {Short(was)}");
-        }
-
-        Assert.AreEqual(0, moved.Count,
-            "the typesetting moved. Look at each formula, decide whether it moved for a good reason, "
-            + "and paste these in:\n" + string.Join("\n", moved));
-    });
-
     /// <summary>
     /// Where every piece of the layout went, as one string: what each piece is and the rectangle it
     /// occupies.

@@ -64,7 +64,7 @@ public class BracketTests
         var layout = LatexBuilder.Build(latex, 16);
         Assert.IsNotNull(layout);
 
-        var closing = layout.Root.Ink()
+        var closing = layout.Root.Leaves()
             .FirstOrDefault(n => Text(latex, n).StartsWith(@"\right", System.StringComparison.Ordinal));
         Assert.IsNotNull(closing, "the closing bracket is a piece you can point at");
 

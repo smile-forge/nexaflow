@@ -78,10 +78,11 @@ public readonly record struct Piece
     }
 
     /// <summary>
-    /// Whether this piece holds a place of its own in the source: a stretch of it, or a hole in it. What a
-    /// caret can rest at and a query can land on.
+    /// Whether this piece stands for a place in the source — whether pointing at it, washing it or resting a
+    /// caret beside it means anything. Drawing is a different question: a bracket, a fraction bar and the
+    /// three glyphs of an operator name are all drawn and none of them stands for a place of its own.
     /// </summary>
-    public bool Stands() => Part is { Length: > 0 } || IsInk;
+    public bool Stands() => Part is { Length: > 0 };
 
     /// <summary>
     /// Where this piece sits in the source.
@@ -96,9 +97,6 @@ public readonly record struct Piece
     public SourcePlace Sits() =>
         Part is { } part ? new SourcePlace(part.Start, part.Length)
                          : new SourcePlace(Naming()?.Start ?? 0, 0);
-
-    /// <summary>Whether a reader can point at it, as opposed to it being spacing or a container.</summary>
-    public bool IsInk => _tree is not null && _tree.Piece(_at).IsInk;
 
     /// <summary>Whether a caret inside it is somewhere other than beside it — a script, a fraction.</summary>
     public bool IsEnclosure => _tree is not null && _tree.Piece(_at).IsEnclosure;
@@ -128,19 +126,35 @@ public readonly record struct Piece
     }
 
     /// <summary>
-    /// The ink inside it — what a reader can actually point at.
+    /// Everything drawn inside this piece — the leaves.
     ///
     /// <para>
-    /// Whether a piece qualifies was decided when the tree was built. It used to also require the piece to
-    /// cover some source, which is true of every piece except the one that matters most: a hole covers
-    /// nothing by definition, and is the one place the reader has been told to write.
+    /// A leaf <em>is</em> the drawing: a piece with nothing inside it exists because something was put on the
+    /// page there, and a builder that would produce one drawing nothing does not produce it. So there is no
+    /// flag to consult and nothing to keep in step — which there was, and the two builders had already
+    /// drifted into meaning different things by it.
+    /// </para>
+    /// <para>
+    /// Drawn is not the same as selectable, and the two used to share a flag. What a press <em>means</em> is
+    /// the first thing above the leaf that names a stretch of source — see <see cref="LayoutQuery.Selectable"/>
+    /// — and where nothing above it names one, nothing there is selectable.
     /// </para>
     /// </summary>
-    public IEnumerable<Piece> Ink()
+    public IEnumerable<Piece> Leaves()
     {
         foreach (var piece in SelfAndDescendants())
-            if (piece.IsInk) yield return piece;
+            if (piece.IsLeaf) yield return piece;
     }
+
+    /// <summary>
+    /// Whether this is the drawing itself rather than a group holding it: nothing inside it, and something
+    /// on the page.
+    /// <para>
+    /// Spacing never gets one: a builder places things at the offsets they belong at, and the gap between
+        /// them is the gap. So a piece with nothing inside it is the drawing, with nothing further to ask.
+    /// </para>
+    /// </summary>
+    public bool IsLeaf => Children.Count == 0;
 
     /// <summary>How many pieces hold it. Nought at the root.</summary>
     public int Depth => _tree is null ? 0 : _tree.DepthOf(_at);

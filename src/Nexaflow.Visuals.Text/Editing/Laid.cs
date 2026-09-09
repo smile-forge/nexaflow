@@ -74,8 +74,8 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     /// </summary>
     public Piece PieceAt(Point point)
     {
-        if (point.X > Size.Width) return Root.Ink().LastOrDefault();
-        if (point.X < 0) return Root.Ink().FirstOrDefault();
+        if (point.X > Size.Width) return Root.Leaves().LastOrDefault();
+        if (point.X < 0) return Root.Leaves().FirstOrDefault();
         return Root.PieceAt(point);
     }
 

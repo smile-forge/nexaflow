@@ -109,8 +109,7 @@ public class BarcodeLayoutTests
 
         Assert.IsTrue(bars.Bounds.Width > 0 && bars.Bounds.Height > 0, "they are on the page");
         Assert.AreEqual(0, bars.Sits().Length,
-            "and hold no place in the source, so the caret is never stood against one");
-        Assert.IsFalse(bars.IsInk, "nor are they something a drag picks out");
+            "and hold no place in the source, so the caret is never stood against one");
     });
 
     // ── A publication ─────────────────────────────────────────────────────

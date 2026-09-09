@@ -55,8 +55,6 @@ internal readonly record struct Stored
     /// <inheritdoc cref="Marks"/>
     public required int MarkCount { get; init; }
 
-    /// <summary>Whether a reader can point at it, as opposed to it being spacing or a container.</summary>
-    public required bool IsInk { get; init; }
 
     /// <summary>Whether a caret inside it is somewhere other than beside it — a script, a fraction.</summary>
     public required bool IsEnclosure { get; init; }

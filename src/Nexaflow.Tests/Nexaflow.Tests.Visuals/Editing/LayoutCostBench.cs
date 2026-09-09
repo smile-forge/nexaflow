@@ -85,7 +85,7 @@ public class LayoutCostBench
         var (root, size, paint) = read(laid);
 
         var nodes = root.SelfAndDescendants().Count();
-        var ink = root.Ink().Count();
+        var ink = root.Leaves().Count();
 
         GC.Collect();
         GC.WaitForPendingFinalizers();

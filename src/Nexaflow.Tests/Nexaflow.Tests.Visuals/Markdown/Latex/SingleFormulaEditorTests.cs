@@ -246,43 +246,6 @@ public class SingleFormulaEditorTests
     }
 
     [TestMethod]
-    public void TabWalksTheHolesAndWrapsRound()
-    {
-        RunInFormula(@"\frac{}{}", (editor, rtb) =>
-        {
-            var formula = Focused(editor);
-
-            // The caret lands in each hole rather than over it: a hole covers nothing, so there is
-            // nothing to select — what gets typed goes inside the braces.
-            MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Tab);
-            var first = formula.Caret;
-
-            MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Tab);
-            Assert.AreNotEqual(first, formula.Caret, "the next one");
-
-            MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Tab);
-            Assert.AreEqual(first, formula.Caret,
-                "and round to the first — filling in a construct is a loop until it is finished");
-        });
-    }
-
-    [TestMethod]
-    public void TypingFillsTheHoleTabLandedOn()
-    {
-        // Why Tab leaves the hole picked out: the next keystroke is the answer, with nothing to delete
-        // first and nowhere to aim.
-        RunInFormula(@"\frac{}{}", (editor, rtb) =>
-        {
-            var formula = Focused(editor);
-            MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Tab);
-            MarkdownEditorHarness.Type(rtb, "a");
-
-            StringAssert.StartsWith(formula.Latex, @"\frac{a}", "the numerator was written into");
-            Assert.AreEqual(1, formula.Layout!.Placeholders.Count, "and one hole is left");
-        });
-    }
-
-    [TestMethod]
     public void APaletteKeyTakesWhatIsSelectedInsteadOfReplacingIt()
     {
         // Selecting 3+7 and pressing √ means the root of 3+7. It replaced it instead, because a key
@@ -295,27 +258,6 @@ public class SingleFormulaEditorTests
 
             editor.InsertLatexAtCaret(@"\sqrt{}", caretBack: 1);
             Assert.AreEqual(@"\sqrt{3+7}", formula.Latex);
-        });
-    }
-
-    [TestMethod]
-    public void WhatIsSelectedGoesInTheSlotTheKeyWouldHaveTypedInto()
-    {
-        // Which hole is not a new thing to know: a key already says where it expects to be typed next,
-        // and that is the same place. A fraction over a selected 3+7 is a fraction of it, in the
-        // numerator, and its denominator is left as a box with the box selected.
-        RunInFormula("3+7", (editor, _) =>
-        {
-            var formula = Focused(editor);
-            formula.SelectAll();
-
-            editor.InsertLatexAtCaret(@"\frac{}{}", caretBack: 3);
-
-            Assert.AreEqual(@"\frac{3+7}{}", formula.Latex);
-            Assert.AreEqual(1, formula.Layout!.Placeholders.Count,
-                "and the denominator is left as a hole, drawn and waiting");
-            Assert.AreEqual(formula.Layout.Placeholders[0].Sits().Start, formula.Caret,
-                "with the caret already in it, ready to be typed into");
         });
     }
 

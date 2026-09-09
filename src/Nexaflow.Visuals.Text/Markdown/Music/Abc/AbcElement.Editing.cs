@@ -332,7 +332,7 @@ public sealed partial class AbcElement : IEditableBlock
         var best = 0;
         var distance = double.MaxValue;
 
-        foreach (var node in _laid!.Root.Ink())
+        foreach (var node in _laid!.Root.Leaves())
         {
             foreach (var (offset, x) in new[] { (node.Sits().Start, node.Bounds.X), (node.Sits().End, node.Bounds.Right) })
             {

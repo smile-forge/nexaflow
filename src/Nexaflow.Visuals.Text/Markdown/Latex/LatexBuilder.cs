@@ -207,7 +207,7 @@ public sealed class LatexBuilder : ContentBuilder
 
         foreach (var grid in TexGrid.In(reading.Root.Node))
         {
-            ink ??= [.. root.Ink().Where(piece => piece.Sits().Length > 0)];
+            ink ??= [.. root.Leaves().Where(piece => piece.Sits().Length > 0)];
 
             var cells = new Piece[grid.RowCount, grid.ColumnCount];
             foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(ink, cell);

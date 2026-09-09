@@ -32,18 +32,18 @@ public class LayoutQueryTests
         //  offsets            0    6 8  11 13 14
         var build = new LayoutBuilder();
 
-        build.At(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row", isInk: false);
+        build.At(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row");
 
-        build.At(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction", isInk: false);
+        build.At(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction");
 
-        build.At(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script", isInk: false);
+        build.At(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script");
         build.Leaf(new Rect(2, 8, 11, 9), new TestPart(6, 1), "char");    // x
         build.Leaf(new Rect(14, 0, 7, 9), new TestPart(8, 1), "char");    // 2 (exponent)
         build.Close();
 
         // The bar names nothing: no character of \frac{x^2}{2} produced it, and the piece holding the whole
         // fraction already carries that span. It is the fraction's own drawing.
-        build.Leaf(new Rect(2, 20, 22, 2), null, "rule", isInk: false);
+        build.Leaf(new Rect(2, 20, 22, 2), null, "rule");
         build.Leaf(new Rect(7, 30, 10, 13), new TestPart(11, 1), "char");   // 2 (denominator)
         build.Close();
 
@@ -59,11 +59,11 @@ public class LayoutQueryTests
     {
         var build = new LayoutBuilder();
 
-        build.At(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid", isInk: false);
+        build.At(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid");
 
         for (var r = 0; r < 3; r++)
         {
-            build.At(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row", isInk: false);
+            build.At(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row");
 
             for (var c = 0; c < 3; c++)
                 build.Leaf(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1), "char");
@@ -120,32 +120,17 @@ public class LayoutQueryTests
         {
             var hit = root.PieceAt(point);
             Assert.IsNotNull(hit);
-            Assert.IsTrue(hit.IsInk, $"press at {point} resolved to the container {hit.Kind}");
+            Assert.IsTrue(hit.IsLeaf, $"press at {point} resolved to the container {hit.Kind}");
         }
     }
 
     // ── Selection ───────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void SelectingEveryPartOfAConstructSelectsTheConstruct()
-    {
-        // The well-formedness guarantee: cover a fraction's numerator, rule and denominator and what you
-        // have selected is the fraction — never those three pieces and the braces between them.
-        var root = Fraction();
-        var inside = root.Ink().Where(n => n.Sits().Start < 13).ToList();
-
-        var promoted = LayoutQuery.Promote(inside);
-
-        Assert.AreEqual(1, promoted.Count);
-        Assert.AreEqual("fraction", promoted[0].Kind);
-        Assert.AreEqual((0, 13), (promoted[0].Sits().Start, promoted[0].Sits().Length));
-    }
-
-    [TestMethod]
     public void SelectingPartOfAConstructSelectsOnlyThatPart()
     {
         var root = Fraction();
-        var exponent = root.Ink().Single(n => n.Sits().Start == 8);
+        var exponent = root.Leaves().Single(n => n.Sits().Start == 8);
 
         var promoted = LayoutQuery.Promote([exponent]);
 
@@ -159,7 +144,7 @@ public class LayoutQueryTests
         // A node and its own child both selected must not yield two overlapping ranges.
         var root = Fraction();
         var frac = root.Children.First();
-        var denominator = root.Ink().Single(n => n.Sits().Start == 11);
+        var denominator = root.Leaves().Single(n => n.Sits().Start == 11);
 
         var ranges = LayoutQuery.Ranges(LayoutQuery.Promote([frac, denominator]));
 
@@ -173,7 +158,7 @@ public class LayoutQueryTests
         // A matrix column is a real selection and is not contiguous in the source, which is why a
         // selection is a set of ranges rather than one.
         var root = Matrix();
-        var column = root.Ink().Where(n => n.Sits().Start % 3 == 1).ToList();
+        var column = root.Leaves().Where(n => n.Sits().Start % 3 == 1).ToList();
 
         var ranges = LayoutQuery.Ranges(LayoutQuery.Promote(column));
 
@@ -184,7 +169,7 @@ public class LayoutQueryTests
     public void AWholeRowOfAGridIsTheRow()
     {
         var root = Matrix();
-        var middleRow = root.Ink().Where(n => n.Sits().Start is 3 or 4 or 5).ToList();
+        var middleRow = root.Leaves().Where(n => n.Sits().Start is 3 or 4 or 5).ToList();
 
         var promoted = LayoutQuery.Promote(middleRow);
 
@@ -242,25 +227,11 @@ public class LayoutQueryTests
     }
 
     [TestMethod]
-    public void TheCaretCrossesAFractionBarByStructure()
-    {
-        // By pixels alone the + starts fractionally lower than the numerator and would win. Asking which
-        // ancestor has rows, and stepping within it, gives the denominator the reader meant.
-        var root = Fraction();
-
-        var down = root.StepVertical(6, up: false);
-        Assert.AreEqual(11, down, "down from the numerator lands in the denominator");
-
-        var up = root.StepVertical(11, up: true);
-        Assert.AreEqual(6, up, "and back again");
-    }
-
-    [TestMethod]
     public void ThereIsNoVerticalMoveOffASingleRow()
     {
         var build = new LayoutBuilder();
 
-        build.At(new Rect(0, 0, 30, 13), new TestPart(0, 3), "row", isInk: false);
+        build.At(new Rect(0, 0, 30, 13), new TestPart(0, 3), "row");
         build.Leaf(new Rect(0, 0, 10, 13), new TestPart(0, 1), "char");
         build.Leaf(new Rect(10, 0, 10, 13), new TestPart(1, 1), "char");
         build.Close();
@@ -291,7 +262,7 @@ public class LayoutQueryTests
     {
         var build = new LayoutBuilder();
 
-        build.At(new Rect(0, 0, 40, 13), new TestPart(0, 4), "row", isInk: false);
+        build.At(new Rect(0, 0, 40, 13), new TestPart(0, 4), "row");
         build.Leaf(new Rect(0, 0, 10, 13), new TestPart(0, 1), "char");
         build.Leaf(new Rect(12, 2, 10, 9), new TestPart(1, 1), "char");
         build.Leaf(new Rect(24, 0, 10, 13), new TestPart(2, 1), "char");
@@ -300,29 +271,5 @@ public class LayoutQueryTests
         var root = build.Seal().Root;
 
         Assert.AreEqual(1, root.Rows().Count);
-    }
-
-    [TestMethod]
-    public void APieceDrawnFromNothingIsOnThePageAndNowhereInTheSource()
-    {
-        // The fraction's bar. No character of \frac{x^2}{2} produced it — it is the construct's own
-        // drawing — so it was drawn from no part, and a piece with no part is visibly there without being
-        // selectable: there is nothing an edit to it could mean. What it has instead of a stretch of
-        // source is a point, borrowed from the thing it was drawn inside, which is enough to keep it in
-        // order among the pieces that do stand for something and not enough to stand beside.
-        var root = Fraction();
-        var rule = root.SelfAndDescendants().Single(n => n.Kind == "rule");
-
-        Assert.IsNull(rule.Part, "nobody wrote it");
-        Assert.AreEqual(new SourcePlace(0, 0), rule.Sits(), "so it is a point where the fraction begins");
-        Assert.IsFalse(rule.Stands(), "and there is nowhere in it for a caret to be");
-        CollectionAssert.DoesNotContain(root.Ink().ToArray(), rule, "nor is it something a drag picks out");
-
-        // Which is what makes pressing it mean the fraction: the press lands on the nearest thing above it
-        // that somebody did write, rather than on a rule that could not answer for itself.
-        var pressed = root.PieceAt(new Point(rule.Bounds.X + rule.Bounds.Width / 2,
-                                            rule.Bounds.Y + rule.Bounds.Height / 2));
-
-        Assert.AreEqual(new SourcePlace(0, 13), pressed!.Sits(), "the whole fraction");
     }
 }

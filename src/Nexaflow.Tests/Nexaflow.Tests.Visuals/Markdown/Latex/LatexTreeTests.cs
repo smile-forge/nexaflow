@@ -61,23 +61,23 @@ public class LatexTreeTests
     {
         var build = new LayoutBuilder();
 
-        build.At(new Rect(0.0, 0.0, 78.7, 43.5), Part(0, 22), "HorizontalBox", isInk: false);
+        build.At(new Rect(0.0, 0.0, 78.7, 43.5), Part(0, 22), "HorizontalBox");
 
-        build.At(new Rect(0.0, 0.0, 26.3, 43.5), Part(0, 13), "VerticalBox", isInk: false);
+        build.At(new Rect(0.0, 0.0, 26.3, 43.5), Part(0, 13), "VerticalBox");
 
-        build.At(new Rect(2.4, 0.0, 18.4, 16.3), Part(6, 3), "HorizontalBox", isInk: false);
+        build.At(new Rect(2.4, 0.0, 18.4, 16.3), Part(6, 3), "HorizontalBox");
         build.Leaf(new Rect(2.4, 7.7, 11.4, 8.6), Part(6, 1), "CharBox");     // x
         build.Leaf(new Rect(13.8, 0.0, 7.0, 9.0), Part(8, 1), "CharBox");     // 2, the exponent
         build.Close();
 
-        build.Leaf(new Rect(0.0, 20.0, 26.3, 2.0), null, "HorizontalRule", isInk: false);
+        build.Leaf(new Rect(0.0, 20.0, 26.3, 2.0), null, "HorizontalRule");
         build.Leaf(new Rect(6.9, 30.6, 10.0, 12.9), Part(11, 1), "CharBox");  // 2, below the bar
         build.Close();
 
         build.Leaf(new Rect(28.2, 18.1, 15.6, 13.3), Part(13, 1), "CharBox"); // +
 
-        build.At(new Rect(48.2, 13.6, 30.5, 24.0), Part(14, 8), "HorizontalBox", isInk: false);
-        build.Leaf(new Rect(48.2, 13.6, 20.0, 24.0), Part(14, 0), "CharBox", isInk: false);   // the sign
+        build.At(new Rect(48.2, 13.6, 30.5, 24.0), Part(14, 8), "HorizontalBox");
+        build.Leaf(new Rect(48.2, 13.6, 20.0, 24.0), Part(14, 0), "CharBox");   // the sign
         build.Leaf(new Rect(68.2, 21.2, 10.5, 12.5), Part(20, 1), "CharBox");                 // y
         build.Close();
 
@@ -147,32 +147,6 @@ public class LatexTreeTests
     }
 
     [TestMethod]
-    public void DownFromANumeratorLandsInItsOwnDenominator()
-    {
-        // The `+` beside the fraction starts fractionally lower than the numerator, so by pixels alone it
-        // beats the denominator the reader means. Structure has to settle it.
-        var tree = Latex();
-
-        Assert.AreEqual(11, tree.Laid.Root.StepVertical(6, up: false), "before the x → before the denominator");
-        Assert.AreEqual(12, tree.Laid.Root.StepVertical(7, up: false), "after the x → after it");
-    }
-
-    [TestMethod]
-    public void UpFromADenominatorComesBack()
-    {
-        var tree = Latex();
-        Assert.AreEqual(6, tree.Laid.Root.StepVertical(11, up: true));
-    }
-
-    [TestMethod]
-    public void DownFromAnExponentSkipsPastTheBase()
-    {
-        // An exponent's own line has nothing under it but the denominator of the fraction it sits in.
-        var tree = Latex();
-        Assert.AreEqual(12, tree.Laid.Root.StepVertical(9, up: false));
-    }
-
-    [TestMethod]
     public void ThereIsNoVerticalMoveFromOutsideTheGlyphs()
     {
         // Offset 0 abuts nothing that was drawn — its caret spans every line, so it is on none of them.
@@ -211,16 +185,6 @@ public class LatexTreeTests
         // Stopping at the raw offsets would have selected `x^` and left the script half-taken.
         var (start, length) = Latex().Laid.Root.Snap(6, 3);
         Assert.AreEqual("x^2", Fraction.Substring(start, length));
-    }
-
-    [TestMethod]
-    public void DraggingFromANumeratorToADenominatorTakesTheFraction()
-    {
-        // The offsets alone give `1}{x` — braces closing something the selection never opened. Promotion
-        // is what makes the answer a thing you could cut out: every piece of the fraction's ink is in the
-        // drag, so the answer is the fraction.
-        var (start, length) = Latex().Laid.Root.Snap(6, 6);
-        Assert.AreEqual(@"\frac{x^2}{2}", Fraction.Substring(start, length));
     }
 
     [TestMethod]

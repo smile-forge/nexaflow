@@ -212,8 +212,8 @@ public sealed partial class AbcElement : FrameworkElement
     /// </summary>
     private IEnumerable<Piece> Washed(Laid layout) =>
         _chosen is { IsEmpty: false } chosen
-            ? chosen.Pieces.SelectMany(piece => piece.Ink())
-            : layout.Root.Ink().Where(piece => piece.Sits() is { Length: > 0 } at
+            ? chosen.Pieces.SelectMany(piece => piece.Leaves())
+            : layout.Root.Leaves().Where(piece => piece.Sits() is { Length: > 0 } at
                   && _selection.Any(range => at.Start >= range.Start && at.End <= range.Start + range.Length));
 
     private const double ScoreWash = 6.0;
@@ -221,7 +221,7 @@ public sealed partial class AbcElement : FrameworkElement
     private void PaintDiagnostics(DrawingContext dc, Laid layout)
     {
         foreach (var trouble in layout.Trouble)
-            foreach (var node in layout.Root.Ink().Where(trouble.Covers))
+            foreach (var node in layout.Root.Leaves().Where(trouble.Covers))
                 dc.DrawGeometry(null, WavePen, Squiggle.Under(node.Bounds));
     }
 

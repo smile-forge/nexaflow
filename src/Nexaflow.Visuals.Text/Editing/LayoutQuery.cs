@@ -281,7 +281,7 @@ public static class LayoutQuery
 
         foreach (var (piece, where) in root.Placed())
         {
-            if (!piece.IsInk) continue;
+            if (!piece.IsLeaf) continue;
             if (alone && Holds(piece)) continue;
 
             var distance = DistanceTo(where, point);
@@ -313,7 +313,7 @@ public static class LayoutQuery
 
     /// <summary>Every piece of ink the rectangle touches.</summary>
     public static IReadOnlyList<Piece> PiecesIn(this Piece root, Rect area) =>
-        [.. root.Placed().Where(p => p.Piece.IsInk && p.Where.IntersectsWith(area)).Select(p => p.Piece)];
+        [.. root.Placed().Where(p => p.Piece.IsLeaf && p.Where.IntersectsWith(area)).Select(p => p.Piece)];
 
     // ── Selection ───────────────────────────────────────────────────────────
 
@@ -343,7 +343,7 @@ public static class LayoutQuery
                 // Covered, not merely present: a child promoted into a piece of its own on an earlier pass
                 // is still covered by it, and requiring literal membership would stop promotion one level
                 // short — a fraction's numerator would become a piece and the fraction never would.
-                var ink = parent.Ink().ToList();
+                var ink = parent.Leaves().ToList();
                 if (ink.Count == 0 || !ink.All(p => chosen.Contains(p) || p.Ancestors().Any(chosen.Contains)))
                     continue;
 
@@ -447,7 +447,7 @@ public static class LayoutQuery
         // Nothing begins or ends exactly here, which is the normal case straight after an edit: the caret
         // lands wherever the text was cut. Stand it beside the nearest ink rather than at the origin.
         Piece before = default, after = default;
-        foreach (var piece in root.Ink())
+        foreach (var piece in root.Leaves())
         {
             var at = piece.Sits();
             if (at.End <= offset && (!before.Exists || at.End > before.Sits().End)) before = piece;
@@ -620,7 +620,7 @@ public static class LayoutQuery
                 // already stands wins — moving down a line keeps your place across it, so a caret after
                 // the numerator arrives after the denominator rather than jumping in front of it.
                 var landing = rows[target]
-                    .SelectMany(p => p.Ink())
+                    .SelectMany(p => p.Leaves())
                     .Where(p => p.Sits().Length < ancestor.Sits().Length)
                     .SelectMany(p => new[]
                     {
@@ -786,7 +786,7 @@ public static class LayoutQuery
         {
             // The range covers only characters nothing was drawn for — a lone brace, say, or half of a
             // command's name. Snap to whatever is nearest, so a selection is always of something visible.
-            var nearest = root.Ink()
+            var nearest = root.Leaves()
                 .OrderBy(piece => Math.Min(Math.Abs(piece.Sits().Start - from), Math.Abs(piece.Sits().End - to)))
                 .FirstOrDefault();
             if (!nearest.Exists) return (from, to - from);

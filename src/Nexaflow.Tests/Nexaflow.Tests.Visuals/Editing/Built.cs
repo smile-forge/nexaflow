@@ -31,21 +31,19 @@ internal static class Built
     /// hangs below the very piece that holds it.
     /// </para>
     /// </summary>
-    public static int At(this LayoutBuilder build, Rect where, ISourcePart? part, string kind, bool isInk)
+    public static int At(this LayoutBuilder build, Rect where, ISourcePart? part, string kind)
     {
         var anchor = build.Anchor;
-        var at = build.Open(kind, part, new Point(where.X - anchor.X, where.Y - anchor.Y),
-                            isInk, gathers: false);
+        var at = build.Open(kind, part, new Point(where.X - anchor.X, where.Y - anchor.Y), gathers: false);
 
         build.Covers(new Rect(0, 0, where.Width, where.Height));
         return at;
     }
 
     /// <summary>…and the same for a piece holding nothing.</summary>
-    public static int Leaf(this LayoutBuilder build, Rect where, ISourcePart? part, string kind,
-                           bool isInk = true)
+    public static int Leaf(this LayoutBuilder build, Rect where, ISourcePart? part, string kind)
     {
-        var at = build.At(where, part, kind, isInk);
+        var at = build.At(where, part, kind);
         build.Close();
         return at;
     }

@@ -75,8 +75,6 @@ internal sealed class LatexCapture : IElementRenderer
     private readonly List<Nexaflow.Maths.Latex.TexPart> _above = [];
 
     /// <summary>Whether anything inside the piece being built stands for a part of its own.</summary>
-    private readonly Stack<bool> _stood = new();
-
     // OverUnderBox (\overrightarrow and friends) draws through RenderTransformed, so a box can be shifted
     // away from the coordinates it is handed. Translations are accumulated into where the piece sits; a
     // rotation is deliberately not, because an axis-aligned bounding box is what a hit test wants either
@@ -126,6 +124,11 @@ internal sealed class LatexCapture : IElementRenderer
         var origin = new Point(raw.X + _offsetX, raw.Y + _offsetY);
         var parent = _open.Count > 0 ? _open.Peek().Origin : new Point(0, 0);
 
+        // Spacing is not a thing on the page. A strut and a piece of glue are room the typesetter reserved,
+        // and the builder places what comes after them at the offset that room produces — so the gap is the
+        // gap, and there is nothing to make a piece for.
+        if (box is StrutBox or GlueBox) return;
+
         var kind = box.GetType().Name;
         var part = Owns(box);
 
@@ -134,8 +137,6 @@ internal sealed class LatexCapture : IElementRenderer
             part is null ? null : new TexSourcePart(part),
             new Point(origin.X - parent.X, origin.Y - parent.Y),
 
-            // Said at Close, once it is known what lies beneath.
-            isInk: false,
 
             // Whether a caret can be inside this and then outside it is a question about the construct,
             // and the part is the only thing that can answer it.
@@ -159,35 +160,21 @@ internal sealed class LatexCapture : IElementRenderer
 
         if (part is not null) _above.Add(part);
         _open.Push((origin, raw));
-        _stood.Push(false);
+
 
         box.RenderTo(this, x, y);   // the recursion - children report themselves through RenderElement
 
-        var below = _stood.Pop();
 
-        // A piece is ink when it stands for a part and nothing beneath it stands for a smaller one — the
-        // leaves of the part-bearing subtree, which are exactly the things a reader can point at.
-        //
-        // Leaf-of-the-box-tree would be the obvious rule and is wrong: an operator name such as \sin is a
-        // box holding a run of letter boxes, and those letters were built from no part of the reading at
-        // all — so the letters stand for nothing and \sin itself is the unit, container or not.
-        //
-        // A hole is the exception the rule needs: it stands for nothing written — that is what a hole is —
-        // and it is nonetheless the most pointable thing on the page, being the one place the reader has
-        // been told to write.
-        var stands = part is { Derived: false } || kind == LatexPlaceholder.Kind;
 
-        _build.Ink(stands && !below);
+        // Nothing to say about whether a reader can point at this. The three letters of an operator name
+        // are drawn and the name is what you point at; a bracket is drawn and the group is what you point
+        // at. Both fall out of the same two rules — a leaf is the drawing, and a press means the first
+        // thing above it that names a stretch of source — and neither needs a builder to declare it.
         _build.Close();
 
         _open.Pop();
         if (part is not null) _above.RemoveAt(_above.Count - 1);
 
-        if (_stood.Count > 0 && (below || stands))
-        {
-            _stood.Pop();
-            _stood.Push(true);
-        }
     }
 
     /// <summary>

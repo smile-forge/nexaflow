@@ -161,7 +161,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         // ── the tree ──
         var build = new LayoutBuilder();
-        build.Open(nameof(BarcodeKind.Symbol), part: null, isInk: false);
+        build.Open(nameof(BarcodeKind.Symbol), part: null);
 
         // The ground the symbol is printed on. A barcode paints its own light field whatever the theme,
         // because a scanner needs dark bars on a light one.
@@ -284,7 +284,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         var width = PatternWidth * _block.BarWidth;
 
-        into.Open("Bars", part: null, new Point(_barsLeft, _barsTop), isInk: false);
+        into.Open("Bars", part: null, new Point(_barsLeft, _barsTop));
 
         // As tall as the well the guards drop into, whether or not a run of ink reaches the bottom of it.
         into.Covers(new Rect(0, 0, width, _block.BarHeight + _guardDrop));
@@ -322,7 +322,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
     /// </summary>
     private void LayCaption(LayoutBuilder into, BarcodePart part, FormattedText glyphs, Point at, double size)
     {
-        into.Open(part.Kind.ToString(), part: null, at, isInk: false);
+        into.Open(part.Kind.ToString(), part: null, at);
         into.Draw(new TextMark(glyphs, default, null));
         LayPieces(into, part, 0, glyphs.Height, size);
         into.Close();
@@ -369,7 +369,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
             // Printing that was worked out rather than typed is still ink: it is a digit on the page and a
             // reader can point at it. It carries no part, which is what keeps it out of the caret's stops.
-            into.Open(part.Kind.ToString(), part: null, at, isInk: Generated(part));
+            into.Open(part.Kind.ToString(), part: null, at);
             into.Draw(new TextMark(glyphs, default, null));
 
             if (!Generated(part)) LayPieces(into, part, 0, glyphs.Height, null);
@@ -408,7 +408,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
             // that it stands for the whole value, and says so when it is pressed — but a part here
             // would put it among the caret's stops, and the caret would take its height and position
             // from a piece of the symbol nobody can type into.
-            into.Open(piece.Kind.ToString(), piece.IsSource ? piece : null, new Point(from, y), isInk: true);
+            into.Open(piece.Kind.ToString(), piece.IsSource ? piece : null, new Point(from, y));
             into.Covers(new Rect(0, 0, Math.Max(to - from, 0), height));
             into.Close();
         }

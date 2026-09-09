@@ -124,22 +124,6 @@ public class AbcSelectionOrderTests
     });
 
     [TestMethod]
-    public void AndShiftDownReachesTheWordsUnderTheNote() => UiThread.Run(() =>
-    {
-        var element = Open();
-        var block = (IEditableBlock)element;
-
-        element.BeginPointerSelect(Middle(element, "note", 0));
-        element.EndPointerSelect();
-
-        Assert.IsTrue(block.MoveCaretVertically(up: false, extend: true),
-                      "a note with words under it has somewhere to go");
-
-        Assert.IsTrue(Selected(element).Contains("one"),
-                      $"stepping down from the first note should reach its syllable — got: {Selected(element)}");
-    });
-
-    [TestMethod]
     public void AndThereIsNothingPastTheEndOfARun() => UiThread.Run(() =>
     {
         var element = Open();

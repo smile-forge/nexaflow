@@ -50,7 +50,7 @@ public sealed class LayoutBuilder
         public int At;
         public Vector Offset;
         public Rect Box;
-        public bool IsInk;
+    
         public bool IsEnclosure;
         public bool Gathers;
         public LayoutPaint? Paints;
@@ -104,7 +104,7 @@ public sealed class LayoutBuilder
     /// ledger line has none, because nobody wrote it.
     /// </param>
     public int Open(string kind, ISourcePart? part = null, Point at = default,
-                    bool? isInk = null, bool isEnclosure = false, bool gathers = true,
+                bool isEnclosure = false, bool gathers = true,
                     LayoutPaint? paints = null)
     {
         var frame = _spare.Count > 0 ? _spare.Pop() : new Frame();
@@ -112,7 +112,7 @@ public sealed class LayoutBuilder
         frame.At = _pieces.Count;
         frame.Offset = new Vector(at.X, at.Y);
         frame.Box = Rect.Empty;
-        frame.IsInk = isInk ?? part is { Length: > 0 };
+
         frame.IsEnclosure = isEnclosure;
         frame.Gathers = gathers;
         frame.Paints = paints is { Matters: true } ? paints : null;
@@ -185,18 +185,6 @@ public sealed class LayoutBuilder
     /// </summary>
     public void Covers(Rect what) => _open.Peek().Covers(what);
 
-    /// <summary>
-    /// Says whether the piece being built is something a reader can point at, now that it is known.
-    ///
-    /// <para>
-    /// For the one case the answer is not available when the piece opens: a typeset formula's pieces are
-    /// ink when they stand for a part and nothing beneath them stands for a smaller one, which cannot be
-    /// asked until the contents have arrived. Closing still has the last word — a piece that drew nothing
-    /// is not something to point at, whatever anybody says here.
-    /// </para>
-    /// </summary>
-    public void Ink(bool yes) => _open.Peek().IsInk = yes;
-
     /// <summary>Finishes the piece being built, and gives back where it went.</summary>
     public int Close()
     {
@@ -218,7 +206,7 @@ public sealed class LayoutBuilder
             // Ink is a promise that a reader can point at the thing, and a piece that drew nothing cannot
             // be pointed at, hit-tested, washed or stood beside. Kept here rather than checked at each of
             // the places that trust it, because there are too many of those to keep in step.
-            IsInk = frame.IsInk && !frame.Box.IsEmpty,
+
             IsEnclosure = frame.IsEnclosure,
         };
 

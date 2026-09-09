@@ -51,8 +51,8 @@ internal sealed partial class AbcBuilder
     /// Opens a piece at a point on the page. Nothing for <paramref name="at"/> means the piece begins
     /// where whatever holds it begins, which is what every part of another thing's drawing wants.
     /// </summary>
-    private int Open(string kind, ISourcePart? part = null, Point? at = null, bool? isInk = null) =>
-        _build.Open(kind, part, at is { } page ? In(page) : default, isInk);
+    private int Open(string kind, ISourcePart? part = null, Point? at = null) =>
+        _build.Open(kind, part, at is { } page ? In(page) : default);
 
     private void Close() => _build.Close();
 
@@ -133,7 +133,7 @@ internal sealed partial class AbcBuilder
     {
         var geometry = StaffGeometry.For(system.Row.Clef);
 
-        Open("system", at: new Point(0, system.StaffTop), isInk: false);
+        Open("system", at: new Point(0, system.StaffTop));
 
         Staff(system);
         Head(system, geometry);
@@ -174,7 +174,7 @@ internal sealed partial class AbcBuilder
             var glyphs = ScoreText.Build(name, CreditSize, _ppd);
             var at = new Point(x, system.StaffTop + (StaffHeight / 2) - (glyphs.Height / 2));
 
-            Open("voice", at: at, isInk: false);
+            Open("voice", at: at);
             _build.Draw(new TextMark(glyphs, default, null));
             Close();
 
@@ -277,7 +277,7 @@ internal sealed partial class AbcBuilder
 
         for (var slot = 0; slot < runs.Count; slot++)
         {
-            foreach (var curve in Opening(sets, slot)) Open(curve.Kind + "-set", isInk: false);
+            foreach (var curve in Opening(sets, slot)) Open(curve.Kind + "-set");
 
             var (beam, events) = runs[slot];
 
@@ -354,7 +354,7 @@ internal sealed partial class AbcBuilder
 
         for (var at = 0; at < events.Count; at++)
         {
-            foreach (var curve in Opening(sets, at)) Open(curve.Kind + "-set", isInk: false);
+            foreach (var curve in Opening(sets, at)) Open(curve.Kind + "-set");
 
             var ev = events[at];
             var on = plan is null ? -1 : beamed.IndexOf(ev);
@@ -435,7 +435,7 @@ internal sealed partial class AbcBuilder
                 var y0 = plan.Reach + (plan.Slope * (x0 - plan.Xs[0])) + offset;
                 var y1 = plan.Reach + (plan.Slope * (x1 - plan.Xs[0])) + offset;
 
-                Open("beam-bar", at: new Point(Math.Min(x0, x1), Math.Min(y0, y1)), isInk: false);
+                Open("beam-bar", at: new Point(Math.Min(x0, x1), Math.Min(y0, y1)));
 
                 var one = In(new Point(x0, y0));
                 var other = In(new Point(x1, y1));
@@ -559,7 +559,7 @@ internal sealed partial class AbcBuilder
     {
         if (ev.Graces.Count == 0) return;
 
-        Open("graces", isInk: false);
+        Open("graces");
 
         var width = _noteHead * GraceScale;
         var step = width + GraceStep;
@@ -699,7 +699,7 @@ internal sealed partial class AbcBuilder
                 _ => new Point(ev.X + _noteHead + (0.3 * S), system.StaffTop + S),
             };
 
-            Open("annotation", at: at, isInk: false);
+            Open("annotation", at: at);
             _build.Draw(new TextMark(glyphs, default, null));
             Close();
         }
@@ -729,7 +729,7 @@ internal sealed partial class AbcBuilder
 
         var bounds = new Rect(x - (StemThick / 2), Math.Min(fromY, endY), StemThick, Math.Abs(endY - fromY));
 
-        Open("stem", at: bounds.TopLeft, isInk: false);
+        Open("stem", at: bounds.TopLeft);
 
         var stem = new RectangleGeometry(In(bounds));
         stem.Freeze();
@@ -765,7 +765,7 @@ internal sealed partial class AbcBuilder
     /// <summary>…and the same on a piece of its own.</summary>
     private void Ruled(string kind, double x, double y, double width, double height)
     {
-        Open(kind, at: new Point(x, y), isInk: false);
+        Open(kind, at: new Point(x, y));
         Rule(x, y, width, height);
         Close();
     }
@@ -856,7 +856,7 @@ internal sealed partial class AbcBuilder
         var at = y + (LyricSize * 0.78);
         var rule = new Rect(from, at - (MelismaThick / 2), to - from, MelismaThick);
 
-        Open("melisma", at: rule.TopLeft, isInk: false);
+        Open("melisma", at: rule.TopLeft);
         _build.Draw(new GeometryMark(new RectangleGeometry(In(rule)), _ink, null, 0));
         Close();
     }
@@ -924,7 +924,7 @@ internal sealed partial class AbcBuilder
 
                 var where = new Point(((left + right) / 2) - (glyphs.Width / 2), y);
 
-                Open("tuplet", at: where, isInk: false);
+                Open("tuplet", at: where);
                 _build.Draw(new TextMark(glyphs, default, null));
                 Close();
             }
@@ -1024,7 +1024,7 @@ internal sealed partial class AbcBuilder
             // pixels, so a bracket drawn where it belongs is half off the page.
             var x = Math.Max(0, LeftMargin - BracketWidth);
 
-            Open("bracket", at: new Point(x, top), isInk: false);
+            Open("bracket", at: new Point(x, top));
 
             Rule(x, top, BracketWidth, bottom - top);
 
@@ -1106,7 +1106,7 @@ internal sealed partial class AbcBuilder
     /// <summary>A glyph on a piece of its own — the ordinary case, since each is part of a thing's drawing.</summary>
     private void Glyph(string kind, int codepoint, Point baseline, double scale = 1.0)
     {
-        Open(kind, at: baseline, isInk: false);
+        Open(kind, at: baseline);
         Mark(codepoint, baseline, scale);
         Close();
     }
@@ -1391,7 +1391,7 @@ internal sealed partial class AbcBuilder
             {
                 if (!ReferenceEquals(curve.FromSystem, system)) continue;
 
-                Open(curve.Kind + "-set", at: start, isInk: false);
+                Open(curve.Kind + "-set", at: start);
                 Arc(start, end, above, curve.Kind);
                 Close();
                 continue;
@@ -1399,13 +1399,13 @@ internal sealed partial class AbcBuilder
 
             if (ReferenceEquals(curve.FromSystem, system))
             {
-                Open(curve.Kind + "-set", at: start, isInk: false);
+                Open(curve.Kind + "-set", at: start);
                 Arc(start, new Point(system.Right - (0.5 * S), start.Y), above, curve.Kind);
                 Close();
             }
             else if (ReferenceEquals(curve.ToSystem, system))
             {
-                Open(curve.Kind + "-set", at: end, isInk: false);
+                Open(curve.Kind + "-set", at: end);
                 Arc(new Point(system.HeadWidth - (0.5 * S), end.Y), end, above, curve.Kind);
                 Close();
             }
@@ -1451,7 +1451,7 @@ internal sealed partial class AbcBuilder
         var span = Math.Abs(to.X - from.X);
         if (span < 1) return;
 
-        Open(kind, at: new Point(Math.Min(from.X, to.X), Math.Min(from.Y, to.Y)), isInk: false);
+        Open(kind, at: new Point(Math.Min(from.X, to.X), Math.Min(from.Y, to.Y)));
 
         var one = In(from);
         var other = In(to);

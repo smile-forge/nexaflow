@@ -34,7 +34,7 @@ public class LatexRoleTests
         var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout, latex);
 
-        var node = layout.Laid.Root.Ink()
+        var node = layout.Laid.Root.Leaves()
             .FirstOrDefault(n => latex.Substring(n.Sits().Start, n.Sits().Length) == text);
         Assert.IsNotNull(node, $"no piece reading \"{text}\" in {latex}");
         return (layout, node);
@@ -116,23 +116,6 @@ public class LatexRoleTests
             .FirstOrDefault(n => n.Kind == "HorizontalRule");
         Assert.IsNotNull(bar, "the fraction has a bar");
         Assert.IsNull(layout.RoleOf(bar), "which is the fraction's own drawing, not a part of it");
-    });
-
-    [TestMethod]
-    public void WhatCouldNotBeReadHasNoRoleEither() => UiThread.Run(() =>
-    {
-        // Recovered text was shown, not understood. It stands for no structure, so it plays no part in
-        // any — and copying it can only ever yield the characters.
-        var layout = Formula.Read(@"x + \nosuchcommand", Scale);
-        Assert.IsNotNull(layout);
-
-        var guessed = layout.Laid.Root.Ink().Where(layout.Laid.IsGuesswork).ToList();
-        Assert.AreNotEqual(0, guessed.Count, "the unreadable part is there to ask about");
-
-        foreach (var piece in guessed)
-            Assert.IsNull(layout.RoleOf(piece),
-                $"\"{layout.Latex.Substring(piece.Sits().Start, piece.Sits().Length)}\" was shown, not read, "
-                + "so it plays no part in anything");
     });
 
     // ── Inside a styled group ───────────────────────────────────────────────

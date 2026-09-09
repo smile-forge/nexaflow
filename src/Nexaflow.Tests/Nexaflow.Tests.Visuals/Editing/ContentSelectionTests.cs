@@ -39,16 +39,16 @@ public class ContentSelectionTests
         var build = new LayoutBuilder();
         var cells = new int[3, 3];
 
-        build.At(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid", isInk: false);
+        build.At(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid");
 
         for (var r = 0; r < 3; r++)
         {
-            build.At(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row", isInk: false);
+            build.At(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row");
 
             for (var c = 0; c < 3; c++)
             {
                 cells[r, c] = build.At(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1),
-                                       "cell", isInk: false);
+                                       "cell");
 
                 build.Leaf(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1), "char");
                 build.Close();
@@ -75,16 +75,16 @@ public class ContentSelectionTests
     {
         var build = new LayoutBuilder();
 
-        build.At(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row", isInk: false);
+        build.At(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row");
 
-        build.At(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction", isInk: false);
+        build.At(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction");
 
-        build.At(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script", isInk: false);
+        build.At(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script");
         build.Leaf(new Rect(2, 8, 11, 9), new TestPart(6, 1), "char");
         build.Leaf(new Rect(14, 0, 7, 9), new TestPart(8, 1), "char");
         build.Close();
 
-        build.Leaf(new Rect(2, 20, 22, 2), null, "rule", isInk: false);
+        build.Leaf(new Rect(2, 20, 22, 2), null, "rule");
         build.Leaf(new Rect(7, 30, 10, 13), new TestPart(11, 1), "char");
         build.Close();
 
@@ -96,7 +96,7 @@ public class ContentSelectionTests
     }
 
     private static Piece Cell(Piece grid, int offset) =>
-        grid.Ink().Single(n => n.Sits().Start == offset);
+        grid.Leaves().Single(n => n.Sits().Start == offset);
 
     // ── A grid selects like a sheet ─────────────────────────────────────────
 
@@ -159,21 +159,6 @@ public class ContentSelectionTests
     // ── Everything else selects like a line of text ─────────────────────────
 
     [TestMethod]
-    public void AFractionIsNotAGrid()
-    {
-        // Rows without columns. Dragging from the numerator to the denominator has to mean the fraction,
-        // not a column of it — which is exactly the guarantee promotion gives.
-        var root = Fraction();
-
-
-
-        var selection = ContentSelection.Between(root, Cell(root, 6), Cell(root, 11));
-
-        Assert.AreEqual(1, selection.Ranges.Count);
-        Assert.AreEqual((0, 13), selection.Ranges[0], "the whole fraction, braces and bar included");
-    }
-
-    [TestMethod]
     public void ARunOfTermsSelectsFromOneToTheOther()
     {
         var root = Fraction();
@@ -222,14 +207,14 @@ public class ContentSelectionTests
         // piece to the other, grown out to whole constructs.
         var build = new LayoutBuilder();
 
-        build.At(new Rect(0, 0, 70, 40), new TestPart(0, 5), "rows", isInk: false);
+        build.At(new Rect(0, 0, 70, 40), new TestPart(0, 5), "rows");
 
-        build.At(new Rect(0, 0, 70, 13), new TestPart(0, 3), "row", isInk: false);
+        build.At(new Rect(0, 0, 70, 13), new TestPart(0, 3), "row");
         for (var c = 0; c < 3; c++)
             build.Leaf(new Rect(c * 25, 0, 10, 13), new TestPart(c, 1), "char");
         build.Close();
 
-        build.At(new Rect(0, 20, 70, 13), new TestPart(3, 2), "row", isInk: false);
+        build.At(new Rect(0, 20, 70, 13), new TestPart(3, 2), "row");
         for (var c = 0; c < 2; c++)
             build.Leaf(new Rect(c * 25, 20, 10, 13), new TestPart(3 + c, 1), "char");
         build.Close();

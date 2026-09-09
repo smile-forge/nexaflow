@@ -63,7 +63,7 @@ public class AbcCorpusRenderTests
             }
 
             engraved++;
-            if (!layout.Root.Ink().Any()) { empty++; continue; }
+            if (!layout.Root.Leaves().Any()) { empty++; continue; }
 
             // Every piece that names source must name source this tune actually has. The parse-level sweep
             // cannot see this: it is the builder's attribution that is being checked, not the reading.

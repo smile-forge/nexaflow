@@ -340,7 +340,7 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
         var best = 0;
         var distance = double.MaxValue;
 
-        foreach (var piece in _laid.Root.Ink())
+        foreach (var piece in _laid.Root.Leaves())
         {
             var at = piece.Sits();
             var where = piece.Bounds;

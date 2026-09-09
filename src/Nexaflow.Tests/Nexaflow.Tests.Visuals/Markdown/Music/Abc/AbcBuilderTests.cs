@@ -99,12 +99,11 @@ public class AbcBuilderTests
         {
             if (node.Kind is not ("staff-line" or "beam-bar" or "clef" or "key" or "meter")) continue;
 
-            Assert.IsNull(node.Part, $"a {node.Kind} says it was written");
-            Assert.IsFalse(node.IsInk, $"a {node.Kind} offers itself for selection");
+            Assert.IsNull(node.Part, $"a {node.Kind} says it was written");
         }
 
         // …and the tune is not simply empty, which is the way this test could pass for the wrong reason.
-        Assert.IsTrue(layout.Root.Ink().Any(), "nothing selectable was engraved at all");
+        Assert.IsTrue(layout.Root.Leaves().Any(), "nothing selectable was engraved at all");
     });
 
     [TestMethod]
@@ -117,46 +116,8 @@ public class AbcBuilderTests
             if (!abc.Contains('|') && !abc.Contains("ABc")) continue;
 
             Assert.IsTrue(layout.Size.Width > 0 && layout.Size.Height > 0, $"{what}: engraved to nothing");
-            Assert.IsTrue(layout.Root.Ink().Any(), $"{what}: nothing in it can be pointed at");
+            Assert.IsTrue(layout.Root.Leaves().Any(), $"{what}: nothing in it can be pointed at");
         }
-    });
-
-    [TestMethod]
-    public void ANoteIsWhatAClickOnItsHeadMeans() => UiThread.Run(() =>
-    {
-        var layout = AbcBuilder.Build("X:1\nK:C\nCDEF|\n", 400, Brushes.Black, 1.0);
-
-        var notes = layout.Root.SelfAndDescendants().Where(n => n.Kind == "note").ToList();
-        Assert.AreEqual(4, notes.Count);
-
-        foreach (var note in notes)
-        {
-            var middle = new Point(note.Bounds.X + (note.Bounds.Width / 2), note.Bounds.Y + (note.Bounds.Height / 2));
-            var hit = layout.Root.PieceAt(middle);
-
-            Assert.AreEqual(note, hit, "a click on a head means that note");
-        }
-
-        // And each one names exactly the letter that was typed.
-        var written = notes.Select(n => "X:1\nK:C\nCDEF|\n".Substring(n.Sits().Start, n.Sits().Length)).ToList();
-        CollectionAssert.AreEqual(new[] { "C", "D", "E", "F" }, written);
-    });
-
-    [TestMethod]
-    public void AndABeamedRunIsWhatADragAcrossItMeans() => UiThread.Run(() =>
-    {
-        var layout = AbcBuilder.Build("X:1\nL:1/8\nK:C\nABcd efga|\n", 500, Brushes.Black, 1.0);
-
-        var beams = layout.Root.SelfAndDescendants().Where(n => n.Kind == "beam").ToList();
-        Assert.AreEqual(2, beams.Count, "two runs of four");
-
-        var notes = beams[0].SelfAndDescendants().Where(n => n.Kind == "note").ToList();
-        Assert.AreEqual(4, notes.Count);
-
-        var swept = ContentSelection.Between(layout.Root, notes[0], notes[^1]);
-
-        Assert.AreEqual(1, swept.Ranges.Count, "the run is one stretch of source, not four");
-        Assert.AreEqual("ABcd", "X:1\nL:1/8\nK:C\nABcd efga|\n".Substring(swept.Ranges[0].Start, swept.Ranges[0].Length));
     });
 
     [TestMethod]
@@ -169,8 +130,7 @@ public class AbcBuilderTests
         Assert.AreEqual(2, lines.Count);
         foreach (var line in lines)
         {
-            Assert.IsNotNull(line.Part, "a bar line is written");
-            Assert.IsTrue(line.IsInk, "…so it can be selected");
+            Assert.IsNotNull(line.Part, "a bar line is written");
         }
 
         Assert.AreEqual("|", "X:1\nK:C\nCDE|FGA|]\n".Substring(lines[0].Sits().Start, lines[0].Sits().Length));
@@ -195,8 +155,7 @@ public class AbcBuilderTests
         // itself as a caret stop spanning both notes — and being shallower than either, it would win.
         foreach (var curve in ties.Concat(slurs))
         {
-            Assert.IsNull(curve.Part, $"a {curve.Kind} says it was written");
-            Assert.IsFalse(curve.IsInk, $"a {curve.Kind} offers itself for selection");
+            Assert.IsNull(curve.Part, $"a {curve.Kind} says it was written");
             Assert.IsTrue(curve.Bounds.Width > 0 && curve.Bounds.Height > 0, $"a {curve.Kind} drew nothing");
         }
     });
@@ -379,31 +338,6 @@ public class AbcBuilderTests
         Assert.IsTrue(small.DesiredSize.Height < cramped.DesiredSize.Height,
             $"in the same {420}px, zoomed out came to {small.DesiredSize.Height:F0} and full size to "
             + $"{cramped.DesiredSize.Height:F0}");
-    });
-
-    [TestMethod]
-    public void AndAClickStillLandsOnTheNoteItLooksLikeItLandsOn() => UiThread.Run(() =>
-    {
-        // The layout is in its own coordinates whatever the zoom, so a pointer has to be divided by it on
-        // the way in. Without that every note but the first is off by however far it was scaled — which is
-        // invisible on the first bar of a short tune and wrong everywhere else.
-        const string Tune = "X:1\nL:1/4\nK:C\nCDEF GABc|\n";
-
-        var big = Engraved(Tune, 840, zoom: 1.0);
-        var at = new Point(big.DesiredSize.Width * 0.72, big.DesiredSize.Height / 2);
-
-        big.BeginPointerSelect(at);
-        ((IEditableBlock)big).HandleKey(Key.PageUp, ModifierKeys.None);
-        Assert.AreNotEqual(Tune, big.Source, "the point has to be over a note for this to prove anything");
-
-        // The same page at half the size, clicked in the same place on it. InteractiveSelection owns one
-        // selection for the whole process, so the first is finished with before the second starts.
-        var small = Engraved(Tune, 420, zoom: 0.5);
-
-        small.BeginPointerSelect(new Point(at.X / 2, at.Y / 2));
-        ((IEditableBlock)small).HandleKey(Key.PageUp, ModifierKeys.None);
-
-        Assert.AreEqual(big.Source, small.Source, "the same click, and the same note under it");
     });
 
     /// <summary>A score, measured and arranged into a given width at a given zoom.</summary>

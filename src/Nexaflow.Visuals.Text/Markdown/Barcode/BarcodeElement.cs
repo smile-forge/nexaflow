@@ -561,7 +561,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
         var wash = Faded(_palette.Accent);
 
-        foreach (var node in root.Ink())
+        foreach (var node in root.Leaves())
         {
             // Generated printing holds no place in the source, so it has no span here to compare — but it
             // was worked out from the whole value, so it is washed when the whole value is taken.
@@ -609,7 +609,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     {
         if (_encodeError is null) return;
 
-        var runs = layout.Root.Ink()
+        var runs = layout.Root.Leaves()
             .Where(piece => piece.Part is { Length: > 0 })
             .Select(piece => piece.Bounds)
             .ToList();
