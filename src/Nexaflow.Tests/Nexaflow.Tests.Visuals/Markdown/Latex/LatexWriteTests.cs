@@ -155,7 +155,7 @@ public class LatexWriteTests
         const string latex =
             @"S (\omega)=\frac{\alpha g^2}{\omega^5} \, e ^{[-0.74\bigl\{\frac{\omega U_\omega 19.5}{g}\bigr\}^{-4}]}";
 
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout);
 
         var start = latex.IndexOf(@"\omega^5", System.StringComparison.Ordinal);
@@ -164,7 +164,7 @@ public class LatexWriteTests
 
         for (var to = 0; to <= latex.Length; to++)
         {
-            var moved = layout.Tree.Move(denominator, to);
+            var moved = layout.Move(denominator, to);
             if (moved is not { } write) continue;
 
             Assert.IsTrue(write.Caret >= 0 && write.Caret <= write.Latex.Length,
@@ -182,11 +182,11 @@ public class LatexWriteTests
         // {} parses to a placeholder, which is a real symbol standing exactly where the next one goes.
         const string latex = @"\frac{\alpha g^2}{\omega^5} e";
 
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout);
 
         var start = latex.IndexOf(@"\omega^5", System.StringComparison.Ordinal);
-        var moved = layout.Tree.Move([(start, @"\omega^5".Length)], to: latex.Length - 1);
+        var moved = layout.Move([(start, @"\omega^5".Length)], to: latex.Length - 1);
 
         Assert.IsNotNull(moved);
         Assert.AreEqual(@"\frac{\alpha g^2}{} \omega^5e", moved.Value.Latex);
@@ -194,15 +194,15 @@ public class LatexWriteTests
 
     private static LatexWrite? Write(string latex, int caret, string text)
     {
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, latex);
-        return layout.Tree.Write(caret, text);
+        return layout.Write(caret, text);
     }
 
     private static LatexWrite? Move(string latex, (int Start, int Length)[] ranges, int to)
     {
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, latex);
-        return layout.Tree.Move(ranges, to);
+        return layout.Move(ranges, to);
     }
 }

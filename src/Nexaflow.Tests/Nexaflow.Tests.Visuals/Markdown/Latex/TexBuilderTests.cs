@@ -641,14 +641,14 @@ public class TexBuilderTests
 
         foreach (var name in TexMacros.All.Keys)
         {
-            var layout = LatexLayout.Build(name, 16);
+            var layout = LatexBuilder.Build(name, 16);
 
             if (layout is null) { unbuilt.Add($"{name} draws nothing at all"); continue; }
 
             // A warning here is the builder saying it had no drawing for something and set the
             // characters instead — which for a macro means the definition names something this cannot
             // build, and the reader sees the definition rather than the symbol.
-            foreach (var trouble in layout.Tree.Diagnostics)
+            foreach (var trouble in layout.Laid.Trouble)
                 unbuilt.Add($"{name}: {trouble.Message}");
         }
 

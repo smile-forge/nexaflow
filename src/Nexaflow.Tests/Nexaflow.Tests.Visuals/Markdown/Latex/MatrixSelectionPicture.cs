@@ -99,7 +99,7 @@ public class MatrixSelectionPicture
     }
 
     private static Piece Cell(FormulaElement formula, string digit) =>
-        formula.Layout!.Tree.Root.Ink()
+        formula.Layout!.Laid.Root.Ink()
             .Single(n => n.Sits() is { Length: > 0 } at && Latex.Substring(at.Start, at.Length) == digit);
 
     private static Point Middle(Piece node) =>

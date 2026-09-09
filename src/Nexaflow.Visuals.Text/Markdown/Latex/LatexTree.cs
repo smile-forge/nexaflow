@@ -12,16 +12,23 @@ using Size = System.Windows.Size;
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
 /// <summary>
-/// A typeset formula's layout tree, and the offset-based questions an editor asks of it: where to draw a
-/// caret and what shape to give it, what a click means, what a drag selected, where an arrow key goes,
-/// and which command produced the glyph you just pressed backspace behind.
+/// A formula, as the things that are only true of LaTeX see it: the source, the parse it was read into,
+/// and the <see cref="Editing.Laid"/> the builder made from the two.
+///
 /// <para>
-/// Almost nothing is decided here. The rules live in <see cref="LayoutQuery"/>, over
-/// <see cref="Piece"/>, so they are shared with every other kind of embedded rendered content and
-/// can be exercised against a hand-built tree. What remains in this class is the translation between
-/// source offsets — which is how an editor thinks — and the nodes the query works in, plus the two rules
-/// that are genuinely about LaTeX: how far past the edges a click still counts, and that backspace never
-/// un-renders the entire formula.
+/// <strong>What is here is what a tune and a barcode have no answer to.</strong> Which construct a piece
+/// is a part of and what part it is; which cell of a matrix a pointer is in and what dropping a column
+/// there would mean; whether the thing before the caret is a command that can be taken back to the
+/// characters that spelled it. Every one of those is a question about a parse tree, and a parse tree is
+/// the one thing a builder does not hand on.
+/// </para>
+/// <para>
+/// <strong>Everything else is asked of the <see cref="Laid"/>.</strong> Where a caret goes and how tall
+/// it is, what a press means, what a drag took, which rectangles a selection washes, where an arrow key
+/// lands — all of it is <see cref="LayoutQuery"/> over <see cref="Piece"/>, shared with every other kind
+/// of content and exercised against a hand-built tree. This class used to forward seventeen of them, and
+/// that is precisely why a formula could not be hosted by the element that hosts a score: the rules
+/// looked like LaTeX's because they were reached through a type called LatexTree.
 /// </para>
 /// <para>
 /// It is deliberately free of the typesetter. Producing the tree needs fonts, and fonts need WPF and a
@@ -31,10 +38,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 public sealed class LatexTree
 {
     /// <summary>Rounding slack — two edges within this of each other are treated as touching.</summary>
-    private const double Hair = 0.5;
-
-    private readonly int[] _stops;
-
     /// <param name="latex">The source it was built from.</param>
     /// <param name="reading">
     /// The parse tree the layout was built from — the same one, handed over rather than read again.
@@ -49,7 +52,7 @@ public sealed class LatexTree
         Latex = latex ?? string.Empty;
         Reading = reading;
         Laid = laid;
-        _stops = [.. laid.Root.CaretStops()];
+
 
         Order();
     }
@@ -76,13 +79,13 @@ public sealed class LatexTree
     /// </summary>
     private void Order()
     {
-        if (Root.Tree is not { } tree) return;
+        if (Laid.Root.Tree is not { } tree) return;
 
         List<Piece>? ink = null;
 
         foreach (var grid in TexGrid.In(Reading.Root.Node))
         {
-            ink ??= [.. Root.Ink().Where(piece => piece.Sits().Length > 0)];
+            ink ??= [.. Laid.Root.Ink().Where(piece => piece.Sits().Length > 0)];
 
             var cells = new Piece[grid.RowCount, grid.ColumnCount];
             foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(ink, cell);
@@ -135,24 +138,6 @@ public sealed class LatexTree
     /// <summary>What the builder made — the tree, its size, and what could not be read.</summary>
     public Laid Laid { get; }
 
-    /// <summary>The formula's whole layout, as a piece.</summary>
-    public Piece Root => Laid.Root;
-
-    /// <summary>The formula's painted size in element pixels.</summary>
-    public Size Size => Laid.Size;
-
-    /// <summary>
-    /// The stretches the typesetter could not read. Empty for a formula that parsed cleanly; otherwise
-    /// each names a piece that is shown as written rather than understood.
-    /// </summary>
-    public IReadOnlyList<Diagnostic> Diagnostics => Laid.Trouble;
-
-    /// <summary>
-    /// Whether this piece was shown rather than read — inside a stretch the parser gave up on, so it
-    /// stands for characters rather than for meaning.
-    /// </summary>
-    public bool IsGuesswork(Piece node) => Diagnostics.Any(d => d.Covers(node));
-
     /// <summary>
     /// What this piece is <em>to</em> the construct holding it — the degree of a root, a fraction's
     /// numerator, a script's base — together with that construct. Null when nothing holds it, or when it
@@ -172,7 +157,7 @@ public sealed class LatexTree
         // Recovered text was shown, not read. Whatever the parser wrapped it in while carrying on is an
         // artefact of the recovery rather than anything the writer expressed, so it names no part of
         // anything — and copying it can only ever yield the characters.
-        if (IsGuesswork(node)) return null;
+        if (Laid.IsGuesswork(node)) return null;
 
         if (Innermost(node) is not { } part) return null;
 
@@ -242,9 +227,6 @@ public sealed class LatexTree
         node.Ancestors().FirstOrDefault(
             a => a.Part is TexSourcePart drawn && ReferenceEquals(drawn.Of, part));
 
-    /// <summary>Where a caret is allowed to rest, ascending.</summary>
-    public IReadOnlyList<int> CaretStops => _stops;
-
     /// <summary>
     /// The matrix holding <paramref name="offset"/>, as its cells and the place each one has — or null
     /// when the offset is not in one. Innermost first, so a matrix inside a matrix answers as the one
@@ -302,7 +284,7 @@ public sealed class LatexTree
     /// </summary>
     public GridDrop? GridDropAt(Point point)
     {
-        foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
+        foreach (var node in Laid.Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
         {
             if (Origin(node) is not { Kind: TexKind.Environment } part) continue;
             if (TexGrid.Read(part.Node, part.Start) is not { } grid) continue;
@@ -391,209 +373,15 @@ public sealed class LatexTree
     /// drew a box for. Tab walks these.
     /// </summary>
     public IReadOnlyList<Piece> Placeholders =>
-        _placeholders ??= [.. Root.SelfAndDescendants().Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
+        _placeholders ??= [.. Laid.Root.SelfAndDescendants().Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
 
     private IReadOnlyList<Piece>? _placeholders;
 
     // ── Point → source ──────────────────────────────────────────────────────
 
-    /// <summary>
-    /// The caret stop <paramref name="point"/> means. The deepest piece under the pointer wins, and which
-    /// half of it was hit decides whether the caret lands before or after.
-    /// </summary>
-    /// <summary>
-    /// The piece of the formula <paramref name="point"/> is on — what a drag is really between. Past
-    /// either side it is the piece at that end, as it is in text.
-    /// </summary>
-    public Piece PieceAt(Point point)
-    {
-        if (point.X > Size.Width) return Root.Ink().LastOrDefault();
-        if (point.X < 0) return Root.Ink().FirstOrDefault();
-        return Root.PieceAt(point);
-    }
-
-    public int OffsetAt(Point point)
-    {
-        // Clicking past either side means the end, as it does in text. Letting the nearest node answer
-        // would instead land just inside whatever construct happens to finish last — after the y of
-        // `\sqrt{y}` rather than after the radical — which is the same pixel but a different place to type.
-        if (point.X > Size.Width) return Latex.Length;
-        if (point.X < 0) return 0;
-
-        var hit = Root.PieceAt(point);
-        if (!hit.Exists) return 0;
-
-        var offset = point.X < hit.Bounds.X + hit.Bounds.Width / 2 ? hit.Sits().Start : hit.Sits().End;
-        return NearestStop(offset);
-    }
-
-    /// <summary>
-    /// The place a press means: the stop under the pointer, and which of the bars drawn there is nearest
-    /// to it — so pressing in the space TeX sets around an operator puts the caret in that space, which is
-    /// where the reader pointed and where the arrow key would have taken them.
-    /// <para>
-    /// Ties go to the innermost. Two bars half a pixel apart — inside a trailing exponent and past the
-    /// script — are not something anyone can aim between, and the inner one is where a reader who has
-    /// just clicked behind a <c>2</c> means to be typing.
-    /// </para>
-    /// </summary>
-    public CaretPlace PlaceAt(Point point)
-    {
-        var offset = OffsetAt(point);
-        var bars = Root.CaretBars(offset);
-
-        var level = 0;
-        for (var at = 1; at < bars.Count; at++)
-            if (Math.Abs(bars[at].X - point.X) < Math.Abs(bars[level].X - point.X) - Hair) level = at;
-
-        return new CaretPlace(offset, level);
-    }
-
     // ── Source → geometry ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// Where and how tall to draw the caret at <paramref name="offset"/> — the piece it abuts decides,
-    /// which is what makes it shrink and rise inside an exponent and take the numerator's height inside
-    /// a fraction.
-    /// </summary>
-    public Rect CaretRect(int offset) => Root.CaretRect(offset);
-
-    /// <summary>Where and how tall to draw the caret at <paramref name="place"/>.</summary>
-    public Rect CaretRect(CaretPlace place) => Root.CaretRect(place);
-
-    /// <summary>How many bars are drawn at <paramref name="offset"/> — see <see cref="CaretPlace"/>.</summary>
-    public int PlacesAt(int offset) => Root.CaretBars(offset).Count;
-
-    /// <summary>
-    /// The rectangles to wash for the source range — one per run, already merged, so a translucent
-    /// selection never paints the same pixel twice and darkens it.
-    /// </summary>
-    public IReadOnlyList<Rect> RangeRects(int start, int length)
-    {
-        if (length <= 0) return [];
-        var end = start + length;
-
-        // Wash whole nodes, not the glyphs inside them. A node's bounds cover the parts of it that no
-        // character produced — a fraction's bar, a radical's hook — which washing the leaves alone would
-        // leave clear, so a fully selected fraction would read as two selected numbers with a gap.
-        // Holes included, which is why this asks whether a node stands for a place rather than whether
-        // it covers any characters. A hole covers none by definition, so a selection sweeping across a
-        // half-written fraction would wash everything except the part still missing — the one piece the
-        // reader most needs to see they have picked up.
-        var covered = Root.SelfAndDescendants()
-            .Where(n => n.Stands() && n.Sits().Start >= start && n.Sits().End <= end)
-            .ToHashSet();
-
-        return Merge([.. covered.Where(n => !n.Ancestors().Any(covered.Contains)).Select(n => n.Bounds)]);
-    }
-
-    /// <summary>
-    /// Collapses the rectangles of one contiguous source range into as few as possible: anything sharing
-    /// a vertical band becomes one run.
-    /// <para>
-    /// Horizontal gaps are closed deliberately rather than preserved. The selection is a contiguous run
-    /// of source, so whatever sits in the gap is inside it — the glue TeX puts around a binary operator,
-    /// say — and leaving those unpainted would break one selection into a row of disconnected blocks.
-    /// Stacked bands (a sum's limits above and below it) stay separate unless something spans them.
-    /// </para>
-    /// </summary>
-    private static List<Rect> Merge(List<Rect> rects)
-    {
-        var merged = true;
-        while (merged)
-        {
-            merged = false;
-            for (var i = 0; i < rects.Count && !merged; i++)
-                for (var j = i + 1; j < rects.Count && !merged; j++)
-                {
-                    var a = rects[i];
-                    var b = rects[j];
-                    if (a.Top >= b.Bottom - Hair || b.Top >= a.Bottom - Hair) continue;   // different bands
-
-                    a.Union(b);
-                    rects[i] = a;
-                    rects.RemoveAt(j);
-                    merged = true;
-                }
-        }
-        return rects;
-    }
-
     // ── Ranges and stepping ─────────────────────────────────────────────────
-
-    /// <summary>
-    /// The whole constructs a raw range covers, as a source range. Dragging across <c>x^2</c> selects the
-    /// script rather than stopping mid-command at <c>x^{2</c>, and dragging from a fraction's numerator to
-    /// its denominator selects the fraction rather than the <c>1}{x</c> the offsets alone would give.
-    /// <para>
-    /// Both fall out of promotion: the answer is made of whole nodes, and a node's source range is what
-    /// the parser built it from, so it cannot be a half-open brace.
-    /// </para>
-    /// </summary>
-    public (int Start, int Length) SnapRange(int start, int length)
-    {
-        var from = Math.Clamp(Math.Min(start, start + length), 0, Latex.Length);
-        var to = Math.Clamp(Math.Max(start, start + length), 0, Latex.Length);
-        if (from == to) return (from, 0);
-
-        // Whatever lies wholly inside the range was dragged over — every node, not only the ink, so a
-        // drag from before a root's sign to past its contents takes the root itself and not merely what
-        // is under the bar. Anything only half inside is left to promotion, which is what stops a range
-        // that clipped a brace of `^{n}` from coming back as `{n`.
-        var touched = Root.SelfAndDescendants()
-            .Where(n => n.Sits() is { Length: > 0 } at && at.Start >= from && at.End <= to)
-            .ToList();
-
-        if (touched.Count == 0)
-        {
-            // The range covers only characters nothing was drawn for — a lone brace, say, or half of a
-            // command's name. Snap to whatever is nearest, so a selection is always of something visible.
-            var nearest = Root.Ink()
-                .OrderBy(n => Math.Min(Math.Abs(n.Sits().Start - from), Math.Abs(n.Sits().End - to)))
-                .FirstOrDefault();
-            if (!nearest.Exists) return (from, to - from);
-            touched.Add(nearest);
-        }
-
-        var promoted = LayoutQuery.Promote(touched);
-        if (promoted.Count == 0) return (from, to - from);
-
-        var (first, last) = (promoted.Min(n => n.Sits().Start), promoted.Max(n => n.Sits().End));
-        return (first, last - first);
-    }
-
-    /// <summary>
-    /// The next caret stop in <paramref name="forward"/>'s direction, or null at the formula's edge —
-    /// which is the host's cue to move the caret out into the surrounding text.
-    /// </summary>
-    public int? Step(int offset, bool forward) => Root.Step(offset, forward);
-
-    /// <summary>
-    /// The next place in <paramref name="forward"/>'s direction, or null at the formula's edge. Walks the
-    /// bars at one offset before moving on — see <see cref="CaretPlace"/>.
-    /// </summary>
-    public CaretPlace? Step(CaretPlace place, bool forward) => Root.Step(place, forward);
-
-    /// <summary>
-    /// The nearest caret stop on the line above or below — how the caret crosses a fraction bar or drops
-    /// out of an exponent. Null when there is nothing that way.
-    /// </summary>
-    public int? StepVertical(int offset, bool up) => Root.StepVertical(offset, up);
-
-    /// <summary>Moves <paramref name="offset"/> to the nearest place a caret may rest.</summary>
-    public int NearestStop(int offset)
-    {
-        var best = _stops.Length > 0 ? _stops[0] : 0;
-        var bestDistance = int.MaxValue;
-        foreach (var stop in _stops)
-        {
-            var distance = Math.Abs(stop - offset);
-            if (distance >= bestDistance) continue;
-            bestDistance = distance;
-            best = stop;
-        }
-        return best;
-    }
 
     /// <summary>
     /// Writes <paramref name="text"/> in at <paramref name="caret"/> as a change to the construct that
@@ -878,7 +666,7 @@ public sealed class LatexTree
     public Piece SymbolBefore(int offset)
     {
         var best = default(Piece);
-        foreach (var node in Root.SelfAndDescendants())
+        foreach (var node in Laid.Root.SelfAndDescendants())
         {
             if (!node.Stands() || node.Sits().End != offset) continue;
 

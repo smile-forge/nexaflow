@@ -92,7 +92,7 @@ public class LatexTreeTests
     [TestMethod]
     public void ACaretRestsOnlyWhereSomethingIsDrawn()
     {
-        var stops = Latex().CaretStops.ToList();
+        var stops = Latex().Laid.Stops.ToList();
 
         CollectionAssert.Contains(stops, 6, "before the numerator's x");
         CollectionAssert.Contains(stops, 9, "after the exponent");
@@ -107,9 +107,9 @@ public class LatexTreeTests
     {
         var tree = Latex();
 
-        var exponent = tree.CaretRect(9);
-        var denominator = tree.CaretRect(12);
-        var whole = tree.CaretRect(0);
+        var exponent = tree.Laid.Root.CaretRect(9);
+        var denominator = tree.Laid.Root.CaretRect(12);
+        var whole = tree.Laid.Root.CaretRect(0);
 
         Assert.IsTrue(exponent.Height < denominator.Height,
             $"a caret in an exponent is shorter than one in a denominator ({exponent.Height} vs {denominator.Height})");
@@ -124,12 +124,12 @@ public class LatexTreeTests
         // Offset 9 ends the superscript and also opens the denominator's group. As in text, the caret
         // goes with what was just typed, so it stays up in the script rather than dropping below the bar.
         var tree = Latex();
-        Assert.IsTrue(tree.CaretRect(9).Y < tree.CaretRect(12).Y);
+        Assert.IsTrue(tree.Laid.Root.CaretRect(9).Y < tree.Laid.Root.CaretRect(12).Y);
     }
 
     [TestMethod]
     public void AnOffsetWithNoStopMovesToTheNearestOne() =>
-        Assert.AreEqual(6, Latex().NearestStop(5));
+        Assert.AreEqual(6, Latex().Laid.NearestStop(5));
 
     // ── Arrowing ────────────────────────────────────────────────────────────
 
@@ -138,11 +138,11 @@ public class LatexTreeTests
     {
         var tree = Latex();
 
-        Assert.IsNull(tree.Step(0, forward: false), "there is nothing before the formula");
-        Assert.IsNull(tree.Step(Fraction.Length, forward: true), "nor anything after it");
+        Assert.IsNull(tree.Laid.Root.Step(0, forward: false), "there is nothing before the formula");
+        Assert.IsNull(tree.Laid.Root.Step(Fraction.Length, forward: true), "nor anything after it");
 
         // Null is the signal the host needs: it is what hands the caret out into the surrounding prose.
-        Assert.IsNotNull(tree.Step(0, forward: true));
+        Assert.IsNotNull(tree.Laid.Root.Step(0, forward: true));
     }
 
     [TestMethod]
@@ -152,15 +152,15 @@ public class LatexTreeTests
         // beats the denominator the reader means. Structure has to settle it.
         var tree = Latex();
 
-        Assert.AreEqual(11, tree.StepVertical(6, up: false), "before the x → before the denominator");
-        Assert.AreEqual(12, tree.StepVertical(7, up: false), "after the x → after it");
+        Assert.AreEqual(11, tree.Laid.Root.StepVertical(6, up: false), "before the x → before the denominator");
+        Assert.AreEqual(12, tree.Laid.Root.StepVertical(7, up: false), "after the x → after it");
     }
 
     [TestMethod]
     public void UpFromADenominatorComesBack()
     {
         var tree = Latex();
-        Assert.AreEqual(6, tree.StepVertical(11, up: true));
+        Assert.AreEqual(6, tree.Laid.Root.StepVertical(11, up: true));
     }
 
     [TestMethod]
@@ -168,7 +168,7 @@ public class LatexTreeTests
     {
         // An exponent's own line has nothing under it but the denominator of the fraction it sits in.
         var tree = Latex();
-        Assert.AreEqual(12, tree.StepVertical(9, up: false));
+        Assert.AreEqual(12, tree.Laid.Root.StepVertical(9, up: false));
     }
 
     [TestMethod]
@@ -176,8 +176,8 @@ public class LatexTreeTests
     {
         // Offset 0 abuts nothing that was drawn — its caret spans every line, so it is on none of them.
         var tree = Latex();
-        Assert.IsNull(tree.StepVertical(0, up: false));
-        Assert.IsNull(tree.StepVertical(0, up: true));
+        Assert.IsNull(tree.Laid.Root.StepVertical(0, up: false));
+        Assert.IsNull(tree.Laid.Root.StepVertical(0, up: true));
     }
 
     // ── Clicking and selecting ──────────────────────────────────────────────
@@ -187,8 +187,8 @@ public class LatexTreeTests
     {
         // The right-hand side of the exponent's 2 puts the caret after it. The exponent sits inside the
         // script, the fraction and the whole formula, so this also proves that descending beats them all.
-        Assert.AreEqual(9, Latex().OffsetAt(new Point(13.8 + 7.0 * 0.75, 4.5)));
-        Assert.AreEqual(8, Latex().OffsetAt(new Point(13.8 + 7.0 * 0.25, 4.5)));
+        Assert.AreEqual(9, Latex().Laid.OffsetAt(new Point(13.8 + 7.0 * 0.75, 4.5)));
+        Assert.AreEqual(8, Latex().Laid.OffsetAt(new Point(13.8 + 7.0 * 0.25, 4.5)));
     }
 
     [TestMethod]
@@ -197,18 +197,18 @@ public class LatexTreeTests
         // The radical's sign names nothing of its own, because the node holding the whole root already
         // names that span. A press on it therefore resolves upwards, to the root — which is what the
         // reader was pointing at.
-        Assert.AreEqual(14, Latex().OffsetAt(new Point(52, 25)), @"the front of \sqrt{y}");
+        Assert.AreEqual(14, Latex().Laid.OffsetAt(new Point(52, 25)), @"the front of \sqrt{y}");
     }
 
     [TestMethod]
     public void AClickInEmptySpaceGoesToTheNearestSymbol() =>
-        Assert.AreEqual(22, Latex().OffsetAt(new Point(200, 21)), "far to the right of everything");
+        Assert.AreEqual(22, Latex().Laid.OffsetAt(new Point(200, 21)), "far to the right of everything");
 
     [TestMethod]
     public void DraggingAcrossAScriptTakesTheWholeScript()
     {
         // Stopping at the raw offsets would have selected `x^` and left the script half-taken.
-        var (start, length) = Latex().SnapRange(6, 3);
+        var (start, length) = Latex().Laid.Root.Snap(6, 3);
         Assert.AreEqual("x^2", Fraction.Substring(start, length));
     }
 
@@ -218,7 +218,7 @@ public class LatexTreeTests
         // The offsets alone give `1}{x` — braces closing something the selection never opened. Promotion
         // is what makes the answer a thing you could cut out: every piece of the fraction's ink is in the
         // drag, so the answer is the fraction.
-        var (start, length) = Latex().SnapRange(6, 6);
+        var (start, length) = Latex().Laid.Root.Snap(6, 6);
         Assert.AreEqual(@"\frac{x^2}{2}", Fraction.Substring(start, length));
     }
 
@@ -228,14 +228,14 @@ public class LatexTreeTests
         // A radical's sign is a single glyph whose source span is the WHOLE `\sqrt{y}`, drawn beside the y
         // rather than around it. Counting it as crossed made every selection anywhere inside a root widen
         // to the entire root — you could not select the y.
-        var (start, length) = Latex().SnapRange(20, 1);
+        var (start, length) = Latex().Laid.Root.Snap(20, 1);
         Assert.AreEqual("y", Fraction.Substring(start, length));
     }
 
     [TestMethod]
     public void SelectingAllOfARootTakesTheRoot()
     {
-        var (start, length) = Latex().SnapRange(14, 8);
+        var (start, length) = Latex().Laid.Root.Snap(14, 8);
         Assert.AreEqual(@"\sqrt{y}", Fraction.Substring(start, length));
     }
 
@@ -243,21 +243,21 @@ public class LatexTreeTests
     public void ARangeOverPunctuationSnapsToWhatIsActuallyDrawn()
     {
         // Offset 10 is the denominator's opening brace — a character with no glyph of its own.
-        var (start, length) = Latex().SnapRange(10, 1);
+        var (start, length) = Latex().Laid.Root.Snap(10, 1);
         Assert.AreEqual("2", Fraction.Substring(start, length),
             "a selection is over what the reader can see, so it snaps to the glyph, not the brace");
     }
 
     [TestMethod]
     public void SelectingNothingWashesNothing() =>
-        Assert.AreEqual(0, Latex().RangeRects(4, 0).Count);
+        Assert.AreEqual(0, Latex().Laid.Root.RangeRects(4, 0).Count);
 
     [TestMethod]
     public void AContiguousSelectionWashesAsOneRun()
     {
         // `\frac{x^2}{2}+` is one unbroken stretch of source, so it must read as one unbroken highlight —
         // not a block on the fraction, a gap, and another block on the plus.
-        Assert.AreEqual(1, Latex().RangeRects(0, 14).Count);
+        Assert.AreEqual(1, Latex().Laid.Root.RangeRects(0, 14).Count);
     }
 
     [TestMethod]
@@ -265,7 +265,7 @@ public class LatexTreeTests
     {
         // The bar comes from no character of the source, so washing only the glyphs would leave a
         // selected fraction looking like two separately selected numbers.
-        var wash = Latex().RangeRects(0, 13).Single();
+        var wash = Latex().Laid.Root.RangeRects(0, 13).Single();
 
         Assert.IsTrue(wash.Top <= 7.7 + 0.5 && wash.Bottom >= 43.5 - 0.5,
             $"the wash {wash} should span the whole fraction, bar included");
@@ -275,7 +275,7 @@ public class LatexTreeTests
     public void SelectionRectanglesNeverOverlap()
     {
         // They are painted translucent, so two rectangles over one glyph would show as a darker patch.
-        var rects = Latex().RangeRects(0, Fraction.Length);
+        var rects = Latex().Laid.Root.RangeRects(0, Fraction.Length);
 
         Assert.AreNotEqual(0, rects.Count);
         for (var i = 0; i < rects.Count; i++)

@@ -224,7 +224,7 @@ public class SingleFormulaEditorTests
 
             Assert.AreEqual(@"\frac{}{}", formula.Latex, "nothing was written that the reader did not");
             Assert.IsNotNull(formula.Layout, "and it draws");
-            Assert.AreEqual(2, formula.Layout!.Tree.Placeholders.Count,
+            Assert.AreEqual(2, formula.Layout!.Placeholders.Count,
                 "as a fraction with two holes in it — one symbol each, like any other symbol");
         });
     }
@@ -278,7 +278,7 @@ public class SingleFormulaEditorTests
             MarkdownEditorHarness.Type(rtb, "a");
 
             StringAssert.StartsWith(formula.Latex, @"\frac{a}", "the numerator was written into");
-            Assert.AreEqual(1, formula.Layout!.Tree.Placeholders.Count, "and one hole is left");
+            Assert.AreEqual(1, formula.Layout!.Placeholders.Count, "and one hole is left");
         });
     }
 
@@ -312,9 +312,9 @@ public class SingleFormulaEditorTests
             editor.InsertLatexAtCaret(@"\frac{}{}", caretBack: 3);
 
             Assert.AreEqual(@"\frac{3+7}{}", formula.Latex);
-            Assert.AreEqual(1, formula.Layout!.Tree.Placeholders.Count,
+            Assert.AreEqual(1, formula.Layout!.Placeholders.Count,
                 "and the denominator is left as a hole, drawn and waiting");
-            Assert.AreEqual(formula.Layout.Tree.Placeholders[0].Sits().Start, formula.Caret,
+            Assert.AreEqual(formula.Layout.Placeholders[0].Sits().Start, formula.Caret,
                 "with the caret already in it, ready to be typed into");
         });
     }
@@ -365,10 +365,10 @@ public class SingleFormulaEditorTests
         RunInFormula(@"\frac{}{7}", (editor, _) =>
         {
             var formula = Focused(editor);
-            var tree = formula.Layout!.Tree;
+            var tree = formula.Layout!;
             var hole = tree.Placeholders.Single();
 
-            var washed = tree.RangeRects(0, formula.Latex.Length);
+            var washed = tree.Laid.Root.RangeRects(0, formula.Latex.Length);
             Assert.IsTrue(washed.Any(r => r.Contains(hole.Bounds.TopLeft) || r.IntersectsWith(hole.Bounds)),
                 "the hole is washed along with everything else");
         });
@@ -389,7 +389,7 @@ public class SingleFormulaEditorTests
             Assert.IsTrue(editor.PasteIntoFormula(@"\beta + 1"), "a formula holds the caret, so it takes it");
 
             Assert.AreEqual(@"\al\beta + 1", formula.Latex);
-            Assert.AreEqual(@"\al\beta + 1", formula.Layout?.Tree.Latex,
+            Assert.AreEqual(@"\al\beta + 1", formula.Layout?.Latex,
                 "settled and set on arrival — pasting reassesses exactly as space does");
         });
     }

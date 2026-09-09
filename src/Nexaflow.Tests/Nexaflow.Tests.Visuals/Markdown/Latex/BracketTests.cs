@@ -61,15 +61,15 @@ public class BracketTests
         // so picking one out has to mean picking out the group. Anything else could be copied or
         // carried somewhere and would arrive as nothing that parses.
         const string latex = @"x + \left[ y \right]";
-        var layout = LatexLayout.Build(latex, 16);
+        var layout = LatexBuilder.Build(latex, 16);
         Assert.IsNotNull(layout);
 
-        var closing = layout.Tree.Root.Ink()
+        var closing = layout.Laid.Root.Ink()
             .FirstOrDefault(n => Text(latex, n).StartsWith(@"\right", System.StringComparison.Ordinal));
         Assert.IsNotNull(closing, "the closing bracket is a piece you can point at");
 
-        var owner = layout.Tree.Owning(closing);
-        var picked = ContentSelection.Between(layout.Tree.Root, owner, owner);
+        var owner = layout.Owning(closing);
+        var picked = ContentSelection.Between(layout.Laid.Root, owner, owner);
         var taken = string.Concat(picked.Ranges.Select(r => latex.Substring(r.Start, r.Length)));
 
         Assert.AreEqual(@"\left[ y \right]", taken, "the whole group, opener included");
@@ -83,10 +83,10 @@ public class BracketTests
         foreach (var latex in new[] { @"\braket{0|0}", @"\bra{\psi}", @"\ket{\phi}",
                                       @"\Braket{a|b}", @"\Bra{a}", @"\Ket{b}" })
         {
-            var layout = LatexLayout.Build(latex, 16);
+            var layout = LatexBuilder.Build(latex, 16);
             Assert.IsNotNull(layout, latex);
-            Assert.AreEqual(0, layout.Tree.Diagnostics.Count, $"{latex} was read without trouble");
-            Assert.IsTrue(layout.Tree.Size.Width > 0, $"{latex} drew something");
+            Assert.AreEqual(0, layout.Laid.Trouble.Count, $"{latex} was read without trouble");
+            Assert.IsTrue(layout.Laid.Size.Width > 0, $"{latex} drew something");
         }
     });
 
@@ -95,11 +95,11 @@ public class BracketTests
     {
         // \bra{} is what someone writes on the way to \bra{\psi}, so it gets the same box as every
         // other unwritten argument — visible, aimable, and reported as unfinished.
-        var layout = LatexLayout.Build(@"\bra{}", 16, placeholders: true);
+        var layout = LatexBuilder.Build(@"\bra{}", 16, placeholders: true);
 
         Assert.IsNotNull(layout);
-        Assert.AreEqual(1, layout.Tree.Placeholders.Count, "the bra has a hole in it");
-        Assert.AreEqual(1, layout.Tree.Diagnostics.Count, "and says so");
+        Assert.AreEqual(1, layout.Placeholders.Count, "the bra has a hole in it");
+        Assert.AreEqual(1, layout.Laid.Trouble.Count, "and says so");
     });
 
     [TestMethod]
@@ -116,9 +116,9 @@ public class BracketTests
 
     private static Piece Before(string latex, int caret)
     {
-        var layout = LatexLayout.Build(latex, 16);
+        var layout = LatexBuilder.Build(latex, 16);
         Assert.IsNotNull(layout, latex);
-        return layout.Tree.SymbolBefore(caret);
+        return layout.SymbolBefore(caret);
     }
 
     private static string Text(string latex, Piece node) =>

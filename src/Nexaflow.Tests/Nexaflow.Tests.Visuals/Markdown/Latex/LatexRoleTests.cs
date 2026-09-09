@@ -31,26 +31,26 @@ public class LatexRoleTests
 
     private static (LatexTree Tree, Piece Node) Piece(string latex, string text)
     {
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, latex);
 
-        var node = layout.Tree.Root.Ink()
+        var node = layout.Laid.Root.Ink()
             .FirstOrDefault(n => latex.Substring(n.Sits().Start, n.Sits().Length) == text);
         Assert.IsNotNull(node, $"no piece reading \"{text}\" in {latex}");
-        return (layout.Tree, node);
+        return (layout, node);
     }
 
     /// <summary>Any piece of the layout drawn from this stretch of source, ink or a box holding it.</summary>
     private static (LatexTree Tree, Piece Node) Drawn(string latex, string text)
     {
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, latex);
 
-        var node = layout.Tree.Root.SelfAndDescendants()
+        var node = layout.Laid.Root.SelfAndDescendants()
             .FirstOrDefault(n => n.Sits().Length > 0
                                  && latex.Substring(n.Sits().Start, n.Sits().Length) == text);
         Assert.IsNotNull(node, $"nothing was drawn from \"{text}\" in {latex}");
-        return (layout.Tree, node);
+        return (layout, node);
     }
 
     [TestMethod]
@@ -109,13 +109,13 @@ public class LatexRoleTests
     {
         // A fraction's bar is drawn for the construct rather than by anything in it, so there is no part
         // for it to be. Asking must give nothing rather than an invented answer.
-        var layout = LatexLayout.Build(@"\frac{a}{b}", Scale);
+        var layout = LatexBuilder.Build(@"\frac{a}{b}", Scale);
         Assert.IsNotNull(layout);
 
-        var bar = layout.Tree.Root.SelfAndDescendants()
+        var bar = layout.Laid.Root.SelfAndDescendants()
             .FirstOrDefault(n => n.Kind == "HorizontalRule");
         Assert.IsNotNull(bar, "the fraction has a bar");
-        Assert.IsNull(layout.Tree.RoleOf(bar), "which is the fraction's own drawing, not a part of it");
+        Assert.IsNull(layout.RoleOf(bar), "which is the fraction's own drawing, not a part of it");
     });
 
     [TestMethod]
@@ -123,15 +123,15 @@ public class LatexRoleTests
     {
         // Recovered text was shown, not understood. It stands for no structure, so it plays no part in
         // any — and copying it can only ever yield the characters.
-        var layout = LatexLayout.Build(@"x + \nosuchcommand", Scale);
+        var layout = LatexBuilder.Build(@"x + \nosuchcommand", Scale);
         Assert.IsNotNull(layout);
 
-        var guessed = layout.Tree.Root.Ink().Where(layout.Tree.IsGuesswork).ToList();
+        var guessed = layout.Laid.Root.Ink().Where(layout.Laid.IsGuesswork).ToList();
         Assert.AreNotEqual(0, guessed.Count, "the unreadable part is there to ask about");
 
         foreach (var piece in guessed)
-            Assert.IsNull(layout.Tree.RoleOf(piece),
-                $"\"{layout.Tree.Latex.Substring(piece.Sits().Start, piece.Sits().Length)}\" was shown, not read, "
+            Assert.IsNull(layout.RoleOf(piece),
+                $"\"{layout.Latex.Substring(piece.Sits().Start, piece.Sits().Length)}\" was shown, not read, "
                 + "so it plays no part in anything");
     });
 

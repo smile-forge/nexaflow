@@ -690,4 +690,113 @@ public static class LayoutQuery
         var dy = Math.Max(Math.Max(rect.Y - point.Y, point.Y - rect.Bottom), 0);
         return dx * dx + dy * dy;
     }
+
+    // ── What a source range covers ──────────────────────────────────────────
+
+    /// <summary>
+    /// The rectangles to wash for a stretch of source — one per run, already merged, so a translucent
+    /// selection never paints the same pixel twice and darkens where two of them met.
+    ///
+    /// <para>
+    /// Whole pieces, not the glyphs inside them. A piece's bounds cover the parts of it no character
+    /// produced — a fraction's bar, a radical's hook — which washing the leaves alone would leave clear, so
+    /// a fully selected fraction would read as two selected numbers with a gap between them.
+    /// </para>
+    /// <para>
+    /// Which is why this asks whether a piece <em>stands</em> for a place rather than whether it covers any
+    /// characters. A hole covers none by definition, so a selection sweeping across a half-written fraction
+    /// would otherwise wash everything except the part still missing — the one piece the reader most needs
+    /// to see they have picked up.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<Rect> RangeRects(this Piece root, int start, int length)
+    {
+        if (length <= 0 || !root.Exists) return [];
+        var end = start + length;
+
+        var covered = root.SelfAndDescendants()
+            .Where(piece => piece.Stands() && piece.Sits().Start >= start && piece.Sits().End <= end)
+            .ToHashSet();
+
+        return Bands([.. covered.Where(piece => !piece.Ancestors().Any(covered.Contains)).Select(piece => piece.Bounds)]);
+    }
+
+    /// <summary>
+    /// Collapses the rectangles of one contiguous source range into as few as possible: anything sharing a
+    /// vertical band becomes one run.
+    ///
+    /// <para>
+    /// Horizontal gaps are closed deliberately rather than preserved. The selection is a contiguous run of
+    /// source, so whatever sits in the gap is inside it — the glue a typesetter puts around a binary
+    /// operator, the space between two words — and leaving those unpainted would break one selection into a
+    /// row of disconnected blocks. Stacked bands (a sum's limits above and below it, a verse under its
+    /// music) stay separate unless something spans them.
+    /// </para>
+    /// </summary>
+    public static List<Rect> Bands(List<Rect> rects)
+    {
+        var merged = true;
+        while (merged)
+        {
+            merged = false;
+            for (var i = 0; i < rects.Count && !merged; i++)
+                for (var j = i + 1; j < rects.Count && !merged; j++)
+                {
+                    var a = rects[i];
+                    var b = rects[j];
+                    if (a.Top >= b.Bottom - Hair || b.Top >= a.Bottom - Hair) continue;   // different bands
+
+                    a.Union(b);
+                    rects[i] = a;
+                    rects.RemoveAt(j);
+                    merged = true;
+                }
+        }
+
+        return rects;
+    }
+
+    /// <summary>
+    /// The whole things a raw range covers, as a source range. Dragging across <c>x^2</c> selects the script
+    /// rather than stopping mid-command at <c>x^{2</c>, and dragging from a fraction's numerator to its
+    /// denominator selects the fraction rather than the <c>1}{x</c> the offsets alone would give.
+    ///
+    /// <para>
+    /// Both fall out of promotion: the answer is made of whole pieces, and a piece's source range is what it
+    /// was built from, so it cannot be a half-open brace. Nothing here knows what a brace is, which is why
+    /// the same call snaps a drag over half a beam group to the group.
+    /// </para>
+    /// </summary>
+    public static (int Start, int Length) Snap(this Piece root, int start, int length)
+    {
+        var whole = root.Sits();
+        var from = Math.Clamp(Math.Min(start, start + length), whole.Start, whole.End);
+        var to = Math.Clamp(Math.Max(start, start + length), whole.Start, whole.End);
+        if (from == to) return (from, 0);
+
+        // Whatever lies wholly inside the range was dragged over — every piece, not only the ink, so a drag
+        // from before a root's sign to past its contents takes the root itself and not merely what is under
+        // the bar. Anything only half inside is left to promotion, which is what stops a range that clipped a
+        // brace of `^{n}` from coming back as `{n`.
+        var touched = root.SelfAndDescendants()
+            .Where(piece => piece.Sits() is { Length: > 0 } at && at.Start >= from && at.End <= to)
+            .ToList();
+
+        if (touched.Count == 0)
+        {
+            // The range covers only characters nothing was drawn for — a lone brace, say, or half of a
+            // command's name. Snap to whatever is nearest, so a selection is always of something visible.
+            var nearest = root.Ink()
+                .OrderBy(piece => Math.Min(Math.Abs(piece.Sits().Start - from), Math.Abs(piece.Sits().End - to)))
+                .FirstOrDefault();
+            if (!nearest.Exists) return (from, to - from);
+            touched.Add(nearest);
+        }
+
+        var promoted = Promote(touched);
+        if (promoted.Count == 0) return (from, to - from);
+
+        var (first, last) = (promoted.Min(piece => piece.Sits().Start), promoted.Max(piece => piece.Sits().End));
+        return (first, last - first);
+    }
 }

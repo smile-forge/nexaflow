@@ -70,20 +70,20 @@ public class MatrixRewriteTests
         // The gesture as the reader makes it, end to end. What came back before was
         // `\begin{matrix} beta & alpha \\ delta & gamma \end{matrix}` — every command in the matrix
         // broken by a drag that was only supposed to reorder them.
-        var layout = LatexLayout.Build(Greek, Scale);
+        var layout = LatexBuilder.Build(Greek, Scale);
         Assert.IsNotNull(layout);
 
-        var grid = layout.Tree.GridAt(Greek.IndexOf(@"\alpha", System.StringComparison.Ordinal));
+        var grid = layout.GridAt(Greek.IndexOf(@"\alpha", System.StringComparison.Ordinal));
         Assert.IsNotNull(grid);
 
         var first = Column(grid, 0);
-        var moved = layout.Tree.Move(first, Greek.IndexOf(@"\beta", System.StringComparison.Ordinal) + 1);
+        var moved = layout.Move(first, Greek.IndexOf(@"\beta", System.StringComparison.Ordinal) + 1);
         Assert.IsNotNull(moved, "the column would not move");
 
         foreach (var command in new[] { @"\alpha", @"\beta", @"\gamma", @"\delta" })
             StringAssert.Contains(moved.Value.Latex, command, $"{command} did not survive the move");
 
-        Assert.IsNotNull(LatexLayout.Build(moved.Value.Latex, Scale), $"will not typeset: {moved.Value.Latex}");
+        Assert.IsNotNull(LatexBuilder.Build(moved.Value.Latex, Scale), $"will not typeset: {moved.Value.Latex}");
     });
 
     /// <summary>The spans of one column's cells, which is what carrying it hands to the tree.</summary>
@@ -102,11 +102,11 @@ public class MatrixRewriteTests
 
     private static LatexGrid Grid(string latex)
     {
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, $"{latex} no longer typesets");
 
         var inside = TexGrid.In(TexParser.Parse(latex)).First()[0, 0].Start;
-        var grid = layout.Tree.GridAt(inside);
+        var grid = layout.GridAt(inside);
         Assert.IsNotNull(grid, $"the editor finds no table in {latex}");
 
         return grid;

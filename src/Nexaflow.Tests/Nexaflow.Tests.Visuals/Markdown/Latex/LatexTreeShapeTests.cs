@@ -45,9 +45,9 @@ public class LatexTreeShapeTests
 
     private static LatexTree Build(string latex, string what)
     {
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, $"expected {what} to typeset: {latex}");
-        return layout.Tree;
+        return layout;
     }
 
     [TestMethod]
@@ -58,7 +58,7 @@ public class LatexTreeShapeTests
         // one gives its name up, because a link two nodes share is a link that has to be interpreted.
         foreach (var (latex, what) in Lines)
         {
-            var repeated = Build(latex, what).Root.SelfAndDescendants()
+            var repeated = Build(latex, what).Laid.Root.SelfAndDescendants()
                 .Where(n => n.Sits().Length > 0)
                 .Where(n => n.Ancestors().Any(a => a.Sits().Start == n.Sits().Start && a.Sits().Length == n.Sits().Length))
                 .ToList();
@@ -79,7 +79,7 @@ public class LatexTreeShapeTests
         {
             var tree = Build(latex, what);
 
-            foreach (var node in tree.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
+            foreach (var node in tree.Laid.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
                 foreach (var inside in node.Children.SelectMany(c => c.SelfAndDescendants()).Where(n => n.Sits().Length > 0))
                     Assert.IsTrue(
                         inside.Sits().Start >= node.Sits().Start && inside.Sits().End <= node.Sits().End,
@@ -97,13 +97,13 @@ public class LatexTreeShapeTests
         {
             var tree = Build(latex, what);
 
-            foreach (var node in tree.Root.Ink())
+            foreach (var node in tree.Laid.Root.Ink())
             {
                 var centre = new Point(
                     node.Bounds.X + node.Bounds.Width / 2,
                     node.Bounds.Y + node.Bounds.Height / 2);
 
-                var offset = tree.OffsetAt(centre);
+                var offset = tree.Laid.OffsetAt(centre);
                 Assert.IsTrue(offset == node.Sits().Start || offset == node.Sits().End,
                     $"in {what}, pressing the middle of {node} reported offset {offset}, "
                     + $"which is neither of its own edges — {latex}");
@@ -121,9 +121,9 @@ public class LatexTreeShapeTests
         {
             var tree = Build(latex, what);
 
-            foreach (var node in tree.Root.Ink())
+            foreach (var node in tree.Laid.Root.Ink())
             {
-                var (start, length) = tree.SnapRange(node.Sits().Start, node.Sits().Length);
+                var (start, length) = tree.Laid.Root.Snap(node.Sits().Start, node.Sits().Length);
 
                 Assert.IsFalse(start <= 0 && length >= latex.Length,
                     $"in {what}, selecting {node} took the whole line — {latex}");
@@ -140,9 +140,9 @@ public class LatexTreeShapeTests
         // into bands, so the tree has to actually have them.
         var tree = Build(@"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}", "a matrix");
 
-        Assert.AreEqual(9, tree.Root.Ink().Count(), "nine cells");
+        Assert.AreEqual(9, tree.Laid.Root.Ink().Count(), "nine cells");
 
-        var rows = tree.Root.Rows();
+        var rows = tree.Laid.Root.Rows();
         Assert.AreEqual(3, rows.Count, "in three rows of the tree, not three bands of a picture");
         foreach (var row in rows)
             Assert.AreEqual(3, row.SelectMany(n => n.Ink()).Count(), "each holding three cells");
@@ -157,20 +157,20 @@ public class LatexTreeShapeTests
         // cells, so those rules have something to work on.
         const string latex = @"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}";
         var tree = Build(latex, "a matrix");
-        Piece Cell(string digit) => tree.Root.Ink().Single(n => Text(tree, n) == digit);
+        Piece Cell(string digit) => tree.Laid.Root.Ink().Single(n => Text(tree, n) == digit);
 
-        var column = ContentSelection.Between(tree.Root, Cell("2"), Cell("8"));
+        var column = ContentSelection.Between(tree.Laid.Root, Cell("2"), Cell("8"));
         Assert.AreEqual(3, column.Ranges.Count, "down the middle column is three cells, three ranges");
         CollectionAssert.AreEqual(
             new[] { "2", "5", "8" },
             column.Ranges.Select(r => latex.Substring(r.Start, r.Length)).ToArray());
 
-        var row = ContentSelection.Between(tree.Root, Cell("4"), Cell("6"));
+        var row = ContentSelection.Between(tree.Laid.Root, Cell("4"), Cell("6"));
         Assert.AreEqual(1, row.Ranges.Count, "across a row is contiguous in the source");
         StringAssert.Contains(latex.Substring(row.Ranges[0].Start, row.Ranges[0].Length), "4");
         StringAssert.Contains(latex.Substring(row.Ranges[0].Start, row.Ranges[0].Length), "6");
 
-        var block = ContentSelection.Between(tree.Root, Cell("1"), Cell("5"));
+        var block = ContentSelection.Between(tree.Laid.Root, Cell("1"), Cell("5"));
         Assert.AreEqual(2, block.Ranges.Count, "corner to corner is a block: two rows of two");
     });
 
@@ -184,17 +184,17 @@ public class LatexTreeShapeTests
         // having anything to say: what was dragged over inside one is a run of terms like any other.
         const string latex = @"A = \begin{pmatrix} a & 4b^{2}+3 \\ c^4 & d+3i \end{pmatrix}";
         var tree = Build(latex, "a matrix");
-        Piece At(int offset) => tree.Root.Ink().Single(n => n.Sits().Start == offset);
+        Piece At(int offset) => tree.Laid.Root.Ink().Single(n => n.Sits().Start == offset);
 
         var four = latex.IndexOf("4b", StringComparison.Ordinal);
         var two = latex.IndexOf("{2}", StringComparison.Ordinal) + 1;
         var three = latex.IndexOf("+3", StringComparison.Ordinal) + 1;
 
-        var alone = ContentSelection.Between(tree.Root, At(three), At(three));
+        var alone = ContentSelection.Between(tree.Laid.Root, At(three), At(three));
         Assert.AreEqual(1, alone.Ranges.Count);
         Assert.AreEqual("3", latex.Substring(alone.Ranges[0].Start, alone.Ranges[0].Length));
 
-        var term = ContentSelection.Between(tree.Root, At(four), At(two));
+        var term = ContentSelection.Between(tree.Laid.Root, At(four), At(two));
         Assert.AreEqual(1, term.Ranges.Count);
         Assert.AreEqual("4b^{2}", latex.Substring(term.Ranges[0].Start, term.Ranges[0].Length),
             "grown out to the whole script, because half of `^{2}` is not something you can carry");
@@ -202,7 +202,7 @@ public class LatexTreeShapeTests
         // And the cells still select as cells the moment the drag leaves one, which is the behaviour
         // this must not have cost: two rows of two, one range each.
         var block = ContentSelection.Between(
-            tree.Root, At(four), At(latex.IndexOf(@"c^4", StringComparison.Ordinal)));
+            tree.Laid.Root, At(four), At(latex.IndexOf(@"c^4", StringComparison.Ordinal)));
         Assert.AreEqual(2, block.Ranges.Count, "corner to corner is still a block of cells");
     });
 
@@ -212,7 +212,7 @@ public class LatexTreeShapeTests
         // \cfrac nests three deep, which is what made the continued-fraction line such a good bug farm:
         // every level has to be a level.
         var tree = Build(@"\cfrac{1}{2 + \cfrac{1}{3 + \cfrac{1}{4}}}", "nested continued fractions");
-        var four = tree.Root.Ink().Single(n => Text(tree, n) == "4");
+        var four = tree.Laid.Root.Ink().Single(n => Text(tree, n) == "4");
 
         Assert.AreEqual(3, four.Ancestors().Count(a => Text(tree, a).StartsWith(@"\cfrac")),
             "the 4 sits inside three fractions");

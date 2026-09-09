@@ -119,9 +119,9 @@ public class MarkdownSampleRenderTests
             {
                 string latex = math.Content.ToString();
 
-                var layout = LatexLayout.Build(latex, 20);
+                var layout = LatexBuilder.Build(latex, 20);
                 var ok = layout is not null
-                         && !layout.Tree.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
+                         && !layout.Laid.Trouble.Any(d => d.Severity == DiagnosticSeverity.Error);
 
                 if (known.Any(gap => latex.Contains(gap, StringComparison.Ordinal)))
                 {

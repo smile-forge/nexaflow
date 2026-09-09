@@ -1,42 +1,31 @@
-﻿using System.Linq;
-using System.Windows.Media;
+using System.Linq;
 using Nexaflow.Maths.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
-using WpfMath.Rendering;
 using XamlMath;
+using WpfMath.Rendering;
 using XamlMath.Rendering;
-
-// A using alias beats a using-namespace, so these win over XamlMath.Rendering's own Point/Size.
-using Rect = System.Windows.Rect;
-using Size = System.Windows.Size;
-using Vector = System.Windows.Vector;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
 /// <summary>
-/// A typeset formula: the tree of what was drawn, and the ability to draw it again.
+/// The one thing that knows a formula is a formula.
+///
 /// <para>
-/// Typesetting happens once, in <see cref="Build"/> — fonts, glyph metrics and all. After that this holds
-/// no reference to the typesetter at all: both what you can <em>ask</em> about the formula and what you
-/// can <em>paint</em> of it come out of <see cref="Tree"/>. That is the strongest statement that the tree
-/// is complete, and it is why the rules deciding what a drag selected or where an arrow key goes can be
-/// exercised without a desktop.
+/// It reads LaTeX, typesets it, and lays the result out as pieces. Everything after that — painting,
+/// hit-testing, where a caret goes, what a drag took, what a selection washes — is the same code a tune
+/// and a barcode run, over the <see cref="Laid"/> this hands back. That is the whole of the arrangement:
+/// a builder per kind of content, and nothing per kind of content anywhere else.
+/// </para>
+/// <para>
+/// There is deliberately no <c>LatexLayout</c> any more. It held a tree, forwarded the size and the
+/// source to it, and offered a <c>Paint</c> that was the shared painter with a default argument — three
+/// objects wrapping one, and the outer two are why a formula could not be hosted by the same element as
+/// a score.
 /// </para>
 /// </summary>
-public sealed class LatexLayout
+public static class LatexBuilder
 {
-    private LatexLayout(LatexTree tree) => Tree = tree;
-
-    /// <summary>What was drawn where — every question about the formula's shape goes here.</summary>
-    public LatexTree Tree { get; }
-
-    /// <summary>The source this was built from.</summary>
-    public string Latex => Tree.Latex;
-
-    /// <summary>The formula's painted size in element pixels.</summary>
-    public Size Size => Tree.Size;
-
     /// <summary>
     /// Typesets <paramref name="latex"/> and records where every piece landed, or returns null when it
     /// will not parse — which the caller shows as source rather than as a formula.
@@ -56,8 +45,8 @@ public sealed class LatexLayout
     /// write and how they aim at it. Off by default, because a box in the middle of a formula that is
     /// only being read would simply be wrong, and reading is the commoner case.
     /// </param>
-    public static LatexLayout? Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
-                                     RawZone? shownAsWritten = null, bool placeholders = false)
+    public static LatexTree? Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
+                                   RawZone? shownAsWritten = null, bool placeholders = false)
     {
         if (string.IsNullOrEmpty(latex)) return null;
 
@@ -122,7 +111,7 @@ public sealed class LatexLayout
                     "This was read, and nothing here knows how to draw it.")))
                 .ToList();
 
-            return new LatexLayout(new LatexTree(latex, reading, new Laid(laid, capture.Size, trouble)));
+            return new LatexTree(latex, reading, new Laid(laid, capture.Size, trouble));
         }
         catch
         {

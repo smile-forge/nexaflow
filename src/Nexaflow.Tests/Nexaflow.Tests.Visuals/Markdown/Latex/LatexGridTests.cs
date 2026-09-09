@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -30,9 +31,9 @@ public class LatexGridTests
 
     private static LatexTree Tree(string latex)
     {
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, latex);
-        return layout.Tree;
+        return layout;
     }
 
     private static LatexGrid Grid(string latex)
@@ -84,13 +85,13 @@ public class LatexGridTests
         // for does not make them, from the same source.
         const string latex = @"\frac{}{2}";
 
-        var editing = LatexLayout.Build(latex, Scale, placeholders: true);
-        var reading = LatexLayout.Build(latex, Scale, placeholders: false);
+        var editing = LatexBuilder.Build(latex, Scale, placeholders: true);
+        var reading = LatexBuilder.Build(latex, Scale, placeholders: false);
         Assert.IsNotNull(editing);
         Assert.IsNotNull(reading);
 
-        Assert.AreEqual(1, editing.Tree.Placeholders.Count, "the empty numerator is a hole to fill in");
-        Assert.AreEqual(0, reading.Tree.Placeholders.Count, "and is nothing at all when it is only being read");
+        Assert.AreEqual(1, editing.Placeholders.Count, "the empty numerator is a hole to fill in");
+        Assert.AreEqual(0, reading.Placeholders.Count, "and is nothing at all when it is only being read");
     });
 
     // ── Within the matrix ───────────────────────────────────────────────────
@@ -149,7 +150,7 @@ public class LatexGridTests
         var (latex, _) = grid.WithBlockMoved(new GridBlock(0, 0, 0, 0), toRow: 1, toColumn: 0).Grid.Render();
 
         StringAssert.Contains(latex, "{}", "the cell it came from is a hole in the source");
-        Assert.IsNotNull(LatexLayout.Build(latex, Scale), "and what comes out still typesets");
+        Assert.IsNotNull(LatexBuilder.Build(latex, Scale), "and what comes out still typesets");
     });
 
     // ── Out of the matrix ───────────────────────────────────────────────────
@@ -225,8 +226,8 @@ public class LatexGridTests
         StringAssert.Contains(moved.Value.Latex, @"\begin{Bmatrix} 1 & 2 \\ a & b \end{Bmatrix}",
             "the block became a matrix of its own, of the same kind and the size selected");
 
-        var left = LatexLayout.Build(moved.Value.Latex, Scale, placeholders: true)?
-            .Tree.GridAt(moved.Value.Latex.IndexOf('3'));
+        var left = LatexBuilder.Build(moved.Value.Latex, Scale, placeholders: true)?
+            .GridAt(moved.Value.Latex.IndexOf('3'));
         Assert.IsNotNull(left, "and what it came from is still a matrix");
         Assert.AreEqual(2, left.RowCount);
         Assert.AreEqual(1, left.ColumnCount, "narrowed to the column that was left, not left holding holes");
@@ -285,19 +286,19 @@ public class LatexGridTests
         const string latex =
             @"\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix} + \begin{pmatrix} a \\ b \end{pmatrix}";
 
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout);
 
-        var target = layout.Tree.GridAt(latex.LastIndexOf('a'));
+        var target = layout.GridAt(latex.LastIndexOf('a'));
         Assert.IsNotNull(target, "the second matrix is the one being joined");
 
         // Just past the right edge of everything the second matrix drew, on its own baseline.
         var cells = target.SpanOf(new GridBlock(0, 0, target.RowCount - 1, target.ColumnCount - 1));
         Assert.IsNotNull(cells);
-        var drawn = layout.Tree.RangeRects(cells.Value.Start, cells.Value.Length);
+        var drawn = layout.Laid.Root.RangeRects(cells.Value.Start, cells.Value.Length);
         var beside = new System.Windows.Point(drawn.Max(r => r.Right) + 3, drawn.Average(r => (r.Top + r.Bottom) / 2));
 
-        var drop = layout.Tree.GridDropAt(beside);
+        var drop = layout.GridDropAt(beside);
         Assert.IsNotNull(drop, "the pointer is inside the matrix");
         Assert.IsNull(drop.Value.Cell, "but not on a cell");
         Assert.AreEqual(target.ColumnCount, drop.Value.InsertColumn, "so it is offering a column after the last");
@@ -308,17 +309,17 @@ public class LatexGridTests
     {
         // The other half: a boundary is only a boundary. Over a cell, a drop still means that cell, and
         // dragging a term onto one goes on meaning what it always did.
-        var layout = LatexLayout.Build(Matrix, Scale);
+        var layout = LatexBuilder.Build(Matrix, Scale);
         Assert.IsNotNull(layout);
 
-        var grid = layout.Tree.GridAt(Matrix.IndexOf('5'));
+        var grid = layout.GridAt(Matrix.IndexOf('5'));
         Assert.IsNotNull(grid);
 
         var five = grid.SpanOf(new GridBlock(1, 1, 1, 1));
         Assert.IsNotNull(five);
-        var box = layout.Tree.RangeRects(five.Value.Start, five.Value.Length).Single();
+        var box = layout.Laid.Root.RangeRects(five.Value.Start, five.Value.Length).Single();
 
-        var drop = layout.Tree.GridDropAt(new System.Windows.Point(
+        var drop = layout.GridDropAt(new System.Windows.Point(
             (box.Left + box.Right) / 2, (box.Top + box.Bottom) / 2));
 
         Assert.IsNotNull(drop);
@@ -372,7 +373,7 @@ public class LatexGridTests
         var moved = tree.Move(cells, to: latex.IndexOf('1'));
         Assert.IsNotNull(moved, "a column dragged to the first cell is a move");
 
-        var after = LatexLayout.Build(moved.Value.Latex, Scale)?.Tree.GridAt(moved.Value.Latex.IndexOf('3'));
+        var after = LatexBuilder.Build(moved.Value.Latex, Scale)?.GridAt(moved.Value.Latex.IndexOf('3'));
         Assert.IsNotNull(after, "and what comes back is still a matrix");
         Assert.AreEqual(2, after.RowCount);
         Assert.AreEqual(3, after.ColumnCount, "with its shape kept");
