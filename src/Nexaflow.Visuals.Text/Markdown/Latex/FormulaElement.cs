@@ -90,23 +90,6 @@ public sealed class FormulaElement : ContentElement
     }
 
     /// <summary>
-    /// Backspace behind a rendered command un-renders it rather than deleting a character of it — there
-    /// is source to go back to, which the reader cannot see. A symbol has nothing hidden behind it: an α
-    /// is one thing on the page however many letters spelled it, so it is simply taken.
-    /// </summary>
-    protected override EditState? Backspacing(EditState state)
-    {
-        if (state.HasSelection || state.Raw is not null) return null;
-
-        if (_tree.SymbolBefore(state.Caret) is not { Exists: true } symbol) return null;
-        if (symbol.Sits() is not { Length: > 1 } place) return null;
-
-        var span = (Start: place.Start, Length: place.Length);
-
-        return _tree.IsComposite(symbol) ? state.Backspace(span) : state.Remove(span.Start, span.Length);
-    }
-
-    /// <summary>
     /// A formula is one expression, read from its start — so only a step <em>along</em> the text can land
     /// anywhere but the beginning of it, and then only at the end, which is the character you stepped back
     /// onto. Up and down both land at the start, because a line step goes to where the line begins and the

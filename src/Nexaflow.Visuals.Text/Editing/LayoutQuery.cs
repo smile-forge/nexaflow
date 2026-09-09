@@ -280,7 +280,7 @@ public static class LayoutQuery
     }
 
     /// <summary>Whether this piece holds a selectable piece of its own — whether it is a group.</summary>
-    private static bool Holds(Piece piece)
+    public static bool Holds(this Piece piece)
     {
         var self = true;
         foreach (var inside in piece.SelfAndDescendants())

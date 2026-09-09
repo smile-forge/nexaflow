@@ -187,11 +187,38 @@ public class ContentElement : FrameworkElement, IEditableBlock
     protected virtual EditState? Typing(EditState state, string text) => null;
 
     /// <summary>
-    /// What backspace means behind something drawn from more source than it shows — un-rendering a
-    /// command back to the characters that spelled it. Null for the ordinary answer, which is to take one
-    /// character.
+    /// What backspace means behind something drawn from more source than it shows.
+    ///
+    /// <para>
+    /// Behind a construct the reader cannot see the source of — a fraction, a root, a matrix — it un-renders
+    /// it to the characters that spelled it rather than taking a character off the end, which would leave
+    /// LaTeX that no longer parses by removing a brace nobody can see. Behind something atomic — an α is one
+    /// thing on the page however many letters spelled it — there is nothing hidden to go back to, so it is
+    /// simply taken.
+    /// </para>
+    /// <para>
+    /// The thing behind the caret is the piece its place stands against, which is why this is no longer a
+    /// content's business. A row is never it and neither is a box the typesetter made for its own purposes:
+    /// neither declares a stop, so neither can be what a caret is standing at. That used to be two paragraphs
+    /// of exceptions in the formula's own version, aimed at an align block whose body is one box covering two
+    /// equations — backspace un-rendered both.
+    /// </para>
     /// </summary>
-    protected virtual EditState? Backspacing(EditState state) => null;
+    protected virtual EditState? Backspacing(EditState state)
+    {
+        if (state.HasSelection || state.Raw is not null) return null;
+
+        var at = _laid.Root.StopAt(state.Caret);
+        if (at < 0 || _laid.Places[at] is not { Trailing: true } place) return null;
+
+        // One character has nothing hidden behind it — the ordinary backspace is already right.
+        var sits = place.Against.Sits();
+        if (sits.Length <= 1) return null;
+
+        return place.Against.Holds()
+            ? state.Backspace((sits.Start, sits.Length))
+            : state.Remove(sits.Start, sits.Length);
+    }
 
     /// <summary>
     /// What pointing at a piece means: the first thing above it that names a stretch of source.

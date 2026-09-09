@@ -259,19 +259,35 @@ internal sealed class LatexCapture : IElementRenderer
     /// stand at.
     ///
     /// <para>
-    /// Nearly always true, and the exceptions are what this is for. <c>x + </c> ends in a space no element
-    /// covers, and a reader arriving from the text after the formula has to be able to stand past it — so
-    /// that run does have an end of its own and declares it. A run of one part is a wrapper rather than a
-    /// row: the layout draws it and its part as the same piece, so suppressing its stops would leave the
-    /// construct inside with nowhere to stand at all.
+    /// Nearly always true, and the exception is what this is for: <c>x + </c> ends in a space no element
+    /// covers, and a reader arriving from the text after the formula has to be able to stand past it.
+    /// </para>
+    /// <para>
+    /// Asked in the terms the <em>piece</em> will report, which is what <see cref="TexSourcePart"/> decides
+    /// and is not always what the part spans: a cell stands for what was written in it rather than for the
+    /// separator and the spacing around it. Comparing raw spans made the cell of <c>c &amp;= d\, </c> look
+    /// as though it reached a character past its own contents, so it declared a stop there — and backspace
+    /// at the end of a line of an align block un-rendered the whole cell instead of taking a character.
+    /// </para>
+    /// <para>
+    /// Wrappers are walked past first. A run holding one thing is not a row of things — the parse wraps a
+    /// formula that is a single fraction in an element — and the layout draws a wrapper and the thing in it
+    /// as one piece, so asking a wrapper what its parts cover only asks about the wrapper.
     /// </para>
     /// </summary>
     private static bool Covered(Nexaflow.Maths.Latex.TexPart run)
     {
-        var parts = run.Parts.ToList();
-        if (parts.Count < 2) return false;
+        var inner = run;
+        while (inner.Parts.Count() == 1 && IsRun(inner)) inner = inner.Parts.First();
 
-        return parts[0].Start <= run.Start && parts[^1].Start + parts[^1].Length >= run.Start + run.Length;
+        var parts = inner.Parts.ToList();
+        if (parts.Count == 0) return false;
+
+        var whole = new TexSourcePart(run);
+        var first = new TexSourcePart(parts[0]);
+        var last = new TexSourcePart(parts[^1]);
+
+        return first.Start <= whole.Start && last.Start + last.Length >= whole.Start + whole.Length;
     }
 
     public void RenderTransformed(Box box, IEnumerable<Transformation> transforms, double x, double y)
