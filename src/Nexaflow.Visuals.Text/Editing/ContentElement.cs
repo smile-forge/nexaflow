@@ -169,16 +169,31 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
     protected virtual EditState? Backspacing(EditState state) => null;
 
     /// <summary>
-    /// What pointing at a piece means, when it is not a thing in its own right — half of a bracket pair
-    /// means the group, because one bracket without its partner cannot be read at all.
+    /// What pointing at a piece means: the first thing above it that names a stretch of source.
+    ///
+    /// <para>
+    /// A bracket is drawn by the fence that holds it, a bar by the fraction, the three glyphs of an operator
+    /// name by the name. None of them names source of its own, and none can be pointed at, taken, carried or
+    /// deleted alone — a bracket without its partner cannot be read at all. So pointing at one means the
+    /// thing it is part of, and where nothing above it names anything, nothing there is selectable.
+    /// </para>
+    /// <para>
+    /// No content declares any of this. It is the second of the two rules the layout runs on, and it is the
+    /// same climb whether what was pressed is a delimiter, a beam or a letter of a word.
+    /// </para>
     /// </summary>
-    protected virtual Piece Pointing(Piece piece) => piece;
+    protected static Piece Pointing(Piece piece) => piece.Selectable();
 
     /// <summary>
-    /// The places still waiting to be written in, in reading order — what Tab walks. Empty for content
-    /// with no notion of an unfilled argument, which is most of it.
+    /// The places still waiting to be written in, in reading order — what Tab walks.
+    ///
+    /// <para>
+    /// Read off what was drawn rather than off the text, because there is nothing in the text to read: a hole
+    /// covers no characters, which is exactly what makes it one. The builder is the only thing that can say
+    /// so, and it does, and nothing else about a piece needs declaring.
+    /// </para>
     /// </summary>
-    protected virtual IReadOnlyList<Piece> Holes() => [];
+    protected IReadOnlyList<Piece> Holes() => _laid.Holes;
 
     /// <summary>
     /// What moving the selected stretches to <paramref name="to"/> would produce — a term carried to a new
@@ -694,11 +709,11 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
         // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what
         // makes a drag down a column select the column rather than everything written between its top
         // cell and its bottom one.
-        if (_anchorNode.Exists && _laid.PieceAt(at) is { Exists: true } focus)
-        {
+        if (Pointing(_anchorNode) is { Exists: true } from && Pointing(_laid.PieceAt(at)) is { Exists: true } focus)
+            {
             // Through whatever owns each end. Landing on a bracket means the group it opens or closes:
             // half a pair is not a smaller selection, it is one that cannot be read.
-            SelectNodes(ContentSelection.Between(_laid.Root, Pointing(_anchorNode), Pointing(focus)));
+            SelectNodes(ContentSelection.Between(_laid.Root, from, focus));
             return;
         }
 

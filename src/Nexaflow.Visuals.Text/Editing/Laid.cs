@@ -139,4 +139,13 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     /// there is none of yet.
     /// </summary>
     public bool ShowsSource => Root.Kind == LayoutText.SourceKind;
+
+    /// <summary>
+    /// The places still waiting to be written in, in reading order — an argument left empty that the builder
+    /// drew a box for. Empty for content with no notion of an unfilled argument, which is most of it.
+    /// </summary>
+    public IReadOnlyList<Piece> Holes =>
+        _holes ??= [.. Root.SelfAndDescendants().Where(piece => piece.IsHole).OrderBy(piece => piece.Sits().Start)];
+
+    private IReadOnlyList<Piece>? _holes;
 }

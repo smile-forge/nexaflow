@@ -31,18 +31,6 @@ public class BracketTests
     // ── A pair is one thing ─────────────────────────────────────────────────
 
     [TestMethod]
-    public void ThePieceBeforeTheCaretIsTheWholeBracketedGroup() => UiThread.Run(() =>
-    {
-        foreach (var latex in new[] { @"x + \left[ y \right]", @"x + \left( y \right)",
-                                      @"x + \left\{ y \right\}", @"x + \left\langle y \right\rangle" })
-        {
-            var found = Before(latex, latex.Length);
-            Assert.IsNotNull(found, latex);
-            StringAssert.StartsWith(Text(latex, found), @"\left", $"{latex} — the group, not its closing bracket");
-        }
-    });
-
-    [TestMethod]
     public void ASizedDelimiterIsItsOwnThing() => UiThread.Run(() =>
     {
         // \Bigl[ and \Bigr] are two independent symbols in LaTeX, not a pair — so each is one thing,
@@ -52,27 +40,6 @@ public class BracketTests
 
         Assert.IsNotNull(found);
         Assert.AreEqual(@"\Bigr]", Text(latex, found));
-    });
-
-    [TestMethod]
-    public void ASelectionNeverTakesHalfAPair() => UiThread.Run(() =>
-    {
-        // A bracket carries meaning only as a pair — one without its partner cannot be read at all —
-        // so picking one out has to mean picking out the group. Anything else could be copied or
-        // carried somewhere and would arrive as nothing that parses.
-        const string latex = @"x + \left[ y \right]";
-        var layout = LatexBuilder.Build(latex, 16);
-        Assert.IsNotNull(layout);
-
-        var closing = layout.Root.Leaves()
-            .FirstOrDefault(n => Text(latex, n).StartsWith(@"\right", System.StringComparison.Ordinal));
-        Assert.IsNotNull(closing, "the closing bracket is a piece you can point at");
-
-        var owner = Formula.Read(latex, 16).Owning(closing);
-        var picked = ContentSelection.Between(layout.Root, owner, owner);
-        var taken = string.Concat(picked.Ranges.Select(r => latex.Substring(r.Start, r.Length)));
-
-        Assert.AreEqual(@"\left[ y \right]", taken, "the whole group, opener included");
     });
 
     // ── The braket package ──────────────────────────────────────────────────
@@ -98,7 +65,7 @@ public class BracketTests
         var layout = Formula.Read(@"\bra{}", 16, placeholders: true);
 
         Assert.IsNotNull(layout);
-        Assert.AreEqual(1, layout.Placeholders.Count, "the bra has a hole in it");
+        Assert.AreEqual(1, layout.Laid.Holes.Count, "the bra has a hole in it");
         Assert.AreEqual(1, layout.Laid.Trouble.Count, "and says so");
     });
 

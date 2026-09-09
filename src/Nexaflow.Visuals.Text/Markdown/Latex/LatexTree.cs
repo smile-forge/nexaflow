@@ -299,15 +299,6 @@ public sealed class LatexTree
             : new GridDrop(grid, null, null, null, row);
     }
 
-    /// <summary>
-    /// The holes in this formula, in reading order — the arguments left empty, which the typesetter
-    /// drew a box for. Tab walks these.
-    /// </summary>
-    public IReadOnlyList<Piece> Placeholders =>
-        _placeholders ??= [.. Laid.Root.SelfAndDescendants().Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
-
-    private IReadOnlyList<Piece>? _placeholders;
-
     // ── Point → source ──────────────────────────────────────────────────────
 
     // ── Source → geometry ───────────────────────────────────────────────────
@@ -627,32 +618,7 @@ public sealed class LatexTree
             if (!best.Exists || node.Depth > best.Depth) best = node;
         }
 
-        return best.Exists ? Owning(best) : default;
-    }
-
-    /// <summary>
-    /// The thing a piece belongs to, when it is not a thing in its own right.
-    /// <para>
-    /// A delimiter is drawn by the fence that holds it rather than being a part of it — the same
-    /// category as a fraction's bar, and it names no role for the same reason: it is not a place
-    /// content goes. But unlike a bar it is not decoration either. A bracket carries meaning only as a
-    /// pair; one without its partner cannot be read at all, so nothing may point at, take, carry or
-    /// delete it alone. Pointing at one means the group.
-    /// </para>
-    /// </summary>
-    public Piece Owning(Piece node)
-    {
-        var owner = node;
-
-        // Only ever into something that is a construct and claims parts of its own. Climbing on the
-        // strength of the piece naming no role is not enough: where nothing names a role — a tree with
-        // no parse behind it — every step would qualify and this would walk to the top and hand back
-        // the whole formula.
-        while (RoleOf(owner) is null && owner.Parent is { Exists: true } parent
-               && IsComposite(parent) && !IsSequence(parent))
-            owner = parent;
-
-        return owner;
+        return best.Selectable();
     }
 
     /// <summary>

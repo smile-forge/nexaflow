@@ -130,7 +130,17 @@ internal sealed class LatexCapture : IElementRenderer
         if (box is StrutBox or GlueBox) return;
 
         var kind = box.GetType().Name;
-        var part = Owns(box);
+        var owns = Owns(box);
+
+        // What it *names*, which is narrower than what it was built from. A delimiter, a command name, a
+        // row separator: the parse tree has nodes for those and the layout has no use for them. Naming one
+        // would make it the answer to "what did I press", and half a bracket pair is not something a reader
+        // can be told they have selected — the group is.
+        //
+        // The layout tree does not mirror the parse tree and never needed to. What it needs from a part is
+        // the stretch of source a piece stands for; punctuation stands for the construct that drew it, and
+        // the climb finds that on its own.
+        var part = owns is not null && IsPlace(owns.Role) ? owns : null;
 
         _build.Open(
             kind,
@@ -140,7 +150,11 @@ internal sealed class LatexCapture : IElementRenderer
 
             // Whether a caret can be inside this and then outside it is a question about the construct,
             // and the part is the only thing that can answer it.
-            isEnclosure: part is { } enclosing && enclosing.Parts.Any() && !IsRun(enclosing),
+            isEnclosure: owns is { } enclosing && enclosing.Parts.Any() && !IsRun(enclosing),
+
+            // An argument left empty, which the typesetter drew a hollow box for. It covers no characters
+            // — that is what makes it a hole — so nothing about the source can say it is one.
+            isHole: kind == HoleKind,
 
             // A typeset box is the height and depth it reserves on its line rather than a box around what
             // it holds — a subscript hangs below the very piece that holds it — so it states its own
@@ -158,7 +172,7 @@ internal sealed class LatexCapture : IElementRenderer
 
         _built = true;
 
-        if (part is not null) _above.Add(part);
+        if (owns is not null) _above.Add(owns);
         _open.Push((origin, raw));
 
 
@@ -173,7 +187,7 @@ internal sealed class LatexCapture : IElementRenderer
         _build.Close();
 
         _open.Pop();
-        if (part is not null) _above.RemoveAt(_above.Count - 1);
+        if (owns is not null) _above.RemoveAt(_above.Count - 1);
 
     }
 
@@ -359,4 +373,16 @@ internal sealed class LatexCapture : IElementRenderer
 
         return union.IsEmpty ? new Rect(0, 0, 0, 0) : union;
     }
+
+    /// <summary>What the typesetter calls the hollow box it stands in an argument nobody has written yet.</summary>
+    private const string HoleKind = "PlaceholderBox";
+
+    /// <summary>
+    /// Whether a role names a place content goes, as against the punctuation that holds it. A brace, a
+    /// command name and a row separator are how the writer said what they meant; none of them is a thing
+    /// they can point at on its own.
+    /// </summary>
+    private static bool IsPlace(string role) =>
+        role is not (TexRole.Name or TexRole.Open or TexRole.Close
+                     or TexRole.Separator or TexRole.Trivia or TexRole.Row);
 }

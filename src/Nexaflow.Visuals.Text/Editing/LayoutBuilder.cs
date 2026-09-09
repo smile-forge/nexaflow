@@ -52,6 +52,7 @@ public sealed class LayoutBuilder
         public Rect Box;
     
         public bool IsEnclosure;
+        public bool IsHole;
         public bool Gathers;
         public LayoutPaint? Paints;
         public readonly List<LayoutMark> Marks = [];
@@ -104,7 +105,7 @@ public sealed class LayoutBuilder
     /// ledger line has none, because nobody wrote it.
     /// </param>
     public int Open(string kind, ISourcePart? part = null, Point at = default,
-                bool isEnclosure = false, bool gathers = true,
+                bool isEnclosure = false, bool isHole = false, bool gathers = true,
                     LayoutPaint? paints = null)
     {
         var frame = _spare.Count > 0 ? _spare.Pop() : new Frame();
@@ -113,7 +114,8 @@ public sealed class LayoutBuilder
         frame.Offset = new Vector(at.X, at.Y);
         frame.Box = Rect.Empty;
 
-        frame.IsEnclosure = isEnclosure;
+                frame.IsEnclosure = isEnclosure;
+        frame.IsHole = isHole;
         frame.Gathers = gathers;
         frame.Paints = paints is { Matters: true } ? paints : null;
         frame.Marks.Clear();
@@ -207,7 +209,8 @@ public sealed class LayoutBuilder
             // be pointed at, hit-tested, washed or stood beside. Kept here rather than checked at each of
             // the places that trust it, because there are too many of those to keep in step.
 
-            IsEnclosure = frame.IsEnclosure,
+                        IsEnclosure = frame.IsEnclosure,
+            IsHole = frame.IsHole,
         };
 
         // What a piece holds, whatever holds it holds too — measured in the parent's frame, which

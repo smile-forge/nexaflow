@@ -146,15 +146,6 @@ public sealed class FormulaElement : ContentElement
     }
 
     /// <summary>
-    /// A delimiter is drawn by the fence that holds it. A bracket carries meaning only as a pair — one
-    /// without its partner cannot be read at all — so pointing at one means the group.
-    /// </summary>
-    protected override Piece Pointing(Piece piece) => _tree.Owning(piece);
-
-    /// <summary>The arguments left empty, which the typesetter drew a box for. Tab walks these.</summary>
-    protected override IReadOnlyList<Piece> Holes() => _tree.Placeholders;
-
-    /// <summary>
     /// A term carried to a new place, merged into where it lands rather than dropped there: a term dragged
     /// into an unbraced exponent has to brace it, and a command dragged against a letter has to keep a
     /// space. Both are facts about the structure, so both are the tree's.

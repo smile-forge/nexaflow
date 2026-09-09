@@ -54,7 +54,11 @@ public sealed class ContentSelection
         var from = System.Math.Min(one.Start, other.Start);
         var to = System.Math.Max(one.End, other.End);
 
-        var touched = root.Leaves().Where(p => p.Sits() is var at && at.Start >= from && at.End <= to).ToList();
+        var touched = root.Leaves()
+                    .Select(piece => piece.Selectable())
+                    .Where(piece => piece.Exists && piece.Sits() is var at && at.Start >= from && at.End <= to)
+                    .Distinct()
+                    .ToList();
         return touched.Count == 0 ? None : new ContentSelection(LayoutQuery.Promote(touched));
     }
 
@@ -125,7 +129,7 @@ public sealed class ContentSelection
     /// <summary>A run of chosen pieces as a selection: their ink, and the source they cover.</summary>
     private static ContentSelection? Gathered(Piece root, IReadOnlyList<Piece> run)
     {
-        var ink = run.SelectMany(p => p.Leaves()).ToList();
+        var ink = run.SelectMany(p => p.Leaves()).Select(p => p.Selectable()).Where(p => p.Exists).Distinct().ToList();
         if (ink.Count == 0) return null;
 
         var chosen = LayoutQuery.Promote(ink);
@@ -156,7 +160,8 @@ public sealed class ContentSelection
 
         var inside = new HashSet<Piece>(chosen.SelectMany(p => p.SelfAndDescendants()));
         var others = root.Leaves()
-            .Where(p => !inside.Contains(p))
+                    .Select(p => p.Selectable())
+                    .Where(p => p.Exists && !inside.Contains(p))
             .Select(p => p.Sits())
             .Where(at => at.Length > 0)
             .ToList();
@@ -234,7 +239,7 @@ public sealed class ContentSelection
 
             for (var at = top; at <= bottom; at++)
             {
-                var ink = stack[at].Leaves().ToList();
+                var ink = stack[at].Leaves().Select(p => p.Selectable()).Where(p => p.Exists).Distinct().ToList();
                 if (ink.Count == 0) continue;
 
                 block.AddRange(ink);

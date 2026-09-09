@@ -85,8 +85,8 @@ public class LatexGridTests
         Assert.IsNotNull(editing);
         Assert.IsNotNull(reading);
 
-        Assert.AreEqual(1, editing.Placeholders.Count, "the empty numerator is a hole to fill in");
-        Assert.AreEqual(0, reading.Placeholders.Count, "and is nothing at all when it is only being read");
+        Assert.AreEqual(1, editing.Laid.Holes.Count, "the empty numerator is a hole to fill in");
+        Assert.AreEqual(0, reading.Laid.Holes.Count, "and is nothing at all when it is only being read");
     });
 
     // ── Within the matrix ───────────────────────────────────────────────────

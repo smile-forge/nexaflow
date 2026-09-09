@@ -224,7 +224,7 @@ public class SingleFormulaEditorTests
 
             Assert.AreEqual(@"\frac{}{}", formula.Latex, "nothing was written that the reader did not");
             Assert.IsNotNull(formula.Layout, "and it draws");
-            Assert.AreEqual(2, formula.Layout!.Placeholders.Count,
+            Assert.AreEqual(2, formula.Laid.Holes.Count,
                 "as a fraction with two holes in it — one symbol each, like any other symbol");
         });
     }
@@ -308,7 +308,7 @@ public class SingleFormulaEditorTests
         {
             var formula = Focused(editor);
             var tree = formula.Layout!;
-            var hole = tree.Placeholders.Single();
+            var hole = tree.Laid.Holes.Single();
 
             var washed = tree.Laid.Root.RangeRects(0, formula.Latex.Length);
             Assert.IsTrue(washed.Any(r => r.Contains(hole.Bounds.TopLeft) || r.IntersectsWith(hole.Bounds)),
