@@ -6,15 +6,13 @@ using System.Collections.Generic;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// Words as pieces of a layout tree, and a tree of any kind painted onto any surface.
+/// Words as pieces of a layout tree.
 ///
 /// <para>
-/// Neither of these is about music, maths or diagrams, which is the whole point of them being here. A
-/// layout tree is a canvas of things that were drawn, each naming the source it was drawn from, and what
-/// kind of thing it is has never mattered to anything that selects, hit-tests or measures. So a title
-/// over a tune, a caption under a diagram and the prose between two formulae are one job done once —
-/// and a canvas holding a bar of music beside a fraction beside a paragraph paints in a single walk,
-/// because the walk was never asked what it was walking.
+/// This is not about music, maths or diagrams, which is the whole point of it being here. A layout tree
+/// is a canvas of things that were drawn, each naming the source it was drawn from, and what kind of
+/// thing it is has never mattered to anything that selects, hit-tests or measures. So a title over a
+/// tune, a caption under a diagram and the prose between two formulae are one job done once.
 /// </para>
 /// <para>
 /// It arrived the other way round, which is worth remembering. The first version of this lived inside
@@ -26,17 +24,18 @@ namespace Nexaflow.Visuals.Text.Editing;
 public static class LayoutText
 {
     /// <summary>
-    /// Places one run of text and hands back the piece it became.
+    /// Places one run of text into <paramref name="into"/> and hands back where the piece went.
     ///
     /// <para>
     /// The text is aligned within <paramref name="room"/> by the type engine, which is also what breaks a
     /// long run into lines — a title too wide for its page is a paragraph, and how much room it takes is
     /// not known until it has been broken. But the <em>piece</em> is the letters rather than the column
-    /// they were aligned in, so its bounds are where the words actually landed. That is what a reader
-    /// drags across and what a wash covers, and a centred title whose bounds were the whole page would
-    /// highlight the margins either side of itself.
+    /// they were aligned in: its extent comes from the mark, which reports where the words actually
+    /// landed. That is what a reader drags across and what a wash covers, and a centred title whose
+    /// extent was the whole page would highlight the margins either side of itself.
     /// </para>
     /// </summary>
+    /// <param name="at">Where the column begins, in the frame of whatever is open.</param>
     /// <param name="part">
     /// The source this text was written in. Without one the piece is drawn and cannot be selected, which
     /// is the right answer for a label the content invented and the wrong one for anything a reader typed.
@@ -52,28 +51,23 @@ public static class LayoutText
     /// is neither — and nothing here is in a position to know it. Null draws the run as one piece.
     /// </para>
     /// </param>
-    public static LayoutNode Place(LayoutNode into, FormattedText text, Point at, double room,
-                                   TextAlignment align, ISourcePart? part, string kind,
-                                   IReadOnlyList<ISourcePart>? letters = null)
+    public static int Place(LayoutBuilder into, FormattedText text, Point at, double room,
+                            TextAlignment align, ISourcePart? part, string kind,
+                            IReadOnlyList<ISourcePart>? letters = null)
     {
         text.MaxTextWidth = System.Math.Max(1, room);
         text.TextAlignment = align;
 
-        var x = align switch
-        {
-            TextAlignment.Center => at.X + ((room - text.Width) / 2),
-            TextAlignment.Right => at.X + room - text.Width,
-            _ => at.X,
-        };
+        var piece = into.Open(kind, part, at, isInk: part is { Length: > 0 });
 
-        var node = new LayoutNode(new Rect(x, at.Y, text.Width, text.Height), part, kind,
-                                  isInk: part is { Length: > 0 });
+        // At the piece's own origin, which is where the column begins. The alignment shift is the type
+        // engine's and the mark reports it, so the piece comes out as wide as the words and no wider.
+        into.Draw(new TextMark(text, default, null));
 
-        into.Add(node);
-        node.Drew(new TextMark(text, at, null));
+        Letters(into, text, letters, kind);
 
-        Letters(node, text, at, letters, kind);
-        return node;
+        into.Close();
+        return piece;
     }
 
     /// <summary>
@@ -85,19 +79,21 @@ public static class LayoutText
     /// ever asks of a piece.
     /// </para>
     /// </summary>
-    private static void Letters(LayoutNode into, FormattedText text, Point at,
+    private static void Letters(LayoutBuilder into, FormattedText text,
                                 IReadOnlyList<ISourcePart>? letters, string kind)
     {
         if (letters is null || letters.Count != text.Text.Length) return;
 
         for (var i = 0; i < letters.Count; i++)
         {
-            if (text.BuildHighlightGeometry(at, i, 1) is not { } box) continue;
+            if (text.BuildHighlightGeometry(default, i, 1) is not { } box) continue;
 
             var bounds = box.Bounds;
             if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) continue;
 
-            into.Add(new LayoutNode(bounds, kind + "-letter", letters[i]));
+            into.Open(kind + "-letter", letters[i], bounds.TopLeft);
+            into.Covers(new Rect(0, 0, bounds.Width, bounds.Height));
+            into.Close();
         }
     }
 }

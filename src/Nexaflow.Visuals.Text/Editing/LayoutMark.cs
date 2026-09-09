@@ -15,7 +15,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// <para>
 /// The vocabulary is deliberately small and content-agnostic. A formula and a barcode are, at this level,
 /// the same two things: marks on a page at coordinates. Neither needs the other's notion of what it is
-/// drawing, which is why this sits beside <see cref="ILayoutNode"/> rather than inside either of them.
+/// drawing, which is why this sits beside <see cref="Piece"/> rather than inside either of them.
 /// </para>
 /// </summary>
 public abstract record LayoutMark
@@ -53,7 +53,29 @@ public sealed record GlyphMark(GlyphRun Run, Brush? Foreground) : LayoutMark
 /// </summary>
 public sealed record TextMark(FormattedText Glyphs, Point At, Brush? Foreground) : LayoutMark
 {
-    public override Rect Covers => new(At, new Size(Glyphs.Width, Glyphs.Height));
+    /// <summary>
+    /// Where the words land, which is not where the run was placed. Given room and an alignment the type
+    /// engine does the shifting itself, so a centred title placed at the left margin draws in the middle of
+    /// the page — and a piece that took its extent from the placement would be as wide as the column and
+    /// would wash the margins either side of itself when selected.
+    /// </summary>
+    public override Rect Covers
+    {
+        get
+        {
+            var room = Glyphs.MaxTextWidth;
+            if (double.IsNaN(room) || double.IsInfinity(room) || room <= 0) room = Glyphs.Width;
+
+            var shift = Glyphs.TextAlignment switch
+            {
+                TextAlignment.Center => (room - Glyphs.Width) / 2,
+                TextAlignment.Right => room - Glyphs.Width,
+                _ => 0,
+            };
+
+            return new Rect(At.X + shift, At.Y, Glyphs.Width, Glyphs.Height);
+        }
+    }
     public override void PaintOn(DrawingContext dc, Brush fallback)
     {
         Glyphs.SetForegroundBrush(Foreground ?? fallback);

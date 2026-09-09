@@ -55,6 +55,48 @@ public readonly record struct Piece
     /// <summary>What kind of thing it is, in the content's own vocabulary.</summary>
     public string Kind => _tree is null ? "" : _tree.KindOf(_at);
 
+    /// <summary>Where it is in its tree — its identity, and what a run is a list of.</summary>
+    public int At => _at;
+
+    /// <summary>
+    /// The part that places this piece in the source: its own, or — where it was drawn from nothing
+    /// anybody wrote — the one belonging to whatever it was drawn inside.
+    ///
+    /// <para>
+    /// The only route from a piece of layout to a position, and deliberately indirect. The layout is
+    /// geometry: where a thing was drawn and what it drew. Where it was <em>written</em> is a fact about
+    /// the parse tree, so it is asked of the parse tree every time rather than copied onto the picture,
+    /// where it would go stale the moment anything is edited.
+    /// </para>
+    /// </summary>
+    public ISourcePart? Naming()
+    {
+        if (Part is { } mine) return mine;
+        foreach (var up in Ancestors())
+            if (up.Part is { } theirs) return theirs;
+        return null;
+    }
+
+    /// <summary>
+    /// Whether this piece holds a place of its own in the source: a stretch of it, or a hole in it. What a
+    /// caret can rest at and a query can land on.
+    /// </summary>
+    public bool Stands => Part is { Length: > 0 } || IsInk;
+
+    /// <summary>
+    /// Where this piece sits in the source.
+    ///
+    /// <para>
+    /// A piece drawn from a part is that part's stretch of it. A piece drawn from nothing anybody wrote — a
+    /// fraction's bar, a barcode's guard pattern, a hole waiting to be typed into — is a <em>point</em>, at
+    /// the start of whatever it was drawn inside: it stands somewhere without standing for anything, and
+    /// that distinction is what the caret turns on.
+    /// </para>
+    /// </summary>
+    public SourcePlace Sits() =>
+        Part is { } part ? new SourcePlace(part.Start, part.Length)
+                         : new SourcePlace(Naming()?.Start ?? 0, 0);
+
     /// <summary>Whether a reader can point at it, as opposed to it being spacing or a container.</summary>
     public bool IsInk => _tree is not null && _tree.Piece(_at).IsInk;
 
@@ -80,10 +122,61 @@ public readonly record struct Piece
     }
 
     /// <summary>
+    /// The ink inside it — what a reader can actually point at.
+    ///
+    /// <para>
+    /// Whether a piece qualifies was decided when the tree was built. It used to also require the piece to
+    /// cover some source, which is true of every piece except the one that matters most: a hole covers
+    /// nothing by definition, and is the one place the reader has been told to write.
+    /// </para>
+    /// </summary>
+    public IEnumerable<Piece> Ink()
+    {
+        foreach (var piece in SelfAndDescendants)
+            if (piece.IsInk) yield return piece;
+    }
+
+    /// <summary>How many pieces hold it. Nought at the root.</summary>
+    public int Depth => _tree is null ? 0 : _tree.DepthOf(_at);
+
+    /// <summary>
+    /// It and everything inside it, each with where it sits — the walk to use whenever the question is
+    /// about more than one piece.
+    ///
+    /// <para>
+    /// <see cref="Bounds"/> climbs to the root, so asking it of every piece in turn is the one way to make
+    /// relative geometry cost something. This descends instead, carrying the anchor down with it, and pays
+    /// nothing per piece.
+    /// </para>
+    /// </summary>
+    public IEnumerable<(Piece Piece, Rect Where)> Placed()
+    {
+        if (_tree is null) yield break;
+        foreach (var (at, where) in _tree.Within(_at)) yield return (new Piece(_tree, at), where);
+    }
+
+    /// <summary>
+    /// The pieces that read together with this one, in order — the notes of a tune, a verse of lyrics, the
+    /// things stacked at one moment. Itself alone when it is on no run, which is a run of one and the right
+    /// answer for a note with nothing named over it and nothing sung under it.
+    /// </summary>
+    public IReadOnlyList<Piece> Sharing(bool vertical)
+    {
+        if (_tree is null) return [];
+
+        var run = _tree.Run(_tree.RunOf(_at, vertical));
+        if (run.Length == 0) return [this];
+
+        var members = new Piece[run.Length];
+        for (var at = 0; at < run.Length; at++) members[at] = new Piece(_tree, run[at]);
+        return members;
+    }
+
+    /// <summary>
     /// One step along a run, or nothing at either end and for a piece on no run — see
     /// <see cref="LayoutTree.Along"/>.
     /// </summary>
-    public Piece Step(bool vertical, bool forward) =>
+    public Piece Along(bool vertical, bool forward) =>
         _tree is null ? default : _tree.At(_tree.Along(_at, vertical, forward));
 
     /// <summary>Which run it reads along, or stacks in — an identity to compare, not a thing.</summary>

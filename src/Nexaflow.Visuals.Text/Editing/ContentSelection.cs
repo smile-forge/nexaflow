@@ -5,31 +5,31 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// What a drag from one piece of content to another selected: a set of whole nodes, and the source ranges
+/// What a drag from one piece of content to another selected: a set of whole pieces, and the source ranges
 /// they stand for.
 /// <para>
 /// A set rather than a range, and more than one range, because a selection is not always a run of text. A
 /// column of a matrix is three cells that are nowhere near each other in the source, and it is a perfectly
-/// ordinary thing to want. Whole nodes rather than offsets, because a node's range is what the parser
+/// ordinary thing to want. Whole pieces rather than offsets, because a piece's range is what the parser
 /// built it from — so what you copy, replace or drag away is well formed by construction rather than by
 /// counting braces afterwards.
 /// </para>
 /// </summary>
 public sealed class ContentSelection
 {
-    private ContentSelection(IReadOnlyList<ILayoutNode> nodes, IReadOnlyList<(int Start, int Length)>? ranges = null)
+    private ContentSelection(IReadOnlyList<Piece> pieces, IReadOnlyList<(int Start, int Length)>? ranges = null)
     {
-        Nodes = nodes;
-        Ranges = ranges ?? LayoutQuery.Ranges(nodes);
+        Pieces = pieces;
+        Ranges = ranges ?? LayoutQuery.Ranges(pieces);
     }
 
     /// <summary>The selected pieces, outermost, in reading order.</summary>
-    public IReadOnlyList<ILayoutNode> Nodes { get; }
+    public IReadOnlyList<Piece> Pieces { get; }
 
     /// <summary>The stretches of source they stand for, in order and never overlapping.</summary>
     public IReadOnlyList<(int Start, int Length)> Ranges { get; }
 
-    public bool IsEmpty => Nodes.Count == 0;
+    public bool IsEmpty => Pieces.Count == 0;
 
     /// <summary>Nothing selected.</summary>
     public static ContentSelection None { get; } = new([]);
@@ -37,32 +37,29 @@ public sealed class ContentSelection
     /// <summary>
     /// What was selected by dragging from <paramref name="anchor"/> to <paramref name="focus"/>.
     /// <para>
-    /// Inside a grid the answer is a block of cells — down a column gives the column, across gives the
-    /// row, corner to corner gives everything between, exactly as it would if the cells were a sheet.
-    /// Anywhere else it is the run from one to the other, grown out to whole constructs.
+    /// Along one run the answer is the things between the two. Between two runs it is the block they span,
+    /// so down a column gives the column, across gives the row, and corner to corner gives everything
+    /// between, exactly as it would if the pieces were cells of a sheet. Failing both it is the plain
+    /// stretch of source from one to the other, grown out to whole constructs.
     /// </para>
     /// </summary>
-    public static ContentSelection Between(ILayoutNode root, ILayoutNode? anchor, ILayoutNode? focus)
+    public static ContentSelection Between(Piece root, Piece anchor, Piece focus)
     {
-        if (anchor is null || focus is null) return None;
+        if (!anchor.Exists || !focus.Exists) return None;
 
-        // Stepped along an axis the builder ordered, if the two ends are on one; then the block between
-        // them if they are on different ones; then the grid a matrix still has recognised for it; and
-        // failing all three the plain run of source, which is what most things are.
         if (Along(root, anchor, focus) is { } run) return run;
         if (Stacked(root, anchor, focus) is { } stack) return stack;
-        
 
         var (one, other) = (anchor.Sits(), focus.Sits());
         var from = System.Math.Min(one.Start, other.Start);
         var to = System.Math.Max(one.End, other.End);
 
-        var touched = root.Ink().Where(n => n.Sits() is var at && at.Start >= from && at.End <= to).ToList();
+        var touched = root.Ink().Where(p => p.Sits() is var at && at.Start >= from && at.End <= to).ToList();
         return touched.Count == 0 ? None : new ContentSelection(LayoutQuery.Promote(touched));
     }
 
-    /// <summary>One whole node, as a selection.</summary>
-    public static ContentSelection Of(ILayoutNode? node) => node is null ? None : new([node]);
+    /// <summary>One whole piece, as a selection.</summary>
+    public static ContentSelection Of(Piece piece) => piece.Exists ? new([piece]) : None;
 
     /// <summary>
     /// The piece a selection steps from: the first thing on a run of its own, and failing that the first
@@ -80,14 +77,17 @@ public sealed class ContentSelection
     /// what everything selected by before any of this existed.
     /// </para>
     /// </summary>
-    private static ILayoutNode? Stepping(ILayoutNode node) =>
-        new[] { node }.Concat(node.Ancestors())
-            .FirstOrDefault(at => at.Across is not null || at.Down is not null)
-        ?? node.Selectable();
+    private static Piece Stepping(Piece piece)
+    {
+        for (var at = piece; at.Exists; at = at.Parent)
+            if (at.RunOn(vertical: false) >= 0 || at.RunOn(vertical: true) >= 0) return at;
+
+        return piece.Selectable();
+    }
 
     /// <summary>
-    /// What a drag from one node to another means when the builder ordered them along an axis — the run
-    /// of things between the two, taken a step at a time.
+    /// What a drag from one piece to another means when the builder put them on a run — the things between
+    /// the two, taken a step at a time.
     ///
     /// <para>
     /// It walks rather than indexes, which is the whole of why this works outside a grid. Nothing has to
@@ -101,30 +101,31 @@ public sealed class ContentSelection
     /// drag as an ordinary stretch of source.
     /// </para>
     /// </summary>
-    private static ContentSelection? Along(ILayoutNode root, ILayoutNode anchor, ILayoutNode focus)
+    private static ContentSelection? Along(Piece root, Piece anchor, Piece focus)
     {
-        if (Stepping(anchor) is not { } from || Stepping(focus) is not { } to) return null;
-        if (ReferenceEquals(from, to)) return null;
+        var from = Stepping(anchor);
+        var to = Stepping(focus);
+        if (!from.Exists || !to.Exists || from == to) return null;
 
         foreach (var vertical in new[] { false, true })
             foreach (var forward in new[] { true, false })
             {
-                var run = new List<ILayoutNode> { from };
+                var run = new List<Piece> { from };
 
-                for (var at = from.Step(vertical, forward); at is not null; at = at.Step(vertical, forward))
+                for (var at = from.Step(vertical, forward); at.Exists; at = at.Step(vertical, forward))
                 {
                     run.Add(at);
-                    if (ReferenceEquals(at, to)) return Gathered(root, run);
+                    if (at == to) return Gathered(root, run);
                 }
             }
 
         return null;
     }
 
-    /// <summary>A run of chosen nodes as a selection: their ink, and the source they cover.</summary>
-    private static ContentSelection? Gathered(ILayoutNode root, IReadOnlyList<ILayoutNode> run)
+    /// <summary>A run of chosen pieces as a selection: their ink, and the source they cover.</summary>
+    private static ContentSelection? Gathered(Piece root, IReadOnlyList<Piece> run)
     {
-        var ink = run.SelectMany(n => n.Ink()).ToList();
+        var ink = run.SelectMany(p => p.Ink()).ToList();
         if (ink.Count == 0) return null;
 
         var chosen = LayoutQuery.Promote(ink);
@@ -148,16 +149,15 @@ public sealed class ContentSelection
     /// about the page, and the page is what is being dragged over.
     /// </para>
     /// </summary>
-    private static IReadOnlyList<(int Start, int Length)> Joined(
-        ILayoutNode root, IReadOnlyList<ILayoutNode> chosen)
+    private static IReadOnlyList<(int Start, int Length)> Joined(Piece root, IReadOnlyList<Piece> chosen)
     {
         var ranges = LayoutQuery.Ranges(chosen);
         if (ranges.Count < 2) return ranges;
 
-        var inside = new HashSet<ILayoutNode>(chosen.SelectMany(n => n.SelfAndDescendants()));
+        var inside = new HashSet<Piece>(chosen.SelectMany(p => p.SelfAndDescendants));
         var others = root.Ink()
-            .Where(n => !inside.Contains(n))
-            .Select(n => n.Sits())
+            .Where(p => !inside.Contains(p))
+            .Select(p => p.Sits())
             .Where(at => at.Length > 0)
             .ToList();
 
@@ -195,33 +195,39 @@ public sealed class ContentSelection
     /// and a drag from a note down to a word came back as a row of notes.
     /// </para>
     /// </summary>
-    private static ContentSelection? Stacked(ILayoutNode root, ILayoutNode anchor, ILayoutNode focus)
+    private static ContentSelection? Stacked(Piece root, Piece anchor, Piece focus)
     {
-        if (Stepping(anchor) is not { } from || Stepping(focus) is not { } to) return null;
-        if (ReferenceEquals(from, to)) return null;
-        if (from.Across is not { } run || to.Across is null || to.Down is null) return null;
-        if (ReferenceEquals(run, to.Across)) return null;   // one run: Along has already answered
+        var from = Stepping(anchor);
+        var to = Stepping(focus);
+        if (!from.Exists || !to.Exists || from == to) return null;
 
-        if (Columns(from, to.Down) is not { } columns) return null;
+        var mineAcross = from.RunOn(vertical: false);
+        var theirsAcross = to.RunOn(vertical: false);
+        var theirsDown = to.RunOn(vertical: true);
+
+        if (mineAcross < 0 || theirsAcross < 0 || theirsDown < 0) return null;
+        if (mineAcross == theirsAcross) return null;   // one run: Along has already answered
+
+        if (Columns(from, theirsDown) is not { } columns) return null;
         if (Downward(from, to) is not { } downward) return null;
 
-        var block = new List<ILayoutNode>();
-        var rows = new Dictionary<ILayoutNode, List<ILayoutNode>>();
+        var block = new List<Piece>();
+        var rows = new Dictionary<(int Run, int Alone), List<Piece>>();
 
         foreach (var column in columns)
         {
             // A piece with nothing named over it and nothing sung under it is in no stack at all, and it is
             // still a column of the block — a column of one. Reading its stack as itself is the whole of that
             // case, and it is why nothing here asks whether a stack exists.
-            var stack = column.Down?.Children ?? [column];
+            var stack = column.Sharing(vertical: true);
 
-            var mine = Holding(stack, from.Across);
+            var mine = Holding(stack, mineAcross);
             if (mine < 0) continue;
 
             // A stack with nothing in the run the drag reaches for is not a stack to skip: the piece is still
             // between the two, it simply has no word under it. It gives everything from where the anchor's run
             // sits to whichever end the reach was headed for.
-            var theirs = Holding(stack, to.Across);
+            var theirs = Holding(stack, theirsAcross);
             if (theirs < 0) theirs = downward ? stack.Count - 1 : 0;
 
             var (top, bottom) = mine <= theirs ? (mine, theirs) : (theirs, mine);
@@ -233,8 +239,11 @@ public sealed class ContentSelection
 
                 block.AddRange(ink);
 
-                var along = stack[at].Across ?? stack[at];
-                        if (!rows.TryGetValue(along, out var gathered)) rows[along] = gathered = [];
+                // Keyed by the run it reads along, and a piece on none is a row of its own.
+                var along = stack[at].RunOn(vertical: false);
+                var key = along >= 0 ? (Run: along, Alone: -1) : (Run: -1, Alone: stack[at].At);
+
+                if (!rows.TryGetValue(key, out var gathered)) rows[key] = gathered = [];
                 gathered.AddRange(ink);
             }
         }
@@ -251,8 +260,8 @@ public sealed class ContentSelection
         // matrix with its rows run together.
         var ranges = rows.Values.Select(ink =>
         {
-            var start = ink.Min(n => n.Sits().Start);
-            return (start, ink.Max(n => n.Sits().End) - start);
+            var start = ink.Min(p => p.Sits().Start);
+            return (start, ink.Max(p => p.Sits().End) - start);
         });
 
         return new ContentSelection([.. LayoutQuery.Promote(block)], LayoutQuery.Merge(ranges));
@@ -262,19 +271,19 @@ public sealed class ContentSelection
     /// The things the block spans across: stepped along the anchor's own run, in whichever direction
     /// reaches the stack the focus is in.
     /// </summary>
-    private static List<ILayoutNode>? Columns(ILayoutNode from, ILayoutNode stack)
+    private static List<Piece>? Columns(Piece from, int stack)
     {
-        if (ReferenceEquals(from.Down, stack)) return [from];
+        if (from.RunOn(vertical: true) == stack) return [from];
 
         foreach (var forward in new[] { true, false })
         {
-            var run = new List<ILayoutNode> { from };
+            var run = new List<Piece> { from };
 
-            for (var at = from.Step(vertical: false, forward); at is not null;
+            for (var at = from.Step(vertical: false, forward); at.Exists;
                  at = at.Step(vertical: false, forward))
             {
                 run.Add(at);
-                if (ReferenceEquals(at.Down, stack)) return run;
+                if (at.RunOn(vertical: true) == stack) return run;
             }
         }
 
@@ -289,25 +298,26 @@ public sealed class ContentSelection
     /// to. The stacks that hold both answer for themselves.
     /// </para>
     /// </summary>
-    private static bool? Downward(ILayoutNode from, ILayoutNode to)
+    private static bool? Downward(Piece from, Piece to)
     {
-        foreach (var stack in new[] { from.Down, to.Down })
+        foreach (var end in new[] { from, to })
         {
-            if (stack is null) continue;
+            if (end.RunOn(vertical: true) < 0) continue;
 
-            var mine = Holding(stack.Children, from.Across);
-            var theirs = Holding(stack.Children, to.Across);
+            var stack = end.Sharing(vertical: true);
+            var mine = Holding(stack, from.RunOn(vertical: false));
+            var theirs = Holding(stack, to.RunOn(vertical: false));
             if (mine >= 0 && theirs >= 0) return theirs > mine;
         }
 
         return null;
     }
 
-    /// <summary>Where in a stack the member belonging to a given run sits, or -1 when it has none.</summary>
-    private static int Holding(IReadOnlyList<ILayoutNode> stack, ILayoutNode? run)
+    /// <summary>Where in a stack the member reading along a given run sits, or -1 when it has none.</summary>
+    private static int Holding(IReadOnlyList<Piece> stack, int run)
     {
         for (var i = 0; i < stack.Count; i++)
-            if (ReferenceEquals(stack[i].Across, run)) return i;
+            if (stack[i].RunOn(vertical: false) == run) return i;
         return -1;
     }
 }

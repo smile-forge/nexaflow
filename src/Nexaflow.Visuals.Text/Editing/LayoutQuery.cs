@@ -17,7 +17,13 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </para>
 /// <para>
 /// Pure arithmetic over a tree. <see cref="Rect"/> and <see cref="Point"/> come from WindowsBase and need
-/// no STA thread, no fonts and no desktop, so all of this is exercised against hand-built trees.
+/// no STA thread, no fonts and no desktop, so all of this is exercised against built trees.
+/// </para>
+/// <para>
+/// Anything asking about <em>every</em> piece descends with <see cref="Piece.Placed"/> rather than
+/// reading <see cref="Piece.Bounds"/> in a loop. Geometry is relative, so a piece's place on the page is
+/// a climb to the root; taken once per piece that is the one way to make relative geometry cost
+/// something, and taken on the way down it is free.
 /// </para>
 /// </summary>
 public static class LayoutQuery
@@ -32,8 +38,11 @@ public static class LayoutQuery
     /// margin above a formula, the gap between two terms — the nearest ink wins, because a press has to
     /// mean something.
     /// </summary>
-    public static ILayoutNode? NodeAt(this ILayoutNode root, Point point) =>
-        Deepest(root, point) ?? Nearest(root, point);
+    public static Piece PieceAt(this Piece root, Point point)
+    {
+        var deepest = Deepest(root, point);
+        return deepest.Exists ? deepest : Nearest(root, point);
+    }
 
     /// <summary>
     /// The source offset a press at <paramref name="point"/> means: the near end of whatever it landed on,
@@ -44,14 +53,15 @@ public static class LayoutQuery
     /// reader saying which side of one they want to be on. Always the start would make it impossible to
     /// get past the last note of a tune by clicking.
     /// </remarks>
-    public static int OffsetAt(this ILayoutNode root, Point point)
+    public static int OffsetAt(this Piece root, Point point)
     {
-        if (root.NodeAt(point) is not { } node) return root.Sits().Start;
+        if (root.PieceAt(point) is not { Exists: true } piece) return root.Sits().Start;
 
-        var at = node.Sits();
+        var at = piece.Sits();
         if (at.Length <= 0) return at.Start;
 
-        return point.X <= node.Bounds.X + (node.Bounds.Width / 2) ? at.Start : at.End;
+        var where = piece.Bounds;
+        return point.X <= where.X + (where.Width / 2) ? at.Start : at.End;
     }
 
     /// <summary>
@@ -62,7 +72,7 @@ public static class LayoutQuery
     /// nearest by column is what it meant.
     /// </para>
     /// </summary>
-    public static CaretPlace PlaceAt(this ILayoutNode root, Point point)
+    public static CaretPlace PlaceAt(this Piece root, Point point)
     {
         var offset = root.OffsetAt(point);
         var bars = root.CaretBars(offset);
@@ -79,34 +89,34 @@ public static class LayoutQuery
     /// page — and blank space inside a container belongs to nobody, which is what stops a press in the gap
     /// between two terms coming back with the start of the whole line.
     /// <para>
-    /// Containers are not used to narrow the search, and must not be. A container's bounds are a
+    /// Containers are not used to narrow the search, and must not be. A container's extent is a
     /// typesetting measurement — the height and depth it reserves on its line — not a bounding box of what
     /// it draws, so a subscript hanging below its operator or an accent riding above its letter sits
-    /// outside the very node that holds it, and gating descent on the parent lost every one of those.
+    /// outside the very piece that holds it, and gating descent on the parent lost every one of those.
     /// </para>
     /// </summary>
-    private static ILayoutNode? Deepest(ILayoutNode root, Point point)
+    private static Piece Deepest(Piece root, Point point)
     {
-        ILayoutNode? best = null;
+        var best = default(Piece);
         var bestRank = (Named: -1, Depth: -1);
 
-        foreach (var node in root.SelfAndDescendants())
+        foreach (var (piece, where) in root.Placed())
         {
-            if (node.Children.Count > 0) continue;                                // draws nothing itself
-            if (node.Bounds.Width <= 0 || node.Bounds.Height <= 0) continue;      // spacing
-            if (!Contains(node.Bounds, point)) continue;
+            if (piece.Children.Count > 0) continue;              // draws nothing itself
+            if (where.Width <= 0 || where.Height <= 0) continue; // spacing
+            if (!Contains(where, point)) continue;
 
             // Named by the source, or else part of the drawing of whatever encloses it — a fraction's bar,
             // a radical's sign, the letters a macro expands to — in which case the press means that. A
             // hole names a place of its own without covering any characters, and pointing at one means
             // it rather than the construct around it.
-            var resolved = node.Stands() ? node : NamedAncestor(node);
-            if (resolved is null) continue;
+            var resolved = piece.Stands ? piece : NamedAncestor(piece);
+            if (!resolved.Exists) continue;
 
             // Where several overlap, one that holds a place beats one that does not, because it is the
             // more specific answer; between equals, the deeper. Neither is a matter of which is smaller
             // on the page — that only ever settled it by luck.
-            var rank = (Named: node.Stands() ? 1 : 0, Depth: node.Ancestors().Count());
+            var rank = (Named: piece.Stands ? 1 : 0, Depth: piece.Depth);
             if (rank.CompareTo(bestRank) <= 0) continue;
 
             bestRank = rank;
@@ -117,36 +127,34 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The first thing a selection could hold, climbing from here: this node if the source named it, and
+    /// The first thing a selection could hold, climbing from here: this piece if the source named it, and
     /// otherwise the nearest thing above it that it did.
     ///
     /// <para>
     /// Where selection starts, every time. What a reader points at is a glyph, a stem, a syllable — most
     /// of which name nothing on their own — and what they mean by pointing at it is the smallest written
     /// thing it is part of. Climbing is the only way to get from one to the other, and it is why nothing
-    /// here ever needs to know what a node contains.
+    /// here ever needs to know what a piece contains.
     /// </para>
     /// </summary>
-    public static ILayoutNode? Selectable(this ILayoutNode node) =>
-        node.Part is { Length: > 0 } ? node : NamedAncestor(node);
+    public static Piece Selectable(this Piece piece) =>
+        piece.Part is { Length: > 0 } ? piece : NamedAncestor(piece);
 
     /// <summary>
     /// One step from here along an axis — the next thing to select when a selection grows that way, or
-    /// null when there is nothing that way.
+    /// nothing when there is nothing that way.
     ///
     /// <para>
-    /// The step is taken on the parent that orders this node (<see cref="ILayoutNode.Across"/> or
-    /// <see cref="ILayoutNode.Down"/>), and what comes back is climbed to the first thing the source
-    /// named — usually itself, and not always.
+    /// The step is taken on the run that orders this piece (see <see cref="Piece.Along"/>), and what comes
+    /// back is climbed to the first thing the source named — usually itself, and not always.
     /// </para>
     /// <para>
-    /// <strong>A node that declares neither still steps</strong>, on the tree that draws it: sideways to
-    /// the next thing its parent holds, and vertically to the nearest thing on the row above or below.
-    /// Declaring an axis is how a builder says something the drawing does not — that a syllable belongs
-    /// with the other syllables of its verse rather than with the note above it — and where there is
-    /// nothing to correct, where a thing is drawn is a perfectly good account of what is beside it. So
-    /// this is not a feature only declared content gets; it is the ordinary behaviour, which declaring
-    /// an axis overrides.
+    /// <strong>A piece on no run still steps</strong>, on the tree that draws it: sideways to the next
+    /// thing its parent holds, and vertically to the nearest thing on the row above or below. A run is how
+    /// a builder says something the drawing does not — that a syllable belongs with the other syllables of
+    /// its verse rather than with the note above it — and where there is nothing to correct, where a thing
+    /// is drawn is a perfectly good account of what is beside it. So this is not a feature only declared
+    /// content gets; it is the ordinary behaviour, which a run overrides.
     /// </para>
     /// <para>
     /// Deliberately one step and no more. A run is walked by taking them, so nothing has to hold what the
@@ -155,65 +163,76 @@ public static class LayoutQuery
     /// asked to pretend it is a row.
     /// </para>
     /// </summary>
-    public static ILayoutNode? Step(this ILayoutNode node, bool vertical, bool forward)
+    public static Piece Step(this Piece piece, bool vertical, bool forward)
     {
-        if ((vertical ? node.Down : node.Across) is { } ordering)
-            return Beside(ordering.Children, node, forward);
+        if (piece.RunOn(vertical) >= 0) return piece.Along(vertical, forward).Selectable();
 
-        return vertical ? Stacked(node, forward) : Beside(node.Parent?.Children, node, forward);
+        return vertical ? Stacked(piece, forward) : Beside(piece, forward);
     }
 
-    /// <summary>The member one place along from this one, climbed to the first thing the source named.</summary>
-    private static ILayoutNode? Beside(IReadOnlyList<ILayoutNode>? members, ILayoutNode node, bool forward)
+    /// <summary>The sibling one place along, climbed to the first thing the source named.</summary>
+    private static Piece Beside(Piece piece, bool forward)
     {
-        if (members is null) return null;
+        var previous = default(Piece);
+        var take = false;
 
-        var at = -1;
-        for (var i = 0; i < members.Count; i++)
-            if (ReferenceEquals(members[i], node)) { at = i; break; }
+        foreach (var sibling in piece.Parent.Children)
+        {
+            if (take) return sibling.Selectable();
+            if (sibling == piece)
+            {
+                if (!forward) return previous.Exists ? previous.Selectable() : default;
+                take = true;
+            }
 
-        var to = at + (forward ? 1 : -1);
-        return at < 0 || to < 0 || to >= members.Count ? null : members[to].Selectable();
+            previous = sibling;
+        }
+
+        return default;
     }
 
     /// <summary>
-    /// A step up or down taken on the tree that draws things, for content that declared no stack of its
-    /// own: the row above or below within whatever holds this, and the thing on it nearest to where this
-    /// one starts.
+    /// A step up or down taken on the tree that draws things, for content with no run of its own: the row
+    /// above or below within whatever holds this, and the thing on it nearest to where this one starts.
     /// <para>
     /// Nearest by column rather than first on the row, because moving down a line is meant to keep your
     /// place across it — the same rule the caret follows through a fraction.
     /// </para>
     /// </summary>
-    private static ILayoutNode? Stacked(ILayoutNode node, bool forward)
+    private static Piece Stacked(Piece piece, bool forward)
     {
-        if (node.Parent is not { } parent) return null;
+        if (!piece.Parent.Exists) return default;
 
-        var rows = parent.Rows();
-        var mine = rows.FindIndex(row => row.Any(n => ReferenceEquals(n, node)));
-        if (mine < 0) return null;
+        var rows = piece.Parent.Rows();
+        var mine = rows.FindIndex(row => row.Any(p => p == piece));
+        if (mine < 0) return default;
 
         var to = mine + (forward ? 1 : -1);
-        if (to < 0 || to >= rows.Count) return null;
+        if (to < 0 || to >= rows.Count) return default;
 
-        return rows[to]
-            .OrderBy(n => Math.Abs(n.Bounds.X - node.Bounds.X))
-            .Select(n => n.Selectable())
-            .FirstOrDefault(n => n is not null);
+        var from = piece.Bounds.X;
+        foreach (var candidate in rows[to].OrderBy(p => Math.Abs(p.Bounds.X - from)))
+            if (candidate.Selectable() is { Exists: true } named) return named;
+
+        return default;
     }
 
-    /// <summary>The nearest thing containing this node that the source actually named.</summary>
-    private static ILayoutNode? NamedAncestor(ILayoutNode node) =>
-        node.Ancestors().FirstOrDefault(a => a.Part is { Length: > 0 });
+    /// <summary>The nearest thing containing this piece that the source actually named.</summary>
+    private static Piece NamedAncestor(Piece piece)
+    {
+        foreach (var up in piece.Ancestors())
+            if (up.Part is { Length: > 0 }) return up;
+        return default;
+    }
 
     /// <summary>
-    /// What a node draws that no part of the source named: a fraction's bar, a radical's sign, a beam
-    /// between two notes. The walk stops at anything with a name of its own, because that node's innards
+    /// What a piece draws that no part of the source named: a fraction's bar, a radical's sign, a beam
+    /// between two notes. The walk stops at anything with a name of its own, because that piece's innards
     /// are its own business rather than this one's decoration.
     /// </summary>
-    private static IEnumerable<ILayoutNode> Decoration(ILayoutNode node)
+    private static IEnumerable<Piece> Decoration(Piece piece)
     {
-        foreach (var child in node.Children)
+        foreach (var child in piece.Children)
         {
             if (child.Part is { Length: > 0 }) continue;
 
@@ -244,59 +263,72 @@ public static class LayoutQuery
     /// on rather than the bar: both contain it, so both are nought away, and document order was deciding.
     /// </para>
     /// </summary>
-    private static ILayoutNode? Nearest(ILayoutNode root, Point point) =>
-        Nearest(root, point, alone: true) ?? Nearest(root, point, alone: false);
+    private static Piece Nearest(Piece root, Point point)
+    {
+        var alone = Nearest(root, point, alone: true);
+        return alone.Exists ? alone : Nearest(root, point, alone: false);
+    }
 
     /// <param name="alone">
     /// Whether to consider only pieces holding no other selectable piece — the things a reader points at,
     /// as opposed to the things they cover.
     /// </param>
-    private static ILayoutNode? Nearest(ILayoutNode root, Point point, bool alone)
+    private static Piece Nearest(Piece root, Point point, bool alone)
     {
-        ILayoutNode? best = null;
+        var best = default(Piece);
         var bestDistance = double.MaxValue;
         var bestDepth = -1;
 
-        foreach (var node in root.Ink())
+        foreach (var (piece, where) in root.Placed())
         {
-            if (alone && Holds(node)) continue;
+            if (!piece.IsInk) continue;
+            if (alone && Holds(piece)) continue;
 
-            var distance = DistanceTo(node.Bounds, point);
+            var distance = DistanceTo(where, point);
             if (distance > bestDistance) continue;
 
-            var depth = node.Ancestors().Count();
+            var depth = piece.Depth;
             if (distance == bestDistance && depth <= bestDepth) continue;
 
             bestDistance = distance;
             bestDepth = depth;
-            best = node;
+            best = piece;
         }
 
         return best;
     }
 
     /// <summary>Whether this piece holds a selectable piece of its own — whether it is a group.</summary>
-    private static bool Holds(ILayoutNode node) =>
-        node.SelfAndDescendants().Skip(1).Any(inside => inside.Part is { Length: > 0 });
+    private static bool Holds(Piece piece)
+    {
+        var self = true;
+        foreach (var inside in piece.SelfAndDescendants)
+        {
+            if (self) { self = false; continue; }
+            if (inside.Part is { Length: > 0 }) return true;
+        }
+
+        return false;
+    }
 
     /// <summary>Every piece of ink the rectangle touches.</summary>
-    public static IReadOnlyList<ILayoutNode> NodesIn(this ILayoutNode root, Rect area) =>
-        [.. root.Ink().Where(n => n.Bounds.IntersectsWith(area))];
+    public static IReadOnlyList<Piece> PiecesIn(this Piece root, Rect area) =>
+        [.. root.Placed().Where(p => p.Piece.IsInk && p.Where.IntersectsWith(area)).Select(p => p.Piece)];
 
     // ── Selection ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Grows a set of nodes to the largest whole constructs it covers: wherever every piece of ink under
-    /// a node is selected, the node itself is selected instead.
+    /// Grows a set of pieces to the largest whole constructs it covers: wherever every piece of ink under
+    /// one is selected, that one is selected instead.
     /// <para>
-    /// This is where well-formedness comes from. The result is a set of nodes, and a node's source range
+    /// This is where well-formedness comes from. The result is a set of pieces, and a piece's source range
     /// is what the parser built it from — so a selection can be a fraction or a matrix row, but never a
     /// numerator plus a stray closing brace.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<ILayoutNode> Promote(IEnumerable<ILayoutNode> nodes)
+    public static IReadOnlyList<Piece> Promote(IEnumerable<Piece> pieces)
     {
-        var chosen = new HashSet<ILayoutNode>(nodes.Where(n => n.Part is { Length: > 0 }));
+        var chosen = new HashSet<Piece>(pieces.Where(p => p.Part is { Length: > 0 }));
         if (chosen.Count == 0) return [];
 
         bool grew;
@@ -306,40 +338,40 @@ public static class LayoutQuery
             // The nearest ancestor the source named, not merely the next one up. A typesetter wraps things
             // in boxes of its own — a script's row, a denominator's row — and promoting into one of those
             // would yield a selection standing for no part of the text at all.
-            foreach (var parent in chosen.Select(NamedAncestor).Where(p => p is not null).Distinct().ToList())
+            foreach (var parent in chosen.Select(NamedAncestor).Where(p => p.Exists).Distinct().ToList())
             {
-                // Covered, not merely present: a child promoted into a node of its own on an earlier pass
+                // Covered, not merely present: a child promoted into a piece of its own on an earlier pass
                 // is still covered by it, and requiring literal membership would stop promotion one level
-                // short — a fraction's numerator would become a node and the fraction never would.
-                var ink = parent!.Ink().ToList();
-                if (ink.Count == 0 || !ink.All(n => chosen.Contains(n) || n.Ancestors().Any(chosen.Contains)))
+                // short — a fraction's numerator would become a piece and the fraction never would.
+                var ink = parent.Ink().ToList();
+                if (ink.Count == 0 || !ink.All(p => chosen.Contains(p) || p.Ancestors().Any(chosen.Contains)))
                     continue;
 
-                // What the node draws for itself has to be covered too, and since nothing names it that
+                // What the piece draws for itself has to be covered too, and since nothing names it that
                 // can only be asked of the page: a fraction's bar sits among its numerator and
                 // denominator, so a selection of both passes over it, while a radical's sign sits before
                 // its contents and a selection inside them does not. Without this, selecting a radicand
                 // would grow into the whole root — the piece of the root that is not the radicand having
                 // never been asked about.
-                if (!Decoration(parent!).All(d => Among(d.Bounds, ink))) continue;
+                if (!Decoration(parent).All(d => Among(d.Bounds, ink))) continue;
 
-                foreach (var covered in parent!.SelfAndDescendants()) chosen.Remove(covered);
-                chosen.Add(parent!);
+                foreach (var covered in parent.SelfAndDescendants) chosen.Remove(covered);
+                chosen.Add(parent);
                 grew = true;
             }
         }
         while (grew);
 
         // Drop anything already inside something else in the set, so a range is never counted twice.
-        return [.. chosen.Where(n => !n.Ancestors().Any(chosen.Contains)).OrderBy(n => n.Sits().Start)];
+        return [.. chosen.Where(p => !p.Ancestors().Any(chosen.Contains)).OrderBy(p => p.Sits().Start)];
     }
 
     /// <summary>
-    /// The source ranges a set of nodes stands for, merged and in order. More than one, because a matrix
+    /// The source ranges a set of pieces stands for, merged and in order. More than one, because a matrix
     /// column is a real selection and is not contiguous in the source.
     /// </summary>
-    public static IReadOnlyList<(int Start, int Length)> Ranges(IEnumerable<ILayoutNode> nodes) =>
-        Merge(nodes.Select(n => n.Part).OfType<ISourcePart>().Where(p => p.Length > 0).Select(p => (p.Start, p.Length)));
+    public static IReadOnlyList<(int Start, int Length)> Ranges(IEnumerable<Piece> pieces) =>
+        Merge(pieces.Select(p => p.Part).OfType<ISourcePart>().Where(p => p.Length > 0).Select(p => (p.Start, p.Length)));
 
     /// <summary>Ranges in order, with touching and overlapping ones folded together.</summary>
     public static IReadOnlyList<(int Start, int Length)> Merge(IEnumerable<(int Start, int Length)> ranges)
@@ -385,12 +417,12 @@ public static class LayoutQuery
     /// different line, and typing at it means something else.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<Rect> CaretBars(this ILayoutNode root, int offset)
+    public static IReadOnlyList<Rect> CaretBars(this Piece root, int offset)
     {
         var bars = new List<Rect>();
         var (ends, starts) = Abutting(root, offset);
 
-        if (ends is not null)
+        if (ends.Exists)
         {
             bars.Add(Bar(ends, trailing: true));
 
@@ -404,7 +436,7 @@ public static class LayoutQuery
             }
         }
 
-        if (starts is not null)
+        if (starts.Exists)
         {
             var leading = Bar(starts, trailing: false);
             if (bars.Count == 0 || Math.Abs(bars[^1].X - leading.X) > Hair) bars.Add(leading);
@@ -414,17 +446,21 @@ public static class LayoutQuery
 
         // Nothing begins or ends exactly here, which is the normal case straight after an edit: the caret
         // lands wherever the text was cut. Stand it beside the nearest ink rather than at the origin.
-        ILayoutNode? before = null, after = null;
-        foreach (var node in root.Ink())
+        Piece before = default, after = default;
+        foreach (var piece in root.Ink())
         {
-            var at = node.Sits();
-            if (at.End <= offset && (before is null || at.End > before.Sits().End)) before = node;
-            if (at.Start >= offset && (after is null || at.Start < after.Sits().Start)) after = node;
+            var at = piece.Sits();
+            if (at.End <= offset && (!before.Exists || at.End > before.Sits().End)) before = piece;
+            if (at.Start >= offset && (!after.Exists || at.Start < after.Sits().Start)) after = piece;
         }
 
-        if (before is not null) return [Bar(before, trailing: true)];
-        if (after is not null) return [Bar(after, trailing: false)];
-        return [new Rect(root.Bounds.X, root.Bounds.Y, 0, Math.Max(root.Bounds.Height, 1))];
+        if (before.Exists) return [Bar(before, trailing: true)];
+        if (after.Exists) return [Bar(after, trailing: false)];
+
+        var whole = root.Bounds;
+        return whole.IsEmpty
+            ? [new Rect(0, 0, 0, 1)]
+            : [new Rect(whole.X, whole.Y, 0, Math.Max(whole.Height, 1))];
     }
 
     /// <summary>Whether two bars would be drawn as the same mark, and so are one place.</summary>
@@ -435,17 +471,17 @@ public static class LayoutQuery
     /// Where and how tall to draw the caret — the ink it abuts decides, which is what makes it shrink and
     /// rise inside an exponent and take the numerator's height in a fraction.
     /// </summary>
-    public static Rect CaretRect(this ILayoutNode root, CaretPlace place)
+    public static Rect CaretRect(this Piece root, CaretPlace place)
     {
         var bars = root.CaretBars(place.Offset);
         return bars[Math.Clamp(place.Level, 0, bars.Count - 1)];
     }
 
     /// <summary>Where and how tall to draw the caret at an offset, read as innermost.</summary>
-    public static Rect CaretRect(this ILayoutNode root, int offset) => root.CaretRect(CaretPlace.At(offset));
+    public static Rect CaretRect(this Piece root, int offset) => root.CaretRect(CaretPlace.At(offset));
 
     /// <summary>
-    /// The nodes the caret at <paramref name="offset"/> stands between: the one ending there and the one
+    /// The pieces the caret at <paramref name="offset"/> stands between: the one ending there and the one
     /// starting there, either of which may be absent at an end of the content.
     /// <para>
     /// Ending: the smallest such thing, because the caret belongs to what was just finished — after
@@ -454,51 +490,54 @@ public static class LayoutQuery
     /// bar, which is two pixels tall.
     /// </para>
     /// </summary>
-    private static (ILayoutNode? Ends, ILayoutNode? Starts) Abutting(ILayoutNode root, int offset)
+    private static (Piece Ends, Piece Starts) Abutting(Piece root, int offset)
     {
-        ILayoutNode? ends = null, starts = null;
+        Piece ends = default, starts = default;
 
-        foreach (var node in root.SelfAndDescendants().Where(n => n.Stands()))
+        foreach (var piece in root.SelfAndDescendants)
         {
-            var at = node.Sits();
-            if (at.End == offset && (ends is null || Tighter(node, ends))) ends = node;
-            if (at.Start == offset && (starts is null || Wider(node, starts))) starts = node;
+            if (!piece.Stands) continue;
+
+            var at = piece.Sits();
+            if (at.End == offset && (!ends.Exists || Tighter(piece, ends))) ends = piece;
+            if (at.Start == offset && (!starts.Exists || Wider(piece, starts))) starts = piece;
         }
 
         return (ends, starts);
     }
 
     /// <summary>Smaller in source, and among equals the outer one — a fraction rather than its bar.</summary>
-    private static bool Tighter(ILayoutNode candidate, ILayoutNode best)
+    private static bool Tighter(Piece candidate, Piece best)
     {
         var (mine, theirs) = (candidate.Sits().Length, best.Sits().Length);
-        return mine < theirs || (mine == theirs && Shallower(candidate, best));
+        return mine < theirs || (mine == theirs && candidate.Depth < best.Depth);
     }
 
-    private static bool Wider(ILayoutNode candidate, ILayoutNode best)
+    private static bool Wider(Piece candidate, Piece best)
     {
         var (mine, theirs) = (candidate.Sits().Length, best.Sits().Length);
-        return mine > theirs || (mine == theirs && Shallower(candidate, best));
+        return mine > theirs || (mine == theirs && candidate.Depth < best.Depth);
     }
 
-    private static bool Shallower(ILayoutNode candidate, ILayoutNode best) =>
-        candidate.Ancestors().Count() < best.Ancestors().Count();
+    private static Rect Bar(Piece against, bool trailing)
+    {
+        var where = against.Bounds;
+        if (where.IsEmpty) return new Rect(0, 0, 0, 1);
 
-    private static Rect Bar(ILayoutNode against, bool trailing) =>
-        new(trailing ? against.Bounds.Right : against.Bounds.X,
-            against.Bounds.Y,
-            0,
-            Math.Max(against.Bounds.Height, 1));
+        return new Rect(trailing ? where.Right : where.X, where.Y, 0, Math.Max(where.Height, 1));
+    }
 
     /// <summary>Where a caret may rest: wherever a piece of ink begins or ends, plus either end.</summary>
-    public static IReadOnlyList<int> CaretStops(this ILayoutNode root)
+    public static IReadOnlyList<int> CaretStops(this Piece root)
     {
         var whole = root.Sits();
         var stops = new SortedSet<int> { whole.Start, whole.End };
 
-        foreach (var node in root.SelfAndDescendants().Where(n => n.Stands()))
+        foreach (var piece in root.SelfAndDescendants)
         {
-            var at = node.Sits();
+            if (!piece.Stands) continue;
+
+            var at = piece.Sits();
             stops.Add(at.Start);
             stops.Add(at.End);
         }
@@ -516,7 +555,7 @@ public static class LayoutQuery
     /// previous offset's bars, so the two directions retrace one another exactly.
     /// </para>
     /// </summary>
-    public static CaretPlace? Step(this ILayoutNode root, CaretPlace place, bool forward)
+    public static CaretPlace? Step(this Piece root, CaretPlace place, bool forward)
     {
         if (forward && place.Level + 1 < root.CaretBars(place.Offset).Count)
             return place with { Level = place.Level + 1 };
@@ -533,7 +572,7 @@ public static class LayoutQuery
     /// The next caret stop in <paramref name="forward"/>'s direction, or null at the edge — which is the
     /// host's cue to move the caret out of this content and into whatever surrounds it.
     /// </summary>
-    public static int? Step(this ILayoutNode root, int offset, bool forward)
+    public static int? Step(this Piece root, int offset, bool forward)
     {
         var stops = root.CaretStops();
         if (forward)
@@ -556,11 +595,11 @@ public static class LayoutQuery
     /// rows, and stepping within it, gives the answer the reader expects.
     /// </para>
     /// </summary>
-    public static int? StepVertical(this ILayoutNode root, int offset, bool up)
+    public static int? StepVertical(this Piece root, int offset, bool up)
     {
         var (ends, starts) = Abutting(root, offset);
-        var from = ends ?? starts;
-        if (from is null) return null;
+        var from = ends.Exists ? ends : starts;
+        if (!from.Exists) return null;
         var fromX = root.CaretRect(offset).X;
 
         foreach (var ancestor in from.Ancestors())
@@ -568,7 +607,7 @@ public static class LayoutQuery
             var rows = ancestor.Rows();
             if (rows.Count < 2) continue;
 
-            var mine = rows.FindIndex(r => r.Any(n => n.SelfAndDescendants().Contains(from)));
+            var mine = rows.FindIndex(r => r.Any(p => p.SelfAndDescendants.Contains(from)));
             if (mine < 0) continue;
 
             // Walk outwards past any row that is only decoration. A fraction lays out as numerator, bar,
@@ -581,12 +620,12 @@ public static class LayoutQuery
                 // already stands wins — moving down a line keeps your place across it, so a caret after
                 // the numerator arrives after the denominator rather than jumping in front of it.
                 var landing = rows[target]
-                    .SelectMany(n => n.Ink())
-                    .Where(n => n.Sits().Length < ancestor.Sits().Length)
-                    .SelectMany(n => new[]
+                    .SelectMany(p => p.Ink())
+                    .Where(p => p.Sits().Length < ancestor.Sits().Length)
+                    .SelectMany(p => new[]
                     {
-                        (Offset: n.Sits().Start, X: n.Bounds.X),
-                        (Offset: n.Sits().End, X: n.Bounds.Right),
+                        (Offset: p.Sits().Start, X: p.Bounds.X),
+                        (Offset: p.Sits().End, X: p.Bounds.Right),
                     })
                     .OrderBy(stop => Math.Abs(stop.X - fromX))
                     .ThenBy(stop => stop.Offset)
@@ -603,16 +642,18 @@ public static class LayoutQuery
     // ── Structure ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// This node's children grouped into visual rows, top to bottom. A fraction has two, a matrix has
+    /// This piece's children grouped into visual rows, top to bottom. A fraction has two, a matrix has
     /// one per line, and an ordinary run of terms has one.
     /// </summary>
-    public static List<List<ILayoutNode>> Rows(this ILayoutNode node)
+    public static List<List<Piece>> Rows(this Piece piece)
     {
-        var rows = new List<List<ILayoutNode>>();
-        foreach (var child in node.Children.Where(c => c.Bounds.Height > 0).OrderBy(c => c.Bounds.Y))
+        var rows = new List<List<Piece>>();
+
+        foreach (var child in piece.Children.Where(c => c.Bounds.Height > 0).OrderBy(c => c.Bounds.Y))
         {
+            var where = child.Bounds;
             var row = rows.FirstOrDefault(r =>
-                r.Any(n => n.Bounds.Top < child.Bounds.Bottom - Hair && child.Bounds.Top < n.Bounds.Bottom - Hair));
+                r.Any(p => p.Bounds.Top < where.Bottom - Hair && where.Top < p.Bounds.Bottom - Hair));
 
             if (row is null) rows.Add([child]);
             else row.Add(child);
@@ -625,14 +666,14 @@ public static class LayoutQuery
     // ── Geometry helpers ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Whether something sits amongst a set of nodes rather than beside them. Its centre decides, not its
+    /// Whether something sits amongst a set of pieces rather than beside them. Its centre decides, not its
     /// edges: a fraction's bar overhangs the numerator and denominator it separates, and is still between
     /// them.
     /// </summary>
-    private static bool Among(Rect bounds, IEnumerable<ILayoutNode> nodes)
+    private static bool Among(Rect bounds, IEnumerable<Piece> pieces)
     {
         var hull = Rect.Empty;
-        foreach (var node in nodes) hull.Union(node.Bounds);
+        foreach (var piece in pieces) hull.Union(piece.Bounds);
         if (hull.IsEmpty) return false;
 
         var centre = new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);

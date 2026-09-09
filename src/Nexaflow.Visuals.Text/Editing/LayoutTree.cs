@@ -141,6 +141,17 @@ public sealed class LayoutTree
     }
 
     /// <summary>
+    /// How many pieces hold this one. What settles a tie between two pieces that both answer a question —
+    /// the deeper is the more specific answer.
+    /// </summary>
+    internal int DepthOf(int at)
+    {
+        var depth = 0;
+        for (var up = _pieces[at].Parent; up >= 0; up = _pieces[up].Parent) depth++;
+        return depth;
+    }
+
+    /// <summary>
     /// Where a piece sits in the content as a whole.
     ///
     /// <para>

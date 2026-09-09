@@ -72,8 +72,11 @@ public interface IEditableBlock : IInteractiveBlock
     /// <summary>The source this block stands for — what a selection over it yields.</summary>
     string Source { get; }
 
-    /// <summary>Its layout, for the shared queries, or null while none of it could be laid out.</summary>
-    ILayoutNode? Root { get; }
+    /// <summary>
+    /// Its layout, for the shared queries. Nothing at all — see <see cref="Piece.Exists"/> — while none
+    /// of it could be laid out.
+    /// </summary>
+    Piece Root { get; }
 
     /// <summary>What is selected inside it, in its own source's offsets.</summary>
     IReadOnlyList<(int Start, int Length)> Selection { get; }

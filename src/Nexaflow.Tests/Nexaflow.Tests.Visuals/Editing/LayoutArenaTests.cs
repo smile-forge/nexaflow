@@ -174,10 +174,10 @@ public class LayoutArenaTests
 
         var first = tree.At(notes[0]);
 
-        Assert.AreEqual(tree.At(notes[1]), first.Step(vertical: false, forward: true));
-        Assert.AreEqual(tree.At(notes[2]), first.Step(false, true).Step(false, true));
-        Assert.IsFalse(first.Step(false, forward: false).Exists, "there is nothing before the first");
-        Assert.IsFalse(first.Step(vertical: true, forward: true).Exists, "it is on no downward run");
+        Assert.AreEqual(tree.At(notes[1]), first.Along(vertical: false, forward: true));
+        Assert.AreEqual(tree.At(notes[2]), first.Along(false, true).Along(false, true));
+        Assert.IsFalse(first.Along(false, forward: false).Exists, "there is nothing before the first");
+        Assert.IsFalse(first.Along(vertical: true, forward: true).Exists, "it is on no downward run");
     }
 
     [TestMethod]
