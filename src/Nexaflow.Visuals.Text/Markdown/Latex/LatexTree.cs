@@ -865,7 +865,7 @@ public sealed class LatexTree
     }
 
     private static LatexWrite Wrote(string latex, int caret, int length) =>
-        new(latex, caret, new LatexRange(caret - length, length));
+        new(latex, caret, new EditRange(caret - length, length));
 
     /// <summary>
     /// The one thing immediately before <paramref name="offset"/> — what backspace acts on.

@@ -1,5 +1,6 @@
 ﻿using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 

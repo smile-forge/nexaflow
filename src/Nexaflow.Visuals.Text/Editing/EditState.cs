@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Nexaflow.Visuals.Text.Markdown.Latex;
+namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
 /// A stretch of source the reader is being shown literally rather than typeset — a command being typed,
@@ -10,7 +10,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// </summary>
 /// <param name="Start">Offset of the first raw character.</param>
 /// <param name="End">One past the last.</param>
-public readonly record struct LatexRawZone(int Start, int End)
+public readonly record struct RawZone(int Start, int End)
 {
     /// <summary>How many characters are raw.</summary>
     public int Length => End - Start;
@@ -22,7 +22,7 @@ public readonly record struct LatexRawZone(int Start, int End)
 /// <summary>One selected stretch of source.</summary>
 /// <param name="Start">Offset of the first selected character.</param>
 /// <param name="Length">How many characters.</param>
-public readonly record struct LatexRange(int Start, int Length)
+public readonly record struct EditRange(int Start, int Length)
 {
     /// <summary>One past the last selected character.</summary>
     public int End => Start + Length;
@@ -42,32 +42,32 @@ public readonly record struct LatexRange(int Start, int Length)
 /// Both are the typesetter's business, so the caller passes in the answers.
 /// </para>
 /// </summary>
-/// <param name="Latex">The source. Always the truth — the raw zone is a presentation concern.</param>
-/// <param name="Caret">Where the caret sits, as an offset into <paramref name="Latex"/>.</param>
+/// <param name="Source">The source. Always the truth — the raw zone is a presentation concern.</param>
+/// <param name="Caret">Where the caret sits, as an offset into <paramref name="Source"/>.</param>
 /// <param name="Selected">
 /// The selected stretches, or nothing. More than one is ordinary rather than exotic: a column of a matrix
 /// is three cells that are nowhere near each other in the source.
 /// </param>
 /// <param name="Raw">The stretch being shown literally, if any.</param>
-public sealed record LatexEditState(
-    string Latex,
+public sealed record EditState(
+    string Source,
     int Caret,
-    IReadOnlyList<LatexRange>? Selected = null,
-    LatexRawZone? Raw = null)
+    IReadOnlyList<EditRange>? Selected = null,
+    RawZone? Raw = null)
 {
     /// <summary>
     /// What is selected: in order, never overlapping, never empty-length.
     /// <para>
     /// A pass-through rather than something computed here, deliberately. A record's <c>with</c> copies
     /// backing fields and does not re-run property initialisers, so anything tidied on the way in would
-    /// go stale the moment a copy set the ranges. <see cref="Select(IReadOnlyList{LatexRange})"/> is the
+    /// go stale the moment a copy set the ranges. <see cref="Select(IReadOnlyList{EditRange})"/> is the
     /// one door in, and it tidies.
     /// </para>
     /// </summary>
-    public IReadOnlyList<LatexRange> Selection => Selected ?? [];
+    public IReadOnlyList<EditRange> Selection => Selected ?? [];
 
     /// <summary>A fresh state with the caret at the end and nothing selected.</summary>
-    public static LatexEditState For(string latex) =>
+    public static EditState For(string latex) =>
         new(latex ?? string.Empty, (latex ?? string.Empty).Length);
 
     /// <summary>Whether anything is selected.</summary>
@@ -85,11 +85,11 @@ public sealed record LatexEditState(
 
     /// <summary>The selected source. Disjoint stretches come back joined, in order.</summary>
     public string SelectedText =>
-        string.Concat(Selection.Select(r => Latex.Substring(r.Start, r.Length)));
+        string.Concat(Selection.Select(r => Source.Substring(r.Start, r.Length)));
 
     /// <summary>The source being shown literally, or empty.</summary>
     public string RawText =>
-        Raw is { } zone && zone.End <= Latex.Length ? Latex[zone.Start..zone.End] : string.Empty;
+        Raw is { } zone && zone.End <= Source.Length ? Source[zone.Start..zone.End] : string.Empty;
 
     // There is deliberately no "committed source" here, and no mapping to and from it. The raw stretch
     // used to be cut out, the rest typeset, and the characters painted back over the gap — which meant
@@ -100,17 +100,17 @@ public sealed record LatexEditState(
     // ── Moving and selecting ────────────────────────────────────────────────
 
     /// <summary>Puts the caret somewhere and drops the selection.</summary>
-    public LatexEditState MoveCaretTo(int offset) =>
+    public EditState MoveCaretTo(int offset) =>
         this with { Caret = Clamp(offset), Selected = [] };
 
     /// <summary>Selects one range and leaves the caret at its end.</summary>
-    public LatexEditState Select(int start, int length) =>
-        length <= 0 ? this with { Selected = [] } : Select([new LatexRange(start, length)]);
+    public EditState Select(int start, int length) =>
+        length <= 0 ? this with { Selected = [] } : Select([new EditRange(start, length)]);
 
     /// <summary>Selects several stretches at once, and leaves the caret after the last of them.</summary>
-    public LatexEditState Select(IReadOnlyList<LatexRange> ranges)
+    public EditState Select(IReadOnlyList<EditRange> ranges)
     {
-        var tidied = Tidy(ranges, Latex);
+        var tidied = Tidy(ranges, Source);
         return tidied.Count == 0
             ? this with { Selected = [] }
             : this with { Selected = tidied, Caret = tidied[^1].End };
@@ -119,63 +119,39 @@ public sealed record LatexEditState(
     // ── Typing ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Types one character.
+    /// Types one character: it replaces whatever is selected and lands at the caret.
+    ///
     /// <para>
-    /// A backslash opens a raw zone, and letters extend it: that is TeX's own rule for a control word,
-    /// and it is why <c>\alpha</c> shows as itself while you write it instead of flickering through
-    /// four different failed parses. Anything that is not a letter ends the word — so <c>\alpha+</c>
-    /// settles the command first and then types the plus, exactly as TeX would read it.
+    /// Content with a rule of its own about how it is written gets first refusal before this — see
+    /// <see cref="IContent.Type"/>. LaTeX has one: a backslash opens a stretch shown as itself and letters
+    /// extend it, which is what makes <c>\alpha</c> show as itself while it is being written instead of
+    /// flickering through four failed parses. That is a rule about LaTeX, so it is written where LaTeX is.
     /// </para>
     /// </summary>
-    public LatexEditState Type(char character)
-    {
-        var state = HasSelection ? DeleteSelection() : this;
-
-        if (state.Raw is { } zone && zone.Holds(state.Caret))
-        {
-            if (char.IsLetter(character))
-                return state.Splice(character.ToString(), zone with { End = zone.End + 1 });
-
-            // The control word is finished. Settle it, then type this character against the result.
-            return (state with { Raw = null }).Splice(character.ToString(), null);
-        }
-
-        return character == '\\'
-            ? state.Splice("\\", new LatexRawZone(state.Caret, state.Caret + 1))
-            : state.Splice(character.ToString(), null);
-    }
+    public EditState Type(char character) => Write(character.ToString());
 
     /// <summary>
-    /// Ends a raw zone, as space or Enter does — a request to settle what has been written and set it.
+    /// Writes text at the caret, replacing whatever is selected, and optionally shows a stretch of the
+    /// result as itself rather than as what it means.
+    ///
     /// <para>
-    /// The separator is kept only where LaTeX needs it: after a control word, to say where the name
-    /// stopped, since dropping it would silently turn <c>\alpha x</c> into the unknown command
-    /// <c>\alphax</c>. Everywhere else the space is not typeset, so putting one in the source leaves a
-    /// character the reader cannot see and cannot find — it looks like nothing happened, and then
-    /// backspace has to be pressed once for every invisible space before anything moves.
+    /// The one door a content's own typing rule needs, and the reason it needs no others: everything else
+    /// about typing — what a selection is, what replacing it means, where the caret lands — is the same
+    /// question whatever is being written.
     /// </para>
     /// </summary>
-    public LatexEditState Commit(string separator = " ")
-    {
-        if (Raw is null) return this;   // nothing half-written; the caller only wanted a fresh reading
+    public EditState Write(string text, RawZone? shown = null) =>
+        (HasSelection ? DeleteSelection() : this).Splice(text, shown);
 
-        var settled = this with { Raw = null };
-        return NeedsSeparator(RawText) ? settled.Splice(separator, null) : settled;
-    }
-
-    /// <summary>
-    /// Whether a control word needs something after it to end its name. <c>\alpha</c> does; <c>\\</c>
-    /// and <c>\,</c> do not, because a single non-letter after the backslash is the whole command.
-    /// </summary>
-    private static bool NeedsSeparator(string raw) =>
-        raw.Length > 1 && raw[0] == '\\' && char.IsLetter(raw[^1]);
+    /// <summary>Stops showing anything as itself, leaving the source exactly as it stands.</summary>
+    public EditState Settled() => Raw is null ? this : this with { Raw = null };
 
     /// <summary>
     /// Inserts text at the caret, replacing any selection — how a palette key types itself.
     /// <paramref name="caretBack"/> walks the caret back into the hole a template left, so
     /// <c>\frac{}{}</c> lands you in the numerator rather than past the whole thing.
     /// </summary>
-    public LatexEditState Insert(string text, int caretBack = 0)
+    public EditState Insert(string text, int caretBack = 0)
     {
         if (string.IsNullOrEmpty(text)) return this;
 
@@ -188,7 +164,7 @@ public sealed record LatexEditState(
     /// <summary>
     /// Wraps the selection, or inserts the pair around the caret — <c>\sqrt{…}</c> over what you picked.
     /// </summary>
-    public LatexEditState Wrap(string before, string after)
+    public EditState Wrap(string before, string after)
     {
         // Nothing picked out, so the construct arrives with its arguments empty and the caret in the
         // first of them. The braces are all it takes: the parser makes a hole out of an empty argument
@@ -201,7 +177,7 @@ public sealed record LatexEditState(
         // those still to come do not move. Gathering them into one wrapper instead would lift a matrix
         // column out of its matrix; wrapping each is what "put a root over what I picked" has to mean
         // when what you picked is three cells.
-        var latex = Latex;
+        var latex = Source;
         foreach (var range in Selection.Reverse())
             latex = latex.Insert(range.End, after).Insert(range.Start, before);
 
@@ -213,7 +189,7 @@ public sealed record LatexEditState(
 
         return this with
         {
-            Latex = latex,
+            Source = latex,
             Caret = Math.Clamp(caret, 0, latex.Length),
             Selected = [],
             Raw = null,
@@ -235,7 +211,7 @@ public sealed record LatexEditState(
     /// The construct drawn immediately before the caret, when more than one character produced it. The
     /// caller reads this off the layout; null means there is nothing to un-render.
     /// </param>
-    public LatexEditState Backspace((int Start, int Length)? renderedBefore = null)
+    public EditState Backspace((int Start, int Length)? renderedBefore = null)
     {
         if (HasSelection) return DeleteSelection();
         if (Caret <= 0) return this;
@@ -248,7 +224,7 @@ public sealed record LatexEditState(
         }
 
         if (renderedBefore is { } atom && atom.Length > 1 && atom.Start + atom.Length == Caret)
-            return this with { Raw = new LatexRawZone(atom.Start, atom.Start + atom.Length) };
+            return this with { Raw = new RawZone(atom.Start, atom.Start + atom.Length) };
 
         return DeleteBack(1, Raw);
     }
@@ -258,15 +234,15 @@ public sealed record LatexEditState(
     /// when backspace lands behind one. Six characters of <c>\alpha</c> are one α to look at and one
     /// thing to delete.
     /// </summary>
-    public LatexEditState Remove(int start, int length)
+    public EditState Remove(int start, int length)
     {
-        var from = Math.Clamp(start, 0, Latex.Length);
-        var count = Math.Clamp(length, 0, Latex.Length - from);
+        var from = Math.Clamp(start, 0, Source.Length);
+        var count = Math.Clamp(length, 0, Source.Length - from);
         if (count == 0) return this;
 
         return this with
         {
-            Latex = Latex.Remove(from, count),
+            Source = Source.Remove(from, count),
             Caret = from,
             Selected = [],
             Raw = null,
@@ -274,11 +250,11 @@ public sealed record LatexEditState(
     }
 
     /// <summary>Forward delete. Never un-renders — you cannot be looking at what is ahead of the caret.</summary>
-    public LatexEditState Delete()
+    public EditState Delete()
     {
         if (HasSelection) return DeleteSelection();
-        if (Caret >= Latex.Length) return this;
-        return this with { Latex = Latex.Remove(Caret, 1), Raw = Shift(Raw, Caret, -1) };
+        if (Caret >= Source.Length) return this;
+        return this with { Source = Source.Remove(Caret, 1), Raw = Shift(Raw, Caret, -1) };
     }
 
     // ── Mechanics ───────────────────────────────────────────────────────────
@@ -287,15 +263,15 @@ public sealed record LatexEditState(
     /// Cuts out everything selected. Last stretch first, so that removing one never moves the offsets of
     /// the ones still to go — the reason a disjoint selection can be deleted at all.
     /// </summary>
-    private LatexEditState DeleteSelection()
+    private EditState DeleteSelection()
     {
-        var latex = Latex;
+        var latex = Source;
         foreach (var range in Selection.Reverse())
             latex = latex.Remove(range.Start, range.Length);
 
         return this with
         {
-            Latex = latex,
+            Source = latex,
             Caret = Math.Clamp(SelectionStart, 0, latex.Length),
             Selected = [],
             Raw = null,
@@ -306,7 +282,7 @@ public sealed record LatexEditState(
     /// Ranges in order, clipped to the source, with empties dropped and overlaps merged — so nothing
     /// downstream has to wonder whether a selection can contradict itself.
     /// </summary>
-    private static IReadOnlyList<LatexRange> Tidy(IReadOnlyList<LatexRange>? ranges, string latex)
+    private static IReadOnlyList<EditRange> Tidy(IReadOnlyList<EditRange>? ranges, string latex)
     {
         if (ranges is null || ranges.Count == 0) return [];
 
@@ -318,43 +294,43 @@ public sealed record LatexEditState(
             .ToList();
         if (clipped.Count == 0) return [];
 
-        var merged = new List<LatexRange>();
+        var merged = new List<EditRange>();
         var (start, end) = clipped[0];
         foreach (var (nextStart, nextEnd) in clipped.Skip(1))
         {
             if (nextStart <= end) { end = Math.Max(end, nextEnd); continue; }
-            merged.Add(new LatexRange(start, end - start));
+            merged.Add(new EditRange(start, end - start));
             (start, end) = (nextStart, nextEnd);
         }
 
-        merged.Add(new LatexRange(start, end - start));
+        merged.Add(new EditRange(start, end - start));
         return merged;
     }
 
-    private LatexEditState DeleteBack(int count, LatexRawZone? raw) =>
+    private EditState DeleteBack(int count, RawZone? raw) =>
         this with
         {
-            Latex = Latex.Remove(Caret - count, count),
+            Source = Source.Remove(Caret - count, count),
             Caret = Caret - count,
             Raw = raw,
         };
 
-    private LatexEditState Splice(string text, LatexRawZone? raw) =>
+    private EditState Splice(string text, RawZone? raw) =>
         this with
         {
-            Latex = Latex.Insert(Clamp(Caret), text),
+            Source = Source.Insert(Clamp(Caret), text),
             Caret = Clamp(Caret) + text.Length,
             Selected = [],
             Raw = raw ?? Shift(Raw, Caret, text.Length),
         };
 
     /// <summary>Keeps a raw zone over the same characters after an edit somewhere else moved them.</summary>
-    private static LatexRawZone? Shift(LatexRawZone? zone, int at, int by)
+    private static RawZone? Shift(RawZone? zone, int at, int by)
     {
         if (zone is not { } z) return null;
-        if (at <= z.Start) return new LatexRawZone(z.Start + by, z.End + by);
-        return at < z.End ? new LatexRawZone(z.Start, z.End + by) : z;
+        if (at <= z.Start) return new RawZone(z.Start + by, z.End + by);
+        return at < z.End ? new RawZone(z.Start, z.End + by) : z;
     }
 
-    private int Clamp(int offset) => Math.Clamp(offset, 0, Latex.Length);
+    private int Clamp(int offset) => Math.Clamp(offset, 0, Source.Length);
 }

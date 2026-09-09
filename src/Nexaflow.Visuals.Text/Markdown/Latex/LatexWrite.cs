@@ -22,4 +22,4 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// that had to be wrapped moved it, and a command written against a letter gained a space to keep its
 /// name. Only the edit knows what it really wrote.
 /// </param>
-public readonly record struct LatexWrite(string Latex, int Caret, LatexRange Wrote);
+public readonly record struct LatexWrite(string Latex, int Caret, Editing.EditRange Wrote);

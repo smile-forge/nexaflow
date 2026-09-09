@@ -57,7 +57,7 @@ public sealed class LatexLayout
     /// only being read would simply be wrong, and reading is the commoner case.
     /// </param>
     public static LatexLayout? Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
-                                     LatexRawZone? shownAsWritten = null, bool placeholders = false)
+                                     RawZone? shownAsWritten = null, bool placeholders = false)
     {
         if (string.IsNullOrEmpty(latex)) return null;
 

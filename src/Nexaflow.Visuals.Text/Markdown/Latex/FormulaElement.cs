@@ -15,7 +15,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// where it will end up.
 /// <para>
 /// It owns pixels and gestures only. Where things are is <see cref="LatexLayout"/>'s answer and what an
-/// edit means is <see cref="LatexEditState"/>'s; this holds no second opinion about either, which is what
+/// edit means is <see cref="EditState"/>'s; this holds no second opinion about either, which is what
 /// keeps clicking, arrowing, selecting and typing from each developing their own idea of the formula.
 /// </para>
 /// <para>
@@ -34,7 +34,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private readonly double _scale;
     private readonly bool _inline;
 
-    private LatexEditState _state;
+    private EditState _state;
     private LatexLayout? _layout;
     private DispatcherTimer? _blink;
     private bool _caretVisible = true;
@@ -93,7 +93,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
     public FormulaElement(string latex, MarkdownPalette palette, double scale, bool inline = false)
     {
-        _state = LatexEditState.For(latex ?? string.Empty);
+        _state = EditState.For(latex ?? string.Empty);
         _palette = palette;
         _scale = scale;
         _inline = inline;
@@ -115,12 +115,12 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// <summary>The source. Setting it re-typesets and puts the caret at the end.</summary>
     public string Latex
     {
-        get => _state.Latex;
+        get => _state.Source;
         set
         {
             var next = value ?? string.Empty;
-            if (_state.Latex == next) return;
-            Apply(LatexEditState.For(next), notify: false);
+            if (_state.Source == next) return;
+            Apply(EditState.For(next), notify: false);
         }
     }
 
@@ -188,7 +188,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     }
 
     /// <inheritdoc />
-    public string Source => _state.Latex;
+    public string Source => _state.Source;
 
     /// <inheritdoc />
     public Piece Root => _layout?.Tree.Root ?? default;
@@ -220,7 +220,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // Arriving from the text after the formula, the caret is outside everything in it — so it takes
         // the outermost bar at the end. Landing on the innermost instead would put it inside a trailing
         // exponent, raised and half-height, having been walked into from the far side of the formula.
-        var end = _state.Latex.Length;
+        var end = _state.Source.Length;
         TakeCaret(end, level: (_layout?.Tree.PlacesAt(Snap(end)) ?? 1) - 1);
     }
 
@@ -340,7 +340,9 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (IsReadOnly) return;
         if (WriteThroughTree(character.ToString())) return;
 
-        Apply(_state.Type(character), notify: true);
+        // LaTeX's own rule about how it is written gets first refusal — a backslash opens a stretch shown
+        // as itself — and anything it declines is typed the way any character is.
+        Apply(_state.Typing(character) ?? _state.Type(character), notify: true);
     }
 
     /// <summary>
@@ -370,19 +372,24 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         // The source coming back changed is the tree changed: applying it re-reads, re-lays out and
         // repaints, so one call carries the edit all the way to the picture.
-        Apply(new LatexEditState(written.Latex, written.Caret), notify: true);
+        Apply(new EditState(written.Latex, written.Caret), notify: true);
         return true;
     }
 
     /// <summary>
-    /// Settles a half-written command, as space or Enter does. <paramref name="separator"/> is kept in
-    /// the source — see <see cref="LatexEditState.Commit"/>.
+    /// Settles a half-written command, as space or Enter does — which is to say, types the character.
+    ///
+    /// <para>
+    /// There is nothing else to settling. A non-letter after a control word ends it, and that rule lives
+    /// with the typing rule where it belongs; a separate "commit" was a second way to say the same thing,
+    /// and the two could disagree.
+    /// </para>
     /// </summary>
     public void Commit(string separator = " ")
     {
         if (IsReadOnly) return;
 
-        Apply(_state.Commit(separator), notify: true);
+        Apply(_state.Settle(separator), notify: true);
     }
 
     /// <summary>
@@ -468,7 +475,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
     /// <summary>
     /// Backspace. Behind a rendered command this un-renders it rather than deleting a character of it —
-    /// see <see cref="LatexEditState.Backspace"/>. Returns false when there was nothing to delete, which
+    /// see <see cref="EditState.Backspace"/>. Returns false when there was nothing to delete, which
     /// is the host's cue that backspace should now remove the formula itself.
     /// </summary>
     public bool Backspace()
@@ -501,7 +508,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     public bool Delete()
     {
         if (IsReadOnly) return false;
-        if (_state.Caret >= _state.Latex.Length && !_state.HasSelection) return false;
+        if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
         Apply(_state.Delete(), notify: true);
         return true;
     }
@@ -522,7 +529,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>Selects everything — what the host asks for when a selection sweeps straight over it.</summary>
-    public void SelectAll() => Select(0, _state.Latex.Length);
+    public void SelectAll() => Select(0, _state.Source.Length);
 
     /// <inheritdoc />
     public void ClearSelection()
@@ -612,7 +619,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     {
         if (selection.IsEmpty) { ClearSelection(); return; }
 
-        var ranges = selection.Ranges.Select(r => new LatexRange(r.Start, r.Length)).ToList();
+        var ranges = selection.Ranges.Select(r => new EditRange(r.Start, r.Length)).ToList();
 
         var next = _state.Select(ranges);
         if (next.Selection.SequenceEqual(_state.Selection)) return;
@@ -647,7 +654,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         // Exactly the formula that was on screen a moment ago — settling is letting go of it, not
         // recomputing something the reader has to check.
-        Apply(new LatexEditState(moved.Latex, moved.Caret), notify: true);
+        Apply(new EditState(moved.Latex, moved.Caret), notify: true);
     }
 
     /// <summary>Typesets the formula as it would read if the carried term were dropped where it is now.</summary>
@@ -714,11 +721,11 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// Which bar at the caret's offset — see <see cref="_level"/>. Innermost unless a step says otherwise,
     /// which is what makes an edit, a click or a jump put the caret back inside whatever it is in.
     /// </param>
-    private void Apply(LatexEditState next, bool notify, int level = 0)
+    private void Apply(EditState next, bool notify, int level = 0)
     {
-        var resized = next.Latex != _state.Latex || next.Raw != _state.Raw;
+        var resized = next.Source != _state.Source || next.Raw != _state.Raw;
         var moved = next.Caret != _state.Caret || level != _level;
-        var changed = next.Latex != _state.Latex;
+        var changed = next.Source != _state.Source;
 
         _state = next;
         _level = level;
@@ -742,11 +749,11 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// </para>
     /// </summary>
     private void Rebuild() => _layout = LatexLayout.Build(
-        _state.Latex, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly);
+        _state.Source, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly);
 
     private int Snap(int offset)
     {
-        var clamped = Math.Clamp(offset, 0, _state.Latex.Length);
+        var clamped = Math.Clamp(offset, 0, _state.Source.Length);
         if (_layout is null) return clamped;
 
         // Inside the stretch being written every character is its own stop, so the caret goes exactly
@@ -763,7 +770,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         if (_layout is null)
         {
-            var source = Mono(_state.Latex.Length == 0 ? " " : _state.Latex);
+            var source = Mono(_state.Source.Length == 0 ? " " : _state.Source);
             return new Size(Math.Ceiling(source.WidthIncludingTrailingWhitespace), Math.Ceiling(source.Height));
         }
 
@@ -786,12 +793,12 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             // tab opened on an empty formula showed none until the first character was typed: that
             // keystroke was not summoning the caret, it was creating the layout the caret was being
             // drawn from.
-            var source = Mono(_state.Latex.Length == 0 ? " " : _state.Latex);
+            var source = Mono(_state.Source.Length == 0 ? " " : _state.Source);
             dc.DrawText(source, new Point(0, 0));
 
             if (!HasCaret || IsReadOnly || !_caretVisible) return;
 
-            var typed = Mono(_state.Latex[..Math.Clamp(_state.Caret, 0, _state.Latex.Length)]);
+            var typed = Mono(_state.Source[..Math.Clamp(_state.Caret, 0, _state.Source.Length)]);
             DrawCaret(dc, typed.WidthIncludingTrailingWhitespace, 0, source.Height);
             return;
         }

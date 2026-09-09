@@ -7,7 +7,7 @@ using WpfMath.Parsers;
 using WpfMath.Rendering;
 using XamlMath.Rendering;
 
-namespace Nexaflow.Tests.Visuals.Markdown.Latex;
+namespace Nexaflow.Tests.Visuals.Markdown.Source;
 
 /// <summary>
 /// Coverage for <see cref="LatexLayout"/> — the half that needs the typesetter: does WpfMath give back
@@ -286,7 +286,7 @@ public class LatexLayoutTests
         var at = latex.IndexOf(@"\frac", StringComparison.Ordinal);
 
         var typeset = LatexLayout.Build(latex, Scale);
-        var writing = LatexLayout.Build(latex, Scale, shownAsWritten: new LatexRawZone(at, latex.LastIndexOf('+')));
+        var writing = LatexLayout.Build(latex, Scale, shownAsWritten: new RawZone(at, latex.LastIndexOf('+')));
         Assert.IsNotNull(typeset);
         Assert.IsNotNull(writing);
 
@@ -412,7 +412,7 @@ public class LatexLayoutTests
         var end = at + @"\frac{a}{b}".Length;
 
         var typeset = LatexLayout.Build(latex, Scale);
-        var writing = LatexLayout.Build(latex, Scale, shownAsWritten: new LatexRawZone(at, end));
+        var writing = LatexLayout.Build(latex, Scale, shownAsWritten: new RawZone(at, end));
         Assert.IsNotNull(typeset);
         Assert.IsNotNull(writing);
 
