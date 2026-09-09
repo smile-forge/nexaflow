@@ -196,15 +196,61 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
     protected IReadOnlyList<Piece> Holes() => _laid.Holes;
 
     /// <summary>
-    /// What moving the selected stretches to <paramref name="to"/> would produce — a term carried to a new
-    /// place in a formula, a column dragged across a matrix.
+    /// What moving the selected stretches to <paramref name="to"/> would produce: they are cut out and put
+    /// back in at the drop, and the whole thing is read again.
+    ///
     /// <para>
-    /// Merged into where it lands rather than dropped there, which is why only the content can answer:
-    /// what has to be re-braced, re-spaced or re-separated is a fact about its structure. Null from
-    /// content where dragging a selection means nothing, and then nothing is carried.
+    /// A rerun of the reading and the building, which is what makes it the same for every kind of content.
+    /// Nothing here knows what is being carried — it is a stretch of source going somewhere else in the same
+    /// source, and whether that lands somewhere sensible is a question about the caret stops, which the
+    /// builder declares.
+    /// </para>
+    /// <para>
+    /// Null when there is nothing to move, or when the drop is inside what is being moved — a term dropped on
+    /// itself has not gone anywhere, and cutting it first would leave nowhere to put it.
     /// </para>
     /// </summary>
-    protected virtual Moved? Moving(EditState state, int to, Point? at) => null;
+    private Moved? Moving(EditState state, int to)
+    {
+        var ranges = state.Selection
+            .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= state.Source.Length)
+            .OrderBy(range => range.Start)
+            .ToList();
+
+        if (ranges.Count == 0) return null;
+        if (ranges.Any(range => to > range.Start && to < range.End)) return null;
+
+        var carried = string.Concat(ranges.Select(range => state.Source.Substring(range.Start, range.Length)));
+
+        // Cut last first, so removing one stretch never moves the offsets of those still to go — the same
+        // reason a selection of several stretches can be deleted at all.
+        var left = state.Source;
+        foreach (var range in Enumerable.Reverse(ranges)) left = left.Remove(range.Start, range.Length);
+
+        var drop = Math.Clamp(Shift(to, ranges), 0, left.Length);
+
+        return new Moved(
+            string.Concat(left.AsSpan(0, drop), carried, left.AsSpan(drop)),
+            drop + carried.Length,
+            new EditRange(drop, carried.Length));
+
+        // An offset in the source as it stands, read as an offset into what the cut left behind. A stretch
+        // wholly in front of it takes its whole length off; one the offset falls inside takes only the part in
+        // front, because the rest of it is still to come. Left out, that second case runs an offset backwards
+        // past a stretch that straddles it.
+        static int Shift(int offset, List<EditRange> cut)
+        {
+            var shifted = offset;
+
+            foreach (var range in cut)
+            {
+                if (range.End <= offset) shifted -= range.Length;
+                else if (range.Start < offset) shifted -= offset - range.Start;
+            }
+
+            return shifted;
+        }
+    }
 
     // ── Shape and colour ────────────────────────────────────────────────────
 
@@ -754,7 +800,7 @@ public abstract class ContentElement : FrameworkElement, IEditableBlock
     {
         ClearPreview();
 
-        if (Moving(_state, _dropAt, _dropPoint) is not { } moved) return;
+        if (Moving(_state, _dropAt) is not { } moved) return;
 
         _previewOf = moved;
         _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
