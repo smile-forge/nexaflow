@@ -58,7 +58,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     private int _level;
 
     /// <summary>Where a pointer drag began, as a piece of the layout rather than as an offset.</summary>
-    private ILayoutNode? _dragAnchor;
+    private Piece _dragAnchor;
 
     /// <summary>Where a shift-arrow selection started, so extending it walks from there and not from the caret.</summary>
     private int? _keyAnchor;
@@ -140,7 +140,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// Every piece of the symbol and where it landed, which is what the shared queries read to answer
     /// where a press went, what a drag took and where the caret can stand.
     /// </summary>
-    ILayoutNode? IEditableBlock.Root => _layout?.Root;
+    Piece IEditableBlock.Root => _layout?.Root ?? default;
 
     IReadOnlyList<(int Start, int Length)> IEditableBlock.Selection => _selection;
 
@@ -221,9 +221,9 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     public void BeginPointerSelect(Point pointInElement)
     {
         InteractiveSelection.Own(this);
-        if (_layout?.Root is not { } root) return;
+        if (_layout?.Root is not { Exists: true } root) return;
 
-        _dragAnchor = root.NodeAt(pointInElement);
+        _dragAnchor = root.PieceAt(pointInElement);
         _selection.Clear();
         _caret = AcceptsCaret ? CaretNear(root, pointInElement) : null;
         _level = 0;
@@ -232,8 +232,8 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
 
     public void ExtendPointerSelect(Point pointInElement)
     {
-        if (_dragAnchor is null || _layout?.Root is not { } root) return;
-        if (root.NodeAt(pointInElement) is not { } focus) return;
+        if (!_dragAnchor.Exists || _layout?.Root is not { Exists: true } root) return;
+        if (root.PieceAt(pointInElement) is not { Exists: true } focus) return;
 
         // Whole pieces rather than a stretch of characters, so what comes back is something the format
         // really is made of — a group of the number, or the number — and never half of a thing worked out
@@ -245,7 +245,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
         Refresh();
     }
 
-    public void EndPointerSelect() => _dragAnchor = null;
+    public void EndPointerSelect() => _dragAnchor = default;
 
     public bool PointerDoubleClick(Point pointInElement)
     {
@@ -261,18 +261,17 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// <summary>
     /// The caret offset nearest a point: the side of the piece under it that the point fell on.
     /// <para>
-    /// Node-based rather than measured against a list of positions, so the printed number being in three
-    /// pieces on two rows needs no special handling — the piece under the pointer already knows which
-    /// characters it is.
+    /// Asked of the tree rather than measured against a list of positions, so the printed number being in
+    /// three pieces on two rows needs no special handling — the piece under the pointer already knows
+    /// which characters it is.
     /// </para>
     /// </summary>
-    private static int CaretNear(ILayoutNode root, Point point)
+    private static int CaretNear(Piece root, Point point)
     {
-        if (root.NodeAt(point) is not { } node) return 0;
+        if (root.PieceAt(point) is not { Exists: true } piece) return 0;
 
-        return point.X <= node.Bounds.X + node.Bounds.Width / 2
-            ? node.Sits().Start
-            : node.Sits().End;
+        var where = piece.Bounds;
+        return point.X <= where.X + where.Width / 2 ? piece.Sits().Start : piece.Sits().End;
     }
 
     // ── Editing ───────────────────────────────────────────────────────────
@@ -546,7 +545,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// </summary>
     private void DrawSelection(DrawingContext dc)
     {
-        if (_selection.Count == 0 || _layout?.Root is not { } root) return;
+        if (_selection.Count == 0 || _layout?.Root is not { Exists: true } root) return;
 
         var wash = Faded(_palette.Accent);
 
@@ -570,7 +569,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>Whether a piece of the layout is printing that was worked out rather than typed.</summary>
-    private static bool Generated(ILayoutNode node) => node.Kind == nameof(BarcodeKind.EncodedText);
+    private static bool Generated(Piece piece) => piece.Kind == nameof(BarcodeKind.EncodedText);
 
     /// <summary>
     /// What a drag from one piece to another took.
@@ -580,7 +579,7 @@ public sealed class BarcodeElement : FrameworkElement, IEditableBlock
     /// than for the one it is printed beside.
     /// </para>
     /// </summary>
-    private IReadOnlyList<(int Start, int Length)> Taken(ILayoutNode root, ILayoutNode anchor, ILayoutNode focus) =>
+    private IReadOnlyList<(int Start, int Length)> Taken(Piece root, Piece anchor, Piece focus) =>
         Generated(anchor) || Generated(focus)
             ? [(0, _block.Value.Length)]
             : ContentSelection.Between(root, anchor, focus).Ranges;

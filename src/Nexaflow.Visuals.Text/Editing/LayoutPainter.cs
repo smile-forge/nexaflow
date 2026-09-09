@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using System;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -24,7 +25,14 @@ namespace Nexaflow.Visuals.Text.Editing;
 public static class LayoutPainter
 {
     /// <summary>Paints <paramref name="piece"/> and everything inside it.</summary>
-    public static void Paint(DrawingContext dc, Piece piece, Brush foreground)
+    /// <param name="which">
+    /// Which marks to paint, for content that wants something of its own between two layers of itself — a
+    /// barcode's selection wash goes over the bars and under the digits, which is where it has always been
+    /// drawn. Said as a question about marks rather than as a second tree, because the order things are
+    /// painted in is a fact about the drawing and not about the structure. Null paints all of it.
+    /// </param>
+    public static void Paint(DrawingContext dc, Piece piece, Brush foreground,
+                             Predicate<LayoutMark>? which = null)
     {
         if (!piece.Exists) return;
 
@@ -32,8 +40,10 @@ public static class LayoutPainter
         var moved = offset.X != 0 || offset.Y != 0;
         if (moved) dc.PushTransform(new TranslateTransform(offset.X, offset.Y));
 
-        foreach (var mark in piece.Marks) mark.PaintOn(dc, foreground);
-        foreach (var child in piece.Children) Paint(dc, child, foreground);
+        foreach (var mark in piece.Marks)
+            if (which is null || which(mark)) mark.PaintOn(dc, foreground);
+
+        foreach (var child in piece.Children) Paint(dc, child, foreground, which);
 
         if (moved) dc.Pop();
     }

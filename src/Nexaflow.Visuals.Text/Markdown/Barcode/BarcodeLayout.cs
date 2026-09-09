@@ -16,7 +16,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 /// <para>
 /// The symbol places itself. A barcode's geometry is a module width and a few multiples of it, with
 /// nothing to typeset, so this both computes the geometry and records it, where a formula's layout has to
-/// watch a typesetter to find out. What comes out is an ordinary <see cref="LayoutNode"/> tree, which is
+/// watch a typesetter to find out. What comes out is an ordinary <see cref="LayoutTree"/>, which is
 /// what lets the shared queries answer where a press landed, what a drag selected and where the caret can
 /// stand, without any of them knowing what a barcode is.
 /// </para>
@@ -80,7 +80,10 @@ internal sealed class BarcodeLayout
     }
 
     /// <summary>Every piece of the symbol, where it landed and what it drew.</summary>
-    public LayoutNode Root { get; private set; } = null!;
+    public LayoutTree Tree { get; private set; } = null!;
+
+    /// <summary>The whole symbol, as a piece.</summary>
+    public Piece Root => Tree.Root;
 
     /// <summary>What the element wants to be.</summary>
     public Size Size { get; private set; }
@@ -184,24 +187,28 @@ internal sealed class BarcodeLayout
             captionHeight + _block.BarHeight + LabelHeight + _block.Margin * 2);
 
         // ── the tree ──
-        Root = new LayoutNode(new Rect(Size), part: null, nameof(BarcodeKind.Symbol), isInk: false);
+        var build = new LayoutBuilder();
+        build.Open(nameof(BarcodeKind.Symbol), part: null, isInk: false);
 
         // The ground the symbol is printed on. A barcode paints its own light field whatever the theme,
         // because a scanner needs dark bars on a light one.
-        Root.Drew(new RuleMark(new Rect(Size), Brush(_block.Background, _palette.BarcodeLight)));
+        build.Draw(new RuleMark(new Rect(Size), Brush(_block.Background, _palette.BarcodeLight)));
 
-        LayBars();
+        LayBars(build);
 
         if (caption is not null
             && symbol.Children.FirstOrDefault(c => c.Kind == BarcodeKind.Caption) is { } part)
             // Over the main symbol's middle, not the whole picture's: with an add-on beside it those are
             // several modules apart, and a title that drifts towards the price reads as belonging to it.
-            LayCaption(part, caption, new Point(_barsLeft + (mainWidth - caption.Width) / 2, _block.Margin),
-                       captionSize);
+            LayCaption(build, part, caption,
+                       new Point(_barsLeft + (mainWidth - caption.Width) / 2, _block.Margin), captionSize);
 
-        LayLabel(symbol, groups, barsWidth, gap);
+        LayLabel(build, symbol, groups, barsWidth, gap);
 
-        AcceptsCaret = Root.SelfAndDescendants().Any(n => n.Kind == nameof(BarcodeKind.Character));
+        build.Close();
+        Tree = build.Seal();
+
+        AcceptsCaret = Root.SelfAndDescendants.Any(piece => piece.Kind == nameof(BarcodeKind.Character));
     }
 
     /// <summary>
@@ -293,19 +300,25 @@ internal sealed class BarcodeLayout
 
     // ── The pieces ────────────────────────────────────────────────────────
 
+    private static bool Generated(BarcodePart part) => part.Kind == BarcodeKind.EncodedText;
+
     /// <summary>
     /// The bars, which are layout and nothing else: no piece of what the author typed is a bar, so there
     /// is no part of the parse tree here to project. They stand for nothing in the source, which is what
     /// keeps the caret out among the digits where a reader can see it.
     /// </summary>
-    private void LayBars()
+    private void LayBars(LayoutBuilder into)
     {
         if (_drawn is null) return;
 
-        var bounds = new Rect(_barsLeft, _barsTop, PatternWidth * _block.BarWidth, _block.BarHeight + _guardDrop);
-        var node = Root.Add(new LayoutNode(bounds, part: null, "Bars", isInk: false));
+        var width = PatternWidth * _block.BarWidth;
 
-        Bars = new Rect(_barsLeft, _barsTop, PatternWidth * _block.BarWidth, _block.BarHeight);
+        into.Open("Bars", part: null, new Point(_barsLeft, _barsTop), isInk: false);
+
+        // As tall as the well the guards drop into, whether or not a run of ink reaches the bottom of it.
+        into.Covers(new Rect(0, 0, width, _block.BarHeight + _guardDrop));
+
+        Bars = new Rect(_barsLeft, _barsTop, width, _block.BarHeight);
 
         // Faint when they are a stand-in, so the error reads as the subject and they read as the shape it
         // would have taken.
@@ -322,28 +335,30 @@ internal sealed class BarcodeLayout
         {
             bool addOn = start >= addOnFrom;
 
-            double top = _barsTop + (addOn ? lift : 0);
+            double top = addOn ? lift : 0;
             double height = _block.BarHeight - (addOn ? lift : 0) + (IsGuard(_drawn, start) ? _guardDrop : 0);
 
-            node.Drew(new RuleMark(
-                new Rect(_barsLeft + start * _block.BarWidth, top, length * _block.BarWidth, height), ink));
+            into.Draw(new RuleMark(
+                new Rect(start * _block.BarWidth, top, length * _block.BarWidth, height), ink));
         }
+
+        into.Close();
     }
 
     /// <summary>
     /// The caption, drawn as one line and measured in its pieces — the scheme's name, which nobody typed,
     /// and the number, which is the value and so is the one half a caret can be in.
     /// </summary>
-    private void LayCaption(BarcodePart part, FormattedText glyphs, Point at, double size)
+    private void LayCaption(LayoutBuilder into, BarcodePart part, FormattedText glyphs, Point at, double size)
     {
-        var node = Root.Add(new LayoutNode(
-            new Rect(at.X, at.Y, glyphs.Width, glyphs.Height), part: null, part.Kind.ToString(), isInk: false));
-
-        node.Drew(new TextMark(glyphs, at, null));
-        LayPieces(node, part, at.X, at.Y, glyphs.Height, size);
+        into.Open(part.Kind.ToString(), part: null, at, isInk: false);
+        into.Draw(new TextMark(glyphs, default, null));
+        LayPieces(into, part, 0, glyphs.Height, size);
+        into.Close();
     }
 
-    private void LayLabel(BarcodePart symbol, IReadOnlyList<BarcodeTextRun> groups, double barsWidth, double gap)
+    private void LayLabel(LayoutBuilder into, BarcodePart symbol, IReadOnlyList<BarcodeTextRun> groups,
+                          double barsWidth, double gap)
     {
         if (!_block.DisplayValue) return;
 
@@ -370,8 +385,7 @@ internal sealed class BarcodeLayout
                 _ => new Point(Centred(group, glyphs, barsWidth), belowTop),
             };
 
-            var bounds = new Rect(at.X, at.Y, glyphs.Width, glyphs.Height);
-            placed.Add(bounds);
+            placed.Add(new Rect(at.X, at.Y, glyphs.Width, glyphs.Height));
 
             // One wave under each group of the value, and none under an add-on: it is all of the value
             // that is wrong, since a format rejects a value entire rather than at a character.
@@ -382,10 +396,13 @@ internal sealed class BarcodeLayout
             if (i >= parts.Count) continue;
             var part = parts[i];
 
-            var node = Root.Add(new LayoutNode(bounds, part: null, part.Kind.ToString(), isInk: Generated(part)));
-            node.Drew(new TextMark(glyphs, at, null));
+            // Printing that was worked out rather than typed is still ink: it is a digit on the page and a
+            // reader can point at it. It carries no part, which is what keeps it out of the caret's stops.
+            into.Open(part.Kind.ToString(), part: null, at, isInk: Generated(part));
+            into.Draw(new TextMark(glyphs, default, null));
 
-            if (!Generated(part)) LayPieces(node, part, at.X, at.Y, glyphs.Height, null);
+            if (!Generated(part)) LayPieces(into, part, 0, glyphs.Height, null);
+            into.Close();
         }
 
         LabelRuns = underlined;
@@ -399,33 +416,29 @@ internal sealed class BarcodeLayout
                 : _barsLeft + (bars - glyphs.Width) / 2;
     }
 
-    private static bool Generated(BarcodePart part) => part.Kind == BarcodeKind.EncodedText;
-
     /// <summary>
     /// Where each piece of a run begins, measured as a prefix of the whole run rather than on its own: a
     /// run of text is not the sum of its pieces measured separately, and placing them one at a time would
     /// drift away from the glyphs actually drawn.
     /// </summary>
-    private void LayPieces(LayoutNode into, BarcodePart part, double x, double y, double height, double? size)
+    private void LayPieces(LayoutBuilder into, BarcodePart part, double y, double height, double? size)
     {
         var run = part.Printed;
         var consumed = 0;
 
         foreach (var piece in part.Children)
         {
-            var from = x + Text(run[..consumed], size).Width;
+            var from = Text(run[..consumed], size).Width;
             consumed += piece.Printed.Length;
-            var to = x + Text(run[..consumed], size).Width;
+            var to = Text(run[..consumed], size).Width;
 
-            into.Add(new LayoutNode(
-                new Rect(from, y, Math.Max(to - from, 0), height),
-                // Only a character of the value carries one. Generated printing knows in the parse tree
-                // that it stands for the whole value, and says so when it is pressed — but a span here
-                // would put it among the caret's stops, and the caret would take its height and position
-                // from a piece of the symbol nobody can type into.
-                piece.IsSource ? piece : null,
-                piece.Kind.ToString(),
-                isInk: true));
+            // Only a character of the value carries a part. Generated printing knows in the parse tree
+            // that it stands for the whole value, and says so when it is pressed — but a part here
+            // would put it among the caret's stops, and the caret would take its height and position
+            // from a piece of the symbol nobody can type into.
+            into.Open(piece.Kind.ToString(), piece.IsSource ? piece : null, new Point(from, y), isInk: true);
+            into.Covers(new Rect(0, 0, Math.Max(to - from, 0), height));
+            into.Close();
         }
     }
 
@@ -449,15 +462,12 @@ internal sealed class BarcodeLayout
     /// </summary>
     public void Paint(DrawingContext dc, Brush foreground, Action<DrawingContext>? underTheText = null)
     {
-        foreach (var mark in Marks().Where(m => m is not TextMark)) mark.PaintOn(dc, foreground);
+        LayoutPainter.Paint(dc, Root, foreground, mark => mark is not TextMark);
 
         underTheText?.Invoke(dc);
 
-        foreach (var mark in Marks().Where(m => m is TextMark)) mark.PaintOn(dc, foreground);
+        LayoutPainter.Paint(dc, Root, foreground, mark => mark is TextMark);
     }
-
-    private IEnumerable<LayoutMark> Marks() =>
-        Root.SelfAndDescendants().OfType<LayoutNode>().SelectMany(n => n.Marks);
 
     private static Brush Brush(HexColor? explicitColor, Brush fallback)
     {

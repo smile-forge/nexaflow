@@ -58,7 +58,7 @@ public static class LayoutText
         text.MaxTextWidth = System.Math.Max(1, room);
         text.TextAlignment = align;
 
-        var piece = into.Open(kind, part, at, isInk: part is { Length: > 0 });
+        var piece = into.Open(kind, part, at);
 
         // At the piece's own origin, which is where the column begins. The alignment shift is the type
         // engine's and the mark reports it, so the piece comes out as wide as the words and no wider.

@@ -60,6 +60,13 @@ public sealed class LayoutBuilder
         }
     }
 
+    /// <param name="isInk">
+    /// Whether a reader can point at it. Unstated it follows the part, which is the ordinary convention —
+    /// something a reader typed is something they can point at, and a beam or a guard pattern the drawing
+    /// invented is not. Stated, the content knows better: a hole waiting to be typed into is pointable and
+    /// covers nothing, and a printed check digit nobody wrote is still a digit on the page.
+    /// </param>
+
     /// <summary>
     /// Opens a piece anchored at <paramref name="at"/> inside whatever is already open, and gives back
     /// where it will live. Everything drawn or opened until the matching <see cref="Close"/> belongs to
@@ -70,14 +77,14 @@ public sealed class LayoutBuilder
     /// ledger line has none, because nobody wrote it.
     /// </param>
     public int Open(string kind, ISourcePart? part = null, Point at = default,
-                    bool isInk = true, bool isEnclosure = false)
+                    bool? isInk = null, bool isEnclosure = false)
     {
         var frame = _spare.Count > 0 ? _spare.Pop() : new Frame();
 
         frame.At = _pieces.Count;
         frame.Offset = new Vector(at.X, at.Y);
         frame.Box = Rect.Empty;
-        frame.IsInk = isInk && part is { Length: > 0 };
+        frame.IsInk = isInk ?? part is { Length: > 0 };
         frame.IsEnclosure = isEnclosure;
         frame.Marks.Clear();
 
