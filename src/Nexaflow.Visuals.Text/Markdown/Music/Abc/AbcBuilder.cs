@@ -71,12 +71,29 @@ internal sealed partial class AbcBuilder
     /// </summary>
     private int? MeterSign;
 
-    /// <summary>Engraves a tune to fit <paramref name="width"/>, and says how big it came out.</summary>
-    public static (LayoutTree Tree, Size Size) Build(
+    /// <summary>
+    /// Engraves a tune to fit <paramref name="width"/>, and hands back nothing music-shaped: a tree of
+    /// pieces, how much room it wants, and whatever could not be read.
+    /// </summary>
+    public static Laid Build(
         ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing = null)
     {
         var builder = new AbcBuilder(reading, ink, pixelsPerDip, spacing ?? ScoreSpacing.Current);
-        return builder.Engrave(width);
+        var (tree, size) = builder.Engrave(width);
+
+        // Asked of the reading rather than collected on the way through it. A piece that could not be read
+        // carries the reason, so there is one place the answer lives and no second list to fall out of step
+        // with it — and a piece being typed carries nothing, which is how it draws without being complained
+        // about.
+        var trouble = reading.Root.SelfAndDescendants()
+            .Where(part => part.Trouble is not null && part.Length > 0)
+            .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Warning, part.Trouble!)
+            {
+                Part = part,
+            })
+            .ToList();
+
+        return new Laid(tree, size, trouble);
     }
 
     // ── What there is to draw ───────────────────────────────────────────────

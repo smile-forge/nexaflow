@@ -57,7 +57,7 @@ public class LatexTreeTests
     /// alone.
     /// </para>
     /// </summary>
-    private static Piece Tree()
+    private static Laid Tree()
     {
         var build = new LayoutBuilder();
 
@@ -82,10 +82,10 @@ public class LatexTreeTests
         build.Close();
 
         build.Close();
-        return build.Seal().Root;
+        return new Laid(build.Seal(), new Size(78.7, 43.5), []);
     }
 
-    private static LatexTree Latex() => new(Fraction, TexReading.Of(Fraction), Tree(), new Size(78.7, 43.5));
+    private static LatexTree Latex() => new(Fraction, TexReading.Of(Fraction), Tree());
 
     // ── Where a caret may rest ──────────────────────────────────────────────
 

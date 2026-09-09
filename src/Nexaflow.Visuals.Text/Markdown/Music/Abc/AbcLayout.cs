@@ -24,14 +24,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// </summary>
 internal sealed class AbcLayout
 {
-    private AbcLayout(string abc, ContentReading reading, LayoutTree tree, Size size,
-                      IReadOnlyList<Diagnostic> diagnostics)
+    private AbcLayout(string abc, ContentReading reading, Laid laid)
     {
         Abc = abc;
         Reading = reading;
-        Tree = tree;
-        Size = size;
-        Diagnostics = diagnostics;
+        Laid = laid;
     }
 
     /// <summary>The source this was built from.</summary>
@@ -40,17 +37,17 @@ internal sealed class AbcLayout
     /// <summary>The tune, read: every part with its position and what holds it.</summary>
     public ContentReading Reading { get; }
 
-    /// <summary>What was drawn where — every question about the tune's shape goes here.</summary>
-    public LayoutTree Tree { get; }
+    /// <summary>What was laid out — the tree, its size, and what could not be read.</summary>
+    public Laid Laid { get; }
 
-    /// <summary>The whole tune, as a piece.</summary>
-    public Piece Root => Tree.Root;
+    /// <summary>The tune, as a piece. Every question about its shape goes here.</summary>
+    public Piece Root => Laid.Root;
 
     /// <summary>The engraved size in element pixels.</summary>
-    public Size Size { get; }
+    public Size Size => Laid.Size;
 
     /// <summary>Whatever could not be read or could not be drawn — what the host draws a wave under.</summary>
-    public IReadOnlyList<Diagnostic> Diagnostics { get; }
+    public IReadOnlyList<Diagnostic> Diagnostics => Laid.Trouble;
 
     /// <summary>
     /// Reads and engraves <paramref name="abc"/> to fit <paramref name="width"/>.
@@ -73,21 +70,9 @@ internal sealed class AbcLayout
         var tree = AbcPipeline.Read(abc, Draws, shownAsWritten);
         var reading = ContentReading.Of(tree);
 
-        var (laid, size) = AbcBuilder.Build(reading, width, ink, pixelsPerDip, spacing);
+        var laid = AbcBuilder.Build(reading, width, ink, pixelsPerDip, spacing);
 
-        // Asked of the tree rather than collected on the way through it. A piece that could not be read
-        // carries the reason, so there is one place the answer lives and no second list to fall out of step
-        // with it — and a piece being typed carries nothing, which is how it draws without being complained
-        // about.
-        var trouble = reading.Root.SelfAndDescendants()
-            .Where(part => part.Trouble is not null && part.Length > 0)
-            .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Warning, part.Trouble!)
-            {
-                Part = part,
-            })
-            .ToList();
-
-        return new AbcLayout(abc, reading, laid, size, trouble);
+        return new AbcLayout(abc, reading, laid);
     }
 
     /// <summary>
@@ -111,5 +96,5 @@ internal sealed class AbcLayout
     /// answers a hit test, so the picture and the answers cannot disagree about where anything is.
     /// </summary>
     public void Paint(DrawingContext dc, Brush foreground, Piece subtree = default) =>
-        LayoutPainter.Paint(dc, subtree.Exists ? subtree : Root, foreground);
+        LayoutPainter.PaintOne(dc, subtree.Exists ? subtree : Root, foreground);
 }

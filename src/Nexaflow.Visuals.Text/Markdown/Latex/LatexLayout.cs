@@ -122,7 +122,7 @@ public sealed class LatexLayout
                     "This was read, and nothing here knows how to draw it.")))
                 .ToList();
 
-            return new LatexLayout(new LatexTree(latex, reading, laid.Root, capture.Size, trouble));
+            return new LatexLayout(new LatexTree(latex, reading, new Laid(laid, capture.Size, trouble)));
         }
         catch
         {

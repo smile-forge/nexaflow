@@ -35,7 +35,7 @@ public sealed class LatexTree
 
     private readonly int[] _stops;
 
-    /// <param name="latex">The source the tree refers into.</param>
+    /// <param name="latex">The source it was built from.</param>
     /// <param name="reading">
     /// The parse tree the layout was built from — the same one, handed over rather than read again.
     /// Reading the source a second time here produced a different tree: this is asked for a formula
@@ -43,19 +43,15 @@ public sealed class LatexTree
     /// show a stretch as written or to stand a hole in an empty argument, and none of that is in a bare
     /// parse. So a piece's part and the tree it was looked up in belonged to two different readings.
     /// </param>
-    /// <param name="root">The formula's whole layout, parents holding children.</param>
-    /// <param name="size">The formula's painted size.</param>
-    public LatexTree(string latex, TexReading reading, Piece root, Size size,
-                     IReadOnlyList<Diagnostic>? trouble = null)
+    /// <param name="laid">What the builder made: the pieces, their size, and what could not be read.</param>
+    public LatexTree(string latex, TexReading reading, Laid laid)
     {
         Latex = latex ?? string.Empty;
         Reading = reading;
-        Root = root;
-        Size = size;
-        Diagnostics = trouble ?? [];
-        _stops = [.. root.CaretStops()];
+        Laid = laid;
+        _stops = [.. laid.Root.CaretStops()];
 
-                Order();
+        Order();
     }
 
     /// <summary>
@@ -136,17 +132,20 @@ public sealed class LatexTree
     /// <summary>The source this tree was built from.</summary>
     public string Latex { get; }
 
-    /// <summary>The formula's whole layout.</summary>
-    public Piece Root { get; }
+    /// <summary>What the builder made — the tree, its size, and what could not be read.</summary>
+    public Laid Laid { get; }
+
+    /// <summary>The formula's whole layout, as a piece.</summary>
+    public Piece Root => Laid.Root;
 
     /// <summary>The formula's painted size in element pixels.</summary>
-    public Size Size { get; }
+    public Size Size => Laid.Size;
 
     /// <summary>
     /// The stretches the typesetter could not read. Empty for a formula that parsed cleanly; otherwise
     /// each names a piece that is shown as written rather than understood.
     /// </summary>
-    public IReadOnlyList<Diagnostic> Diagnostics { get; }
+    public IReadOnlyList<Diagnostic> Diagnostics => Laid.Trouble;
 
     /// <summary>
     /// Whether this piece was shown rather than read — inside a stretch the parser gave up on, so it
