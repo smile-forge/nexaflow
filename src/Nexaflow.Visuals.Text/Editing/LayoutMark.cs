@@ -25,11 +25,24 @@ public abstract record LayoutMark
     /// is why it is not baked in: a theme can change without the content doing so.
     /// </param>
     public abstract void PaintOn(DrawingContext dc, Brush fallback);
+
+    /// <summary>
+    /// How far this drawing reaches, in the frame of the piece it belongs to.
+    ///
+    /// <para>
+    /// Asked of the mark rather than handed in with it, because the mark is the only thing that knows.
+    /// It is what a piece's own extent is worked out from, and a builder that had to state it twice is a
+    /// builder that can state it wrongly.
+    /// </para>
+    /// </summary>
+    public abstract Rect Covers { get; }
 }
 
 /// <summary>Glyphs already shaped and positioned — what a typesetter hands over.</summary>
 public sealed record GlyphMark(GlyphRun Run, Brush? Foreground) : LayoutMark
 {
+    public override Rect Covers =>
+        Rect.Offset(Run.ComputeInkBoundingBox(), Run.BaselineOrigin.X, Run.BaselineOrigin.Y);
     public override void PaintOn(DrawingContext dc, Brush fallback) =>
         dc.DrawGlyphRun(Foreground ?? fallback, Run);
 }
@@ -40,6 +53,7 @@ public sealed record GlyphMark(GlyphRun Run, Brush? Foreground) : LayoutMark
 /// </summary>
 public sealed record TextMark(FormattedText Glyphs, Point At, Brush? Foreground) : LayoutMark
 {
+    public override Rect Covers => new(At, new Size(Glyphs.Width, Glyphs.Height));
     public override void PaintOn(DrawingContext dc, Brush fallback)
     {
         Glyphs.SetForegroundBrush(Foreground ?? fallback);
@@ -50,6 +64,7 @@ public sealed record TextMark(FormattedText Glyphs, Point At, Brush? Foreground)
 /// <summary>A hairline: a fraction's bar, a strike, the stroke of a radical.</summary>
 public sealed record LineMark(Point From, Point To, Brush? Foreground) : LayoutMark
 {
+    public override Rect Covers => new(From, To);
     public override void PaintOn(DrawingContext dc, Brush fallback)
     {
         var pen = new Pen(Foreground ?? fallback, 1.0);
@@ -75,6 +90,7 @@ public sealed record LineMark(Point From, Point To, Brush? Foreground) : LayoutM
 /// </summary>
 public sealed record GeometryMark(Geometry Shape, Brush? Fill, Brush? Stroke, double Thickness) : LayoutMark
 {
+    public override Rect Covers => Shape.Bounds;
     /// <summary>A filled shape in whatever colour the content did not ask for.</summary>
     public static GeometryMark Filled(Geometry shape, Brush? fill = null) => new(shape, fill, null, 0);
 
@@ -94,6 +110,7 @@ public sealed record GeometryMark(Geometry Shape, Brush? Fill, Brush? Stroke, do
 /// <summary>A filled rectangle: a rule, a bar of a barcode, a wash behind a piece.</summary>
 public sealed record RuleMark(Rect Bounds, Brush? Foreground) : LayoutMark
 {
+    public override Rect Covers => Bounds;
     public override void PaintOn(DrawingContext dc, Brush fallback) =>
         dc.DrawRectangle(Foreground ?? fallback, null, Bounds);
 }
