@@ -1153,6 +1153,15 @@ internal sealed partial class AbcBuilder
         public required System ToSystem;
         public required string Kind;
 
+        /// <summary>
+        /// Which side it bows on — settled when the pair is made, because it is a fact about the stems it
+        /// has to clear rather than about either note.
+        /// </summary>
+        public bool Above;
+
+        /// <summary>How many curves it encloses, so an outer one is drawn clear of the ones inside it.</summary>
+        public int Nesting;
+
         /// <summary>The bar whose children it gathers, or null for one drawn on the line.</summary>
         public Bar? In;
 
@@ -1219,7 +1228,12 @@ internal sealed partial class AbcBuilder
             FromSystem = one.System,
             ToSystem = other.System,
             Kind = kind,
-        };
+
+                // Opposite the stems, which is the whole rule: a stem leaving the head upward is what the curve
+                // has to keep clear of, so it bows underneath, and the other way round for a down stem. Where
+                // the two ends disagree it goes above, which is the side with room.
+                Above = StemsDown(Stems(one)) || StemsDown(Stems(other)),
+            };
 
         if (ReferenceEquals(one.Bar, other.Bar))
         {
@@ -1240,6 +1254,32 @@ internal sealed partial class AbcBuilder
         }
 
         _curves.Add(curve);
+    }
+
+    /// <summary>
+    /// The half-spaces a curve's end has to clear: its beamed group's, where it is in one.
+    ///
+    /// <para>
+    /// <strong>The group decides, not the note.</strong> A beamed note does not choose its own stem
+    /// direction — the one reaching furthest from the middle line decides for all of them — and what a
+    /// curve keeps clear of is the stem that was actually drawn. Asking the note alone put the slur of
+    /// <c>(AB)</c> above a group whose stems went up: B sits on the middle line, and a note there stems
+    /// down when it is on its own.
+    /// </para>
+    /// </summary>
+    private static List<int> Stems((Event Event, System System, Bar Bar) at)
+    {
+        var geometry = StaffGeometry.For(at.System.Row.Clef);
+
+        var run = at.Event.Beam is { } beam
+            ? at.Bar.Events.Where(e => ReferenceEquals(e.Beam, beam) && e.Beamable).ToList()
+            : [];
+
+        // The same test the beam itself makes: fewer than two and every note stems for itself.
+        var events = run.Count > 1 && run.Contains(at.Event) ? run : [at.Event];
+        var halves = events.SelectMany(e => e.Heads.Select(geometry.HalfSpacesAbove)).ToList();
+
+        return halves.Count > 0 ? halves : [Engraving.MiddleLine];
     }
 
     /// <summary>Which child of a bar an event is drawn in — a beamed run counts as one.</summary>
@@ -1288,8 +1328,14 @@ internal sealed partial class AbcBuilder
                 }
 
                 taken.Add(curve);
-            }
-        }
+                    }
+
+                    // How many each one encloses, so an outer curve is drawn clear of the curves inside it rather
+                    // than along the same arc. Two slurs at the same rise read as one thick slur.
+                    foreach (var curve in taken)
+                        curve.Nesting = taken.Count(inner => !ReferenceEquals(inner, curve)
+                                                             && inner.First >= curve.First && inner.Last <= curve.Last);
+                }
 
         static bool Crosses(Curve a, Curve b) =>
             (b.First < a.First && b.Last >= a.First && b.Last < a.Last)
@@ -1313,16 +1359,11 @@ internal sealed partial class AbcBuilder
     /// <summary>The arc of a set gathered inside a bar, drawn into the set once its members are in it.</summary>
     private void Arced(Curve curve)
     {
-        // Opposite the stems, which is the whole rule: a stem leaving the head upward is what the curve
-        // has to keep clear of, so it bows underneath, and the other way round for a down stem. This had
-        // the sense inverted, so a pair of low notes — stems up — got a tie arched over the stems it was
-        // supposed to avoid. Where the two ends disagree it goes above, which is the side with room.
-        var above = StemsDown(Halves(curve.From, curve.FromSystem))
-                    || StemsDown(Halves(curve.To, curve.ToSystem));
+        var clear = curve.Nesting * CurveNest;
 
-        Arc(new Point(curve.From.X + (_noteHead / 2), Springs(curve.From, curve.FromSystem, above)),
-            new Point(curve.To.X + (_noteHead / 2), Springs(curve.To, curve.ToSystem, above)),
-            above, curve.Kind);
+        Arc(new Point(curve.From.X + (_noteHead / 2), Springs(curve.From, curve.FromSystem, curve.Above, clear)),
+            new Point(curve.To.X + (_noteHead / 2), Springs(curve.To, curve.ToSystem, curve.Above, clear)),
+            curve.Above, curve.Kind, clear);
     }
 
     /// <summary>
@@ -1341,8 +1382,7 @@ internal sealed partial class AbcBuilder
         {
             if (curve.In is not null) continue;
 
-            var above = StemsDown(Halves(curve.From, curve.FromSystem))
-                        || StemsDown(Halves(curve.To, curve.ToSystem));
+            var above = curve.Above;
 
             var start = new Point(curve.From.X + (_noteHead / 2), Springs(curve.From, curve.FromSystem, above));
             var end = new Point(curve.To.X + (_noteHead / 2), Springs(curve.To, curve.ToSystem, above));
@@ -1372,11 +1412,17 @@ internal sealed partial class AbcBuilder
         }
     }
 
-    /// <summary>Where a curve leaves a note: clear of the head, on the side away from the stems.</summary>
-    private static double Springs(Event ev, System system, bool above)
+    /// <summary>
+    /// Where a curve leaves a note: clear of the head, on the side away from the stems, and clear again of
+    /// whatever it encloses.
+    /// </summary>
+    private static double Springs(Event ev, System system, bool above, double clear = 0)
     {
         var halves = Halves(ev, system);
-        return above ? Y(system, halves.Max()) - CurveClear : Y(system, halves.Min()) + CurveClear;
+
+        return above
+            ? Y(system, halves.Max()) - CurveClear - clear
+            : Y(system, halves.Min()) + CurveClear + clear;
     }
 
     private static List<int> Halves(Event ev, System system)
@@ -1400,7 +1446,7 @@ internal sealed partial class AbcBuilder
     /// wherever a tie began.
     /// </para>
     /// </summary>
-    private void Arc(Point from, Point to, bool above, string kind)
+    private void Arc(Point from, Point to, bool above, string kind, double clear = 0)
     {
         var span = Math.Abs(to.X - from.X);
         if (span < 1) return;
@@ -1410,7 +1456,7 @@ internal sealed partial class AbcBuilder
         var one = In(from);
         var other = In(to);
 
-        var rise = Math.Clamp(CurveRise + (span * 0.06), CurveRise, CurveMaxRise) * (above ? -1 : 1);
+        var rise = (Math.Clamp(CurveRise + (span * 0.06), CurveRise, CurveMaxRise) + clear) * (above ? -1 : 1);
         var middle = new Point((one.X + other.X) / 2, ((one.Y + other.Y) / 2) + rise);
         var inner = new Point(middle.X, middle.Y - (CurveThick * (above ? -1 : 1)));
 

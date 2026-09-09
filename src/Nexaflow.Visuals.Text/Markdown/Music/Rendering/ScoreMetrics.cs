@@ -112,6 +112,7 @@ internal static class ScoreMetrics
     public const double CurveRise  = 0.9 * S;       // how far a short curve bows away from the notes
     public const double CurveMaxRise = 2.2 * S;     // …and how far the longest one is allowed to
     public const double CurveClear = 0.55 * S;      // between a curve and the head it springs from
+    public const double CurveNest  = 0.75 * S;      // …and between a curve and the one it encloses
 
     /// <summary>The repeat bracket's down-tick at each end.</summary>
     public const double VoltaTick = 0.9 * S;
