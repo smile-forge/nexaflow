@@ -55,7 +55,7 @@ public class LatexConstructCoverageTests
             var layout = LatexBuilder.Build(LatexConstructs.Flatten(latex), Scale);
             Assert.IsNotNull(layout, what);
 
-            foreach (var node in layout.Laid.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
+            foreach (var node in layout.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
             {
                 Assert.IsFalse(
                     node.Ancestors().Any(a => a.Sits().Start == node.Sits().Start && a.Sits().Length == node.Sits().Length),

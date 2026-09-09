@@ -72,12 +72,12 @@ public class LatexPaintTests
         var layout = LatexBuilder.Build(@"\textcolor{red}{x} + y", Scale);
         Assert.IsNotNull(layout);
 
-        var black = Draw(layout.Laid.Size, dc => LayoutPainter.Paint(dc, layout.Laid.Root, Brushes.Black));
-        var white = Draw(layout.Laid.Size, dc => LayoutPainter.Paint(dc, layout.Laid.Root, Brushes.White));
+        var black = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black));
+        var white = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.White));
         Assert.AreNotEqual(black, white, "the theme's colour never reached the glyphs");
 
-        var reddish = Draw(layout.Laid.Size, dc => LayoutPainter.Paint(dc, layout.Laid.Root, Brushes.Black), Colors.Red);
-        var plain = Draw(layout.Laid.Size, dc => LayoutPainter.Paint(dc, layout.Laid.Root, Brushes.Black), Colors.White);
+        var reddish = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black), Colors.Red);
+        var plain = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black), Colors.White);
         Assert.AreNotEqual(reddish, plain,
             "a red glyph on red paper should vanish — the \\textcolor was overwritten by the theme");
     });
@@ -91,16 +91,16 @@ public class LatexPaintTests
         var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout);
 
-        var fraction = layout.Laid.Root.SelfAndDescendants()
+        var fraction = layout.Root.SelfAndDescendants()
             .First(n => n.Sits().Start == 0 && n.Sits().Length == 13);
 
-        var whole = Draw(layout.Laid.Size, dc => LayoutPainter.Paint(dc, layout.Laid.Root, Brushes.Black));
-        var part = Draw(layout.Laid.Size, dc => LayoutPainter.PaintOne(dc, fraction, Brushes.Black));
+        var whole = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black));
+        var part = Draw(layout.Size, dc => LayoutPainter.PaintOne(dc, fraction, Brushes.Black));
 
         Assert.AreNotEqual(whole, part, "painting one term drew the whole formula");
 
         // …and the piece it did draw is the one asked for: the +y is missing, the fraction is not.
-        var nothing = Draw(layout.Laid.Size, _ => { });
+        var nothing = Draw(layout.Size, _ => { });
         Assert.AreNotEqual(nothing, part, "painting one term drew nothing at all");
     });
 

@@ -29,12 +29,7 @@ public class LatexGridTests
 
     private const string Matrix = @"\begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{pmatrix}";
 
-    private static LatexTree Tree(string latex)
-    {
-        var layout = LatexBuilder.Build(latex, Scale);
-        Assert.IsNotNull(layout, latex);
-        return layout;
-    }
+    private static LatexTree Tree(string latex) => Formula.Read(latex, Scale);
 
     private static LatexGrid Grid(string latex)
     {
@@ -85,8 +80,8 @@ public class LatexGridTests
         // for does not make them, from the same source.
         const string latex = @"\frac{}{2}";
 
-        var editing = LatexBuilder.Build(latex, Scale, placeholders: true);
-        var reading = LatexBuilder.Build(latex, Scale, placeholders: false);
+        var editing = Formula.Read(latex, Scale, placeholders: true);
+        var reading = Formula.Read(latex, Scale, placeholders: false);
         Assert.IsNotNull(editing);
         Assert.IsNotNull(reading);
 
@@ -226,7 +221,7 @@ public class LatexGridTests
         StringAssert.Contains(moved.Value.Latex, @"\begin{Bmatrix} 1 & 2 \\ a & b \end{Bmatrix}",
             "the block became a matrix of its own, of the same kind and the size selected");
 
-        var left = LatexBuilder.Build(moved.Value.Latex, Scale, placeholders: true)?
+        var left = Formula.Read(moved.Value.Latex, Scale, placeholders: true)
             .GridAt(moved.Value.Latex.IndexOf('3'));
         Assert.IsNotNull(left, "and what it came from is still a matrix");
         Assert.AreEqual(2, left.RowCount);
@@ -286,7 +281,7 @@ public class LatexGridTests
         const string latex =
             @"\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix} + \begin{pmatrix} a \\ b \end{pmatrix}";
 
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout);
 
         var target = layout.GridAt(latex.LastIndexOf('a'));
@@ -309,7 +304,7 @@ public class LatexGridTests
     {
         // The other half: a boundary is only a boundary. Over a cell, a drop still means that cell, and
         // dragging a term onto one goes on meaning what it always did.
-        var layout = LatexBuilder.Build(Matrix, Scale);
+        var layout = Formula.Read(Matrix, Scale);
         Assert.IsNotNull(layout);
 
         var grid = layout.GridAt(Matrix.IndexOf('5'));
@@ -373,7 +368,7 @@ public class LatexGridTests
         var moved = tree.Move(cells, to: latex.IndexOf('1'));
         Assert.IsNotNull(moved, "a column dragged to the first cell is a move");
 
-        var after = LatexBuilder.Build(moved.Value.Latex, Scale)?.GridAt(moved.Value.Latex.IndexOf('3'));
+        var after = Formula.Read(moved.Value.Latex, Scale).GridAt(moved.Value.Latex.IndexOf('3'));
         Assert.IsNotNull(after, "and what comes back is still a matrix");
         Assert.AreEqual(2, after.RowCount);
         Assert.AreEqual(3, after.ColumnCount, "with its shape kept");

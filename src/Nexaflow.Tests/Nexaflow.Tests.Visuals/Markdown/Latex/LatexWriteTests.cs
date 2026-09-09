@@ -155,7 +155,7 @@ public class LatexWriteTests
         const string latex =
             @"S (\omega)=\frac{\alpha g^2}{\omega^5} \, e ^{[-0.74\bigl\{\frac{\omega U_\omega 19.5}{g}\bigr\}^{-4}]}";
 
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout);
 
         var start = latex.IndexOf(@"\omega^5", System.StringComparison.Ordinal);
@@ -182,7 +182,7 @@ public class LatexWriteTests
         // {} parses to a placeholder, which is a real symbol standing exactly where the next one goes.
         const string latex = @"\frac{\alpha g^2}{\omega^5} e";
 
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout);
 
         var start = latex.IndexOf(@"\omega^5", System.StringComparison.Ordinal);
@@ -194,14 +194,14 @@ public class LatexWriteTests
 
     private static LatexWrite? Write(string latex, int caret, string text)
     {
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout, latex);
         return layout.Write(caret, text);
     }
 
     private static LatexWrite? Move(string latex, (int Start, int Length)[] ranges, int to)
     {
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout, latex);
         return layout.Move(ranges, to);
     }

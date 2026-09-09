@@ -121,7 +121,7 @@ public class MarkdownSampleRenderTests
 
                 var layout = LatexBuilder.Build(latex, 20);
                 var ok = layout is not null
-                         && !layout.Laid.Trouble.Any(d => d.Severity == DiagnosticSeverity.Error);
+                         && !layout.Trouble.Any(d => d.Severity == DiagnosticSeverity.Error);
 
                 if (known.Any(gap => latex.Contains(gap, StringComparison.Ordinal)))
                 {

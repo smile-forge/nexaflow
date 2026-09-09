@@ -65,7 +65,7 @@ public class LayoutCostBench
 
         foreach (var (what, latex) in Formulas)
             lines.Add(Measure(what, () => LatexBuilder.Build(latex, 22)!,
-                              layout => (layout.Laid.Root, layout.Laid.Size, dc => LayoutPainter.Paint(dc, layout.Laid.Root, Brushes.Black))));
+                              layout => (layout.Root, layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black))));
 
         lines.Add("");
         File.AppendAllLines(Path.Combine(into, "layout-cost.txt"), lines);

@@ -37,100 +37,27 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// </summary>
 public sealed class LatexTree
 {
-    /// <summary>Rounding slack — two edges within this of each other are treated as touching.</summary>
     /// <param name="latex">The source it was built from.</param>
-    /// <param name="reading">
-    /// The parse tree the layout was built from — the same one, handed over rather than read again.
-    /// Reading the source a second time here produced a different tree: this is asked for a formula
-    /// whose layout came out of <c>TexPipeline.Read</c>, which gathers runs and may have been told to
-    /// show a stretch as written or to stand a hole in an empty argument, and none of that is in a bare
-    /// parse. So a piece's part and the tree it was looked up in belonged to two different readings.
-    /// </param>
     /// <param name="laid">What the builder made: the pieces, their size, and what could not be read.</param>
-    public LatexTree(string latex, TexReading reading, Laid laid)
+    /// <param name="draws">
+    /// Whether the typesetter has a drawing for a named command — <see cref="LatexBuilder.Draws"/>. Handed
+    /// in rather than asked for, because asking needs the engine and the engine needs fonts, and every
+    /// question below this line is answerable without a desktop.
+    /// </param>
+    public LatexTree(string latex, Laid laid, Func<string, bool> draws,
+                     RawZone? shownAsWritten = null, bool placeholders = false)
     {
         Latex = latex ?? string.Empty;
-        Reading = reading;
         Laid = laid;
-
-
-        Order();
+        _draws = draws;
+        _shownAsWritten = shownAsWritten;
+        _showHoles = placeholders;
     }
 
-    /// <summary>
-    /// Declares which cells of a matrix read across and which read down, so a drag over one means what it
-    /// does on a sheet.
-    ///
-    /// <para>
-    /// The shape comes from the parse tree, which knows a matrix is a table and says which row and column
-    /// every cell is in. Nothing here clusters rectangles into bands or counts separators — the previous
-    /// answer did exactly that, and it only ever worked for a matrix because a matrix is the one thing
-    /// whose rows all hold the same number of things.
-    /// </para>
-    /// <para>
-    /// Said to the tree after it was sealed, which a run can do and a parent cannot: which piece stands for
-    /// a cell is a question about what was drawn, so it cannot be asked while the drawing is going on.
-    /// </para>
-    /// <para>
-    /// The ink is gathered once and only when there is a table to gather it for. A formula with no matrix
-    /// walks nothing, and one with a matrix walks its tree once rather than once per cell — which is a
-    /// difference of nine walks on the smallest interesting case and rather more on a real one.
-    /// </para>
-    /// </summary>
-    private void Order()
-    {
-        if (Laid.Root.Tree is not { } tree) return;
-
-        List<Piece>? ink = null;
-
-        foreach (var grid in TexGrid.In(Reading.Root.Node))
-        {
-            ink ??= [.. Laid.Root.Ink().Where(piece => piece.Sits().Length > 0)];
-
-            var cells = new Piece[grid.RowCount, grid.ColumnCount];
-            foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(ink, cell);
-
-            for (var row = 0; row < grid.RowCount; row++)
-                Declare(Enumerable.Range(0, grid.ColumnCount).Select(at => cells[row, at]), vertical: false);
-
-            for (var column = 0; column < grid.ColumnCount; column++)
-                Declare(Enumerable.Range(0, grid.RowCount).Select(at => cells[at, column]), vertical: true);
-        }
-
-        // A cell that drew nothing is left out rather than standing as a gap: a run is a way to take a
-        // step, and there is nothing to step to at an empty cell.
-        void Declare(IEnumerable<Piece> cells, bool vertical) =>
-            tree.Runs([.. cells.Where(cell => cell.Exists).Distinct()], vertical);
-    }
-
-    /// <summary>
-    /// The piece standing for one cell: the lowest one holding every piece of ink written inside it, or
-    /// nothing for a cell that drew nothing — one squared off so that "the third column" means the same in
-    /// every row.
-    ///
-    /// <para>
-    /// Found by what it <em>contains</em> rather than by what it says, because most cells say nothing: the
-    /// typesetter makes a box per cell and the box names no source. For a cell holding one letter the
-    /// answer is that letter; for one holding <c>4b^{2}+3</c> it is the box around the five of them.
-    /// </para>
-    /// </summary>
-    private static Piece Holding(List<Piece> ink, TexCell cell)
-    {
-        var lowest = default(Piece);
-
-        foreach (var piece in ink)
-        {
-            var at = piece.Sits();
-            if (at.Start < cell.Start || at.End > cell.End) continue;
-
-            if (!lowest.Exists) { lowest = piece; continue; }
-
-            while (lowest.Exists && lowest != piece && !piece.Ancestors().Contains(lowest))
-                lowest = lowest.Parent;
-        }
-
-        return lowest;
-    }
+    private readonly Func<string, bool> _draws;
+    private readonly RawZone? _shownAsWritten;
+    private readonly bool _showHoles;
+    private TexReading? _reading;
 
     /// <summary>The source this tree was built from.</summary>
     public string Latex { get; }
@@ -180,27 +107,31 @@ public sealed class LatexTree
     }
 
     /// <summary>
-    /// The formula as a parse tree, with every part's place and parent worked out — the reading the
-    /// layout was built from, handed over rather than worked out again here.
+    /// The formula as a parse tree, with every part place and parent worked out.
     ///
     /// <para>
-    /// <b>Not the parser's tree.</b> It is what <see cref="TexPipeline.Read"/> handed back: the parse
-    /// gathered into the shapes a builder can act on, possibly with holes put in the empty arguments, with
-    /// undrawable commands marked, and with whatever is under the caret shown as it was written. Those
-    /// stages can move the tree without moving the source or the picture, so this is a third thing worth
-    /// looking at and not a restatement of either.
+    /// <b>Not the parser tree.</b> It is what <see cref="TexPipeline.Read"/> hands back: the parse gathered
+    /// into the shapes a builder can act on, possibly with holes put in the empty arguments, with undrawable
+    /// commands marked, and with whatever is under the caret shown as it was written. Those stages can move
+    /// the tree without moving the source or the picture, so this is a third thing worth looking at and not a
+    /// restatement of either.
     /// </para>
     /// <para>
-    /// It can also be a tree the parser never produced at all. Where nothing could be set as maths, the
-    /// layout falls back to showing the source as typed, and this is that fallback — which is the honest
-    /// record of what the builder was given.
+    /// Read here rather than kept by the builder, which hands back a <see cref="Editing.Laid"/> and nothing
+    /// else. Read once and kept: parts are matched by identity in places, so a second reading of the same
+    /// characters is a different tree wearing the same spans.
     /// </para>
     /// <para>
-    /// This object is a reading of one string, and changed source is a different
-    /// <see cref="LatexTree"/>, so there is no moment at which it could be out of date.
+    /// This object is a reading of one string, and changed source is a different <see cref="LatexTree"/>, so
+    /// there is no moment at which it could be out of date.
     /// </para>
     /// </summary>
-    public TexReading Reading { get; }
+    public TexReading Reading =>
+        _reading ??= TexReading.Of(TexPipeline.Read(
+            Latex,
+            _draws,
+            _shownAsWritten is { Length: > 0 } zone ? (zone.Start, zone.Length) : null,
+    _showHoles));
 
     /// <summary>Roles that name a place content goes, as against the punctuation that holds it.</summary>
     private static bool IsPart(string role) =>

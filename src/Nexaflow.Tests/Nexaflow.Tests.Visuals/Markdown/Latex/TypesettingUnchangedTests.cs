@@ -112,7 +112,7 @@ public class TypesettingUnchangedTests
 
         foreach (var (what, written) in LatexConstructs.Everything)
         {
-            var layout = LatexBuilder.Build(LatexConstructs.Flatten(written), Scale);
+            var layout = Formula.Read(LatexConstructs.Flatten(written), Scale);
             Assert.IsNotNull(layout, $"{what} no longer typesets at all");
 
             var settled = Shape(layout);

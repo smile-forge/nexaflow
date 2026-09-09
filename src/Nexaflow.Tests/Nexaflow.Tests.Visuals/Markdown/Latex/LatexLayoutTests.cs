@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 using WpfMath.Parsers;
 using WpfMath.Rendering;
 using XamlMath.Rendering;
+using Nexaflow.Tests.Visuals.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Source;
 
@@ -28,7 +29,7 @@ public class LatexLayoutTests
     private const double Scale = 20;
     private const string Fraction = @"\frac{x^2}{2}+\sqrt{y}";
 
-    private static LatexTree Build(string latex)
+    private static Laid Build(string latex)
     {
         var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, $"expected {latex} to typeset");
@@ -42,9 +43,9 @@ public class LatexLayoutTests
         // claims the backslash back; without that, backspace would un-render α to `alpha`.
         var tree = Build(@"\alpha + \beta");
 
-        var alpha = tree.Laid.Root.Ink().Single(n => n.Sits().Start == 0);
+        var alpha = tree.Root.Ink().Single(n => n.Sits().Start == 0);
         Assert.AreEqual(@"\alpha".Length, alpha.Sits().Length);
-        CollectionAssert.DoesNotContain(tree.Laid.Stops.ToList(), 1,
+        CollectionAssert.DoesNotContain(tree.Stops.ToList(), 1,
             "and the backslash stops being a caret position of its own");
     });
 
@@ -53,7 +54,7 @@ public class LatexLayoutTests
     {
         // The whole feature rests on this: an exponent and a numerator have to be separately addressable,
         // or there is no such thing as "select the exponent".
-        var ink = Build(Fraction).Laid.Root.Ink().ToList();
+        var ink = Build(Fraction).Root.Ink().ToList();
 
         Assert.IsNotNull(ink.SingleOrDefault(n => n.Sits().Start == 6 && n.Sits().Length == 1),
             "the numerator's x");
@@ -70,10 +71,10 @@ public class LatexLayoutTests
         // guessed afterwards by comparing rectangles, which is how a numerator ever came to be treated as
         // a sibling of the fraction that holds it.
         var tree = Build(Fraction);
-        var numerator = tree.Laid.Root.Ink().Single(n => n.Sits().Start == 6 && n.Sits().Length == 1);
-        var denominator = tree.Laid.Root.Ink().Single(n => n.Sits().Start == 11);
+        var numerator = tree.Root.Ink().Single(n => n.Sits().Start == 6 && n.Sits().Length == 1);
+        var denominator = tree.Root.Ink().Single(n => n.Sits().Start == 11);
 
-        var shared = numerator.Ancestors().First(a => a.Ancestors().Contains(tree.Laid.Root) || a == tree.Laid.Root);
+        var shared = numerator.Ancestors().First(a => a.Ancestors().Contains(tree.Root) || a == tree.Root);
         Assert.IsNotNull(shared);
         Assert.IsTrue(numerator.Ancestors().Any(a => a.Sits().Start == 0 && a.Sits().Length == 13),
             "the x sits inside the fraction");
@@ -93,7 +94,7 @@ public class LatexLayoutTests
         // to be interpreted, and every version of that interpretation has been wrong somewhere.
         const string latex = @"\sqrt[3]{x+1}";
         var tree = Build(latex);
-        var named = tree.Laid.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0).ToList();
+        var named = tree.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0).ToList();
 
         var repeated = named
             .Where(n => n.Ancestors().Any(a => a.Sits().Start == n.Sits().Start && a.Sits().Length == n.Sits().Length))
@@ -102,8 +103,8 @@ public class LatexLayoutTests
             "layout repeating a name its own ancestor carries: " + string.Join("; ", repeated));
 
         Assert.IsTrue(named.Any(n => n.Sits().Start == 0 && n.Sits().Length == latex.Length), "the root as a whole");
-        Assert.IsTrue(tree.Laid.Root.Ink().Any(n => latex.Substring(n.Sits().Start, n.Sits().Length) == "3"), "its degree");
-        Assert.IsTrue(tree.Laid.Root.Ink().Any(n => latex.Substring(n.Sits().Start, n.Sits().Length) == "x"), "its contents");
+        Assert.IsTrue(tree.Root.Ink().Any(n => latex.Substring(n.Sits().Start, n.Sits().Length) == "3"), "its degree");
+        Assert.IsTrue(tree.Root.Ink().Any(n => latex.Substring(n.Sits().Start, n.Sits().Length) == "x"), "its contents");
     });
 
     [TestMethod]
@@ -111,7 +112,7 @@ public class LatexLayoutTests
     {
         // The caret's shape is taken straight from these boxes, so if the typesetter ever stopped
         // distinguishing them the caret would silently go uniform.
-        var ink = Build(Fraction).Laid.Root.Ink().ToList();
+        var ink = Build(Fraction).Root.Ink().ToList();
         var exponent = ink.Single(n => n.Sits().Start == 8);
         var denominator = ink.Single(n => n.Sits().Start == 11);
 
@@ -127,13 +128,13 @@ public class LatexLayoutTests
         var layout = LatexBuilder.Build(Fraction, Scale);
         Assert.IsNotNull(layout);
 
-        foreach (var node in layout.Laid.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
+        foreach (var node in layout.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
         {
             Assert.IsTrue(node.Bounds.X >= -0.01 && node.Bounds.Y >= -0.01,
                 $"{node} sits outside the control");
-            Assert.IsTrue(node.Bounds.Right <= layout.Laid.Size.Width + 0.01
-                          && node.Bounds.Bottom <= layout.Laid.Size.Height + 0.01,
-                $"{node} overflows {layout.Laid.Size}");
+            Assert.IsTrue(node.Bounds.Right <= layout.Size.Width + 0.01
+                          && node.Bounds.Bottom <= layout.Size.Height + 0.01,
+                $"{node} overflows {layout.Size}");
         }
     });
 
@@ -144,7 +145,7 @@ public class LatexLayoutTests
         // as one glyph carrying the span of the whole `\sqrt{x+1}`, so a drag inside the root must not be
         // read as having crossed the sign.
         const string root = @"\sqrt{x+1}";
-        var (start, length) = Build(root).Laid.Root.Snap(6, 1);
+        var (start, length) = Build(root).Root.Snap(6, 1);
 
         Assert.AreEqual("x", root.Substring(start, length));
     });
@@ -159,10 +160,10 @@ public class LatexLayoutTests
         const string trig = @"\sin x \;\; \cos x \;\; \tan x";
         var tree = Build(trig);
 
-        Assert.IsTrue(tree.Laid.Root.SelfAndDescendants().All(n => n.Sits().End <= trig.Length),
+        Assert.IsTrue(tree.Root.SelfAndDescendants().All(n => n.Sits().End <= trig.Length),
             "a span reaching past the end of the formula came from somewhere else entirely");
 
-        var (start, length) = tree.Laid.Root.Snap(5, 1);
+        var (start, length) = tree.Root.Snap(5, 1);
         Assert.AreEqual("x", trig.Substring(start, length),
             "selecting one argument must not swallow the line");
     });
@@ -172,7 +173,7 @@ public class LatexLayoutTests
     {
         // Three rows, three columns, each cell its own glyph — what canvas-style selection needs.
         var tree = Build(@"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}");
-        var cells = tree.Laid.Root.Ink().Where(n => n.Sits().Length == 1).ToList();
+        var cells = tree.Root.Ink().Where(n => n.Sits().Length == 1).ToList();
 
         Assert.AreEqual(9, cells.Count, "nine cells");
         Assert.AreEqual(3, cells.Select(c => Math.Round(c.Bounds.Y)).Distinct().Count(), "in three rows");
@@ -208,7 +209,7 @@ public class LatexLayoutTests
             var at = latex.IndexOf(command, StringComparison.Ordinal);
 
             Assert.IsTrue(
-                tree.Laid.Root.SelfAndDescendants().Any(n => n.Sits().Start == at && n.Sits().Length >= command.Length),
+                tree.Root.SelfAndDescendants().Any(n => n.Sits().Start == at && n.Sits().Length >= command.Length),
                 $"{command} is not addressable in {latex}");
         }
     });
@@ -229,7 +230,7 @@ public class LatexLayoutTests
             var tree = Build(latex);
             var at = latex.IndexOf(term, StringComparison.Ordinal);
 
-            var (start, length) = tree.Laid.Root.Snap(at, term.Length);
+            var (start, length) = tree.Root.Snap(at, term.Length);
             StringAssert.StartsWith(latex.Substring(start, length), term,
                 $"selecting {term} in {latex} came back as something else");
         }
@@ -246,7 +247,7 @@ public class LatexLayoutTests
 
         var numerator = latex.IndexOf("1", StringComparison.Ordinal);
         var denominator = latex.IndexOf("}{x", StringComparison.Ordinal) + 2;
-        var (start, length) = tree.Laid.Root.Snap(numerator, denominator - numerator + 1);
+        var (start, length) = tree.Root.Snap(numerator, denominator - numerator + 1);
 
         Assert.AreEqual(@"\frac{1}{x}", latex.Substring(start, length));
     });
@@ -264,9 +265,9 @@ public class LatexLayoutTests
         // brought a layout into being.
         var empty = LatexBuilder.Build("", Scale);
 
-        Assert.IsTrue(empty.Laid.ShowsSource, "empty source is shown as itself");
-        Assert.IsTrue(empty.Laid.Size.Height > 0, "and takes a line's height, so there is a caret to draw");
-        CollectionAssert.AreEqual(new[] { 0 }, empty.Laid.Stops.ToArray(), "with exactly one place to stand");
+        Assert.IsTrue(empty.ShowsSource, "empty source is shown as itself");
+        Assert.IsTrue(empty.Size.Height > 0, "and takes a line's height, so there is a caret to draw");
+        CollectionAssert.AreEqual(new[] { 0 }, empty.Stops.ToArray(), "with exactly one place to stand");
     });
 
     [TestMethod]
@@ -278,10 +279,10 @@ public class LatexLayoutTests
         var layout = LatexBuilder.Build(@"x + \nosuchcommand", Scale);
         Assert.IsNotNull(layout);
 
-        var guessed = layout.Laid.Root.Ink().Where(layout.Laid.IsGuesswork).ToList();
+        var guessed = layout.Root.Ink().Where(layout.IsGuesswork).ToList();
         Assert.AreNotEqual(0, guessed.Count, "the unreadable part is in the tree and marked");
 
-        var sound = layout.Laid.Root.Ink().Where(n => !layout.Laid.IsGuesswork(n)).ToList();
+        var sound = layout.Root.Ink().Where(n => !layout.IsGuesswork(n)).ToList();
         Assert.AreNotEqual(0, sound.Count, "and the rest of the formula is not");
     });
 
@@ -301,8 +302,8 @@ public class LatexLayoutTests
         Assert.IsNotNull(typeset);
         Assert.IsNotNull(writing);
 
-        var before = typeset.Laid.Root.RangeRects(0, at);
-        var stillBefore = writing.Laid.Root.RangeRects(0, at);
+        var before = typeset.Root.RangeRects(0, at);
+        var stillBefore = writing.Root.RangeRects(0, at);
         Assert.AreNotEqual(0, before.Count);
         Assert.AreEqual(before.Max(r => r.Right), stillBefore.Max(r => r.Right), 0.5,
             "the x+ in front of it has not moved");
@@ -326,18 +327,18 @@ public class LatexLayoutTests
         var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout, "a formula with an unreadable command still draws");
 
-        Assert.AreNotEqual(0, layout.Laid.Trouble.Count, "and says what it could not read");
+        Assert.AreNotEqual(0, layout.Trouble.Count, "and says what it could not read");
 
         // The characters are on the page, not swallowed. Every one of them has a place, which is what
         // makes the stretch pointable and gives it caret stops.
-        var covered = layout.Laid.Root.Ink()
-            .Where(node => layout.Laid.Trouble.Any(trouble => trouble.Covers(node)))
+        var covered = layout.Root.Ink()
+            .Where(node => layout.Trouble.Any(trouble => trouble.Covers(node)))
             .ToList();
         Assert.AreNotEqual(0, covered.Count, "the unreadable stretch is drawn, not dropped");
 
         // And the rest of it went through as maths rather than being dragged down with it.
-        var sound = layout.Laid.Root.Ink()
-            .Where(node => !layout.Laid.Trouble.Any(trouble => trouble.Covers(node)))
+        var sound = layout.Root.Ink()
+            .Where(node => !layout.Trouble.Any(trouble => trouble.Covers(node)))
             .ToList();
         Assert.AreNotEqual(0, sound.Count, "the x + and + y either side are still typeset");
     });
@@ -358,7 +359,7 @@ public class LatexLayoutTests
         var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout);
 
-        var trouble = layout.Laid.Trouble.Single();
+        var trouble = layout.Trouble.Single();
         var at = latex.IndexOf(@"\nosuchcommand", StringComparison.Ordinal);
 
         Assert.AreEqual(at, trouble.Start, "it starts at the backslash");
@@ -385,7 +386,7 @@ public class LatexLayoutTests
         Assert.IsNotNull(unknown);
         CollectionAssert.AreEqual(
             new[] { DiagnosticSeverity.Error },
-            unknown.Laid.Trouble.Select(d => d.Severity).ToArray(),
+            unknown.Trouble.Select(d => d.Severity).ToArray(),
             "a name nothing has heard of is a reading failure, reported once: " + Said(unknown));
 
         // \shoveleft is in the typesetter's tables — the reading resolves it and hands it over — and this
@@ -395,14 +396,14 @@ public class LatexLayoutTests
         Assert.IsNotNull(undrawn);
         CollectionAssert.AreEqual(
             new[] { DiagnosticSeverity.Warning },
-            undrawn.Laid.Trouble.Select(d => d.Severity).ToArray(),
+            undrawn.Trouble.Select(d => d.Severity).ToArray(),
             "something we read and cannot draw is ours, not the writer's: " + Said(undrawn));
     });
 
-    private static string Said(LatexTree tree) =>
-        tree.Laid.Trouble.Count == 0
+    private static string Said(Laid tree) =>
+        tree.Trouble.Count == 0
             ? "nothing was reported at all"
-            : string.Join("; ", tree.Laid.Trouble.Select(d => $"{d.Severity} @{d.Start}+{d.Length} {d.Message}"));
+            : string.Join("; ", tree.Trouble.Select(d => $"{d.Severity} @{d.Start}+{d.Length} {d.Message}"));
 
     /// <summary>
     /// The stretch being written is set in place, so it occupies the room its characters need and the
@@ -428,19 +429,19 @@ public class LatexLayoutTests
         Assert.IsNotNull(writing);
 
         // Eleven characters in a row are wider than the fraction they spell, so the formula grew.
-        Assert.IsTrue(writing.Laid.Size.Width > typeset.Laid.Size.Width,
-            $"shown as written should be wider than set: {writing.Laid.Size.Width} vs {typeset.Laid.Size.Width}");
+        Assert.IsTrue(writing.Size.Width > typeset.Size.Width,
+            $"shown as written should be wider than set: {writing.Size.Width} vs {typeset.Size.Width}");
 
         // The characters are really there, with places of their own — not a gap the formula skips over.
-        var shown = writing.Laid.Root.RangeRects(at, end - at);
+        var shown = writing.Root.RangeRects(at, end - at);
         Assert.AreNotEqual(0, shown.Count, "the stretch being written has ink");
         Assert.IsTrue(shown.Sum(rect => rect.Width) > 0, "and that ink has width");
 
         // And what comes after it has been pushed along to make the room, which is the same claim from the
         // other end: the formula flowed around the stretch rather than drawing it over the top of itself.
         var tail = latex.LastIndexOf('+');
-        Assert.IsTrue(writing.Laid.Root.RangeRects(tail, latex.Length - tail).Min(rect => rect.Left)
-                    > typeset.Laid.Root.RangeRects(tail, latex.Length - tail).Min(rect => rect.Left),
+        Assert.IsTrue(writing.Root.RangeRects(tail, latex.Length - tail).Min(rect => rect.Left)
+                    > typeset.Root.RangeRects(tail, latex.Length - tail).Min(rect => rect.Left),
             "the +y after it moved right");
     });
 
@@ -460,7 +461,7 @@ public class LatexLayoutTests
         const string latex = @"x+\not=y";
         var tree = Build(latex);
 
-        var sign = tree.Laid.Root.Ink().Single(node => node.Sits().Length > 1);
+        var sign = tree.Root.Ink().Single(node => node.Sits().Length > 1);
         Assert.AreEqual(@"\not=", latex.Substring(sign.Sits().Start, sign.Sits().Length),
             "the slash and what it crosses are one piece of ink, not two");
 
@@ -468,12 +469,12 @@ public class LatexLayoutTests
         // than something that swallowed them.
         CollectionAssert.AreEqual(
             new[] { "x", "+", @"\not=", "y" },
-            tree.Laid.Root.Ink().OrderBy(node => node.Sits().Start)
+            tree.Root.Ink().OrderBy(node => node.Sits().Start)
                 .Select(node => latex.Substring(node.Sits().Start, node.Sits().Length)).ToArray());
 
         // Dragging over any part of it selects all of it.
         var at = latex.IndexOf('=', StringComparison.Ordinal);
-        Assert.AreEqual((2, 5), tree.Laid.Root.Snap(at, 1), "selecting the = takes the whole sign");
+        Assert.AreEqual((2, 5), tree.Root.Snap(at, 1), "selecting the = takes the whole sign");
     });
 
     /// <summary>
@@ -540,7 +541,7 @@ public class LatexLayoutTests
         Assert.IsNotNull(layout);
         var tree = layout;
 
-        var hole = tree.Laid.Root.SelfAndDescendants().Single(n => n.IsPlaceholder());
+        var hole = tree.Root.SelfAndDescendants().Single(n => n.IsPlaceholder());
 
         Assert.IsNotNull(hole.Part, "a hole was read from an empty argument, so it was drawn from a part");
         Assert.AreEqual(latex.IndexOf("{}", StringComparison.Ordinal) + 1, hole.Sits().Start,
@@ -550,6 +551,6 @@ public class LatexLayoutTests
         // Which is why it is somewhere a caret can be. Standing is not the same question as covering
         // source: a hole covers none and is the one place the reader has been told to write.
         Assert.IsTrue(hole.Stands());
-        CollectionAssert.Contains(tree.Laid.Root.CaretStops().ToArray(), hole.Sits().Start);
+        CollectionAssert.Contains(tree.Root.CaretStops().ToArray(), hole.Sits().Start);
     });
 }

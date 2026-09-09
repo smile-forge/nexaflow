@@ -31,7 +31,7 @@ public class LatexRoleTests
 
     private static (LatexTree Tree, Piece Node) Piece(string latex, string text)
     {
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout, latex);
 
         var node = layout.Laid.Root.Ink()
@@ -43,7 +43,7 @@ public class LatexRoleTests
     /// <summary>Any piece of the layout drawn from this stretch of source, ink or a box holding it.</summary>
     private static (LatexTree Tree, Piece Node) Drawn(string latex, string text)
     {
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout, latex);
 
         var node = layout.Laid.Root.SelfAndDescendants()
@@ -109,7 +109,7 @@ public class LatexRoleTests
     {
         // A fraction's bar is drawn for the construct rather than by anything in it, so there is no part
         // for it to be. Asking must give nothing rather than an invented answer.
-        var layout = LatexBuilder.Build(@"\frac{a}{b}", Scale);
+        var layout = Formula.Read(@"\frac{a}{b}", Scale);
         Assert.IsNotNull(layout);
 
         var bar = layout.Laid.Root.SelfAndDescendants()
@@ -123,7 +123,7 @@ public class LatexRoleTests
     {
         // Recovered text was shown, not understood. It stands for no structure, so it plays no part in
         // any — and copying it can only ever yield the characters.
-        var layout = LatexBuilder.Build(@"x + \nosuchcommand", Scale);
+        var layout = Formula.Read(@"x + \nosuchcommand", Scale);
         Assert.IsNotNull(layout);
 
         var guessed = layout.Laid.Root.Ink().Where(layout.Laid.IsGuesswork).ToList();

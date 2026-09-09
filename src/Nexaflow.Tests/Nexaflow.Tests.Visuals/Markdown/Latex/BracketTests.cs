@@ -64,12 +64,12 @@ public class BracketTests
         var layout = LatexBuilder.Build(latex, 16);
         Assert.IsNotNull(layout);
 
-        var closing = layout.Laid.Root.Ink()
+        var closing = layout.Root.Ink()
             .FirstOrDefault(n => Text(latex, n).StartsWith(@"\right", System.StringComparison.Ordinal));
         Assert.IsNotNull(closing, "the closing bracket is a piece you can point at");
 
-        var owner = layout.Owning(closing);
-        var picked = ContentSelection.Between(layout.Laid.Root, owner, owner);
+        var owner = Formula.Read(latex, 16).Owning(closing);
+        var picked = ContentSelection.Between(layout.Root, owner, owner);
         var taken = string.Concat(picked.Ranges.Select(r => latex.Substring(r.Start, r.Length)));
 
         Assert.AreEqual(@"\left[ y \right]", taken, "the whole group, opener included");
@@ -85,8 +85,8 @@ public class BracketTests
         {
             var layout = LatexBuilder.Build(latex, 16);
             Assert.IsNotNull(layout, latex);
-            Assert.AreEqual(0, layout.Laid.Trouble.Count, $"{latex} was read without trouble");
-            Assert.IsTrue(layout.Laid.Size.Width > 0, $"{latex} drew something");
+            Assert.AreEqual(0, layout.Trouble.Count, $"{latex} was read without trouble");
+            Assert.IsTrue(layout.Size.Width > 0, $"{latex} drew something");
         }
     });
 
@@ -95,7 +95,7 @@ public class BracketTests
     {
         // \bra{} is what someone writes on the way to \bra{\psi}, so it gets the same box as every
         // other unwritten argument — visible, aimable, and reported as unfinished.
-        var layout = LatexBuilder.Build(@"\bra{}", 16, placeholders: true);
+        var layout = Formula.Read(@"\bra{}", 16, placeholders: true);
 
         Assert.IsNotNull(layout);
         Assert.AreEqual(1, layout.Placeholders.Count, "the bra has a hole in it");
@@ -118,7 +118,7 @@ public class BracketTests
     {
         var layout = LatexBuilder.Build(latex, 16);
         Assert.IsNotNull(layout, latex);
-        return layout.SymbolBefore(caret);
+        return Formula.Read(latex, 16).SymbolBefore(caret);
     }
 
     private static string Text(string latex, Piece node) =>

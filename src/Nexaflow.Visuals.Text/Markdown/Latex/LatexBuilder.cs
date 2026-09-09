@@ -8,6 +8,7 @@ using WpfMath.Parsers;
 using WpfMath.Rendering;
 using XamlMath;
 using XamlMath.Rendering;
+using System.Collections.Generic;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -76,23 +77,19 @@ public sealed class LatexBuilder : ContentBuilder
     /// write and how they aim at it. Off by default, because a box in the middle of a formula that is
     /// only being read would simply be wrong, and reading is the commoner case.
     /// </param>
-    public static LatexTree Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
-                                  RawZone? shownAsWritten = null, bool placeholders = false,
-                                  double pixelsPerDip = 1.0)
-    {
-        var builder = new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip);
-        var laid = builder.Lay();
-
-        return new LatexTree(builder.Source, builder.Reading, laid);
-    }
+    public static Laid Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
+                             RawZone? shownAsWritten = null, bool placeholders = false,
+                             double pixelsPerDip = 1.0) =>
+        new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip).Lay();
 
     /// <summary>
-    /// The parse the layout was built from. Where nothing could be read it is the source as one shown
-    /// stretch, which is the honest record of what the builder was given — and is what stops every
-    /// question about the parse having to ask first whether there is one.
+    /// Whether the typesetter has a drawing for a named command — a fact about the engine, and the one thing
+    /// anything reading LaTeX has to ask it. Handed to <see cref="LatexTree"/> as a function, so that asking
+    /// a formula questions still needs no fonts and no desktop.
     /// </summary>
-    private TexReading Reading =>
-        _reading ??= TexReading.Of(TexNode.Branch(TexKind.Sequence, [TexNode.Shown(Source)]));
+    internal static bool Draws(string name) =>
+        XamlMath.TexFormulaBuilder.Draws(name, WpfTeXFormulaParser.Instance);
+
 
     protected override Laid? Read()
     {
@@ -144,7 +141,7 @@ public sealed class LatexBuilder : ContentBuilder
         capture.FinishRendering();
         if (capture.Tree is not { } laid) return null;
 
-        _reading = reading;
+
 
         // Asked of the tree rather than collected on the way through it. A piece that could not be
         // read carries the reason it could not, so there is one place the answer lives and no second
@@ -159,7 +156,12 @@ public sealed class LatexBuilder : ContentBuilder
                 "This was read, and nothing here knows how to draw it.")))
             .ToList();
 
-        return new Laid(laid, capture.Size, trouble);
+        var made = new Laid(laid, capture.Size, trouble);
+
+        // Which cells of a matrix read across and which read down — said to the tree once it is sealed.
+        Order(reading, made.Root);
+
+        return made;
     }
 
     /// <summary>
@@ -174,4 +176,81 @@ public sealed class LatexBuilder : ContentBuilder
             _scale * 0.6,
             Brushes.Black,   // never used: the mark takes the theme's ink at paint time
             _pixelsPerDip);
+
+    /// <summary>
+    /// Declares which cells of a matrix read across and which read down, so a drag over one means what it
+    /// does on a sheet.
+    ///
+    /// <para>
+    /// The shape comes from the parse tree, which knows a matrix is a table and says which row and column
+    /// every cell is in. Nothing here clusters rectangles into bands or counts separators — the previous
+    /// answer did exactly that, and it only ever worked for a matrix because a matrix is the one thing
+    /// whose rows all hold the same number of things.
+    /// </para>
+    /// <para>
+    /// Said to the tree after it was sealed, which a run can do and a parent cannot: which piece stands for
+    /// a cell is a question about what was drawn, so it cannot be asked while the drawing is going on. It is
+    /// the builder's, because a run is layout — a way of taking a step through what was drawn — and the
+    /// thing that draws is the only thing that can say so.
+    /// </para>
+    /// <para>
+    /// The ink is gathered once and only when there is a table to gather it for. A formula with no matrix
+    /// walks nothing, and one with a matrix walks its tree once rather than once per cell — which is a
+    /// difference of nine walks on the smallest interesting case and rather more on a real one.
+    /// </para>
+    /// </summary>
+    private static void Order(TexReading reading, Piece root)
+    {
+        if (root.Tree is not { } tree) return;
+
+        List<Piece>? ink = null;
+
+        foreach (var grid in TexGrid.In(reading.Root.Node))
+        {
+            ink ??= [.. root.Ink().Where(piece => piece.Sits().Length > 0)];
+
+            var cells = new Piece[grid.RowCount, grid.ColumnCount];
+            foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(ink, cell);
+
+            for (var row = 0; row < grid.RowCount; row++)
+                Declare(Enumerable.Range(0, grid.ColumnCount).Select(at => cells[row, at]), vertical: false);
+
+            for (var column = 0; column < grid.ColumnCount; column++)
+                Declare(Enumerable.Range(0, grid.RowCount).Select(at => cells[at, column]), vertical: true);
+        }
+
+        // A cell that drew nothing is left out rather than standing as a gap: a run is a way to take a
+        // step, and there is nothing to step to at an empty cell.
+        void Declare(IEnumerable<Piece> cells, bool vertical) =>
+            tree.Runs([.. cells.Where(cell => cell.Exists).Distinct()], vertical);
+    }
+
+    /// <summary>
+    /// The piece standing for one cell: the lowest one holding every piece of ink written inside it, or
+    /// nothing for a cell that drew nothing — one squared off so that "the third column" means the same in
+    /// every row.
+    ///
+    /// <para>
+    /// Found by what it <em>contains</em> rather than by what it says, because most cells say nothing: the
+    /// typesetter makes a box per cell and the box names no source. For a cell holding one letter the
+    /// answer is that letter; for one holding <c>4b^{2}+3</c> it is the box around the five of them.
+    /// </para>
+    /// </summary>
+    private static Piece Holding(List<Piece> ink, TexCell cell)
+    {
+        var lowest = default(Piece);
+
+        foreach (var piece in ink)
+        {
+            var at = piece.Sits();
+            if (at.Start < cell.Start || at.End > cell.End) continue;
+
+            if (!lowest.Exists) { lowest = piece; continue; }
+
+            while (lowest.Exists && lowest != piece && !piece.Ancestors().Contains(lowest))
+                lowest = lowest.Parent;
+        }
+
+        return lowest;
+    }
 }

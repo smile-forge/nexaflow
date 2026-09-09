@@ -35,7 +35,8 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private readonly bool _inline;
 
     private EditState _state;
-    private LatexTree _layout;
+    private Laid _laid;
+    private LatexTree _tree;
     private DispatcherTimer? _blink;
     private bool _caretVisible = true;
     private int _anchor;
@@ -66,7 +67,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// milliseconds and is only paid when the drop point crosses a caret stop, not per pixel of mouse
     /// movement, so it comfortably keeps up with a hand.
     /// </summary>
-    private LatexTree? _preview;
+    private Laid? _preview;
     private LatexWrite? _previewOf;
     private (int Start, int End) _previewMoved;
 
@@ -109,7 +110,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // clicked into and left repeatedly would otherwise collect a handler per visit.
         Unloaded += (_, _) => StopBlinking();
 
-            _layout = Built();
+            Rebuild();
         }
 
     /// <summary>The source. Setting it re-typesets and puts the caret at the end.</summary>
@@ -125,13 +126,13 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     }
 
         /// <summary>The map behind what is drawn — always there, because a builder always makes one.</summary>
-    public LatexTree Layout => _layout;
+    public LatexTree Layout => _tree;
 
     /// <summary>
     /// Whether any of the source could not be read. It may still be drawing perfectly well around the
     /// trouble — a formula stops being typeset entirely only when none of it could be laid out at all.
     /// </summary>
-    public bool HasError => _layout.Laid.Trouble.Count > 0;
+    public bool HasError => _laid.Trouble.Count > 0;
 
     /// <summary>Whether the caret is shown. A read-only surface still allows selecting and copying.</summary>
     public bool IsReadOnly { get; init; }
@@ -191,14 +192,14 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     public string Source => _state.Source;
 
     /// <inheritdoc />
-    public Piece Root => _layout?.Laid.Root ?? default;
+    public Piece Root => _laid.Root;
 
     /// <inheritdoc />
     IReadOnlyList<(int Start, int Length)> IEditableBlock.Selection =>
         [.. _state.Selection.Select(r => (r.Start, r.Length))];
 
     /// <inheritdoc />
-    public IReadOnlyList<Diagnostic> Diagnostics => _layout?.Laid.Trouble ?? [];
+    public IReadOnlyList<Diagnostic> Diagnostics => _laid.Trouble ?? [];
 
     /// <inheritdoc />
     public void SelectRange(int start, int length) => Select(start, length);
@@ -221,7 +222,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // the outermost bar at the end. Landing on the innermost instead would put it inside a trailing
         // exponent, raised and half-height, having been walked into from the far side of the formula.
         var end = _state.Source.Length;
-        TakeCaret(end, level: (_layout?.Laid.Root.CaretBars(Snap(end)).Count ?? 1) - 1);
+        TakeCaret(end, level: _laid.Root.CaretBars(Snap(end)).Count - 1);
     }
 
     // ── Caret ownership ─────────────────────────────────────────────────────
@@ -297,7 +298,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             if (step >= zone.Start && step <= zone.End) { MoveTo(CaretPlace.At(step), extend); return true; }
         }
 
-        var next = _layout?.Laid.Root.Step(new CaretPlace(_state.Caret, _level), forward);
+        var next = _laid.Root.Step(new CaretPlace(_state.Caret, _level), forward);
         if (next is null)
         {
             Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
@@ -317,7 +318,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
     public bool MoveCaretVertically(bool up, bool extend = false)
     {
-        var next = _layout?.Laid.Root.StepVertical(_state.Caret, up);
+        var next = _laid.Root.StepVertical(_state.Caret, up);
         if (next is null) return false;
 
         MoveTo(CaretPlace.At(next.Value), extend);
@@ -368,7 +369,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // joining its exponent, and the same keystroke one bar to the left still makes it twenty-three.
         if (_level > 0) return false;
 
-        if (_layout.Write(_state.Caret, text) is not { } written) return false;
+        if (_tree.Write(_state.Caret, text) is not { } written) return false;
 
         // The source coming back changed is the tree changed: applying it re-reads, re-lays out and
         // repaints, so one call carries the edit all the way to the picture.
@@ -403,7 +404,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         // Read off the drawn formula rather than the text: a hole is a symbol the typesetter put there,
         // and the source it stands over is the empty braces the reader actually wrote.
-        var boxes = _layout?.Placeholders ?? [];
+        var boxes = _tree.Placeholders ?? [];
         if (boxes.Count == 0) return false;
 
         // From wherever the caret is, wrapping round — the last hole tabs back to the first, because
@@ -486,7 +487,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         var here = _state.Caret;
         var symbol = _state.HasSelection || _state.Raw is not null
             ? default
-            : _layout?.SymbolBefore(here) ?? default;
+            : _tree.SymbolBefore(here);
 
         if (symbol.Exists && symbol.Sits() is { Length: > 1 } place)
         {
@@ -495,7 +496,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
             // A construct goes back to the source it was written as — there is source to go back to. A
             // symbol has nothing hidden behind it, so it is simply taken: an α is one thing on the page
             // however many letters spelled it, and backspace over one thing removes it.
-            Apply(_layout!.IsComposite(symbol) ? _state.Backspace(span) : _state.Remove(span.Start, span.Length),
+            Apply(_tree.IsComposite(symbol) ? _state.Backspace(span) : _state.Remove(span.Start, span.Length),
                   notify: true);
             return true;
         }
@@ -520,7 +521,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     {
         if (length <= 0) { ClearSelection(); return; }
 
-        var (from, snapped) = _layout.Laid.Root.Snap(start, length);
+        var (from, snapped) = _laid.Root.Snap(start, length);
 
         var next = _state.Select(from, snapped);
         if (next.Selection.SequenceEqual(_state.Selection)) return;
@@ -551,8 +552,8 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         
         InteractiveSelection.Own(this);
 
-        _anchor = _layout.Laid.OffsetAt(pointInElement);
-        _anchorNode = _layout.Laid.PieceAt(pointInElement);
+        _anchor = _laid.OffsetAt(pointInElement);
+        _anchorNode = _laid.PieceAt(pointInElement);
         _pressedAt = pointInElement;
         _dragging = true;
 
@@ -564,7 +565,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         ClearSelection();
 
-        var place = _layout.Laid.PlaceAt(pointInElement);
+        var place = _laid.PlaceAt(pointInElement);
         TakeCaret(place.Offset, place.Level);
     }
 
@@ -587,7 +588,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // carried part marked out, so the reader is choosing between finished formulas.
         if (_moving)
         {
-            var drop = _layout.Laid.OffsetAt(pointInElement);
+            var drop = _laid.OffsetAt(pointInElement);
             if (drop == _dropAt) return;
 
             _dropAt = drop;
@@ -602,16 +603,16 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what
         // makes a drag down a column select the column rather than everything written between its top
         // cell and its bottom one.
-        if (_anchorNode.Exists && _layout.Laid.PieceAt(pointInElement) is { Exists: true } focus)
+        if (_anchorNode.Exists && _laid.PieceAt(pointInElement) is { Exists: true } focus)
         {
             // Through whatever owns each end. Landing on a bracket means the group it opens or closes:
             // half a pair is not a smaller selection, it is one that cannot be read.
             SelectNodes(ContentSelection.Between(
-                _layout.Laid.Root, _layout.Owning(_anchorNode), _layout.Owning(focus)));
+                _laid.Root, _tree.Owning(_anchorNode), _tree.Owning(focus)));
             return;
         }
 
-        ExtendSelectionTo(_layout.Laid.OffsetAt(pointInElement));
+        ExtendSelectionTo(_laid.OffsetAt(pointInElement));
     }
 
     /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
@@ -665,7 +666,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         var ranges = _state.Selection.Select(r => (r.Start, r.Length)).ToList();
 
-        if (_layout.Move(ranges, _dropAt, _dropPoint) is not { } moved) return;
+        if (_tree.Move(ranges, _dropAt, _dropPoint) is not { } moved) return;
 
         _previewOf = moved;
         _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
@@ -686,8 +687,8 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         // Select the construct under the pointer rather than letting the host drop the whole block into
         // source-edit mode: inside a formula, "the word you clicked" is the symbol you clicked.
-        var here = _layout.Laid.OffsetAt(pointInElement);
-        var atom = _layout.SymbolBefore(here);
+        var here = _laid.OffsetAt(pointInElement);
+        var atom = _tree.SymbolBefore(here);
         if (atom.Exists && atom.Sits() is { Length: > 0 } at) Select(at.Start, at.Length);
         else Select(Math.Max(0, here - 1), 1);
         return true;
@@ -748,15 +749,18 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// offset into the source the reader is editing, with no mapping in between.
     /// </para>
     /// </summary>
-    private void Rebuild() => _layout = Built();
+    private void Rebuild()
+    {
+        _laid = LatexBuilder.Build(
+            _state.Source, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly,
+            pixelsPerDip: VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
-    /// <summary>
-    /// The formula as it now reads. Always something: source that will not typeset comes back as its own
-    /// characters with a wave under it, which is why nothing here has a second way of being a formula.
-    /// </summary>
-    private LatexTree Built() => LatexBuilder.Build(
-        _state.Source, _scale, _inline, shownAsWritten: _state.Raw, placeholders: !IsReadOnly,
-        pixelsPerDip: VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        // The formula as TeX sees it, over the layout that was just made. Its reading is worked out only if
+        // something asks a question about the parse, so a keystroke that only redraws pays nothing for it.
+        _tree = new LatexTree(_state.Source, _laid, LatexBuilder.Draws, _state.Raw, !IsReadOnly);
+    }
+
+
 
     private int Snap(int offset)
     {
@@ -764,7 +768,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         // Inside the stretch being written every character is its own stop, so the caret goes exactly
         // where it was put; the settled formula snaps to the places a caret may rest.
-        return _state.Raw is { } zone && zone.Holds(clamped) ? clamped : _layout.Laid.NearestStop(clamped);
+        return _state.Raw is { } zone && zone.Holds(clamped) ? clamped : _laid.NearestStop(clamped);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -772,12 +776,12 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // While a term is being carried, the formula on screen is the one it would become, so that is
         // the one that has to fit — otherwise the preview is clipped at the settled formula's width.
         if (_preview is { } preview)
-            return new Size(Math.Ceiling(preview.Laid.Size.Width), Math.Ceiling(preview.Laid.Size.Height));
+            return new Size(Math.Ceiling(preview.Size.Width), Math.Ceiling(preview.Size.Height));
 
         // Whatever is being written is set into the formula rather than drawn over it, so the layout own
         // size already accounts for it. Source that would not typeset is in there too, as its own
         // characters, which is why there is no second answer here.
-        return new Size(Math.Ceiling(_layout.Laid.Size.Width), Math.Ceiling(_layout.Laid.Size.Height));
+        return new Size(Math.Ceiling(_laid.Size.Width), Math.Ceiling(_laid.Size.Height));
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -787,19 +791,19 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
 
         if (_preview is not null) { PaintPreview(dc); return; }
 
-        LayoutPainter.Paint(dc, _layout.Laid.Root, _palette.Text);
+        LayoutPainter.Paint(dc, _laid.Root, _palette.Text);
 
         // Every stretch washes itself. A column of a matrix is three of them with the rest of the matrix
         // in between, and washing from the first to the last would highlight the lot.
         foreach (var range in _state.Selection)
-            foreach (var rect in _layout.Laid.Root.RangeRects(range.Start, range.Length))
+            foreach (var rect in _laid.Root.RangeRects(range.Start, range.Length))
                 dc.DrawRectangle(_wash, null, Marked(rect));
 
         // A wave under whatever could not be read, drawn over the formula rather than instead of it: the
         // parts that did parse are still worth looking at, and the reader needs to see which part is not.
-        foreach (var trouble in _layout.Laid.Trouble)
+        foreach (var trouble in _laid.Trouble)
         {
-            var runs = _layout.Laid.Root.RangeRects(trouble.Start, trouble.Length);
+            var runs = _laid.Root.RangeRects(trouble.Start, trouble.Length);
             if (runs.Count == 0) continue;
 
             var wave = new Pen(trouble.Severity == DiagnosticSeverity.Error ? _palette.Danger : _palette.Warning, 1.0);
@@ -811,7 +815,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // up from — that is the one thing the reader needs to see before letting go. Inside a stretch
         // being written it needs no special case: those characters are in the layout like any others,
         // so the tree already knows where each of them sits.
-        var caret = _layout.Laid.Root.CaretRect(
+        var caret = _laid.Root.CaretRect(
             _moving ? CaretPlace.At(_dropAt) : new CaretPlace(_state.Caret, _level));
 
         if ((!HasCaret && !_moving) || IsReadOnly || !_caretVisible) return;
@@ -854,7 +858,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private void PaintPreview(DrawingContext dc)
     {
         var preview = _preview!;
-        LayoutPainter.Paint(dc, preview.Laid.Root, _palette.Text);
+        LayoutPainter.Paint(dc, preview.Root, _palette.Text);
 
         // Over the top rather than instead of: painting all of it and then the carried part again is
         // what keeps this to two calls, and the second colour is the one that shows.
@@ -866,13 +870,13 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// The outermost pieces of <paramref name="preview"/> lying wholly inside the carried term.
     /// Outermost so that nothing is painted twice over — a piece and its own children are one drawing.
     /// </summary>
-    private IEnumerable<Piece> Carried(LatexTree preview)
+    private IEnumerable<Piece> Carried(Laid preview)
     {
         var (start, end) = _previewMoved;
         if (end <= start) yield break;
 
         var taken = new List<Piece>();
-        foreach (var node in preview.Laid.Root.SelfAndDescendants())
+        foreach (var node in preview.Root.SelfAndDescendants())
         {
             if (node.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
             if (taken.Any(t => node.Ancestors().Contains(t))) continue;

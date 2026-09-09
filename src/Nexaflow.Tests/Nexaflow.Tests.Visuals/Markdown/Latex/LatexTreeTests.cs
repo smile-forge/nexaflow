@@ -85,7 +85,8 @@ public class LatexTreeTests
         return new Laid(build.Seal(), new Size(78.7, 43.5), []);
     }
 
-    private static LatexTree Latex() => new(Fraction, TexReading.Of(Fraction), Tree());
+    private static LatexTree Latex() =>
+        new(Fraction, new Laid(Tree().Tree!, new System.Windows.Size(120, 44), []), _ => true);
 
     // ── Where a caret may rest ──────────────────────────────────────────────
 

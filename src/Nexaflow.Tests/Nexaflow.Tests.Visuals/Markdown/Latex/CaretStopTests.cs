@@ -61,6 +61,6 @@ public class CaretStopTests
     {
         var layout = LatexBuilder.Build(latex, 16);
         Assert.IsNotNull(layout, latex);
-        return layout.Laid.Stops;
+        return layout.Stops;
     }
 }

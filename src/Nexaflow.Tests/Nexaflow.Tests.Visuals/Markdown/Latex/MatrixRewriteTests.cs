@@ -70,7 +70,7 @@ public class MatrixRewriteTests
         // The gesture as the reader makes it, end to end. What came back before was
         // `\begin{matrix} beta & alpha \\ delta & gamma \end{matrix}` — every command in the matrix
         // broken by a drag that was only supposed to reorder them.
-        var layout = LatexBuilder.Build(Greek, Scale);
+        var layout = Formula.Read(Greek, Scale);
         Assert.IsNotNull(layout);
 
         var grid = layout.GridAt(Greek.IndexOf(@"\alpha", System.StringComparison.Ordinal));
@@ -102,7 +102,7 @@ public class MatrixRewriteTests
 
     private static LatexGrid Grid(string latex)
     {
-        var layout = LatexBuilder.Build(latex, Scale);
+        var layout = Formula.Read(latex, Scale);
         Assert.IsNotNull(layout, $"{latex} no longer typesets");
 
         var inside = TexGrid.In(TexParser.Parse(latex)).First()[0, 0].Start;

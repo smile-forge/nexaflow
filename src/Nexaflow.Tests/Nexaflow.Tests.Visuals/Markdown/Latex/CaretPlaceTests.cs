@@ -45,7 +45,7 @@ public class CaretPlaceTests
         CollectionAssert.AreEqual(new[] { 0, 1, 1, 2, 2, 3 }, walked.Select(p => p.Offset).ToArray(),
             "six places over four offsets: the two the operator's glue sits at are each two");
 
-        var marks = walked.Select(p => Math.Round(tree.Laid.Root.CaretRect(p).X, 3)).ToList();
+        var marks = walked.Select(p => Math.Round(tree.Root.CaretRect(p).X, 3)).ToList();
         Assert.AreEqual(6, marks.Distinct().Count(), "and every one of them is drawn somewhere else");
         CollectionAssert.AreEqual(marks.OrderBy(x => x).ToArray(), marks.ToArray(),
             "in the order the arrow key walks them, left to right");
@@ -73,11 +73,11 @@ public class CaretPlaceTests
         var last = walked[^1];
         Assert.AreEqual(new CaretPlace(3, 1), last, "past the script, at the same character as inside it");
 
-        var inside = tree.Laid.Root.CaretRect(new CaretPlace(3, 0));
-        var outside = tree.Laid.Root.CaretRect(last);
+        var inside = tree.Root.CaretRect(new CaretPlace(3, 0));
+        var outside = tree.Root.CaretRect(last);
         Assert.IsTrue(outside.Height > inside.Height,
             $"the caret comes back down to the line: {inside.Height} inside the exponent, {outside.Height} past it");
-        Assert.AreEqual(tree.Laid.Root.Bounds.Height, outside.Height, 0.001,
+        Assert.AreEqual(tree.Root.Bounds.Height, outside.Height, 0.001,
             "and it is the height of the whole thing it stepped out of");
     });
 
@@ -90,7 +90,7 @@ public class CaretPlaceTests
         var (tree, walked) = Walk(@"x^{2}");
 
         Assert.IsTrue(walked.All(p => p.Level == 0), "one place per offset");
-        Assert.AreEqual(tree.Laid.Stops.Count, walked.Count);
+        Assert.AreEqual(tree.Stops.Count, walked.Count);
     });
 
     [TestMethod]
@@ -105,13 +105,13 @@ public class CaretPlaceTests
         var afterTheFour = latex.IndexOf(@"c^4", StringComparison.Ordinal) + 3;
         var inside = new CaretPlace(afterTheFour, 0);
 
-        var stepped = tree.Laid.Root.Step(inside, forward: true);
+        var stepped = tree.Root.Step(inside, forward: true);
         Assert.AreEqual(new CaretPlace(afterTheFour, 1), stepped,
             "the first arrow steps out of the script, not across to the next cell");
-        Assert.IsTrue(tree.Laid.Root.CaretRect(stepped!.Value).Height > tree.Laid.Root.CaretRect(inside).Height,
+        Assert.IsTrue(tree.Root.CaretRect(stepped!.Value).Height > tree.Root.CaretRect(inside).Height,
             "and lands on the cell's own line");
 
-        var onwards = tree.Laid.Root.Step(stepped.Value, forward: true);
+        var onwards = tree.Root.Step(stepped.Value, forward: true);
         Assert.IsTrue(onwards!.Value.Offset > afterTheFour, "the second one leaves for the next cell");
     });
 
@@ -124,13 +124,13 @@ public class CaretPlaceTests
         var layout = LatexBuilder.Build("6+5", 22);
         Assert.IsNotNull(layout);
 
-        var againstTheSix = layout.Laid.Root.CaretRect(new CaretPlace(1, 0));
-        var againstThePlus = layout.Laid.Root.CaretRect(new CaretPlace(1, 1));
+        var againstTheSix = layout.Root.CaretRect(new CaretPlace(1, 0));
+        var againstThePlus = layout.Root.CaretRect(new CaretPlace(1, 1));
 
         Assert.AreEqual(new CaretPlace(1, 1),
-            layout.Laid.PlaceAt(new Point(againstThePlus.X - 0.2, againstThePlus.Y + 1)));
+            layout.PlaceAt(new Point(againstThePlus.X - 0.2, againstThePlus.Y + 1)));
         Assert.AreEqual(new CaretPlace(1, 0),
-            layout.Laid.PlaceAt(new Point(againstTheSix.X + 0.2, againstTheSix.Y + 1)));
+            layout.PlaceAt(new Point(againstTheSix.X + 0.2, againstTheSix.Y + 1)));
     });
 
     [TestMethod]
@@ -143,7 +143,7 @@ public class CaretPlaceTests
             var (tree, forwards) = Walk(latex);
 
             var backwards = new List<CaretPlace> { forwards[^1] };
-            for (var place = forwards[^1]; tree.Laid.Root.Step(place, forward: false) is { } previous; place = previous)
+            for (var place = forwards[^1]; tree.Root.Step(place, forward: false) is { } previous; place = previous)
                 backwards.Add(previous);
 
             backwards.Reverse();
@@ -152,13 +152,13 @@ public class CaretPlaceTests
     });
 
     /// <summary>Every place in a formula, in the order the right arrow visits them.</summary>
-    private static (LatexTree Tree, List<CaretPlace> Places) Walk(string latex)
+    private static (Laid Tree, List<CaretPlace> Places) Walk(string latex)
     {
         var layout = LatexBuilder.Build(latex, 22);
         Assert.IsNotNull(layout, latex);
 
         var places = new List<CaretPlace> { new(0, 0) };
-        for (var place = places[0]; layout.Laid.Root.Step(place, forward: true) is { } next; place = next)
+        for (var place = places[0]; layout.Root.Step(place, forward: true) is { } next; place = next)
         {
             places.Add(next);
             Assert.IsTrue(places.Count < 500, "the walk must finish: " + latex);

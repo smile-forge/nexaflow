@@ -12,6 +12,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 using Rect = System.Windows.Rect;
+using Nexaflow.Tests.Visuals.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -194,7 +195,7 @@ public class LatexPictureSweepTests
 
         try
         {
-            if (LatexBuilder.Build(entry.Formula, Scale) is not { } layout)
+            if (Formula.Read(entry.Formula, Scale) is not { } layout)
                 return new Drawn(entry, "unread\n", 0, false, "read nothing");
 
             var text = Reading(entry.Formula, layout);
@@ -334,7 +335,7 @@ public class LatexPictureSweepTests
             var row = rows[at];
             try
             {
-                if (LatexBuilder.Build(row.Entry.Formula, Scale) is not { } layout) return;
+                if (Formula.Read(row.Entry.Formula, Scale) is not { } layout) return;
                 if (Picture(layout) is not { } drawing) return;
                 Save(Trimmed(drawing), Path.Combine(work, Drawings, row.Entry.Id[..2], row.Entry.Id + ".png"));
             }
