@@ -106,6 +106,12 @@ public readonly record struct Piece
     /// <summary>What it drew, in the order it drew it, in its own frame.</summary>
     public ReadOnlySpan<LayoutMark> Marks => _tree is null ? default : _tree.MarksOf(_at);
 
+    /// <summary>
+    /// How it is drawn beyond its marks — turned, or snapped to a pixel grid — or nothing, which is nearly
+    /// always. See <see cref="LayoutPaint"/>.
+    /// </summary>
+    public LayoutPaint? Painting => _tree?.PaintOf(_at);
+
     /// <summary>What holds it, or nothing at the root.</summary>
     public Piece Parent => _tree is null ? default : _tree.At(_tree.Piece(_at).Parent);
 

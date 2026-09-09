@@ -17,7 +17,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// and which command produced the glyph you just pressed backspace behind.
 /// <para>
 /// Almost nothing is decided here. The rules live in <see cref="LayoutQuery"/>, over
-/// <see cref="ILayoutNode"/>, so they are shared with every other kind of embedded rendered content and
+/// <see cref="Piece"/>, so they are shared with every other kind of embedded rendered content and
 /// can be exercised against a hand-built tree. What remains in this class is the translation between
 /// source offsets — which is how an editor thinks — and the nodes the query works in, plus the two rules
 /// that are genuinely about LaTeX: how far past the edges a click still counts, and that backspace never
@@ -45,7 +45,7 @@ public sealed class LatexTree
     /// </param>
     /// <param name="root">The formula's whole layout, parents holding children.</param>
     /// <param name="size">The formula's painted size.</param>
-    public LatexTree(string latex, TexReading reading, ILayoutNode root, Size size,
+    public LatexTree(string latex, TexReading reading, Piece root, Size size,
                      IReadOnlyList<Diagnostic>? trouble = null)
     {
         Latex = latex ?? string.Empty;
@@ -69,6 +69,10 @@ public sealed class LatexTree
     /// whose rows all hold the same number of things.
     /// </para>
     /// <para>
+    /// Said to the tree after it was sealed, which a run can do and a parent cannot: which piece stands for
+    /// a cell is a question about what was drawn, so it cannot be asked while the drawing is going on.
+    /// </para>
+    /// <para>
     /// The ink is gathered once and only when there is a table to gather it for. A formula with no matrix
     /// walks nothing, and one with a matrix walks its tree once rather than once per cell — which is a
     /// difference of nine walks on the smallest interesting case and rather more on a real one.
@@ -76,35 +80,33 @@ public sealed class LatexTree
     /// </summary>
     private void Order()
     {
-        List<ILayoutNode>? ink = null;
+        if (Root.Tree is not { } tree) return;
+
+        List<Piece>? ink = null;
 
         foreach (var grid in TexGrid.In(Reading.Root.Node))
         {
-            ink ??= [.. Root.Ink().Where(n => n.Sits().Length > 0)];
+            ink ??= [.. Root.Ink().Where(piece => piece.Sits().Length > 0)];
 
-            var cells = new LayoutNode?[grid.RowCount, grid.ColumnCount];
+            var cells = new Piece[grid.RowCount, grid.ColumnCount];
             foreach (var cell in grid.Cells) cells[cell.Row, cell.Column] = Holding(ink, cell);
 
             for (var row = 0; row < grid.RowCount; row++)
-                Declare(Enumerable.Range(0, grid.ColumnCount).Select(at => cells[row, at]), across: true, "row");
+                Declare(Enumerable.Range(0, grid.ColumnCount).Select(at => cells[row, at]), vertical: false);
 
             for (var column = 0; column < grid.ColumnCount; column++)
-                Declare(Enumerable.Range(0, grid.RowCount).Select(at => cells[at, column]), across: false, "column");
+                Declare(Enumerable.Range(0, grid.RowCount).Select(at => cells[at, column]), vertical: true);
         }
 
-        // Not a group anybody belongs to: it is a parent a cell steps from, and it exists only so that
-            // "what is next to me" has an answer. Two members at least, because one thing in a row has
-            // nothing to step to and a parent saying so is a parent worth nothing.
-            static void Declare(IEnumerable<LayoutNode?> cells, bool across, string kind)
-            {
-                var members = cells.OfType<LayoutNode>().Distinct().ToList();
-            if (members.Count > 1) LayoutNode.Ordering([.. members], across, kind);
-        }
+        // A cell that drew nothing is left out rather than standing as a gap: a run is a way to take a
+        // step, and there is nothing to step to at an empty cell.
+        void Declare(IEnumerable<Piece> cells, bool vertical) =>
+            tree.Runs([.. cells.Where(cell => cell.Exists).Distinct()], vertical);
     }
 
     /// <summary>
-    /// The piece standing for one cell: the lowest node holding every piece of ink written inside it, or
-    /// null for a cell that drew nothing — one squared off so that "the third column" means the same in
+    /// The piece standing for one cell: the lowest one holding every piece of ink written inside it, or
+    /// nothing for a cell that drew nothing — one squared off so that "the third column" means the same in
     /// every row.
     ///
     /// <para>
@@ -113,29 +115,29 @@ public sealed class LatexTree
     /// answer is that letter; for one holding <c>4b^{2}+3</c> it is the box around the five of them.
     /// </para>
     /// </summary>
-    private static LayoutNode? Holding(List<ILayoutNode> ink, TexCell cell)
+    private static Piece Holding(List<Piece> ink, TexCell cell)
     {
-        ILayoutNode? lowest = null;
+        var lowest = default(Piece);
 
-        foreach (var node in ink)
+        foreach (var piece in ink)
         {
-            var at = node.Sits();
+            var at = piece.Sits();
             if (at.Start < cell.Start || at.End > cell.End) continue;
 
-            if (lowest is null) { lowest = node; continue; }
+            if (!lowest.Exists) { lowest = piece; continue; }
 
-            while (lowest is not null && !ReferenceEquals(lowest, node) && !node.Ancestors().Contains(lowest))
+            while (lowest.Exists && lowest != piece && !piece.Ancestors().Contains(lowest))
                 lowest = lowest.Parent;
         }
 
-        return lowest as LayoutNode;
+        return lowest;
     }
 
     /// <summary>The source this tree was built from.</summary>
     public string Latex { get; }
 
     /// <summary>The formula's whole layout.</summary>
-    public ILayoutNode Root { get; }
+    public Piece Root { get; }
 
     /// <summary>The formula's painted size in element pixels.</summary>
     public Size Size { get; }
@@ -150,7 +152,7 @@ public sealed class LatexTree
     /// Whether this piece was shown rather than read — inside a stretch the parser gave up on, so it
     /// stands for characters rather than for meaning.
     /// </summary>
-    public bool IsGuesswork(ILayoutNode node) => Diagnostics.Any(d => d.Covers(node));
+    public bool IsGuesswork(Piece node) => Diagnostics.Any(d => d.Covers(node));
 
     /// <summary>
     /// What this piece is <em>to</em> the construct holding it — the degree of a root, a fraction's
@@ -164,7 +166,7 @@ public sealed class LatexTree
     /// something else produce a cube root of that something.
     /// </para>
     /// </summary>
-    public (ILayoutNode Construct, string Role)? RoleOf(ILayoutNode node)
+    public (Piece Construct, string Role)? RoleOf(Piece node)
     {
         if (node.Part is not { Length: > 0 }) return null;
 
@@ -237,7 +239,7 @@ public sealed class LatexTree
 
     /// <summary>Where a part of the parse tree was drawn — the nearest thing above <paramref name="node"/>
     /// it was drawn from.</summary>
-    private static ILayoutNode? Drawn(ILayoutNode node, TexPart part) =>
+    private static Piece Drawn(Piece node, TexPart part) =>
         node.Ancestors().FirstOrDefault(
             a => a.Part is TexSourcePart drawn && ReferenceEquals(drawn.Of, part));
 
@@ -301,9 +303,9 @@ public sealed class LatexTree
     /// </summary>
     public GridDrop? GridDropAt(Point point)
     {
-        foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
+        foreach (var node in Root.SelfAndDescendants.OrderBy(n => n.Bounds.Width * n.Bounds.Height))
         {
-            if (node is not LatexNode { Origin: { Kind: TexKind.Environment } part }) continue;
+            if (Origin(node) is not { Kind: TexKind.Environment } part) continue;
             if (TexGrid.Read(part.Node, part.Start) is not { } grid) continue;
 
             // How far the matrix reaches, brackets included. The cells' box stops at the cells: the
@@ -313,7 +315,7 @@ public sealed class LatexTree
             // construct drawn in another part, so its extent counts as this one's.
             var reach = node.Bounds;
             foreach (var ancestor in node.Ancestors())
-                if (ancestor is LatexNode { Part: { } outer } && ReferenceEquals(outer, part))
+                if (Origin(ancestor) is { } outer && ReferenceEquals(outer, part))
                     reach.Union(ancestor.Bounds);
 
             if (!reach.Contains(point)) continue;
@@ -324,10 +326,9 @@ public sealed class LatexTree
             {
                 if (cell.Node is not { } written) continue;
 
-                var drawn = node.SelfAndDescendants()
-                    .OfType<LatexNode>()
-                    .Where(n => n.Bounds.Width > 0 && Inside(n.Origin, written))
-                    .Select(n => n.Bounds)
+                var drawn = node.SelfAndDescendants
+                    .Where(piece => piece.Bounds.Width > 0 && Inside(Origin(piece), written))
+                    .Select(piece => piece.Bounds)
                     .ToList();
                 if (drawn.Count == 0) continue;
 
@@ -390,10 +391,10 @@ public sealed class LatexTree
     /// The holes in this formula, in reading order — the arguments left empty, which the typesetter
     /// drew a box for. Tab walks these.
     /// </summary>
-    public IReadOnlyList<ILayoutNode> Placeholders =>
-        _placeholders ??= [.. Root.SelfAndDescendants().Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
+    public IReadOnlyList<Piece> Placeholders =>
+        _placeholders ??= [.. Root.SelfAndDescendants.Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
 
-    private IReadOnlyList<ILayoutNode>? _placeholders;
+    private IReadOnlyList<Piece>? _placeholders;
 
     // ── Point → source ──────────────────────────────────────────────────────
 
@@ -405,11 +406,11 @@ public sealed class LatexTree
     /// The piece of the formula <paramref name="point"/> is on — what a drag is really between. Past
     /// either side it is the piece at that end, as it is in text.
     /// </summary>
-    public ILayoutNode? NodeAt(Point point)
+    public Piece PieceAt(Point point)
     {
         if (point.X > Size.Width) return Root.Ink().LastOrDefault();
         if (point.X < 0) return Root.Ink().FirstOrDefault();
-        return Root.NodeAt(point);
+        return Root.PieceAt(point);
     }
 
     public int OffsetAt(Point point)
@@ -420,8 +421,8 @@ public sealed class LatexTree
         if (point.X > Size.Width) return Latex.Length;
         if (point.X < 0) return 0;
 
-        var hit = Root.NodeAt(point);
-        if (hit is null) return 0;
+        var hit = Root.PieceAt(point);
+        if (!hit.Exists) return 0;
 
         var offset = point.X < hit.Bounds.X + hit.Bounds.Width / 2 ? hit.Sits().Start : hit.Sits().End;
         return NearestStop(offset);
@@ -480,8 +481,8 @@ public sealed class LatexTree
         // it covers any characters. A hole covers none by definition, so a selection sweeping across a
         // half-written fraction would wash everything except the part still missing — the one piece the
         // reader most needs to see they have picked up.
-        var covered = Root.SelfAndDescendants()
-            .Where(n => n.Stands() && n.Sits().Start >= start && n.Sits().End <= end)
+        var covered = Root.SelfAndDescendants
+            .Where(n => n.Stands && n.Sits().Start >= start && n.Sits().End <= end)
             .ToHashSet();
 
         return Merge([.. covered.Where(n => !n.Ancestors().Any(covered.Contains)).Select(n => n.Bounds)]);
@@ -540,7 +541,7 @@ public sealed class LatexTree
         // drag from before a root's sign to past its contents takes the root itself and not merely what
         // is under the bar. Anything only half inside is left to promotion, which is what stops a range
         // that clipped a brace of `^{n}` from coming back as `{n`.
-        var touched = Root.SelfAndDescendants()
+        var touched = Root.SelfAndDescendants
             .Where(n => n.Sits() is { Length: > 0 } at && at.Start >= from && at.End <= to)
             .ToList();
 
@@ -551,7 +552,7 @@ public sealed class LatexTree
             var nearest = Root.Ink()
                 .OrderBy(n => Math.Min(Math.Abs(n.Sits().Start - from), Math.Abs(n.Sits().End - to)))
                 .FirstOrDefault();
-            if (nearest is null) return (from, to - from);
+            if (!nearest.Exists) return (from, to - from);
             touched.Add(nearest);
         }
 
@@ -875,12 +876,12 @@ public sealed class LatexTree
     /// brace of a fraction there is nothing deeper, so it is the fraction.
     /// </para>
     /// </summary>
-    public ILayoutNode? SymbolBefore(int offset)
+    public Piece SymbolBefore(int offset)
     {
-        ILayoutNode? best = null;
-        foreach (var node in Root.SelfAndDescendants())
+        var best = default(Piece);
+        foreach (var node in Root.SelfAndDescendants)
         {
-            if (!node.Stands() || node.Sits().End != offset) continue;
+            if (!node.Stands || node.Sits().End != offset) continue;
 
             // Never a run of things. A row is not an item — it is however many items, each of which is
             // one — so it is never "the thing before the caret" however exactly it happens to end
@@ -905,10 +906,10 @@ public sealed class LatexTree
             // to deleting a character, which took the closing brace off a construct the reader could not
             // see the braces of — a keystroke that quietly produced LaTeX that no longer parses. One
             // construct un-renders whether or not it is the only one.
-            if (best is null || node.Ancestors().Count() > best.Ancestors().Count()) best = node;
+            if (!best.Exists || node.Depth > best.Depth) best = node;
         }
 
-        return best is null ? null : Owning(best);
+        return best.Exists ? Owning(best) : default;
     }
 
     /// <summary>
@@ -921,7 +922,7 @@ public sealed class LatexTree
     /// delete it alone. Pointing at one means the group.
     /// </para>
     /// </summary>
-    public ILayoutNode Owning(ILayoutNode node)
+    public Piece Owning(Piece node)
     {
         var owner = node;
 
@@ -929,7 +930,7 @@ public sealed class LatexTree
         // strength of the piece naming no role is not enough: where nothing names a role — a tree with
         // no parse behind it — every step would qualify and this would walk to the top and hand back
         // the whole formula.
-        while (RoleOf(owner) is null && owner.Parent is { } parent
+        while (RoleOf(owner) is null && owner.Parent is { Exists: true } parent
                && IsComposite(parent) && !IsSequence(parent))
             owner = parent;
 
@@ -946,15 +947,27 @@ public sealed class LatexTree
     /// one thing has always meant.
     /// </para>
     /// </summary>
-    public bool IsComposite(ILayoutNode node) =>
+    public bool IsComposite(Piece node) =>
         Innermost(node) is { } part && part.Parts.Any();
 
     /// <summary>
-    /// Whether this piece is a run of things rather than one thing — see <see cref="LatexNode.IsRun"/>,
+    /// Whether this piece is a run of things rather than one thing — see <see cref="LatexLayoutCapture.IsRun"/>,
     /// which is the same question asked of the part a piece was drawn from.
     /// </summary>
-    private bool IsSequence(ILayoutNode node) =>
-        Innermost(node) is { } part && LatexNode.IsRun(part);
+    private bool IsSequence(Piece node) =>
+        Innermost(node) is { } part && LatexLayoutCapture.IsRun(part);
+
+    /// <summary>
+    /// The part of the parse tree a piece was drawn from, typed — the link back that says what it
+    /// <em>is</em> rather than merely where it came from.
+    ///
+    /// <para>
+    /// Several pieces share one: a fraction's box and its bar are one construct drawn in parts. What a
+    /// piece is <em>to</em> the thing holding it lives on the parse tree, not on the layout, which is why
+    /// this is a reference and not a copy of anything.
+    /// </para>
+    /// </summary>
+    private static TexPart? Origin(Piece piece) => (piece.Part as TexSourcePart)?.Of;
 
     /// <summary>
     /// The innermost part of the parse tree standing for exactly what this piece of layout was drawn
@@ -971,6 +984,6 @@ public sealed class LatexTree
     /// part into two numbers and back, when the part was on the piece the whole time.
     /// </para>
     /// </summary>
-    private static TexPart? Innermost(ILayoutNode node) =>
+    private static TexPart? Innermost(Piece node) =>
         node.Part is TexSourcePart { Length: > 0 } part ? part.Of : null;
 }

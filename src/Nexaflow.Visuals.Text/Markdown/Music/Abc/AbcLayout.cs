@@ -73,7 +73,7 @@ internal sealed class AbcLayout
         var tree = AbcPipeline.Read(abc, Draws, shownAsWritten);
         var reading = ContentReading.Of(tree);
 
-        var (tree, size) = AbcBuilder.Build(reading, width, ink, pixelsPerDip, spacing);
+        var (laid, size) = AbcBuilder.Build(reading, width, ink, pixelsPerDip, spacing);
 
         // Asked of the tree rather than collected on the way through it. A piece that could not be read
         // carries the reason, so there is one place the answer lives and no second list to fall out of step
@@ -87,7 +87,7 @@ internal sealed class AbcLayout
             })
             .ToList();
 
-        return new AbcLayout(abc, reading, tree, size, trouble);
+        return new AbcLayout(abc, reading, laid, size, trouble);
     }
 
     /// <summary>

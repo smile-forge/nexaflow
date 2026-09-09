@@ -86,6 +86,7 @@ public sealed class LayoutTree
     // Beside the pieces rather than in them — see Stored.
     private readonly ISourcePart?[] _parts;
     private readonly string[] _kinds;
+    private readonly LayoutPaint?[] _paints;
 
     /// <summary>Which run a piece reads along and where in it, and the same downward. -1 for neither.</summary>
     private readonly int[] _across;
@@ -93,20 +94,22 @@ public sealed class LayoutTree
     private readonly int[] _down;
     private readonly int[] _downAt;
 
-    private readonly int[][] _runs;
+    private readonly List<int[]> _runs;
 
     internal LayoutTree(Stored[] pieces, LayoutMark[] marks, ISourcePart?[] parts, string[] kinds,
+                        LayoutPaint?[] paints,
                         int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
     {
         _pieces = pieces;
         _marks = marks;
         _parts = parts;
         _kinds = kinds;
+        _paints = paints;
         _across = across;
         _acrossAt = acrossAt;
         _down = down;
         _downAt = downAt;
-        _runs = runs;
+        _runs = [.. runs];
     }
 
     /// <summary>How many pieces there are.</summary>
@@ -125,6 +128,9 @@ public sealed class LayoutTree
     internal ISourcePart? PartOf(int at) => _parts[at];
 
     internal string KindOf(int at) => _kinds[at];
+
+    /// <summary>How it is painted beyond its marks, or nothing — which is nearly always.</summary>
+    internal LayoutPaint? PaintOf(int at) => _paints[at];
 
     internal ReadOnlySpan<LayoutMark> MarksOf(int at) =>
         _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);
@@ -236,5 +242,38 @@ public sealed class LayoutTree
     internal int RunOf(int at, bool vertical) => vertical ? _down[at] : _across[at];
 
     /// <summary>The members of a run, in order.</summary>
-    internal ReadOnlySpan<int> Run(int id) => id < 0 || id >= _runs.Length ? default : _runs[id];
+    internal ReadOnlySpan<int> Run(int id) => id < 0 || id >= _runs.Count ? default : _runs[id];
+
+    /// <summary>
+    /// Declares that these pieces read together, in this order — a row of a matrix, a column of one.
+    ///
+    /// <para>
+    /// <strong>After the tree is sealed, which is the one thing a run can do that a parent cannot.</strong>
+    /// A typeset formula only learns its tables once the parse tree's grids are matched against finished
+    /// ink: which piece stands for a cell is a question about what was drawn, so it cannot be asked while
+    /// the drawing is still going on. Nothing about a piece changes here — a run is a list of indices
+    /// beside the pieces, so saying two things read together moves neither of them.
+    /// </para>
+    /// <para>
+    /// Two members at least: one thing on a run has nothing to step to.
+    /// </para>
+    /// </summary>
+    public void Runs(IReadOnlyList<Piece> members, bool vertical)
+    {
+        if (members.Count < 2) return;
+
+        var run = _runs.Count;
+        var indices = new int[members.Count];
+
+        for (var member = 0; member < members.Count; member++)
+        {
+            var at = indices[member] = members[member].At;
+            if (at < 0 || at >= _pieces.Length) continue;
+
+            if (vertical) { _down[at] = run; _downAt[at] = member; }
+            else { _across[at] = run; _acrossAt[at] = member; }
+        }
+
+        _runs.Add(indices);
+    }
 }

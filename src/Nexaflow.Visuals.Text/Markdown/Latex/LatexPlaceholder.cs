@@ -25,5 +25,5 @@ public static class LatexPlaceholder
     public const string Kind = "PlaceholderBox";
 
     /// <summary>Whether this piece of the formula is a hole waiting to be written in.</summary>
-    public static bool IsPlaceholder(this ILayoutNode node) => node.Kind == Kind;
+    public static bool IsPlaceholder(this Piece piece) => piece.Kind == Kind;
 }

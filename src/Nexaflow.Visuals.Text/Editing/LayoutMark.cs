@@ -136,3 +136,21 @@ public sealed record RuleMark(Rect Bounds, Brush? Foreground) : LayoutMark
     public override void PaintOn(DrawingContext dc, Brush fallback) =>
         dc.DrawRectangle(Foreground ?? fallback, null, Bounds);
 }
+
+/// <summary>
+/// A filled rectangle <em>behind</em> a piece rather than in it — a colour box, a highlight.
+///
+/// <para>
+/// The whole difference from a <see cref="RuleMark"/> is when it is painted, and that is a real
+/// difference rather than a shade of one: a wash behind one term must not cover the glyphs of another,
+/// so every wash in a tree goes down before any ink does. Being a kind of its own is what lets the
+/// painter be asked for one layer at a time without anything having to know what the content is.
+/// </para>
+/// </summary>
+public sealed record WashMark(Rect Bounds, Brush Fill) : LayoutMark
+{
+    public override Rect Covers => Bounds;
+
+    public override void PaintOn(DrawingContext dc, Brush fallback) =>
+        dc.DrawRectangle(Fill, null, Bounds);
+}

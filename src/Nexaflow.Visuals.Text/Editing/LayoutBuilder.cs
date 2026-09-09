@@ -27,6 +27,7 @@ public sealed class LayoutBuilder
     private readonly List<Stored> _pieces = [];
     private readonly List<ISourcePart?> _parts = [];
     private readonly List<string> _kinds = [];
+    private readonly List<LayoutPaint?> _paints = [];
 
     private readonly List<LayoutMark> _marks = [];
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
@@ -51,12 +52,24 @@ public sealed class LayoutBuilder
         public Rect Box;
         public bool IsInk;
         public bool IsEnclosure;
+        public bool Gathers;
+        public LayoutPaint? Paints;
         public readonly List<LayoutMark> Marks = [];
 
+        /// <summary>Says the piece reaches at least this far, whatever it holds.</summary>
         public void Covers(Rect what)
         {
             if (what.IsEmpty || (what.Width <= 0 && what.Height <= 0)) return;
             Box = Box.IsEmpty ? what : Rect.Union(Box, what);
+        }
+
+        /// <summary>
+        /// …and the same for what it turned out to hold, which only counts where the content says a piece
+        /// is its contents. See the `gathers` argument to <see cref="Open"/>.
+        /// </summary>
+        public void Gathered(Rect what)
+        {
+            if (Gathers) Covers(what);
         }
     }
 
@@ -65,6 +78,17 @@ public sealed class LayoutBuilder
     /// something a reader typed is something they can point at, and a beam or a guard pattern the drawing
     /// invented is not. Stated, the content knows better: a hole waiting to be typed into is pointable and
     /// covers nothing, and a printed check digit nobody wrote is still a digit on the page.
+    /// </param>
+
+    /// <param name="gathers">
+    /// Whether this piece's extent is what it turned out to hold. True for content whose containers are
+    /// bounding boxes — a bar of music is as tall as what is in it — and false where a container's rectangle
+    /// means something else: a typeset box is the height and depth it reserves on its line, so a subscript
+    /// hangs below the very piece that holds it and growing to fit would be wrong. A piece that gathers
+    /// nothing states its extent with <see cref="Covers"/> instead.
+    /// </param>
+    /// <param name="paints">
+    /// How it is drawn beyond its marks — turned, or snapped to a pixel grid. Null for nearly everything.
     /// </param>
 
     /// <summary>
@@ -77,7 +101,8 @@ public sealed class LayoutBuilder
     /// ledger line has none, because nobody wrote it.
     /// </param>
     public int Open(string kind, ISourcePart? part = null, Point at = default,
-                    bool? isInk = null, bool isEnclosure = false)
+                    bool? isInk = null, bool isEnclosure = false, bool gathers = true,
+                    LayoutPaint? paints = null)
     {
         var frame = _spare.Count > 0 ? _spare.Pop() : new Frame();
 
@@ -86,6 +111,8 @@ public sealed class LayoutBuilder
         frame.Box = Rect.Empty;
         frame.IsInk = isInk ?? part is { Length: > 0 };
         frame.IsEnclosure = isEnclosure;
+        frame.Gathers = gathers;
+        frame.Paints = paints is { Matters: true } ? paints : null;
         frame.Marks.Clear();
 
         // The slot is claimed now and written at Close, so everything opened inside it lands immediately
@@ -93,6 +120,7 @@ public sealed class LayoutBuilder
         _pieces.Add(default);
         _parts.Add(part);
         _kinds.Add(kind);
+        _paints.Add(frame.Paints);
 
         _open.Push(frame);
         return frame.At;
@@ -145,7 +173,7 @@ public sealed class LayoutBuilder
     {
         var frame = _open.Peek();
         frame.Marks.Add(mark);
-        frame.Covers(mark.Covers);
+        frame.Gathered(mark.Covers);
     }
 
     /// <summary>
@@ -153,6 +181,18 @@ public sealed class LayoutBuilder
     /// tall as its staff whether or not anything was written in it.
     /// </summary>
     public void Covers(Rect what) => _open.Peek().Covers(what);
+
+    /// <summary>
+    /// Says whether the piece being built is something a reader can point at, now that it is known.
+    ///
+    /// <para>
+    /// For the one case the answer is not available when the piece opens: a typeset formula's pieces are
+    /// ink when they stand for a part and nothing beneath them stands for a smaller one, which cannot be
+    /// asked until the contents have arrived. Closing still has the last word — a piece that drew nothing
+    /// is not something to point at, whatever anybody says here.
+    /// </para>
+    /// </summary>
+    public void Ink(bool yes) => _open.Peek().IsInk = yes;
 
     /// <summary>Finishes the piece being built, and gives back where it went.</summary>
     public int Close()
@@ -183,7 +223,7 @@ public sealed class LayoutBuilder
         // differs from the child's by exactly the child's anchor. Nothing is passed up for a piece that
         // drew nothing: Rect.Offset throws on an empty rectangle rather than leaving it empty.
         if (_open.Count > 0 && !frame.Box.IsEmpty)
-            _open.Peek().Covers(Rect.Offset(frame.Box, frame.Offset));
+            _open.Peek().Gathered(Rect.Offset(frame.Box, frame.Offset));
 
         _spare.Push(frame);
         return at;
@@ -204,10 +244,17 @@ public sealed class LayoutBuilder
     }
 
     /// <summary>The tree, finished. Nothing may be added to the builder afterwards.</summary>
-    public LayoutTree Seal()
+    public LayoutTree Seal(Vector origin = default)
     {
         if (_open.Count > 0)
             throw new InvalidOperationException($"{_open.Count} piece(s) were opened and never closed");
+
+        // Where the whole thing sits. The one anchor that can be settled after the fact, because nothing is
+        // measured from it: moving the root moves everything under it by exactly as much, which is what
+        // relative geometry makes free. A formula does not know it was laid out above the origin until it
+        // has been laid out.
+        if (_pieces.Count > 0 && (origin.X != 0 || origin.Y != 0))
+            _pieces[0] = _pieces[0] with { Offset = _pieces[0].Offset + origin };
 
         var count = _pieces.Count;
 
@@ -238,7 +285,7 @@ public sealed class LayoutBuilder
             }
         }
 
-        return new LayoutTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds],
+        return new LayoutTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints],
                               across, acrossAt, down, downAt, runs);
     }
 }

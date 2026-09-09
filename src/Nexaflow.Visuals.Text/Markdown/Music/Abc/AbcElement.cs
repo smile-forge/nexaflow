@@ -286,7 +286,7 @@ public sealed partial class AbcElement : FrameworkElement
     /// </summary>
     private void Select(Piece from, Piece to)
     {
-        if (_layout is null || from is null || to is null) { ClearSelection(); return; }
+        if (_layout is null || !from.Exists || !to.Exists) { ClearSelection(); return; }
 
         var chosen = ContentSelection.Between(_layout.Root, from, to);
         _selection = chosen.Ranges;

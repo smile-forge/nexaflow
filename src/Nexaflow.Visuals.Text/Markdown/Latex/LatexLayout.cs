@@ -38,12 +38,6 @@ public sealed class LatexLayout
     public Size Size => Tree.Size;
 
     /// <summary>
-    /// What a painter must translate by so its output lands in the tree's coordinates. A box may be
-    /// laid out above or left of the origin, and the tree is normalised so it never is.
-    /// </summary>
-    public Vector PaintOffset { get; private init; }
-
-    /// <summary>
     /// Typesets <paramref name="latex"/> and records where every piece landed, or returns null when it
     /// will not parse — which the caller shows as source rather than as a formula.
     /// </summary>
@@ -108,14 +102,12 @@ public sealed class LatexLayout
 
             var capture = new LatexLayoutCapture(scale, reading);
             formula.RenderTo(capture, environment, 0, 0);
-            capture.FinishRendering();
-            if (capture.Root is not { } root) return null;
 
-            // Normalise: a shifted or transformed box can land above or left of the origin, and a tree
-            // with negative coordinates would put the caret outside the control that draws it.
-            var union = Extent(root);
-            var offset = new Vector(-union.X, -union.Y);
-            Settle(root, offset);
+            // …which also settles the tree onto the origin. A shifted or transformed box can land above or
+            // left of where the pen started, and a tree with negative coordinates would put the caret outside
+            // the control that draws it — one number now, because everything in it is relative to the root.
+            capture.FinishRendering();
+            if (capture.Tree is not { } laid) return null;
 
             // Asked of the tree rather than collected on the way through it. A piece that could not be
             // read carries the reason it could not, so there is one place the answer lives and no second
@@ -130,40 +122,12 @@ public sealed class LatexLayout
                     "This was read, and nothing here knows how to draw it.")))
                 .ToList();
 
-            var tree = new LatexTree(latex, reading, root, new Size(union.Width, union.Height), trouble);
-            return new LatexLayout(tree) { PaintOffset = offset };
+            return new LatexLayout(new LatexTree(latex, reading, laid.Root, capture.Size, trouble));
         }
         catch
         {
             // Every reading failure is the same answer to the caller: there is no formula to map.
             return null;
-        }
-    }
-
-    /// <summary>
-    /// How much of the page the formula actually covers. Spacing is left out: a strut is as tall as the
-    /// line it reserves room on, so counting it would pad the element with margin nothing is drawn in.
-    /// </summary>
-    private static Rect Extent(LayoutNode root)
-    {
-        var union = Rect.Empty;
-        foreach (var node in root.SelfAndDescendants())
-            if (node.Kind is not ("StrutBox" or "GlueBox"))
-                union.Union(node.Bounds);
-
-        return union.IsEmpty ? new Rect(0, 0, 0, 0) : union;
-    }
-
-    /// <summary>Moves the tree onto the origin, so nothing sits at a negative coordinate.</summary>
-    private static void Settle(LayoutNode root, Vector offset)
-    {
-        foreach (var node in root.SelfAndDescendants())
-        {
-            if (node is not LayoutNode moving) continue;
-
-            var bounds = moving.Bounds;
-            bounds.Offset(offset);
-            moving.Bounds = bounds;
         }
     }
 
@@ -179,62 +143,26 @@ public sealed class LatexLayout
     /// </para>
     /// <para>
     /// The foreground is passed per paint because it is the theme's, and the theme can change without the
-    /// formula doing so. Only marks the formula gave no colour of its own take it; a <c>\textcolor</c>
+    /// formula doing so. Only marks the formula gave no colour of its own take it; a <c>	extcolor</c>
     /// keeps what it asked for.
     /// </para>
+    /// <para>
+    /// Two layers, in the typesetter's own order: every wash goes down first and then all the ink over it,
+    /// so a <c>\colorbox</c> behind one term cannot paint over the glyphs of another. That is a question
+    /// about marks, which is why the shared painter can answer it and this no longer walks the tree itself.
+    /// </para>
     /// </summary>
-    /// <param name="subtree">One piece to paint, or null for the whole formula.</param>
-    public void Paint(DrawingContext dc, Brush foreground, ILayoutNode? subtree = null)
+    /// <param name="subtree">One piece to paint, or nothing for the whole formula.</param>
+    public void Paint(DrawingContext dc, Brush foreground, Piece subtree = default)
     {
-        if ((subtree ?? Tree.Root) is not LatexNode from) return;
+        var from = subtree.Exists ? subtree : Tree.Root;
+        if (!from.Exists) return;
 
-        dc.PushTransform(new TranslateTransform(PaintOffset.X, PaintOffset.Y));
-        try
-        {
-            // A piece painted on its own still has to be placed by whatever encloses it.
-            var outer = 0;
-            foreach (var ancestor in from.Ancestors().Reverse().OfType<LatexNode>())
-                foreach (var transform in ancestor.Transforms)
-                {
-                    dc.PushTransform(transform);
-                    outer++;
-                }
+        LayoutPainter.PaintOne(dc, from, foreground, mark => mark is WashMark);
 
-            // Two layers, in WpfMath's own order: every wash goes down first, then all the ink over it, so
-            // a \colorbox behind one term cannot paint over the glyphs of another.
-            PaintWashes(dc, from);
-
-            var ink = new DrawingGroup();
-            using (var layer = ink.Open()) PaintMarks(layer, from, foreground);
-            ink.Freeze();
-            dc.DrawDrawing(ink);
-
-            for (var i = 0; i < outer; i++) dc.Pop();
-        }
-        finally { dc.Pop(); }
-    }
-
-    private static void PaintWashes(DrawingContext dc, LatexNode node)
-    {
-        if (node.Guidelines is not null) dc.PushGuidelineSet(node.Guidelines);
-
-        if (node.Background is not null)
-            dc.DrawRectangle(node.Background, null, node.BackgroundBounds);
-
-        foreach (var child in node.Children.OfType<LatexNode>()) PaintWashes(dc, child);
-
-        if (node.Guidelines is not null) dc.Pop();
-    }
-
-    private static void PaintMarks(DrawingContext dc, LatexNode node, Brush foreground)
-    {
-        foreach (var transform in node.Transforms) dc.PushTransform(transform);
-        if (node.Guidelines is not null) dc.PushGuidelineSet(node.Guidelines);
-
-        foreach (var mark in node.Marks) mark.PaintOn(dc, foreground);
-        foreach (var child in node.Children.OfType<LatexNode>()) PaintMarks(dc, child, foreground);
-
-        if (node.Guidelines is not null) dc.Pop();
-        for (var i = 0; i < node.Transforms.Count; i++) dc.Pop();
+        var ink = new DrawingGroup();
+        using (var layer = ink.Open()) LayoutPainter.PaintOne(layer, from, foreground, mark => mark is not WashMark);
+        ink.Freeze();
+        dc.DrawDrawing(ink);
     }
 }

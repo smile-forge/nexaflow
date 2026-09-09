@@ -39,7 +39,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     private DispatcherTimer? _blink;
     private bool _caretVisible = true;
     private int _anchor;
-    private ILayoutNode? _anchorNode;
+    private Piece _anchorNode;
 
     /// <summary>
     /// Which of the bars at the caret's offset it is drawn as — see <see cref="CaretPlace"/>. Kept beside
@@ -191,7 +191,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     public string Source => _state.Latex;
 
     /// <inheritdoc />
-    public ILayoutNode? Root => _layout?.Tree.Root;
+    public Piece Root => _layout?.Tree.Root ?? default;
 
     /// <inheritdoc />
     IReadOnlyList<(int Start, int Length)> IEditableBlock.Selection =>
@@ -477,9 +477,11 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (_state is { Caret: 0, SelectionLength: 0 }) return false;
 
         var here = _state.Caret;
-        var symbol = _state.HasSelection || _state.Raw is not null ? null : _layout?.Tree.SymbolBefore(here);
+        var symbol = _state.HasSelection || _state.Raw is not null
+            ? default
+            : _layout?.Tree.SymbolBefore(here) ?? default;
 
-        if (symbol?.Sits() is { Length: > 1 } place)
+        if (symbol.Exists && symbol.Sits() is { Length: > 1 } place)
         {
             var span = (Start: place.Start, Length: place.Length);
 
@@ -543,7 +545,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         InteractiveSelection.Own(this);
 
         _anchor = _layout.Tree.OffsetAt(pointInElement);
-        _anchorNode = _layout.Tree.NodeAt(pointInElement);
+        _anchorNode = _layout.Tree.PieceAt(pointInElement);
         _pressedAt = pointInElement;
         _dragging = true;
 
@@ -593,7 +595,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what
         // makes a drag down a column select the column rather than everything written between its top
         // cell and its bottom one.
-        if (_anchorNode is not null && _layout.Tree.NodeAt(pointInElement) is { } focus)
+        if (_anchorNode.Exists && _layout.Tree.PieceAt(pointInElement) is { Exists: true } focus)
         {
             // Through whatever owns each end. Landing on a bracket means the group it opens or closes:
             // half a pair is not a smaller selection, it is one that cannot be read.
@@ -679,7 +681,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         // source-edit mode: inside a formula, "the word you clicked" is the symbol you clicked.
         var here = _layout.Tree.OffsetAt(pointInElement);
         var atom = _layout.Tree.SymbolBefore(here);
-        if (atom?.Sits() is { Length: > 0 } at) Select(at.Start, at.Length);
+        if (atom.Exists && atom.Sits() is { Length: > 0 } at) Select(at.Start, at.Length);
         else Select(Math.Max(0, here - 1), 1);
         return true;
     }
@@ -873,13 +875,13 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
     /// The outermost pieces of <paramref name="preview"/> lying wholly inside the carried term.
     /// Outermost so that nothing is painted twice over — a piece and its own children are one drawing.
     /// </summary>
-    private IEnumerable<ILayoutNode> Carried(LatexLayout preview)
+    private IEnumerable<Piece> Carried(LatexLayout preview)
     {
         var (start, end) = _previewMoved;
         if (end <= start) yield break;
 
-        var taken = new List<ILayoutNode>();
-        foreach (var node in preview.Tree.Root.SelfAndDescendants())
+        var taken = new List<Piece>();
+        foreach (var node in preview.Tree.Root.SelfAndDescendants)
         {
             if (node.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
             if (taken.Any(t => node.Ancestors().Contains(t))) continue;
