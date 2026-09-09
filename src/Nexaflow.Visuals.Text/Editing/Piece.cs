@@ -81,7 +81,7 @@ public readonly record struct Piece
     /// Whether this piece holds a place of its own in the source: a stretch of it, or a hole in it. What a
     /// caret can rest at and a query can land on.
     /// </summary>
-    public bool Stands => Part is { Length: > 0 } || IsInk;
+    public bool Stands() => Part is { Length: > 0 } || IsInk;
 
     /// <summary>
     /// Where this piece sits in the source.
@@ -119,7 +119,7 @@ public readonly record struct Piece
     public PieceChildren Children => new(_tree, _at);
 
     /// <summary>It and everything inside it, parents first — a slice of the tree, not a walk of it.</summary>
-    public PieceSubtree SelfAndDescendants => new(_tree, _at);
+    public PieceSubtree SelfAndDescendants() => new(_tree, _at);
 
     /// <summary>Its parent, grandparent and so on, nearest first.</summary>
     public IEnumerable<Piece> Ancestors()
@@ -138,7 +138,7 @@ public readonly record struct Piece
     /// </summary>
     public IEnumerable<Piece> Ink()
     {
-        foreach (var piece in SelfAndDescendants)
+        foreach (var piece in SelfAndDescendants())
             if (piece.IsInk) yield return piece;
     }
 

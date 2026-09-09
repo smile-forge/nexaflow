@@ -881,7 +881,7 @@ public sealed class FormulaElement : FrameworkElement, IEditableBlock
         if (end <= start) yield break;
 
         var taken = new List<Piece>();
-        foreach (var node in preview.Tree.Root.SelfAndDescendants)
+        foreach (var node in preview.Tree.Root.SelfAndDescendants())
         {
             if (node.Sits() is not { Length: > 0 } at || at.Start < start || at.End > end) continue;
             if (taken.Any(t => node.Ancestors().Contains(t))) continue;

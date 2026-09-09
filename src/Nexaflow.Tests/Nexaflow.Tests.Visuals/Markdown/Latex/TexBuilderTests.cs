@@ -371,7 +371,7 @@ public class TexBuilderTests
         // a prefix script sits on, the place an empty group keeps — and counting them called a difference
         // in the *picture* what is a difference in the tree, which is the one distinction this exists to
         // draw. A reader cannot see a box of no width; nor should this.
-        foreach (var node in capture.Root!.SelfAndDescendants())
+        foreach (var node in ((capture.Tree?.Root ?? default)).SelfAndDescendants())
             if (node.Children.Count == 0 && node.Bounds.Width > 0 && node.Bounds.Height > 0)
                 text.Append(node.Kind).Append(' ')
                     .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
@@ -546,12 +546,12 @@ public class TexBuilderTests
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull(capture.Root, $"nothing was drawn for {reading.Latex}");
+        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Latex}");
 
         var tree = 14695981039346656037UL;
         var ink = 14695981039346656037UL;
 
-        foreach (var node in capture.Root.SelfAndDescendants())
+        foreach (var node in (capture.Tree?.Root ?? default).SelfAndDescendants())
         {
             tree = Mixed(tree, node);
 
@@ -563,7 +563,7 @@ public class TexBuilderTests
     }
 
     /// <summary>One box folded into a running fingerprint, rounded exactly as the text was.</summary>
-    private static ulong Mixed(ulong so, Nexaflow.Visuals.Text.Editing.ILayoutNode node)
+    private static ulong Mixed(ulong so, Piece node)
     {
         so = Fold(so, (ulong)node.Kind.GetHashCode());
         so = Fold(so, (ulong)(long)Math.Round(node.Bounds.X * 100));
@@ -583,11 +583,11 @@ public class TexBuilderTests
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull(capture.Root, $"nothing was drawn for {reading.Latex}");
+        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Latex}");
 
         var text = new StringBuilder();
 
-        foreach (var node in capture.Root.SelfAndDescendants())
+        foreach (var node in (capture.Tree?.Root ?? default).SelfAndDescendants())
             text.Append(node.Kind).Append(' ')
                 .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
                 .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))

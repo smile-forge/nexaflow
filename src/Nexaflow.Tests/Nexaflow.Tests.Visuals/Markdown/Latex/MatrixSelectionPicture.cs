@@ -98,10 +98,10 @@ public class MatrixSelectionPicture
         return shot;
     }
 
-    private static ILayoutNode Cell(FormulaElement formula, string digit) =>
+    private static Piece Cell(FormulaElement formula, string digit) =>
         formula.Layout!.Tree.Root.Ink()
             .Single(n => n.Sits() is { Length: > 0 } at && Latex.Substring(at.Start, at.Length) == digit);
 
-    private static Point Middle(ILayoutNode node) =>
+    private static Point Middle(Piece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 }

@@ -116,9 +116,9 @@ public class AbcBuilderTests
         foreach (var note in notes)
         {
             var middle = new Point(note.Bounds.X + (note.Bounds.Width / 2), note.Bounds.Y + (note.Bounds.Height / 2));
-            var hit = layout.Root.NodeAt(middle);
+            var hit = layout.Root.PieceAt(middle);
 
-            Assert.AreSame(note, hit, "a click on a head means that note");
+            Assert.AreEqual(note, hit, "a click on a head means that note");
         }
 
         // And each one names exactly the letter that was typed.
@@ -288,7 +288,7 @@ public class AbcBuilderTests
         Assert.AreEqual(top.Top, brackets[0].Bounds.Top, 1.0, "it starts at the top staff");
         Assert.AreEqual(bottom.Bottom, brackets[0].Bounds.Bottom, 1.0, "and finishes at the bottom one");
 
-        static Rect Staff(ILayoutNode system)
+        static Rect Staff(Piece system)
         {
             var lines = system.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
             return new Rect(lines[0].Bounds.TopLeft, lines[^1].Bounds.BottomRight);
@@ -400,12 +400,18 @@ public class AbcBuilderTests
     }
 
     /// <summary>The first note in a tune.</summary>
-    private static ILayoutNode Note(AbcLayout layout) =>
+    private static Piece Note(AbcLayout layout) =>
         layout.Root.SelfAndDescendants().First(n => n.Kind == "note");
 
     /// <summary>How many things a piece of layout drew — the cheap way to ask whether a mark landed.</summary>
-    private static int Marks(ILayoutNode node) =>
-        node.SelfAndDescendants().OfType<LayoutNode>().Sum(n => n.Marks.Count);
+    private static int Marks(Piece node)
+    {
+        // Counted rather than summed: a piece's marks are a span over the tree's own array, and a span
+        // cannot be captured by a lambda.
+        var marks = 0;
+        foreach (var piece in node.SelfAndDescendants()) marks += piece.Marks.Length;
+        return marks;
+    }
 
     [TestMethod]
     public void ItPaintsWithoutFaulting() => UiThread.Run(() =>

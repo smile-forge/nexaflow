@@ -208,7 +208,7 @@ internal sealed class BarcodeLayout
         build.Close();
         Tree = build.Seal();
 
-        AcceptsCaret = Root.SelfAndDescendants.Any(piece => piece.Kind == nameof(BarcodeKind.Character));
+        AcceptsCaret = Root.SelfAndDescendants().Any(piece => piece.Kind == nameof(BarcodeKind.Character));
     }
 
     /// <summary>

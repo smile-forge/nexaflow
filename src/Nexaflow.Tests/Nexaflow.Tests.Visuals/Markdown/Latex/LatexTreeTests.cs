@@ -46,35 +46,43 @@ public class LatexTreeTests
     }
 
     /// <summary>
-    /// The formula's layout as the capture builds it: containers holding the pieces they were laid out
-    /// from, and ink only at the leaves of what the source names.
+    /// The layout <c>\frac{x^2}{2}+\sqrt{y}</c> comes out as: boxes holding boxes, each naming what it was
+    /// drawn from, and ink only at the leaves of what the source names.
     /// <para>
     /// The fraction's bar and the radical's sign both name nothing. No character of <c>\frac{x^2}{2}</c>
     /// produced the bar; the typesetter does hand the <em>sign</em> the span of the whole <c>\sqrt{y}</c>,
-    /// which the capture takes back off it, because the node holding the whole root already carries that
-    /// span and two nodes naming the same thing is a link that has to be interpreted. Both are drawing
+    /// which the capture takes back off it, because the piece holding the whole root already carries that
+    /// span and two pieces naming the same thing is a link that has to be interpreted. Both are drawing
     /// their construct does for itself — covered when a selection passes over them, never selectable
     /// alone.
     /// </para>
     /// </summary>
-    private static LayoutNode Tree()
+    private static Piece Tree()
     {
-        var root = new LayoutNode(new Rect(0.0, 0.0, 78.7, 43.5), Part(0, 22), "HorizontalBox", isInk: false);
+        var build = new LayoutBuilder();
 
-        var fraction = root.Add(new LayoutNode(new Rect(0.0, 0.0, 26.3, 43.5), Part(0, 13), "VerticalBox", isInk: false));
-        var numerator = fraction.Add(new LayoutNode(new Rect(2.4, 0.0, 18.4, 16.3), Part(6, 3), "HorizontalBox", isInk: false));
-        numerator.Add(new LayoutNode(new Rect(2.4, 7.7, 11.4, 8.6), Part(6, 1), "CharBox", isInk: true));      // x
-        numerator.Add(new LayoutNode(new Rect(13.8, 0.0, 7.0, 9.0), Part(8, 1), "CharBox", isInk: true));      // 2, the exponent
-        fraction.Add(new LayoutNode(new Rect(0.0, 20.0, 26.3, 2.0), null, "HorizontalRule", isInk: false));
-        fraction.Add(new LayoutNode(new Rect(6.9, 30.6, 10.0, 12.9), Part(11, 1), "CharBox", isInk: true));    // 2, below the bar
+        build.At(new Rect(0.0, 0.0, 78.7, 43.5), Part(0, 22), "HorizontalBox", isInk: false);
 
-        root.Add(new LayoutNode(new Rect(28.2, 18.1, 15.6, 13.3), Part(13, 1), "CharBox", isInk: true));       // +
+        build.At(new Rect(0.0, 0.0, 26.3, 43.5), Part(0, 13), "VerticalBox", isInk: false);
 
-        var radical = root.Add(new LayoutNode(new Rect(48.2, 13.6, 30.5, 24.0), Part(14, 8), "HorizontalBox", isInk: false));
-        radical.Add(new LayoutNode(new Rect(48.2, 13.6, 20.0, 24.0), Part(14, 0), "CharBox", isInk: false));   // the sign
-        radical.Add(new LayoutNode(new Rect(68.2, 21.2, 10.5, 12.5), Part(20, 1), "CharBox", isInk: true));    // y
+        build.At(new Rect(2.4, 0.0, 18.4, 16.3), Part(6, 3), "HorizontalBox", isInk: false);
+        build.Leaf(new Rect(2.4, 7.7, 11.4, 8.6), Part(6, 1), "CharBox");     // x
+        build.Leaf(new Rect(13.8, 0.0, 7.0, 9.0), Part(8, 1), "CharBox");     // 2, the exponent
+        build.Close();
 
-        return root;
+        build.Leaf(new Rect(0.0, 20.0, 26.3, 2.0), null, "HorizontalRule", isInk: false);
+        build.Leaf(new Rect(6.9, 30.6, 10.0, 12.9), Part(11, 1), "CharBox");  // 2, below the bar
+        build.Close();
+
+        build.Leaf(new Rect(28.2, 18.1, 15.6, 13.3), Part(13, 1), "CharBox"); // +
+
+        build.At(new Rect(48.2, 13.6, 30.5, 24.0), Part(14, 8), "HorizontalBox", isInk: false);
+        build.Leaf(new Rect(48.2, 13.6, 20.0, 24.0), Part(14, 0), "CharBox", isInk: false);   // the sign
+        build.Leaf(new Rect(68.2, 21.2, 10.5, 12.5), Part(20, 1), "CharBox");                 // y
+        build.Close();
+
+        build.Close();
+        return build.Seal().Root;
     }
 
     private static LatexTree Latex() => new(Fraction, TexReading.Of(Fraction), Tree(), new Size(78.7, 43.5));

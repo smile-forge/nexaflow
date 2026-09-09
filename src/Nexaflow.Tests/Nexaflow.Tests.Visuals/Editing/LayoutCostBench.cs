@@ -77,7 +77,7 @@ public class LayoutCostBench
     /// drawing, which is how the first version of this lied.
     /// </summary>
     private static string Measure<T>(string what, Func<T> compose,
-                                     Func<T, (ILayoutNode Root, Size Size, Action<DrawingContext> Paint)> read)
+                                     Func<T, (Piece Root, Size Size, Action<DrawingContext> Paint)> read)
     {
         for (var pass = 0; pass < 40; pass++) Draw(read(compose()));
 
@@ -112,7 +112,7 @@ public class LayoutCostBench
     private static double Per(Stopwatch clock) => clock.Elapsed.TotalMilliseconds / Passes;
 
     /// <summary>The marks executed into a drawing context — what a repaint costs when nothing has moved.</summary>
-    private static void Draw((ILayoutNode Root, Size Size, Action<DrawingContext> Paint) laid)
+    private static void Draw((Piece Root, Size Size, Action<DrawingContext> Paint) laid)
     {
         var visual = new DrawingVisual();
         using var dc = visual.RenderOpen();
@@ -120,7 +120,7 @@ public class LayoutCostBench
     }
 
     /// <summary>…and that turned into pixels, which is what actually reaches the screen.</summary>
-    private static void Raster((ILayoutNode Root, Size Size, Action<DrawingContext> Paint) laid)
+    private static void Raster((Piece Root, Size Size, Action<DrawingContext> Paint) laid)
     {
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen()) laid.Paint(dc);

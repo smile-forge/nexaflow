@@ -29,7 +29,7 @@ public class LatexRoleTests
 {
     private const double Scale = 16;
 
-    private static (LatexTree Tree, ILayoutNode Node) Piece(string latex, string text)
+    private static (LatexTree Tree, Piece Node) Piece(string latex, string text)
     {
         var layout = LatexLayout.Build(latex, Scale);
         Assert.IsNotNull(layout, latex);
@@ -41,7 +41,7 @@ public class LatexRoleTests
     }
 
     /// <summary>Any piece of the layout drawn from this stretch of source, ink or a box holding it.</summary>
-    private static (LatexTree Tree, ILayoutNode Node) Drawn(string latex, string text)
+    private static (LatexTree Tree, Piece Node) Drawn(string latex, string text)
     {
         var layout = LatexLayout.Build(latex, Scale);
         Assert.IsNotNull(layout, latex);

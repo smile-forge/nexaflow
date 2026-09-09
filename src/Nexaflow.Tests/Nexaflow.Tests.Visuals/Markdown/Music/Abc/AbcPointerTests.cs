@@ -43,7 +43,7 @@ public class AbcPointerTests
 
         foreach (var note in notes)
         {
-            var hit = layout.Root.NodeAt(Middle(note))?.Selectable();
+            var hit = layout.Root.PieceAt(Middle(note)).Selectable();
 
             Assert.AreEqual(note, hit,
                 $"a press on the note at {note.Bounds.X:F0} came back as a {Kind(hit)}");
@@ -69,8 +69,8 @@ public class AbcPointerTests
 
         for (var x = notes[0].Bounds.X; x <= notes[^1].Bounds.Right; x += 1)
         {
-            var at = layout.Root.NodeAt(new Point(x, row))?.Selectable();
-            if (at is null) { trouble.Add($"{x:F0}: nothing"); continue; }
+            var at = layout.Root.PieceAt(new Point(x, row)).Selectable();
+            if (!at.Exists) { trouble.Add($"{x:F0}: nothing"); continue; }
 
             // Anything holding a selectable piece of its own is a group, and a group is something a reader
             // gets by covering it rather than by aiming between its members.
@@ -95,7 +95,7 @@ public class AbcPointerTests
             {
                 Assert.IsNull(piece.Part, $"a {Kind(piece)} names a piece of the tune; nobody wrote one");
 
-                Assert.AreEqual(note, layout.Root.NodeAt(Middle(piece))?.Selectable(),
+                Assert.AreEqual(note, layout.Root.PieceAt(Middle(piece)).Selectable(),
                     $"a press on a {Kind(piece)} did not come back as the note it draws");
             }
     });
@@ -116,7 +116,7 @@ public class AbcPointerTests
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 
         var third = element.Layout!.Root.SelfAndDescendants()
-            .Where(n => (n as LayoutNode)?.Kind == "note")
+            .Where(n => n.Kind == "note")
             .ElementAt(2);
 
         element.BeginPointerSelect(new Point(third.Bounds.Right - 1, third.Bounds.Y + (third.Bounds.Height / 2)));
@@ -171,8 +171,8 @@ public class AbcPointerTests
         var swept = ContentSelection.Between(layout.Root, notes[0], notes[3]);
 
         CollectionAssert.AreEquivalent(
-            notes.Take(4).ToList(), swept.Nodes.ToList(),
-            "a drag along the note layer came back as " + string.Join(",", swept.Nodes.Select(Kind)));
+            notes.Take(4).ToList(), swept.Pieces.ToList(),
+            "a drag along the note layer came back as " + string.Join(",", swept.Pieces.Select(Kind)));
 
         // …and the source it stands for skips whatever lies between them that nobody dragged over. The
         // chord is written before the first note and the words are a line below; one span from the first
@@ -192,7 +192,7 @@ public class AbcPointerTests
         var layout = AbcLayout.Build(Sung, 900, Brushes.Black, 1.0);
         var (notes, sung) = (Every(layout, "note"), Every(layout, "syllable"));
 
-        var block = ContentSelection.Between(layout.Root, notes[0], sung[2]).Nodes.ToList();
+        var block = ContentSelection.Between(layout.Root, notes[0], sung[2]).Pieces.ToList();
 
         CollectionAssert.AreEquivalent(
             notes.Take(3).Concat(sung.Take(3)).ToList(), block,
@@ -221,11 +221,11 @@ public class AbcPointerTests
                 "a section holds no notes, so it is a section of nothing");
     });
 
-    private static System.Collections.Generic.List<ILayoutNode> Every(AbcLayout layout, string kind) =>
+    private static System.Collections.Generic.List<Piece> Every(AbcLayout layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
 
-    private static Point Middle(ILayoutNode node) =>
+    private static Point Middle(Piece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 
-    private static string Kind(ILayoutNode? node) => (node as LayoutNode)?.Kind ?? "nothing";
+    private static string Kind(Piece node) => node.Exists ? node.Kind : "nothing";
 }

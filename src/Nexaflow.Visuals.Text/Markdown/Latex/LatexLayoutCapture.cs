@@ -85,13 +85,14 @@ internal sealed class LatexLayoutCapture : IElementRenderer
     private double _offsetY;
     private IReadOnlyList<Transformation> _pending = [];
 
-    /// <summary>
-    /// How much of the page the formula covers. Spacing is left out: a strut is as tall as the line it
-    /// reserves room on, so counting it would pad the element with margin nothing is drawn in.
-    /// </summary>
-    private Rect _union = Rect.Empty;
 
-    private bool _drew;
+
+    /// <summary>
+    /// Whether any box arrived at all. Not the same question as whether the union is empty: a formula
+    /// that is nothing but a thin space lays out a box that reserves room and draws no ink, and it is a
+    /// formula of no size rather than no formula.
+    /// </summary>
+    private bool _built;
 
     public LatexLayoutCapture(double scale, TexReading reading)
     {
@@ -154,12 +155,7 @@ internal sealed class LatexLayoutCapture : IElementRenderer
         if (box.Background is WpfBrush wash)
             _build.Draw(new WashMark(new Rect(0, 0, size.Width, size.Height), wash.Value));
 
-        if (kind is not ("StrutBox" or "GlueBox"))
-        {
-            var covers = new Rect(origin, size);
-            _union = _union.IsEmpty ? covers : Rect.Union(_union, covers);
-            _drew = true;
-        }
+        _built = true;
 
         if (part is not null) _above.Add(part);
         _open.Push((origin, raw));
@@ -338,15 +334,42 @@ internal sealed class LatexLayoutCapture : IElementRenderer
     }
 
     /// <summary>
-    /// Seals the tree, moved onto the origin so nothing sits at a negative coordinate — which is one
-    /// number now rather than a rewrite of every rectangle. A box laid out above or left of where the pen
-    /// started would otherwise put the caret outside the control that draws it.
+    /// Seals the tree and settles it onto the origin, so nothing sits at a negative coordinate — which is
+    /// one number now rather than a rewrite of every rectangle. A box laid out above or left of where the
+    /// pen started would otherwise put the caret outside the control that draws it.
+    ///
+    /// <para>
+    /// Measured from the finished tree rather than gathered on the way through it, because it is a
+    /// question about the tree: spacing is left out — a strut is as tall as the line it reserves room on,
+    /// so counting it would pad the element with margin nothing is drawn in — and that is a rule about
+    /// what a piece turned out to be rather than about the order the boxes arrived in.
+    /// </para>
     /// </summary>
     public void FinishRendering()
     {
-        if (!_drew) return;
+        if (!_built) return;
 
-        Size = new Size(_union.Width, _union.Height);
-        Tree = _build.Seal(new Vector(-_union.X, -_union.Y));
+        var tree = _build.Seal();
+        var covers = Extent(tree.Root);
+
+        tree.Settle(new Vector(-covers.X, -covers.Y));
+
+        Size = new Size(covers.Width, covers.Height);
+        Tree = tree;
+    }
+
+    /// <summary>
+    /// How much of the page the formula actually covers. Spacing is left out: a strut is as tall as the
+    /// line it reserves room on, so counting it would pad the element with margin nothing is drawn in.
+    /// </summary>
+    private static Rect Extent(Piece root)
+    {
+        var union = Rect.Empty;
+
+        foreach (var (piece, where) in root.Placed())
+            if (piece.Kind is not ("StrutBox" or "GlueBox"))
+                union.Union(where);
+
+        return union.IsEmpty ? new Rect(0, 0, 0, 0) : union;
     }
 }

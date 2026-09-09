@@ -181,8 +181,8 @@ public class AbcDragTests
                       $"the lines came out different lengths: {string.Join(", ", ends.Select(e => e.ToString("F0")))}");
     });
 
-    private static System.Windows.Point Middle(ILayoutNode node) =>
+    private static System.Windows.Point Middle(Piece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 
-    private static string Kind(ILayoutNode node) => (node as LayoutNode)?.Kind ?? "?";
+    private static string Kind(Piece node) => node.Exists ? node.Kind : "?";
 }

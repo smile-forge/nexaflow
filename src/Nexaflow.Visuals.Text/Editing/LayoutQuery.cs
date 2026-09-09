@@ -110,13 +110,13 @@ public static class LayoutQuery
             // a radical's sign, the letters a macro expands to — in which case the press means that. A
             // hole names a place of its own without covering any characters, and pointing at one means
             // it rather than the construct around it.
-            var resolved = piece.Stands ? piece : NamedAncestor(piece);
+            var resolved = piece.Stands() ? piece : NamedAncestor(piece);
             if (!resolved.Exists) continue;
 
             // Where several overlap, one that holds a place beats one that does not, because it is the
             // more specific answer; between equals, the deeper. Neither is a matter of which is smaller
             // on the page — that only ever settled it by luck.
-            var rank = (Named: piece.Stands ? 1 : 0, Depth: piece.Depth);
+            var rank = (Named: piece.Stands() ? 1 : 0, Depth: piece.Depth);
             if (rank.CompareTo(bestRank) <= 0) continue;
 
             bestRank = rank;
@@ -302,7 +302,7 @@ public static class LayoutQuery
     private static bool Holds(Piece piece)
     {
         var self = true;
-        foreach (var inside in piece.SelfAndDescendants)
+        foreach (var inside in piece.SelfAndDescendants())
         {
             if (self) { self = false; continue; }
             if (inside.Part is { Length: > 0 }) return true;
@@ -355,7 +355,7 @@ public static class LayoutQuery
                 // never been asked about.
                 if (!Decoration(parent).All(d => Among(d.Bounds, ink))) continue;
 
-                foreach (var covered in parent.SelfAndDescendants) chosen.Remove(covered);
+                foreach (var covered in parent.SelfAndDescendants()) chosen.Remove(covered);
                 chosen.Add(parent);
                 grew = true;
             }
@@ -494,9 +494,9 @@ public static class LayoutQuery
     {
         Piece ends = default, starts = default;
 
-        foreach (var piece in root.SelfAndDescendants)
+        foreach (var piece in root.SelfAndDescendants())
         {
-            if (!piece.Stands) continue;
+            if (!piece.Stands()) continue;
 
             var at = piece.Sits();
             if (at.End == offset && (!ends.Exists || Tighter(piece, ends))) ends = piece;
@@ -533,9 +533,9 @@ public static class LayoutQuery
         var whole = root.Sits();
         var stops = new SortedSet<int> { whole.Start, whole.End };
 
-        foreach (var piece in root.SelfAndDescendants)
+        foreach (var piece in root.SelfAndDescendants())
         {
-            if (!piece.Stands) continue;
+            if (!piece.Stands()) continue;
 
             var at = piece.Sits();
             stops.Add(at.Start);
@@ -607,7 +607,7 @@ public static class LayoutQuery
             var rows = ancestor.Rows();
             if (rows.Count < 2) continue;
 
-            var mine = rows.FindIndex(r => r.Any(p => p.SelfAndDescendants.Contains(from)));
+            var mine = rows.FindIndex(r => r.Any(p => p.SelfAndDescendants().Contains(from)));
             if (mine < 0) continue;
 
             // Walk outwards past any row that is only decoration. A fraction lays out as numerator, bar,

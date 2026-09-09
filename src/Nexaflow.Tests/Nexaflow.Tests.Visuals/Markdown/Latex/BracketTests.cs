@@ -114,13 +114,13 @@ public class BracketTests
         Assert.AreEqual(@"\braket{0|0}", Text(latex, found));
     });
 
-    private static ILayoutNode? Before(string latex, int caret)
+    private static Piece Before(string latex, int caret)
     {
         var layout = LatexLayout.Build(latex, 16);
         Assert.IsNotNull(layout, latex);
         return layout.Tree.SymbolBefore(caret);
     }
 
-    private static string Text(string latex, ILayoutNode node) =>
+    private static string Text(string latex, Piece node) =>
         latex.Substring(node.Sits().Start, node.Sits().Length);
 }

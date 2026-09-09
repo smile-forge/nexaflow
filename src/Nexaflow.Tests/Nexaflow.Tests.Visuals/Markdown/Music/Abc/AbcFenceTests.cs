@@ -98,9 +98,9 @@ public class AbcFenceTests
         })
         {
             var piece = layout.Root.SelfAndDescendants()
-                .FirstOrDefault(n => (n as LayoutNode)?.Kind == kind);
+                .FirstOrDefault(n => n.Kind == kind);
 
-            Assert.IsNotNull(piece, $"nothing was engraved for the {kind}");
+            Assert.IsTrue(piece.Exists, $"nothing was engraved for the {kind}");
 
             var at = piece.Sits();
             StringAssert.Contains(tune.Substring(at.Start, at.Length), text,
@@ -115,7 +115,7 @@ public class AbcFenceTests
 
         // Where a tune was collected is a fact ABOUT the tune rather than part of it, so it is read and
         // kept — a details panel is the place for it — and it is not drawn.
-        Assert.IsFalse(layout.Root.SelfAndDescendants().Any(n => (n as LayoutNode)?.Kind == "source"));
+        Assert.IsFalse(layout.Root.SelfAndDescendants().Any(n => n.Kind == "source"));
         Assert.AreEqual("Sussex", AbcHeader.Of(ContentReading.Of(AbcPipeline.Read(tune))).Source);
     });
 
@@ -127,13 +127,13 @@ public class AbcFenceTests
         var tune = "X:1\nT:Speed the Plough\nK:G\nGABc dedB|\n";
         var layout = AbcLayout.Build(tune, 700, System.Windows.Media.Brushes.Black, 1.0);
 
-        var title = layout.Root.SelfAndDescendants().First(n => (n as LayoutNode)?.Kind == "title");
-        var note = layout.Root.SelfAndDescendants().First(n => (n as LayoutNode)?.Kind == "note");
+        var title = layout.Root.SelfAndDescendants().First(n => n.Kind == "title");
+        var note = layout.Root.SelfAndDescendants().First(n => n.Kind == "note");
 
         var swept = ContentSelection.Between(layout.Root, title, note);
 
         Assert.IsFalse(swept.IsEmpty, "a drag from the title to a note selected nothing");
-        Assert.IsTrue(swept.Nodes.Contains(title), "…and it did not include the title it started on");
+        Assert.IsTrue(swept.Pieces.Contains(title), "…and it did not include the title it started on");
     });
 
     private static AbcElement? Inside(DependencyObject root) => Descendants(root).OfType<AbcElement>().FirstOrDefault();

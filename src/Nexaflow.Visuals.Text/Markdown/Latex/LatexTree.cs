@@ -303,7 +303,7 @@ public sealed class LatexTree
     /// </summary>
     public GridDrop? GridDropAt(Point point)
     {
-        foreach (var node in Root.SelfAndDescendants.OrderBy(n => n.Bounds.Width * n.Bounds.Height))
+        foreach (var node in Root.SelfAndDescendants().OrderBy(n => n.Bounds.Width * n.Bounds.Height))
         {
             if (Origin(node) is not { Kind: TexKind.Environment } part) continue;
             if (TexGrid.Read(part.Node, part.Start) is not { } grid) continue;
@@ -326,7 +326,7 @@ public sealed class LatexTree
             {
                 if (cell.Node is not { } written) continue;
 
-                var drawn = node.SelfAndDescendants
+                var drawn = node.SelfAndDescendants()
                     .Where(piece => piece.Bounds.Width > 0 && Inside(Origin(piece), written))
                     .Select(piece => piece.Bounds)
                     .ToList();
@@ -392,7 +392,7 @@ public sealed class LatexTree
     /// drew a box for. Tab walks these.
     /// </summary>
     public IReadOnlyList<Piece> Placeholders =>
-        _placeholders ??= [.. Root.SelfAndDescendants.Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
+        _placeholders ??= [.. Root.SelfAndDescendants().Where(n => n.IsPlaceholder()).OrderBy(n => n.Sits().Start)];
 
     private IReadOnlyList<Piece>? _placeholders;
 
@@ -481,8 +481,8 @@ public sealed class LatexTree
         // it covers any characters. A hole covers none by definition, so a selection sweeping across a
         // half-written fraction would wash everything except the part still missing — the one piece the
         // reader most needs to see they have picked up.
-        var covered = Root.SelfAndDescendants
-            .Where(n => n.Stands && n.Sits().Start >= start && n.Sits().End <= end)
+        var covered = Root.SelfAndDescendants()
+            .Where(n => n.Stands() && n.Sits().Start >= start && n.Sits().End <= end)
             .ToHashSet();
 
         return Merge([.. covered.Where(n => !n.Ancestors().Any(covered.Contains)).Select(n => n.Bounds)]);
@@ -541,7 +541,7 @@ public sealed class LatexTree
         // drag from before a root's sign to past its contents takes the root itself and not merely what
         // is under the bar. Anything only half inside is left to promotion, which is what stops a range
         // that clipped a brace of `^{n}` from coming back as `{n`.
-        var touched = Root.SelfAndDescendants
+        var touched = Root.SelfAndDescendants()
             .Where(n => n.Sits() is { Length: > 0 } at && at.Start >= from && at.End <= to)
             .ToList();
 
@@ -879,9 +879,9 @@ public sealed class LatexTree
     public Piece SymbolBefore(int offset)
     {
         var best = default(Piece);
-        foreach (var node in Root.SelfAndDescendants)
+        foreach (var node in Root.SelfAndDescendants())
         {
-            if (!node.Stands || node.Sits().End != offset) continue;
+            if (!node.Stands() || node.Sits().End != offset) continue;
 
             // Never a run of things. A row is not an item — it is however many items, each of which is
             // one — so it is never "the thing before the caret" however exactly it happens to end

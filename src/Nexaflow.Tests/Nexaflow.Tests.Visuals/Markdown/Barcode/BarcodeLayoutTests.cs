@@ -23,18 +23,18 @@ namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 [CoversNode("barcode-editing")]
 public class BarcodeLayoutTests
 {
-    private static ILayoutNode Root(string source) => UiRoot(source)!;
+    private static Piece Root(string source) => UiRoot(source)!;
 
-    private static ILayoutNode? UiRoot(string source)
+    private static Piece UiRoot(string source)
     {
         Assert.IsTrue(BarcodeBlockParser.TryParse(source, out var block, out string? error), error);
         return ((IEditableBlock)new BarcodeElement(block!, MarkdownPalette.Dark)).Root;
     }
 
-    private static ILayoutNode[] Of(ILayoutNode root, BarcodeKind kind) =>
+    private static Piece[] Of(Piece root, BarcodeKind kind) =>
         [.. root.SelfAndDescendants().Where(n => n.Kind == kind.ToString())];
 
-    private static Point Middle(ILayoutNode node) =>
+    private static Point Middle(Piece node) =>
         new(node.Bounds.X + node.Bounds.Width / 2, node.Bounds.Y + node.Bounds.Height / 2);
 
     // ── Where a caret may stand ───────────────────────────────────────────
@@ -82,7 +82,7 @@ public class BarcodeLayoutTests
         var root = Root("format: EAN13\nvalue: 590123412345");
 
         var check = Of(root, BarcodeKind.EncodedText).Single();
-        Assert.AreSame(check, root.NodeAt(Middle(check)),
+        Assert.AreEqual(check, root.PieceAt(Middle(check)),
             "so the element can answer that pressing it means the whole number");
     });
 
@@ -92,7 +92,7 @@ public class BarcodeLayoutTests
         var root = Root("format: CODE128\nvalue: HELLO123");
 
         var third = Of(root, BarcodeKind.Character)[2];
-        var found = root.NodeAt(Middle(third));
+        var found = root.PieceAt(Middle(third));
 
         Assert.AreEqual(2, found!.Sits().Start);
         Assert.AreEqual(1, found.Sits().Length);

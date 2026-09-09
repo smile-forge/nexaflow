@@ -314,27 +314,37 @@ public class BarcodeElementTests
         return element;
     }
 
-    /// <summary>The text runs the element painted, left to right.</summary>
+    /// <summary>
+    /// Every run of glyphs the element actually drew, and where it landed.
+    ///
+    /// <para>
+    /// Read out of the drawing rather than off the layout, which is the point of it: it checks what WPF was
+    /// told to paint. Where a run lands is the transform it is drawn under as much as the origin baked into
+    /// it — a piece of layout is anchored where it sits and draws from its own origin — so the walk carries
+    /// the transform down with it.
+    /// </para>
+    /// </summary>
     private static List<(string Text, double Left, double Right)> Runs(BarcodeElement element)
     {
         var runs = new List<(string, double, double)>();
         var drawing = VisualTreeHelper.GetDrawing(element);
-        if (drawing is not null) Walk(drawing);
+        if (drawing is not null) Walk(drawing, System.Windows.Media.Matrix.Identity);
         runs.Sort((a, b) => a.Item2.CompareTo(b.Item2));
         return runs;
 
-        void Walk(DrawingGroup group)
+        void Walk(DrawingGroup group, System.Windows.Media.Matrix above)
         {
+            var here = group.Transform is { } own ? own.Value * above : above;
+
             foreach (var child in group.Children)
             {
-                if (child is DrawingGroup nested) Walk(nested);
-                else if (child is GlyphRunDrawing { GlyphRun: { } run })
-                {
-                    var box = run.ComputeAlignmentBox();
-                    runs.Add((string.Concat(run.Characters),
-                              run.BaselineOrigin.X + box.Left,
-                              run.BaselineOrigin.X + box.Right));
-                }
+                if (child is DrawingGroup nested) { Walk(nested, here); continue; }
+                if (child is not GlyphRunDrawing { GlyphRun: { } run }) continue;
+
+                var box = run.ComputeAlignmentBox();
+                var origin = here.Transform(run.BaselineOrigin);
+
+                runs.Add((string.Concat(run.Characters), origin.X + box.Left, origin.X + box.Right));
             }
         }
     }

@@ -69,7 +69,7 @@ public class AbcSelectionOrderTests
 
         // Stepping sideways walks the verse — across the bar line, which is the point.
         var walked = 1;
-        for (var at = first.Step(vertical: false, forward: true); at is not null;
+        for (var at = first.Step(vertical: false, forward: true); at.Exists;
              at = at.Step(vertical: false, forward: true)) walked++;
 
         Assert.AreEqual(8, walked, "one verse is eight syllables, both bars");
@@ -176,16 +176,16 @@ public class AbcSelectionOrderTests
         string.Join(" | ", element.Selection.Select(r => element.Source.Substring(r.Start, r.Length)));
 
     /// <summary>One verse, from a syllable in it — the run the score says it is.</summary>
-    private static System.Collections.Generic.List<ILayoutNode> Verse(ILayoutNode from)
+    private static System.Collections.Generic.List<Piece> Verse(Piece from)
     {
-        var run = new System.Collections.Generic.List<ILayoutNode> { from };
-        for (var at = from.Step(vertical: false, forward: true); at is not null;
+        var run = new System.Collections.Generic.List<Piece> { from };
+        for (var at = from.Step(vertical: false, forward: true); at.Exists;
              at = at.Step(vertical: false, forward: true)) run.Add(at);
         return run;
     }
 
-    private static System.Collections.Generic.List<ILayoutNode> Of(AbcLayout layout, string kind) =>
+    private static System.Collections.Generic.List<Piece> Of(AbcLayout layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => n.Kind == kind)];
 
-    private static string? Kind(ILayoutNode? node) => (node as Nexaflow.Visuals.Text.Editing.LayoutNode)?.Kind;
+    private static string? Kind(Piece node) => node.Exists ? node.Kind : null;
 }

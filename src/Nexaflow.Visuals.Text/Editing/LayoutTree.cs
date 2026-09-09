@@ -276,4 +276,22 @@ public sealed class LayoutTree
 
         _runs.Add(indices);
     }
+
+    /// <summary>
+    /// Moves the whole tree, by moving the one anchor nothing is measured from.
+    ///
+    /// <para>
+    /// The root's own anchor is the single number every piece under it is relative to, so shifting it
+    /// shifts all of them and touches nothing else — which is what relative geometry makes free, and the
+    /// reason this can be said after the fact when no other anchor can. Content that only learns where it
+    /// sits once it is laid out uses it: a typeset formula can be built above and left of where the pen
+    /// started, and a tree with negative coordinates would put the caret outside the control drawing it.
+    /// </para>
+    /// </summary>
+    public void Settle(Vector by)
+    {
+        if (_pieces.Length == 0 || (by.X == 0 && by.Y == 0)) return;
+
+        _pieces[0] = _pieces[0] with { Offset = _pieces[0].Offset + by };
+    }
 }

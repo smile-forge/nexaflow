@@ -157,7 +157,7 @@ public class LatexTreeShapeTests
         // cells, so those rules have something to work on.
         const string latex = @"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}";
         var tree = Build(latex, "a matrix");
-        ILayoutNode Cell(string digit) => tree.Root.Ink().Single(n => Text(tree, n) == digit);
+        Piece Cell(string digit) => tree.Root.Ink().Single(n => Text(tree, n) == digit);
 
         var column = ContentSelection.Between(tree.Root, Cell("2"), Cell("8"));
         Assert.AreEqual(3, column.Ranges.Count, "down the middle column is three cells, three ranges");
@@ -184,7 +184,7 @@ public class LatexTreeShapeTests
         // having anything to say: what was dragged over inside one is a run of terms like any other.
         const string latex = @"A = \begin{pmatrix} a & 4b^{2}+3 \\ c^4 & d+3i \end{pmatrix}";
         var tree = Build(latex, "a matrix");
-        ILayoutNode At(int offset) => tree.Root.Ink().Single(n => n.Sits().Start == offset);
+        Piece At(int offset) => tree.Root.Ink().Single(n => n.Sits().Start == offset);
 
         var four = latex.IndexOf("4b", StringComparison.Ordinal);
         var two = latex.IndexOf("{2}", StringComparison.Ordinal) + 1;
@@ -218,6 +218,6 @@ public class LatexTreeShapeTests
             "the 4 sits inside three fractions");
     });
 
-    private static string Text(LatexTree tree, ILayoutNode node) =>
+    private static string Text(LatexTree tree, Piece node) =>
         node.Sits().Length > 0 ? tree.Latex.Substring(node.Sits().Start, node.Sits().Length) : string.Empty;
 }

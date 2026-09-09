@@ -61,7 +61,7 @@ public class LayoutArenaTests
     }
 
     private static Piece Find(LayoutTree tree, string kind) =>
-        tree.Root.SelfAndDescendants.Single(p => p.Kind == kind);
+        tree.Root.SelfAndDescendants().Single(p => p.Kind == kind);
 
     [TestMethod]
     public void ASubtreeIsARunOfTheTree()
@@ -70,17 +70,17 @@ public class LayoutArenaTests
 
         // Pre-order: every piece comes after the one holding it, and everything inside a piece comes
         // before anything beside it. That is what makes "a piece and all of it" a slice.
-        foreach (var piece in tree.Root.SelfAndDescendants)
+        foreach (var piece in tree.Root.SelfAndDescendants())
             foreach (var child in piece.Children)
                 CollectionAssert.Contains(
-                    piece.SelfAndDescendants.ToList(), child,
+                    piece.SelfAndDescendants().ToList(), child,
                     $"a {child.Kind} is held by a {piece.Kind} but is not inside its run");
 
         var note = Find(tree, "note");
 
         CollectionAssert.AreEqual(
             new[] { "note", "accidental", "head" },
-            note.SelfAndDescendants.Select(p => p.Kind).ToArray(),
+            note.SelfAndDescendants().Select(p => p.Kind).ToArray(),
             "a piece and everything in it, in order, and nothing else");
     }
 
@@ -102,7 +102,7 @@ public class LayoutArenaTests
     {
         var tree = Built();
 
-        foreach (var piece in tree.Root.SelfAndDescendants)
+        foreach (var piece in tree.Root.SelfAndDescendants())
         {
             if (piece.Box.IsEmpty) continue;
 
@@ -123,8 +123,8 @@ public class LayoutArenaTests
         var here = Built();
         var there = Shifted(new Vector(100, 40));
 
-        var mine = here.Root.SelfAndDescendants.ToList();
-        var theirs = there.Root.SelfAndDescendants.ToList();
+        var mine = here.Root.SelfAndDescendants().ToList();
+        var theirs = there.Root.SelfAndDescendants().ToList();
 
         Assert.AreEqual(mine.Count, theirs.Count);
 

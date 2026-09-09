@@ -286,7 +286,7 @@ internal sealed partial class AbcBuilder
             if (beam is not null)
             {
                 Open("beam", beam, new Point(events[0].X, system.StaffTop));
-                Beamed(system, geometry, bar, events);
+                Beamed(system, geometry, bar, beam, events);
                 Close();
             }
             else
@@ -341,29 +341,39 @@ internal sealed partial class AbcBuilder
     /// into each of them, and a note is finished when it is closed — so the group's direction, slope and
     /// height are settled before the first head goes down, which is what an engraver does anyway.
     /// </para>
+    /// <para>
+    /// A curve joining two notes of this group is gathered here, among them, rather than at the bar: they
+    /// share this parent and nothing else can span them without lifting them out of it.
+    /// </para>
     /// </summary>
-    private void Beamed(System system, StaffGeometry geometry, Bar bar, List<Event> events)
+    private void Beamed(System system, StaffGeometry geometry, Bar bar, ContentPart beam, List<Event> events)
     {
         var beamed = events.Where(e => e.Beamable).ToList();
         var plan = Plan(system, geometry, beamed);
+        var sets = Gathering(bar, beam);
 
-        foreach (var ev in events)
+        for (var at = 0; at < events.Count; at++)
         {
-            var at = plan is null ? -1 : beamed.IndexOf(ev);
+            foreach (var curve in Opening(sets, at)) Open(curve.Kind + "-set", isInk: false);
 
-            if (plan is null || at < 0)
+            var ev = events[at];
+            var on = plan is null ? -1 : beamed.IndexOf(ev);
+
+            if (plan is null || on < 0)
             {
                 Note(system, geometry, ev, flags: true);
-                continue;
+            }
+            else
+            {
+                Note(system, geometry, ev, flags: false,
+                     toY: plan.Reach + (plan.Slope * (plan.Xs[on] - plan.Xs[0])) + (plan.Down ? BeamThick : 0),
+                     stemsDown: plan.Down);
             }
 
-            Note(system, geometry, ev, flags: false,
-                 toY: plan.Reach + (plan.Slope * (plan.Xs[at] - plan.Xs[0])) + (plan.Down ? BeamThick : 0),
-                 stemsDown: plan.Down);
+            foreach (var curve in Closing(sets, at)) { Arced(curve); Close(); }
         }
 
         if (plan is not null) BeamBars(plan, beamed);
-        _ = bar;
     }
 
     /// <summary>Where a beam over a group lands: which way it points, how it leans, and how many bars.</summary>

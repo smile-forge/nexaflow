@@ -99,9 +99,9 @@ public class AbcSelectionPicture
         return shot;
     }
 
-    private static List<ILayoutNode> Every(AbcElement element, string kind) =>
-        [.. element.Layout!.Root.SelfAndDescendants().Where(n => (n as LayoutNode)?.Kind == kind)];
+    private static List<Piece> Every(AbcElement element, string kind) =>
+        [.. element.Layout!.Root.SelfAndDescendants().Where(n => n.Kind == kind)];
 
-    private static Point Middle(ILayoutNode node) =>
+    private static Point Middle(Piece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 }

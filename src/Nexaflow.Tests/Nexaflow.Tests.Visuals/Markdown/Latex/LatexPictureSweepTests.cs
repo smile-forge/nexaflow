@@ -267,10 +267,10 @@ public class LatexPictureSweepTests
         foreach (var child in part.Children) Parsed(child, depth + 1, text);
     }
 
-    private static int Depth(ILayoutNode node)
+    private static int Depth(Piece node)
     {
         var depth = 1;
-        for (var at = node.Parent; at is not null; at = at.Parent) depth++;
+        for (var at = node.Parent; at.Exists; at = at.Parent) depth++;
         return depth;
     }
 

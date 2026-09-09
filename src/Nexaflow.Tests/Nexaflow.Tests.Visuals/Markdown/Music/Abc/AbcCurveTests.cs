@@ -92,25 +92,25 @@ public class AbcCurveTests
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
             var layout = AbcLayout.Build(abc, 700, Brushes.Black, 1.0);
-            var seen = new HashSet<ILayoutNode>();
+            var seen = new HashSet<Piece>();
 
             foreach (var node in layout.Root.SelfAndDescendants())
             {
                 Assert.IsTrue(seen.Add(node), $"{what}: a {Kind(node)} is reachable twice");
 
                 foreach (var child in node.Children)
-                    Assert.AreSame(node, child.Parent,
+                    Assert.AreEqual(node, child.Parent,
                                    $"{what}: a {Kind(child)} is held by a {Kind(node)} that is not its parent");
             }
         }
     });
 
-    private static ILayoutNode Only(AbcLayout layout, string kind)
+    private static Piece Only(AbcLayout layout, string kind)
     {
         var found = layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind).ToList();
         Assert.AreEqual(1, found.Count, $"expected one {kind}, found {found.Count}");
         return found[0];
     }
 
-    private static string Kind(ILayoutNode? node) => (node as LayoutNode)?.Kind ?? "nothing";
+    private static string Kind(Piece node) => node.Exists ? node.Kind : "nothing";
 }

@@ -59,7 +59,10 @@ public sealed class LayoutBuilder
         /// <summary>Says the piece reaches at least this far, whatever it holds.</summary>
         public void Covers(Rect what)
         {
-            if (what.IsEmpty || (what.Width <= 0 && what.Height <= 0)) return;
+            // A rectangle with no size is still a place. A typesetter makes plenty of them — a strut that
+            // reserves nothing, a kern of zero — and a piece that says it is at a point is not the same as a
+            // piece that never said where it was, which is what Rect.Empty means.
+            if (what.IsEmpty) return;
             Box = Box.IsEmpty ? what : Rect.Union(Box, what);
         }
 
@@ -244,17 +247,10 @@ public sealed class LayoutBuilder
     }
 
     /// <summary>The tree, finished. Nothing may be added to the builder afterwards.</summary>
-    public LayoutTree Seal(Vector origin = default)
+    public LayoutTree Seal()
     {
         if (_open.Count > 0)
             throw new InvalidOperationException($"{_open.Count} piece(s) were opened and never closed");
-
-        // Where the whole thing sits. The one anchor that can be settled after the fact, because nothing is
-        // measured from it: moving the root moves everything under it by exactly as much, which is what
-        // relative geometry makes free. A formula does not know it was laid out above the origin until it
-        // has been laid out.
-        if (_pieces.Count > 0 && (origin.X != 0 || origin.Y != 0))
-            _pieces[0] = _pieces[0] with { Offset = _pieces[0].Offset + origin };
 
         var count = _pieces.Count;
 

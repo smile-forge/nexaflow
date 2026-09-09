@@ -154,7 +154,7 @@ public sealed class ContentSelection
         var ranges = LayoutQuery.Ranges(chosen);
         if (ranges.Count < 2) return ranges;
 
-        var inside = new HashSet<Piece>(chosen.SelectMany(p => p.SelfAndDescendants));
+        var inside = new HashSet<Piece>(chosen.SelectMany(p => p.SelfAndDescendants()));
         var others = root.Ink()
             .Where(p => !inside.Contains(p))
             .Select(p => p.Sits())
