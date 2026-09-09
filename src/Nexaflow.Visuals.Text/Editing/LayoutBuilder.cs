@@ -99,6 +99,34 @@ public sealed class LayoutBuilder
     }
 
     /// <summary>
+    /// Where the piece being built is anchored, with every anchor above it added — the frame its marks are
+    /// measured in.
+    ///
+    /// <para>
+    /// For content that works in page coordinates, which is most of it: an engraver decides where a note
+    /// goes on a line and a typesetter reports where a glyph landed, and neither is going to be rewritten
+    /// to think in frames. Subtracting this turns one into the other, and it means the right thing at both
+    /// moments it is asked. When a piece is opened the top of the stack is still its parent, so
+    /// <c>at - Anchor</c> is where the new piece sits inside it; once it is open this is the piece's own
+    /// anchor, which is what its drawing is measured from.
+    /// </para>
+    /// <para>
+    /// So a builder converts in one place per drawing helper rather than at every call, and what it stores
+    /// is relative — which is the whole point, because that is what makes a subtree mean the same thing
+    /// wherever it is put down.
+    /// </para>
+    /// </summary>
+    public Vector Anchor
+    {
+        get
+        {
+            var anchor = default(Vector);
+            foreach (var frame in _open) anchor += frame.Offset;
+            return anchor;
+        }
+    }
+
+    /// <summary>
     /// Records a mark against the piece being built, in that piece's own frame. The piece grows to hold
     /// it — a mark says how far it reaches, so nothing has to be told twice.
     /// </summary>
