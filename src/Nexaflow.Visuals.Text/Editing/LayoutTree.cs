@@ -59,11 +59,9 @@ internal readonly record struct Stored
     /// <summary>Whether a caret inside it is somewhere other than beside it — a script, a fraction.</summary>
     public required bool IsEnclosure { get; init; }
 
-    /// <summary>
-    /// Whether this is a place waiting to be written in — an argument left empty, which the builder drew
-    /// a box for. It stands for a place and covers no characters, which is the whole of what a hole is.
-    /// </summary>
-    public required bool IsHole { get; init; }
+
+    /// <summary>Where a caret may rest against it — see <see cref="Editing.Stops"/>.</summary>
+    public required Stops Stops { get; init; }
 }
 
 /// <summary>

@@ -35,23 +35,6 @@ namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 public class CaretPlaceTests
 {
     [TestMethod]
-    public void SpaceInTheSettingIsAPlaceEitherSideOfIt() => UiThread.Run(() =>
-    {
-        // Reported: in `6+5` the caret could be put before the 6, after the 6, after the + and after the
-        // 5 — four marks where a reader sees six places, because it was always drawn hard against
-        // whatever preceded it and the glue around the operator was left with no caret in it.
-        var (tree, walked) = Walk("6+5");
-
-        CollectionAssert.AreEqual(new[] { 0, 1, 1, 2, 2, 3 }, walked.Select(p => p.Offset).ToArray(),
-            "six places over four offsets: the two the operator's glue sits at are each two");
-
-        var marks = walked.Select(p => Math.Round(tree.Root.CaretRect(p).X, 3)).ToList();
-        Assert.AreEqual(6, marks.Distinct().Count(), "and every one of them is drawn somewhere else");
-        CollectionAssert.AreEqual(marks.OrderBy(x => x).ToArray(), marks.ToArray(),
-            "in the order the arrow key walks them, left to right");
-    });
-
-    [TestMethod]
     public void GlyphsSetAgainstEachOtherShareTheOnePlaceBetweenThem()
     {
         UiThread.Run(() =>

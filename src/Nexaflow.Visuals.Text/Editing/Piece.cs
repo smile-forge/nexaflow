@@ -78,11 +78,16 @@ public readonly record struct Piece
     }
 
     /// <summary>
-    /// Whether this piece stands for a place in the source — whether pointing at it, washing it or resting a
-    /// caret beside it means anything. Drawing is a different question: a bracket, a fraction bar and the
-    /// three glyphs of an operator name are all drawn and none of them stands for a place of its own.
+    /// Whether this piece stands for a place in the source. Drawing is a different question: a bracket, a
+        /// fraction bar and the three glyphs of an operator name are all drawn and none of them stands for a
+        /// place of its own.
+        /// <para>
+        /// Naming a part is enough; the part need not cover any characters. An argument nobody has written
+        /// yet is a place with nothing in it, which is exactly somewhere a caret can go and text can land —
+        /// and is otherwise no different from a letter, being one thing the builder drew.
+        /// </para>
     /// </summary>
-    public bool Stands() => Part is { Length: > 0 } || IsHole;
+    public bool Stands() => Part is not null;
 
     /// <summary>
     /// Where this piece sits in the source.
@@ -101,12 +106,9 @@ public readonly record struct Piece
     /// <summary>Whether a caret inside it is somewhere other than beside it — a script, a fraction.</summary>
         public bool IsEnclosure => _tree is not null && _tree.Piece(_at).IsEnclosure;
 
-    /// <summary>
-    /// Whether this is a place still waiting to be written in — see <see cref="LayoutTree.Stored.IsHole"/>.
-    /// The one thing about a piece a builder has to declare, because a hole covers no characters and there
-    /// is nothing else to read it off.
-    /// </summary>
-    public bool IsHole => _tree is not null && _tree.Piece(_at).IsHole;
+
+    /// <summary>Where a caret may rest against this piece — see <see cref="Editing.Stops"/>.</summary>
+    public Stops Stops => _tree is null ? Stops.None : _tree.Piece(_at).Stops;
 
     /// <summary>What it drew, in the order it drew it, in its own frame.</summary>
     public ReadOnlySpan<LayoutMark> Marks => _tree is null ? default : _tree.MarksOf(_at);

@@ -152,9 +152,14 @@ internal sealed class LatexCapture : IElementRenderer
             // and the part is the only thing that can answer it.
             isEnclosure: owns is { } enclosing && enclosing.Parts.Any() && !IsRun(enclosing),
 
-            // An argument left empty, which the typesetter drew a hollow box for. It covers no characters
-            // — that is what makes it a hole — so nothing about the source can say it is one.
-            isHole: kind == HoleKind,
+            // A run of things is not a place of its own. Its ends are its contents' ends, so letting it
+            // declare stops there puts a second bar at an offset the reader sees one place at — and then
+            // the arrow key walks between two identical positions instead of leaving the formula.
+            //
+            // The outermost is the exception, and not really an exception: the ends of the whole formula
+            // are where a reader arrives from the text either side, whatever the box there happens to be.
+            stops: _open.Count > 0 && owns is { } run && IsRun(run) ? Stops.None : Stops.Both,
+
 
             // A typeset box is the height and depth it reserves on its line rather than a box around what
             // it holds — a subscript hangs below the very piece that holds it — so it states its own
