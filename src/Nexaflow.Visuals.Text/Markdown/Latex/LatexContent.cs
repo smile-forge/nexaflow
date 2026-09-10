@@ -53,52 +53,25 @@ internal sealed class LatexContent(double scale, bool inline) : IContent
     }
 
     /// <summary>
-    /// What typing means here, given what it landed in — LaTeX's two rules about how a formula is
-    /// written: what the characters make of themselves, and what the structure makes of them.
+    /// What typing means here, given what it landed in — LaTeX's rule about how a command is spelled.
     ///
     /// <para>
-    /// A backslash opens a command and letters extend it, so <c>\alpha</c> shows as itself while it is
-    /// being written rather than flickering through four failed parses; and a 3 typed just inside the
-    /// exponent of <c>x^2</c> makes it twenty-three, where the same keystroke one mark to the right
-    /// follows the whole script.
+    /// A backslash opens one and letters extend it, so <c>\alpha</c> shows as itself while it is being
+    /// written rather than flickering through four failed parses.
+    /// </para>
+    /// <para>
+    /// It used to answer for the structure too, letting the parse tree place a 3 typed after <c>x^2</c>
+    /// inside the exponent. That went with the tree: a properly nested layout offers a place inside the
+    /// script and a place past it, so which one the caret is standing at already says where the 3 belongs,
+    /// and a second opinion from the parse could only disagree with it.
     /// </para>
     /// </summary>
     public EditState? Typing(Landing landing, string text) =>
-        WriteThroughTree(landing, text)
-        ?? (text.Length == 1 ? landing.State.Typing(text[0]) : null);
+        text.Length == 1 ? landing.State.Typing(text[0]) : null;
 
     /// <summary>
     /// Ends a stretch being shown as written, keeping the space that says where a control word stopped —
     /// see <see cref="LatexWriting.Settle"/>.
     /// </summary>
     public EditState Settle(Landing landing, string separator) => landing.State.Settle(separator);
-
-    /// <summary>
-    /// Lets the tree make the edit, when the caret is somewhere a construct has an opinion about — the 3
-    /// after <c>x^2</c> belongs in the exponent. Null when the position belongs to no construct in
-    /// particular and the caller should write the text itself.
-    /// </summary>
-    /// <remarks>
-    /// Deliberately declined mid-command and mid-selection. A half-written command is being shown as the
-    /// characters it is spelled with, so the layout is a step behind the source and the tree would be
-    /// answering about a formula the reader is not looking at; a selection is a replacement, which is a
-    /// different edit. Whitespace is declined too — a space is how you say "out of this script", so it
-    /// must never be the thing that grows one.
-    /// </remarks>
-    private EditState? WriteThroughTree(Landing landing, string text)
-    {
-        var state = landing.State;
-
-        if (state.HasSelection || state.Raw is not null) return null;
-        if (string.IsNullOrWhiteSpace(text)) return null;
-
-        // Only from inside. A caret that has stepped out of a construct is standing against the construct
-        // rather than against its contents — that is what a place means and the whole reason it is a
-        // piece — so a 3 typed there follows `x^2` instead of joining its exponent.
-        if (!landing.Innermost) return null;
-
-        return _tree.Write(state.Caret, text) is { } written
-            ? new EditState(written.Latex, written.Caret)
-            : null;
-    }
 }

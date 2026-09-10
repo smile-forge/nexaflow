@@ -158,25 +158,6 @@ public class SingleFormulaEditorTests
     // ── Editing what is already there ───────────────────────────────────────
 
     [TestMethod]
-    public void TypingAfterAnExponentGoesIntoIt()
-    {
-        // LaTeX lets a one-token argument go unbraced, so x^2 is x to the 2 — and typing a 3 meaning
-        // twenty-three writes x^23, which says x squared followed by a 3. The keystroke has to mean
-        // the obvious thing, so the argument is re-braced around it.
-        RunInFormula("x^2", (editor, rtb) =>
-        {
-            var formula = Focused(editor);
-            MarkdownEditorHarness.Type(rtb, "3");
-
-            Assert.AreEqual("x^{23}", formula.Latex, "the 3 joined the exponent instead of escaping it");
-            Assert.AreEqual(5, formula.Caret, "and the caret is after it, still inside the exponent");
-
-            MarkdownEditorHarness.Type(rtb, "4");
-            Assert.AreEqual("x^{234}", formula.Latex, "and it keeps going, because the braces are there now");
-        });
-    }
-
-    [TestMethod]
     public void TypingAfterAnOrdinaryNumberJustFollowsIt()
     {
         // The guard against re-bracing everything: "1" here is a term, not a construct's argument, so
