@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public partial class InlineMarkdownEditor
 {
     /// <summary>The formula the caret is inside, if any — the target for keys and palette insertions.</summary>
-    internal FormulaElement? FocusedFormula => _caretBlock as FormulaElement;
+    internal Editing.ContentElement? FocusedContent => _caretBlock as Editing.ContentElement;
 
     /// <summary>
     /// Types LaTeX into the formula holding the caret — how a symbol palette inserts. When no formula
@@ -39,7 +39,7 @@ public partial class InlineMarkdownEditor
         if (string.IsNullOrEmpty(latex)) return false;
         if (!AdoptFormulaAtCaret()) return false;
 
-        FocusedFormula!.Insert(latex, caretBack);
+        FocusedContent!.Insert(latex, caretBack);
         return true;
     }
 
@@ -51,7 +51,7 @@ public partial class InlineMarkdownEditor
     {
         if (!AdoptFormulaAtCaret()) return false;
 
-        FocusedFormula!.Wrap(before, after);
+        FocusedContent!.Wrap(before, after);
         return true;
     }
 
@@ -63,7 +63,7 @@ public partial class InlineMarkdownEditor
     /// </summary>
     public bool PasteIntoFormula(string? text)
     {
-        if (string.IsNullOrEmpty(text) || FocusedFormula is not { } formula) return false;
+        if (string.IsNullOrEmpty(text) || FocusedContent is not { } formula) return false;
 
         formula.Insert(AsFormula(text));
         return true;
@@ -210,27 +210,29 @@ public partial class InlineMarkdownEditor
     /// </summary>
     private bool AdoptFormulaAtCaret()
     {
-        if (FocusedFormula is not null) return true;
+        if (FocusedContent is not null) return true;
 
         var index = _rtb.CaretPosition is { } caret ? BlockIndexAtPointer(caret) : -1;
-        var found = (index >= 0 ? FormulaInBlock(index) : null) ?? FirstFormula();
+        var found = (index >= 0 ? ContentInBlock(index) : null) ?? FirstContent();
         if (found is null) return false;
 
         FocusBlock(found);
-        found.TakeCaret(found.Latex.Length);
+        found.TakeCaret(found.Source.Length);
         return true;
     }
 
     /// <summary>The formula rendered for one block of the model, if it holds one.</summary>
-    private FormulaElement? FormulaInBlock(int index) => EditableInBlock(index) as FormulaElement;
+    private Editing.ContentElement? ContentInBlock(int index) => EditableInBlock(index) as Editing.ContentElement;
 
     /// <summary>The first formula anywhere in the document — the fallback when the caret names none.</summary>
-    private FormulaElement? FirstFormula()
+    private Editing.ContentElement? FirstContent()
     {
         foreach (var block in _rtb.Document.Blocks)
-            if (FormulaIn(block) is { } found) return found;
+            if (ContentIn(block) is { } found) return found;
         return null;
     }
 
-    private static FormulaElement? FormulaIn(Block block) => EditableIn(block) as FormulaElement;
+    private static Editing.ContentElement? ContentIn(Block block) => EditableIn(block) as Editing.ContentElement;
+
+
 }

@@ -47,7 +47,7 @@ public class CaretCrossingTests
             CaretAtEndOf(rtb, block: 0);
             MarkdownEditorHarness.RaiseKey(rtb, Key.Right);
 
-            var formula = FocusedFormula(editor);
+            var formula = FocusedContent(editor);
             Assert.AreEqual(0, formula.Caret,
                 "you stepped onto its first character, which is where the next step would have gone");
         });
@@ -61,7 +61,7 @@ public class CaretCrossingTests
             CaretAtStartOf(rtb, block: 2);
             MarkdownEditorHarness.RaiseKey(rtb, Key.Left);
 
-            var formula = FocusedFormula(editor);
+            var formula = FocusedContent(editor);
             Assert.AreEqual(Formula.Length, formula.Caret,
                 "coming back along the line puts you after its last character, not before its first");
         });
@@ -78,14 +78,14 @@ public class CaretCrossingTests
         {
             CaretAtEndOf(rtb, block: 0);
             MarkdownEditorHarness.RaiseKey(rtb, Key.Down);
-            Assert.AreEqual(0, FocusedFormula(editor).Caret, "down from the line above");
+            Assert.AreEqual(0, FocusedContent(editor).Caret, "down from the line above");
         });
 
         RunInDocument((editor, rtb) =>
         {
             CaretAtStartOf(rtb, block: 2);
             MarkdownEditorHarness.RaiseKey(rtb, Key.Up);
-            Assert.AreEqual(0, FocusedFormula(editor).Caret, "and up from the line below");
+            Assert.AreEqual(0, FocusedContent(editor).Caret, "and up from the line below");
         });
     }
 
@@ -99,7 +99,7 @@ public class CaretCrossingTests
             CaretAtStartOf(rtb, block: 0);
             MarkdownEditorHarness.RaiseKey(rtb, Key.Right);
 
-            Assert.IsNull(editor.FocusedFormula, "the caret is still in the text it was in");
+            Assert.IsNull(editor.FocusedContent, "the caret is still in the text it was in");
         });
     }
 
@@ -108,9 +108,9 @@ public class CaretCrossingTests
     private static void RunInDocument(System.Action<InlineMarkdownEditor, RichTextBox> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Document, test));
 
-    private static FormulaElement FocusedFormula(InlineMarkdownEditor editor)
+    private static Nexaflow.Visuals.Text.Editing.ContentElement FocusedContent(InlineMarkdownEditor editor)
     {
-        var formula = editor.FocusedFormula;
+        var formula = editor.FocusedContent;
         Assert.IsNotNull(formula, "the arrow key handed the caret to the formula");
         return formula;
     }

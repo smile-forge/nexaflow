@@ -2058,7 +2058,7 @@ public partial class InlineMarkdownEditor : UserControl
         // The element drawing the caret is about to be replaced by an equivalent one. Where the caret
         // was is worth more than the object holding it — a rebuild the reader did not ask for (the tab
         // being shown, the host pushing the same text back) must not look like the caret vanishing.
-        var caretWas = FocusedFormula?.Caret;
+        var caretWas = FocusedContent?.Caret;
         BlurBlock();
 
         int focal     = _active;                            // the block being left — keep it pinned across the rebuild
@@ -2089,7 +2089,7 @@ public partial class InlineMarkdownEditor : UserControl
         if (EditAsSource || !IsSingleBlock) return;
         if (caretWas is null && !_rtb.IsKeyboardFocusWithin) return;
 
-        if (FocusFormulaAtCaret() && caretWas is { } at) FocusedFormula!.TakeCaret(at);
+        if (FocusFormulaAtCaret() && caretWas is { } at) FocusedContent!.TakeCaret(at);
     }
 
     /// <param name="anchorTopY">When set (a double-click entering edit), the screen-Y the activated block's

@@ -40,7 +40,7 @@ public class SingleFormulaEditorTests
     {
         RunInFormula(@"\frac{x^2}{2}", (editor, _) =>
         {
-            Assert.IsNotNull(FormulaIn(editor), "the block typeset as maths");
+            Assert.IsNotNull(ContentIn(editor), "the block typeset as maths");
             Assert.AreEqual(@"\frac{x^2}{2}", editor.Markdown,
                 "and what comes back out is the formula — a fence here would be the editor's own "
                 + "punctuation leaking into the host's text");
@@ -53,7 +53,7 @@ public class SingleFormulaEditorTests
         // Where the caret goes and the first character is typed. Rendered as an empty block instead,
         // the very first keystroke of a new formula would land in prose.
         RunInFormula(string.Empty, (editor, _) =>
-            Assert.IsNotNull(FormulaIn(editor),
+            Assert.IsNotNull(ContentIn(editor),
                 "an empty formula is the one you are about to write, not an empty paragraph"));
     }
 
@@ -64,7 +64,7 @@ public class SingleFormulaEditorTests
         // would otherwise become a formula and a stray paragraph of LaTeX.
         RunInFormula("x +\n\ny", (editor, _) =>
         {
-            Assert.IsNotNull(FormulaIn(editor));
+            Assert.IsNotNull(ContentIn(editor));
             Assert.AreEqual("x +\n\ny", editor.Markdown, "it never split");
         });
     }
@@ -149,7 +149,7 @@ public class SingleFormulaEditorTests
             MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Enter);
 
             // You are inside one expression, not between two paragraphs, so there is nowhere to split to.
-            Assert.IsNotNull(FormulaIn(editor), "still one formula");
+            Assert.IsNotNull(ContentIn(editor), "still one formula");
             Assert.IsFalse(editor.Markdown.Contains("$$"), "and still no fence anywhere in the host's text");
             Assert.AreEqual(formula, Focused(editor), "and the caret never left it");
         });
@@ -274,7 +274,7 @@ public class SingleFormulaEditorTests
 
             for (var i = 0; i < 3; i++) MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Right);
 
-            Assert.AreSame(formula, editor.FocusedFormula, "the formula still has the caret");
+            Assert.AreSame(formula, editor.FocusedContent, "the formula still has the caret");
             Assert.AreEqual(end, formula.Caret, "and it is still at the end, where it ran out of formula");
         });
     }
@@ -363,7 +363,7 @@ public class SingleFormulaEditorTests
 
             Assert.AreEqual(@"x + \alpha", editor.Markdown,
                 "the fence came off on the way in, exactly as it does for a paste");
-            Assert.IsNotNull(editor.FocusedFormula,
+            Assert.IsNotNull(editor.FocusedContent,
                 "and the formula holds the caret, so the next thing typed carries on from the drop");
         });
     }
@@ -457,7 +457,7 @@ public class SingleFormulaEditorTests
             MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Space);
             MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Left);
 
-            Assert.IsNotNull(FormulaIn(editor), "still typeset");
+            Assert.IsNotNull(ContentIn(editor), "still typeset");
             Assert.IsFalse(editor.Markdown.Contains("$$"), "and no fence was ever exposed to the host");
         });
     }
@@ -469,14 +469,14 @@ public class SingleFormulaEditorTests
         {
             editor.EditAsSource = true;
 
-            Assert.IsNull(FormulaIn(editor), "nothing is typeset while the source is being read");
+            Assert.IsNull(ContentIn(editor), "nothing is typeset while the source is being read");
             StringAssert.Contains(TextOf(rtb), @"\frac{a}{b}", "the characters written are on show");
             Assert.IsFalse(TextOf(rtb).Contains("$$"),
                 "but not the fence — that is the editor's own way of asking for maths, not something "
                 + "the reader wrote or should have to keep intact");
 
             editor.EditAsSource = false;
-            Assert.IsNotNull(FormulaIn(editor), "and it typesets again on the way back");
+            Assert.IsNotNull(ContentIn(editor), "and it typesets again on the way back");
         });
     }
 
@@ -532,12 +532,12 @@ public class SingleFormulaEditorTests
             // Focused at all is enough: a caret is what "focused and editable" looks like, so the
             // formula takes it the moment the editor has the keyboard rather than waiting to be asked.
             // Before that it waited for the first keystroke, which meant no caret until you typed.
-            Assert.IsNotNull(editor.FocusedFormula, "the formula holds the caret because the editor is focused");
+            Assert.IsNotNull(editor.FocusedContent, "the formula holds the caret because the editor is focused");
             Assert.AreEqual(Brushes.Transparent, rtb.CaretBrush,
                 "and the document is not drawing a second one beside it");
 
             editor.SingleBlock = null;   // rebuilds the document, which takes the caret back
-            Assert.IsNull(editor.FocusedFormula);
+            Assert.IsNull(editor.FocusedContent);
             Assert.AreNotEqual(Brushes.Transparent, rtb.CaretBrush,
                 "the document draws it again once nothing else is");
         });
@@ -553,7 +553,7 @@ public class SingleFormulaEditorTests
     private static FormulaElement Focused(InlineMarkdownEditor editor)
     {
         Assert.IsTrue(editor.FocusFormulaAtCaret(), "there is a formula to type into");
-        var formula = FormulaIn(editor);
+        var formula = ContentIn(editor);
         Assert.IsNotNull(formula);
         return formula;
     }
@@ -562,7 +562,7 @@ public class SingleFormulaEditorTests
     private static string TextOf(RichTextBox rtb) =>
         new TextRange(rtb.Document.ContentStart, rtb.Document.ContentEnd).Text;
 
-    private static FormulaElement? FormulaIn(InlineMarkdownEditor editor)
+    private static FormulaElement? ContentIn(InlineMarkdownEditor editor)
     {
         var rtb = MarkdownEditorHarness.RichTextBoxOf(editor);
         return rtb.Document.Blocks

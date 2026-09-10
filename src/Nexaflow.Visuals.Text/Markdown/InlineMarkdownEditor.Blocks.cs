@@ -149,10 +149,10 @@ public partial class InlineMarkdownEditor
 
         FocusBlock(found);
 
-        // A formula takes a character offset; everything else is told the caret arrived from the end,
-        // which is what the document does when the caret arrows in from the text beside it.
-        if (found is FormulaElement formula) formula.TakeCaret(formula.Latex.Length);
-        else found.TakeCaretArriving(new CaretArrival(BlockExit.After, CaretStep.Character, null));
+        // Told the caret arrived from the end, which is what the document does when it arrows in from
+        // the text beside it. There is never a reason for the container to want to know whether what it
+        // is talking to is a formula, a tune or a barcode — they answer this the same way.
+        found.TakeCaretArriving(new CaretArrival(BlockExit.After, CaretStep.Character, null));
 
         return true;
     }
