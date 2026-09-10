@@ -4,7 +4,9 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;                 // IShellServices
+using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.ViewModels;
+using Nexaflow.Features.Images.Views;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
 
@@ -79,5 +81,32 @@ public class ImagesAiTests
             StringAssert.Contains(atFirst.ModelText, "first");
         }
         finally { vm.Dispose(); }
+    }
+
+    [TestMethod]
+    [TestCategory("UI")]
+    [CoversNode("images-ai-preview")]
+    public void ThePreview_LoadsTheThumbnail_EvenForASingleImageThatNeverLeavesTheCarousel()
+    {
+        // A single image stays in the carousel, which never asks for thumbnails, so the preview has to or the
+        // context panel would show a placeholder where the picture belongs. On an STA thread: the preview is WPF.
+        UiThread.Run(() =>
+        {
+            var shell = Substitute.For<IShellServices>();
+            var vm = new ImageViewModel(["only.png"], shell);
+            try
+            {
+                shell.DidNotReceiveWithAnyArgs().QueueBackgroundTask(default!, ct: default);
+
+                var first  = vm.CreateContextPreview();
+                var second = vm.CreateContextPreview();
+
+                Assert.IsInstanceOfType(first, typeof(ImageContextPreview));
+                Assert.AreSame(vm, first.DataContext, "the preview binds to the page's own thumbnails");
+                Assert.AreNotSame(first, second, "a fresh control per selection; the last one was discarded");
+                shell.Received(1).QueueBackgroundTask(Arg.Any<ThumbnailLoadTask>(), ct: Arg.Any<CancellationToken>());
+            }
+            finally { vm.Dispose(); }
+        });
     }
 }

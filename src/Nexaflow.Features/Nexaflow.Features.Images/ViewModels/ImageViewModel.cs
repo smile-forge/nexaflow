@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Images.Services;
+using Nexaflow.Features.Images.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
 using System;
@@ -11,6 +12,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
@@ -32,7 +34,7 @@ public partial class ImageDotItem : ObservableObject
     [ObservableProperty] private bool _isCurrent;
 }
 
-public partial class ImageViewModel : ObservableObject, IPageViewModel, IDisposable
+public partial class ImageViewModel : ObservableObject, IPageViewModel, IContextPreview, IDisposable
 {
     private const int ThumbSize = 200;
 
@@ -58,6 +60,7 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HeaderText))]
+    [NotifyPropertyChangedFor(nameof(ImageCountText))]
     private int _totalImages;
 
     // ── View mode ─────────────────────────────────────────────────────────
@@ -78,7 +81,10 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IDisposa
     /// <summary>Toolbar heading: the current file when an image is featured, else the image count.</summary>
     public string HeaderText => (IsCarousel || IsExplore)
         ? CurrentFileName
-        : (TotalImages == 1 ? "1 image" : $"{TotalImages} images");
+        : ImageCountText;
+
+    /// <summary>"1 image" / "N images": the grid views' heading, and the context preview's caption.</summary>
+    public string ImageCountText => TotalImages == 1 ? "1 image" : $"{TotalImages} images";
 
     // ── View state ────────────────────────────────────────────────────────
 
@@ -425,6 +431,24 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IDisposa
         {
             CurrentImage = null;
         }
+    }
+
+    // ── IContextPreview ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// A one-column, read-only strip of every image in the tab for the conversation context panel, with the
+    /// current one (the image <c>capture_image</c> hands the AI) highlighted. A single image is a strip of one.
+    /// </summary>
+    /// <remarks>
+    /// A fresh control each time the chip is selected, per the contract: it binds to the page's
+    /// <see cref="Thumbnails"/> but owns none of them. It asks for them to be loaded because nothing else may
+    /// have: only the grid views request thumbnails, and a single image never leaves the carousel. The request
+    /// is the page's own (made once, shared with the album, cancelled with the page), not the preview's.
+    /// </remarks>
+    public UserControl CreateContextPreview()
+    {
+        EnsureThumbnailsRequested();
+        return new ImageContextPreview { DataContext = this };
     }
 
     // ── IPageViewModel ────────────────────────────────────────────────────

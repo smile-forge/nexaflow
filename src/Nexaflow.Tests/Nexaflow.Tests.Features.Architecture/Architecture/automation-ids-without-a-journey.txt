@@ -81,6 +81,9 @@ Executable_DependencyDetailSplitter
 # src/Nexaflow.Features/Nexaflow.Features.Font/Views/FontContextPreview.xaml
 FontContextPreview
 
+# src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageContextPreview.xaml
+ImageContextPreview
+
 # src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml
 Image_AutoAdvance
 Image_AutoSpeed
