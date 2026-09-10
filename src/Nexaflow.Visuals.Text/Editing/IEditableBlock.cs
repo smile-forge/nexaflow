@@ -60,7 +60,7 @@ public readonly record struct CaretArrival(BlockExit Edge, CaretStep Step, doubl
 /// host code unchanged, which is the point of writing it here rather than in the formula.
 /// </para>
 /// <para>
-/// What stays behind the host's <c>is FormulaElement</c> tests is only what is genuinely not shared:
+/// What is declared below rather than assumed is only what is genuinely not shared:
 /// moving between the parts of a fraction, tabbing through the holes of a half-written construct,
 /// settling a command with a space. A block whose content is one run of characters has none of those to
 /// want, so those keys fall back to the document rather than being swallowed by a block with no use
@@ -152,7 +152,8 @@ public interface IEditableBlock : IInteractiveBlock
     // moving between the parts of a fraction, settling a command with a space, tabbing through the holes
     // of a half-written construct, moving a note an octave. These used to be `is FormulaElement` tests in
     // the host, which was honest while a formula was the only block with keys of its own and stopped being
-    // so at the second. Defaulted to declining, so a block with no use for one never has to say so, and
+    // so at the second; the host asks none of them now. Defaulted to declining, so a block with no use
+    // for one never has to say so, and
     // the key falls back to the document exactly as it did.
 
     /// <summary>
