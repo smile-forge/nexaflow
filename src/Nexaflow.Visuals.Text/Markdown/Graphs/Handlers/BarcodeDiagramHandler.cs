@@ -54,6 +54,13 @@ public sealed class BarcodeDiagramHandler : IDiagramHandler
         var placed = block!.At(block.ValueStart + options.SourceOffset);
 
         return new Editing.ContentElement(placed.Value, options.Palette,
-            (state, _, pixelsPerDip) => BarcodeBuilder.Build(placed.With(state.Source), options.Palette, pixelsPerDip));
+            (state, _, pixelsPerDip) => BarcodeBuilder.Build(placed.With(state.Source), options.Palette, pixelsPerDip))
+        {
+            // Where the value sits inside the fence that produced it. Without it the host reads this as a
+            // block that IS its content — which only a $$…$$ formula is — and puts the delimiters back on
+            // every edit, so typing a digit into a barcode turned it into a formula.
+            SourceStart = placed.ValueStart,
+            SourceLength = placed.Value.Length,
+        };
     }
 }
