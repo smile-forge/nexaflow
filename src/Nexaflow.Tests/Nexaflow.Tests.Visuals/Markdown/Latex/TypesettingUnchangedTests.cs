@@ -124,12 +124,12 @@ public class TypesettingUnchangedTests
     /// the same line the corpus sweep draws between a picture and a tree.
     /// </para>
     /// </summary>
-    private static string Shape(LatexTree layout)
+    private static string Shape(Laid layout)
     {
         var text = new StringBuilder();
-        text.Append(Number(layout.Laid.Size.Width)).Append('x').Append(Number(layout.Laid.Size.Height)).Append('\n');
+        text.Append(Number(layout.Size.Width)).Append('x').Append(Number(layout.Size.Height)).Append('\n');
 
-        foreach (var node in layout.Laid.Root.SelfAndDescendants().Where(node => node.Children.Count == 0))
+        foreach (var node in layout.Root.SelfAndDescendants().Where(node => node.Children.Count == 0))
             text.Append(node.Kind).Append(' ')
                 .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
                 .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))

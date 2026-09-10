@@ -25,12 +25,5 @@ internal static class Formula
                            RawZone? shownAsWritten = null) =>
         LatexBuilder.Build(latex, scale, shownAsWritten: shownAsWritten, placeholders: placeholders);
 
-    /// <summary>The layout, and the formula as TeX sees it.</summary>
-    public static LatexTree Read(string latex, double scale, bool placeholders = false,
-                                 RawZone? shownAsWritten = null) =>
-        new(latex,
-            Lay(latex, scale, placeholders, shownAsWritten),
-            LatexBuilder.Draws,
-            shownAsWritten,
-            placeholders);
+
 }

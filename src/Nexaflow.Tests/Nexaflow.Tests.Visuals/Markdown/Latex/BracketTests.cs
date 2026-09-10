@@ -30,18 +30,6 @@ public class BracketTests
 {
     // ── A pair is one thing ─────────────────────────────────────────────────
 
-    [TestMethod]
-    public void ASizedDelimiterIsItsOwnThing() => UiThread.Run(() =>
-    {
-        // \Bigl[ and \Bigr] are two independent symbols in LaTeX, not a pair — so each is one thing,
-        // and taking one does not orphan another.
-        const string latex = @"x + \Bigl[ y \Bigr]";
-        var found = Before(latex, latex.Length);
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual(@"\Bigr]", Text(latex, found));
-    });
-
     // ── The braket package ──────────────────────────────────────────────────
 
     [TestMethod]
@@ -62,31 +50,12 @@ public class BracketTests
     {
         // \bra{} is what someone writes on the way to \bra{\psi}, so it gets the same box as every
         // other unwritten argument — visible, aimable, and reported as unfinished.
-        var layout = Formula.Read(@"\bra{}", 16, placeholders: true);
+        var layout = Formula.Lay(@"\bra{}", 16, placeholders: true);
 
         Assert.IsNotNull(layout);
-        Assert.AreEqual(1, layout.Laid.Holes.Count, "the bra has a hole in it");
-        Assert.AreEqual(1, layout.Laid.Trouble.Count, "and says so");
+        Assert.AreEqual(1, layout.Holes.Count, "the bra has a hole in it");
+        Assert.AreEqual(1, layout.Trouble.Count, "and says so");
     });
-
-    [TestMethod]
-    public void ABraketIsOneThingToTheEditorToo() => UiThread.Run(() =>
-    {
-        // It is a fence like any other, so it behaves like one: the whole of it is what stands before
-        // the caret, not the ⟩ that happens to end it.
-        const string latex = @"x + \braket{0|0}";
-        var found = Before(latex, latex.Length);
-
-        Assert.IsNotNull(found);
-        Assert.AreEqual(@"\braket{0|0}", Text(latex, found));
-    });
-
-    private static Piece Before(string latex, int caret)
-    {
-        var layout = LatexBuilder.Build(latex, 16);
-        Assert.IsNotNull(layout, latex);
-        return Formula.Read(latex, 16).SymbolBefore(caret);
-    }
 
     private static string Text(string latex, Piece node) =>
         latex.Substring(node.Sits().Start, node.Sits().Length);

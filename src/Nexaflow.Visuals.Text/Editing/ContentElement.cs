@@ -74,18 +74,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// </summary>
     private int _at = -1;
 
-    /// <summary>
-    /// Whether the caret is at the innermost place at its offset — inside whatever ends there, rather than
-    /// stepped out past it.
-    ///
-    /// <para>
-    /// Content that writes through its own structure needs it, and it is the one thing a place says that an
-    /// offset cannot: a 3 typed just inside the exponent of <c>x^2</c> makes it twenty-three, and the same
-    /// keystroke one mark to the right follows the whole script instead.
-    /// </para>
-    /// </summary>
-    protected bool Innermost => _at < 0 || _at == _laid.Root.StopAt(_state.Caret);
-
     private int _anchor;
     private Piece _anchorNode;
     private Point _pressedAt;

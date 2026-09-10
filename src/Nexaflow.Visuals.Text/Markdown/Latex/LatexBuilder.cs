@@ -37,8 +37,6 @@ public sealed class LatexBuilder : ContentBuilder
     private readonly bool _placeholders;
     private readonly double _pixelsPerDip;
 
-    private TexReading? _reading;
-
     private LatexBuilder(string latex, double scale, bool inline, string systemFont,
                          RawZone? shownAsWritten, bool placeholders, double pixelsPerDip)
         : base(latex)

@@ -15,7 +15,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Source;
 /// a tree that means what the rest of the feature assumes?
 ///
 /// Deliberately small. Everything you can *ask* about a formula's shape is tested in
-/// <see cref="LatexTreeTests"/> against a hand-built tree, with no fonts and no desktop. What is
+/// <see cref="LatexTreeShapeTests"/> against a hand-built tree, with no fonts and no desktop. What is
 /// left here is the contract with WpfMath itself — the assumptions that would break silently if a
 /// version bump changed how it reports source positions.
 ///

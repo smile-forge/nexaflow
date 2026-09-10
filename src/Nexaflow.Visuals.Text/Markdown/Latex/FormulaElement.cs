@@ -30,19 +30,12 @@ public sealed class FormulaElement : ContentElement
     /// What this content is: how it is built, and what writing into it means. Both are the formula's own
     /// and neither is the element's — see <see cref="LatexContent"/>.
     /// </summary>
-    private readonly LatexContent _content;
-
     /// <summary>Raised when the reader's own editing changed the LaTeX.</summary>
     public event EventHandler? LatexChanged;
 
     public FormulaElement(string latex, MarkdownPalette palette, double scale, bool inline = false)
-        : this(latex ?? string.Empty, palette, scale, new LatexContent(scale, inline)) { }
-
-    private FormulaElement(string latex, MarkdownPalette palette, double scale, LatexContent content)
-        : base(latex, palette, content)
+        : base(latex ?? string.Empty, palette, new LatexContent(scale, inline))
     {
-        _content = content;
-
         SourceChanged += (_, _) => LatexChanged?.Invoke(this, EventArgs.Empty);
 
         WashPad = scale * 0.14;
@@ -51,9 +44,6 @@ public sealed class FormulaElement : ContentElement
 
     /// <summary>The LaTeX this is showing.</summary>
     public string Latex => Source;
-
-    /// <summary>The map behind what is drawn — always there, because a builder always makes one.</summary>
-    public LatexTree Layout => _content.Tree;
 
 
 

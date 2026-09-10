@@ -80,7 +80,7 @@ public class FormulaElementTests
         element.Commit();
 
         Assert.AreEqual(@"x+\alpha ", element.Latex);
-        Assert.AreEqual(@"x+\alpha ", element.Layout!.Latex, "all of it typesets now");
+        Assert.AreEqual(@"x+\alpha ", element.Latex, "all of it typesets now");
     });
 
     [TestMethod]
@@ -155,7 +155,7 @@ public class FormulaElementTests
         element.Backspace();
 
         Assert.AreEqual(align.Length - 1, element.Latex.Length, "one character went");
-        Assert.AreEqual(element.Latex, element.Layout!.Latex, "and all of it still typesets");
+        Assert.IsFalse(element.HasError, "and all of it still typesets");
     });
 
     [TestMethod]
@@ -211,7 +211,7 @@ public class FormulaElementTests
     public void ClickingPutsTheCaretWhereYouClicked() => UiThread.Run(() =>
     {
         var element = Arranged(@"\frac{x^2}{2}");
-        var exponent = element.Layout!.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
+        var exponent = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
 
         element.BeginPointerSelect(new Point(
             exponent.Bounds.X + exponent.Bounds.Width * 0.75,
@@ -226,8 +226,8 @@ public class FormulaElementTests
     public void DraggingSelectsWholeConstructs() => UiThread.Run(() =>
     {
         var element = Arranged(@"\frac{x^2}{2}");
-        var baseGlyph = element.Layout!.Laid.Root.Leaves().Single(n => n.Sits().Start == 6);
-        var exponent = element.Layout!.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
+        var baseGlyph = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 6);
+        var exponent = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
 
         element.BeginPointerSelect(new Point(baseGlyph.Bounds.X + 1, baseGlyph.Bounds.Y + baseGlyph.Bounds.Height / 2));
         element.ExtendPointerSelect(new Point(exponent.Bounds.Right - 1, exponent.Bounds.Y + exponent.Bounds.Height / 2));

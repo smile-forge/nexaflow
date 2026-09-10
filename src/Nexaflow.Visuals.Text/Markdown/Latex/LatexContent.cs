@@ -25,11 +25,6 @@ internal sealed class LatexContent(double scale, bool inline) : IContent
     /// worked out only if something asks a question about the parse, so a keystroke that merely redraws
     /// pays nothing for it.
     /// </summary>
-    private LatexTree _tree = new(string.Empty, Laid.Nothing, LatexBuilder.Draws);
-
-    /// <summary>The map behind what is drawn — always there, because a builder always makes one.</summary>
-    public LatexTree Tree => _tree;
-
     /// <summary>
     /// Typesets the whole formula, with the stretch being written set as the characters that were typed.
     ///
@@ -48,7 +43,6 @@ internal sealed class LatexContent(double scale, bool inline) : IContent
             state.Source, scale, inline, shownAsWritten: state.Raw, placeholders: !readOnly,
             pixelsPerDip: pixelsPerDip);
 
-        _tree = new LatexTree(state.Source, laid, LatexBuilder.Draws, state.Raw, !readOnly);
         return laid;
     }
 

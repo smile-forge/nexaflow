@@ -195,7 +195,7 @@ public class LatexPictureSweepTests
 
         try
         {
-            if (Formula.Read(entry.Formula, Scale) is not { } layout)
+            if (Formula.Lay(entry.Formula, Scale) is not { } layout)
                 return new Drawn(entry, "unread\n", 0, false, "read nothing");
 
             var text = Reading(entry.Formula, layout);
@@ -229,7 +229,7 @@ public class LatexPictureSweepTests
     /// formulas as changed on the strength of it.
     /// </para>
     /// </summary>
-    private static string Reading(string latex, LatexTree layout)
+    private static string Reading(string latex, Laid layout)
     {
         var text = new StringBuilder();
 
@@ -237,10 +237,10 @@ public class LatexPictureSweepTests
         Parsed(TexReading.Of(latex).Root, 1, text);
 
         text.Append("read\n");
-        Parsed(layout.Reading.Root, 1, text);
+        Parsed(TexReading.Of(TexPipeline.Read(latex, LatexBuilder.Draws, null, false)).Root, 1, text);
 
-        text.Append("layout ").Append(Round(layout.Laid.Size.Width)).Append('x').Append(Round(layout.Laid.Size.Height)).Append('\n');
-        foreach (var node in layout.Laid.Root.SelfAndDescendants())
+        text.Append("layout ").Append(Round(layout.Size.Width)).Append('x').Append(Round(layout.Size.Height)).Append('\n');
+        foreach (var node in layout.Root.SelfAndDescendants())
         {
             text.Append(' ', Depth(node))
                 .Append(node.Kind).Append(' ')
@@ -252,7 +252,7 @@ public class LatexPictureSweepTests
             text.Append('\n');
         }
 
-        foreach (var trouble in layout.Laid.Trouble)
+        foreach (var trouble in layout.Trouble)
             text.Append("! ").Append(trouble.Start).Append('+').Append(trouble.Length)
                 .Append(' ').Append(trouble.Message).Append('\n');
 
@@ -278,13 +278,13 @@ public class LatexPictureSweepTests
     /// <summary>Rounded, so that a difference below what anyone could see is not called a difference.</summary>
     private static string Round(double value) => value.ToString("F2");
 
-    private static RenderTargetBitmap? Picture(LatexTree layout)
+    private static RenderTargetBitmap? Picture(Laid layout)
     {
         // Room around it: at this scale a glyph can spill a little past the laid-out box, and the crop
         // that follows only has to find the ink, not to be told where it is.
         const int pad = (int)Scale;
-        var width = (int)Math.Ceiling(layout.Laid.Size.Width) + (2 * pad);
-        var height = (int)Math.Ceiling(layout.Laid.Size.Height) + (2 * pad);
+        var width = (int)Math.Ceiling(layout.Size.Width) + (2 * pad);
+        var height = (int)Math.Ceiling(layout.Size.Height) + (2 * pad);
         if (width <= 0 || height <= 0 || (long)width * height > 40_000_000) return null;
 
         var visual = new DrawingVisual();
@@ -292,7 +292,7 @@ public class LatexPictureSweepTests
         {
             dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
             dc.PushTransform(new TranslateTransform(pad, pad));
-            LayoutPainter.Paint(dc, layout.Laid.Root, Brushes.Black);
+            LayoutPainter.Paint(dc, layout.Root, Brushes.Black);
             dc.Pop();
         }
 
@@ -335,7 +335,7 @@ public class LatexPictureSweepTests
             var row = rows[at];
             try
             {
-                if (Formula.Read(row.Entry.Formula, Scale) is not { } layout) return;
+                if (Formula.Lay(row.Entry.Formula, Scale) is not { } layout) return;
                 if (Picture(layout) is not { } drawing) return;
                 Save(Trimmed(drawing), Path.Combine(work, Drawings, row.Entry.Id[..2], row.Entry.Id + ".png"));
             }
