@@ -73,9 +73,9 @@ public sealed class AbcScore : StackPanel
             SourceStart = sourceStart,
             Zoom = zoom,
 
-            // A stave is drawn at a size where two pixels of air round a note head is nothing — the wash has
-            // to clear the stem and the ledger lines to read as covering the note at all.
-            WashPad = 6.0,
+            // What the score's own wash used before it was shared: a quarter of its six-pixel margin. Six on
+            // every side — which is what was first carried over — overlapped the line above and the line below.
+            WashPad = 1.5,
         };
     }
 

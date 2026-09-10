@@ -449,6 +449,9 @@ public partial class InlineMarkdownEditor
         PushMarkdown();
     }
 
+    /// <summary>Whether a single block is being handed its caret back — see <see cref="OnBlockExited"/>.</summary>
+    private bool _handingBack;
+
     /// <summary>The caret walked off one end of a block — put it in the text on that side.</summary>
     private void OnBlockExited(object? sender, BlockExit side)
     {
@@ -459,7 +462,13 @@ public partial class InlineMarkdownEditor
         // the line, then off the right-hand edge, then down — for a key that should have done nothing.
         if (IsSingleBlock)
         {
-            block.TakeCaretArriving(new CaretArrival(side, CaretStep.Character, null));
+            // Handed straight back — but only once. A block with nowhere to stand raises Exited again from
+            // inside TakeCaretArriving, and answering that by handing it back once more is a loop only a stack
+            // overflow ends: an empty formula did exactly that the moment it was focused.
+            if (_handingBack) return;
+            _handingBack = true;
+            try { block.TakeCaretArriving(new CaretArrival(side, CaretStep.Character, null)); }
+            finally { _handingBack = false; }
             return;
         }
 

@@ -47,20 +47,6 @@ public sealed class FormulaElement : ContentElement
 
 
 
-    /// <summary>
-    /// A formula is one expression, read from its start — so only a step <em>along</em> the text can land
-    /// anywhere but the beginning of it, and then only at the end, which is the character you stepped back
-    /// onto. Up and down both land at the start, because a line step goes to where the line begins and the
-    /// whole formula is that line. The column is ignored for the same reason: landing part-way along
-    /// because that is where it fell would drop the reader into the middle of a subscript.
-    /// </summary>
-    public override void TakeCaretArriving(CaretArrival arrival)
-    {
-        if (arrival is not { Step: CaretStep.Character, Edge: BlockExit.After }) { TakeCaret(0); return; }
-
-        base.TakeCaretArriving(arrival);
-    }
-
     /// <summary>Settles a half-written command — the host's Enter and space arrive here.</summary>
     public void Commit(string separator = " ") { if (!IsReadOnly) Settle(separator); }
 }

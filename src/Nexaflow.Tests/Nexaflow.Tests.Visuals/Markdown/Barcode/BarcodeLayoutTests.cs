@@ -77,16 +77,6 @@ public class BarcodeLayoutTests
     // ── Where a press lands ───────────────────────────────────────────────
 
     [TestMethod]
-    public void PressingAWorkedOutDigitFindsThatDigitAndNotANeighbour() => UiThread.Run(() =>
-    {
-        var root = Root("format: EAN13\nvalue: 590123412345");
-
-        var check = Of(root, BarcodeKind.EncodedText).Single();
-        Assert.AreEqual(check, root.PieceAt(Middle(check)),
-            "so the element can answer that pressing it means the whole number");
-    });
-
-    [TestMethod]
     public void PressingADigitOfTheValueFindsThatCharacter() => UiThread.Run(() =>
     {
         var root = Root("format: CODE128\nvalue: HELLO123");

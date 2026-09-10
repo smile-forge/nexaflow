@@ -10,7 +10,7 @@
 /// and environments, fonts/styling, AMS symbols) — a supported construct typesets, an unsupported one
 /// falls back to its raw source, so the docs double as a live map of engine support, which
 /// <c>MarkdownSampleRenderTests.LatexMathSamplesTypeset</c> holds them to. Two <c>music-*.md</c> references exercise the
-/// musical-notation engraver (<c>#%abc … #%</c> and <c>#%lilypond … #%</c> blocks → sheet music). Each
+/// musical-notation engraver (<c>```abc</c> fences and <c>#%lilypond … #%</c> blocks → sheet music). Each
 /// document showcases several variations, so the fixtures double as a human-readable reference. The
 /// <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
@@ -2698,36 +2698,36 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Musical notation — ABC
 
-        A `#%abc … #%` block engraves ABC notation to sheet music.
+        A fenced code block whose language is `abc` engraves ABC notation to sheet music.
 
         ## features
 
-        #%abc
+        ```abc
         X:1
         T:Notes / pitches
         M:C
         L:1/4
         K:C treble
         C, D, E, F, | G, A, B, C | D E F G | A B c d | e f g a | b c' d' e' | f' g' a' b' |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Note lengths
         M:
         K:C
         A/4 A/2 A/ A A2 A3 A4 A6 A7 A8 A12 A16 |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Beams
         M:C
         K:C
         A B c d AB cd | ABcd ABc2 | ABcdABcd |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Bar lines
         M:C
@@ -2735,9 +2735,9 @@ internal sealed class MarkdownSamples : ISampleSet
         [| A4 A4 | A4 A4 || A4 A4 | A4 A4 |]
         |: A4 A4 | A4 A4 :: A4 A4 | A4 A4 ::
         A4 A4 | A4 A4 |1 A4 A4 :|2 A4 A4 | A4 A4 |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Unit note length
         T:Same notes / different notation
@@ -2749,73 +2749,73 @@ internal sealed class MarkdownSamples : ISampleSet
         A/4 A/2 A A2 A4 A8 |]
         L:1/4
         A/8 A/4 A/2 A A2 A4 |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Broken rhythm markers
         M:3/4
         K:C
         A>A A2>A2 | A<A A2<A2 | A>>A A2>>>A2 | A<<A A2<<<A2 |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Tuplets
         M:C
         K:C
         (2AB (3ABA (4ABAB (5ABABA (6ABABAB (7ABABABA|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Ties and slurs
         M:C
         K:C
         (AA) (A(A)A) ((AA)A) (A|A) A-A A-A-A A2-|A4|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Accidentals
         M:C
         K:C
         __A _A =A ^A ^^A |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Chord symbols
         M:C
         K:C
         "A"A "Gm7"D "Bb"F "F#"A |]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Accents
         M:C
         K:C
         ~A ~c .A .c vA vc uA uc|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Grace notes
         M:6/8
         K:C
         {g}A3 A{g}AA|{gAGAG}A3 {g}A{d}A{e}A|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Chords
         M:2/4
         K:C
         [CEGc] [C2G2] [CE][DF] | [D2F2][EG][FA] [A4d4]|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Keys and modes
         M:4/4
@@ -2854,11 +2854,11 @@ internal sealed class MarkdownSamples : ISampleSet
         CDEF GABc |\
         K:C Locrian
         CDEF GABc |]
-        #%
+        ```
 
         ## songs
 
-        #%abc
+        ```abc
         X:1
         T:Speed the Plough
         M:4/4
@@ -2868,9 +2868,9 @@ internal sealed class MarkdownSamples : ISampleSet
           GABc dedB|dedB dedB|c2ec B2dB|A2F2 G4:|
         |:g2gf gdBd|g2f2 e2d2|c2ec B2dB|c2A2 A2df|
           g2gf g2Bd|g2f2 e2d2|c2ec B2dB|A2F2 G4:|
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Paddy O'Rafferty (Jig)
         C:Trad.
@@ -2884,9 +2884,9 @@ internal sealed class MarkdownSamples : ISampleSet
         ~A3 ~B3|efe efg|faf gfe|1 dfe dcB:|2 dfe dBA|]
         fAA eAA|def gfe|fAA eAA|dfe dBA|
         fAA eAA|def gfe|faf gfe|dfe dBA:|
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Kitchen Girl (Reel)
         C:Trad.
@@ -2899,9 +2899,9 @@ internal sealed class MarkdownSamples : ISampleSet
         K:G
         ABcA BAGB|ABAG EDEG|A2AB c2d2|e3f edcB|
         ABcA BAGB|ABAG EGAB|cBAc BAG2|A4 A4:|
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1                        % tune no 1
         T:Dusty Miller (commented) % title
         T:Binny's Jig              % an alternative title
@@ -2917,9 +2917,9 @@ internal sealed class MarkdownSamples : ISampleSet
         W:He will win a shilling, or he spend a groat.
         W:Dusty was the coat, dusty was the colour;
         W:Dusty was the kiss, that I got frae the miller.
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Old Sir Simon the King (commented)
         C:Trad.               % composer
@@ -2936,9 +2936,9 @@ internal sealed class MarkdownSamples : ISampleSet
         [2 E2E EFE E2E EFG|\
         M:9/8                 % change back again
         A2G F2E D2|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Jericho (chord symbols)
         T:Joshua fought the battle of Jericho
@@ -2950,9 +2950,9 @@ internal sealed class MarkdownSamples : ISampleSet
         "Dm"D^CDE FF G2|"Dm"A A2 A-A2 FG|"A7"A2 G2 F2 E2|"Dm"D6"^Fine"||dd|
         "Dm"dA AA A3 A|"Dm"A A3- "A7"A2 AA|"Dm"AA AA A2 A2|"A7"A6 ^c2|
         "Dm"d2 A2 "A7"A A3|"Dm"A2 A2- "A7"A2 AA|"Dm"AA G2 "A7"E2 D2|"Dm"D8|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Lyrics
         N:see https://www.youtube.com/watch?v=RWNeCjid0zc
@@ -3000,9 +3000,9 @@ internal sealed class MarkdownSamples : ISampleSet
         W: Word, word, syl-la-ble!
         W: 
         %%writefields N
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:0
         T: Ding Dong! Merrily On High
         Z: From Arbeau's "Orchesographie."
@@ -3024,9 +3024,7 @@ internal sealed class MarkdownSamples : ISampleSet
         [V: P2]  F F G/ G/ E/ E/ | C3 F | F E C F | F2 F2 | F F G/ G/ E/ E/ | C3 F | F E C F | F2 F2[|:z (F2 B | B/A/G/F/ G/F/ E |z F/E/ D G | G/F/E/D/ E/D/ C |z D/C/ B, E | C/D/E/) D/ C F | F E C F | F2 F2 :|]|] Z
         [V: P3]  D B, G,/ G,/ C/ B,/ | A,3 B, | B, B, C C | D2 D2 | D B, G,/ G,/ C/ B,/ | A,3 B, | B, B, C C | D2 D2[|:z (C D B, | C B,2 C |z A, B, G, | A, G,2 A, |z F, G, G, | C) A, B, C | B, B, C C | D2 D2 :|]|] Z
         [V: P4]  B,, D, E,/ E,/ C,/ C,/ | F,3 D, | E, G, F, F, | B,,2 B,,2 | B,, D, E,/ E,/ C,/ C,/ | F,3 D, | E, G, F, F, | B,,2 B,,2[|:z (A, B, D, | C, D, E,/D,/ C, |z F, G, B,, | A,, B,, C,/B,,/ A,,) |z (D, E, G, | F,) G, A, B, | E, G, F, F, | B,,2 B,,2 :|]|] Z
-        #%
-
-        The dialect is auto-detected when the tag is omitted (`#%` alone).
+        ```
         """;
 
     private const string MusicLilyPond =

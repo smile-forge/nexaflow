@@ -59,8 +59,14 @@ public sealed class BarcodeDiagramHandler : IDiagramHandler
             // Where the value sits inside the fence that produced it. Without it the host reads this as a
             // block that IS its content — which only a $$…$$ formula is — and puts the delimiters back on
             // every edit, so typing a digit into a barcode turned it into a formula.
-            SourceStart = placed.ValueStart,
-            SourceLength = placed.Value.Length,
-        };
+                SourceStart = placed.ValueStart,
+                SourceLength = placed.Value.Length,
+
+                // Air between one barcode and the next. The quiet zone inside the symbol is part of the symbol —
+                // it is what a scanner needs either side of the bars — and being the same white as the ground it
+                // separates nothing to the eye: a page of barcodes ran together into one field with bars in it.
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 6, 0, 10),
+            };
     }
 }

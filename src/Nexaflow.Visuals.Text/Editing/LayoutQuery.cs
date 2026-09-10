@@ -265,6 +265,13 @@ public static class LayoutQuery
             if (!piece.IsLeaf) continue;
             if (alone && Holds(piece)) continue;
 
+            // What the press would mean, by the same rule a direct hit already uses: the first thing above the
+            // ink that names source. Ink with nothing above it — a staff line, a barcode's bars — is drawing
+            // nobody can pick, and letting it win put the caret wherever that drawing reported itself as
+            // sitting: a press between two notes landed on a staff line and took the caret up into the title.
+            var resolved = piece.Selectable();
+            if (!resolved.Exists) continue;
+
             var distance = DistanceTo(where, point);
             if (distance > bestDistance) continue;
 
@@ -273,7 +280,7 @@ public static class LayoutQuery
 
             bestDistance = distance;
             bestDepth = depth;
-            best = piece;
+            best = resolved;
         }
 
         return best;

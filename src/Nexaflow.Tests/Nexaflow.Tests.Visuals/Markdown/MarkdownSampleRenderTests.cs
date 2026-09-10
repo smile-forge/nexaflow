@@ -155,7 +155,9 @@ public class MarkdownSampleRenderTests
         {
             string md  = File.ReadAllText(path);
             var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
-            Assert.IsTrue(doc.OfType<Nexaflow.Visuals.Text.Markdown.Music.MusicBlock>().Any(),
+            // Either fence: the older `#% … #%` block, or an ```abc code fence, which is what the ABC sample uses.
+            Assert.IsTrue(doc.OfType<Nexaflow.Visuals.Text.Markdown.Music.MusicBlock>().Any()
+                          || doc.OfType<Markdig.Syntax.FencedCodeBlock>().Any(fence => fence.Info == "abc"),
                 $"no music block parsed in {Path.GetFileName(path)}");
             foreach (var block in doc)
                 Assert.IsNotNull(BlockRenderer.Render(block, md),

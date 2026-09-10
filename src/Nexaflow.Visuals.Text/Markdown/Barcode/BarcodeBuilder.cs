@@ -353,7 +353,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
     private void LayCaption(LayoutBuilder into, BarcodePart part, FormattedText glyphs, Point at, double size)
     {
         into.Open(part.Kind.ToString(), part: null, at);
-        into.Draw(new TextMark(glyphs, default, null));
+        into.Draw(new TextMark(glyphs, default, Brush(_block.LineColor, _palette.BarcodeDark)));
         LayPieces(into, part, 0, glyphs.Height, size);
         into.Close();
     }
@@ -400,7 +400,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
             // Printing that was worked out rather than typed is still ink: it is a digit on the page and a
             // reader can point at it. It carries no part, which is what keeps it out of the caret's stops.
             into.Open(part.Kind.ToString(), part: null, at);
-            into.Draw(new TextMark(glyphs, default, null));
+            into.Draw(new TextMark(glyphs, default, Brush(_block.LineColor, _palette.BarcodeDark)));
 
             if (!Generated(part)) LayPieces(into, part, 0, glyphs.Height, null);
             into.Close();

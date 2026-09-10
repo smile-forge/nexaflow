@@ -353,7 +353,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// number it worked out is the case that needs it, and nothing about the question is barcode-shaped.
     /// </para>
     /// </summary>
-    public bool AcceptsCaret => _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
+    public bool AcceptsCaret =>
+            _state.Source.Length == 0 || _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
     private static Brush Wash(MarkdownPalette palette)
@@ -406,7 +407,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
 
-    public virtual void TakeCaretArriving(CaretArrival arrival)
+    public void TakeCaretArriving(CaretArrival arrival)
     {
         // Nothing drawn here is the source, so there is nowhere in it to stand. The caret is handed
         // straight on the way it was already going, and the reader arrows over the content as they would
@@ -418,7 +419,15 @@ public class ContentElement : FrameworkElement, IEditableBlock
         }
 
         var stops = _laid.Stops;
-        if (stops.Count == 0) { Exited?.Invoke(this, arrival.Edge); return; }
+        if (stops.Count == 0)
+        {
+            // Empty content is one place — the start of nothing — and it is exactly where the first character
+            // will go, so the caret stands there. It has no stops only because there is nothing yet to stand
+            // against. Content that has something in it and still no stop really has nowhere, and passes it on.
+            if (_state.Source.Length == 0) TakeCaret(0);
+            else Exited?.Invoke(this, arrival.Edge);
+            return;
+        }
 
         // Content wide enough for a column to mean something takes a caret arriving from the line above
         // under where it left, rather than at the beginning.

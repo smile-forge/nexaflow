@@ -245,6 +245,12 @@ public static class TexPipeline
     {
         if (node.IsLeaf) return node;
 
+        // Never inside an expansion. A macro is the writer's one command and its definition is ours: `\hbar` is
+        // `\bar{}` over nothing with an h slid under it, and that empty group is how the bar is drawn, not an
+        // argument anybody left unwritten. Hollowing it put a hole in every \hbar, a hole is trouble, and an
+        // inline formula with trouble is shown as its source — so one \hbar took a line of 26 symbols with it.
+        if (node.Role == TexRole.Expansion) return node;
+
         var rebuilt = new List<TexNode>(node.Children.Count + 1);
         var moved = false;
 

@@ -70,14 +70,19 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
 
     /// <summary>
     /// The piece <paramref name="point"/> is on — what a drag is really between. Past either side it is the
-    /// piece at that end, as it is in text.
+    /// thing at that end, as it is in text: the first or last thing a press could mean, not the first or last
+    /// piece of drawing, which in a score is a staff line nobody can pick.
     /// </summary>
     public Piece PieceAt(Point point)
     {
-        if (point.X > Size.Width) return Root.Leaves().LastOrDefault();
-        if (point.X < 0) return Root.Leaves().FirstOrDefault();
+        if (point.X > Size.Width) return Selectables().LastOrDefault();
+        if (point.X < 0) return Selectables().FirstOrDefault();
         return Root.PieceAt(point);
     }
+
+    /// <summary>Everything a press could mean, in drawing order.</summary>
+    private IEnumerable<Piece> Selectables() =>
+        Root.Leaves().Select(leaf => leaf.Selectable()).Where(piece => piece.Exists);
 
     /// <summary>
     /// The caret stop <paramref name="point"/> means: which piece is under it, and which half of that piece
