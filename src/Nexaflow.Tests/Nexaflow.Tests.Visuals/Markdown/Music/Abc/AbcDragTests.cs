@@ -237,6 +237,83 @@ public class AbcDragTests
             Assert.IsFalse(wash.FillContains(Centre(word.Ink())), $"the wash reached across {Written(Tune, word)}");
     });
 
+    [TestMethod]
+    public void ADragUpFromTheWordsAndAcrossTakesNoChord() => UiThread.Run(() =>
+    {
+        // Reported from the app, on a hymn with a chord over every note: a drag from a word in the third verse up
+        // to the notes and back across two columns took the chords over the last two. Each row of a block ran from
+        // its first piece to its last, and in a tune a chord symbol is written between two notes.
+        const string Tune = "X:1\nM:3/4\nL:1/8\nK:F\n\"Bb\"B2\"F/C\"A2\"C7\"G2| \"F\"F6|]\n"
+                          + "w:en-gran-de-cer.\nw:no co-ra-cao.\nw:o co-ra-cao.\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var note = At(layout, Tune, "B2");
+
+        var chosen = ContentSelection.Between(layout.Root, At(layout, Tune, "ra", after: "w:o"), note);
+
+        Assert.IsTrue(Taken(chosen, note), "the note the drag ended on");
+        foreach (var chord in Of(layout, "chord"))
+            Assert.IsFalse(Taken(chosen, chord), $"a block below the chords took {Written(Tune, chord)}");
+    });
+
+    [TestMethod]
+    public void TheWashRunsOnUnderASlur() => UiThread.Run(() =>
+    {
+        // Reported from the app: the wash broke wherever a slur or a tie crossed the gap between two notes. Nobody
+        // typed the arc, so it is named by the group it is drawn in, and a group only partly taken read as something
+        // unchosen lying in the gap — when it is around the notes, not between them.
+        const string Tune = "X:1\nM:3/4\nL:1/8\nK:F\n\"F\"c2A2F2| (\"Bb\"G2\"F/C\"F2)\"C\"E2| \"F\"F4z2|]\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var (g, f) = (At(layout, Tune, "G2"), At(layout, Tune, "F2", after: "G2"));
+
+        var wash = Washed(layout, ContentSelection.Between(layout.Root, At(layout, Tune, "c2"), f));
+        Assert.IsTrue(wash.FillContains(Gap(g.Ink(), f.Ink(), across: true)), "the gap the slur crosses is washed");
+    });
+
+    [TestMethod]
+    public void TheWashOverANoteCoversTheStaffItStandsOn() => UiThread.Run(() =>
+    {
+        // Reported from the app: washing only what a note drew left the top line of its staff showing over a low
+        // note, which read as a gap in what was selected.
+        const string Tune = "X:1\nL:1/4\nK:C\nE F G A |\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var notes = Of(layout, "note");
+        var staff = notes[0].Bounds;   // a note reserves exactly the staff it stands on
+        var ink = notes[0].Ink();
+
+        Assert.IsTrue(ink.Top > staff.Top + 2, "a note on the bottom line does not reach the top line by itself");
+
+        var wash = Washed(layout, ContentSelection.Between(layout.Root, notes[0], notes[1]));
+        Assert.IsTrue(wash.FillContains(new System.Windows.Point(ink.X + (ink.Width / 2), staff.Top + 0.5)),
+                      "the top line of the staff over it is washed");
+    });
+
+    [TestMethod]
+    public void AWashOverABlockOfVersesIsOneShape() => UiThread.Run(() =>
+    {
+        // Reported from the app, on the same hymn: the block from the third verse up to the notes washed each column
+        // on its own. The verses are set as tightly as their letters allow, so the wash's pad reached into the verse
+        // below — which read as an unchosen word lying between two chosen ones — and a note whose stem reaches down
+        // to its words became one patch with them, which joined the words beside it and never the note.
+        const string Tune = "X:1\nM:3/4\nL:1/8\nK:F\n\"Bb\"B2\"F/C\"A2\"C7\"G2| \"F\"F6|]\n"
+                          + "w:en-gran-de-cer.\nw:no co-ra-cao.\nw:o co-ra-cao.\nw:Con-ti-goa-i.\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var (b, a, en, gran) = (At(layout, Tune, "B2"), At(layout, Tune, "A2"), At(layout, Tune, "en"), At(layout, Tune, "gran"));
+
+        var wash = Washed(layout, ContentSelection.Between(layout.Root, At(layout, Tune, "ra", after: "w:o"), b));
+
+        Assert.IsTrue(wash.FillContains(Gap(en.Ink(), gran.Ink(), across: true)), "between two words of the first verse");
+        Assert.IsTrue(wash.FillContains(Gap(b.Ink(), a.Ink(), across: true)), "between the first two notes");
+        Assert.IsTrue(wash.FillContains(Gap(a.Ink(), gran.Ink(), across: false)), "between a note and the word sung on it");
+        Assert.IsFalse(wash.FillContains(Centre(At(layout, Tune, "ti").Ink())), "the fourth verse was not taken");
+    });
+
+    /// <summary>The deepest piece naming the first <paramref name="written"/> after <paramref name="after"/>.</summary>
+    private static Piece At(Laid layout, string tune, string written, string after = "")
+    {
+        var offset = tune.IndexOf(written, tune.IndexOf(after, StringComparison.Ordinal), StringComparison.Ordinal);
+        return layout.Root.SelfAndDescendants().Last(p => p.Stands() && p.Sits().Start <= offset && offset < p.Sits().End);
+    }
+
     private static List<Piece> Of(Laid layout, string kind) =>
         [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
 

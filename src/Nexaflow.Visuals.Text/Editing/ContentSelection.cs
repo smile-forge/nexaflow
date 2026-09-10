@@ -171,9 +171,14 @@ public sealed class ContentSelection
         if (ranges.Count < 2) return ranges;
 
         var inside = new HashSet<Piece>(chosen.SelectMany(p => p.SelfAndDescendants()));
+
+        // Nor what holds them. A bar, or the group a slur is drawn in, names every character between its notes, and
+        // the arc nobody typed is named by it — but it is around what was chosen, not written between.
+        var around = new HashSet<Piece>(chosen.SelectMany(p => p.Ancestors()));
+
         var others = root.Leaves()
-                    .Select(p => p.Selectable())
-                    .Where(p => p.Exists && !inside.Contains(p))
+            .Select(p => p.Selectable())
+            .Where(p => p.Exists && !inside.Contains(p) && !around.Contains(p))
             .Select(p => p.Sits())
             .Where(at => at.Length > 0)
             .ToList();
@@ -267,19 +272,16 @@ public sealed class ContentSelection
 
         if (block.Count == 0) return null;
 
-        // One range per row, from its first chosen piece to its last — the separators between them included,
-        // because pieces chosen as a block are adjacent by construction and what lies between two of them is
-        // the grid's own punctuation. A selected row reading as three selected digits with the `&` between
-        // them conspicuously unselected is not what anybody dragged.
+        // Each row joined along itself, across whatever lies between two of its pieces and draws nothing — the
+        // grid's own punctuation: a selected row reading as three selected digits with the `&` between them
+        // conspicuously unselected is not what anybody dragged. Not across what is drawn: in a tune a chord symbol
+        // is written between two notes of the staff's row, and a row run from its first note to its last took
+        // every chord after the first.
         //
-        // What separates two ROWS is deliberately not swallowed, which is why this does not go through Joined:
-        // selecting every cell of a matrix and deleting it should leave a matrix with empty cells, not a
-        // matrix with its rows run together.
-        var ranges = rows.Values.Select(ink =>
-        {
-            var start = ink.Min(p => p.Sits().Start);
-            return (start, ink.Max(p => p.Sits().End) - start);
-        });
+        // A row at a time, never all together: what separates two ROWS is deliberately not swallowed — selecting
+        // every cell of a matrix and deleting it should leave a matrix with empty cells, not a matrix with its
+        // rows run together.
+        var ranges = rows.Values.SelectMany(ink => Joined(root, ink));
 
         return new ContentSelection([.. LayoutQuery.Promote(block)], LayoutQuery.Merge(ranges));
     }
