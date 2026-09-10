@@ -10,12 +10,6 @@ using Nexaflow.Visuals.Text.Markdown;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// What moving part of some content came to: the source it produced, where the caret goes, and the
-/// stretch it wrote — what to mark out while it is still being carried.
-/// </summary>
-public readonly record struct Moved(string Source, int Caret, EditRange Wrote);
-
-/// <summary>
 /// The surface every piece of embedded, rendered, editable content is drawn on: it lays the content out,
 /// paints it, and owns the pointer, the selection and the caret.
 ///
