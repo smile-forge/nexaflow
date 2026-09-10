@@ -15,9 +15,19 @@ namespace Nexaflow.Tests.Core.Unit;
 /// that one, and the bar itself — the separators, the gap after the last crumb, a crumb that names no
 /// location — copies where you are, which is the deepest crumb that does.
 /// <para>Needs an STA thread to build the control; opens no window.</para>
+/// <para>
+/// Not parallel, even though it is <c>UI</c> rather than <c>Desktop</c>. Every test builds a
+/// <see cref="BreadcrumbBar"/>, whose <c>InitializeComponent</c> loads compiled XAML, and WPF resolves BAML
+/// types and members through one process-wide schema cache that it fills on first use — filling it from two
+/// STA threads at once is not safe. Under the parallel run two of these intermittently died inside the BAML
+/// reader (<c>KeyNotFoundException: 'RelativeSource'</c>) while the class alone always passed. Warming the
+/// cache in a class initializer would stop them racing each other but not another class's XAML load racing
+/// the warm-up, so they run in the serial phase instead: no window, just nothing loading XAML beside them.
+/// </para>
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
+[DoNotParallelize]   // BAML loading shares WPF's process-wide schema cache, which isn't safe to fill concurrently
 [CoversNode("chrome-breadcrumb-copy-path")]
 public class BreadcrumbCopyPathTests
 {

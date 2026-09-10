@@ -84,6 +84,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Notebook/Nexaflow.Features.Notebook.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Office/Nexaflow.Features.Office.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.OneDrive/Nexaflow.Features.OneDrive.csproj">
       <Platform Project="x64" />
     </Project>

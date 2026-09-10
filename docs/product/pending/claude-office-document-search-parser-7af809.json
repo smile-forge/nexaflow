@@ -1,0 +1,99 @@
+{
+  "branch": "claude/office-document-search-parser-7af809",
+  "nodes": {
+    "office-word-search": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Office/Search/OfficeTextExtractor.cs",
+          "class": "OfficeTextExtractor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Office/Word/WordDocumentText.cs",
+          "class": "WordDocumentText"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Office/Packaging/OpcPackage.cs",
+          "class": "OpcPackage"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Office/OfficeTextExtractorTests.cs",
+            "class": "OfficeTextExtractorTests"
+          }
+        ]
+      }
+    },
+    "win-search-folder-scan": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Services/WindowsSearchService.cs",
+          "class": "WindowsSearchService",
+          "method": "WalkAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Services/FileContentReader.cs",
+          "class": "FileContentReader"
+        }
+      ]
+    },
+    "search-verify": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Services/SearchVerifier.cs",
+          "class": "SearchVerifier"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Services/PlainTextExtractor.cs",
+          "class": "PlainTextExtractor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/Search/IFileTextExtractor.cs",
+          "class": "IFileTextExtractor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/ViewModels/SearchViewModel.cs",
+          "class": "SearchViewModel",
+          "method": "BeginVerification"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Services/VerificationPlanner.cs",
+          "class": "VerificationPlanner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Services/FileContentReader.cs",
+          "class": "FileContentReader"
+        }
+      ]
+    },
+    "office": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Office/Nexaflow.Features.Office.csproj"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 5,
+  "touched_nodes": [
+    "office",
+    "office-word-search",
+    "search-verify",
+    "win-search-folder-scan"
+  ]
+}

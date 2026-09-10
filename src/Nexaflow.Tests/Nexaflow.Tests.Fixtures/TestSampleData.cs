@@ -68,6 +68,7 @@ public static class TestSampleData
         new EmailSamples(),
         new DicomSamples(),
         new PdfSamples(),
+        new OfficeSamples(),
     ];
 
     private static readonly Lazy<string> RootLazy = new(EnsureAll);
@@ -173,5 +174,8 @@ public static class TestSampleData
         - `pdf/`      — hand-encoded PDFs for search text extraction and image extraction: text-bearing
           (with title and form-field values absent from the body), image-only, one image reused across two
           pages, a `/DCTDecode` image, and a corrupt file. No viewer — PDFs are searched, not rendered.
+        - `office/`   — hand-written Word (.docx) packages for the Office search text extractor: every text-bearing
+          part plus the traps (split runs, a doubled text box, tracked changes, field codes), Strict namespaces,
+          relationship-only part paths, and unreadable files. No viewer — searched, not rendered.
         """;
 }

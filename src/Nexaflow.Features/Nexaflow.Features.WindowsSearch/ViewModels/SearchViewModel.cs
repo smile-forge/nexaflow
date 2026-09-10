@@ -402,6 +402,10 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         StatusText         = "Scanning…";
 
         var found = 0;
+
+        // The same extractor-first reading the index's sweep does (StartSweep), so a PDF or a Word document
+        // found by walking is judged on its words rather than on its compressed bytes.
+        var reader = new FileContentReader(_shellServices.GetFileTextExtractor);
         try
         {
             foreach (var root in ScanRoots)
@@ -422,7 +426,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
                         ResultCount        = Results.Count;
                         VerificationBanner = VerificationPlanner.Scanning(++found).Banner;
                     });
-                }, ct);
+                }, reader, ct);
             }
 
             if (!IsCurrentScan(cts)) return;
