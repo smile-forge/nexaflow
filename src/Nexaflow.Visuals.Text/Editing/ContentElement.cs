@@ -119,14 +119,12 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// what is being typed changes what is drawn.
     /// </param>
     public ContentElement(string source, MarkdownPalette palette, Func<EditState, double, double, Laid> lay)
-        : this(source, palette)
-    {
-        _lay = lay;
-    }
+        : this(source, palette, Content.Of(lay)) { }
 
-    protected ContentElement(string source, MarkdownPalette palette)
+    public ContentElement(string source, MarkdownPalette palette, IContent content)
     {
         Palette = palette;
+        _content = content;
         _wash = Wash(palette);
         _state = EditState.For(source ?? string.Empty);
 
@@ -165,26 +163,23 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// the only way the rest of the content can be laid out knowing it is there.
     /// </para>
     /// </summary>
-    protected virtual Laid Lay(EditState state, double room, double pixelsPerDip) =>
-        _lay is { } build ? build(state, room, pixelsPerDip) : Laid.Nothing;
-
-    /// <summary>The builder, for content that needs no element of its own — see the constructor.</summary>
-    private readonly Func<EditState, double, double, Laid>? _lay;
+    private Laid Lay(EditState state, double room, double pixelsPerDip) =>
+        _content.Lay(state, room, pixelsPerDip, IsReadOnly);
 
     /// <summary>
-    /// What writing <paramref name="text"/> means, where this content has something to say about it.
-    ///
-    /// <para>
-    /// Two kinds of answer live here and they are the same kind: a rule about how the source is
-    /// <em>written</em> — a backslash opens a command and letters extend it — and a rule about what the
-    /// text means to the <em>structure</em>, which is how a 3 typed after <c>x^2</c> becomes twenty-three
-    /// rather than an x squared beside a 3.
-    /// </para>
-    /// <para>
-    /// Null leaves it to the element, which splices the characters in where the caret is.
-    /// </para>
+    /// What is being hosted: the whole chain from source to picture, and what writing into that picture
+    /// means. Everything that differs by kind of content is behind it — see <see cref="IContent"/>.
     /// </summary>
-    protected virtual EditState? Typing(EditState state, string text) => null;
+    private readonly IContent _content;
+
+    /// <summary>Where an edit is landing, for the content to make what it will of it.</summary>
+    private Landing Landing => new(_state, _laid, _at);
+
+    /// <summary>
+    /// What writing <paramref name="text"/> means, given what it lands in — the content's rule, not the
+    /// element's. See <see cref="IContent.Typing"/>.
+    /// </summary>
+    private EditState? Typing(EditState state, string text) => _content.Typing(Landing, text);
 
     /// <summary>
     /// What backspace means behind something drawn from more source than it shows.
@@ -679,11 +674,11 @@ public class ContentElement : FrameworkElement, IEditableBlock
     bool IEditableBlock.Commit(string text) { if (!IsReadOnly) Settle(text); return true; }
 
     /// <summary>
-    /// Ends whatever is half-written. Typing the character, which is all settling is — content whose source
-    /// needs something <em>added</em> to say where a half-written thing stopped overrides this, and should
-    /// not have to.
+    /// Ends whatever is half-written — what space and Enter mean. The content's rule, not the element's;
+    /// see <see cref="IContent.Settle"/>.
     /// </summary>
-    protected virtual void Settle(string separator) => Write(separator);
+    protected void Settle(string separator) =>
+        Apply(_content.Settle(Landing, separator), notify: true);
 
     /// <summary>
     /// Selects the next place still waiting to be written in, so a construct inserted whole can be filled

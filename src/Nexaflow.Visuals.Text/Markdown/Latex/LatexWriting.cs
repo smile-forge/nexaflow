@@ -47,20 +47,27 @@ internal static class LatexWriting
     }
 
     /// <summary>
-    /// Settles a stretch being shown as itself, keeping the space that ends a control word.
+    /// Ends a stretch being shown as itself, keeping the space that says where a control word stopped.
     ///
     /// <para>
-    /// <strong>This should not exist, and it is here because of something else.</strong> Ending a
-    /// half-written command is what typing a non-letter after it already does, so a separate settling step
-    /// is a second way to say the same thing. And the space is a character the reader did not type, written
-    /// to make the source agree with the parser: where a control word ends is a question about READING
-    /// LaTeX, which belongs to whatever turns source into boxes.
+    /// <strong>An on-edit handler, and the right place for one.</strong> The reader pressed space or Enter;
+    /// what that means depends on what it landed in, and this is what knows. The space it writes is not a
+    /// character nobody typed — it is the character a person editing the source by hand would have typed
+    /// there, and for the same reason: without it <c>\alpha</c> followed by a letter is the unknown command
+    /// <c>\alphax</c>.
     /// </para>
     /// <para>
-    /// It cannot move there yet, because the LaTeX builder does not typeset — it captures a pass made by an
-    /// engine that is handed a finished parse, so there is nowhere to say "the command stops here" except
-    /// in the characters. Dropping the space without that costs four tests and a formula that reads
-    /// <c>\alphax</c>. Fix the builder, then delete this.
+    /// This used to say it should move into a pipeline step that normalised the source before the builder
+    /// read it. That was wrong twice over. A pipeline runs on every render, so it would write the space into
+    /// a document nobody had edited — including source arriving from a file, which is the writer's and not
+    /// ours to correct. And by the time a pipeline sees the text the intent is gone: <c>x^23</c> is only
+    /// <em>text</em>, where an edit still knows the caret was inside the exponent. Where a control word ends
+    /// is a question about the edit that ended it.
+    /// </para>
+    /// <para>
+    /// Deliberately not the same handler as <see cref="Typing"/>, though both are on-edit. Typing carries a
+    /// character and this does not: Enter settles a half-written command and adds no newline, so folding the
+    /// two together would have Enter type a space into the formula.
     /// </para>
     /// </summary>
     public static EditState Settle(this EditState state, string separator = " ")
