@@ -37,12 +37,20 @@ internal static class RunningShell
                  });
              });
 
-        // Inline rather than posted: there is no dispatcher in a unit test, and the queue's only
-        // requirement is that the action runs somewhere before the operation reports itself finished.
+        // Posted, not inline — and in order, like the dispatcher it stands in for.
+        //
+        // It used to run the action on the calling thread, which quietly removed the one property the
+        // real marshal has: that a background task which reports its outcome through it has NOT been
+        // observed by the time it returns. Under the substitute the state was always already there, so a
+        // whole class of "read it too early" bug could not be reproduced — and one was not: rows judged
+        // on their state at task-return never retired, and piled up in the panel while every test passed.
+        var pump = Task.CompletedTask;
+        var gate = new object();
+
         shell.RunOnUiAsync(Arg.Any<Action>()).Returns(call =>
         {
-            call.Arg<Action>()();
-            return Task.CompletedTask;
+            var action = call.Arg<Action>();
+            lock (gate) return pump = pump.ContinueWith(_ => action(), TaskScheduler.Default);
         });
 
         return shell;

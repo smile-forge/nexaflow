@@ -1,0 +1,111 @@
+{
+  "branch": "claude/breadcrumb-filesystem-copy-path-36b283",
+  "nodes": {
+    "chrome-breadcrumb-copy-path": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/BreadcrumbBar.xaml.cs",
+          "class": "BreadcrumbBar",
+          "method": "CopyPathMenu"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/BreadcrumbSegment.cs",
+          "class": "BreadcrumbSegment"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/BreadcrumbCopyPathTests.cs",
+            "class": "BreadcrumbCopyPathTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Common/FileBreadcrumbsTests.cs",
+            "class": "FileBreadcrumbsTests",
+            "method": "SetFileBreadcrumbs_EachCrumbCarriesTheLocationItNames"
+          }
+        ]
+      }
+    },
+    "winfs-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "FileListView_PreviewMouseRightButtonDown"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/ViewModels/FileSystemViewModel.cs",
+          "class": "FileSystemViewModel",
+          "method": "BuildContextActions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "DirectoryTree_PreviewMouseRightButtonDown"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "RightClickingEmptySpaceOffersFolderActionsForTheCurrentFolder"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "InThisPcModeOnlyAnEmptySelectionHasNoTarget"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/ThisPcDriveActionsTests.cs",
+            "class": "ThisPcDriveActionsTests",
+            "method": "RightClickingATreeFolderInThisPcMode_StillOffersFolderActions"
+          }
+        ]
+      }
+    },
+    "winfs-act-copy-path": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileActions/CopyPaths.cs",
+          "class": "CopyPaths"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/FileActions/CopyPathsTests.cs",
+            "class": "CopyPathsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/FileActions/FileActionConformanceTests.cs",
+            "class": "CopyPathsConformance"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "chrome-breadcrumb-copy-path",
+    "winfs-act-copy-path",
+    "winfs-context-menu"
+  ]
+}

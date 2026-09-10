@@ -12,6 +12,7 @@ using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
+using Nexaflow.IO.Common;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -204,5 +205,100 @@ public class FileOperationQueueTests
         Assert.AreEqual(FileOperationState.Cancelled, op.State,
             "a cancelled scan is a cancellation, not a fault");
         Assert.IsFalse(op.HasProblems, "and it has nothing to report as a problem");
+    }
+
+    /// <summary>
+    /// A cancel is heard long before the run can actually stop — the engine only looks between files —
+    /// so the row has to say so the instant the button is pressed. It did not: the glyph, the byte
+    /// counter and the transfer rate all carried on exactly as before, and the Cancel button went on
+    /// offering itself, so the only evidence the click had landed was the operation ending some minutes
+    /// later. That reads as a dead button, and gets pressed again.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("file-operations-panel")]
+    public void PressingCancelChangesTheRowAtOnce_EvenThoughTheRunCannotStopYet()
+    {
+        var op = new FileOperation("Copying", "3 items", "Archive", itemsTotal: 3);
+        op.Publish(new TransferProgress(
+            TransferPhase.Running, BytesDone: 1_000, BytesTotal: 10_000, ItemsDone: 1, ItemsTotal: 3,
+            CurrentItem: "big.bin", BytesPerSecond: 500, Remaining: TimeSpan.FromSeconds(18), Paused: null));
+
+        string runningDetail = op.Detail;
+        Assert.IsTrue(op.CanCancel);
+
+        op.Cancel();
+
+        Assert.AreEqual("Stopping…", op.Detail, "the row has to say the click landed");
+        Assert.AreNotEqual(runningDetail, op.Detail);
+        Assert.AreNotEqual("↻", op.StatusGlyph, "a cancelling run must not wear the running glyph");
+        Assert.IsFalse(op.CanCancel, "cancelling already — the button should stop inviting the same click");
+        Assert.IsFalse(op.IsFinished, "it has not actually stopped yet, and must not claim to have");
+
+        // Progress that arrives while it is unwinding must not talk over the cancel.
+        op.Publish(new TransferProgress(
+            TransferPhase.Running, BytesDone: 2_000, BytesTotal: 10_000, ItemsDone: 1, ItemsTotal: 3,
+            CurrentItem: "big.bin", BytesPerSecond: 500, Remaining: TimeSpan.FromSeconds(16), Paused: null));
+
+        Assert.AreEqual("Stopping…", op.Detail);
+    }
+
+    /// <summary>
+    /// A clean copy has to clear its own row. It did not, and a session's worth of copying left a dozen
+    /// rows all reading "Done." — because retirement hung off the background task returning, which
+    /// happens before the row has been told the outcome. Judged on a state that had not arrived yet,
+    /// every completed operation looked unfinished and was left alone.
+    /// </summary>
+    [TestMethod]
+    public async Task ACleanCopyTakesItsOwnRowAwayAfterwards()
+    {
+        var src   = Folder("src", "a.txt");
+        var dest  = Folder("dest");
+        var queue = FileOperationQueue.For(Shell());
+
+        var op = queue.EnqueueDrop([src], dest, move: false);
+        Assert.IsNotNull(op);
+        await op.Completion;
+
+        Assert.AreEqual(FileOperationState.Completed, op.State,
+                        "the outcome is settled before Completion fires — retirement is judged on it");
+
+        Assert.IsTrue(await Settles(() => !queue.Operations.Contains(op)),
+                      "a finished row clears itself out of the way rather than accumulating");
+    }
+
+    /// <summary>
+    /// A row that has stopped must stop looking like one that is working. The bar is indeterminate while
+    /// there is no byte total to measure against — and anything that ends without ever getting one (a
+    /// cancelled scan, a delete) left that true after the work was over, so a row reading "Stopped."
+    /// went on sweeping underneath itself, and the next copy inherited the animation.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("file-operations-panel")]
+    public void AStoppedRowStopsAnimating()
+    {
+        var op = new FileOperation("Copying", "3 items", "Archive", itemsTotal: 3);
+        Assert.IsTrue(op.IsIndeterminate, "nothing measured yet — the bar sweeps");
+
+        op.Cancel();
+        Assert.IsTrue(op.IsIndeterminate, "still unwinding: there is something to wait for");
+
+        op.Finish(new TransferResult(
+            Completed: false, BytesTransferred: 0, ItemsTransferred: 0,
+            Failures: [], SkippedReparsePoints: [], RenamedDestinations: [], PartialDestinations: []));
+
+        Assert.IsTrue(op.IsFinished);
+        Assert.IsFalse(op.IsIndeterminate, "nothing left to wait for, so nothing left to animate");
+    }
+
+    /// <summary>Polls a condition for a few seconds — the retire delay is a real one.</summary>
+    private static async Task<bool> Settles(Func<bool> condition, int seconds = 15)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(seconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition()) return true;
+            await Task.Delay(200);
+        }
+        return condition();
     }
 }

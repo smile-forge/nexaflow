@@ -45,6 +45,7 @@ public static class FileBreadcrumbs
         new()
         {
             Label            = directory,
+            Path             = directory,
             TargetPageKind   = FileSystemPageKind,
             TargetPageParams = new Dictionary<string, string>
             {
@@ -70,12 +71,12 @@ public static class FileBreadcrumbs
         {
             page.Breadcrumbs.Clear();
             page.Breadcrumbs.Add(origin);
-            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leaf });
+            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leaf, Path = filePath });
             return;
         }
 
         var dir = string.IsNullOrEmpty(filePath) ? null : Path.GetDirectoryName(filePath);
-        SetBreadcrumbs(page, dir, leaf);
+        SetBreadcrumbs(page, dir, leaf, string.IsNullOrEmpty(filePath) ? null : filePath);
     }
 
     /// <summary>
@@ -121,11 +122,11 @@ public static class FileBreadcrumbs
         return dir;
     }
 
-    private static void SetBreadcrumbs(Page page, string? directory, string leafLabel)
+    private static void SetBreadcrumbs(Page page, string? directory, string leafLabel, string? leafPath = null)
     {
         page.Breadcrumbs.Clear();
         if (!string.IsNullOrEmpty(directory))
             page.Breadcrumbs.Add(ForDirectory(directory));
-        page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leafLabel });
+        page.Breadcrumbs.Add(new BreadcrumbSegment { Label = leafLabel, Path = leafPath });
     }
 }

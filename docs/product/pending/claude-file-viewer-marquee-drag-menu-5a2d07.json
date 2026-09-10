@@ -1,0 +1,234 @@
+{
+  "branch": "claude/file-viewer-marquee-drag-menu-5a2d07",
+  "nodes": {
+    "winfs-marquee-select": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Behaviors/MarqueeSelect.cs",
+          "class": "MarqueeSelect"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Behaviors/MarqueeRange.cs",
+          "class": "MarqueeRange"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Behaviors/MarqueeRangeTests.cs",
+            "class": "MarqueeRangeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsFileSystem/FileSystemJourneyTests.cs",
+            "class": "FileSystemJourneyTests",
+            "method": "BandSelectUpwards"
+          }
+        ]
+      }
+    },
+    "winfs-right-drag-menu": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Common/IDropChoiceTarget.cs",
+          "class": "IDropChoiceTarget"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileSystemDropTarget.cs",
+          "class": "FileSystemDropTarget",
+          "method": "Capture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "ShowDropChoiceMenu"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "BeginListDrag"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/DropChoiceLatch.cs",
+          "class": "DropChoiceLatch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Behaviors/DropTargetHighlight.cs",
+          "class": "DropTargetHighlight"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileSystemDropTarget.cs",
+          "class": "FileSystemDropTarget",
+          "method": "CanExecute"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "AskPendingChoice"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "TheChosenActionIsTheOneCarriedOut_LongAfterTheDataObjectHasGone"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "OnlyAFileDropIsWorthOfferingAChoiceAbout"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "TheHoverIsWhatRemembersWhichButtonIsDragging_BecauseTheDropCannotBeAsked"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "AChosenDropIsCarriedOutOnce_HoweverManyTimesItIsAskedAgain"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "MovingSomethingToWhereItAlreadyIsIsNotOffered_ThoughCopyingItIs"
+          }
+        ]
+      }
+    },
+    "file-operations-panel": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationsPanelTests.cs",
+            "class": "FileOperationsPanelTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/WindowsFileSystem/FileOperationsPanelJourneyTests.cs",
+            "class": "FileOperationsPanelJourneyTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationHostTests.cs",
+            "class": "FileOperationHostTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationQueueTests.cs",
+            "class": "FileOperationQueueTests",
+            "method": "ACleanCopyTakesItsOwnRowAwayAfterwards"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationQueueTests.cs",
+            "class": "FileOperationQueueTests",
+            "method": "AStoppedRowStopsAnimating"
+          }
+        ]
+      }
+    },
+    "winfs-drag-drop": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/FileSystemDropTarget.cs",
+          "class": "FileSystemDropTarget"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "OnListViewDrop"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Operations/FileOperationDestinations.cs",
+          "class": "FileOperationDestinations"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml.cs",
+          "class": "FileSystemView",
+          "method": "ScheduleTreeReveal"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/DragArming.cs",
+          "class": "DragArming"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "DroppingCopiesTheFileIn_AndMovingTakesTheOriginal"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "TheDropTooltipSaysWhichWayItWillGo_AndWhere"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "ASourceThatVanishedBetweenDragAndDropIsSkipped_NotReportedAsAFailure"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationQueueTests.cs",
+            "class": "FileOperationQueueTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileOperationDestinationsTests.cs",
+            "class": "FileOperationDestinationsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/FileSystemSurfaceTests.cs",
+            "class": "FileSystemSurfaceTests",
+            "method": "ADropOntoTheThingBeingDraggedIsRefusedBeforeItHappens"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsFileSystem/DragArmingTests.cs",
+            "class": "DragArmingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 7,
+  "touched_nodes": [
+    "file-operations-panel",
+    "winfs-drag-drop",
+    "winfs-marquee-select",
+    "winfs-right-drag-menu"
+  ]
+}

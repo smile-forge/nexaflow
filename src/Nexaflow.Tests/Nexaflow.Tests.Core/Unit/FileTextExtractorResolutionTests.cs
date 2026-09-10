@@ -27,6 +27,7 @@ public class FileTextExtractorResolutionTests
 {
     private const string PdfExtractor = "Nexaflow.Features.Pdf.Search.PdfTextExtractor";
     private const string PdfConfigType = "Nexaflow.Features.Pdf.PdfConfig";
+    private const string OfficeExtractor = "Nexaflow.Features.Office.Search.OfficeTextExtractor";
 
     [ClassInitialize]
     public static void Init(TestContext _) => FeatureManager.Instance.RegisterFeatures();
@@ -42,6 +43,29 @@ public class FileTextExtractorResolutionTests
             "no extractor means PDFs fall through to the raw byte scan, which can never find text held in a "
             + "compressed stream — and reports the miss as inconclusive rather than as a miss");
         Assert.AreEqual(PdfExtractor, extractor.GetType().FullName);
+    }
+
+    [TestMethod]
+    [DataRow(@"C:\x\report.docx")]
+    [DataRow(@"C:\x\macros.docm")]
+    [DataRow(@"C:\x\letter.dotx")]
+    [DataRow(@"C:\x\letter.dotm")]
+    public void WordPaths_ResolveToTheOfficeExtractor(string path)
+    {
+        var extractor = NewShell().GetFileTextExtractor(path);
+
+        Assert.IsNotNull(extractor,
+            "no extractor means a Word document falls through to the raw byte scan, which finds nothing in a "
+            + "zip of deflated XML and can only ever report it as unreadable");
+        Assert.AreEqual(OfficeExtractor, extractor.GetType().FullName);
+    }
+
+    [TestMethod]
+    public void LegacyBinaryWord_IsNotClaimed()
+    {
+        // .doc is Word 97-2003's compound-file format, which the OOXML reader can't open. Claiming it would
+        // only turn every .doc into a null that skips the raw scan's chance at its (uncompressed) text.
+        Assert.IsNull(NewShell().GetFileTextExtractor(@"C:\x\old.doc"));
     }
 
     [TestMethod]

@@ -17,6 +17,8 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Features.WindowsFileSystem;
+using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Visuals.Common.Behaviors;
 
 namespace Nexaflow.Features.WindowsFileSystem.Views;
 
@@ -34,17 +36,37 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     private readonly IKeyboardHandler _actionKeys;   // maps shortcut keys → file actions (this view IS the page handler)
     private readonly IDropTarget      _dropTarget;
 
-    // Drag-from-list tracking
-    private Point _listDragStartPoint;
-    private bool  _listDragPending;
+    // Drag-from-list tracking. DragArming, not a bare bool: arming that outlives its own gesture is
+    // what let a press the list never saw released start a drag nobody asked for.
+    private readonly DragArming _listDrag = new();
 
     // Click-to-deselect is deferred to mouse-up so a mouse-down on the selected item can still begin a
     // drag; holds the list awaiting that deselect, cleared once a drag fires (see the mouse handlers).
     private ListView? _deselectOnMouseUp;
 
+    // Right-drag tracking. Explorer's gesture: hold the RIGHT button, drag, and the destination asks
+    // what to do — rather than the modifier having had to be decided before the button came up.
+    private readonly DragArming _listRightDrag = new();
+
+    // …which is why the context menu is deferred to mouse-up too. Opening it on mouse-down swallowed
+    // the press a right-drag needs, exactly as deselecting on mouse-down used to make a selected file
+    // impossible to drag. Holds the list the menu belongs to and the entries it would be about.
+    private ListView? _rightMenuOnMouseUp;
+    private List<FileSystemEntry> _rightMenuTargets = [];
+
+    // Which button is dragging, remembered from the hover — the drop cannot be asked. See DropChoiceLatch.
+    private readonly DropChoiceLatch _dropChoice = new();
+
+    // The wash on the row a drop would land in — the destination, shown rather than spelled out.
+    private readonly DropTargetHighlight _dropHighlight = new();
+
+    // A question a drop has asked but that has not been put to the user yet, and whether our own drag
+    // loop is still on the stack. See AskPendingChoice: a menu must not open inside DoDragDrop.
+    private (IDropChoiceTarget Target, DropPlan Plan)? _pendingChoice;
+    private bool _localDragInFlight;
+
     // Drag-from-ActionStrip tracking
-    private Point _actionDragStartPoint;
-    private bool  _actionDragPending;
+    private readonly DragArming _actionDrag = new();
     private FileActionViewModel? _actionDragVm;
 
     // ── Viewlet state ─────────────────────────────────────────────────────────
@@ -142,20 +164,16 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     {
         _actionDragVm = FindActionViewModelAt(e.OriginalSource as DependencyObject);
         if (_actionDragVm is null || _actionDragVm.IsDestructive || !_actionDragVm.IsRibbonPinnable) return;
-        _actionDragStartPoint = e.GetPosition(null);
-        _actionDragPending    = true;
+        _actionDrag.Arm(e.GetPosition(null));
     }
 
     private void ActionStrip_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_actionDragPending || e.LeftButton != MouseButtonState.Pressed || _actionDragVm is null) return;
+        _actionDrag.ObserveButton(e.LeftButton);
 
-        var delta = e.GetPosition(null) - _actionDragStartPoint;
-        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
-            return;
+        if (_actionDragVm is null) return;
+        if (!_actionDrag.ShouldStart(e.GetPosition(null))) return;
 
-        _actionDragPending = false;
         // Folder actions need the current directory, not the selected file paths.
         IReadOnlyList<string> paths = _actionDragVm.Action is FileActions.FolderActionAdapter
             ? (string.IsNullOrEmpty(ViewModel.CurrentPath) ? [] : [ViewModel.CurrentPath])
@@ -167,7 +185,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
     private void ActionStrip_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        _actionDragPending = false;
+        _actionDrag.Disarm();
         _actionDragVm      = null;
     }
 
@@ -565,7 +583,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         // Header/scrollbar clicks are left alone so sorting keeps the selection.
         if (item is null)
         {
-            _listDragPending = false;
+            _listDrag.Disarm();
             if (!onHeaderOrChrome && Keyboard.Modifiers == ModifierKeys.None && lv.SelectedItems.Count > 0)
                 lv.UnselectAll();
             return;
@@ -574,11 +592,10 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         if (item.DataContext is not FileSystemEntry entry) return;
 
         // Never intercept double-clicks — let them reach the MouseBinding.
-        if (e.ClickCount > 1) { _listDragPending = false; return; }
+        if (e.ClickCount > 1) { _listDrag.Disarm(); return; }
 
         // Record position so PreviewMouseMove can detect a drag gesture (file list only).
-        _listDragStartPoint = e.GetPosition(null);
-        _listDragPending    = lv == FileListView;
+        if (lv == FileListView) _listDrag.Arm(e.GetPosition(null));
 
         // Deselect an already-selected sole item — but on mouse-UP, not here. Deselecting on mouse-down
         // clears the selection before PreviewMouseMove can start a drag, making a selected file
@@ -594,6 +611,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // mouse-up. A real drag clears _deselectOnMouseUp in PreviewMouseMove, so this no-ops after a drag.
     private void FileListView_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        _listDrag.Disarm();   // the press is over, whatever else it did or did not become
+
         if (_deselectOnMouseUp is not { } lv) return;
         _deselectOnMouseUp = null;
 
@@ -606,9 +625,19 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
     // ── Context menus ─────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Notes what a right-press is about and arms a possible right-drag — but opens nothing. The menu
+    /// belongs to <see cref="FileListView_PreviewMouseRightButtonUp"/>: opening it here would swallow
+    /// the press a drag needs, the same trap the deferred left-button deselect above exists to avoid,
+    /// and it is where Explorer opens its own. The event is still handled so WPF's automatic
+    /// <c>ContextMenuOpening</c> never fires and a menu built for a previous click cannot reappear.
+    /// </summary>
     private void FileListView_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not ListView lv) return;
+
+        _rightMenuOnMouseUp   = null;
+        _listRightDrag.Disarm();
 
         // Identify which entry was right-clicked
         var element = e.OriginalSource as DependencyObject;
@@ -623,6 +652,9 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
                 lv.SelectedItem = clicked;
 
             targets = lv.SelectedItems.OfType<FileSystemEntry>().ToList();
+
+            // Only the file list can be dragged out of: a This PC row is a device, not a path.
+            if (lv == FileListView && targets.Count > 0) _listRightDrag.Arm(e.GetPosition(null));
         }
         else
         {
@@ -630,11 +662,23 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             targets = [];
         }
 
-        var actions = ViewModel.BuildContextActions(targets);
+        _rightMenuOnMouseUp = lv;
+        _rightMenuTargets   = targets;
+        e.Handled = true;
+    }
+
+    /// <summary>Opens the menu the press armed — unless the press turned into a drag, which clears it.</summary>
+    private void FileListView_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _listRightDrag.Disarm();
+
+        if (_rightMenuOnMouseUp is not { } lv) return;
+        _rightMenuOnMouseUp = null;
+
+        var actions = ViewModel.BuildContextActions(_rightMenuTargets);
         if (actions.Count == 0) return;
 
-        lv.ContextMenu = BuildContextMenu(actions);
-        lv.ContextMenu.IsOpen = true;
+        OpenMenuOn(lv, BuildContextMenu(actions));
         e.Handled = true;
     }
 
@@ -672,8 +716,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         paneItem.CommandParameter = node.FullPath;
         menu.Items.Add(paneItem);
 
-        DirectoryTree.ContextMenu = menu;
-        DirectoryTree.ContextMenu.IsOpen = true;
+        OpenMenuOn(DirectoryTree, menu);
         e.Handled = true;
     }
 
@@ -698,8 +741,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         // app), which use the global MenuItem style rather than the file-list's custom template.
         var menu = new ContextMenu();
         menu.Items.Add(new MenuItem { Header = "Define New…", Command = cmd });
-        strip.ContextMenu = menu;
-        menu.IsOpen = true;
+        OpenMenuOn(strip, menu);
         e.Handled = true;
     }
 
@@ -716,23 +758,34 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         tb.Focus();
     }
 
+    /// <summary>
+    /// Shows <paramref name="menu"/> for <paramref name="owner"/>, and takes it back off the owner once
+    /// it closes.
+    /// <para>
+    /// The taking-back is the point. WPF opens whatever sits in <c>ContextMenu</c> on <em>any</em>
+    /// right-button up over the element, so a menu left assigned by an earlier click reappears on the
+    /// release that ends a right-drag — which is how dropping onto the folder tree produced the tree's
+    /// ordinary menu instead of the drop one.
+    /// </para>
+    /// </summary>
+    private static void OpenMenuOn(FrameworkElement owner, ContextMenu menu)
+    {
+        owner.ContextMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(owner.ContextMenu, menu)) owner.ContextMenu = null;
+        };
+        menu.IsOpen = true;
+    }
+
     /// <summary>Builds a styled <see cref="ContextMenu"/> from a list of action view-models.</summary>
     private static ContextMenu BuildContextMenu(IReadOnlyList<FileActionViewModel> actions)
     {
         var textBrush        = (Brush)Application.Current.Resources["TextBrush"];
-        var surfaceBrush     = (Brush)Application.Current.Resources["SurfaceBrush"];
         var surface2Brush    = (Brush)Application.Current.Resources["Surface2Brush"];
-        var borderBrush      = (Brush)Application.Current.Resources["BorderBrush"];
         var destructiveBrush = (Brush)Application.Current.Resources["DangerBrush"];
 
-        var menu = new ContextMenu
-        {
-            Background      = surfaceBrush,
-            BorderBrush     = borderBrush,
-            BorderThickness = new Thickness(1),
-            Padding         = new Thickness(3),
-            Template        = BuildContextMenuTemplate(surfaceBrush, borderBrush),
-        };
+        var menu = BuildStyledContextMenu();
 
         foreach (var action in actions)
         {
@@ -741,6 +794,22 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         }
 
         return menu;
+    }
+
+    /// <summary>The empty, themed menu the file list's menus are all built on.</summary>
+    private static ContextMenu BuildStyledContextMenu()
+    {
+        var surfaceBrush = (Brush)Application.Current.Resources["SurfaceBrush"];
+        var borderBrush  = (Brush)Application.Current.Resources["BorderBrush"];
+
+        return new ContextMenu
+        {
+            Background      = surfaceBrush,
+            BorderBrush     = borderBrush,
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(3),
+            Template        = BuildContextMenuTemplate(surfaceBrush, borderBrush),
+        };
     }
 
     /// <summary>
@@ -818,9 +887,20 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         var template = new ControlTemplate(typeof(MenuItem));
         template.VisualTree = borderFactory;
 
-        var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        // Hover only while the item can actually be chosen: IsMouseOver stays true over a disabled
+        // MenuItem, so a plain hover trigger lights up an item that will not respond.
+        var hoverTrigger = new MultiTrigger();
+        hoverTrigger.Conditions.Add(new System.Windows.Condition(UIElement.IsMouseOverProperty, true));
+        hoverTrigger.Conditions.Add(new System.Windows.Condition(UIElement.IsEnabledProperty,   true));
         hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty, hoverBrush, "Bd"));
         template.Triggers.Add(hoverTrigger);
+
+        // …and an item that cannot be chosen has to look it. This template sets its own foregrounds, so
+        // nothing else would dim them, and a command whose CanExecute is false would otherwise render as a
+        // perfectly ordinary item that swallows the click.
+        var disabledTrigger = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
+        disabledTrigger.Setters.Add(new Setter(UIElement.OpacityProperty, 0.4, "Bd"));
+        template.Triggers.Add(disabledTrigger);
 
         item.Template = template;
         return item;
@@ -862,16 +942,35 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // ── Drag-from-list: initiate WPF drag when the mouse moves far enough ──
     private void FileListView_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_listDragPending || e.LeftButton != MouseButtonState.Pressed) return;
+        // A move that reports a button up says what that button's release would have said, had this list
+        // been the one to see it. It often is not: a menu holding mouse capture swallows the press and
+        // the release both, and arming left standing from some earlier click was then instantly "far
+        // enough" from an origin the cursor had long since left — a drag nobody started, landing a copy
+        // wherever the button happened to come up. Disarming here is what closes that.
+        _listDrag.ObserveButton(e.LeftButton);
+        _listRightDrag.ObserveButton(e.RightButton);
 
-        var pos = e.GetPosition(null);
-        if (Math.Abs(pos.X - _listDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(pos.Y - _listDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+        // Right button first: it is the same drag with a different question waiting at the other end.
+        if (_listRightDrag.ShouldStart(e.GetPosition(null)))
+        {
+            _rightMenuOnMouseUp = null;   // this press became a drag, so no menu is owed on the way up
+            BeginListDrag(rightButton: true);
             return;
+        }
 
-        _listDragPending   = false;
+        if (!_listDrag.ShouldStart(e.GetPosition(null))) return;
+
         _deselectOnMouseUp = null;  // a drag is not a click — keep the dragged item selected
+        BeginListDrag(rightButton: false);
+    }
 
+    /// <summary>
+    /// Starts the OLE drag for the current selection. <paramref name="rightButton"/> changes nothing
+    /// about the payload — the destination reads the button state itself and offers a choice — but it
+    /// does change when the drag ends, which WPF will not work out on its own.
+    /// </summary>
+    private void BeginListDrag(bool rightButton)
+    {
         // Explorer (or whatever receives the drop) understands only real paths, so resolve a mount and
         // materialise an in-archive entry on the way out.
         var paths = Services.ShellPath.Realize(
@@ -883,29 +982,67 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         if (paths.Length == 0) return;
 
         var data = new DataObject(DataFormats.FileDrop, paths);
-        DragDrop.DoDragDrop(FileListView, data, DragDropEffects.Copy | DragDropEffects.Move);
+
+        // WPF's built-in continue-drag rule ends the drag when the LEFT button comes up, so a right-drag
+        // would follow the cursor forever and never drop. Saying so explicitly also keeps this from
+        // depending on a framework internal that is not part of any contract.
+        QueryContinueDragEventHandler? untilTheRightButtonComesUp = null;
+        if (rightButton)
+        {
+            untilTheRightButtonComesUp = (_, args) =>
+            {
+                args.Action = args.EscapePressed                                          ? DragAction.Cancel
+                            : args.KeyStates.HasFlag(DragDropKeyStates.RightMouseButton)   ? DragAction.Continue
+                            : DragAction.Drop;
+                args.Handled = true;
+            };
+            FileListView.QueryContinueDrag += untilTheRightButtonComesUp;
+        }
+
+        _localDragInFlight = true;
+        try
+        {
+            DragDrop.DoDragDrop(FileListView, data, DragDropEffects.Copy | DragDropEffects.Move);
+        }
+        finally
+        {
+            _localDragInFlight = false;
+            if (untilTheRightButtonComesUp is not null)
+                FileListView.QueryContinueDrag -= untilTheRightButtonComesUp;
+        }
+
+        // The loop has unwound, so a question the drop left behind can safely be put to the user now.
+        AskPendingChoice();
     }
 
     // ── Drag-drop: ListView (drops into current directory) ────────────────
     private void OnListViewDragOver(object sender, DragEventArgs e)
     {
-        if (!_dropTarget.CanAcceptDrop(e.Data))
+        var folder = FolderEntryUnderMouse(e);
+
+        // Refused during the hover, not complained about after the drop: dropping something onto itself
+        // means nothing, and four pixels of drift during an ordinary click is enough to produce one.
+        if (!_dropTarget.CanAcceptDrop(e.Data) ||
+            _dropTarget.IsSelfDrop(e.Data, folder?.FullPath ?? ViewModel.CurrentPath))
         {
             e.Effects = DragDropEffects.None;
-            HideDropTooltip();
+            EndDropFeedback();
             e.Handled = true;
             return;
         }
 
-        // Check if hovering over a directory entry in the list.
-        string? folderName = null;
-        if (e.OriginalSource is DependencyObject src)
+        string? folderName = folder?.Name;
+        HighlightDropRow(e, fromTree: false);
+
+        // A right-drag has not decided anything yet, so the tooltip cannot promise a direction — but the
+        // effect still has to be something, or the drop is never delivered and there is nothing to ask about.
+        _dropChoice.Observe(e.KeyStates);
+        if (OfferedChoice() is { } choices)
         {
-            var element = src;
-            while (element is not null && element is not ListViewItem)
-                element = VisualTreeHelper.GetParent(element);
-            if (element is ListViewItem { DataContext: FileSystemEntry { IsDirectory: true } entry })
-                folderName = entry.Name;
+            e.Effects = DragDropEffects.Copy;
+            ShowDropTooltip(choices.GetChoicePrompt(folderName), e);
+            e.Handled = true;
+            return;
         }
 
         bool isMove  = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
@@ -916,30 +1053,25 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
     private void OnListViewDrop(object sender, DragEventArgs e)
     {
+        // Only the tooltip goes here — the destination wash is CompleteDrop's to keep or clear, since a
+        // right-drag is about to ask a question about the very row it is on.
         HideDropTooltip();
-        if (!_dropTarget.CanAcceptDrop(e.Data)) return;
+        if (!_dropTarget.CanAcceptDrop(e.Data)) { _dropHighlight.Clear(); return; }
 
         // Resolve destination: a directory entry under the cursor, or current path.
-        string destination = ViewModel.CurrentPath;
-        if (e.OriginalSource is DependencyObject src)
-        {
-            var element = src;
-            while (element is not null && element is not ListViewItem)
-                element = VisualTreeHelper.GetParent(element);
-            if (element is ListViewItem { DataContext: FileSystemEntry { IsDirectory: true } entry })
-                destination = entry.FullPath;
-        }
+        string destination = FolderEntryUnderMouse(e)?.FullPath ?? ViewModel.CurrentPath;
 
         // Belt and braces: nothing may escape an IDropTarget::Drop callback. A fault here is an unhandled
         // UI-thread exception that abandons the rest of the drop with only a generic toast to show for it,
         // which is one of the ways a folder drop used to disappear without explanation.
         try
         {
-            if (!string.IsNullOrEmpty(destination))
-                _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            if (string.IsNullOrEmpty(destination)) _dropHighlight.Clear();
+            else                                   CompleteDrop(e, destination);
         }
         catch (Exception ex)
         {
+            _dropHighlight.Clear();
             ViewModel.ReportError(ex.Message);
         }
 
@@ -949,17 +1081,32 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     // ── Drag-drop: TreeView (drops into hovered folder node) ─────────────
     private void OnTreeDragOver(object sender, DragEventArgs e)
     {
-        if (!_dropTarget.CanAcceptDrop(e.Data))
+        var node = ResolveTreeNodeUnderMouse(e);
+
+        if (!_dropTarget.CanAcceptDrop(e.Data) ||
+            _dropTarget.IsSelfDrop(e.Data, node?.FullPath ?? ViewModel.CurrentPath))
         {
             e.Effects = DragDropEffects.None;
-            HideDropTooltip();
+            EndDropFeedback();
+            e.Handled = true;
+            return;
+        }
+
+        string? folderName = node?.Name;
+        HighlightDropRow(e, fromTree: true);
+        ScheduleTreeReveal(e);
+
+        _dropChoice.Observe(e.KeyStates);
+        if (OfferedChoice() is { } choices)
+        {
+            e.Effects = DragDropEffects.Copy;
+            ShowDropTooltip(choices.GetChoicePrompt(folderName), e);
             e.Handled = true;
             return;
         }
 
         bool isMove  = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
         e.Effects    = isMove ? DragDropEffects.Move : DragDropEffects.Copy;
-        string? folderName = ResolveTreeNodeUnderMouse(e)?.Name;
         ShowDropTooltip(_dropTarget.GetDropDescription(e.Data, folderName, isMove), e);
         e.Handled = true;
     }
@@ -967,7 +1114,8 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     private void OnTreeDrop(object sender, DragEventArgs e)
     {
         HideDropTooltip();
-        if (!_dropTarget.CanAcceptDrop(e.Data)) return;
+        StopTreeRevealTimer();
+        if (!_dropTarget.CanAcceptDrop(e.Data)) { _dropHighlight.Clear(); return; }
 
         var node = ResolveTreeNodeUnderMouse(e);
         var destination = node?.FullPath ?? ViewModel.CurrentPath;
@@ -977,11 +1125,12 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         // which is one of the ways a folder drop used to disappear without explanation.
         try
         {
-            if (!string.IsNullOrEmpty(destination))
-                _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            if (string.IsNullOrEmpty(destination)) _dropHighlight.Clear();
+            else                                   CompleteDrop(e, destination);
         }
         catch (Exception ex)
         {
+            _dropHighlight.Clear();
             ViewModel.ReportError(ex.Message);
         }
 
@@ -997,7 +1146,79 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         return (element as TreeViewItem)?.DataContext as FileSystemTreeNode;
     }
 
-    private void OnDragLeave(object sender, DragEventArgs e) => HideDropTooltip();
+    // ── Tree: reveal a node whose left edge is scrolled out of sight ──────────
+
+    /// <summary>Which node the reveal timer is waiting on, so a cursor that moves on cancels it.</summary>
+    private TreeViewItem? _treeRevealCandidate;
+    private System.Windows.Threading.DispatcherTimer? _treeRevealTimer;
+
+    /// <summary>
+    /// A folder deep in the tree can sit with its name scrolled off to the left, so the row a drag is
+    /// hovering says nothing about which folder it is. After a pause — long enough that crossing rows on
+    /// the way somewhere else does not move the view — scroll it back into sight.
+    /// <para>
+    /// Horizontally only, and only when the left edge is actually off: a drag is a poor moment to move
+    /// the ground under the pointer, so it does the least that makes the row readable.
+    /// </para>
+    /// </summary>
+    private void ScheduleTreeReveal(DragEventArgs e)
+    {
+        var node = ContainerUnderMouse<TreeViewItem>(e);
+        if (ReferenceEquals(node, _treeRevealCandidate)) return;   // still the same row — let it run on
+
+        _treeRevealCandidate = node;
+        _treeRevealTimer?.Stop();
+        if (node is null) return;
+
+        _treeRevealTimer ??= new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(450),
+        };
+
+        _treeRevealTimer.Tick -= OnTreeRevealTick;
+        _treeRevealTimer.Tick += OnTreeRevealTick;
+        _treeRevealTimer.Start();
+    }
+
+    private void OnTreeRevealTick(object? sender, EventArgs e)
+    {
+        _treeRevealTimer?.Stop();
+        if (_treeRevealCandidate is not { } node) return;
+
+        var scroll = FindDescendant<ScrollViewer>(DirectoryTree);
+        if (scroll is null || scroll.HorizontalOffset <= 0) return;
+
+        // The header row, not the item: the item spans its whole expanded subtree.
+        if (node.Template?.FindName("RowBorder", node) is not FrameworkElement { ActualHeight: > 0 } row) return;
+
+        double left = row.TransformToAncestor(scroll).Transform(new Point(0, 0)).X;
+        if (left >= 0) return;   // already readable
+
+        scroll.ScrollToHorizontalOffset(Math.Max(0, scroll.HorizontalOffset + left - TreeRevealMargin));
+    }
+
+    private void StopTreeRevealTimer()
+    {
+        _treeRevealTimer?.Stop();
+        _treeRevealCandidate = null;
+    }
+
+    private const double TreeRevealMargin = 8;
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T hit) return hit;
+            if (FindDescendant<T>(child) is { } deeper) return deeper;
+        }
+        return null;
+    }
+
+    private void OnDragLeave(object sender, DragEventArgs e) => EndDropFeedback();
 
     // ── Drop tooltip Popup ────────────────────────────────────────────────
     private void ShowDropTooltip(string text, DragEventArgs e)
@@ -1010,4 +1231,175 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
     }
 
     private void HideDropTooltip() => DropTooltipPopup.IsOpen = false;
+
+    /// <summary>
+    /// Stops saying what a drop would do. The tooltip always goes; the destination wash goes with it
+    /// unless a choice menu is about to be shown on that very destination, which is why the drop path
+    /// clears the two separately (see <see cref="CompleteDrop"/>).
+    /// </summary>
+    private void EndDropFeedback()
+    {
+        HideDropTooltip();
+        _dropHighlight.Clear();
+        StopTreeRevealTimer();
+    }
+
+    // ── Drop: right-drag asks, left-drag is told ──────────────────────────────
+
+    /// <summary>
+    /// Whether the drag in flight wants to be asked, and the target that can answer.
+    /// <para>
+    /// The answer comes from <see cref="_dropChoice"/> rather than from the drop's own key state,
+    /// because the drop is the moment the button was released and so reports no button at all.
+    /// </para>
+    /// </summary>
+    private IDropChoiceTarget? OfferedChoice()
+        => _dropChoice.OffersChoice ? _dropTarget as IDropChoiceTarget : null;
+
+    /// <summary>The row container under the cursor, whatever kind of list it belongs to.</summary>
+    private static T? ContainerUnderMouse<T>(DragEventArgs e) where T : DependencyObject
+    {
+        if (e.OriginalSource is not DependencyObject src) return null;
+
+        var element = src;
+        while (element is not null and not T)
+            element = VisualTreeHelper.GetParent(element);
+
+        return element as T;
+    }
+
+    /// <summary>The directory row under the cursor, or null over a file row or the list background.</summary>
+    private static FileSystemEntry? FolderEntryUnderMouse(DragEventArgs e)
+        => ContainerUnderMouse<ListViewItem>(e) is { DataContext: FileSystemEntry { IsDirectory: true } entry }
+            ? entry
+            : null;
+
+    /// <summary>
+    /// Washes whichever row a drop would land in, so the destination is shown rather than spelled out.
+    /// A tree node is adorned on its header alone — adorning the item would cover its whole subtree.
+    /// </summary>
+    private void HighlightDropRow(DragEventArgs e, bool fromTree)
+    {
+        if (!fromTree)
+        {
+            var row = ContainerUnderMouse<ListViewItem>(e);
+            _dropHighlight.Show(row?.DataContext is FileSystemEntry { IsDirectory: true } ? row : null);
+            return;
+        }
+
+        var node = ContainerUnderMouse<TreeViewItem>(e);
+        _dropHighlight.Show(node is null ? null : node.Template?.FindName("RowBorder", node) as UIElement ?? node);
+    }
+
+    private void CompleteDrop(DragEventArgs e, string destination)
+    {
+        if (OfferedChoice() is { } choices)
+        {
+            // Captured now, asked later. The data object dies with this callback, and a menu opened
+            // inside it would block the OLE drop on a thread with no message pump — the very failure the
+            // drop path was restructured to avoid. The destination wash is deliberately left up: with the
+            // folder name out of the menu's labels it is the only thing saying where "here" is, so it
+            // comes down when the menu is answered, not when the menu appears.
+            if (choices.Capture(e.Data, destination) is { } plan)
+            {
+                _pendingChoice = (choices, plan);
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, AskPendingChoice);
+            }
+            else
+            {
+                _dropHighlight.Clear();
+            }
+
+            return;
+        }
+
+        _dropHighlight.Clear();
+        _dropTarget.Drop(e.Data, destination, move: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+    }
+
+    /// <summary>
+    /// Puts the captured question to the user — but never while our own drag is still on the stack.
+    /// <para>
+    /// <see cref="DragDrop.DoDragDrop"/> runs a modal loop that pumps this dispatcher, so a menu posted
+    /// from inside the drop callback can open <em>within</em> that loop, with the drag still live. Every
+    /// click the menu appears to receive is then still the drag's, and the next one lands as another
+    /// drop wherever the cursor happens to be — which is how ignoring the menu and clicking a folder
+    /// started a copy onto that folder. <see cref="BeginListDrag"/> calls back once the loop has
+    /// returned; a drag from outside the app has no loop of ours and is asked by the post above.
+    /// </para>
+    /// </summary>
+    private void AskPendingChoice()
+    {
+        if (_localDragInFlight) return;
+        if (_pendingChoice is not { } pending) return;
+
+        _pendingChoice = null;
+        ShowDropChoiceMenu(pending.Target, pending.Plan);
+    }
+
+    /// <summary>
+    /// Explorer's right-drag menu, in this app's clothes. Flat by design: the global MenuItem style
+    /// replaces the default template, so a submenu would need template work, and there is nothing here
+    /// to nest. Dismissing it — Escape, or a click elsewhere — is the cancel.
+    /// <para>
+    /// The destination is not in the labels; it is the row washed accent underneath, which stays washed
+    /// until this menu is answered. A folder name in a menu item stretches the menu across the window to
+    /// say what the highlight already says, and says it worse.
+    /// </para>
+    /// </summary>
+    private void ShowDropChoiceMenu(IDropChoiceTarget choices, DropPlan plan)
+    {
+        var textBrush     = (Brush)Application.Current.Resources["TextBrush"];
+        var surface2Brush = (Brush)Application.Current.Resources["Surface2Brush"];
+
+        var menu = BuildStyledContextMenu();
+        menu.PlacementTarget = this;
+
+        // A drop is one event, so it can be answered once and only once. Choosing Copy here used to leave
+        // a live command holding this plan, and something later — the next context menu opened over the
+        // list, reliably — reached it and ran the whole copy again. Whatever does the reaching, a second
+        // call now finds the plan spent and does nothing.
+        bool answered = false;
+
+        void Answer(DropChoice? choice)
+        {
+            if (answered) return;
+            answered = true;
+            _dropHighlight.Clear();
+            if (choice is { } made) choices.Execute(plan, made);
+        }
+
+        menu.Items.Add(BuildMenuItem("📋", "Copy here",
+            new RelayCommand(() => Answer(DropChoice.Copy), () => choices.CanExecute(plan, DropChoice.Copy)),
+            textBrush, surface2Brush));
+        menu.Items.Add(BuildMenuItem("➡", "Move here",
+            new RelayCommand(() => Answer(DropChoice.Move), () => choices.CanExecute(plan, DropChoice.Move)),
+            textBrush, surface2Brush));
+        menu.Items.Add(BuildMenuSeparator());
+        menu.Items.Add(BuildMenuItem("✕", "Cancel",
+            new RelayCommand(() => Answer(null)), textBrush, surface2Brush));
+
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(DropChoiceMenu, menu)) DropChoiceMenu = null;
+
+            // Taken apart on the way out — at Background, which is below the Input priority a clicked
+            // MenuItem posts its own command at, so a choice already on its way still lands. After this
+            // there is no item left for anything to invoke.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+            {
+                Answer(null);          // dismissed without choosing is a cancel
+                menu.Items.Clear();
+            });
+        };
+
+        // Opened through the same owner-managed path as every other menu here, rather than by setting
+        // IsOpen on a menu nothing owns. An unowned ContextMenu is one WPF never fully takes down, and a
+        // menu still holding mouse capture is a menu a later click can still be delivered to.
+        DropChoiceMenu = menu;   // held so the menu is not collected while it is open
+        OpenMenuOn(this, menu);
+    }
+
+    /// <summary>Keeps the live drop-choice menu rooted; a ContextMenu with no owner can be collected mid-show.</summary>
+    private ContextMenu? DropChoiceMenu { get; set; }
 }

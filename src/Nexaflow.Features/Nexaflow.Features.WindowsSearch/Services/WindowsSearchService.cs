@@ -212,13 +212,19 @@ public static class WindowsSearchService
     /// the whole tree.
     /// </para>
     /// </summary>
+    /// <param name="reader">
+    /// How a file's contents are read — the same <see cref="FileContentReader"/> the index's sweep uses, so a
+    /// PDF or a Word document is judged on its words. Required rather than defaulted: a caller that forgot it
+    /// would silently get a plain-text-only scan that looks like it works.
+    /// </param>
     public static Task<int> WalkAsync(
         SearchRequest request,
         string rootPath,
         int maxResults,
         Action<SearchResultEntry> onMatch,
+        FileContentReader reader,
         CancellationToken ct)
-        => Task.Run(() => Walk(request, rootPath, maxResults, onMatch, ct), ct);
+        => Task.Run(() => Walk(request, rootPath, maxResults, onMatch, reader, ct), ct);
 
     /// <summary>Cap on how much of any one file the scan will read, matching the verifier's own limit so
     /// the two paths agree about what "found in this file" means.</summary>
@@ -229,12 +235,11 @@ public static class WindowsSearchService
         string rootPath,
         int maxResults,
         Action<SearchResultEntry> onMatch,
+        FileContentReader reader,
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         if (!Directory.Exists(rootPath)) return 0;
-
-        var extractor = new PlainTextExtractor();
 
         var found   = 0;
         var rootLen = rootPath.Length;
@@ -247,7 +252,7 @@ public static class WindowsSearchService
             try   { probe = new FileProbe(info); }
             catch { continue; }                       // vanished mid-walk — skip
 
-            if (!await Accepts(request, probe, info, extractor, ct)) continue;
+            if (!await Accepts(request, probe, info, reader, ct)) continue;
 
             var absDir = System.IO.Path.GetDirectoryName(info.FullName) ?? string.Empty;
             var relDir = absDir.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase)
@@ -276,7 +281,7 @@ public static class WindowsSearchService
     /// </summary>
     private static async Task<bool> Accepts(
         SearchRequest request, FileProbe probe, FileSystemInfo info,
-        PlainTextExtractor extractor, CancellationToken ct)
+        FileContentReader reader, CancellationToken ct)
     {
         var subject = probe.AsSearchSubject();
 
@@ -301,7 +306,7 @@ public static class WindowsSearchService
         // Folders have no contents to search, so a term the name didn't satisfy stays unsatisfied.
         if (probe.IsDirectory || info is not FileInfo file) return false;
 
-        var extracted = await extractor.ExtractAsync(file.FullName, WalkReadCap, ct);
+        var extracted = await reader.ReadAsync(file.FullName, WalkReadCap, ct);
         if (extracted is null) return false;          // unreadable: not a match we can claim
 
         return undecided.All(t => t.Matches(extracted.Text, isName: false));

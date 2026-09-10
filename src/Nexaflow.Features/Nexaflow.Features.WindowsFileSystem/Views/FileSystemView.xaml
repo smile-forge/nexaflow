@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsFileSystem.ViewModels"
              xmlns:conv="clr-namespace:Nexaflow.Features.WindowsFileSystem.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
                           xmlns:views="clr-namespace:Nexaflow.Features.WindowsFileSystem.Views"
              Background="{StaticResource BgBrush}">
 
@@ -503,6 +504,7 @@
             <!-- ── Drive ListView (This PC mode) ───────────────────────── -->
             <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="DriveListView"
+                      beh:MarqueeSelect.IsEnabled="True"
                       Visibility="Collapsed"
                       ItemContainerStyle="{StaticResource FileListRowStyle}"
                       Background="{StaticResource BgBrush}"
@@ -512,6 +514,7 @@
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
                       PreviewMouseLeftButtonUp="FileListView_PreviewMouseLeftButtonUp"
                       PreviewMouseRightButtonDown="FileListView_PreviewMouseRightButtonDown"
+                      PreviewMouseRightButtonUp="FileListView_PreviewMouseRightButtonUp"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
                       Padding="4,4,4,4">
@@ -701,6 +704,7 @@
             <!-- ── File ListView (folder navigation) ────────────────────── -->
             <ListView Grid.Row="1" Grid.Column="0"
                       x:Name="FileListView"
+                      beh:MarqueeSelect.IsEnabled="True"
                       ItemContainerStyle="{StaticResource FileListRowStyle}"
                       Background="{StaticResource BgBrush}"
                       BorderThickness="0"
@@ -710,6 +714,7 @@
                       PreviewMouseLeftButtonDown="FileListView_PreviewMouseLeftButtonDown"
                       PreviewMouseLeftButtonUp="FileListView_PreviewMouseLeftButtonUp"
                       PreviewMouseRightButtonDown="FileListView_PreviewMouseRightButtonDown"
+                      PreviewMouseRightButtonUp="FileListView_PreviewMouseRightButtonUp"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
                       Padding="4,4,4,4">

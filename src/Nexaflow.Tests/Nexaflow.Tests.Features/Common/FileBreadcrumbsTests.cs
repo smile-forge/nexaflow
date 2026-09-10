@@ -107,4 +107,38 @@ public class FileBreadcrumbsTests
         Assert.AreEqual(1, page.Breadcrumbs.Count);
         Assert.AreEqual("2 images", page.Breadcrumbs[0].Label);
     }
+
+    // ── Copy path ─────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("chrome-breadcrumb-copy-path")]
+    public void SetFileBreadcrumbs_EachCrumbCarriesTheLocationItNames()
+    {
+        var page = new Page();
+        page.SetFileBreadcrumbs(@"D:\temp\photo.jpg");
+
+        Assert.AreEqual(@"D:\temp", page.Breadcrumbs[0].Path, "the parent crumb copies the folder");
+        Assert.AreEqual(@"D:\temp\photo.jpg", page.Breadcrumbs[1].Path, "the leaf copies the file itself");
+    }
+
+    [TestMethod]
+    [CoversNode("chrome-breadcrumb-copy-path")]
+    public void SetFileBreadcrumbs_EmptyPath_LeavesNothingToCopy()
+    {
+        var page = new Page();
+        page.SetFileBreadcrumbs(string.Empty, "Text");
+
+        Assert.IsNull(page.Breadcrumbs[0].Path, "a fallback title names no location");
+    }
+
+    [TestMethod]
+    [CoversNode("chrome-breadcrumb-copy-path")]
+    public void SetMultiFileBreadcrumbs_SummaryLeafNamesNoLocation()
+    {
+        var page = new Page();
+        page.SetMultiFileBreadcrumbs([@"D:\pics\a.jpg", @"D:\pics\b.jpg"], "2 images");
+
+        Assert.AreEqual(@"D:\pics", page.Breadcrumbs[0].Path);
+        Assert.IsNull(page.Breadcrumbs[1].Path, "'2 images' is a count, not a path — the bar falls back to the folder");
+    }
 }

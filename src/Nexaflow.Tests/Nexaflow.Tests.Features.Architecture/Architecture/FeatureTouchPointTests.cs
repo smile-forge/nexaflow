@@ -110,8 +110,10 @@ public class FeatureTouchPointTests
         // Covered by their own feature's UI tests rather than the shared default-open sweep: code by
         // CodeViewUiTests/CodeJourneyTests, notebook by NotebookViewUiTests, archive by
         // CompressedJourneyTests. Each opens through an explicit ActionStrip action instead of the
-        // double-click default, so for these a ViewerMap row would be wrong rather than missing.
-        string[] exempt = ["code", "notebook", "archive"];
+        // double-click default, so for these a ViewerMap row would be wrong rather than missing. Office has no
+        // viewer at all — a .docx opens in whatever app Windows associates with it — so its fixtures are read
+        // by OfficeTextExtractorTests instead of being opened.
+        string[] exempt = ["code", "notebook", "archive", "office"];
 
         var mapped = ViewerMap.BySet.Select(s => s.SubDir).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var unaccounted = TestSampleData.SetNames

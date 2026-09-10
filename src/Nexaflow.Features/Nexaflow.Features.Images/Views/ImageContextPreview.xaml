@@ -1,0 +1,90 @@
+<UserControl x:Class="Nexaflow.Features.Images.Views.ImageContextPreview"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Nexaflow.Features.Images.ViewModels"
+             AutomationProperties.AutomationId="ImageContextPreview">
+
+    <!-- Read-only preview of the Image page for the conversation context panel: every image the tab holds,
+         one per row, with the current one (the image capture_image hands the AI) outlined in the accent.
+         Built fresh each time the chip is selected; it binds to the page's thumbnails but owns none of them.
+         Brushes are DynamicResource so the control also builds off-screen, where no theme is merged. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{Binding ImageCountText}"
+                   Margin="12,0,12,8" FontSize="11"
+                   Foreground="{DynamicResource TextMutedBrush}"/>
+
+        <!-- Virtualized, so a folder of a thousand images builds only the cards in view. -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Thumbnails}"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.ScrollUnit="Pixel">
+            <ItemsControl.Template>
+                <ControlTemplate TargetType="ItemsControl">
+                    <ScrollViewer CanContentScroll="True"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsPresenter/>
+                    </ScrollViewer>
+                </ControlTemplate>
+            </ItemsControl.Template>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Loaded="ItemsHost_Loaded"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:ImageThumbItem}">
+                    <Border Margin="12,0,12,10" Padding="6"
+                            BorderThickness="1.5" CornerRadius="4"
+                            ToolTip="{Binding FileName}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource Surface2Brush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}"
+                                       Margin="0,6,0,0" FontSize="11"
+                                       TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextMutedBrush}"/>
+                            <Grid>
+                                <!-- Placeholder until the shell yields the thumbnail -->
+                                <Border Height="120">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="🖼" FontSize="32"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMutedBrush}"/>
+                                </Border>
+                                <!-- DownOnly: a shell thumbnail is ~200 px, and stretching it to the panel's width
+                                     would only blur it. -->
+                                <Image Source="{Binding Thumbnail}"
+                                       Stretch="Uniform" StretchDirection="DownOnly"
+                                       HorizontalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Grid>
+</UserControl>
