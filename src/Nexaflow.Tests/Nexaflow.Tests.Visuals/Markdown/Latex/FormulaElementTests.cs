@@ -208,18 +208,33 @@ public class FormulaElementTests
     // ── Pointer ─────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void ClickingPutsTheCaretWhereYouClicked() => UiThread.Run(() =>
+    public void ClickingAtTheEdgeOfSomethingPutsTheCaretThere() => UiThread.Run(() =>
     {
         var element = Arranged(@"\frac{x^2}{2}");
         var exponent = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
 
-        element.BeginPointerSelect(new Point(
-            exponent.Bounds.X + exponent.Bounds.Width * 0.75,
-            exponent.Bounds.Y + exponent.Bounds.Height / 2));
+        // Within a caret's reach of its right-hand edge: that is the place after it, not the thing itself.
+        element.BeginPointerSelect(new Point(exponent.Bounds.Right - 0.5, exponent.Bounds.Y + exponent.Bounds.Height / 2));
         element.EndPointerSelect();
 
         Assert.AreEqual(9, element.Caret);
         Assert.IsTrue(element.HasCaret);
+        Assert.AreEqual(0, element.SelectionLength, "a place, so nothing is picked");
+    });
+
+    [TestMethod]
+    public void ClickingSquarelyOnSomethingSelectsIt() => UiThread.Run(() =>
+    {
+        // The user's rule, and it holds for every kind of content: a single click on something that is not a
+        // stop is a selection of that thing. Here the exponent's 2, pressed in its middle.
+        var element = Arranged(@"\frac{x^2}{2}");
+        var exponent = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
+
+        element.BeginPointerSelect(new Point(exponent.Bounds.X + exponent.Bounds.Width / 2,
+                                             exponent.Bounds.Y + exponent.Bounds.Height / 2));
+        element.EndPointerSelect();
+
+        Assert.AreEqual((8, 1), (element.SelectionStart, element.SelectionLength));
     });
 
     [TestMethod]

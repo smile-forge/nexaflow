@@ -52,7 +52,9 @@ public interface IInteractiveBlock
 /// </summary>
 public static class InteractiveSelection
 {
-    private static IInteractiveBlock? _owner;
+    // One per UI thread: a selection belongs to the dispatcher it was made on, and clearing it from another
+    // thread throws rather than clears. The app has one; the tests run one each, in parallel.
+    [ThreadStatic] private static IInteractiveBlock? _owner;
 
     /// <summary>Marks <paramref name="block"/> as the sole selection owner, clearing any previous one.</summary>
     public static void Own(IInteractiveBlock block)

@@ -52,6 +52,8 @@ public sealed class LayoutBuilder
         public Rect Box;
         
         public Stops Stops;
+        /// <summary>The vertical room it said it reserves, if it said — see <see cref="LayoutBuilder.Reserves"/>.</summary>
+        public (double Top, double Height)? Room;
         public bool Gathers;
         public LayoutPaint? Paints;
         public readonly List<LayoutMark> Marks = [];
@@ -116,6 +118,7 @@ public sealed class LayoutBuilder
 
                 
                 
+        frame.Room = null;
         frame.Stops = stops;
         frame.Gathers = gathers;
         frame.Paints = paints is { Matters: true } ? paints : null;
@@ -188,6 +191,20 @@ public sealed class LayoutBuilder
     /// </summary>
     public void Covers(Rect what) => _open.Peek().Covers(what);
 
+    /// <summary>
+    /// Says the piece being built reserves exactly this much of its line, vertically, whatever it draws above
+    /// or below — the staff a note stands on, the height of a word's letters on its line. Its width is still
+    /// whatever it drew.
+    ///
+    /// <para>
+    /// The piece's own rectangle takes the room, and it is what a caret is drawn from: a caret stands in the
+    /// room a thing reserves on its line. Whatever holds the piece still grows to cover everything it drew, so
+    /// a measure stays as tall as its lyrics while every note in it is exactly the staff — and the wash, which
+    /// covers what was drawn, never uses the room at all.
+    /// </para>
+    /// </summary>
+    public void Reserves(double top, double height) => _open.Peek().Room = (top, height);
+
     /// <summary>Finishes the piece being built, and gives back where it went.</summary>
     public int Close()
     {
@@ -196,6 +213,11 @@ public sealed class LayoutBuilder
         var marks = _marks.Count;
 
         _marks.AddRange(frame.Marks);
+
+        // The room it stated, if it stated one. What it reaches is kept apart, for whatever holds it.
+        var reach = frame.Box;
+        if (frame.Room is { } room && !frame.Box.IsEmpty)
+            frame.Box = new Rect(frame.Box.X, room.Top, frame.Box.Width, room.Height);
 
         _pieces[at] = new Stored
         {
@@ -206,9 +228,7 @@ public sealed class LayoutBuilder
             Marks = marks,
             MarkCount = frame.Marks.Count,
 
-            // Ink is a promise that a reader can point at the thing, and a piece that drew nothing cannot
-            // be pointed at, hit-tested, washed or stood beside. Kept here rather than checked at each of
-            // the places that trust it, because there are too many of those to keep in step.
+
 
                         
                         
@@ -218,8 +238,8 @@ public sealed class LayoutBuilder
         // What a piece holds, whatever holds it holds too — measured in the parent's frame, which
         // differs from the child's by exactly the child's anchor. Nothing is passed up for a piece that
         // drew nothing: Rect.Offset throws on an empty rectangle rather than leaving it empty.
-        if (_open.Count > 0 && !frame.Box.IsEmpty)
-            _open.Peek().Gathered(Rect.Offset(frame.Box, frame.Offset));
+        if (_open.Count > 0 && !reach.IsEmpty)
+            _open.Peek().Gathered(Rect.Offset(reach, frame.Offset));
 
         _spare.Push(frame);
         return at;

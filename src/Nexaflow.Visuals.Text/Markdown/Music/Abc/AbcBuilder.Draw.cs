@@ -45,6 +45,14 @@ internal sealed partial class AbcBuilder
     private readonly List<(Event Event, int Verse, int At)> _sung = [];
     private readonly List<int> _sections = [];
 
+    /// <summary>
+    /// Everything on the staff a drag passes along, in the order it was engraved: the notes, the rests, and the
+    /// bar lines between them. A bar line belongs on the run because it is on the staff — left off it, a drag
+    /// along the notes that reached one fell back to everything written between, and took the chord over the
+    /// next bar.
+    /// </summary>
+    private readonly List<int> _staff = [];
+
     // ── Page coordinates in, frames out ─────────────────────────────────────
 
     /// <summary>
@@ -141,6 +149,7 @@ internal sealed partial class AbcBuilder
         foreach (var bars in Sections(system.Bars))
         {
             _sections.Add(Open("section", Spanning(bars), new Point(bars[0].X, system.StaffTop)));
+            _build.Reserves(0, StaffHeight);
             foreach (var bar in bars) Draw(system, geometry, bar);
             Close();
         }
@@ -264,6 +273,7 @@ internal sealed partial class AbcBuilder
     private void Draw(System system, StaffGeometry geometry, Bar bar)
     {
         Open("measure", bar.Part, new Point(bar.X, system.StaffTop));
+        _build.Reserves(0, StaffHeight);
 
         var x = bar.X;
         if (bar.Opened is not null) x = Barline(system, bar.Opened, x);
@@ -285,7 +295,8 @@ internal sealed partial class AbcBuilder
             // hang under it. Everything else hangs straight off the bar.
             if (beam is not null)
             {
-                Open("beam", beam, new Point(events[0].X, system.StaffTop));
+                Open("beam", Notes(events) ?? beam, new Point(events[0].X, system.StaffTop));
+                _build.Reserves(0, StaffHeight);
                 Beamed(system, geometry, bar, beam, events);
                 Close();
             }
@@ -497,6 +508,7 @@ internal sealed partial class AbcBuilder
                       double? toY = null, bool? stemsDown = null)
     {
         var at = Open(ev.IsRest ? "rest" : "note", ev.Part, new Point(ev.X, system.StaffTop));
+        _build.Reserves(0, StaffHeight);   // a caret against a note is the height of the staff it stands on
 
         if (ev.Invisible)
         {
@@ -514,6 +526,8 @@ internal sealed partial class AbcBuilder
             Glyph("rest-glyph", glyph, new Point(x, Y(system, half)));
             Dots(system, x + Smufl.Advance(glyph, S), 4, ev.Dots);
             Close();
+
+            _staff.Add(at);   // on the staff as much as a note is; in no stack, since nothing is sung on a rest
             return;
         }
 
@@ -544,7 +558,8 @@ internal sealed partial class AbcBuilder
 
         Close();
 
-        if (!ev.IsRest && !ev.Invisible) _heads.Add((ev, at));
+        _staff.Add(at);
+        _heads.Add((ev, at));
     }
 
     /// <summary>
@@ -794,6 +809,8 @@ internal sealed partial class AbcBuilder
         // own — to read down the changes, to copy them, to retype one — and it cannot be any of that while
         // it is a mark drawn on the note underneath it.
         var chord = Open("chord", ev.ChordPart, at);
+        var (top, height) = Letters(ScoreText.Chord("Hg", ChordSize, _ppd));
+        _build.Reserves(top, height);
         _build.Draw(new TextMark(glyphs, default, null));
         Close();
 
@@ -832,6 +849,8 @@ internal sealed partial class AbcBuilder
             // says the second. The two trees are free to look nothing alike, which is the only reason a
             // syllable can be picked out of a verse without the note coming with it.
             var sung = Open("syllable", part, at);
+            var (top, height) = Letters(ScoreText.Build("Hg", LyricSize, _ppd));
+            _build.Reserves(top, height);
             _build.Draw(new TextMark(glyphs, default, null));
             Close();
 
@@ -951,7 +970,7 @@ internal sealed partial class AbcBuilder
         var top = system.StaffTop;
         var height = StaffHeight;
 
-        Open("barline", line, new Point(from, top));
+        _staff.Add(Open("barline", line, new Point(from, top)));
 
         foreach (var mark in written)
         {
@@ -1504,9 +1523,10 @@ internal sealed partial class AbcBuilder
         // and stepping off the end of one falls into the next by itself. What containment cannot say is
         // that the last note of a line and the first of the next are neighbours — a line break is a fact
         // about the paper rather than about the tune. The chords and the verses are that same order with
-        // everything that is not a chord, or not a syllable of that verse, left out.
+        // everything that is not a chord, or not a syllable of that verse, left out. The staff's own run keeps
+        // its rests and bar lines: they are on the staff, and a drag along it passes over them.
         _build.Runs(_sections, vertical: false);
-        _build.Runs([.. _heads.Select(h => h.At)], vertical: false);
+        _build.Runs(_staff, vertical: false);
         _build.Runs([.. _chords.Select(c => c.At)], vertical: false);
 
         foreach (var verse in _sung.GroupBy(s => s.Verse).OrderBy(g => g.Key))
@@ -1525,5 +1545,27 @@ internal sealed partial class AbcBuilder
 
             _build.Runs(stack, vertical: true);
         }
+    }
+
+    /// <summary>
+    /// Where a line of text's letters actually are inside the box it is laid out in — from the top of a
+    /// capital to the bottom of a descender. The box also holds the line's leading, and a wash or a caret that
+    /// took the whole box reached into the line above and the line below, lyrics set as close as they are.
+    /// </summary>
+    private static (double Top, double Height) Letters(FormattedText sample)
+    {
+        var bottom = sample.Height + sample.OverhangAfter;
+        return (bottom - sample.Extent, sample.Extent);
+    }
+
+    /// <summary>
+    /// What a beamed run names: its notes, from the first to the last. Not the group as it was read, which
+    /// begins at a chord symbol written before its first note — <c>"D"GFGA</c> — so selecting the notes of a
+    /// run took the chord above them with it the moment a drag along the staff reached the run.
+    /// </summary>
+    private static ISourcePart? Notes(List<Event> events)
+    {
+        if (events.Count == 0 || events[0].Part is not { } first || events[^1].Part is not { } last) return null;
+        return new SourceSpan(first.Start, last.Start + last.Length - first.Start);
     }
 }

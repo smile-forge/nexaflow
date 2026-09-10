@@ -120,11 +120,23 @@ public sealed class ContentSelection
                 {
                     run.Add(at);
                     if (at == to) return Gathered(root, run);
+                    if (!Within(at, to)) continue;
+
+                    // The walk has reached into the group the drag ended on — a beam, pointed at by its own bar
+                    // over the notes it joins. That means the group, so it carries on through what the group
+                    // holds: half of one is not what anybody pointed at.
+                    for (var next = at.Step(vertical, forward); next.Exists && Within(next, to); next = next.Step(vertical, forward))
+                        run.Add(next);
+
+                    return Gathered(root, run);
                 }
             }
 
         return null;
     }
+
+    /// <summary>Whether <paramref name="piece"/> is inside <paramref name="group"/>.</summary>
+    private static bool Within(Piece piece, Piece group) => piece.Ancestors().Contains(group);
 
     /// <summary>A run of chosen pieces as a selection: their ink, and the source they cover.</summary>
     private static ContentSelection? Gathered(Piece root, IReadOnlyList<Piece> run)

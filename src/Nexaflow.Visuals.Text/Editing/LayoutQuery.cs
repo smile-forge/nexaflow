@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using Nexaflow.Markdown.Ast;
+using System.Windows.Media;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -701,19 +702,25 @@ public static class LayoutQuery
     // ── What a source range covers ──────────────────────────────────────────
 
     /// <summary>
-    /// The rectangles to wash for a stretch of source — one per run, already merged, so a translucent
-    /// selection never paints the same pixel twice and darkens where two of them met.
+    /// What washing a stretch of source covers: what each whole thing inside it drew, one rectangle per thing.
     ///
     /// <para>
-    /// Whole pieces, not the glyphs inside them. A piece's bounds cover the parts of it no character
-    /// produced — a fraction's bar, a radical's hook — which washing the leaves alone would leave clear, so
-    /// a fully selected fraction would read as two selected numbers with a gap between them.
+    /// Ink, not the room a thing reserves. A note reserves the staff it stands on and draws its head and stem;
+    /// a word reserves the height of its letters and draws them. The wash covers what was drawn, and
+    /// <see cref="Wash"/> joins it across the gaps between.
+    /// </para>
+    /// <para>
+    /// And only the ink of what was chosen. A thing can hold something written somewhere else — the words sung
+    /// under a bar hang off the bar, though they are written on a line of their own — so a bar whose notes are
+    /// all chosen is not a bar whose words are, and a leaf is washed only when what it belongs to is inside the
+    /// stretch.
     /// </para>
     /// <para>
     /// Which is why this asks whether a piece <em>stands</em> for a place rather than whether it covers any
     /// characters. A hole covers none by definition, so a selection sweeping across a half-written fraction
-    /// would otherwise wash everything except the part still missing — the one piece the reader most needs
-    /// to see they have picked up.
+    /// would otherwise wash everything except the part still missing — the one piece the reader most needs to
+    /// see they have picked up. A fraction's bar and a radical's hook are leaves of the piece they belong to,
+    /// so its ink includes them.
     /// </para>
     /// </summary>
     public static IReadOnlyList<Rect> RangeRects(this Piece root, int start, int length)
@@ -725,42 +732,247 @@ public static class LayoutQuery
             .Where(piece => piece.Stands() && piece.Sits().Start >= start && piece.Sits().End <= end)
             .ToHashSet();
 
-        return Bands([.. covered.Where(piece => !piece.Ancestors().Any(covered.Contains)).Select(piece => piece.Bounds)]);
+        return [.. covered.Where(piece => !piece.Ancestors().Any(covered.Contains))
+                          .Select(piece => InkFor(piece, covered))
+                          .Where(ink => !ink.IsEmpty)];
     }
 
     /// <summary>
-    /// Collapses the rectangles of one contiguous source range into as few as possible: anything sharing a
-    /// vertical band becomes one run.
+    /// What <paramref name="piece"/> drew for the things in <paramref name="chosen"/> — its own box when it drew
+    /// nothing at all. See <see cref="RangeRects"/>.
+    /// </summary>
+    private static Rect InkFor(Piece piece, HashSet<Piece> chosen)
+    {
+        var ink = Rect.Empty;
+        var drew = false;
+
+        foreach (var leaf in piece.Leaves())
+        {
+            var where = leaf.Bounds;
+            if (where.IsEmpty || where.Width <= 0 || where.Height <= 0) continue;
+
+            drew = true;
+            if (chosen.Contains(leaf.Selectable())) ink.Union(where);
+        }
+
+        return drew ? ink : piece.Bounds;
+    }
+
+    /// <summary>
+    /// What a piece drew, as one rectangle: its leaves together, whatever room it reserves. A note's stem and a
+    /// fraction's bar are in it; the height of the staff the note stands on is not.
+    /// </summary>
+    public static Rect Ink(this Piece piece)
+    {
+        var ink = Rect.Empty;
+        foreach (var leaf in piece.Leaves())
+        {
+            var where = leaf.Bounds;
+            if (!where.IsEmpty && where.Width > 0 && where.Height > 0) ink.Union(where);
+        }
+
+        return ink.IsEmpty ? piece.Bounds : ink;
+    }
+
+    /// <summary>
+    /// Rectangles that touch once each has grown by <paramref name="reach"/>, joined into one — and returned
+    /// grown. Letters set against each other become a single run, the glue around an operator is closed because
+    /// the wash's reach is chosen to span it, and two notes with air between them stay two washes.
     ///
     /// <para>
-    /// Horizontal gaps are closed deliberately rather than preserved. The selection is a contiguous run of
-    /// source, so whatever sits in the gap is inside it — the glue a typesetter puts around a binary
-    /// operator, the space between two words — and leaving those unpainted would break one selection into a
-    /// row of disconnected blocks. Stacked bands (a sum's limits above and below it, a verse under its
-    /// music) stay separate unless something spans them.
+    /// This replaced joining everything that shared a vertical band, which closed every horizontal gap and so
+    /// washed a staff from the highest note selected down to the lowest.
     /// </para>
     /// </summary>
-    public static List<Rect> Bands(List<Rect> rects)
+    public static List<Rect> Clusters(IEnumerable<Rect> rects, double reach)
     {
+        var grown = new List<Rect>();
+        foreach (var rect in rects)
+        {
+            if (rect.IsEmpty || rect.Width <= 0 || rect.Height <= 0) continue;
+
+            var wider = rect;
+            wider.Inflate(reach, reach);
+            grown.Add(wider);
+        }
+
         var merged = true;
         while (merged)
         {
             merged = false;
-            for (var i = 0; i < rects.Count && !merged; i++)
-                for (var j = i + 1; j < rects.Count && !merged; j++)
+            for (var i = 0; i < grown.Count && !merged; i++)
+                for (var j = i + 1; j < grown.Count && !merged; j++)
                 {
-                    var a = rects[i];
-                    var b = rects[j];
-                    if (a.Top >= b.Bottom - Hair || b.Top >= a.Bottom - Hair) continue;   // different bands
+                    if (!grown[i].IntersectsWith(grown[j])) continue;
 
-                    a.Union(b);
-                    rects[i] = a;
-                    rects.RemoveAt(j);
+                    var joined = grown[i];
+                    joined.Union(grown[j]);
+                    grown[i] = joined;
+                    grown.RemoveAt(j);
                     merged = true;
                 }
         }
 
-        return rects;
+        return grown;
+    }
+
+    /// <summary>
+    /// The wash over a selection, as one shape: what each stretch drew, gathered where it touches, and joined
+    /// across the gaps between — along each row to the next patch on it, and down the page to the row beneath —
+    /// so a selection reads as one continuous thing rather than a scatter of boxes, while still following what
+    /// it holds rather than boxing the lot.
+    ///
+    /// <para>
+    /// A gap is spanned only when nothing a reader could pick lies in it unchosen. Along a staff that is the
+    /// spacing between notes and any bar line the drag took with them; between two rows it can be a third —
+    /// the words sung under a line of music — and washing across that would claim words nobody selected.
+    /// </para>
+    /// <para>
+    /// The joins are square. Along a row a join is as tall as both patches are, so a taller one stands up out of
+    /// the band the way a capital does from a line of text; between rows it is as wide as both rows are. All of
+    /// it is one shape winding one way, so the fill paints each point once wherever the parts overlap, and no
+    /// seam shows where they meet.
+    /// </para>
+    /// </summary>
+    public static Geometry Wash(this Piece root, IReadOnlyList<EditRange> selection, double pad)
+    {
+        var patches = Clusters(selection.SelectMany(range => root.RangeRects(range.Start, range.Length)), pad);
+        var joins = new List<Rect>();
+
+        // Along each row: every patch reaches to the nearest one on its right, and what that joins up is a row.
+        var row = Enumerable.Range(0, patches.Count).ToArray();
+        for (var at = 0; at < patches.Count; at++)
+        {
+            if (Beside(patches, at) is not { } next) continue;
+
+            var band = Band(patches[at], patches[next]);
+            if (!Clear(root, selection, band)) continue;
+
+            joins.Add(band);
+            row[Row(row, at)] = Row(row, next);
+        }
+
+        var rows = Enumerable.Range(0, patches.Count)
+            .GroupBy(at => Row(row, at))
+            .Select(members => members.Select(at => patches[at]).ToList())
+            .ToList();
+
+        // Down the page: every row reaches to the nearest one beneath it that shares some of its width.
+        foreach (var above in rows)
+            if (Under(rows, above) is { } below && Reach(above, below) is { } reach && Clear(root, selection, reach))
+                joins.Add(reach);
+
+        var shape = new StreamGeometry { FillRule = FillRule.Nonzero };
+        using (var pen = shape.Open())
+            foreach (var rect in patches.Concat(joins))
+            {
+                pen.BeginFigure(rect.TopLeft, isFilled: true, isClosed: true);
+                pen.PolyLineTo([rect.TopRight, rect.BottomRight, rect.BottomLeft], isStroked: false, isSmoothJoin: false);
+            }
+
+        shape.Freeze();
+        return shape;
+    }
+
+    /// <summary>
+    /// The nearest patch to the right of the one at <paramref name="at"/> on the same row: sharing at least half
+    /// the height of the shorter of the two, so a chord name that only grazes the top of a stem is not on the
+    /// note's row.
+    /// </summary>
+    private static int? Beside(List<Rect> patches, int at)
+    {
+        var patch = patches[at];
+        int? nearest = null;
+        var nearestGap = double.MaxValue;
+
+        for (var other = 0; other < patches.Count; other++)
+        {
+            var there = patches[other];
+            var gap = there.Left - patch.Right;
+            if (gap < 0 || gap >= nearestGap) continue;
+
+            var shared = Math.Min(patch.Bottom, there.Bottom) - Math.Max(patch.Top, there.Top);
+            if (shared < Math.Min(patch.Height, there.Height) / 2) continue;
+
+            nearest = other;
+            nearestGap = gap;
+        }
+
+        return nearest;
+    }
+
+    /// <summary>The join between two patches side by side: across the gap, and as tall as both of them are.</summary>
+    private static Rect Band(Rect left, Rect right)
+    {
+        var top = Math.Max(left.Top, right.Top);
+        return new Rect(left.Right, top, right.Left - left.Right, Math.Min(left.Bottom, right.Bottom) - top);
+    }
+
+    /// <summary>Which row a patch has been joined into: the one its joins lead back to.</summary>
+    private static int Row(int[] row, int at)
+    {
+        while (row[at] != at) at = row[at] = row[row[at]];
+        return at;
+    }
+
+    /// <summary>The nearest row that begins lower down than <paramref name="above"/> and shares some of its width.</summary>
+    private static List<Rect>? Under(List<List<Rect>> rows, List<Rect> above)
+    {
+        var over = Box(above);
+        List<Rect>? nearest = null;
+        var nearestTop = double.MaxValue;
+
+        foreach (var other in rows)
+        {
+            var under = Box(other);
+            if (under.Top <= over.Top || under.Top >= nearestTop) continue;
+            if (Math.Min(over.Right, under.Right) <= Math.Max(over.Left, under.Left)) continue;
+
+            nearest = other;
+            nearestTop = under.Top;
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// The join between a row and the one beneath it: as wide as the two both are, and from the highest of the
+    /// upper row's bottom edges to the lowest of the lower row's top edges — so it meets every patch in both,
+    /// however ragged their edges.
+    /// </summary>
+    private static Rect? Reach(List<Rect> above, List<Rect> below)
+    {
+        var (over, under) = (Box(above), Box(below));
+        var left = Math.Max(over.Left, under.Left);
+        var right = Math.Min(over.Right, under.Right);
+        if (right <= left) return null;
+
+        var top = above.Min(patch => patch.Bottom);
+        var bottom = below.Max(patch => patch.Top);
+        return new Rect(left, Math.Min(top, bottom), right - left, Math.Abs(bottom - top));
+    }
+
+    /// <summary>The box around a row's patches.</summary>
+    private static Rect Box(List<Rect> patches) => patches.Aggregate(Rect.Empty, Rect.Union);
+
+    /// <summary>Whether nothing a reader could pick lies in <paramref name="gap"/> without being chosen.</summary>
+    private static bool Clear(Piece root, IReadOnlyList<EditRange> selection, Rect gap)
+    {
+        if (gap.Width <= 0 || gap.Height <= 0) return true;
+
+        foreach (var (piece, where) in root.Placed())
+        {
+            if (!piece.IsLeaf || where.Width <= 0 || where.Height <= 0) continue;
+            if (where.Right <= gap.Left || where.Left >= gap.Right || where.Bottom <= gap.Top || where.Top >= gap.Bottom) continue;
+
+            var named = piece.Selectable();
+            if (!named.Exists) continue;
+
+            var at = named.Sits();
+            if (!selection.Any(range => at.Start >= range.Start && at.End <= range.End)) return false;
+        }
+
+        return true;
     }
 
     /// <summary>

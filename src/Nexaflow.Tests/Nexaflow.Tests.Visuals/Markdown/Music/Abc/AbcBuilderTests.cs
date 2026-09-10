@@ -234,8 +234,9 @@ public class AbcBuilderTests
         var notes = layout.Root.SelfAndDescendants().Where(n => n.Kind == "note").ToList();
 
         Assert.AreEqual(2, notes.Count);
-        Assert.IsTrue(notes[0].Bounds.Top < staff.Top, "the text above reaches over the staff");
-        Assert.IsTrue(notes[1].Bounds.Bottom > staff.Bottom, "and the text below reaches under it");
+        // What it drew, not the room it reserves: a note reserves exactly its staff.
+        Assert.IsTrue(notes[0].Ink().Top < staff.Top, "the text above reaches over the staff");
+        Assert.IsTrue(notes[1].Ink().Bottom > staff.Bottom, "and the text below reaches under it");
     });
 
     // ── Parts that sound together ───────────────────────────────────────────

@@ -254,9 +254,20 @@ public static class TexPipeline
         var rebuilt = new List<TexNode>(node.Children.Count + 1);
         var moved = false;
 
+        // Arguments that may be written empty mean "the default" when they are, not "not written yet":
+        // \genfrac{}{}{}{}{a}{b} is a plain fraction, and a hole in each of its first four arguments was four
+        // problems reported against a formula with nothing wrong in it — enough, inline, to show it as source.
+        var mayBeEmpty = node.Kind == TexKind.Command
+                         && node.Part(TexRole.Name)?.Text is { } name
+                         && TexCommands.Lookup(name) is { MayBeEmpty: > 0 } command
+            ? command.MayBeEmpty
+            : 0;
+        var argument = 0;
+
         foreach (var child in node.Children)
         {
-            var seen = Hollow(child);
+            var allowedEmpty = child.Kind == TexKind.Group && argument++ < mayBeEmpty;
+            var seen = allowedEmpty ? child : Hollow(child);
             moved |= !ReferenceEquals(seen, child);
             rebuilt.Add(seen);
         }

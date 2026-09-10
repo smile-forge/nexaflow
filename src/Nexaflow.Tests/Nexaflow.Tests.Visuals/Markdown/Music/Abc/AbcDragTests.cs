@@ -156,6 +156,106 @@ public class AbcDragTests
                       $"the lines came out different lengths: {string.Join(", ", ends.Select(e => e.ToString("F0")))}");
     });
 
+    [TestMethod]
+    public void ADragAlongTheStaffNeverTakesTheChordOverIt() => UiThread.Run(() =>
+    {
+        // Reported from the app: a drag along the notes took the chord over the next bar the moment it reached
+        // the bar line. The bar line was on no run, so the drag fell back to everything written between its two
+        // ends — and a chord symbol is written between a bar line and the note it stands over. Reaching a beam
+        // by its own bar did the same.
+        const string Tune = "X:1\nL:1/8\nK:C\n\"C\"C2E2 G3A | \"G\"GFED CDEF |\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var first = Of(layout, "note")[0];
+        var chords = Of(layout, "chord");
+
+        var ends = layout.Root.SelfAndDescendants().Where(n => Kind(n) is "barline" or "beam-bar").ToList();
+        Assert.IsTrue(ends.Count >= 3, "the bar lines, and the beams the drag can reach by their bars");
+
+        foreach (var end in ends)
+        {
+            var chosen = ContentSelection.Between(layout.Root, first, end.Selectable());
+            foreach (var chord in chords)
+                Assert.IsFalse(Taken(chosen, chord), $"a drag along the staff to a {Kind(end)} took the chord {Written(Tune, chord)}");
+        }
+    });
+
+    [TestMethod]
+    public void ADragAlongTheStaffTakesTheRestsOnIt() => UiThread.Run(() =>
+    {
+        // A rest is on the staff as much as a note is. Left off the staff's run, a drag from one side of it to
+        // the other passed it by — and the wash, joined across the gap, claimed it anyway.
+        const string Tune = "X:1\nL:1/4\nK:C\nC z E z | G2 z2 |\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var notes = Of(layout, "note");
+
+        var chosen = ContentSelection.Between(layout.Root, notes[0], notes[^1]);
+        var passed = Of(layout, "rest").Where(rest => rest.Sits().Start < notes[^1].Sits().Start).ToList();
+
+        Assert.AreEqual(2, passed.Count, "the two rests between the first note and the last");
+        foreach (var rest in passed)
+            Assert.IsTrue(Taken(chosen, rest), $"the rest at {rest.Sits().Start} was dragged across and not taken");
+    });
+
+    [TestMethod]
+    public void TheWashIsOneShapeAcrossTheGapsInWhatWasTaken() => UiThread.Run(() =>
+    {
+        // Reported from the app: each note washed on its own, so a drag along a staff read as a scatter of
+        // separate selections. The gaps between what was taken are spanned — along the staff, and down from the
+        // notes to the words under them when both were taken.
+        const string Tune = "X:1\nL:1/4\nK:C\nC D E F | G A B c |\nw: one two three four five six sev-en eight\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var notes = Of(layout, "note");
+        var words = Of(layout, "syllable");
+
+        var along = Washed(layout, ContentSelection.Between(layout.Root, notes[0], notes[5]));
+        Assert.IsTrue(along.FillContains(Gap(notes[0].Ink(), notes[1].Ink(), across: true)),
+                      "the space between two notes taken together is washed");
+        Assert.IsTrue(along.FillContains(Gap(notes[3].Ink(), notes[4].Ink(), across: true)),
+                      "and so is the bar line the drag took with them");
+
+        var block = Washed(layout, ContentSelection.Between(layout.Root, notes[1], words[2]));
+        Assert.IsTrue(block.FillContains(Gap(notes[2].Ink(), words[2].Ink(), across: false)),
+                      "a block from the notes down to the words is washed between them");
+    });
+
+    [TestMethod]
+    public void TheWashNeverReachesAcrossWordsNobodyTook() => UiThread.Run(() =>
+    {
+        // Two lines of music with their words under each. A drag along the staff from one line into the next
+        // takes notes on both and none of the words between, and the wash has to say so: spanning down from one
+        // staff to the other would claim a line of lyrics nobody selected.
+        const string Tune = "X:1\nL:1/4\nK:C\nC D E F |\nw: one two three four\nG A B c |\nw: five six sev-en eight\n";
+        var layout = AbcBuilder.Build(Tune, 900, Brushes.Black, 1.0);
+        var notes = Of(layout, "note");
+        var words = Of(layout, "syllable");
+
+        var chosen = ContentSelection.Between(layout.Root, notes[0], notes[5]);
+        Assert.IsFalse(Taken(chosen, words[0]), "the words are not what was dragged along");
+
+        var wash = Washed(layout, chosen);
+        foreach (var word in words.Take(4))
+            Assert.IsFalse(wash.FillContains(Centre(word.Ink())), $"the wash reached across {Written(Tune, word)}");
+    });
+
+    private static List<Piece> Of(Laid layout, string kind) =>
+        [.. layout.Root.SelfAndDescendants().Where(n => Kind(n) == kind)];
+
+    private static bool Taken(ContentSelection chosen, Piece piece) =>
+        chosen.Ranges.Any(r => piece.Sits().Start >= r.Start && piece.Sits().End <= r.Start + r.Length);
+
+    private static Geometry Washed(Laid layout, ContentSelection chosen) =>
+        layout.Root.Wash([.. chosen.Ranges.Select(r => new EditRange(r.Start, r.Length))], 1.5);
+
+    private static string Written(string tune, Piece piece) => $"'{tune.Substring(piece.Sits().Start, piece.Sits().Length)}'";
+
+    /// <summary>A point in the space between two things — side by side, or one over the other.</summary>
+    private static System.Windows.Point Gap(System.Windows.Rect one, System.Windows.Rect other, bool across) =>
+        across
+            ? new((one.Right + other.Left) / 2, (Math.Max(one.Top, other.Top) + Math.Min(one.Bottom, other.Bottom)) / 2)
+            : new((Math.Max(one.Left, other.Left) + Math.Min(one.Right, other.Right)) / 2, (one.Bottom + other.Top) / 2);
+
+    private static System.Windows.Point Centre(System.Windows.Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
+
     private static System.Windows.Point Middle(Piece node) =>
         new(node.Bounds.X + (node.Bounds.Width / 2), node.Bounds.Y + (node.Bounds.Height / 2));
 

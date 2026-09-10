@@ -770,8 +770,36 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
         ClearSelection();
 
+        // A press squarely on something means that thing; a press at a stop — between two things, or at the
+        // edge of one — means the place. One rule for every kind of content: a note pressed is a note
+        // picked, and a letter pressed at its edge is a caret put down beside it.
+        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); return; }
+
         TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
     }
+
+    /// <summary>
+    /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops: inside what it
+    /// covers, and further from either edge than a caret's reach.
+    ///
+    /// <para>
+    /// The reach is a few pixels and never more than a quarter of the piece, so a letter as narrow as an i
+    /// can still be picked in its middle and still has a place at each side.
+    /// </para>
+    /// </summary>
+    private static bool On(Piece piece, Point at)
+    {
+        if (!piece.Exists) return false;
+
+        var box = piece.Ink();
+        if (box.IsEmpty || !box.Contains(at)) return false;
+
+        var reach = Math.Min(CaretReach, box.Width / 4);
+        return at.X - box.Left > reach && box.Right - at.X > reach;
+    }
+
+    /// <summary>How near a stop a press has to be to mean the stop rather than the thing, in layout pixels.</summary>
+    private const double CaretReach = 3.0;
 
     /// <summary>Whether <paramref name="offset"/> falls inside one of the selected stretches.</summary>
     private bool Covers(int offset) =>
@@ -988,17 +1016,15 @@ public class ContentElement : FrameworkElement, IEditableBlock
     {
         LayoutPainter.Paint(dc, _laid.Root, Palette.Text);
 
-        // Every stretch washes itself. A column of a matrix is three of them with the rest of the matrix
-        // in between, and washing from the first to the last would highlight the lot.
-        foreach (var range in _state.Selection)
-            foreach (var rect in _laid.Root.RangeRects(range.Start, range.Length))
-                dc.DrawRectangle(_wash, null, Marked(rect));
+        // One shape for the whole selection, joined across the spacing between what it holds — and not one box
+        // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
+        if (_state.HasSelection) dc.DrawGeometry(_wash, null, _laid.Root.Wash(_state.Selection, WashPad));
 
         // A wave under whatever could not be read, drawn over the content rather than instead of it: the
         // parts that did read are still worth looking at, and the reader needs to see which part is not.
         foreach (var trouble in _laid.Trouble)
         {
-            var runs = _laid.Root.RangeRects(trouble.Start, trouble.Length);
+            var runs = LayoutQuery.Clusters(_laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
             if (runs.Count == 0) continue;
 
             var wave = new Pen(trouble.Severity == DiagnosticSeverity.Error ? Palette.Danger : Palette.Warning, 1.0);

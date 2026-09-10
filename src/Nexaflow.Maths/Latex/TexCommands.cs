@@ -3,11 +3,16 @@ namespace Nexaflow.Maths.Latex;
 /// <summary>A command, and what the things after it are to it.</summary>
 /// <param name="Arguments">One role per required argument, in the order they are written.</param>
 /// <param name="Option">The role of a bracketed argument before them, or null if it takes none.</param>
+/// <param name="MayBeEmpty">
+/// How many of the leading arguments may be written empty, where empty means "the default" rather than
+/// "not written yet": <c>\genfrac</c>'s delimiters, rule and style. No hole is ever offered in one of those.
+/// </param>
 public sealed record TexCommand(
     string Name,
     IReadOnlyList<string> Arguments,
     string? Option = null,
-    bool Grid = false);
+    bool Grid = false,
+    int MayBeEmpty = 0);
 
 /// <summary>An environment, and how what is between its <c>\begin</c> and <c>\end</c> should be read.</summary>
 /// <param name="Grid">Whether the body is rows of cells rather than a plain run.</param>
@@ -66,8 +71,8 @@ public static class TexCommands
     {
         var table = new Dictionary<string, TexCommand>(StringComparer.Ordinal);
 
-        void Add(string name, string[] arguments, string? option = null, bool grid = false) =>
-            table[name] = new TexCommand(name, arguments, option, grid);
+        void Add(string name, string[] arguments, string? option = null, bool grid = false, int mayBeEmpty = 0) =>
+                    table[name] = new TexCommand(name, arguments, option, grid, mayBeEmpty);
 
         void All(string[] names, string[] arguments, string? option = null)
         {
@@ -81,11 +86,14 @@ public static class TexCommands
 
         // \genfrac{l}{r}{thickness}{style}{numerator}{denominator} — the general fraction every other one
         // in amsmath is spelled with. Six arguments and no optional part, so the roles have to carry what
-        // each one is: the two delimiters go over and under nothing, so they take those roles, the rule thickness is a length like any other
-        // argument, and the style is the one thing written that changes how the rest is set.
+        // each one is: the two delimiters go over and under nothing, so they take those roles, the rule
+        // thickness is a length like any other argument, and the style is the one thing written that
+        // changes how the rest is set. The first four may all be empty — that is how "no delimiter", "the
+        // usual rule" and "the current style" are written — so none of them is ever an unwritten hole.
         Add(@"\genfrac",
             [TexRole.Over, TexRole.Under, TexRole.Argument, TexRole.Option,
-             TexRole.Numerator, TexRole.Denominator]);
+             TexRole.Numerator, TexRole.Denominator],
+            mayBeEmpty: 4);
 
         // \cfrac takes [l] or [r] to say which way the numerator leans.
         Add(@"\cfrac", overUnder, TexRole.Option);
