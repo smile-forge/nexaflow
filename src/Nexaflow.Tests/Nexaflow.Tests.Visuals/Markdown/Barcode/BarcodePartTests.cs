@@ -144,11 +144,6 @@ public class BarcodePartTests
         foreach (var label in Labels(isbn))
             Assert.IsFalse(label.SelfAndDescendants().Any(p => p.IsSource),
                 "the digits under the bars are a rendering of the number, not the number");
-
-        // Code 39 upper-cases, so a lower-case value is nowhere in what is printed either.
-        var code39 = Read(BarcodeSymbology.Code39, "abc123");
-        foreach (var label in Labels(code39))
-            Assert.IsFalse(label.SelfAndDescendants().Any(p => p.IsSource));
     }
 
     [TestMethod]
@@ -164,6 +159,29 @@ public class BarcodePartTests
         Assert.AreEqual(BarcodeKind.EncodedText, caption.Children.First().Kind, "nobody typed the scheme's name");
         Assert.AreEqual("ISBN ", caption.Children.First().Printed);
         Assert.AreEqual(value, caption.Written(), "and the rest of the line is the value, character for character");
+    }
+
+    [TestMethod]
+    public void APublicationsNumberAndAddOnAreTheValueWhateverFollowsThem()
+    {
+        // Reported from the app: an ISMN could be selected and edited, an ISBN and an ISSN could not — and the
+        // samples differed in one thing. The ISBN had an add-on and the ISSN an issue variant, so the value as a
+        // whole was nowhere in the caption, and nothing on either symbol was found to be what had been typed.
+        const string isbn = "978-1-56581-231-4 90000";
+        var book = Read(BarcodeSymbology.Isbn, isbn);
+
+        Assert.AreEqual("978-1-56581-231-4", book.Children.Single(c => c.Kind == BarcodeKind.Caption).Written(),
+                        "the caption is the number as it was written");
+
+        var addOn = book.Children.Single(c => c.Role == BarcodeRole.AddOn);
+        Assert.AreEqual("90000", addOn.Written(), "and the add-on over its own bars is the add-on");
+        Assert.AreEqual(isbn.IndexOf("90000", System.StringComparison.Ordinal),
+                        addOn.SelfAndDescendants().Where(p => p.IsSource).Min(p => p.Start),
+                        "where it was typed, after the space");
+
+        var journal = Read(BarcodeSymbology.Issn, "0311-175X 00 17");
+        Assert.AreEqual("0311-175X", journal.Children.Single(c => c.Kind == BarcodeKind.Caption).Written());
+        Assert.AreEqual("17", journal.Children.Single(c => c.Role == BarcodeRole.AddOn).Written());
     }
 
     // ── The boundary with the layout ───────────────────────────────────────
@@ -192,7 +210,8 @@ public class BarcodePartTests
         [
             (BarcodeSymbology.Code128, "HELLO123"),
             (BarcodeSymbology.Code39, "ABC-123"),
-            (BarcodeSymbology.Code39, "abc123"),
+            (BarcodeSymbology.Isbn, "978-1-56581-231-4 90000"),
+            (BarcodeSymbology.Issn, "0311-175X 00 17"),
             (BarcodeSymbology.Ean13, "590123412345"),
             (BarcodeSymbology.Ean13, "5901234123457"),
             (BarcodeSymbology.Ean8, "96385074"),
@@ -222,11 +241,13 @@ public class BarcodePartTests
                         $"{symbology} '{value}': {piece} says it is source but is not what is there");
             }
 
-            // What it claims as source is the value entire or none of it — never a scattering of it, which
-            // is what an edit spliced against a partial claim would corrupt.
-            var written = symbol.Written();
-            Assert.IsTrue(written.Length == 0 || written == value,
-                $"{symbology} '{value}': claimed source '{written}' is neither all of the value nor none");
+            // And no character of it claimed twice, which is what an edit spliced through two pieces at once
+            // would corrupt. A claim may be only part of the value — a publication claims its number where the
+            // caption prints it and its add-on over its own bars, and neither the space between them nor the digits
+            // under the bars — but each character it claims is claimed once.
+            var claimed = symbol.SelfAndDescendants().Where(p => p.IsSource).Select(p => p.Start).ToList();
+            Assert.AreEqual(claimed.Count, claimed.Distinct().Count(),
+                $"{symbology} '{value}': a character of the value is claimed by two pieces");
         }
     }
 }

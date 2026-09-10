@@ -248,11 +248,18 @@ internal static class BarcodeTextLayout
         var at = 0;
         foreach (var run in printed)
         {
+            // Where the run begins in what is printed. The runs are cut from it in order but not always edge to
+            // edge: a publication joins its add-on on with a space that no run prints.
+            if (text.IndexOf(run.Text, at, StringComparison.Ordinal) is var found and >= 0) at = found;
+
+            // Failing the value as a whole, a run can still print one word of it exactly as it was written — an
+            // add-on over its own bars, beside a number that went into the digits without its hyphens.
             parts.Add(BarcodePart.Read(
                 run.Placement == BarcodeTextPlacement.Above ? BarcodeRole.AddOn : BarcodeRole.Label,
                 run.Text,
                 at,
-                window));
+                window.At >= 0 ? window : Word(run.Text, at, value),
+                value.Length));
 
             at += run.Text.Length;
         }
@@ -261,9 +268,9 @@ internal static class BarcodeTextLayout
     }
 
     /// <summary>
-    /// Where the value sits inside a string that was printed from it, and how long the value is. A
-    /// negative start means it is not in there at all — which is what taking an ISBN's hyphens out, or
-    /// upper-casing a Code 39, or dropping a Pharmacode's leading zero does.
+    /// Where the value sits inside a string that was printed from it: where in what is printed, where in the
+    /// value — the start of it — and how long it is. A negative start means it is not in there in one piece,
+    /// which is what taking an ISBN's hyphens out or dropping a Pharmacode's leading zero does.
     /// <para>
     /// One <c>IndexOf</c> is the whole of the rule, and it is worth saying why that is enough. Every one
     /// of these formats either prints the value or prints it with something of its own on an end: a start
@@ -272,23 +279,61 @@ internal static class BarcodeTextLayout
     /// its input instead is simply not found, and is treated as printing something worked out, which it is.
     /// </para>
     /// </summary>
-    private static (int At, int Length) Window(string printed, string value) =>
+    private static (int At, int From, int Length) Window(string printed, string value) =>
         value.Length == 0
-            ? (-1, 0)
-            : (printed.IndexOf(value, StringComparison.Ordinal), value.Length);
+            ? (-1, 0, 0)
+            : (printed.IndexOf(value, StringComparison.Ordinal), 0, value.Length);
+
+    /// <summary>
+    /// A run that prints one word of the value exactly as it was written, where the value as a whole is nowhere
+    /// in what is printed. A publication's add-on is that: set over its own bars as typed, while the number
+    /// beside it lost its hyphens on the way into the digits.
+    /// </summary>
+    private static (int At, int From, int Length) Word(string run, int at, string value)
+    {
+        foreach (var (word, from) in Words(value))
+            if (word == run) return (at, from, word.Length);
+
+        return (-1, 0, 0);
+    }
+
+    /// <summary>The value's words — split where the author put spaces — each with where it begins.</summary>
+    private static IEnumerable<(string Word, int From)> Words(string value)
+    {
+        for (var at = 0; at < value.Length;)
+        {
+            while (at < value.Length && char.IsWhiteSpace(value[at])) at++;
+
+            var start = at;
+            while (at < value.Length && !char.IsWhiteSpace(value[at])) at++;
+
+            if (at > start) yield return (value[start..at], start);
+        }
+    }
 
     /// <summary>
     /// The caption, read the same way as anything else printed: a scheme's name that nobody typed, and
     /// then the number as the author wrote it, hyphens and all.
     /// <para>
-    /// It is the one place a publication's value appears as itself. The digits under the bars are that
+    /// It is the one place a publication's number appears as itself. The digits under the bars are that
     /// number with the hyphens taken out and a check digit added, so they are a rendering of it, and the
     /// caption is the thing to edit.
+    /// </para>
+    /// <para>
+    /// The number, not the whole value. Whatever followed it — an add-on, an issue variant — is printed
+    /// elsewhere on the symbol, and a caption asked to hold all of the value found none of it, which left an
+    /// ISBN with an add-on with nothing on it anybody could select.
     /// </para>
     /// </summary>
     private static BarcodePart ReadCaption(string caption, string value)
     {
-        var read = BarcodePart.Read(BarcodeRole.Caption, caption, 0, Window(caption, value));
+        var window = Window(caption, value);
+
+        var number = Words(value).FirstOrDefault();
+        if (window.At < 0 && number.Word is { Length: > 0 })
+            window = (caption.IndexOf(number.Word, StringComparison.Ordinal), number.From, number.Word.Length);
+
+        var read = BarcodePart.Read(BarcodeRole.Caption, caption, 0, window, value.Length);
 
         return BarcodePart.Branch(
             BarcodeKind.Caption, BarcodeRole.Caption,

@@ -160,8 +160,7 @@ public sealed class BarcodePart : ISourcePart
     }
 
     /// <summary>
-    /// Reads one printed run against the value, given where the value was found inside the whole printed
-    /// number.
+    /// Reads one printed run against the value, given where a stretch of the value was found in what is printed.
     ///
     /// <para>
     /// Most of these formats print the value with something of their own on one end or both: Codabar puts
@@ -180,12 +179,15 @@ public sealed class BarcodePart : ISourcePart
     /// <param name="run">What this run prints.</param>
     /// <param name="at">Where the run begins in the whole printed number.</param>
     /// <param name="window">
-    /// Where the value sits inside the printed number, and how long the value is. <c>At</c> is negative
-    /// when the value is nowhere in it — an ISBN's de-hyphenated digits, a Code 39's upper-cased letters,
-    /// a Pharmacode's dropped leading zero — and then nothing printed is the value, though what is printed
-    /// still stands for the whole of it.
+    /// Where a stretch of the value sits in the printed number (<c>At</c>), where it begins in the value
+    /// (<c>From</c>), and how long it is. Usually that is the whole value from its first character; for a
+    /// publication it is one word of it — the caption prints the number and the add-on is printed over its own
+    /// bars, while the rest went into the digits. <c>At</c> is negative when none of the value is in it — an
+    /// ISBN's de-hyphenated digits, a Pharmacode's dropped leading zero — and then nothing printed is the value,
+    /// though what is printed still stands for the whole of it.
     /// </param>
-    public static BarcodePart Read(string role, string run, int at, (int At, int Length) window)
+    /// <param name="whole">How long the whole value is — what a piece nobody typed was worked out from.</param>
+    public static BarcodePart Read(string role, string run, int at, (int At, int From, int Length) window, int whole)
     {
         if (run.Length == 0) return Leaf(BarcodeKind.Group, role, run, 0, 0);
 
@@ -194,7 +196,7 @@ public sealed class BarcodePart : ISourcePart
         var to = Math.Min(at + run.Length, window.At + window.Length);
 
         if (window.At < 0 || to <= from)
-            return Leaf(BarcodeKind.EncodedText, role, run, 0, window.Length);
+            return Leaf(BarcodeKind.EncodedText, role, run, 0, whole);
 
         var pieces = new List<BarcodePart>();
 
@@ -203,7 +205,8 @@ public sealed class BarcodePart : ISourcePart
         // The value's own characters. One node each, because a character of the value is the smallest
         // thing a caret can stand beside and a selection can take.
         for (var p = from; p < to; p++)
-            pieces.Add(Leaf(BarcodeKind.Character, BarcodeRole.Element, run[p - at].ToString(), p - window.At, 1));
+            pieces.Add(Leaf(BarcodeKind.Character, BarcodeRole.Element, run[p - at].ToString(),
+                            window.From + (p - window.At), 1));
 
         Generated(to, at + run.Length);
 
@@ -215,7 +218,7 @@ public sealed class BarcodePart : ISourcePart
         void Generated(int start, int end)
         {
             if (end <= start) return;
-            pieces.Add(Leaf(BarcodeKind.EncodedText, role, run[(start - at)..(end - at)], 0, window.Length));
+            pieces.Add(Leaf(BarcodeKind.EncodedText, role, run[(start - at)..(end - at)], 0, whole));
         }
     }
 

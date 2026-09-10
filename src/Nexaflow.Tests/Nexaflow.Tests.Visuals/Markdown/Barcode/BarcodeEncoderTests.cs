@@ -153,7 +153,7 @@ public class BarcodeEncoderTests
         StringAssert.Contains(Rejects(BarcodeSymbology.Code128A, "lower case"), "subset A");
         StringAssert.Contains(Rejects(BarcodeSymbology.Code128C, "1234567"),    "even");
         StringAssert.Contains(Rejects(BarcodeSymbology.Code128C, "12ab"),       "digits");
-        StringAssert.Contains(Rejects(BarcodeSymbology.Code39,   "lower~case"), "not in Code 39");
+        StringAssert.Contains(Rejects(BarcodeSymbology.Code39,   "UPPER~CASE"), "not in Code 39");
         StringAssert.Contains(Rejects(BarcodeSymbology.Itf,      "12345"),      "even");
         StringAssert.Contains(Rejects(BarcodeSymbology.Ean13,    "123"),        "12 digits");
         StringAssert.Contains(Rejects(BarcodeSymbology.Pharmacode, "2"),        "3 to 131070");
@@ -162,10 +162,10 @@ public class BarcodeEncoderTests
     }
 
     [TestMethod]
-    public void Code39_FoldsLowerCaseRatherThanRefusingIt() =>
-        // Lower case is not a different character in Code 39, it is simply absent — folding is what a
-        // reader of this format expects, and it is what goes under the bars.
-        Assert.AreEqual("MARKDOWN-39", Encode(BarcodeSymbology.Code39, "markdown-39").Text);
+    public void Code39_RefusesLowerCaseRatherThanPrintingCapitalsNobodyTyped() =>
+        // Folding it up printed a capital the value does not have, so nothing on the symbol was what had been
+        // typed and nothing on it could be selected or edited. Refused, the value stays on the page as written.
+        StringAssert.Contains(Rejects(BarcodeSymbology.Code39, "MARKdOWN-39"), "lower case");
 
     [TestMethod]
     public void Codabar_WrapsAValueThatBroughtNoStartStopMark()

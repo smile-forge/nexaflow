@@ -65,6 +65,32 @@ public class BarcodeLayoutTests
     });
 
     [TestMethod]
+    public void APublicationWithAnAddOnCanStillBeEdited() => UiThread.Run(() =>
+    {
+        // The number in its caption and the add-on over its bars are both what was typed, so both are somewhere to
+        // stand. Before, an add-on left the whole symbol with nowhere at all.
+        const string value = "978-1-56581-231-4 90000";
+        var stops = Root("format: ISBN\nvalue: " + value).CaretStops().ToArray();
+
+        CollectionAssert.IsSubsetOf(new[] { 0, 17, 18, value.Length }, stops,
+            "either end of the number in the caption, and either end of the add-on");
+    });
+
+    [TestMethod]
+    public void ALowerCaseLetterInACode39IsRefusedAndTheValueStaysEditable() => UiThread.Run(() =>
+    {
+        // Reported from the app: a lower-case letter typed into a Code 39 was drawn as a capital while the source
+        // kept the small one, and the symbol could then be neither selected nor typed into.
+        const string value = "MARKdOWN-39";
+        Assert.IsTrue(BarcodeBlockParser.TryParse("format: CODE39\nvalue: " + value, out var block, out string? error), error);
+        var laid = BarcodeBuilder.Build(block!, MarkdownPalette.Dark, 1.0);
+
+        Assert.AreEqual(1, laid.Trouble.Count, "a letter Code 39 cannot carry is an error like any other");
+        CollectionAssert.AreEqual(Enumerable.Range(0, value.Length + 1).ToArray(), laid.Root.CaretStops().ToArray(),
+                                  "and every character, as typed, is somewhere to stand");
+    });
+
+    [TestMethod]
     public void APieceTheFormatWorkedOutHoldsNoPlaceInTheSource() => UiThread.Run(() =>
     {
         var root = Root("format: EAN13\nvalue: 590123412345");
