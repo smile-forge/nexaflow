@@ -32,6 +32,12 @@ public sealed class LayoutBuilder
     private readonly List<LayoutMark> _marks = [];
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
 
+    /// <summary>
+    /// Which pieces stand against a side of the block, and how far each keeps from what is beside it — see
+    /// <see cref="Against"/>.
+    /// </summary>
+    private readonly List<(int At, Side Side, double Clear)> _sides = [];
+
     private readonly Stack<Frame> _open = new();
     private readonly Stack<Frame> _spare = new();
 
@@ -205,6 +211,68 @@ public sealed class LayoutBuilder
     /// </summary>
     public void Reserves(double top, double height) => _open.Peek().Room = (top, height);
 
+    /// <summary>
+    /// Says which side of the block the piece being built stands against — see <see cref="Side"/>. Resolved when
+    /// the tree is sealed, against the width it is sealed for.
+    /// </summary>
+    /// <param name="clear">How much room it keeps from anything else it sits beside.</param>
+    public void Against(Side side, double clear = 0) => _sides.Add((_open.Peek().At, side, clear));
+
+    /// <summary>
+    /// Puts a finished tree down inside whatever is open, anchored at <paramref name="at"/>, and gives back where
+    /// its root now lives — one layout set into another, the way a formula is set into a block beside its number.
+    ///
+    /// <para>
+    /// A copy of a block, which is what the shape was made for: the pieces are in pre-order with their subtrees
+    /// contiguous, so every index moves by the same amount and nothing inside is measured from anywhere but its
+    /// own anchor. The runs it declared come with it, renumbered.
+    /// </para>
+    /// </summary>
+    /// <param name="against">Which side of the block it stands against, if it stands against one.</param>
+    /// <param name="clear">How much room it keeps from anything else it sits beside.</param>
+    public int Graft(LayoutTree tree, Point at = default, Side? against = null, double clear = 0)
+    {
+        if (tree.Count == 0) return -1;
+
+        var first = _pieces.Count;
+        var parent = _open.Count == 0 ? -1 : _open.Peek().At;
+
+        for (var piece = 0; piece < tree.Count; piece++)
+        {
+            var stored = tree.Piece(piece);
+            var marks = _marks.Count;
+            foreach (var mark in tree.MarksOf(piece)) _marks.Add(mark);
+
+            _pieces.Add(stored with
+            {
+                Offset = piece == 0 ? stored.Offset + new Vector(at.X, at.Y) : stored.Offset,
+                Parent = piece == 0 ? parent : stored.Parent + first,
+                Marks = marks,
+            });
+
+            _parts.Add(tree.PartOf(piece));
+            _kinds.Add(tree.KindOf(piece));
+            _paints.Add(tree.PaintOf(piece));
+        }
+
+        for (var run = 0; run < tree.RunCount; run++)
+        {
+            var members = tree.Run(run);
+            if (members.IsEmpty) continue;
+
+            var moved = new int[members.Length];
+            for (var member = 0; member < members.Length; member++) moved[member] = members[member] + first;
+            _runs.Add((moved, tree.RunOf(members[0], vertical: true) == run));
+        }
+
+        // What it covers, whatever holds it holds too — as for any piece closed inside it.
+        var root = _pieces[first];
+        if (_open.Count > 0 && !root.Box.IsEmpty) _open.Peek().Gathered(Rect.Offset(root.Box, root.Offset));
+
+        if (against is { } side) _sides.Add((first, side, clear));
+        return first;
+    }
+
     /// <summary>Finishes the piece being built, and gives back where it went.</summary>
     public int Close()
     {
@@ -260,10 +328,13 @@ public sealed class LayoutBuilder
     }
 
     /// <summary>The tree, finished. Nothing may be added to the builder afterwards.</summary>
-    public LayoutTree Seal()
+    public LayoutTree Seal(double block = 0)
     {
         if (_open.Count > 0)
             throw new InvalidOperationException($"{_open.Count} piece(s) were opened and never closed");
+
+        // Whatever stands against a side of the block goes there now, when the block's width is known.
+        Align(block);
 
         var count = _pieces.Count;
 
@@ -296,5 +367,84 @@ public sealed class LayoutBuilder
 
         return new LayoutTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints],
                               across, acrossAt, down, downAt, runs);
+    }
+
+    /// <summary>
+    /// Puts every piece that said which side of the block it stands against onto that side. The block is the frame
+    /// of whatever holds the piece, from its left edge to <paramref name="block"/>; with no width to go by, a piece
+    /// against the right follows everything else and one in the centre stays where it is.
+    ///
+    /// <para>
+    /// The left and the centre first, so the right knows where they ended up. And a piece against the right keeps
+    /// clear of everything beside it: where the block is too narrow for both on one line it goes under them, still
+    /// against the right — which is what LaTeX does with an equation's number.
+    /// </para>
+    /// </summary>
+    private void Align(double block)
+    {
+        foreach (var right in new[] { false, true })
+            foreach (var (at, side, clear) in _sides)
+            {
+                if ((side == Side.Right) != right) continue;
+
+                var piece = _pieces[at];
+                if (piece.Box.IsEmpty) continue;
+
+                var box = Rect.Offset(piece.Box, piece.Offset);
+                var beside = Beside(at);
+                var (x, y) = (box.X, box.Y);
+
+                switch (side)
+                {
+                    case Side.Left:
+                        x = 0;
+                        break;
+
+                    case Side.Centre when block > 0:
+                        x = Math.Max(0, (block - box.Width) / 2);
+                        break;
+
+                    case Side.Right when block <= 0:
+                        if (!beside.IsEmpty) x = beside.Right + clear;
+                        break;
+
+                    case Side.Right:
+                        x = Math.Max(0, block - box.Width);
+                        if (!beside.IsEmpty && x < beside.Right + clear) y = beside.Bottom;
+                        break;
+                }
+
+                _pieces[at] = piece with { Offset = piece.Offset + new Vector(x - box.X, y - box.Y) };
+                Regather(piece.Parent);
+            }
+    }
+
+    /// <summary>Everything else the piece's holder holds, as it now stands, in the holder's frame.</summary>
+    private Rect Beside(int at)
+    {
+        var holder = _pieces[at].Parent;
+        var union = Rect.Empty;
+
+        for (var other = 0; other < _pieces.Count; other++)
+            if (other != at && _pieces[other].Parent == holder && !_pieces[other].Box.IsEmpty)
+                union.Union(Rect.Offset(_pieces[other].Box, _pieces[other].Offset));
+
+        return union;
+    }
+
+    /// <summary>
+    /// A holder's reach, gathered again from what it holds once one of them has moved. A holder with a piece
+    /// against a side of it is a block, and a block reaches exactly as far as what it holds.
+    /// </summary>
+    private void Regather(int holder)
+    {
+        if (holder < 0) return;
+
+        var union = Rect.Empty;
+        for (var child = 0; child < _pieces.Count; child++)
+            if (_pieces[child].Parent == holder && !_pieces[child].Box.IsEmpty)
+                union.Union(Rect.Offset(_pieces[child].Box, _pieces[child].Offset));
+
+        if (!union.IsEmpty) _pieces[holder] = _pieces[holder] with { Box = union };
     }
 }

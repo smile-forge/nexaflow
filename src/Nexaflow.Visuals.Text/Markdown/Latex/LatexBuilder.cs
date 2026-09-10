@@ -36,9 +36,10 @@ public sealed class LatexBuilder : ContentBuilder
     private readonly RawZone? _shownAsWritten;
     private readonly bool _placeholders;
     private readonly double _pixelsPerDip;
+    private readonly double _block;
 
     private LatexBuilder(string latex, double scale, bool inline, string systemFont,
-                         RawZone? shownAsWritten, bool placeholders, double pixelsPerDip)
+                         RawZone? shownAsWritten, bool placeholders, double pixelsPerDip, double block)
         : base(latex)
     {
         _scale = scale;
@@ -47,6 +48,7 @@ public sealed class LatexBuilder : ContentBuilder
         _shownAsWritten = shownAsWritten;
         _placeholders = placeholders;
         _pixelsPerDip = pixelsPerDip;
+        _block = block;
     }
 
     /// <summary>
@@ -75,10 +77,14 @@ public sealed class LatexBuilder : ContentBuilder
     /// write and how they aim at it. Off by default, because a box in the middle of a formula that is
     /// only being read would simply be wrong, and reading is the commoner case.
     /// </param>
+    /// <param name="block">
+    /// How wide the block is that a display formula is set in, or nothing where it has none. Only a formula with
+    /// a number asks, because the number stands against the block's right edge — see <see cref="Numbered"/>.
+    /// </param>
     public static Laid Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
                              RawZone? shownAsWritten = null, bool placeholders = false,
-                             double pixelsPerDip = 1.0) =>
-        new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip).Lay();
+                             double pixelsPerDip = 1.0, double block = 0) =>
+        new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip, block).Lay();
 
     /// <summary>
     /// Whether the typesetter has a drawing for a named command — a fact about the engine, and the one thing
@@ -154,12 +160,55 @@ public sealed class LatexBuilder : ContentBuilder
                 "This was read, and nothing here knows how to draw it.")))
             .ToList();
 
-        var made = new Laid(laid, capture.Size, trouble);
+        // An equation's number, where one was written, set against the right edge of the block the formula is
+        // displayed in — see Numbered.
+        var (tree, size) = formula.Number is { } number
+            ? Numbered(laid, capture, number, environment, reading)
+            : (laid, capture.Size);
+
+        var made = new Laid(tree, size, trouble);
 
         // Which cells of a matrix read across and which read down — said to the tree once it is sealed.
         Order(reading, made.Root);
 
         return made;
+    }
+
+    /// <summary>
+    /// The formula and its number as one block: the formula in the middle of it, where a display puts it, and the
+    /// number against its right edge on the formula's baseline — which is where LaTeX puts an equation's number,
+    /// wherever the <c>\tag</c> was written.
+    ///
+    /// <para>
+    /// Two layouts put down together rather than one. The typesetter sets a row from left to right and knows
+    /// nothing of a block, so given the number as part of the formula it put it straight after the last term.
+    /// Which side of the block a thing stands against is the layout's to say — see <see cref="Side"/>.
+    /// </para>
+    /// </summary>
+    private (LayoutTree Tree, System.Windows.Size Size) Numbered(LayoutTree formula, LatexCapture laid, TexFormula number,
+                                                 XamlMath.TexEnvironment environment, TexReading reading)
+    {
+        var capture = new LatexCapture(_scale, reading);
+        number.RenderTo(capture, environment, 0, 0);
+        capture.FinishRendering();
+        if (capture.Tree is not { } tag) return (formula, laid.Size);
+
+        var build = new LayoutBuilder();
+        build.Open("Block");
+        build.Graft(formula, default, Side.Centre);
+
+        // On the formula's baseline, and a quad clear of it at the least, as LaTeX keeps an equation's number.
+        build.Graft(tag, new System.Windows.Point(0, laid.Baseline - capture.Baseline), Side.Right, clear: _scale);
+        build.Close();
+
+        // Inline there is no block to stand against, and the number simply follows.
+        var block = _inline ? 0 : _block;
+        var tree = build.Seal(block);
+
+        var covers = LatexCapture.Extent(tree.Root);
+        tree.Settle(new Vector(block > 0 ? 0 : -covers.X, -covers.Y));
+
+        return (tree, new System.Windows.Size(block > 0 ? System.Math.Max(block, covers.Right) : covers.Width, covers.Height));
     }
 
     /// <summary>

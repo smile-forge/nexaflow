@@ -104,6 +104,11 @@ internal sealed class LatexCapture : IElementRenderer
     /// <summary>How big it came out.</summary>
     public Size Size { get; private set; }
 
+    /// <summary>
+    /// How far down from its top the formula's baseline is — what a second layout set beside it lines up on.
+    /// </summary>
+    public double Baseline { get; private set; }
+
     public void RenderElement(Box box, double x, double y)
     {
         var turns = _pending;
@@ -400,6 +405,7 @@ internal sealed class LatexCapture : IElementRenderer
         tree.Settle(new Vector(-covers.X, -covers.Y));
 
         Size = new Size(covers.Width, covers.Height);
+        Baseline = -covers.Y;
         Tree = tree;
     }
 
@@ -407,7 +413,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// How much of the page the formula actually covers. Spacing is left out: a strut is as tall as the
     /// line it reserves room on, so counting it would pad the element with margin nothing is drawn in.
     /// </summary>
-    private static Rect Extent(Piece root)
+    internal static Rect Extent(Piece root)
     {
         var union = Rect.Empty;
 

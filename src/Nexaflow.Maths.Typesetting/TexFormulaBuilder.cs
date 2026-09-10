@@ -78,18 +78,27 @@ public static class TexFormulaBuilder
         System.ArgumentNullException.ThrowIfNull(root);
 
         var ignored = new List<TexPart>();
-        var was = _ignored;
-        _ignored = ignored;
+        var numbers = new List<Atom>();
+        var (was, wereNumbers) = (_ignored, _numbers);
+        (_ignored, _numbers) = (ignored, numbers);
 
         try
         {
             var built = Run(root.Parts, root, null, knowledge);
 
-            return built is null ? null : new TexFormula { RootAtom = built, Ignored = ignored };
+            return built is null ? null : new TexFormula
+            {
+                RootAtom = built,
+                Ignored = ignored,
+
+                // The last one written. A second \tag in one equation is an error to LaTeX, and there is no
+                // second place to put it.
+                Number = numbers.Count > 0 ? new TexFormula { RootAtom = numbers[^1] } : null,
+            };
         }
         finally
         {
-            _ignored = was;
+            (_ignored, _numbers) = (was, wereNumbers);
         }
     }
 
@@ -105,6 +114,13 @@ public static class TexFormulaBuilder
     /// </summary>
     [System.ThreadStatic]
     private static List<TexPart>? _ignored;
+
+    /// <summary>
+    /// Where the equation numbers a build meets are put while it runs — see <see cref="Numbering"/>. Per thread and
+    /// restored, for the same reasons as <see cref="_ignored"/>.
+    /// </summary>
+    [System.ThreadStatic]
+    private static List<Atom>? _numbers;
 
     /// <summary>Whether this reading can be built at all — the corpus's coverage question.</summary>
     public static bool CanBuild(ITexPart root, TexFormulaParser knowledge) =>
@@ -198,6 +214,10 @@ public static class TexFormulaBuilder
         if (!StandardCommands.Environments.TryGetValue(TexParser.NameOf(begin), out var arrangement))
             return null;
 
+        // \begin{equation} and its family are nothing but their contents in a formula that is already its own
+        // display, and the reading keeps them as a run rather than a grid, so they are built as what they hold.
+        if (arrangement is StandardCommands.TransparentEnvironment) return Transparent(part, style, knowledge);
+
         // Every piece of it has to be one this knows. A block is begun, optionally shaped, and then made
         // of rows; anything else in there is something the reading has not been taught.
         foreach (var child in part.Parts)
@@ -216,10 +236,36 @@ public static class TexFormulaBuilder
             MatrixCommandParser matrix => matrix.Assemble(cells, Whole(part)),
             ArrayCommandParser => Array(part, cells, style, knowledge),
 
-            // \begin{equation} and the counted alignments — \begin{alignat}{2} and its family, whose
-            // count is written where this reading expects a cell.
+            // The counted alignments — \begin{alignat}{2} and its family, whose count is written where this
+            // reading expects a cell.
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// An equation's number — <c>\tag{4.2}</c> — set as LaTeX sets it: in the text face and in parentheses, unless
+    /// the star says not to. Null for anything else.
+    /// </summary>
+    private static Atom? Numbering(ITexPart part)
+    {
+        if (part.Kind != TexKind.Command || part.Part(TexRole.Name)?.Text is not { } name
+            || name is not (@"\tag" or @"\tag*"))
+            return null;
+
+        if (part.Part(TexRole.Argument) is not { } written) return null;
+
+        var number = Inside(written);
+        return Tag(Letters(name == @"\tag" ? $"({number})" : number, TexUtilities.TextStyleName, spaced: true), part);
+    }
+
+    /// <summary>
+    /// A display environment that means nothing beyond its contents here — <c>equation</c> and its family, in a
+    /// formula that is already its own display. What it holds, standing for the whole of it.
+    /// </summary>
+    private static Atom? Transparent(ITexPart part, string? style, TexFormulaParser knowledge)
+    {
+        var body = part.Parts.Where(child => child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option));
+        return Built(body, style, knowledge) is { Count: > 0 } built ? Rowed(built, part) : null;
     }
 
     /// <summary>
@@ -580,8 +626,17 @@ public static class TexFormulaBuilder
                 break;
             }
 
-            // A command whose whole effect belongs to a page this formula does not have — `\tag`,
-            // `\nonumber`, `\label`. It draws nothing, so it makes no atom, exactly as a typed space
+            // An equation's number. Its place is the right edge of the block the formula is displayed in, not the
+            // line it was written in — LaTeX puts it there wherever the \tag was — so it is built on its own and
+            // handed out beside the formula, for whatever lays out the block. See TexFormula.Number.
+            if (Numbering(run[at]) is { } number)
+            {
+                _numbers?.Add(number);
+                continue;
+            }
+
+            // A command whose whole effect belongs to a page this formula does not have — `\nonumber`,
+            // `\label`. It draws nothing, so it makes no atom, exactly as a typed space
             // makes none; the reading keeps it either way, argument and all, because the writer wrote it
             // and will want it back. Which commands those are, and how many arguments each swallows, is
             // the engine's table's answer and not a list kept here.

@@ -263,6 +263,9 @@ public sealed class LayoutTree
     /// <summary>The members of a run, in order.</summary>
     internal ReadOnlySpan<int> Run(int id) => id < 0 || id >= _runs.Count ? default : _runs[id];
 
+    /// <summary>How many runs have been declared — what a tree grafted into another brings with it.</summary>
+    internal int RunCount => _runs.Count;
+
     /// <summary>
     /// Declares that these pieces read together, in this order — a row of a matrix, a column of one.
     ///

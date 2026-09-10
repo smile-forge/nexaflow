@@ -41,7 +41,7 @@ internal sealed class LatexContent(double scale, bool inline) : IContent
     {
         var laid = LatexBuilder.Build(
             state.Source, scale, inline, shownAsWritten: state.Raw, placeholders: !readOnly,
-            pixelsPerDip: pixelsPerDip);
+            pixelsPerDip: pixelsPerDip, block: room);
 
         return laid;
     }

@@ -50,6 +50,66 @@ public class LatexLayoutTests
     });
 
     [TestMethod]
+    public void AnEquationIsWhatItHolds() => UiThread.Run(() =>
+    {
+        // Reported from the app: \begin{equation} … \end{equation} would not draw. It is a display environment,
+        // and in a formula that is already its own display it means nothing beyond its contents.
+        var wrapped = Build(@"\begin{equation} e^{i\pi} + 1 = 0 \end{equation}");
+        var bare = Build(@"e^{i\pi} + 1 = 0");
+
+        Assert.AreEqual(0, wrapped.Trouble.Count, string.Join("; ", wrapped.Trouble.Select(t => t.Message)));
+        Assert.AreEqual(bare.Size.Width, wrapped.Size.Width, 0.5, "drawn as its body");
+    });
+
+    [TestMethod]
+    public void AnEquationsNumberStandsAgainstTheRightOfItsBlock() => UiThread.Run(() =>
+    {
+        // The user's formula. \tag puts the number at the right margin wherever it was written, so it is set
+        // against the right of the block the formula is displayed in, and the equation stays in the middle.
+        const string latex = @"\begin{equation} \label{eq:euler} e^{i\pi} + 1 = 0 \tag{4.2} \end{equation}";
+        const double block = 600;
+        var laid = LatexBuilder.Build(latex, Scale, block: block);
+
+        Assert.AreEqual(0, laid.Trouble.Count, string.Join("; ", laid.Trouble.Select(t => t.Message)));
+        Assert.AreEqual(block, laid.Size.Width, 0.5, "the formula takes the block, so the number can reach its edge");
+
+        var (equation, number) = (Equation(laid), Number(laid, latex));
+        // The boxes, as TeX sets them: the number's box against the margin, whatever the side bearing of its last
+        // glyph leaves inside it.
+        Assert.AreEqual(block, number.Bounds.Right, 0.5, "the number against the right edge");
+        Assert.AreEqual(block / 2, equation.Bounds.X + (equation.Bounds.Width / 2), 0.5, "the equation in the middle");
+        Assert.AreEqual(equation.Ink().Bottom, number.Ink().Bottom, 4, "and the two on one line");
+    });
+
+    [TestMethod]
+    public void AnEquationsNumberGoesUnderItWhenThereIsNoRoomBeside() => UiThread.Run(() =>
+    {
+        const string latex = @"e^{i\pi} + 1 = 0 \tag{4.2}";
+        var laid = LatexBuilder.Build(latex, Scale, block: 60);
+
+        Assert.IsTrue(Number(laid, latex).Ink().Top >= Equation(laid).Ink().Bottom - 0.5,
+                      "a block too narrow for both puts the number under the equation, as LaTeX does");
+    });
+
+    [TestMethod]
+    public void WithNoBlockAnEquationsNumberFollowsIt() => UiThread.Run(() =>
+    {
+        const string latex = @"e^{i\pi} + 1 = 0 \tag{4.2}";
+        var laid = Build(latex);
+
+        Assert.IsTrue(Number(laid, latex).Ink().Left > Equation(laid).Ink().Right,
+                      "with nothing to stand against, the number follows a quad along");
+    });
+
+    /// <summary>The equation: the piece standing for the whole formula, which the number is set beside.</summary>
+    private static Piece Equation(Laid laid) =>
+        laid.Root.SelfAndDescendants().First(p => p.Stands() && p.Sits().Start == 0);
+
+    /// <summary>The number: the piece standing for the <c>\tag</c>.</summary>
+    private static Piece Number(Laid laid, string latex) =>
+        laid.Root.SelfAndDescendants().First(p => p.Stands() && p.Sits().Start == latex.IndexOf(@"\tag", StringComparison.Ordinal));
+
+    [TestMethod]
     public void NestedConstructsKeepTheirOwnSpans() => UiThread.Run(() =>
     {
         // The whole feature rests on this: an exponent and a numerator have to be separately addressable,
