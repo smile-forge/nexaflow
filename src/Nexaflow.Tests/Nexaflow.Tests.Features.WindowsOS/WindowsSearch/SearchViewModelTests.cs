@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.Features.WindowsSearch.ViewModels;
@@ -16,12 +17,18 @@ namespace Nexaflow.Tests.Features.WindowsSearch;
 public class SearchViewModelTests
 {
     /// <summary>A shell whose RunOnUiAsync actually runs the action — the substitute's default swallows it,
-    /// which silently no-ops every UI-marshalled path, the folder scan's streamed results included.</summary>
+    /// which silently no-ops every UI-marshalled path, the folder scan's streamed results included.
+    /// <para>
+    /// And one that answers GetFileTextExtractor the way the real shell does for a file no feature claims:
+    /// null. The substitute's default is an auto-mocked extractor whose ExtractAsync yields "", which the
+    /// scan and the sweep both trust as "read it, there is no text" — every content match would vanish.
+    /// </para></summary>
     private static IShellServices Shell()
     {
         var shell = Substitute.For<IShellServices>();
         shell.RunOnUiAsync(Arg.Any<Action>())
              .Returns(ci => { ci.Arg<Action>()(); return Task.CompletedTask; });
+        shell.GetFileTextExtractor(Arg.Any<string>()).Returns((IFileTextExtractor?)null);
         return shell;
     }
 

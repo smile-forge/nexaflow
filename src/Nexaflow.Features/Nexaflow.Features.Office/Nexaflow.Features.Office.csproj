@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features" />
+  </ItemGroup>
+
+  <!-- No package: an OOXML document is a zip of XML parts, and the BCL's ZipArchive + XmlReader stream them
+       with a memory bound the search contract needs. The same core carries OpenDocument later, which the
+       Open XML SDK doesn't cover. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+  </ItemGroup>
+
+</Project>

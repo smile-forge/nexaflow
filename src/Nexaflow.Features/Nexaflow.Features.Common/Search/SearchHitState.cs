@@ -31,8 +31,8 @@ public enum SearchHitState
 
     /// <summary>
     /// Checked, and we genuinely can't tell — the file couldn't be opened, or nothing was found in a
-    /// format whose real text is compressed or encoded (a <c>.docx</c> is a ZIP, so its words are simply
-    /// not in the raw bytes and their absence proves nothing). Distinct from <see cref="Rejected"/>, which
+    /// format whose real text is compressed or encoded (an <c>.xlsx</c> is a ZIP, so its text is simply
+    /// not in the raw bytes and its absence proves nothing). Distinct from <see cref="Rejected"/>, which
     /// is a conclusive miss, and from <see cref="Candidate"/>, which re-checking could still settle —
     /// re-reading this file produces the same answer, so it is never re-offered.
     /// </summary>

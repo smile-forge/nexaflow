@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.WindowsSearch;
 using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.IO.Common;
@@ -39,12 +40,12 @@ public class WindowsSearchServiceTests
     // A folder scan is no longer entered automatically — it reads every file in the tree, so the user is
     // asked first. These exercise it directly, the way the banner's "scan" button does.
 
-    private static async Task<List<SearchResultEntry>> Scan(string query, string root)
+    private static async Task<List<SearchResultEntry>> Scan(string query, string root, FileContentReader? reader = null)
     {
         var hits = new List<SearchResultEntry>();
         await WindowsSearchService.WalkAsync(
             SearchSyntax.ParseRequest(query, [new GlobTermRecognizer()]),
-            root, 500, h => { lock (hits) hits.Add(h); }, CancellationToken.None);
+            root, 500, h => { lock (hits) hits.Add(h); }, reader ?? new FileContentReader(), CancellationToken.None);
         return hits;
     }
 
@@ -94,7 +95,7 @@ public class WindowsSearchServiceTests
         var seen = 0;
         await WindowsSearchService.WalkAsync(
             SearchSyntax.ParseRequest("*.json", [new GlobTermRecognizer()]),
-            _root, 500, _ => Interlocked.Increment(ref seen), CancellationToken.None);
+            _root, 500, _ => Interlocked.Increment(ref seen), new FileContentReader(), CancellationToken.None);
 
         Assert.AreEqual(2, seen, "each match should have been reported through the callback");
     }
@@ -114,5 +115,73 @@ public class WindowsSearchServiceTests
             SearchQueryParser.Parse("readme"), _root, CancellationToken.None);
 
         Assert.AreEqual(0, hits.Count, "an unindexed temp folder yields nothing until the user scans");
+    }
+
+    // ── Format-aware reading ─────────────────────────────────────────────────
+    //
+    // A PDF or a Word document keeps its words in compressed streams. The scan used to read every file as
+    // plain text, so those words were findable through the index but never by walking a folder it doesn't
+    // cover. It now reads through the same FileContentReader as the index's sweep; fakes stand in for the
+    // real extractors so this suite needs no feature that owns a format.
+
+    [TestMethod]
+    public async Task Scan_ReadsThroughTheExtractorThatClaimsTheFile()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_root, "report.fake"), "deflated gibberish");
+
+        var hits = await Scan("heron", _root, Reader(new FixedExtractor("a survey of the heron")));
+
+        CollectionAssert.AreEqual(new[] { "report.fake" }, hits.Select(h => h.FileName).ToArray(),
+            "only the extractor's text holds the term — the raw bytes never did");
+    }
+
+    [TestMethod]
+    public async Task Scan_TrustsAnExtractorsEmptyAnswer()
+    {
+        // "Read it, there is no text" is a real miss — the raw bytes are not scanned behind its back.
+        await File.WriteAllTextAsync(Path.Combine(_root, "scan.fake"), "the bookcase in the corner");
+
+        Assert.AreEqual(0, (await Scan("bookcase", _root, Reader(new FixedExtractor(string.Empty)))).Count);
+    }
+
+    [TestMethod]
+    public async Task Scan_ClaimantReturningNull_StillGetsThePlainTextRead()
+    {
+        // Null is "couldn't tell", so the plain-text read gets its turn.
+        await File.WriteAllTextAsync(Path.Combine(_root, "notes.fake"), "the bookcase in the corner");
+
+        var hits = await Scan("bookcase", _root, Reader(new FixedExtractor(null)));
+
+        Assert.IsTrue(hits.Any(h => h.FileName == "notes.fake"));
+    }
+
+    [TestMethod]
+    public async Task Scan_ABrokenExtractor_DoesNotStopTheWalk()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_root, "a.fake"), "the bookcase");
+        await File.WriteAllTextAsync(Path.Combine(_root, "poem.txt"), "the bookcase in the corner");
+
+        var hits = await Scan("bookcase", _root, Reader(new ExplodingExtractor()));
+
+        CollectionAssert.AreEquivalent(new[] { "a.fake", "poem.txt" }, hits.Select(h => h.FileName).ToArray(),
+            "the throwing claimant's file falls back to plain text, and the walk carries on past it");
+    }
+
+    /// <summary>Mirrors <c>IShellServices.GetFileTextExtractor</c> for one format: the extractor claims
+    /// <c>.fake</c> files and nothing else.</summary>
+    private static FileContentReader Reader(IFileTextExtractor forFakeFiles) =>
+        new(path => path.EndsWith(".fake", StringComparison.OrdinalIgnoreCase) ? forFakeFiles : null);
+
+    private sealed class FixedExtractor(string? text) : IFileTextExtractor
+    {
+        public bool CanExtract(string path) => true;
+        public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct) => Task.FromResult(text);
+    }
+
+    private sealed class ExplodingExtractor : IFileTextExtractor
+    {
+        public bool CanExtract(string path) => true;
+        public Task<string?> ExtractAsync(string path, long maxBytes, CancellationToken ct)
+            => throw new InvalidOperationException("boom");
     }
 }

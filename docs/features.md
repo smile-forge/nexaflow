@@ -144,9 +144,11 @@ public sealed partial class MyViewModel : ObservableObject, IPageViewModel, ISea
   `?` overlay while a background `SearchVerifier` reads each one and flips it to a tick or strikes it
   through. Past `AutoVerifyLimit` (50) the sweep is opt-in: the first 50 run anyway so the list is usable
   and a banner offers the rest, because reading thousands of files off a keystroke is the user's call.
-  Content comes from a format-aware `IFileTextExtractor` when a feature provides one, else the file is read
-  as text (encoding sniffed, binaries skipped, size capped). Verification order matters — detect encoding
-  *before* the NUL binary sniff, or every UTF-16 file is discarded as binary.
+  Content comes from a format-aware `IFileTextExtractor` when a feature provides one (PDF, Word), else the
+  file is read as text (encoding sniffed, binaries skipped, size capped) — one policy, `FileContentReader`,
+  shared by this sweep and the manual folder scan, so a document is findable by walking a folder the index
+  doesn't cover. Verification order matters — detect encoding *before* the NUL binary sniff, or every UTF-16
+  file is discarded as binary.
 - **A literal term means the word it spells.** `?needle` matches the word "needle", not "needless" — matching
   is boundary-checked at both ends (a quoted phrase the same way, so `?"the lost dog"` won't hit "the lost
   dogma"). Two reasons it isn't a substring: the index's own `CONTAINS` is word-based, so substring matching
