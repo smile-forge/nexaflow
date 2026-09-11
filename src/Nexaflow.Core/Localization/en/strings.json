@@ -9,5 +9,7 @@
   "Help.OtherPages.Matches": "{0} matches",
   "Help.Index.Button": "All help pages",
   "Help.Index.AllTopics": "All help pages",
-  "Help.NoShowcase": "There is no help page for {0} yet."
+  "Help.NoShowcase": "There is no help page for {0} yet.",
+  "Help.Topics": "Topics",
+  "Help.Topics.Back": "↑ Back to topics"
 }

@@ -22,6 +22,12 @@ matches what you are looking at.
 When you move within help yourself — following a link, opening a search result, or choosing **All help pages**
 (the **☰** button) — help stays where you took it. Press **?** to point it back at the page you are using.
 
+## Moving around a help page
+
+Every help page opens with its **Topics**: click one to jump straight to it. Each topic ends with **↑ Back to
+topics**, which takes you back to that list. Links to other help pages open in this pane, some of them straight at
+the part they mean.
+
 ## Searching
 
 Type in the box at the top of the pane.

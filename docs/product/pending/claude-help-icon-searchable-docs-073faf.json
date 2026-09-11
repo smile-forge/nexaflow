@@ -353,10 +353,46 @@
           ]
         }
       ]
+    },
+    "help-topics": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Help/HelpContents.cs",
+          "class": "HelpContents"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Help/HelpContentsTests.cs",
+            "class": "HelpContentsTests"
+          }
+        ]
+      }
+    },
+    "md-anchor-links": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownAnchors.cs",
+          "class": "MarkdownAnchors"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownAnchorTests.cs",
+            "class": "MarkdownAnchorTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 35,
+  "changed_sets": 39,
   "touched_nodes": [
     "chrome-help-button",
     "help",
@@ -370,6 +406,7 @@
     "help-search",
     "help-search-box",
     "help-search-chip",
+    "help-topics",
     "help-ui",
     "lang-en",
     "languages",
@@ -377,6 +414,7 @@
     "languages-strings",
     "languages-switch",
     "markdown",
+    "md-anchor-links",
     "md-image-resolver",
     "text-viewer",
     "theme-switch-restart",

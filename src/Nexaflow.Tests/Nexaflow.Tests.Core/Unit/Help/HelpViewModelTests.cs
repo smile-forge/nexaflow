@@ -96,4 +96,22 @@ public class HelpViewModelTests
 
         Assert.IsFalse(vm.FollowLink("https://example.com"), "a web link is the browser's");
     }
+
+    [TestMethod]
+    [CoversNode("help-topics")]
+    public void ALinkToAHeadingOnAnotherPage_OpensThePage_ThenAsksForTheHeading()
+    {
+        using var help = new HelpFixture();
+        var vm = Open(help, "Text", out _);
+        string? scrolledNow = null;
+        vm.AnchorRequested += anchor => scrolledNow = anchor;
+
+        Assert.IsTrue(vm.FollowLink("help:Markdown#tables"));
+        Assert.AreEqual("Markdown", vm.Topic);
+        Assert.AreEqual("tables", vm.TakePendingAnchor(), "the view scrolls there once the page has laid out");
+        Assert.IsNull(vm.TakePendingAnchor(), "and only once");
+
+        Assert.IsTrue(vm.FollowLink("help:Markdown#diagrams"));
+        Assert.AreEqual("diagrams", scrolledNow, "already on that page: it just moves to the heading");
+    }
 }

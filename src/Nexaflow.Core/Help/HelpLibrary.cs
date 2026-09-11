@@ -49,13 +49,14 @@ internal sealed partial class HelpLibrary
         get { lock (_gate) return _topics ??= ReadTopics(); }
     }
 
-    /// <summary>The "then every help page" half of a search, built the first time one needs it.</summary>
+    /// <summary>The "then every help page" half of a search, built the first time one needs it — from each page as it
+    /// is shown, Topics list and back links included, so a match's ordinal is the one the page itself highlights.</summary>
     public HelpSearchIndex Index
     {
         get
         {
             lock (_gate)
-                return _index ??= new HelpSearchIndex(() => Topics.Select(t => (t, Read(t.LogicalName) ?? "")).ToList());
+                return _index ??= new HelpSearchIndex(() => Topics.Select(t => (t, Load(t.Topic).Markdown)).ToList());
         }
     }
 
@@ -69,15 +70,23 @@ internal sealed partial class HelpLibrary
     /// blank or <see cref="IndexTopic"/> asks for the index outright.</summary>
     public HelpDocument Load(string? topic)
     {
+        // Every page is shown with its menu — the Topics list and the links back to it (HelpContents).
         if (Find(topic) is { } found && Read(found.LogicalName) is { } markdown)
-            return new HelpDocument(found, markdown);
+            return new HelpDocument(found, HelpContents.AddTopics(markdown));
 
         var missing = string.IsNullOrWhiteSpace(topic) || string.Equals(topic, IndexTopic, StringComparison.OrdinalIgnoreCase)
             ? null
             : topic;
         var intro = Read(IndexName) ?? $"# {Str.Get("Help.Tab.Title")}\n";
         return new HelpDocument(new HelpTopic(IndexTopic, TitleOf(intro) ?? Str.Get("Help.Tab.Title"), IndexName),
-                                BuildIndex(intro, missing), missing);
+                                HelpContents.AddTopics(BuildIndex(intro, missing)), missing);
+    }
+
+    /// <summary>The heading a help link points at — <c>searching</c> in <c>help:Help#searching</c> — or null.</summary>
+    public static string? AnchorFromLink(string? url)
+    {
+        var hash = url?.IndexOf('#') ?? -1;
+        return hash >= 0 && hash < url!.Length - 1 ? Uri.UnescapeDataString(url[(hash + 1)..].Trim()) : null;
     }
 
     /// <summary>

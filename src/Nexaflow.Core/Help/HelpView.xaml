@@ -12,7 +12,9 @@
         <vcc:NullToCollapsedConverter         x:Key="HelpNullCollapsed"/>
     </UserControl.Resources>
 
-    <Grid>
+    <!-- A solid page of its own (Help.Bg), not the transparent surface other markdown sits on: the pane is read
+         beside a page, and a scene showing through body text is only a readability cost. -->
+    <Grid Background="{StaticResource Help.Bg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>

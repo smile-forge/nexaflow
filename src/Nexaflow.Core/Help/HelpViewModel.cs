@@ -131,13 +131,37 @@ internal sealed partial class HelpViewModel : ObservableObject, IPageViewModel, 
             _page.Breadcrumbs.Add(new BreadcrumbSegment { Label = Title });
     }
 
-    /// <summary>A link clicked in the page: another help page opens here; anything else goes to the browser.</summary>
+    /// <summary>A link clicked in the page that the document didn't resolve itself (an in-page <c>#anchor</c> it does):
+    /// another help page opens here — at a heading, for <c>help:Text#searching</c>; anything else goes to the browser.</summary>
     public bool FollowLink(string url)
     {
         if (HelpLibrary.TopicFromLink(url) is not { } topic) return false;
+
+        var anchor = HelpLibrary.AnchorFromLink(url);
+        if (anchor is not null && string.Equals(topic, Topic, StringComparison.OrdinalIgnoreCase))
+        {
+            AnchorRequested?.Invoke(anchor);   // already on that page: just move to the heading
+            return true;
+        }
+
+        _pendingAnchor = anchor;
         Navigate(topic, null, fromUser: true);
         return true;
     }
+
+    /// <summary>A heading on the page shown to scroll to, now.</summary>
+    public event Action<string>? AnchorRequested;
+
+    /// <summary>The heading a link asked for on the page just shown — taken, once, by the view when that page has laid
+    /// out.</summary>
+    public string? TakePendingAnchor()
+    {
+        var anchor = _pendingAnchor;
+        _pendingAnchor = null;
+        return anchor;
+    }
+
+    private string? _pendingAnchor;
 
     /// <summary>A picture the shown page links to, out of the language pack.</summary>
     public ImageSource? ResolveImage(string src) => _library.ResolveImage(_doc.Topic, src);

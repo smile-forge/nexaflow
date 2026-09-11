@@ -22,8 +22,14 @@ public partial class HelpView : UserControl, IPageView
         vm.StepRendered   = Doc.StepSearch;
         vm.ClearRendered  = Doc.ClearSearch;
 
-        // A newly shown page lays out after the call that showed it returns; the search is re-applied once it has.
-        vm.DocumentShown += () => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(vm.ReapplySearch));
+        // A newly shown page lays out after the call that showed it returns. Once it has, the search is re-applied and
+        // a heading a link asked for is scrolled to — after the search, which moves to its own first match.
+        vm.DocumentShown += () => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            vm.ReapplySearch();
+            if (vm.TakePendingAnchor() is { } anchor) Doc.ScrollToAnchor(anchor);
+        }));
+        vm.AnchorRequested += anchor => Doc.ScrollToAnchor(anchor);
 
         DataContext = vm;
     }

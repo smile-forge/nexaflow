@@ -59,7 +59,14 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   file name *is* the page kind. Its first `# ` heading is its title.
 - Pictures sit beside it (`help/images/…`) and are linked relatively. They resolve inside the pack, never outside
   the page's own project, and are never fetched from the web.
-- `[text](help:Text)` opens another help page in place; any other link opens in the browser.
+- `[text](help:Text)` opens another help page in place, and `[text](help:Text#searching)` opens it at a heading; any
+  other link opens in the browser.
+- Every heading has a GitHub-style anchor — lower-case, spaces to hyphens, punctuation dropped, a repeat numbered `-1` —
+  so `[see Searching](#searching)` jumps within the page. This is the markdown renderer's, so it works on any rendered
+  markdown surface, not just help.
+- **Don't write a contents list.** The pane gives every page with two or more `##` sections a **Topics** list where its
+  introduction ends, and a **↑ Back to topics** link at the end of each section (`HelpContents`) — generated from the
+  headings as the page loads, so it can't drift, and each translation gets its own.
 - `Nexaflow.Core/help/index.md` introduces help. It is shown — followed by a generated list of every help page —
   for a page kind with no help yet, and under the pane's **☰** button.
 - A help page is the owning feature's **`docs` concern** in the product tree: give the feature node a `docs`

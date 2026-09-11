@@ -100,6 +100,7 @@ a palette colour in `Tokens.xaml`; a theme overrides only the ones it wants to a
 | `Ribbon` | `Ribbon.ButtonBg` | `Styles.xaml` (`RibbonButton` / `RibbonHalfButton` resting fill) |
 | `TabStrip` / `Tab` | `TabStrip.Bg`, `TabStrip.Border`, `Tab.HoverBg`, `Tab.ActiveBg`, `Tab.Accent` | `PaneView.xaml` (header + breadcrumb divider), `TabStrip.xaml` (tab item states) |
 | `AiBar` | `AiBar.Bg`, `AiBar.InputBg`, `AiBar.ClusterBg`, `AiBar.Border` | `MainWindow.xaml` (row 4 — surround, input panel, button clusters) |
+| `Help` | `Help.Bg` | `Help/HelpView.xaml` — the whole Help pane. Opaque by default in every theme (`SurfaceColor`): help is read beside a page, not over a scene |
 | `FileList` | `FileList.PanelBg` | `FileSystemView.xaml` (tree + action strip; a *feature* consuming a Core token) |
 | `Page` | *(none yet — passthrough)* | `PaneView.xaml` wraps the content host; relies on a translucent `BgBrush` + the window scene |
 | `Window` | *(scene only — `Window.Bg` intentionally absent)* | `MainWindow.xaml` back layer |
