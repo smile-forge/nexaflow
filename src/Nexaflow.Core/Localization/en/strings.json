@@ -1,0 +1,13 @@
+{
+  "Shell.Help.Button": "Help",
+  "Shell.Help.Tooltip": "Help for this page (F1)",
+  "Help.Tab.Title": "Help",
+  "Help.Tab.TitleFormat": "Help: {0}",
+  "Help.Search.Placeholder": "Search help",
+  "Help.OtherPages.Header": "In other help pages",
+  "Help.OtherPages.Match": "1 match",
+  "Help.OtherPages.Matches": "{0} matches",
+  "Help.Index.Button": "All help pages",
+  "Help.Index.AllTopics": "All help pages",
+  "Help.NoShowcase": "There is no help page for {0} yet."
+}

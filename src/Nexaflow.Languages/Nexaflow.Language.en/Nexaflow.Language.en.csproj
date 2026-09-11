@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- English - the language every other pack falls back to, key by key and help page by help page. -->
+  <PropertyGroup>
+    <LanguageCode>en</LanguageCode>
+  </PropertyGroup>
+
+  <Import Project="..\LanguagePack.targets" />
+</Project>
