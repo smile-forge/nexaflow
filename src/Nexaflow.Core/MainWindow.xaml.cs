@@ -103,10 +103,8 @@ public partial class MainWindow : Window
                 _vm.NotificationsOpen      = false;
                 _vm.Ai.AiResponseOverlayOpen = false;
                 RibbonControl.ViewModel.IsEditOpen = false;
-                if (_vm.ConfirmationVisible)
-                    _vm.CancelShellConfirmationCommand.Execute(null);
-                if (_vm.PromptVisible)
-                    _vm.CancelShellPromptCommand.Execute(null);
+                _vm.Overlays.Confirmation?.CancelCommand.Execute(null);
+                _vm.Overlays.Prompt?.CancelCommand.Execute(null);
             }
         };
 

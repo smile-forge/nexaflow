@@ -1,0 +1,71 @@
+{
+  "branch": "claude/architecture-review-e1-f986c0",
+  "nodes": {
+    "registry-confirmation": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsRegistry/ViewModels/RegistryViewModel.cs",
+          "class": "RegistryViewModel",
+          "method": "DeleteKey"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsRegistry/ViewModels/RegistryViewModel.cs",
+          "class": "RegistryViewModel",
+          "method": "DeleteValue"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.WindowsOS/WindowsRegistry/RegistryDeleteConfirmationTests.cs",
+            "class": "RegistryDeleteConfirmationTests"
+          }
+        ]
+      }
+    },
+    "registry-overlays": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsRegistry/ViewModels/RegistryViewModel.cs",
+          "class": "RegistryViewModel",
+          "method": "ShowInputPrompt"
+        }
+      ]
+    },
+    "chrome-prompt-confirm": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/OverlayCoordinatorTests.cs",
+            "class": "OverlayCoordinatorTests"
+          }
+        ]
+      }
+    },
+    "chrome-prompt-input": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/OverlayCoordinatorTests.cs",
+            "class": "OverlayCoordinatorTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 5,
+  "touched_nodes": [
+    "chrome-prompt-confirm",
+    "chrome-prompt-input",
+    "registry-confirmation",
+    "registry-overlays"
+  ]
+}

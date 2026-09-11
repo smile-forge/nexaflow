@@ -449,23 +449,5 @@
                 </TabItem>
             </TabControl>
         </Grid>
-
-        <!-- ══ CONFIRMATION OVERLAY ══════════════════════════════════════════ -->
-        <Border Visibility="{Binding ConfirmationVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="20">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource DangerBrush}" BorderThickness="1"
-                    CornerRadius="8" Width="320" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="{Binding ConfirmationTitle}" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <TextBlock Text="{Binding ConfirmationPrompt}" Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"/>
-                    <Button AutomationProperties.AutomationId="Projects_Detail_ConfirmDelete" Content="Delete" Command="{Binding ConfirmActionCommand}" Cursor="Hand" Margin="0,0,0,6"
-                            Style="{StaticResource AccentButton}" Background="{StaticResource DangerBrush}" Foreground="White"/>
-                    <Button AutomationProperties.AutomationId="Projects_Detail_CancelConfirm" Content="Cancel" Command="{Binding CancelConfirmationCommand}" Cursor="Hand"
-                            Style="{StaticResource GhostButton}"/>
-                </StackPanel>
-            </Border>
-        </Border>
     </Grid>
 </UserControl>
