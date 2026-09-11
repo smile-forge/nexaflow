@@ -915,4 +915,4 @@ Not supported: Aztec Runes, reader-initialisation symbols, and structured append
   to work, scan it from the app that owns the thing it describes before suspecting the code.
 
 For the engineering-level breakdown of exactly what's supported, see
-[Markdown support](../MarkdownSupport.md).
+[Markdown support](https://github.com/smile-forge/nexaflow/blob/main/docs/MarkdownSupport.md).
