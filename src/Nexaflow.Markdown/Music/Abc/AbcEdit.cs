@@ -86,7 +86,7 @@ public static class AbcEdit
         var previous = Before(reading, caret);
 
         var octave = previous is { } sounding ? Sounding(sounding) : 5;
-        var step = AbcTheory.StepLetters.IndexOf(char.ToUpperInvariant(letter));
+        var step = Pitch.Letters.IndexOf(char.ToUpperInvariant(letter));
         if (step < 0) return letter.ToString();
 
         return Spell(step, octave) + (previous?.Part(AbcRoles.Length)?.Text ?? "");
@@ -119,8 +119,8 @@ public static class AbcEdit
 
         for (var i = 0; i < Math.Abs(steps); i++)
             factor = steps > 0
-                ? AbcLength.Of(factor.Numerator * 2, factor.Denominator)
-                : AbcLength.Of(factor.Numerator, factor.Denominator * 2);
+                ? Duration.Of(factor.Numerator * 2, factor.Denominator)
+                : Duration.Of(factor.Numerator, factor.Denominator * 2);
 
         // Past a breve on one side and a 64th on the other there is nothing left to write.
         if (factor.Numerator > 64 || factor.Denominator > 64) return null;
@@ -129,7 +129,7 @@ public static class AbcEdit
     }
 
     /// <summary>How ABC writes a length multiplier: <c>2</c>, <c>/2</c>, <c>3/2</c>, and nothing for one.</summary>
-    private static string Suffix(AbcLength factor)
+    private static string Suffix(Duration factor)
     {
         if (factor.Denominator == 1) return factor.Numerator == 1 ? "" : $"{factor.Numerator}";
         if (factor.Numerator == 1) return factor.Denominator == 2 ? "/" : $"/{factor.Denominator}";
@@ -155,7 +155,7 @@ public static class AbcEdit
     /// <summary>The letter and marks for a step in an octave — <c>C,,</c>, <c>C</c>, <c>c</c>, <c>c''</c>.</summary>
     private static string Spell(int step, int octave)
     {
-        var letter = AbcTheory.StepLetters[step];
+        var letter = Pitch.Letters[step];
 
         if (octave <= LowestWrittenOctave)
             return char.ToUpperInvariant(letter) + new string(',', LowestWrittenOctave - octave);
@@ -177,7 +177,7 @@ public static class AbcEdit
 
     private static int? Step(ContentNode note) =>
         note.Part(AbcRoles.Letter)?.Text is { Length: 1 } letter
-        && AbcTheory.StepLetters.IndexOf(char.ToUpperInvariant(letter[0])) is var step and >= 0
+        && Pitch.Letters.IndexOf(char.ToUpperInvariant(letter[0])) is var step and >= 0
             ? step
             : null;
 

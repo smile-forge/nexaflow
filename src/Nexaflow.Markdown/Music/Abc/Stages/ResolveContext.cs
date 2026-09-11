@@ -125,7 +125,7 @@ public sealed class ResolveContext : IAstStage
         int.TryParse(line.Said(AbcRoles.Context), out var fifths) ? fifths : 0,
         Beats(line.Said(AbcRoles.Duration)).Beats,
         Beats(line.Said(AbcRoles.Duration)).Unit,
-        line.Said(AbcRoles.Length) is { } unit ? AbcLength.Parse(unit) : AbcContext.Default.Unit,
+        line.Said(AbcRoles.Length) is { } unit ? Duration.Parse(unit) : AbcContext.Default.Unit,
         line.Said(AbcRoles.Value) ?? "");
 
     private static (int Beats, int Unit) Beats(string? text)
