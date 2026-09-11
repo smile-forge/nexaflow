@@ -56,8 +56,9 @@ holds a Dark bootstrap merge for the designer; `Apply` rebuilds the list determi
 > **Theme switching restarts the window.** References are overwhelmingly `{StaticResource}` (resolved
 > once, at load) for rendering performance — a deliberate choice, so an open window does not live-reflow.
 > Instead, changing the theme in Options runs `ThemeManager.Apply` and then
-> `ShellServices.RestartWindowForTheme` rebuilds the acting window in place — same position, same tabs
-> (order + active tab preserved), now rendered against the new theme.
+> `ShellServices.RestartWindowForAppearance` rebuilds the acting window in place — same position, same pane
+> layout (both panes, each pane's active tab), now rendered against the new theme. A language change takes the
+> same path, for the same reason: UI strings resolve once as the XAML loads (see [localization.md](localization.md)).
 
 > **Markdown follows the theme too.** `MarkdownPalette.FromTheme()` (in `Nexaflow.Visuals.Text`) reads
 > the active theme's brushes (`TextBrush`, `AccentBrush`, surfaces…) so rendered markdown — AI chat,
@@ -99,6 +100,7 @@ a palette colour in `Tokens.xaml`; a theme overrides only the ones it wants to a
 | `Ribbon` | `Ribbon.ButtonBg` | `Styles.xaml` (`RibbonButton` / `RibbonHalfButton` resting fill) |
 | `TabStrip` / `Tab` | `TabStrip.Bg`, `TabStrip.Border`, `Tab.HoverBg`, `Tab.ActiveBg`, `Tab.Accent` | `PaneView.xaml` (header + breadcrumb divider), `TabStrip.xaml` (tab item states) |
 | `AiBar` | `AiBar.Bg`, `AiBar.InputBg`, `AiBar.ClusterBg`, `AiBar.Border` | `MainWindow.xaml` (row 4 — surround, input panel, button clusters) |
+| `Help` | `Help.Bg` | `Help/HelpView.xaml` — the whole Help pane. Opaque by default in every theme (`SurfaceColor`): help is read beside a page, not over a scene |
 | `FileList` | `FileList.PanelBg` | `FileSystemView.xaml` (tree + action strip; a *feature* consuming a Core token) |
 | `Page` | *(none yet — passthrough)* | `PaneView.xaml` wraps the content host; relies on a translucent `BgBrush` + the window scene |
 | `Window` | *(scene only — `Window.Bg` intentionally absent)* | `MainWindow.xaml` back layer |

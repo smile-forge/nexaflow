@@ -129,6 +129,12 @@ public class ShellChromeJourneyTests : UiJourneyTestBase
         CheckDoes("Cancel leaves the ribbon editor", "RibbonEditor_Cancel",
                   () => WaitForId("Chrome_RibbonEditor", 3) is null);
 
+        // ── Help — the ? above Options opens this page's help beside it, and the same button closes it ──
+        // What the pane itself does (search, results, the index, F1) is HelpJourneyTests'; here it is chrome.
+        CheckInvoke("Help button (open)",  "Chrome_HelpButton");
+        CheckPresent("Help search box",    "Help_SearchBox");
+        CheckInvoke("Help button (close)", "Chrome_HelpButton");
+
         // ── Options overlay (MODAL) — open, verify, close via the same toggle so it can't block ──
         // Chrome_OptionsButton fires ToggleOptionsCommand (OptionsOpen = !OptionsOpen); re-invoking closes it.
         // Opened and closed from the chrome button only — what is *inside* the panel belongs to the

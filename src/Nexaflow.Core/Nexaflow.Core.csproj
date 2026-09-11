@@ -230,4 +230,7 @@
     <InternalsVisibleTo Include="Nexaflow.Tests.Core" />
   </ItemGroup>
 
+  <!-- Language packs: Languages\Nexaflow.Language.<code>.dll, each gathered from every project's Localization/<code>/. -->
+  <Import Project="..\Nexaflow.Languages\LanguagePacks.Deploy.targets" />
+
 </Project>

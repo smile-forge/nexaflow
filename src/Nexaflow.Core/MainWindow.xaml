@@ -8,6 +8,7 @@
         xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
         xmlns:ctrl="clr-namespace:Nexaflow.Core.Controls"
         xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+        xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
         Title="NexaFlow" Height="880" Width="1280"
         AutomationProperties.AutomationId="MainWindow"
         MinHeight="600" MinWidth="900"
@@ -377,6 +378,23 @@
                     Background="{StaticResource Chrome.RightPanel}">
                 <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Right"
                             Margin="0,0,20,10">
+
+                    <!-- Help: this page's help, opened in the pane beside it (also F1). Pressed again while it
+                         shows that page, it closes. -->
+                    <Button Style="{StaticResource TopBarAction}"
+                            Command="{Binding ToggleHelpCommand}"
+                            AutomationProperties.AutomationId="Chrome_HelpButton"
+                            AutomationProperties.Name="{loc:Str Shell.Help.Button}"
+                            ToolTip="{loc:Str Shell.Help.Tooltip}"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,0,4">
+                        <Border Width="15" Height="15" CornerRadius="7.5"
+                                BorderBrush="{StaticResource TextMutedBrush}" BorderThickness="1.2">
+                            <TextBlock Text="?" FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </Button>
 
                     <!-- Options button -->
                     <Button Style="{StaticResource TopBarAction}"

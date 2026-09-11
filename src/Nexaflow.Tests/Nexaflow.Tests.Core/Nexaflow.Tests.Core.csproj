@@ -39,4 +39,7 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 
+  <!-- The same Languages\ folder the app gets, so the localization tests read the packs that actually ship. -->
+  <Import Project="..\..\Nexaflow.Languages\LanguagePacks.Deploy.targets" />
+
 </Project>

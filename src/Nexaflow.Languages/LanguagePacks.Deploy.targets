@@ -1,0 +1,22 @@
+<Project>
+  <!--
+    Deploys every language pack into $(OutDir)Languages\, where LanguageManager discovers them by file name.
+    Imported by Nexaflow.Core (the app ships them - the installer's **\* harvest picks the folder up) and by
+    Nexaflow.Tests.Core (so its tests read the same packs the app does). A pack is a drop-in, never a reference:
+    ReferenceOutputAssembly=false keeps it out of deps.json, and LanguageManager loads it by path.
+  -->
+  <ItemGroup>
+    <_NfLanguagePackProject Include="$(MSBuildThisFileDirectory)Nexaflow.Language.*\Nexaflow.Language.*.csproj" />
+    <ProjectReference Include="@(_NfLanguagePackProject)" ReferenceOutputAssembly="false" Private="false" />
+    <UpToDateCheckInput Include="$(MSBuildThisFileDirectory)..\*\Localization\**\*;$(MSBuildThisFileDirectory)..\*\*\Localization\**\*" />
+  </ItemGroup>
+
+  <!-- Same shape as CopyPrivilegeBridge: the ProjectReference above already built each pack with this
+       Configuration+Platform, so only ask where it put it - a nested Build would spawn a stray AnyCPU instance. -->
+  <Target Name="CopyLanguagePacks" AfterTargets="Build">
+    <MSBuild Projects="@(_NfLanguagePackProject)" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform)">
+      <Output TaskParameter="TargetOutputs" ItemName="_NfLanguagePack" />
+    </MSBuild>
+    <Copy SourceFiles="@(_NfLanguagePack)" DestinationFolder="$(OutDir)Languages\" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

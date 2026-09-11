@@ -18,6 +18,7 @@ A feature is a class library (`Nexaflow.Features.MyFeature`) that references onl
 | Add project reference in `Nexaflow.Core.csproj` | yes | So the feature DLL ships and `FeatureManager` reflection-discovers it at startup |
 | Add a default-button entry in `src/Nexaflow.Core/Ribbon/default-ribbon.json` | optional | Puts a button on the default toolbar (loaded by `RibbonLayoutService.LoadDefaults`) |
 | `IFeatureConfig` | optional | Persisted settings, free Options panel UI |
+| Help page | recommended | `Localization/en/help/<StaticPageKind>.md` in your project — what the page can do, shown by the Help pane beside it; snaplink it as the feature's `docs` concern ([localization.md](localization.md#help-pages)) |
 | `IQueryHandler` | optional | Handle AI input bar text |
 | `IFileAction` / `IFolderAction` | optional | File browser context actions |
 | `IKeyboardHandler` / `IDropTarget` | optional | Global keyboard shortcuts / file drag-drop |
@@ -292,6 +293,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Executable | `path` (a Portable Executable — exe/dll/sys — opened via "Inspect") |
 | Hex | `path`, `offset` (optional, decimal or `0x` hex), `length` (optional — bytes to select) |
 | Pdf | `path`, `page` (optional, 1-based — opens at, or jumps to, that page) |
+| Help (Core) | `topic` (optional — the page kind whose help to show; omit for the list of every help page), `query` (optional — searched as it opens). Both are location, not identity: a window keeps one Help tab and an open re-points it |
 
 ---
 

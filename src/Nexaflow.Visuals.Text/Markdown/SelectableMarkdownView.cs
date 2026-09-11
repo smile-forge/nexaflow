@@ -203,6 +203,10 @@ public class SelectableMarkdownView : UserControl
     /// file. When null, only absolute/<c>file:</c> images render (remote images stay text).</summary>
     public string? BaseDirectory { get; set; }
 
+    /// <summary>Host hook for image sources, asked before <see cref="BaseDirectory"/> — see
+    /// <see cref="MarkdownRenderContext.ImageResolver"/>. Read at render time, so set it before <see cref="Markdown"/>.</summary>
+    public Func<string, System.Windows.Media.ImageSource?>? ImageResolver { get; set; }
+
     /// <summary>When true, a diagram renders at full height (no inner scrollbar) and scales down to the
     /// control width instead of getting its own scrollbars — so only this surface's scrollbar moves. Off by
     /// default. Set it on surfaces that already scroll (e.g. the "As Code" structure panel).</summary>
@@ -218,10 +222,24 @@ public class SelectableMarkdownView : UserControl
         _search?.Clear();
         _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
     }
 
-    // ── Search (rendered text) ────────────────────────────────────────────────
+    /// <summary>Scrolls the heading with in-page anchor <paramref name="anchor"/> — a <c>#anchor</c> link's target,
+    /// without the hash — to the top of the view; false when the document has no such heading. See
+    /// <see cref="MarkdownAnchors"/>.</summary>
+    public bool ScrollToAnchor(string anchor) => MarkdownAnchors.ScrollTo(_rtb, anchor);
+
+    // A link into this document scrolls it, and stops there: a bare #anchor means nothing to the host or a browser.
+    // Anything else is the host's (LinkNavigate), then the browser's.
+    private bool OpenLink(string url)
+    {
+        if (!MarkdownAnchors.IsInPage(url, out var anchor)) return LinkNavigate?.Invoke(url) ?? false;
+        ScrollToAnchor(anchor);
+        return true;
+    }
+
+    // ── Search (rendered text)────────────────────────────────────────────────
 
     private RenderedMarkdownSearch? _search;
     private RenderedMarkdownSearch Search => _search ??= new RenderedMarkdownSearch(_rtb);

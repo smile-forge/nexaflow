@@ -107,6 +107,7 @@ public static class MarkdownFlowDocument
             Margin     = new Thickness(0, hb.Level == 1 ? 14 : 10, 0, 4),
             Tag        = hb.Span,
         };
+        MarkdownAnchors.SetId(para, MarkdownAnchors.IdOf(hb));   // what a [x](#heading) link in this document lands on
         if (hb.Inline is not null)
             foreach (var inl in hb.Inline)
                 BlockRenderer.AddInlines(para.Inlines, inl, ctx);

@@ -4,8 +4,7 @@ using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core;
 
-public enum ThemeOption    { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone, Gothic, Arctic }
-public enum LanguageOption { English }
+public enum ThemeOption { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone, Gothic, Arctic }
 
 /// <summary>
 /// Shell-level configuration. Registered manually in App.xaml.cs since it is not
@@ -21,8 +20,13 @@ public sealed class ShellConfig : IFeatureConfig
     [ConfigDisplayName("Theme")]
     public ThemeOption Theme { get; set; } = ThemeOption.Dark;
 
+    /// <summary>
+    /// The UI language, as the culture code of an installed language pack (<c>Languages\Nexaflow.Language.&lt;code&gt;.dll</c>):
+    /// "en", "fr", "pt-BR". A code with no pack runs in English — as does the "English" an earlier build stored here,
+    /// back when this was an enum. Applied like the theme: saving a change restarts the window.
+    /// </summary>
     [ConfigDisplayName("Language")]
-    public LanguageOption Language { get; set; } = LanguageOption.English;
+    public string Language { get; set; } = "en";
 
     /// <summary>
     /// Point size text content is read at across the shell's text surfaces — the text/code editor, the

@@ -1,0 +1,49 @@
+<Project>
+  <!--
+    A language pack: one resource-only assembly per language, Nexaflow.Language.<code>.dll, gathered from every
+    project's own Localization/<code>/ folder. The source stays with the project that owns it; only the packaging
+    is shared. Each file is embedded as "<ProjectFolder>/<path under Localization/<code>/>", forward-slashed —
+    Nexaflow.Features.Markdown/help/Markdown.md, Nexaflow.Core/strings.json — which is the name LanguageManager
+    reads it back by. See docs/localization.md.
+
+    Never give a file under Localization/ a culture infix (x.fr.md): AssignCulture would split it off into a
+    satellite assembly instead of this one. LanguagePackContentTests catches it if one slips through.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Nexaflow.Language.$(LanguageCode)</AssemblyName>
+    <RootNamespace>Nexaflow.Language</RootNamespace>
+    <!-- No code: the SDK's generated AssemblyInfo is the only thing compiled. -->
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <DebugType>none</DebugType>
+    <IsPackable>false</IsPackable>
+    <NeutralLanguage>$(LanguageCode)</NeutralLanguage>
+    <_NfSrc>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</_NfSrc>
+    <!-- Everything up to and including "<ProjectFolder>\Localization\<code>\", capturing ProjectFolder. -->
+    <_NfLocRe>^(?:.*[\\/])?([^\\/]+)[\\/]Localization[\\/][^\\/]+[\\/]</_NfLocRe>
+  </PropertyGroup>
+
+  <!-- A project's Localization/ sits at its root, one or two levels under src/ (Nexaflow.Core/,
+       Nexaflow.Features/Nexaflow.Features.X/). Fixed-depth globs, so bin/ and obj/ are never walked. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(_NfSrc)*\Localization\$(LanguageCode)\**\*;$(_NfSrc)*\*\Localization\$(LanguageCode)\**\*"
+                      Exclude="$(_NfSrc)Nexaflow.Tests\**"
+                      WithCulture="false">
+      <LogicalName>$([System.Text.RegularExpressions.Regex]::Replace($([MSBuild]::MakeRelative('$(_NfSrc)', '%(FullPath)')), '$(_NfLocRe)', '$1/').Replace('\', '/'))</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <Target Name="_NfPackInputs" BeforeTargets="CoreCompile">
+    <Error Condition="'$(LanguageCode)' == ''" Text="A language pack must set LanguageCode." />
+    <Error Condition="'@(EmbeddedResource)' == ''" Text="Nexaflow.Language.$(LanguageCode): no src/**/Localization/$(LanguageCode)/ files to pack." />
+    <!-- CoreCompile's timestamp check never notices a DELETED input; a changed list of names does. -->
+    <WriteLinesToFile File="$(IntermediateOutputPath)pack-inputs.txt" Lines="@(EmbeddedResource->'%(LogicalName)')"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <CustomAdditionalCompileInputs Include="$(IntermediateOutputPath)pack-inputs.txt" />
+    </ItemGroup>
+  </Target>
+</Project>

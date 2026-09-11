@@ -37,6 +37,10 @@
     <SolidColorBrush x:Key="Tab.ActiveBg"    Color="{StaticResource Surface2Color}"/>
     <SolidColorBrush x:Key="Tab.Accent"      Color="{StaticResource AccentColor}"/>
 
+    <!-- ── Help pane (Core's Help page). Opaque by default, in every theme: help is read beside a page,
+         not over a scene — a translucent veil under body text is a readability cost with nothing to show. ── -->
+    <SolidColorBrush x:Key="Help.Bg"         Color="{StaticResource SurfaceColor}"/>
+
     <!-- ── AI interaction bar (MainWindow row 4). ── -->
     <SolidColorBrush x:Key="AiBar.Bg"        Color="{StaticResource SurfaceColor}"/>
     <SolidColorBrush x:Key="AiBar.InputBg"   Color="{StaticResource Surface2Color}"/>

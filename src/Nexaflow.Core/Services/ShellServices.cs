@@ -18,6 +18,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Nexaflow.Core.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -189,25 +190,23 @@ public sealed class ShellServices : IShellServices
     }
 
     /// <summary>
-    /// Applies <paramref name="theme"/> and restarts <paramref name="current"/> so the new theme takes
-    /// effect, reopening the same tabs (order + active tab preserved). Themes bind via StaticResource
-    /// for rendering performance and so do not live-reflow an open window — changing the theme in
-    /// Options rebuilds the window instead. The fresh window is created and shown BEFORE the old one
-    /// closes so the workspace is never left window-less (which would dispose it); closing the old
-    /// window first clears its tabs from the registry, so the reopen below builds them fresh against
-    /// the new theme rather than moving the old (old-theme) page objects across.
+    /// Applies <paramref name="theme"/> and <paramref name="language"/>, then restarts <paramref name="current"/>
+    /// so they take effect, reopening its pane layout (both panes, each pane's active tab). Neither live-reflows an
+    /// open window — themes bind via StaticResource and UI strings resolve once as the XAML loads, both for
+    /// rendering performance — so changing either in Options rebuilds the window instead. The fresh window is
+    /// created and shown BEFORE the old one closes so the workspace is never left window-less (which would dispose
+    /// it); closing the old window first clears its tabs from the registry, so the restore below builds them fresh
+    /// rather than moving the old page objects across.
     /// </summary>
-    internal void RestartWindowForTheme(IWindowHost current, ThemeOption theme)
+    internal void RestartWindowForAppearance(IWindowHost current, ThemeOption theme, string language)
     {
         if (CreateWindowFactory is null) return;
 
-        // Snapshot the acting window's tabs (front-to-back) and which one is active.
-        var snapshot = current.Tabs
-            .Where(t => !string.IsNullOrEmpty(t.PageKind))
-            .Select(t => (Kind: t.PageKind!, t.PageParams, t.IsActive))
-            .ToList();
+        var layout = current.CaptureTabLayout();
 
-        ThemeManager.Apply(theme, FeatureManager.Instance.ThemeContributionUris);
+        if (theme != ThemeManager.Current)
+            ThemeManager.Apply(theme, FeatureManager.Instance.ThemeContributionUris);
+        LanguageManager.Instance.Select(language);
 
         // Fresh window, placed where the old one was, then close the old one.
         var fresh = CreateWindowFactory();
@@ -223,13 +222,10 @@ public sealed class ShellServices : IShellServices
 
         current.Window.Close();   // synchronously unregisters its tabs from _tabToWindow
 
-        // Reopen in reverse (Pane.Add prepends) so the original left-to-right order is preserved.
-        for (int i = snapshot.Count - 1; i >= 0; i--)
-            OpenTabCore(snapshot[i].Kind, snapshot[i].PageParams, null, inRightPane: false);
-
-        var active = snapshot.FirstOrDefault(s => s.IsActive);
-        if (active.Kind is not null && FindTabCore(active.Kind, active.PageParams) is { } activeTab)
-            fresh.SetActiveTab(activeTab);
+        // The restore opens into the focused window — make certain that is the new one, then rebuild both panes
+        // (a split with the help pane beside a page survives a theme or language change).
+        SetFocused(fresh);
+        RestoreTabLayout(layout);
     }
 
     internal void ClearFocused(IWindowHost host)
@@ -280,10 +276,7 @@ public sealed class ShellServices : IShellServices
         if (inRightPane)
         {
             targetWindow.FocusSecondPane();
-            var fresh = CreateTab(pageKind, pageParams);
-            if (fresh is null) return;
-            _tabToWindow[fresh] = targetWindow;
-            targetWindow.AddTab(fresh);
+            AddFreshTab(targetWindow, pageKind, pageParams);
             return;
         }
 
@@ -309,6 +302,17 @@ public sealed class ShellServices : IShellServices
 
         _tabToWindow[tab] = targetWindow;
         targetWindow.AddTab(tab);
+    }
+
+    /// <summary>Creates a fresh <paramref name="pageKind"/> tab and adds it to <paramref name="target"/>'s focused pane —
+    /// no search for an existing tab to reuse. Backs "open in the right pane" and the Help pane.</summary>
+    internal Page? AddFreshTab(IWindowHost target, string pageKind, Dictionary<string, string>? pageParams)
+    {
+        var fresh = CreateTab(pageKind, pageParams);
+        if (fresh is null) return null;
+        _tabToWindow[fresh] = target;
+        target.AddTab(fresh);
+        return fresh;
     }
 
     // ── Default-tab restore (debounced) ───────────────────────────────────

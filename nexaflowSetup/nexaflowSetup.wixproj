@@ -261,6 +261,20 @@
            Text="Installer payload is incomplete: harvested @(_HarvestedFeature->Count()) feature DLL(s) from $(_CoreOutDir) but the solution has @(_FeatureProj->Count()) feature project(s). Core's output is stale or a feature stopped propagating — clean/rebuild Nexaflow.Core for $(Configuration), then rebuild the installer. Harvested: @(_HarvestedFeature->'%(Filename)', ', ')." />
 
     <!--
+      Same completeness check for the language packs: every Nexaflow.Language.* project must have landed in the
+      payload's Languages\ folder, or the app ships without that language's help pages and UI strings - and for
+      English, without the fallback every other language sits on.
+    -->
+    <ItemGroup>
+      <_LanguagePackProj Include="$(MSBuildThisFileDirectory)..\src\Nexaflow.Languages\**\Nexaflow.Language.*.csproj" />
+      <_HarvestedLanguagePack Include="@(_CoreFile)"
+          Condition="'%(Extension)' == '.dll' and $([System.String]::Copy('%(Filename)').StartsWith('Nexaflow.Language.'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(_LanguagePackProj->Count())' != '@(_HarvestedLanguagePack->Count())'"
+           Text="Installer payload is incomplete: harvested @(_HarvestedLanguagePack->Count()) language pack(s) from $(_CoreOutDir) but the solution has @(_LanguagePackProj->Count()) language pack project(s). Core's output is stale — clean/rebuild Nexaflow.Core for $(Configuration), then rebuild the installer. Harvested: @(_HarvestedLanguagePack->'%(Filename)', ', ')." />
+
+    <!--
       Completeness guard: the libVLC native runtime (VideoLAN.LibVLC.Windows, via Nexaflow.Features.Video)
       ships under libvlc\win-x64\. The package drops it into the Video project's output but it does NOT flow
       through ProjectReference into Core's output, so Core's CopyLibVlc target copies it in explicitly. If it

@@ -88,6 +88,14 @@ public sealed class MarkdownRenderContext
     public string? BaseDirectory { get; init; }
 
     /// <summary>
+    /// Optional host hook for image sources, asked first for every <c>![](src)</c>. Return a frozen
+    /// <see cref="System.Windows.Media.ImageSource"/> to supply the picture, or null to fall through to
+    /// <see cref="BaseDirectory"/> file resolution. For documents that do not live on disk — the help pane reads its
+    /// showcases, pictures included, out of a language pack. A resolver that throws renders the alt text.
+    /// </summary>
+    public Func<string, System.Windows.Media.ImageSource?>? ImageResolver { get; init; }
+
+    /// <summary>
     /// When true, a diagram wider/taller than the available width is scaled down (uniformly) to fit
     /// rather than getting its own scrollbars. Set by the inline editor: scrollbars inside an editable
     /// surface fight text selection (you can't grab the thumb), so the diagram fits the column instead.

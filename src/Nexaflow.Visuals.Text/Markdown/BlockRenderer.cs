@@ -814,7 +814,11 @@ public static class BlockRenderer
             Foreground      = ctx.Palette.Accent,
             TextDecorations = TextDecorations.Underline,
             Cursor          = System.Windows.Input.Cursors.Hand,   // signal the link is clickable
-            NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null,
+            // An absolute URL, or an in-page #anchor (relative, but it names a place in this very document, which
+            // the surface resolves — see MarkdownAnchors). Any other relative link stays inert.
+            NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri
+                            : MarkdownAnchors.IsInPage(url, out _) ? new Uri(url!, UriKind.Relative)
+                            : null,
             Tag             = url,   // raw source URL — NavigateUri normalizes (trailing slash, casing),
                                      // and MarkdownInlineSerializer needs the exact original to round-trip
         };
@@ -823,8 +827,10 @@ public static class BlockRenderer
         {
             var nav = e.Uri.ToString();
             e.Handled = true;
-            // In-app handler wins; otherwise fall back to the OS browser.
+            // In-app handler wins; otherwise fall back to the OS browser — never for a relative link, which names
+            // nothing the browser could open.
             if (onNavigate is not null && onNavigate(nav)) return;
+            if (!e.Uri.IsAbsoluteUri) return;
             try { Process.Start(new ProcessStartInfo(nav) { UseShellExecute = true }); }
             catch { }
         };
@@ -862,17 +868,33 @@ public static class BlockRenderer
     // ── Image rendering (local files only) ────────────────────────────────
 
     /// <summary>
-    /// Builds an inline image for a markdown <c>![](src)</c> when <paramref name="src"/> resolves
-    /// to an existing LOCAL file — an absolute path, a <c>file:</c> URI, or a name relative to
-    /// <see cref="MarkdownRenderContext.BaseDirectory"/>. Remote <c>http(s)</c> sources are never
-    /// fetched (returns null so the caller shows alt text). The bitmap is loaded with
-    /// <see cref="BitmapCacheOption.OnLoad"/> so the renderer holds no file handle.
+    /// Renders a markdown image, or returns null so the caller shows the alt text. The host's
+    /// <see cref="MarkdownRenderContext.ImageResolver"/> is asked first — that is how a document read from somewhere
+    /// other than disk brings its pictures along. A null answer falls through to a LOCAL file: an absolute path, a
+    /// <c>file:</c> URI, or a name relative to <see cref="MarkdownRenderContext.BaseDirectory"/>. Remote
+    /// <c>http(s)</c> sources are never fetched.
     /// </summary>
     private static WpfInline? TryRenderImage(string? src, MarkdownRenderContext ctx)
     {
-        var path = ResolveLocalImagePath(src, ctx.BaseDirectory);
-        if (path is null) return null;
+        if (string.IsNullOrWhiteSpace(src)) return null;
 
+        // A resolver that throws is a host bug, not a reason to lose the document: the picture becomes its alt text.
+        ImageSource? source = null;
+        if (ctx.ImageResolver is { } resolve)
+        {
+            try { source = resolve(src); }
+            catch { return null; }
+        }
+
+        source ??= LoadLocalBitmap(ResolveLocalImagePath(src, ctx.BaseDirectory));
+        return source is null ? null : ImageInline(source);
+    }
+
+    /// <summary>Loads a local image file with <see cref="System.Windows.Media.Imaging.BitmapCacheOption.OnLoad"/>, so
+    /// the renderer holds no file handle, and freezes it. Null when there is no path or it will not decode.</summary>
+    private static ImageSource? LoadLocalBitmap(string? path)
+    {
+        if (path is null) return null;
         try
         {
             var bmp = new System.Windows.Media.Imaging.BitmapImage();
@@ -882,22 +904,27 @@ public static class BlockRenderer
             bmp.UriSource    = new Uri(path, UriKind.Absolute);
             bmp.EndInit();
             bmp.Freeze();
-
-            var img = new Image
-            {
-                Source           = bmp,
-                Stretch          = Stretch.Uniform,
-                StretchDirection = StretchDirection.DownOnly,
-                MaxWidth         = 600,
-                MaxHeight        = 600,
-                Margin           = new Thickness(0, 2, 0, 2),
-            };
-            return new InlineUIContainer(img) { BaselineAlignment = BaselineAlignment.Bottom };
+            return bmp;
         }
         catch
         {
             return null;
         }
+    }
+
+    /// <summary>An inline picture, scaled down (never up) to fit 600×600.</summary>
+    private static WpfInline ImageInline(ImageSource source)
+    {
+        var img = new Image
+        {
+            Source           = source,
+            Stretch          = Stretch.Uniform,
+            StretchDirection = StretchDirection.DownOnly,
+            MaxWidth         = 600,
+            MaxHeight        = 600,
+            Margin           = new Thickness(0, 2, 0, 2),
+        };
+        return new InlineUIContainer(img) { BaselineAlignment = BaselineAlignment.Bottom };
     }
 
     /// <summary>

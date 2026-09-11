@@ -26,6 +26,7 @@ using System.Windows.Threading;
 using Updatum;
 using StageKit.Runtime;
 using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Core.Localization;
 
 namespace Nexaflow.Core;
 
@@ -215,6 +216,11 @@ public partial class App : Application
         // session paints at the saved size rather than at 13 and then jumping.
         TextTypography.BaseFontSize = shellConfig.TextFontSize;
         StartupTimings.Mark("Init.Theme");
+
+        // The UI language: records the choice and points Str at it. Loads nothing - the first string or help page
+        // asked for reads the pack (one resource-only assembly, once).
+        LanguageManager.Initialize(Path.Combine(AppContext.BaseDirectory, "Languages"), shellConfig.Language);
+        StartupTimings.Mark("Init.Language");
 
         var securityConfig = new SecurityConfig();
         ConfigManager.Instance.Register(securityConfig, securityConfig.ConfigName);
@@ -457,6 +463,10 @@ public partial class App : Application
             }
 
             StampLastRunVersion();
+
+            // The wizard's Shell step may have picked a language: select it before the first window's strings resolve.
+            if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell)
+                LanguageManager.Instance.Select(shell.Language);
         }
 
         var ws = WorkspaceManager.Instance.CreateWorkspace(workspace);
