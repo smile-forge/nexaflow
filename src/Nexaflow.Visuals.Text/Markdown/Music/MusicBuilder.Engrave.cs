@@ -237,7 +237,7 @@ internal abstract partial class MusicBuilder
 
             // A semibreve has no stem to make room for.
             var stem = group.Any(e => e.BaseValue >= 2) ? StemHalfSpaces : 0;
-            var down = StemsDown(halves);
+            var down = Engraving.StemDown(halves);
 
             high = Math.Max(high, halves.Max() + (down ? 0 : stem));
             low = Math.Min(low, halves.Min() - (down ? stem : 0));
@@ -714,15 +714,6 @@ internal abstract partial class MusicBuilder
     // ── Repeat brackets ─────────────────────────────────────────────────────
 
     // ── Glyphs and geometry ─────────────────────────────────────────────────
-
-    /// <summary>
-    /// Which way a stem points: away from the middle line, with the note reaching furthest from it
-    /// deciding for the whole group. The tie — a note on the middle line, or a group reaching equally far
-    /// both ways — goes down, which is a convention borrowed from the corpus rather than a rule. See
-    /// <see cref="Engraving.StemDown"/>, which this is the half-space form of.
-    /// </summary>
-    private static bool StemsDown(IReadOnlyList<int> halves) =>
-        halves.Max() - Engraving.MiddleLine >= Engraving.MiddleLine - halves.Min();
 
     /// <summary>Where a half-space above the bottom staff line lands on the page.</summary>
     private static double Y(System system, int half) => system.StaffTop + StaffHeight - (half * (S / 2));

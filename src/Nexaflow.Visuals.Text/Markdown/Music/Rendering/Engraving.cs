@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Nexaflow.Visuals.Text.Markdown.Music.Model;
+using System.Linq;
 using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
@@ -8,39 +8,17 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 /// <summary>
 /// The judgement calls of engraving, separated from the drawing so they can be reasoned about (and asserted)
 /// on their own: which way a stem points, and how steeply a beam sits over its group. Everything else in the
-/// painter is mechanical.
+/// builder is mechanical.
 /// </summary>
 internal static class Engraving
 {
-    /// <summary>The staff positions an event occupies, in half-spaces above the bottom line — one value twice
-    /// over for a note, the full spread for a chord. Rests nominally sit on the middle line.</summary>
-    public static (int Lo, int Hi) Span(MusicalEvent ev, StaffGeometry g)
-    {
-        switch (ev)
-        {
-            case Note n:
-                int h = g.HalfSpacesAbove(n.Pitch);
-                return (h, h);
-            case Chord c when c.Notes.Count > 0:
-                int lo = int.MaxValue, hi = int.MinValue;
-                foreach (var cn in c.Notes)
-                {
-                    int x = g.HalfSpacesAbove(cn.Pitch);
-                    lo = Math.Min(lo, x);
-                    hi = Math.Max(hi, x);
-                }
-                return (lo, hi);
-            default:
-                return (MiddleLine, MiddleLine);
-        }
-    }
-
     /// <summary>The middle staff line, in half-spaces above the bottom line.</summary>
     public const int MiddleLine = 4;
 
     /// <summary>
-    /// Stems point away from the middle line, and the note that reaches furthest from it decides for the
-    /// whole beam group.
+    /// Which way the stems of a note, a chord or a beamed group point, given the half-spaces above the bottom
+    /// line its heads sit at: away from the middle line, with the head reaching furthest from it deciding for
+    /// all of them.
     /// <para>
     /// <strong>The tie goes down</strong> — a note sitting <em>on</em> the middle line, or a group reaching
     /// equally far both ways. There is no rule to appeal to here: engravers take either way and choose by
@@ -49,19 +27,8 @@ internal static class Engraving
     /// borrowed is worth more than a coin flip, and this is the only case the rule leaves open.
     /// </para>
     /// </summary>
-    public static bool StemDown(IReadOnlyList<MusicalEvent> group, StaffGeometry g)
-    {
-        int lo = int.MaxValue, hi = int.MinValue;
-        foreach (var ev in group)
-        {
-            var (a, b) = Span(ev, g);
-            lo = Math.Min(lo, a);
-            hi = Math.Max(hi, b);
-        }
-        return hi - MiddleLine >= MiddleLine - lo;
-    }
-
-    public static bool StemDown(MusicalEvent ev, StaffGeometry g) => StemDown([ev], g);
+    public static bool StemDown(IReadOnlyList<int> halves) =>
+        halves.Max() - MiddleLine >= MiddleLine - halves.Min();
 
     /// <summary>
     /// The slope of a beam, from the y of the head each stem must clear and the x of each stem.

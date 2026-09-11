@@ -406,7 +406,7 @@ internal abstract partial class MusicBuilder
         var halves = events.SelectMany(e => e.Heads.Select(geometry.HalfSpacesAbove)).ToList();
         if (halves.Count == 0) return null;
 
-        var down = StemsDown(halves);
+        var down = Engraving.StemDown(halves);
 
         var xs = new List<double>();
         var outer = new List<double>();
@@ -655,7 +655,7 @@ internal abstract partial class MusicBuilder
             ? ev.Heads.Select(geometry.HalfSpacesAbove).ToList()
             : [Engraving.MiddleLine];
 
-        var down = StemsDown(halves);
+        var down = Engraving.StemDown(halves);
         var at = down ? halves.Max() + 2 : halves.Min() - 2;
 
         foreach (var glyph in ev.HeadMarks)
@@ -736,7 +736,7 @@ internal abstract partial class MusicBuilder
         if (ev.IsRest || ev.Heads.Length == 0 || ev.BaseValue <= 1) return;
 
         var halves = ev.Heads.Select(geometry.HalfSpacesAbove).ToList();
-        var down = stemsDown ?? StemsDown(halves);
+        var down = stemsDown ?? Engraving.StemDown(halves);
 
         var fromY = Y(system, down ? halves.Max() : halves.Min());
         var endY = toY ?? (down ? Y(system, halves.Min()) + StemLen : Y(system, halves.Max()) - StemLen);
@@ -930,7 +930,7 @@ internal abstract partial class MusicBuilder
 
             if (halves.Count > 0 && bar.Events[at].TupletNumber > 1)
             {
-                var down = StemsDown(halves);
+                var down = Engraving.StemDown(halves);
                 var glyphs = ScoreText.Build(
                     bar.Events[at].TupletNumber.ToString(global::System.Globalization.CultureInfo.InvariantCulture),
                     VoltaSize, _ppd, style: FontStyles.Italic);
@@ -1255,7 +1255,7 @@ internal abstract partial class MusicBuilder
                 // Opposite the stems, which is the whole rule: a stem leaving the head upward is what the curve
                 // has to keep clear of, so it bows underneath, and the other way round for a down stem. Where
                 // the two ends disagree it goes above, which is the side with room.
-                Above = StemsDown(Stems(one)) || StemsDown(Stems(other)),
+                Above = Engraving.StemDown(Stems(one)) || Engraving.StemDown(Stems(other)),
             };
 
         if (ReferenceEquals(one.Bar, other.Bar))

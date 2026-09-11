@@ -4,9 +4,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 
 /// <summary>
 /// Vertical placement maths for one clef. A staff's bottom line is "half-space 0"; every diatonic step
-/// is one half-space up. A pitch's line/space position is its <see cref="Pitch.DiatonicIndex"/> minus the
-/// clef's bottom-line reference index. Also holds the clef glyph's reference line and the canonical
-/// diatonic positions for key-signature accidentals (treble/bass hardcoded; C-clefs approximate to treble).
+/// is one half-space up. A pitch's line/space position is its
+/// <see cref="Nexaflow.Markdown.Music.Pitch.DiatonicIndex"/> minus the clef's bottom-line reference index.
+/// Also holds the clef glyph's reference line and the canonical diatonic positions for key-signature
+/// accidentals (treble/bass hardcoded; C-clefs approximate to treble).
 /// </summary>
 internal sealed class StaffGeometry
 {
@@ -39,10 +40,7 @@ internal sealed class StaffGeometry
         _              => Treble,
     };
 
-    /// <summary>Half-spaces of a pitch above the bottom staff line (0 = bottom line, 8 = top line).</summary>
-    public int HalfSpacesAbove(Pitch p) => p.DiatonicIndex - BottomLineIndex;
-
-    /// <summary>The same, for a reading that carries a diatonic index rather than a Model.Pitch.</summary>
+    /// <summary>Half-spaces of a diatonic index above the bottom staff line (0 = bottom line, 8 = top line).</summary>
     public int HalfSpacesAbove(int diatonicIndex) => diatonicIndex - BottomLineIndex;
 
     /// <summary>The diatonic index at which the n-th sharp/flat of a key signature is drawn.</summary>
