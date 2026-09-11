@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// Changing a formula by changing its tree.

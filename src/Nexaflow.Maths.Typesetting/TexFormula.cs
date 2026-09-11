@@ -45,8 +45,8 @@ public sealed class TexFormula
     /// is also the only moment the answer can still be right, after an edit or two.
     /// </para>
     /// </summary>
-    public IReadOnlyList<Nexaflow.Maths.Latex.TexPart> Ignored { get; internal set; } =
-        new List<Nexaflow.Maths.Latex.TexPart>();
+    public IReadOnlyList<Nexaflow.Markdown.Latex.TexPart> Ignored { get; internal set; } =
+        new List<Nexaflow.Markdown.Latex.TexPart>();
 
     public void SetForeground(IBrush brush)
     {

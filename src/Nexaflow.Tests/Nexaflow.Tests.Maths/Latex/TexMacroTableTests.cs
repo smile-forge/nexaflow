@@ -1,5 +1,5 @@
 using System.Linq;
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Maths.Latex;

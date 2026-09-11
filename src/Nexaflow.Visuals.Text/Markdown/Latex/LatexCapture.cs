@@ -1,4 +1,4 @@
-﻿using Nexaflow.Maths.Latex;
+﻿using Nexaflow.Markdown.Latex;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -72,7 +72,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// The parts of everything the piece being built is inside, nearest last — what says whether its own
     /// part is a new one. See <see cref="Owns"/>.
     /// </summary>
-    private readonly List<Nexaflow.Maths.Latex.TexPart> _above = [];
+    private readonly List<Nexaflow.Markdown.Latex.TexPart> _above = [];
 
     /// <summary>Whether anything inside the piece being built stands for a part of its own.</summary>
     // OverUnderBox (\overrightarrow and friends) draws through RenderTransformed, so a box can be shifted
@@ -232,7 +232,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// its drawing, and simply stands for nothing, so a press on it resolves to whatever encloses it.
     /// </para>
     /// </summary>
-    private Nexaflow.Maths.Latex.TexPart? Owns(Box box)
+    private Nexaflow.Markdown.Latex.TexPart? Owns(Box box)
     {
         // A strut and a piece of glue are room rather than ink, and were written by nobody.
         var part = box is StrutBox or GlueBox ? null : box.Node?.Origin;
@@ -247,7 +247,7 @@ internal sealed class LatexCapture : IElementRenderer
     }
 
     /// <summary>Whether one part is the other, or written somewhere inside it.</summary>
-    private static bool Within(Nexaflow.Maths.Latex.TexPart part, Nexaflow.Maths.Latex.TexPart enclosing) =>
+    private static bool Within(Nexaflow.Markdown.Latex.TexPart part, Nexaflow.Markdown.Latex.TexPart enclosing) =>
         ReferenceEquals(part, enclosing) || part.Ancestors().Any(up => ReferenceEquals(up, enclosing));
 
     /// <summary>
@@ -256,8 +256,8 @@ internal sealed class LatexCapture : IElementRenderer
     /// construct names its parts <c>numerator</c>, <c>radicand</c>, <c>superscript</c> — each meaning
     /// something to the construct. So the roles already carry the distinction.
     /// </summary>
-    internal static bool IsRun(Nexaflow.Maths.Latex.TexPart part) =>
-        part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Maths.Latex.TexRole.Element);
+    internal static bool IsRun(Nexaflow.Markdown.Latex.TexPart part) =>
+        part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Markdown.Latex.TexRole.Element);
 
     /// <summary>
     /// Whether the things in a run reach both of its ends, so that it has no edge of its own for a caret to
@@ -280,7 +280,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// as one piece, so asking a wrapper what its parts cover only asks about the wrapper.
     /// </para>
     /// </summary>
-    private static bool Covered(Nexaflow.Maths.Latex.TexPart run)
+    private static bool Covered(Nexaflow.Markdown.Latex.TexPart run)
     {
         var inner = run;
         while (inner.Parts.Count() == 1 && IsRun(inner)) inner = inner.Parts.First();

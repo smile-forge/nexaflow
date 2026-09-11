@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// A formula's parts as anything <em>building</em> from them is allowed to see them: what each part is,

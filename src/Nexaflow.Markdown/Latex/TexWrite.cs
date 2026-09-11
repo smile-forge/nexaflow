@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// What writing into a tree produced: the tree, and where in what it prints as the writing landed.

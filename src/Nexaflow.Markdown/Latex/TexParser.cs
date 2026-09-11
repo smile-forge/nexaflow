@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// Reads LaTeX into a tree that prints back exactly what was read.

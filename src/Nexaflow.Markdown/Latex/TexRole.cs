@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// What a piece is <em>to</em> the thing holding it.

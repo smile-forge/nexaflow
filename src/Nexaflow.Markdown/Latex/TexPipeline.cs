@@ -1,7 +1,7 @@
 using System.Text;
 using System.Linq;
 
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// Reading a formula, in stages: the parser makes a tree of what was written, and each stage after it

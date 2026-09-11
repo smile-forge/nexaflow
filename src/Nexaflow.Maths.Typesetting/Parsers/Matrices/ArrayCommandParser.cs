@@ -26,7 +26,7 @@ internal sealed class ArrayCommandParser
         IEnumerable<IEnumerable<Atom?>> cells,
         ArrayColumnSpec spec,
         IReadOnlyCollection<int>? horizontalRules,
-        Nexaflow.Maths.Latex.TexPart? origin = null) =>
+        Nexaflow.Markdown.Latex.TexPart? origin = null) =>
         new MatrixAtom(
             cells,
             MatrixCellAlignment.Center,

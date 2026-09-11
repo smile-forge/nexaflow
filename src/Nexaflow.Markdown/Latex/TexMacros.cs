@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// The names that are not commands at all, but shorthand: <c>\neq</c> is a slash over an equals sign,

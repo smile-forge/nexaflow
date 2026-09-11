@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// One part of a formula, with where it sits and what holds it.

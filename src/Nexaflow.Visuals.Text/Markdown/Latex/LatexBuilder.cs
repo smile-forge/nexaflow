@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
 using WpfMath.Rendering;

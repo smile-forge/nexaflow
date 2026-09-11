@@ -3,7 +3,7 @@ module WpfMath.Tests.Utils
 open System
 open System.Windows
 
-open Nexaflow.Maths.Latex
+open Nexaflow.Markdown.Latex
 open WpfMath.Parsers
 open XamlMath
 

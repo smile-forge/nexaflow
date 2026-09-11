@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>What a piece of a formula is.</summary>
 /// <remarks>

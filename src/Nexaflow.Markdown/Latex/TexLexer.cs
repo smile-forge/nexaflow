@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>What a token is. TeX's own categories, minus the ones maths mode never sees.</summary>
 internal enum TexTokenKind

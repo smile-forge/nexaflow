@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// One piece of a formula: what it is, what it is to whatever holds it, and either the characters it

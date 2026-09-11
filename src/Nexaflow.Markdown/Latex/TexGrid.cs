@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>One cell of a grid: where it is in the table, and which characters are written in it.</summary>
 /// <param name="Start">Where the contents begin, past any space after the separator.</param>

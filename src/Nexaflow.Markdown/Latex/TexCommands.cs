@@ -1,4 +1,4 @@
-namespace Nexaflow.Maths.Latex;
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>A command, and what the things after it are to it.</summary>
 /// <param name="Arguments">One role per required argument, in the order they are written.</param>

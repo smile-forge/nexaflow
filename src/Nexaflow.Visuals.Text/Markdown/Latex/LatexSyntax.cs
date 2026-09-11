@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
