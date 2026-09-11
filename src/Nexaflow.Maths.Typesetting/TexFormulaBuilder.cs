@@ -78,27 +78,18 @@ public static class TexFormulaBuilder
         System.ArgumentNullException.ThrowIfNull(root);
 
         var ignored = new List<TexPart>();
-        var numbers = new List<Atom>();
-        var (was, wereNumbers) = (_ignored, _numbers);
-        (_ignored, _numbers) = (ignored, numbers);
+        var was = _ignored;
+        _ignored = ignored;
 
         try
         {
             var built = Run(root.Parts, root, null, knowledge);
 
-            return built is null ? null : new TexFormula
-            {
-                RootAtom = built,
-                Ignored = ignored,
-
-                // The last one written. A second \tag in one equation is an error to LaTeX, and there is no
-                // second place to put it.
-                Number = numbers.Count > 0 ? new TexFormula { RootAtom = numbers[^1] } : null,
-            };
+            return built is null ? null : new TexFormula { RootAtom = built, Ignored = ignored };
         }
         finally
         {
-            (_ignored, _numbers) = (was, wereNumbers);
+            _ignored = was;
         }
     }
 
@@ -115,16 +106,30 @@ public static class TexFormulaBuilder
     [System.ThreadStatic]
     private static List<TexPart>? _ignored;
 
-    /// <summary>
-    /// Where the equation numbers a build meets are put while it runs — see <see cref="Numbering"/>. Per thread and
-    /// restored, for the same reasons as <see cref="_ignored"/>.
-    /// </summary>
-    [System.ThreadStatic]
-    private static List<Atom>? _numbers;
-
     /// <summary>Whether this reading can be built at all — the corpus's coverage question.</summary>
     public static bool CanBuild(ITexPart root, TexFormulaParser knowledge) =>
         Build(root, knowledge) is not null;
+
+    /// <summary>
+    /// An equation's number — the <c>\tag</c> written in the reading — as a formula of its own, or null where there is
+    /// none.
+    ///
+    /// <para>
+    /// Not part of what <see cref="Build"/> makes, and not carried on it. LaTeX sets the number against the right edge
+    /// of the block the equation is displayed in, wherever the <c>\tag</c> was written, and where that edge is belongs to
+    /// whatever lays the block out — so the number is handed over on its own, for that to place.
+    /// </para>
+    /// </summary>
+    public static TexFormula? Number(ITexPart root)
+    {
+        System.ArgumentNullException.ThrowIfNull(root);
+
+        // The last one written. A second \tag in one equation is an error to LaTeX, and there is no second place to
+        // put it.
+        return root.SelfAndDescendants().LastOrDefault(IsTag) is { } tag && Numbering(tag) is { } number
+            ? new TexFormula { RootAtom = number }
+            : null;
+    }
 
     // ── One part ────────────────────────────────────────────────────────────
 
@@ -248,15 +253,16 @@ public static class TexFormulaBuilder
     /// </summary>
     private static Atom? Numbering(ITexPart part)
     {
-        if (part.Kind != TexKind.Command || part.Part(TexRole.Name)?.Text is not { } name
-            || name is not (@"\tag" or @"\tag*"))
-            return null;
-
-        if (part.Part(TexRole.Argument) is not { } written) return null;
+        if (!IsTag(part) || part.Part(TexRole.Argument) is not { } written) return null;
 
         var number = Inside(written);
-        return Tag(Letters(name == @"\tag" ? $"({number})" : number, TexUtilities.TextStyleName, spaced: true), part);
+        var starred = part.Part(TexRole.Name)?.Text == @"\tag*";
+        return Tag(Letters(starred ? number : $"({number})", TexUtilities.TextStyleName, spaced: true), part);
     }
+
+    /// <summary>Whether this is an equation's number — <c>\tag</c>, or <c>\tag*</c> without its parentheses.</summary>
+    private static bool IsTag(ITexPart part) =>
+        part.Kind == TexKind.Command && part.Part(TexRole.Name)?.Text is @"\tag" or @"\tag*";
 
     /// <summary>
     /// A display environment that means nothing beyond its contents here — <c>equation</c> and its family, in a
@@ -626,14 +632,10 @@ public static class TexFormulaBuilder
                 break;
             }
 
-            // An equation's number. Its place is the right edge of the block the formula is displayed in, not the
-            // line it was written in — LaTeX puts it there wherever the \tag was — so it is built on its own and
-            // handed out beside the formula, for whatever lays out the block. See TexFormula.Number.
-            if (Numbering(run[at]) is { } number)
-            {
-                _numbers?.Add(number);
-                continue;
-            }
+            // An equation's number is not part of the equation. LaTeX sets it at the right edge of the block the
+            // formula is displayed in, wherever the \tag was written, so it is built on its own — see Number — and
+            // placed by whatever lays out the block.
+            if (IsTag(run[at])) continue;
 
             // A command whose whole effect belongs to a page this formula does not have — `\nonumber`,
             // `\label`. It draws nothing, so it makes no atom, exactly as a typed space

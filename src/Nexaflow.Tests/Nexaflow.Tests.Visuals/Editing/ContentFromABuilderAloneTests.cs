@@ -30,10 +30,10 @@ namespace Nexaflow.Tests.Visuals.Editing;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("markdown-editing")]
 public class ContentFromABuilderAloneTests
 {
     [TestMethod]
+    [CoversNode("abc-editing")]
     public void ATuneTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
         var tune = Laid(MusicScore.Engraved(MusicDialect.Abc, "X:1\nL:1/8\nK:C\nCDEF|\n", MarkdownPalette.Dark, sourceStart: 0));
@@ -51,6 +51,7 @@ public class ContentFromABuilderAloneTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void ABarcodeTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
         var barcode = Laid(Barcode("format: CODE128\nvalue: HELLO123"));
@@ -65,6 +66,7 @@ public class ContentFromABuilderAloneTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void ABarcodeKnowsWhereItsValueSitsInTheFence() => UiThread.Run(() =>
     {
         // The host reads SourceStart < 0 as "the whole block IS this content", which only a $$…$$
