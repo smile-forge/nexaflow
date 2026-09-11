@@ -203,6 +203,10 @@ public class SelectableMarkdownView : UserControl
     /// file. When null, only absolute/<c>file:</c> images render (remote images stay text).</summary>
     public string? BaseDirectory { get; set; }
 
+    /// <summary>Host hook for image sources, asked before <see cref="BaseDirectory"/> — see
+    /// <see cref="MarkdownRenderContext.ImageResolver"/>. Read at render time, so set it before <see cref="Markdown"/>.</summary>
+    public Func<string, System.Windows.Media.ImageSource?>? ImageResolver { get; set; }
+
     /// <summary>When true, a diagram renders at full height (no inner scrollbar) and scales down to the
     /// control width instead of getting its own scrollbars — so only this surface's scrollbar moves. Off by
     /// default. Set it on surfaces that already scroll (e.g. the "As Code" structure panel).</summary>
@@ -218,7 +222,7 @@ public class SelectableMarkdownView : UserControl
         _search?.Clear();
         _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
     }
 
     // ── Search (rendered text) ────────────────────────────────────────────────
