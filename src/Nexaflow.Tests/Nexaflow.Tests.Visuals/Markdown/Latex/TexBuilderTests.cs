@@ -12,6 +12,7 @@ using XamlMath;
 using XamlMath.Rendering;
 using WpfMath.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -273,7 +274,7 @@ public class TexBuilderTests
     public void EverythingItClaimsToKnowItCanBuild() => UiThread.Run(() =>
     {
         foreach (var latex in Known)
-            Assert.IsNotNull(TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
+            Assert.IsNotNull(TexFormulaBuilder.Build(ContentReading.Of(TexParser.Parse(latex)).Root, WpfTeXFormulaParser.Instance), latex);
     });
 
     [TestMethod]
@@ -281,7 +282,7 @@ public class TexBuilderTests
     {
         // What none of this is possible without, and what the parser can never provide: an atom that
         // came from a reading which still knows where every brace was.
-        var reading = TexReading.Of(@"\frac{a}{b}");
+        var reading = ContentReading.Of(TexParser.Parse(@"\frac{a}{b}"));
         var formula = TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance);
         Assert.IsNotNull(formula);
 
@@ -308,7 +309,7 @@ public class TexBuilderTests
                                       @"\hline",           // nor this: it is a rule between rows
                                       @"x + \nosuchthing" })
             Assert.IsNotNull(
-                TexFormulaBuilder.Build(TexReading.Of(latex).Root, WpfTeXFormulaParser.Instance), latex);
+                TexFormulaBuilder.Build(ContentReading.Of(TexParser.Parse(latex)).Root, WpfTeXFormulaParser.Instance), latex);
     });
 
     /// <summary>
@@ -337,9 +338,9 @@ public class TexBuilderTests
     }
 
     /// <summary>Every command a reading names, once each.</summary>
-    private static HashSet<string> Commands(TexNode node, HashSet<string> into)
+    private static HashSet<string> Commands(ContentNode node, HashSet<string> into)
     {
-        if (node.Role == TexRole.Name && node.Text.StartsWith('\\')) into.Add(node.Text);
+        if (node.Role == Roles.Name && node.Text.StartsWith('\\')) into.Add(node.Text);
         foreach (var child in node.Children) Commands(child, into);
         return into;
     }
@@ -358,7 +359,7 @@ public class TexBuilderTests
     /// Different ink is a disagreement about the picture, and fails until somebody looks at it.
     /// </para>
     /// </summary>
-    private static string Drawn(TexFormula formula, TexReading reading)
+    private static string Drawn(TexFormula formula, ContentReading reading)
     {
         var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
@@ -396,7 +397,7 @@ public class TexBuilderTests
     /// answers exactly.
     /// </para>
     /// </summary>
-    private static string? Decided(TexReading reading, TexFormula ours)
+    private static string? Decided(ContentReading reading, TexFormula ours)
     {
         // A macro whose expansion is several atoms — `\cdots` is three dots, `\hbar` an h with a bar laid
         // over it. The reader wrote one token, so one thing is what it is here: ours keeps the assembly
@@ -404,8 +405,8 @@ public class TexBuilderTests
         // that the token was ever one. Which matters beyond drawing — a calculation reading `\hbar` wants
         // the constant, not three boxes, and a selection wants the whole of it or none.
         if (Parts(ours.RootAtom!).Any(atom => atom.Slots.Count > 0
-                                              && atom.Origin is { Kind: TexKind.Command } part
-                                              && part.Children.All(child => child.Role == TexRole.Name)))
+                                              && atom.Origin is { Kind: TexKinds.Command } part
+                                              && part.Children.All(child => child.Role == Roles.Name)))
             return "a macro's expansion — ours keeps the one token the reader wrote as one thing";
 
         // Reviewed 2026-08-27. Identical renderings; the parser splices a row written first into the row
@@ -423,7 +424,7 @@ public class TexBuilderTests
     }
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
-    private static int Order(TexPart whole, string role)
+    private static int Order(ContentPart whole, string role)
     {
         for (var at = 0; at < whole.Children.Count; at++)
             if (whole.Children[at].Role == role) return at;
@@ -431,7 +432,7 @@ public class TexBuilderTests
         return -1;
     }
 
-    private static string? Decided(TexReading reading)
+    private static string? Decided(ContentReading reading)
     {
         // The same ruling, wherever the delimiter is written. `\|` is TeX's spelling of `\Vert` whether it
         // follows a `\left`, a `\biggl` or nothing at all, so the shape that was ruled on is the token and
@@ -446,7 +447,7 @@ public class TexBuilderTests
         // then its base, which is the pair of atoms ours builds. Resolving it any further needs to know
         // what the mathematics means, and that is a later stage's job; this one renders it.
         foreach (var part in reading.Root.SelfAndDescendants())
-            if (part.Kind == TexKind.Script && Order(part, TexRole.Name) is var wrote and >= 0
+            if (part.Kind == TexKinds.Script && Order(part, Roles.Name) is var wrote and >= 0
                                             && Order(part, TexRole.Base) > wrote)
                 return "a prefix script — ours sets it in front, as a script and then its base";
 
@@ -461,7 +462,7 @@ public class TexBuilderTests
         // box a prefix's scripts ride on — and having it be one rule is worth more than matching a
         // number the typesetter's parser only reaches by way of a case it calls an error.
         foreach (var part in reading.Root.SelfAndDescendants())
-            if (part.Kind == TexKind.Script && part.Part(TexRole.Base) is null)
+            if (part.Kind == TexKinds.Script && part.Part(TexRole.Base) is null)
                 return "a script with nothing before it — ours stands it on a box of no width";
 
         // An empty group is a place and not an absence. The parser drops `{}` and leaves nothing behind;
@@ -469,24 +470,24 @@ public class TexBuilderTests
         // and it is what a prefix script attaches to. Nothing on the page differs — both draw nothing —
         // but only one of the two can be pointed at.
         foreach (var part in reading.Root.SelfAndDescendants())
-            if (part.Kind == TexKind.Group && !part.Parts.Any())
+            if (part.Kind == TexKinds.Group && !part.Parts.Any())
                 return "an empty group — ours keeps the place the reader wrote, where the parser keeps nothing";
 
         foreach (var part in reading.Root.SelfAndDescendants())
         {
-            if (part.Kind != TexKind.Fence || part.Part(TexRole.Body) is not { } body) continue;
+            if (part.Kind != TexKinds.Fence || part.Part(Roles.Body) is not { } body) continue;
 
             // Reviewed 2026-08-27. Identical renderings; the parser collapses a script inside the inner
             // fence into one atom where ours keeps the group it was written as, which is what a
             // substitution has to be able to reach.
-            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Fence))
+            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKinds.Fence))
                 return "a fence inside a fence — ours keeps the groups the parser collapses";
 
             // Reviewed 2026-08-27. Identical renderings; the parser follows TeX's rule that what comes
             // after modifies what came before and flattens the two, which is right for setting type and
             // wrong for selecting — the thing scripted and the script are separate things to point at.
-            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKind.Script
-                                                       && inner.Part(TexRole.Base) is { Kind: TexKind.Command } built
+            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKinds.Script
+                                                       && inner.Part(TexRole.Base) is { Kind: TexKinds.Command } built
                                                        && built.Parts.Any()))
                 return "a script on a construct, inside a fence — ours keeps the two apart";
         }
@@ -495,7 +496,7 @@ public class TexBuilderTests
     }
 
     /// <summary>What a fence's <c>\left</c> or <c>\right</c> was written with, as written.</summary>
-    private static string Names(TexPart fence, string role) =>
+    private static string Names(ContentPart fence, string role) =>
         fence.Part(role)?.Part(TexRole.Argument)?.Node.Print() ?? string.Empty;
 
     /// <summary>
@@ -538,7 +539,7 @@ public class TexBuilderTests
     /// subset of the tree, so nothing about it needs a second rendering.
     /// </para>
     /// </summary>
-    private static (ulong Tree, ulong Ink) Landed(TexFormula formula, TexReading reading)
+    private static (ulong Tree, ulong Ink) Landed(TexFormula formula, ContentReading reading)
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
@@ -546,7 +547,7 @@ public class TexBuilderTests
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Latex}");
+        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Source}");
 
         var tree = 14695981039346656037UL;
         var ink = 14695981039346656037UL;
@@ -575,7 +576,7 @@ public class TexBuilderTests
 
     private static ulong Fold(ulong so, ulong next) => (so ^ next) * 1099511628211UL;
 
-    private static string Settled(TexFormula formula, TexReading reading)
+    private static string Settled(TexFormula formula, ContentReading reading)
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
@@ -583,7 +584,7 @@ public class TexBuilderTests
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Latex}");
+        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Source}");
 
         var text = new StringBuilder();
 

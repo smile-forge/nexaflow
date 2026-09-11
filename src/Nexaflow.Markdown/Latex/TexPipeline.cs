@@ -1,5 +1,6 @@
 using System.Text;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Latex;
 
@@ -46,7 +47,7 @@ public static class TexPipeline
     /// Runs last on purpose: a half-written command is invalid almost by definition, and saying so on
     /// every keystroke would be the wrong thing to draw.
     /// </param>
-    public static TexNode Read(string latex, Func<string, bool>? draws = null,
+    public static ContentNode Read(string latex, Func<string, bool>? draws = null,
                                (int Start, int Length)? editing = null, bool holes = false)
     {
         var tree = Gathered(TexParser.Parse(latex));
@@ -68,14 +69,14 @@ public static class TexPipeline
     /// typing in one cell of a table does not stop the table being a table.
     /// </para>
     /// </summary>
-    public static TexNode ShownAsWritten(TexNode tree, int start, int length) =>
+    public static ContentNode ShownAsWritten(ContentNode tree, int start, int length) =>
         length <= 0 ? tree : Show(tree, 0, start, start + length) ?? tree;
 
     /// <summary>
     /// The same tree with every command nothing can draw shown as the characters it is made of, and
     /// carrying the reason it is.
     /// </summary>
-    public static TexNode Checked(TexNode tree, Func<string, bool> draws) => Check(tree, draws);
+    public static ContentNode Checked(ContentNode tree, Func<string, bool> draws) => Check(tree, draws);
 
     /// <summary>
     /// The same tree with a hole put in every argument and every cell left empty.
@@ -96,7 +97,7 @@ public static class TexPipeline
     /// that is only being read would simply be wrong, and reading is the commoner case.
     /// </para>
     /// </summary>
-    public static TexNode WithHoles(TexNode tree) => Hollow(tree);
+    public static ContentNode WithHoles(ContentNode tree) => Hollow(tree);
 
     /// <summary>
     /// The same tree with a sign that was written as several things gathered into the one node it means.
@@ -122,26 +123,26 @@ public static class TexPipeline
     /// saying what it amounts to.
     /// </para>
     /// </summary>
-    public static TexNode Gathered(TexNode tree) => Gather(tree);
+    public static ContentNode Gathered(ContentNode tree) => Gather(tree);
 
     /// <summary>Whether this piece takes up room without drawing anything - a kern, or written space.</summary>
-    private static bool IsRoom(TexNode node) =>
-        node.Kind is TexKind.Space or TexKind.Comment
-        || (node.Kind == TexKind.Command
-            && node.Part(TexRole.Name)?.Text is { } name
+    private static bool IsRoom(ContentNode node) =>
+        node.Kind is Kinds.Space or Kinds.Comment
+        || (node.Kind == TexKinds.Command
+            && node.Part(Roles.Name)?.Text is { } name
             && TexCommands.IsSpacing(name));
 
     /// <summary>A <c>\not</c> whose argument turned out to be a kern, so what it slashes is further on.</summary>
-    private static bool IsReaching(TexNode node) =>
-        node.Kind == TexKind.Command
-        && node.Part(TexRole.Name)?.Text == @"\not"
+    private static bool IsReaching(ContentNode node) =>
+        node.Kind == TexKinds.Command
+        && node.Part(Roles.Name)?.Text == @"\not"
         && node.Part(TexRole.Base) is { } written
         && IsRoom(written);
 
     /// <summary>Whether this says how the operator before it should wear its scripts.</summary>
-    private static bool IsLimitWord(TexNode node) =>
-        node.Kind == TexKind.Command
-        && node.Part(TexRole.Name)?.Text is @"\limits" or @"\nolimits";
+    private static bool IsLimitWord(ContentNode node) =>
+        node.Kind == TexKinds.Command
+        && node.Part(Roles.Name)?.Text is @"\limits" or @"\nolimits";
 
     /// <summary>
     /// A script written after <c>\limits</c> belongs to the operator before it, not to the word.
@@ -158,26 +159,26 @@ public static class TexPipeline
     /// offer it to anything building the operator, while <c>Print</c> still puts it back where it was.
     /// </para>
     /// </summary>
-    private static TexNode? Limited(TexNode operatorNode, TexNode script)
+    private static ContentNode? Limited(ContentNode operatorNode, ContentNode script)
     {
-        if (script.Kind != TexKind.Script) return null;
+        if (script.Kind != TexKinds.Script) return null;
         if (script.Part(TexRole.Base) is not { } written || !IsLimitWord(written)) return null;
-        if (operatorNode.Kind != TexKind.Command || operatorNode.Part(TexRole.Name) is null) return null;
+        if (operatorNode.Kind != TexKinds.Command || operatorNode.Part(Roles.Name) is null) return null;
 
-        var carried = operatorNode.With([.. operatorNode.Children, written.As(TexRole.Trivia)]);
+        var carried = operatorNode.With([.. operatorNode.Children, written.As(Roles.Trivia)]);
 
         return script.With([.. script.Children.Select(
             child => ReferenceEquals(child, written) ? carried.As(TexRole.Base) : child)]);
     }
 
-    private static TexNode Gather(TexNode node)
+    private static ContentNode Gather(ContentNode node)
     {
         if (node.IsLeaf) return node;
 
         // Every child gathered once, up front. Looking ahead at the next child and gathering it there as
         // well cost the whole subtree twice at every level — which is exponential in depth, and turned a
         // five minute sweep over the corpus into one still running at twelve.
-        var seen = new TexNode[node.Children.Count];
+        var seen = new ContentNode[node.Children.Count];
         var moved = false;
         for (var at = 0; at < seen.Length; at++)
         {
@@ -185,7 +186,7 @@ public static class TexPipeline
             moved |= !ReferenceEquals(seen[at], node.Children[at]);
         }
 
-        var rebuilt = new List<TexNode>(seen.Length);
+        var rebuilt = new List<ContentNode>(seen.Length);
 
         for (var at = 0; at < seen.Length; at++)
         {
@@ -205,7 +206,7 @@ public static class TexPipeline
                 // Everything between the slash and what it is drawn over comes with it: the kern is what
                 // puts the one on the other, so it belongs inside the sign rather than beside it.
                 var next = at + 1;
-                var between = new List<TexNode>();
+                var between = new List<ContentNode>();
                 while (next < seen.Length && IsRoom(seen[next])) between.Add(seen[next++]);
 
                 if (next < seen.Length)
@@ -227,13 +228,13 @@ public static class TexPipeline
     /// One <c>\not</c> node holding the whole sign: its name, the room written after it, and the thing the
     /// slash goes over — in the order they were written, which is what keeps this printable.
     /// </summary>
-    private static TexNode Slashing(TexNode reaching, List<TexNode> between, TexNode over)
+    private static ContentNode Slashing(ContentNode reaching, List<ContentNode> between, ContentNode over)
     {
-        var children = new List<TexNode>(reaching.Children.Count + between.Count + 1);
+        var children = new List<ContentNode>(reaching.Children.Count + between.Count + 1);
 
         // The old argument was the first kern. It keeps its place and stops being the argument.
         foreach (var child in reaching.Children)
-            children.Add(child.Role == TexRole.Base ? child.As(TexRole.Element) : child);
+            children.Add(child.Role == TexRole.Base ? child.As(Roles.Element) : child);
 
         children.AddRange(between);
         children.Add(over.As(TexRole.Base));
@@ -241,7 +242,7 @@ public static class TexPipeline
         return reaching.With(children);
     }
 
-    private static TexNode Hollow(TexNode node)
+    private static ContentNode Hollow(ContentNode node)
     {
         if (node.IsLeaf) return node;
 
@@ -249,16 +250,16 @@ public static class TexPipeline
         // `\bar{}` over nothing with an h slid under it, and that empty group is how the bar is drawn, not an
         // argument anybody left unwritten. Hollowing it put a hole in every \hbar, a hole is trouble, and an
         // inline formula with trouble is shown as its source — so one \hbar took a line of 26 symbols with it.
-        if (node.Role == TexRole.Expansion) return node;
+        if (node.Role == Roles.Derived) return node;
 
-        var rebuilt = new List<TexNode>(node.Children.Count + 1);
+        var rebuilt = new List<ContentNode>(node.Children.Count + 1);
         var moved = false;
 
         // Arguments that may be written empty mean "the default" when they are, not "not written yet":
         // \genfrac{}{}{}{}{a}{b} is a plain fraction, and a hole in each of its first four arguments was four
         // problems reported against a formula with nothing wrong in it — enough, inline, to show it as source.
-        var mayBeEmpty = node.Kind == TexKind.Command
-                         && node.Part(TexRole.Name)?.Text is { } name
+        var mayBeEmpty = node.Kind == TexKinds.Command
+                         && node.Part(Roles.Name)?.Text is { } name
                          && TexCommands.Lookup(name) is { MayBeEmpty: > 0 } command
             ? command.MayBeEmpty
             : 0;
@@ -266,7 +267,7 @@ public static class TexPipeline
 
         foreach (var child in node.Children)
         {
-            var allowedEmpty = child.Kind == TexKind.Group && argument++ < mayBeEmpty;
+            var allowedEmpty = child.Kind == TexKinds.Group && argument++ < mayBeEmpty;
             var seen = allowedEmpty ? child : Hollow(child);
             moved |= !ReferenceEquals(seen, child);
             rebuilt.Add(seen);
@@ -275,12 +276,12 @@ public static class TexPipeline
         // Nothing written between the braces, or between one separator and the next. Machinery does not
         // count as something being there: `{}` is a hole and so is the cell after the last `&`.
         var empty = !rebuilt.Any(child => child.Width > 0
-                                          && child.Role is not (TexRole.Open or TexRole.Close or TexRole.Separator));
+                                          && child.Role is not (Roles.Open or Roles.Close or Roles.Separator));
 
-        if (empty && node.Kind is TexKind.Group or TexKind.Cell)
+        if (empty && node.Kind is TexKinds.Group or TexKinds.Cell)
         {
-            rebuilt.Insert(rebuilt.FindIndex(child => child.Role == TexRole.Open) + 1,
-                           TexNode.Leaf(TexKind.Hole, string.Empty, TexRole.Element,
+            rebuilt.Insert(rebuilt.FindIndex(child => child.Role == Roles.Open) + 1,
+                           ContentNode.Leaf(Kinds.Hole, string.Empty, Roles.Element,
                                         "Something still has to go here."));
             moved = true;
         }
@@ -294,17 +295,17 @@ public static class TexPipeline
     /// This piece rewritten so that everything between <paramref name="from"/> and <paramref name="to"/>
     /// is shown rather than read, or null where the stretch does not reach it.
     /// </summary>
-    private static TexNode? Show(TexNode node, int at, int from, int to)
+    private static ContentNode? Show(ContentNode node, int at, int from, int to)
     {
         var end = at + node.Width;
         if (to <= at || from >= end) return null;
 
         // All of this piece is inside the stretch, so this piece is what gets shown.
-        if (from <= at && to >= end) return TexNode.Shown(node.Print(), role: node.Role);
+        if (from <= at && to >= end) return ContentNode.Shown(node.Print(), role: node.Role);
 
         // Part of it, and nothing underneath to be more precise about: a caret inside a word is still
         // editing the word.
-        if (node.IsLeaf) return TexNode.Shown(node.Text, role: node.Role);
+        if (node.IsLeaf) return ContentNode.Shown(node.Text, role: node.Role);
 
         var starts = new int[node.Children.Count];
         var cursor = at;
@@ -328,7 +329,7 @@ public static class TexPipeline
 
         if (first < 0) return null;
 
-        var rebuilt = new List<TexNode>(node.Children.Count);
+        var rebuilt = new List<ContentNode>(node.Children.Count);
         for (var i = 0; i < first; i++) rebuilt.Add(node.Children[i]);
 
         if (first == last)
@@ -341,7 +342,7 @@ public static class TexPipeline
             // their parts — a numerator and the brace after it are not a numerator.
             var text = new StringBuilder();
             for (var i = first; i <= last; i++) node.Children[i].PrintTo(text);
-            rebuilt.Add(TexNode.Shown(text.ToString(), role: TexRole.Element));
+            rebuilt.Add(ContentNode.Shown(text.ToString(), role: Roles.Element));
         }
 
         for (var i = last + 1; i < node.Children.Count; i++) rebuilt.Add(node.Children[i]);
@@ -351,7 +352,7 @@ public static class TexPipeline
 
     // ── Showing what cannot be drawn ─────────────────────────────────────────
 
-    private static TexNode Check(TexNode node, Func<string, bool> draws)
+    private static ContentNode Check(ContentNode node, Func<string, bool> draws)
     {
         if (node.IsLeaf) return node;
 
@@ -363,10 +364,10 @@ public static class TexPipeline
         // \begin and \end are the structure of an environment rather than anything drawn in it, so asking
         // whether a typesetter has a drawing for them is the wrong question — and answering it put a red
         // wave under the \end of every correctly set array.
-        var name = node.Kind == TexKind.Command
+        var name = node.Kind == TexKinds.Command
                    && node.Role is not (TexRole.Begin or TexRole.End)
-                   && node.Part(TexRole.Expansion) is null
-            ? node.Part(TexRole.Name)
+                   && node.Part(Roles.Derived) is null
+            ? node.Part(Roles.Name)
             : null;
 
         var unreadable = name is not null && !draws(name.Text);
@@ -376,8 +377,8 @@ public static class TexPipeline
         // read is not the same as finished, and something that has to decide whether to act on a formula
         // needs to be told the difference. Nothing else can tell: a recovered group and a closed one are
         // the same shape, and the only trace of the fault is the closing brace that is not there.
-        var unclosed = node.Kind == TexKind.Group && node.Part(TexRole.Close) is null
-            ? node.Part(TexRole.Open)
+        var unclosed = node.Kind == TexKinds.Group && node.Part(Roles.Close) is null
+            ? node.Part(Roles.Open)
             : null;
 
         // A command short of something it takes. `\frac{a}` is read as far as it goes and drawn as far as
@@ -387,14 +388,14 @@ public static class TexPipeline
             ? declared.Arguments.FirstOrDefault(role => node.Part(role) is null)
             : null;
 
-        var rebuilt = new List<TexNode>(node.Children.Count);
+        var rebuilt = new List<ContentNode>(node.Children.Count);
         var moved = false;
 
         foreach (var child in node.Children)
         {
             if (unreadable && ReferenceEquals(child, name))
             {
-                rebuilt.Add(TexNode.Shown(child.Text, $"there is no {child.Text} to draw", TexRole.Name));
+                rebuilt.Add(ContentNode.Shown(child.Text, $"there is no {child.Text} to draw", Roles.Name));
                 moved = true;
                 continue;
             }
@@ -404,14 +405,14 @@ public static class TexPipeline
             // added is something to say about it.
             if (ReferenceEquals(child, unclosed))
             {
-                rebuilt.Add(TexNode.Leaf(child.Kind, child.Text, child.Role, $"this {child.Text} is never closed"));
+                rebuilt.Add(ContentNode.Leaf(child.Kind, child.Text, child.Role, $"this {child.Text} is never closed"));
                 moved = true;
                 continue;
             }
 
             if (missing is not null && ReferenceEquals(child, name))
             {
-                rebuilt.Add(TexNode.Leaf(child.Kind, child.Text, child.Role, $"{child.Text} has no {missing}"));
+                rebuilt.Add(ContentNode.Leaf(child.Kind, child.Text, child.Role, $"{child.Text} has no {missing}"));
                 moved = true;
                 continue;
             }

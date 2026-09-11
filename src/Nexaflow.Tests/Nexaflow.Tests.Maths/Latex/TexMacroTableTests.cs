@@ -1,6 +1,7 @@
 using System.Linq;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -23,7 +24,7 @@ public class TexMacroTableTests
     {
         var inert = TexMacros.All.Keys
             .Where(name => !TexParser.Parse(name).SelfAndDescendants()
-                .Any(node => node.Role == TexRole.Expansion))
+                .Any(node => node.Role == Roles.Derived))
             .ToList();
 
         Assert.AreEqual(0, inert.Count,
@@ -48,7 +49,7 @@ public class TexMacroTableTests
         foreach (var (name, definition) in TexMacros.All)
         {
             var expansion = TexParser.Parse(name).SelfAndDescendants()
-                .FirstOrDefault(node => node.Role == TexRole.Expansion);
+                .FirstOrDefault(node => node.Role == Roles.Derived);
 
             Assert.IsNotNull(expansion, $"{name} resolved to nothing");
 
@@ -69,7 +70,7 @@ public class TexMacroTableTests
         {
             var root = TexParser.Parse(name);
 
-            foreach (var expansion in root.SelfAndDescendants().Where(node => node.Role == TexRole.Expansion))
+            foreach (var expansion in root.SelfAndDescendants().Where(node => node.Role == Roles.Derived))
                 Assert.AreEqual(0, expansion.Width, $"{name}'s expansion claims {expansion.Width} character(s)");
 
             Assert.AreEqual(name.Length, root.Width, $"{name} measures wrong once resolved");

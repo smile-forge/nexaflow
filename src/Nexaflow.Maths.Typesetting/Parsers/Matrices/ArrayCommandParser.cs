@@ -2,6 +2,7 @@
 using System.Linq;
 using XamlMath.Atoms;
 using XamlMath.Exceptions;
+using Nexaflow.Markdown.Ast;
 
 namespace XamlMath.Parsers.Matrices;
 
@@ -26,7 +27,7 @@ internal sealed class ArrayCommandParser
         IEnumerable<IEnumerable<Atom?>> cells,
         ArrayColumnSpec spec,
         IReadOnlyCollection<int>? horizontalRules,
-        Nexaflow.Markdown.Latex.TexPart? origin = null) =>
+        Nexaflow.Markdown.Ast.ContentPart? origin = null) =>
         new MatrixAtom(
             cells,
             MatrixCellAlignment.Center,

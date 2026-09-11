@@ -1,9 +1,11 @@
+using Nexaflow.Markdown.Ast;
+
 namespace Nexaflow.Markdown.Latex;
 
 /// <summary>One cell of a grid: where it is in the table, and which characters are written in it.</summary>
 /// <param name="Start">Where the contents begin, past any space after the separator.</param>
 /// <param name="Length">How many characters they run to — zero for a cell with nothing in it.</param>
-public readonly record struct TexCell(int Row, int Column, int Start, int Length, TexNode? Node = null)
+public readonly record struct TexCell(int Row, int Column, int Start, int Length, ContentNode? Node = null)
 {
     /// <summary>
     /// The node the cell was read from, or null for a cell nobody wrote - one squared off so that "the
@@ -38,7 +40,7 @@ public sealed class TexGrid
 {
     private readonly TexCell[,] _cells;
 
-    private TexGrid(TexNode environment, string name, int start, TexCell[,] cells)
+    private TexGrid(ContentNode environment, string name, int start, TexCell[,] cells)
     {
         this.Environment = environment;
         this.Name = name;
@@ -49,7 +51,7 @@ public sealed class TexGrid
     }
 
     /// <summary>The environment node this was read from.</summary>
-    public TexNode Environment { get; }
+    public ContentNode Environment { get; }
 
     /// <summary>What it was begun as: <c>matrix</c>, <c>pmatrix</c>, <c>cases</c>, <c>array</c>.</summary>
     public string Name { get; }
@@ -100,7 +102,7 @@ public sealed class TexGrid
     /// The table <paramref name="offset"/> is in, innermost first — so a matrix inside a matrix answers
     /// as the one being pointed into. Null when the offset is not in one.
     /// </summary>
-    public static TexGrid? At(TexNode root, int offset)
+    public static TexGrid? At(ContentNode root, int offset)
     {
         TexGrid? innermost = null;
 
@@ -114,19 +116,19 @@ public sealed class TexGrid
     }
 
     /// <summary>Every table in this formula, outermost first.</summary>
-    public static IEnumerable<TexGrid> In(TexNode root)
+    public static IEnumerable<TexGrid> In(ContentNode root)
     {
         foreach (var place in root.Placed())
         {
-            if (place.Node.Kind != TexKind.Environment) continue;
+            if (place.Node.Kind != TexKinds.Environment) continue;
             if (Read(place.Node, place.Start) is { } grid) yield return grid;
         }
     }
 
     /// <summary>This environment as a table, or null if it holds no cells.</summary>
-    public static TexGrid? Read(TexNode environment, int start)
+    public static TexGrid? Read(ContentNode environment, int start)
     {
-        if (environment.Kind != TexKind.Environment) return null;
+        if (environment.Kind != TexKinds.Environment) return null;
 
         var name = environment.Part(TexRole.Begin) is { } begin ? TexParser.NameOf(begin) : string.Empty;
 
@@ -135,7 +137,7 @@ public sealed class TexGrid
 
         foreach (var child in environment.Children)
         {
-            if (child.Role == TexRole.Row) rows.Add(Across(child, at, rows.Count));
+            if (child.Role == Roles.Row) rows.Add(Across(child, at, rows.Count));
             at += child.Width;
         }
 
@@ -161,14 +163,14 @@ public sealed class TexGrid
     }
 
     /// <summary>The cells of one row, in order, each named by where its contents actually are.</summary>
-    private static List<TexCell> Across(TexNode row, int start, int index)
+    private static List<TexCell> Across(ContentNode row, int start, int index)
     {
         var cells = new List<TexCell>();
         var at = start;
 
         foreach (var child in row.Children)
         {
-            if (child.Role == TexRole.Cell) cells.Add(Contents(child, at, index, cells.Count));
+            if (child.Role == Roles.Cell) cells.Add(Contents(child, at, index, cells.Count));
             at += child.Width;
         }
 
@@ -183,7 +185,7 @@ public sealed class TexGrid
     /// would be written.
     /// </para>
     /// </summary>
-    private static TexCell Contents(TexNode cell, int start, int row, int column)
+    private static TexCell Contents(ContentNode cell, int start, int row, int column)
     {
         var at = start;
         var written = -1;
@@ -193,9 +195,9 @@ public sealed class TexGrid
 
         foreach (var child in cell.Children)
         {
-            if (child.Role == TexRole.Separator) break;
+            if (child.Role == Roles.Separator) break;
 
-            if (child.Kind == TexKind.Space)
+            if (child.Kind == Kinds.Space)
             {
                 if (counting) blank = at + child.Width;
             }

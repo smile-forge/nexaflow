@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Latex;
 
@@ -19,12 +20,12 @@ namespace Nexaflow.Markdown.Latex;
 public static class TexParser
 {
     /// <summary>The formula, read.</summary>
-    public static TexNode Parse(string latex)
+    public static ContentNode Parse(string latex)
     {
         ArgumentNullException.ThrowIfNull(latex);
 
         var reader = new Reader(TexLexer.Scan(latex));
-        return TexNode.Branch(TexKind.Sequence, reader.Run(Until.Input));
+        return ContentNode.Branch(Kinds.Sequence, reader.Run(Until.Input));
     }
 
     /// <summary>What brings a run of things to an end, besides running out of input.</summary>
@@ -52,9 +53,9 @@ public static class TexParser
 
         // ── Runs ────────────────────────────────────────────────────────────
 
-        public List<TexNode> Run(Until until)
+        public List<ContentNode> Run(Until until)
         {
-            var nodes = new List<TexNode>();
+            var nodes = new List<ContentNode>();
 
             while (!this.Done && !this.Stops(until))
             {
@@ -93,7 +94,7 @@ public static class TexParser
             return false;
         }
 
-        private TexNode Item(Until until)
+        private ContentNode Item(Until until)
         {
             var token = this.Peek;
 
@@ -103,19 +104,19 @@ public static class TexParser
                     return this.Group(until);
 
                 case TexTokenKind.Space:
-                    return TexNode.Leaf(TexKind.Space, this.Take().Text);
+                    return ContentNode.Leaf(Kinds.Space, this.Take().Text);
 
                 case TexTokenKind.Comment:
-                    return TexNode.Leaf(TexKind.Comment, this.Take().Text);
+                    return ContentNode.Leaf(Kinds.Comment, this.Take().Text);
 
                 case TexTokenKind.Character:
-                    return TexNode.Leaf(TexKind.Char, this.Take().Text);
+                    return ContentNode.Leaf(Kinds.Char, this.Take().Text);
 
                 // Machinery that turned up where content goes: a brace closing nothing, an alignment tab
                 // outside a table. Held rather than read, and rather than thrown.
                 case TexTokenKind.CloseBrace:
                 case TexTokenKind.Ampersand:
-                    return TexNode.Leaf(TexKind.Verbatim, this.Take().Text);
+                    return ContentNode.Leaf(Kinds.Verbatim, this.Take().Text);
 
                 case TexTokenKind.Superscript:
                 case TexTokenKind.Subscript:
@@ -143,7 +144,7 @@ public static class TexParser
         /// not by anything downstream working it out again from a run of siblings.
         /// </para>
         /// </summary>
-        private TexNode Scripted(TexNode node, Until until)
+        private ContentNode Scripted(ContentNode node, Until until)
         {
             if (!Carries(node)) return node;
 
@@ -159,8 +160,8 @@ public static class TexParser
         /// those: what follows starts on a base of its own, which is what <c>~^{\nu}</c> means.
         /// </para>
         /// </summary>
-        private static bool Carries(TexNode node) =>
-            node.Kind is not (TexKind.Space or TexKind.Comment)
+        private static bool Carries(ContentNode node) =>
+            node.Kind is not (Kinds.Space or Kinds.Comment)
             && node.Text is not ("~" or "'");   // nor a mark, which is written onto something itself
 
         private bool NextIsScript() => Next() is { } token
@@ -198,13 +199,13 @@ public static class TexParser
         /// construct where the answers disagree.
         /// </para>
         /// </summary>
-        private TexNode ScriptOnWhatFollows(Until until)
+        private ContentNode ScriptOnWhatFollows(Until until)
         {
             var script = this.Script(null, until);
 
             if (this.Done || this.Stops(until)) return script;
 
-            var children = new List<TexNode>(script.Children);
+            var children = new List<ContentNode>(script.Children);
             this.Trivia(children);
 
             if (this.Done || this.Stops(until)) return script.With(children);
@@ -213,9 +214,9 @@ public static class TexParser
             return script.With(children);
         }
 
-        private TexNode Script(TexNode? baseNode, Until until)
+        private ContentNode Script(ContentNode? baseNode, Until until)
         {
-            var children = new List<TexNode>();
+            var children = new List<ContentNode>();
             if (baseNode is not null) children.Add(baseNode.As(TexRole.Base));
 
             while (true)
@@ -223,7 +224,7 @@ public static class TexParser
                 if (this.NextIsMark())
                 {
                     this.Trivia(children);
-                    children.Add(TexNode.Leaf(TexKind.Char, this.Take().Text, TexRole.Mark));
+                    children.Add(ContentNode.Leaf(Kinds.Char, this.Take().Text, TexRole.Mark));
                     continue;
                 }
 
@@ -232,7 +233,7 @@ public static class TexParser
                 this.Trivia(children);
 
                 var written = this.Take();
-                children.Add(TexNode.Leaf(TexKind.Token, written.Text, TexRole.Name));
+                children.Add(ContentNode.Leaf(Kinds.Token, written.Text, Roles.Name));
                 var role = written.Kind == TexTokenKind.Superscript
                     ? TexRole.Superscript
                     : TexRole.Subscript;
@@ -241,14 +242,14 @@ public static class TexParser
                 if (this.Argument(until) is { } argument) children.Add(argument.As(role));
             }
 
-            return TexNode.Branch(TexKind.Script, children);
+            return ContentNode.Branch(TexKinds.Script, children);
         }
 
         // ── Groups, commands, arguments ─────────────────────────────────────
 
-        private TexNode Group(Until until, bool grid = false)
+        private ContentNode Group(Until until, bool grid = false)
         {
-            var children = new List<TexNode> { TexNode.Leaf(TexKind.Token, this.Take().Text, TexRole.Open) };
+            var children = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Open) };
 
             // Braces are a fresh context for everything except \end. An & inside them is not a cell
             // boundary, and a \right inside them closes nothing — but an \end still has to be able to
@@ -259,12 +260,12 @@ public static class TexParser
             children.AddRange(grid ? this.Rows(inner) : this.Run(inner));
 
             if (!this.Done && this.Peek.Kind == TexTokenKind.CloseBrace)
-                children.Add(TexNode.Leaf(TexKind.Token, this.Take().Text, TexRole.Close));
+                children.Add(ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Close));
 
-            return TexNode.Branch(TexKind.Group, children);
+            return ContentNode.Branch(TexKinds.Group, children);
         }
 
-        private TexNode Command(Until until)
+        private ContentNode Command(Until until)
         {
             var name = this.Take().Text;
 
@@ -277,12 +278,12 @@ public static class TexParser
                 && TexCommands.Lookup(name + "*") is not null)
                 name += this.Take().Text;
 
-            var children = new List<TexNode> { TexNode.Leaf(TexKind.Token, name, TexRole.Name) };
+            var children = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, name, Roles.Name) };
 
             // Nothing in the table takes arguments *and* is shorthand for something, so a macro is only
             // ever looked for here, where a command turns out to take none.
             if (TexCommands.Lookup(name) is not { } command)
-                return Resolved(TexNode.Branch(TexKind.Command, children), name);
+                return Resolved(ContentNode.Branch(TexKinds.Command, children), name);
 
             if (command.Option is { } option) this.Optional(children, option, until);
 
@@ -291,7 +292,7 @@ public static class TexParser
                 // The trivia is taken on approval. A command that never got its argument does not own
                 // the space after it either — that space is between two things, not inside one.
                 var mark = _at;
-                var trivia = new List<TexNode>();
+                var trivia = new List<ContentNode>();
                 this.Trivia(trivia);
 
                 if (this.Argument(until, command.Grid) is not { } argument) { _at = mark; break; }
@@ -300,7 +301,7 @@ public static class TexParser
                 children.Add(argument.As(role));
             }
 
-            return TexNode.Branch(TexKind.Command, children);
+            return ContentNode.Branch(TexKinds.Command, children);
         }
 
         /// <summary>
@@ -309,7 +310,7 @@ public static class TexParser
         ///
         /// <para>
         /// The expansion is parsed here rather than anywhere later because it is a reading, and this is
-        /// the reader. It stands for no source — see <see cref="TexRole.Expansion"/> — so hanging it on
+        /// the reader. It stands for no source — see <see cref="Roles.Derived"/> — so hanging it on
         /// changes nothing about what the tree prints back, only about what can be asked of it.
         /// </para>
         /// <para>
@@ -318,14 +319,14 @@ public static class TexParser
         /// and shallow enough that a cycle stops rather than fills the stack.
         /// </para>
         /// </summary>
-        private static TexNode Resolved(TexNode command, string name)
+        private static ContentNode Resolved(ContentNode command, string name)
         {
             if (_depth >= 6 || TexMacros.Lookup(name) is not { } definition) return command;
 
             _depth++;
             try
             {
-                var expansion = TexParser.Parse(definition).As(TexRole.Expansion);
+                var expansion = TexParser.Parse(definition).As(Roles.Derived);
                 return command.With([.. command.Children, expansion]);
             }
             finally
@@ -339,7 +340,7 @@ public static class TexParser
         private static int _depth;
 
         /// <summary>The one thing written as an argument: a braced group, a command, or a character.</summary>
-        private TexNode? Argument(Until until, bool grid = false)
+        private ContentNode? Argument(Until until, bool grid = false)
         {
             if (this.Done || this.Stops(until)) return null;
 
@@ -348,7 +349,7 @@ public static class TexParser
             return token.Kind switch
             {
                 TexTokenKind.OpenBrace => this.Group(until, grid),
-                TexTokenKind.Character => TexNode.Leaf(TexKind.Char, this.Take().Text),
+                TexTokenKind.Character => ContentNode.Leaf(Kinds.Char, this.Take().Text),
                 TexTokenKind.ControlWord when token.Text == @"\begin" => this.Environment(until),
                 TexTokenKind.ControlWord when token.Text == @"\left" => this.Fence(until),
                 TexTokenKind.ControlWord or TexTokenKind.ControlSymbol => this.Command(until),
@@ -356,15 +357,15 @@ public static class TexParser
             };
         }
 
-        private void Optional(List<TexNode> children, string role, Until until)
+        private void Optional(List<ContentNode> children, string role, Until until)
         {
             var mark = _at;
-            var trivia = new List<TexNode>();
+            var trivia = new List<ContentNode>();
             this.Trivia(trivia);
 
             if (!this.IsBracket("[")) { _at = mark; return; }
 
-            var inner = new List<TexNode> { TexNode.Leaf(TexKind.Token, this.Take().Text, TexRole.Open) };
+            var inner = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Open) };
 
             while (!this.Done && !this.IsBracket("]") && !this.Stops(until))
             {
@@ -374,50 +375,50 @@ public static class TexParser
             }
 
             if (this.IsBracket("]"))
-                inner.Add(TexNode.Leaf(TexKind.Token, this.Take().Text, TexRole.Close));
+                inner.Add(ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Close));
 
             children.AddRange(trivia);
-            children.Add(TexNode.Branch(TexKind.Group, inner, role));
+            children.Add(ContentNode.Branch(TexKinds.Group, inner, role));
         }
 
         private bool IsBracket(string bracket) =>
             !this.Done && this.Peek.Kind == TexTokenKind.Character && this.Peek.Text == bracket;
 
-        private void Trivia(List<TexNode> into)
+        private void Trivia(List<ContentNode> into)
         {
             while (!this.Done && this.Peek.IsTrivia)
             {
                 var token = this.Take();
-                var kind = token.Kind == TexTokenKind.Space ? TexKind.Space : TexKind.Comment;
-                into.Add(TexNode.Leaf(kind, token.Text, TexRole.Trivia));
+                var kind = token.Kind == TexTokenKind.Space ? Kinds.Space : Kinds.Comment;
+                into.Add(ContentNode.Leaf(kind, token.Text, Roles.Trivia));
             }
         }
 
         // ── Fences ──────────────────────────────────────────────────────────
 
-        private TexNode Fence(Until until)
+        private ContentNode Fence(Until until)
         {
-            var children = new List<TexNode> { this.Command(until).As(TexRole.Open) };
+            var children = new List<ContentNode> { this.Command(until).As(Roles.Open) };
 
             // What is between the delimiters is one thing — the fence's contents — rather than however
             // many things happen to be written there. Unlike a brace, a delimiter is drawn and carries
             // meaning, so a fence is a construct with a part, not a run with punctuation at each end.
             // Everything that turns on that distinction then reads it off the roles.
-            children.Add(TexNode.Branch(TexKind.Sequence, this.Run(until | Until.Right), TexRole.Body));
+            children.Add(ContentNode.Branch(Kinds.Sequence, this.Run(until | Until.Right), Roles.Body));
 
             if (!this.Done && this.Peek.Is(@"\right"))
-                children.Add(this.Command(until).As(TexRole.Close));
+                children.Add(this.Command(until).As(Roles.Close));
 
-            return TexNode.Branch(TexKind.Fence, children);
+            return ContentNode.Branch(TexKinds.Fence, children);
         }
 
         // ── Environments ────────────────────────────────────────────────────
 
-        private TexNode Environment(Until until)
+        private ContentNode Environment(Until until)
         {
             var begin = this.Command(until);
             var definition = TexCommands.Environment(NameOf(begin));
-            var children = new List<TexNode> { begin.As(TexRole.Begin) };
+            var children = new List<ContentNode> { begin.As(TexRole.Begin) };
 
             if (definition.Spec is { } spec) this.Specification(children, spec, until);
 
@@ -428,14 +429,14 @@ public static class TexParser
             if (!this.Done && this.Peek.Is(@"\end"))
                 children.Add(this.Command(until).As(TexRole.End));
 
-            return TexNode.Branch(TexKind.Environment, children);
+            return ContentNode.Branch(TexKinds.Environment, children);
         }
 
         /// <summary>The <c>{cc}</c> of <c>\begin{array}{cc}</c> — the shape, not the contents.</summary>
-        private void Specification(List<TexNode> children, string role, Until until)
+        private void Specification(List<ContentNode> children, string role, Until until)
         {
             var mark = _at;
-            var trivia = new List<TexNode>();
+            var trivia = new List<ContentNode>();
             this.Trivia(trivia);
 
             if (this.Done || this.Peek.Kind != TexTokenKind.OpenBrace) { _at = mark; return; }
@@ -444,31 +445,31 @@ public static class TexParser
             children.Add(this.Group(until).As(role));
         }
 
-        private List<TexNode> Rows(Until until)
+        private List<ContentNode> Rows(Until until)
         {
-            var rows = new List<TexNode>();
+            var rows = new List<ContentNode>();
             var body = until | Until.Cell;
 
             while (true)
             {
-                var cells = new List<TexNode>();
+                var cells = new List<ContentNode>();
                 bool more;
 
                 do
                 {
                     var cell = this.Run(body);
                     more = !this.Done && this.Peek.Kind == TexTokenKind.Ampersand;
-                    if (more) cell.Add(TexNode.Leaf(TexKind.Token, this.Take().Text, TexRole.Separator));
+                    if (more) cell.Add(ContentNode.Leaf(Kinds.Token, this.Take().Text, Roles.Separator));
 
-                    cells.Add(TexNode.Branch(TexKind.Cell, cell, TexRole.Cell));
+                    cells.Add(ContentNode.Branch(TexKinds.Cell, cell, Roles.Cell));
                 }
                 while (more);
 
-                var row = new List<TexNode>(cells);
+                var row = new List<ContentNode>(cells);
                 var broken = !this.Done && this.Peek.Symbol(@"\\");
-                if (broken) row.Add(this.Command(until).As(TexRole.Separator));
+                if (broken) row.Add(this.Command(until).As(Roles.Separator));
 
-                rows.Add(TexNode.Branch(TexKind.Row, row, TexRole.Row));
+                rows.Add(ContentNode.Branch(TexKinds.Row, row, Roles.Row));
 
                 if (!broken || this.Done) break;
             }
@@ -482,33 +483,33 @@ public static class TexParser
         /// last one — the space before <c>\end</c>, and nothing else — is given back to the environment
         /// rather than made into a line nobody wrote.
         /// </summary>
-        private static void Trailing(List<TexNode> rows)
+        private static void Trailing(List<ContentNode> rows)
         {
             if (rows.Count == 0) return;
 
             var last = rows[^1];
             if (last.Children.Count != 1) return;
-            if (last.Part(TexRole.Separator) is not null) return;
+            if (last.Part(Roles.Separator) is not null) return;
 
             var only = last.Children[0];
-            if (only.Part(TexRole.Separator) is not null) return;
+            if (only.Part(Roles.Separator) is not null) return;
 
             // On the text rather than on the kind: a cell with nothing in it has no children, so it is
             // its own only "leaf", and asking that leaf what kind it is answers Cell.
             if (only.Leaves().Any(leaf => leaf.Text.Length > 0
-                                          && leaf.Kind is not (TexKind.Space or TexKind.Comment))) return;
+                                          && leaf.Kind is not (Kinds.Space or Kinds.Comment))) return;
 
             rows.RemoveAt(rows.Count - 1);
-            foreach (var child in only.Children) rows.Add(child.As(TexRole.Element));
+            foreach (var child in only.Children) rows.Add(child.As(Roles.Element));
         }
     }
 
     /// <summary>The name an environment was begun with — <c>matrix</c> for <c>\begin{matrix}</c>.</summary>
-    public static string NameOf(TexNode command) =>
+    public static string NameOf(ContentNode command) =>
         command.Part(TexRole.Argument) is { } argument ? Named(argument.Print()) : string.Empty;
 
-    /// <inheritdoc cref="NameOf(TexNode)"/>
-    public static string NameOf(ITexPart command) =>
+    /// <inheritdoc cref="NameOf(ContentNode)"/>
+    public static string NameOf(ContentPart command) =>
         command.Part(TexRole.Argument) is { } argument ? Named(argument.Print()) : string.Empty;
 
     private static string Named(string argument)

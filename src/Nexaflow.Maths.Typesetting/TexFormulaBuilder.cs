@@ -5,6 +5,7 @@ using XamlMath.Atoms;
 using XamlMath.Exceptions;
 using XamlMath.Parsers;
 using XamlMath.Parsers.Matrices;
+using Nexaflow.Markdown.Ast;
 
 namespace XamlMath;
 
@@ -15,7 +16,7 @@ namespace XamlMath;
 /// <see cref="TexFormulaParser"/> reads LaTeX and decides what the reading should be set as, in one pass,
 /// and the reading it does is lossy by the time it reaches an atom: braces are gone, spacing is gone, and
 /// where a construct began is remembered only approximately. That is fine for drawing a formula once and
-/// no good at all for editing one. This takes the reading from <see cref="TexReading"/> instead, which
+/// no good at all for editing one. This takes the reading from <see cref="ContentReading"/> instead, which
 /// keeps all of it, and does only the second half of the job.
 /// </para>
 /// <para>
@@ -73,11 +74,11 @@ public static class TexFormulaBuilder
     /// signature settles is better than making it a thing to remember.
     /// </para>
     /// </summary>
-    public static TexFormula? Build(ITexPart root, TexFormulaParser knowledge)
+    public static TexFormula? Build(ContentPart root, TexFormulaParser knowledge)
     {
         System.ArgumentNullException.ThrowIfNull(root);
 
-        var ignored = new List<TexPart>();
+        var ignored = new List<ContentPart>();
         var was = _ignored;
         _ignored = ignored;
 
@@ -104,10 +105,10 @@ public static class TexFormulaBuilder
     /// </para>
     /// </summary>
     [System.ThreadStatic]
-    private static List<TexPart>? _ignored;
+    private static List<ContentPart>? _ignored;
 
     /// <summary>Whether this reading can be built at all — the corpus's coverage question.</summary>
-    public static bool CanBuild(ITexPart root, TexFormulaParser knowledge) =>
+    public static bool CanBuild(ContentPart root, TexFormulaParser knowledge) =>
         Build(root, knowledge) is not null;
 
     /// <summary>
@@ -120,7 +121,7 @@ public static class TexFormulaBuilder
     /// whatever lays the block out — so the number is handed over on its own, for that to place.
     /// </para>
     /// </summary>
-    public static TexFormula? Number(ITexPart root)
+    public static TexFormula? Number(ContentPart root)
     {
         System.ArgumentNullException.ThrowIfNull(root);
 
@@ -159,20 +160,20 @@ public static class TexFormulaBuilder
     /// run</em>, in <see cref="Built"/>, and nowhere a caller is asking a question.
     /// </para>
     /// </summary>
-    private static Atom? Of(ITexPart part, string? style, TexFormulaParser knowledge) =>
+    private static Atom? Of(ContentPart part, string? style, TexFormulaParser knowledge) =>
         part.Kind switch
         {
-            TexKind.Char => Character(part, style, knowledge),
-            TexKind.Verbatim => Shown(part, style),
-            TexKind.Hole => Tag(new PlaceholderAtom(), part),
-            TexKind.Sequence => Run(part.Parts, part, style, knowledge),
-            TexKind.Group when !part.Parts.Any() => Empty(part),
-            TexKind.Group when Written(part) => Group(part, style, knowledge),
-            TexKind.Group => Run(part.Parts, part, style, knowledge),
-            TexKind.Script => Script(part, style, knowledge),
-            TexKind.Command => Command(part, style, knowledge),
-            TexKind.Fence => Fence(part, style, knowledge),
-            TexKind.Environment => Environment(part, style, knowledge),
+            Kinds.Char => Character(part, style, knowledge),
+            Kinds.Verbatim => Shown(part, style),
+            Kinds.Hole => Tag(new PlaceholderAtom(), part),
+            Kinds.Sequence => Run(part.Parts, part, style, knowledge),
+            TexKinds.Group when !part.Parts.Any() => Empty(part),
+            TexKinds.Group when Written(part) => Group(part, style, knowledge),
+            TexKinds.Group => Run(part.Parts, part, style, knowledge),
+            TexKinds.Script => Script(part, style, knowledge),
+            TexKinds.Command => Command(part, style, knowledge),
+            TexKinds.Fence => Fence(part, style, knowledge),
+            TexKinds.Environment => Environment(part, style, knowledge),
             _ => null,
         };
 
@@ -187,7 +188,7 @@ public static class TexFormulaBuilder
     /// probably the writer's to fix and the second is certainly ours.
     /// </para>
     /// </summary>
-    private static Atom Unread(ITexPart part, string? style)
+    private static Atom Unread(ContentPart part, string? style)
     {
         // Reported once. Where the reading already gave up on this — a name nothing has heard of, which it
         // replaced with the characters and a reason — that verdict stands, and this failing to draw the
@@ -195,7 +196,7 @@ public static class TexFormulaBuilder
         // stretch, which is two colours of squiggle under one command and no help to anybody.
         if (!part.SelfAndDescendants().Any(piece => piece.Trouble is not null)) _ignored?.Add(Whole(part));
 
-        return Tag(Letters(part.Print(), style, spaced: true), part);
+        return Tag(Letters(part.Node.Print(), style, spaced: true), part);
     }
 
     /// <summary>
@@ -208,7 +209,7 @@ public static class TexFormulaBuilder
     /// changed in one place would otherwise set a matrix two ways.
     /// </para>
     /// </summary>
-    private static Atom? Environment(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Environment(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         if (part.Part(TexRole.Begin) is not { } begin) return null;
 
@@ -226,7 +227,7 @@ public static class TexFormulaBuilder
         // Every piece of it has to be one this knows. A block is begun, optionally shaped, and then made
         // of rows; anything else in there is something the reading has not been taught.
         foreach (var child in part.Parts)
-            if (child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option or TexRole.Row))
+            if (child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option or Roles.Row))
                 return null;
 
         if (Cells(part, style, knowledge) is not { } cells) return null;
@@ -251,24 +252,24 @@ public static class TexFormulaBuilder
     /// An equation's number — <c>\tag{4.2}</c> — set as LaTeX sets it: in the text face and in parentheses, unless
     /// the star says not to. Null for anything else.
     /// </summary>
-    private static Atom? Numbering(ITexPart part)
+    private static Atom? Numbering(ContentPart part)
     {
         if (!IsTag(part) || part.Part(TexRole.Argument) is not { } written) return null;
 
         var number = Inside(written);
-        var starred = part.Part(TexRole.Name)?.Text == @"\tag*";
+        var starred = part.Part(Roles.Name)?.Text == @"\tag*";
         return Tag(Letters(starred ? number : $"({number})", TexUtilities.TextStyleName, spaced: true), part);
     }
 
     /// <summary>Whether this is an equation's number — <c>\tag</c>, or <c>\tag*</c> without its parentheses.</summary>
-    private static bool IsTag(ITexPart part) =>
-        part.Kind == TexKind.Command && part.Part(TexRole.Name)?.Text is @"\tag" or @"\tag*";
+    private static bool IsTag(ContentPart part) =>
+        part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text is @"\tag" or @"\tag*";
 
     /// <summary>
     /// A display environment that means nothing beyond its contents here — <c>equation</c> and its family, in a
     /// formula that is already its own display. What it holds, standing for the whole of it.
     /// </summary>
-    private static Atom? Transparent(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Transparent(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         var body = part.Parts.Where(child => child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option));
         return Built(body, style, knowledge) is { Count: > 0 } built ? Rowed(built, part) : null;
@@ -291,11 +292,11 @@ public static class TexFormulaBuilder
     /// than in them, so they are a thing to read off the grid and never off a cell.
     /// </para>
     /// </summary>
-    private static Atom? Array(ITexPart part, List<List<Atom?>> cells, string? style, TexFormulaParser knowledge)
+    private static Atom? Array(ContentPart part, List<List<Atom?>> cells, string? style, TexFormulaParser knowledge)
     {
         if (part.Part(TexRole.Option) is not { } option) return null;
 
-        var preamble = option.Print();
+        var preamble = option.Node.Print();
         if (preamble.Length < 2 || preamble[0] != '{' || preamble[^1] != '}') return null;
 
         var written = preamble[1..^1];
@@ -345,25 +346,25 @@ public static class TexFormulaBuilder
     /// anything in it, and they carry no part precisely because inventing one would say otherwise.
     /// </para>
     /// </summary>
-    private static List<List<Atom?>>? Cells(ITexPart environment, string? style, TexFormulaParser knowledge)
+    private static List<List<Atom?>>? Cells(ContentPart environment, string? style, TexFormulaParser knowledge)
     {
         var rows = new List<List<Atom?>>();
 
         foreach (var row in environment.Children)
         {
-            if (row.Role != TexRole.Row) continue;
+            if (row.Role != Roles.Row) continue;
 
             // A row holding nothing but rules is the line under the table, not a line of it. Ruled has
             // already counted it; making a row of empty cells here would add a blank one to the grid.
-            if (row.Children.Where(child => child.Role == TexRole.Cell)
-                   .All(cell => cell.Parts.All(piece => IsRule(piece) || piece.Kind == TexKind.Space)))
+            if (row.Children.Where(child => child.Role == Roles.Cell)
+                   .All(cell => cell.Parts.All(piece => IsRule(piece) || piece.Kind == Kinds.Space)))
                 continue;
 
             var cells = new List<Atom?>();
 
             foreach (var cell in row.Children)
             {
-                if (cell.Role != TexRole.Cell) continue;
+                if (cell.Role != Roles.Cell) continue;
 
                 // A rule is the grid's and never a cell's, so it is not built into one.
                 var built = Built(cell.Parts.Where(piece => !IsRule(piece)), style, knowledge);
@@ -392,8 +393,8 @@ public static class TexFormulaBuilder
     }
 
     /// <summary>Whether this piece is an <c>\hline</c> — a rule across the table, not a cell's contents.</summary>
-    private static bool IsRule(ITexPart part) =>
-        part.Kind == TexKind.Command && part.Part(TexRole.Name)?.Text == @"\hline";
+    private static bool IsRule(ContentPart part) =>
+        part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text == @"\hline";
 
     /// <summary>
     /// The row boundaries carrying a rule, numbered from 0 above the first row.
@@ -409,21 +410,21 @@ public static class TexFormulaBuilder
     /// for rules got none and the <c>\hline</c> itself was shown as its own characters.
     /// </para>
     /// </summary>
-    private static List<int> Ruled(ITexPart environment)
+    private static List<int> Ruled(ContentPart environment)
     {
         var rules = new List<int>();
         var at = 0;
 
         foreach (var row in environment.Children)
         {
-            if (row.Role != TexRole.Row) continue;
+            if (row.Role != Roles.Row) continue;
 
-            var cells = row.Children.Where(child => child.Role == TexRole.Cell).ToList();
+            var cells = row.Children.Where(child => child.Role == Roles.Cell).ToList();
             if (cells.Any(cell => cell.Parts.Any(IsRule))) rules.Add(at);
 
             // A row of rules and nothing else does not become a line of the table, so the rows after it
             // are not pushed down by one.
-            var written = cells.Any(cell => cell.Parts.Any(piece => !IsRule(piece) && piece.Kind != TexKind.Space));
+            var written = cells.Any(cell => cell.Parts.Any(piece => !IsRule(piece) && piece.Kind != Kinds.Space));
             if (written) at++;
         }
 
@@ -434,9 +435,9 @@ public static class TexFormulaBuilder
     /// Something between delimiters that grow to hold it. The delimiters are drawn by the fence rather
     /// than being things inside it, which is why they are named here and not built.
     /// </summary>
-    private static Atom? Fence(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Fence(ContentPart part, string? style, TexFormulaParser knowledge)
     {
-        if (part.Part(TexRole.Body) is not { } body) return null;
+        if (part.Part(Roles.Body) is not { } body) return null;
 
         // A fence inside a fence was declined here, and is not any more: looked at, and ours is the one
         // to keep. The two draw it identically — every number the same — and differ in what they built
@@ -454,8 +455,8 @@ public static class TexFormulaBuilder
 
         // An unclosed fence is something half-typed, and the parser has no atom for it. Left to fall
         // back rather than closed on the writer's behalf.
-        if (part.Part(TexRole.Open) is not { } open) return null;
-        if (part.Part(TexRole.Close) is not { } close) return null;
+        if (part.Part(Roles.Open) is not { } open) return null;
+        if (part.Part(Roles.Close) is not { } close) return null;
 
         // \| — the double bar. Taking the backslash off and looking up what is left draws a single bar,
         // and naming it Vert instead does not agree with the parser either. Every norm in the corpus is
@@ -468,15 +469,15 @@ public static class TexFormulaBuilder
     }
 
     /// <summary>What a <c>\left</c> or <c>\right</c> was written with, as written.</summary>
-    private static string Names(ITexPart fence) =>
-        fence.Part(TexRole.Argument)?.Print() ?? string.Empty;
+    private static string Names(ContentPart fence) =>
+        fence.Part(TexRole.Argument)?.Node.Print() ?? string.Empty;
 
     /// <summary>The delimiter a <c>\left</c> or <c>\right</c> was written with.</summary>
-    private static SymbolAtom? Delimiter(ITexPart fence)
+    private static SymbolAtom? Delimiter(ContentPart fence)
     {
         if (fence.Part(TexRole.Argument) is not { } written) return null;
 
-        var text = written.Print();
+        var text = written.Node.Print();
 
         // A character stands for a delimiter through TeX's own table — `(` is not the symbol named "(".
         // A command names one directly, without its backslash — except this one, which names itself
@@ -501,7 +502,7 @@ public static class TexFormulaBuilder
         return symbol;
     }
 
-    private static Atom? Character(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Character(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         if (part.Text.Length != 1) return null;
 
@@ -530,9 +531,9 @@ public static class TexFormulaBuilder
     /// stops. Only what holds the group can tell those two apart.
     /// </para>
     /// </summary>
-    private static bool Written(ITexPart group) =>
-        group.Role == TexRole.Element
-        || (group.Role == TexRole.Base && group.Parent?.Kind == TexKind.Script);
+    private static bool Written(ContentPart group) =>
+        group.Role == Roles.Element
+        || (group.Role == TexRole.Base && group.Parent?.Kind == TexKinds.Script);
 
     /// <summary>
     /// A group with nothing written in it, which is a deliberate thing to write and not an absence.
@@ -545,7 +546,7 @@ public static class TexFormulaBuilder
     /// a caret can be and a thing <see cref="IFormulaNode.Origin"/> can point at.
     /// </para>
     /// </summary>
-    private static Atom Empty(ITexPart part) => Tag(new NullAtom(), part);
+    private static Atom Empty(ContentPart part) => Tag(new NullAtom(), part);
 
     /// <summary>
     /// A braced group, which is a thing in its own right and not merely what is inside it.
@@ -556,7 +557,7 @@ public static class TexFormulaBuilder
     /// and moves the spacing of every formula written with them.
     /// </para>
     /// </summary>
-    private static Atom? Group(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Group(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         if (Run(part.Parts, part, style, knowledge) is not { } inner) return null;
 
@@ -569,7 +570,7 @@ public static class TexFormulaBuilder
     /// Several things in a row. One thing on its own is that thing: a row of one would add a level the
     /// typesetter's own reading does not have, and every box would sit inside a box.
     /// </summary>
-    private static Atom? Run(IEnumerable<ITexPart> parts, ITexPart whole, string? style, TexFormulaParser knowledge)
+    private static Atom? Run(IEnumerable<ContentPart> parts, ContentPart whole, string? style, TexFormulaParser knowledge)
     {
         var built = Built(parts, style, knowledge);
         if (built is null || built.Count == 0) return null;
@@ -587,7 +588,7 @@ public static class TexFormulaBuilder
     /// finds it as one part.
     /// </para>
     /// </summary>
-    private static List<Atom>? Built(IEnumerable<ITexPart> parts, string? style, TexFormulaParser knowledge)
+    private static List<Atom>? Built(IEnumerable<ContentPart> parts, string? style, TexFormulaParser knowledge)
     {
         var built = new List<Atom>();
         var run = parts.ToList();
@@ -663,17 +664,17 @@ public static class TexFormulaBuilder
     /// argument. Which of the two it is comes from the engine's own table — the same table the parser
     /// reads, so neither of us can come to think <c>\bf</c> takes an argument while the other does not.
     /// </summary>
-    private static (string? TextStyle, TexStyle? Style)? Switch(ITexPart part)
+    private static (string? TextStyle, TexStyle? Style)? Switch(ContentPart part)
     {
-        if (part.Kind != TexKind.Command || part.Parts.Any()) return null;
-        if (part.Part(TexRole.Name)?.Text is not { } name) return null;
+        if (part.Kind != TexKinds.Command || part.Parts.Any()) return null;
+        if (part.Part(Roles.Name)?.Text is not { } name) return null;
 
         return StandardCommands.IsSwitch(name[1..], out var textStyle, out var style)
             ? (textStyle, style)
             : null;
     }
 
-    private static Atom Rowed(List<Atom> built, ITexPart whole)
+    private static Atom Rowed(List<Atom> built, ContentPart whole)
     {
         var row = new RowAtom();
         foreach (var atom in built) row = row.Add(atom);
@@ -681,7 +682,7 @@ public static class TexFormulaBuilder
         return Tag(row, whole);
     }
 
-    private static Atom? Script(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Script(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         // A script with nothing before it at all — `^{(4)}R`, `{_abc}`. It stands alone, and deliberately:
         // whether it was meant for what follows cannot be told from the writing, only from knowing what
@@ -710,7 +711,7 @@ public static class TexFormulaBuilder
     }
 
     /// <summary>Everything written onto a base, once the base itself is built.</summary>
-    private static Atom? Scripted(ITexPart part, Atom baseAtom, string? style, TexFormulaParser knowledge)
+    private static Atom? Scripted(ContentPart part, Atom baseAtom, string? style, TexFormulaParser knowledge)
     {
         // A prefix: the scripts were written *before* the thing they are on. Ordinary notation in
         // chemistry — the 14 and the 6 of carbon-14 — and what a script written after something that
@@ -726,7 +727,7 @@ public static class TexFormulaBuilder
         //
         // Only where there is a `^` or `_` to come after. A script made of marks alone — `f''` — has no
         // name child, and "after nothing" is not "first".
-        if (Order(part, TexRole.Name) is var name and >= 0 && Order(part, TexRole.Base) > name)
+        if (Order(part, Roles.Name) is var name and >= 0 && Order(part, TexRole.Base) > name)
         {
             // Reviewed 2026-08-28, including with a space beside it — a tie in front of the prefix, or a
             // space between the prefix and what it is on. Identical rendering, and ours is the tree to
@@ -776,9 +777,9 @@ public static class TexFormulaBuilder
         // \limits and \nolimits, which the reading has gathered into the operator they were written
         // after. They say how it wears what follows: over and under, or beside.
         var asked = part.Part(TexRole.Base)?.Children
-            .FirstOrDefault(child => child.Kind == TexKind.Command
-                                     && child.Part(TexRole.Name)?.Text is @"\limits" or @"\nolimits")
-            ?.Part(TexRole.Name)?.Text switch
+            .FirstOrDefault(child => child.Kind == TexKinds.Command
+                                     && child.Part(Roles.Name)?.Text is @"\limits" or @"\nolimits")
+            ?.Part(Roles.Name)?.Text switch
         {
             @"\limits" => true,
             @"\nolimits" => false,
@@ -804,7 +805,7 @@ public static class TexFormulaBuilder
     /// This node's scripts, set on whatever is handed in — used for a prefix, where what they go on is
     /// an empty box standing in front of the thing they belong to.
     /// </summary>
-    private static Atom? Scripts(ITexPart part, Atom on, string? style, TexFormulaParser knowledge)
+    private static Atom? Scripts(ContentPart part, Atom on, string? style, TexFormulaParser knowledge)
     {
         var superscript = Part(part, TexRole.Superscript, style, knowledge);
         var subscript = Part(part, TexRole.Subscript, style, knowledge);
@@ -870,9 +871,9 @@ public static class TexFormulaBuilder
         || (written.Length > 1 && StandardCommands.PrimitiveOf(written[1..]) is not null)
         || knowledge.Draws(written);
 
-    private static Atom? Command(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Command(ContentPart part, string? style, TexFormulaParser knowledge)
     {
-        if (part.Part(TexRole.Name)?.Text is not { } name) return null;
+        if (part.Part(Roles.Name)?.Text is not { } name) return null;
 
         switch (name)
         {
@@ -956,7 +957,7 @@ public static class TexFormulaBuilder
                 // k wearing the subscript, and in the engine as `\not` on a k that already wears it — a
                 // question about what the script is *on*, which is the same one the assembled commands
                 // raise above and belongs with them. Three formulas.
-                if (DeclineUnsettled && part.Parent is { Kind: TexKind.Script } && part.Role == TexRole.Base) return null;
+                if (DeclineUnsettled && part.Parent is { Kind: TexKinds.Script } && part.Role == TexRole.Base) return null;
 
                 if (Symbol("not", part, style) is not { } slash) return null;
 
@@ -966,7 +967,7 @@ public static class TexFormulaBuilder
                 var sign = new RowAtom().Add(slash);
                 foreach (var written in part.Children)
                 {
-                    if (written.Role is not (TexRole.Element or TexRole.Base)) continue;
+                    if (written.Role is not (Roles.Element or TexRole.Base)) continue;
 
                     // The letter has to be set — that is the whole sign. A kern or a written space between the two
                     // that this has no atom for is room the reader asked for and did not get, which is not a reason to
@@ -1092,7 +1093,7 @@ public static class TexFormulaBuilder
 
         // Shorthand, and the reader has already said what it stands for: it is hanging underneath
         // this command, so build that. Which is how the typesetter gets to not know the word macro.
-        if (Part(part, TexRole.Expansion, style, knowledge) is { } shorthand) return Tag(shorthand, part);
+        if (Part(part, Roles.Derived, style, knowledge) is { } shorthand) return Tag(shorthand, part);
 
         // A symbol standing on its own, if it is one.
         if (!part.Parts.Any() && Symbol(name[1..], part, style) is { } symbol) return symbol;
@@ -1116,7 +1117,7 @@ public static class TexFormulaBuilder
             ? symbol
             : null;
 
-    private static Atom? Symbol(string name, ITexPart part, string? style)
+    private static Atom? Symbol(string name, ContentPart part, string? style)
     {
         if (!SymbolAtom.TryGetAtom(name, out var symbol))
         {
@@ -1142,7 +1143,7 @@ public static class TexFormulaBuilder
     // ── Bookkeeping ─────────────────────────────────────────────────────────
 
     /// <summary>The one part with this role, built — or null when it is absent or not buildable.</summary>
-    private static Atom? Part(ITexPart whole, string role, string? style, TexFormulaParser knowledge)
+    private static Atom? Part(ContentPart whole, string role, string? style, TexFormulaParser knowledge)
     {
         foreach (var part in whole.Children)
             if (part.Role == role) return Of(part, style, knowledge);
@@ -1158,7 +1159,7 @@ public static class TexFormulaBuilder
     /// reading has not been shown to, so neither is guessed at.
     /// </para>
     /// </summary>
-    private static bool Spaced(ITexPart part)
+    private static bool Spaced(ContentPart part)
     {
         if (part.Part(TexRole.Base) is { } on && Spacing(on)) return true;
 
@@ -1179,38 +1180,38 @@ public static class TexFormulaBuilder
     /// Whether this is a plain sign — one character, or one command naming a symbol and nothing else.
     /// Not a group, not something wearing a script, and not a space of any width.
     /// </summary>
-    private static bool PlainSign(ITexPart part) =>
-        part.Kind == TexKind.Char
-        || (part.Kind == TexKind.Command
+    private static bool PlainSign(ContentPart part) =>
+        part.Kind == Kinds.Char
+        || (part.Kind == TexKinds.Command
             && !part.Parts.Any()
-            && part.Part(TexRole.Name)?.Text is { } named
+            && part.Part(Roles.Name)?.Text is { } named
             && named is not (@"\!" or @"\," or @"\:" or @"\;" or @"\ " or @"\quad" or @"\qquad"));
 
-    private static bool Discarded(ITexPart part) =>
-        part.Kind == TexKind.Command
-        && part.Part(TexRole.Name)?.Text is { } name
+    private static bool Discarded(ContentPart part) =>
+        part.Kind == TexKinds.Command
+        && part.Part(Roles.Name)?.Text is { } name
         && StandardCommands.IsDiscarded(name[1..]);
 
-    private static bool Spacing(ITexPart part) =>
-        part.Kind == TexKind.Space
+    private static bool Spacing(ContentPart part) =>
+        part.Kind == Kinds.Space
         || part.Text == "~"
-        || (part.Kind == TexKind.Command && part.Part(TexRole.Name)?.Text is @"\!" or @"\ ");
+        || (part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text is @"\!" or @"\ ");
 
     /// <summary>
     /// This script read as a brace and its label, or null where it is not one.
     ///
     /// <para>
     /// The one place two nodes of the reading are deliberately understood as one thing. Everything else
-    /// here builds a part into an atom; this looks at a <see cref="TexKind.Script"/> and the command
+    /// here builds a part into an atom; this looks at a <see cref="TexKinds.Script"/> and the command
     /// underneath it together, because what the script <em>means</em> is decided by what it lands on. Only
     /// where the brace labels that side — an <c>\underbrace</c> wearing a <c>^</c> is scripted like
     /// anything else, and the table is what says so.
     /// </para>
     /// </summary>
-    private static Atom? Labelled(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Labelled(ContentPart part, string? style, TexFormulaParser knowledge)
     {
-        if (part.Part(TexRole.Base) is not { Kind: TexKind.Command } braced) return null;
-        if (braced.Part(TexRole.Name)?.Text is not { } name) return null;
+        if (part.Part(TexRole.Base) is not { Kind: TexKinds.Command } braced) return null;
+        if (braced.Part(Roles.Name)?.Text is not { } name) return null;
 
         var over = part.Part(TexRole.Superscript) is not null;
         var side = over ? TexRole.Superscript : TexRole.Subscript;
@@ -1230,13 +1231,13 @@ public static class TexFormulaBuilder
     /// A command this builder has no case for. Null where something else has a reading for it, so the
     /// caller keeps looking; the name set as its own letters where nothing anywhere knows it.
     /// </summary>
-    private static Atom? Words(ITexPart part, string? style, TexFormulaParser knowledge)
+    private static Atom? Words(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         // A command something has a reading for, just not this builder — `\text`, `\textcolor`, `\bbox`.
         // Null, so whoever called goes on to its other cases. A gap here is a gap here: it is not a licence
         // to draw somebody's formula worse than it is drawn today, and the list of these is a list of
         // things to teach this builder rather than things to break.
-        if (part.Part(TexRole.Name) is not { Text: { } name } named || knowledge.Knows(name[1..])) return null;
+        if (part.Part(Roles.Name) is not { Text: { } name } named || knowledge.Knows(name[1..])) return null;
 
         // A command *nothing* knows is different in kind — a typo, or a package nobody loaded. Drawing
         // nothing would be the unhelpful answer: the formula would come out silently short and the reader
@@ -1260,7 +1261,7 @@ public static class TexFormulaBuilder
         // was written with, while tagging the result with the part that covers both — so the node claimed
         // eleven characters and set five, and the reader was shown a command with its argument missing.
         // What a fallback owes somebody is the text they typed.
-        return Tag(Letters(part.Print(), style, spaced: true), part);
+        return Tag(Letters(part.Node.Print(), style, spaced: true), part);
     }
 
     /// <summary>
@@ -1284,7 +1285,7 @@ public static class TexFormulaBuilder
     /// `h` of `\alhpa` is not a thing anybody wants to do.
     /// </para>
     /// </summary>
-    private static Atom Shown(ITexPart part, string? style) => Tag(Letters(part.Text, style, spaced: true), part);
+    private static Atom Shown(ContentPart part, string? style) => Tag(Letters(part.Text, style, spaced: true), part);
 
     /// <summary>
     /// A run of characters set exactly as they are written, spaces included.
@@ -1336,21 +1337,21 @@ public static class TexFormulaBuilder
     /// What a braced argument holds, as it was written — the braces themselves left off, and everything
     /// else, spaces and all, exactly as typed.
     /// </summary>
-    private static string Inside(ITexPart argument)
+    private static string Inside(ContentPart argument)
     {
-        if (argument.Children.Count == 0) return argument.Print();
+        if (argument.Children.Count == 0) return argument.Node.Print();
 
         var text = new System.Text.StringBuilder();
 
         foreach (var child in argument.Children)
-            if (child.Role is not (TexRole.Open or TexRole.Close))
-                text.Append(child.Print());
+            if (child.Role is not (Roles.Open or Roles.Close))
+                text.Append(child.Node.Print());
 
         return text.ToString();
     }
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
-    private static int Order(ITexPart whole, string role)
+    private static int Order(ContentPart whole, string role)
     {
         for (var at = 0; at < whole.Children.Count; at++)
             if (whole.Children[at].Role == role) return at;
@@ -1362,18 +1363,18 @@ public static class TexFormulaBuilder
     /// The whole part behind the read-only view — the one place the narrowing is undone.
     ///
     /// <para>
-    /// Everything in this file holds parts as <see cref="ITexPart"/>, so nothing here can read a position
+    /// Everything in this file holds parts as <see cref="ContentPart"/>, so nothing here can read a position
     /// while it builds. What gets <em>stored</em> is the whole part, because the thing that follows the
     /// link afterwards is an editor and an editor needs to know where things are. Both halves are wanted,
     /// and the seam between them is worth having in exactly one place rather than at each handoff.
     /// </para>
     /// <para>
-    /// <see cref="TexPart"/> is the only reading of a formula there is and it is sealed, so this cannot
+    /// <see cref="ContentPart"/> is the only reading of a formula there is and it is sealed, so this cannot
     /// fail; if it ever could, a part that is not one is not part of any formula and failing loudly is
     /// the right answer.
     /// </para>
     /// </summary>
-    private static TexPart Whole(ITexPart part) => (TexPart)part;
+    private static ContentPart Whole(ContentPart part) => (ContentPart)part;
 
     /// <summary>
     /// Says which part of the reading this atom was made for.
@@ -1391,7 +1392,7 @@ public static class TexFormulaBuilder
     /// whole construct the smallest thing anybody could aim at.
     /// </para>
     /// </summary>
-    private static Atom Tag(Atom atom, ITexPart part)
+    private static Atom Tag(Atom atom, ContentPart part)
     {
         atom.Origin = Whole(part);
 

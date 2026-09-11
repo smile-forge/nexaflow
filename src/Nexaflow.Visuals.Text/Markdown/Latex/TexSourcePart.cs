@@ -21,10 +21,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// as the part it wraps and can be compared by reference like one.
 /// </para>
 /// </summary>
-internal sealed class TexSourcePart(TexPart of) : ISourcePart
+internal sealed class TexSourcePart(ContentPart of) : ISourcePart
 {
     /// <summary>The part itself, for every question that is about the formula rather than the source.</summary>
-    public TexPart Of { get; } = of;
+    public ContentPart Of { get; } = of;
 
     /// <inheritdoc/>
     public int Start => Named.Start;
@@ -34,8 +34,8 @@ internal sealed class TexSourcePart(TexPart of) : ISourcePart
 
     private (int Start, int Length) Named => Of.Kind switch
     {
-        TexKind.Group => Of.Contents,
-        TexKind.Cell => Of.Written,
+        TexKinds.Group => Of.Contents,
+        TexKinds.Cell => Of.Written,
         _ => (Of.Start, Of.Length),
     };
 
@@ -56,6 +56,6 @@ internal sealed class TexSourcePart(TexPart of) : ISourcePart
     /// caught and the corpus did.
     /// </para>
     /// </summary>
-    internal static Diagnostic Trouble(TexPart part, DiagnosticSeverity severity, string message) =>
+    internal static Diagnostic Trouble(ContentPart part, DiagnosticSeverity severity, string message) =>
         new(part.Start, part.Length, severity, message) { Part = new TexSourcePart(part) };
 }

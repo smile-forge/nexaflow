@@ -3,6 +3,7 @@ using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
 using Nexaflow.Markdown.Latex;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -39,7 +40,7 @@ public static class LatexSyntax
             // The same reading the renderer works from, and now literally so: one call, one tree, and
             // the complaints are what the pieces of it say about themselves rather than a second list
             // kept alongside.
-            var reading = TexReading.Of(
+            var reading = ContentReading.Of(
                 TexPipeline.Read(latex, WpfTeXFormulaParser.Instance.Draws, holes: true));
 
             return reading.Root.SelfAndDescendants()

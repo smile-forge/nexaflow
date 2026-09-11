@@ -1,3 +1,5 @@
+using Nexaflow.Markdown.Ast;
+
 namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
@@ -13,7 +15,7 @@ namespace Nexaflow.Markdown.Latex;
 /// </para>
 /// <para>
 /// What comes of a lookup is written into the tree beneath the command, under
-/// <see cref="TexRole.Expansion"/>: the command is still what the writer typed, and its expansion is
+/// <see cref="Roles.Derived"/>: the command is still what the writer typed, and its expansion is
 /// what it means, and both are there to be asked. An expansion stands for no source, so the tree still
 /// prints back exactly as it was written.
 /// </para>

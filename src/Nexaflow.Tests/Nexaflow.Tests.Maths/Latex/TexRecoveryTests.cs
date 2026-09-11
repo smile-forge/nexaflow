@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -96,9 +97,9 @@ public class TexRecoveryTests
         // reader would watch their caret move as they typed.
         var group = Only(TexParser.Parse(@"{a"));
 
-        Assert.AreEqual(TexKind.Group, group.Kind);
-        Assert.IsNotNull(group.Part(TexRole.Open), "the brace that was typed is there");
-        Assert.IsNull(group.Part(TexRole.Close), "the one that was not typed is not");
+        Assert.AreEqual(TexKinds.Group, group.Kind);
+        Assert.IsNotNull(group.Part(Roles.Open), "the brace that was typed is there");
+        Assert.IsNull(group.Part(Roles.Close), "the one that was not typed is not");
     }
 
     [TestMethod]
@@ -106,7 +107,7 @@ public class TexRecoveryTests
     {
         var command = Only(TexParser.Parse(@"\frac{a}"));
 
-        Assert.AreEqual(TexKind.Command, command.Kind);
+        Assert.AreEqual(TexKinds.Command, command.Kind);
         Assert.IsNotNull(command.Part(TexRole.Numerator), "the numerator was typed");
         Assert.IsNull(command.Part(TexRole.Denominator), "the denominator was not");
     }
@@ -120,8 +121,8 @@ public class TexRecoveryTests
         var root = TexParser.Parse(@"\frac ");
 
         Assert.AreEqual(2, root.Children.Count, "the command, then the space");
-        Assert.AreEqual(TexKind.Command, root.Children[0].Kind);
-        Assert.AreEqual(TexKind.Space, root.Children[1].Kind);
+        Assert.AreEqual(TexKinds.Command, root.Children[0].Kind);
+        Assert.AreEqual(Kinds.Space, root.Children[1].Kind);
     }
 
     [TestMethod]
@@ -132,9 +133,9 @@ public class TexRecoveryTests
         var root = TexParser.Parse("a}b");
 
         Assert.AreEqual(3, root.Children.Count);
-        Assert.AreEqual(TexKind.Verbatim, root.Children[1].Kind);
+        Assert.AreEqual(Kinds.Verbatim, root.Children[1].Kind);
         Assert.AreEqual("}", root.Children[1].Text);
-        Assert.AreEqual(TexKind.Char, root.Children[2].Kind, "and the reading carries on");
+        Assert.AreEqual(Kinds.Char, root.Children[2].Kind, "and the reading carries on");
     }
 
     [TestMethod]
@@ -142,17 +143,17 @@ public class TexRecoveryTests
     {
         var environment = Only(TexParser.Parse(@"\begin{matrix} a & b"));
 
-        Assert.AreEqual(TexKind.Environment, environment.Kind);
+        Assert.AreEqual(TexKinds.Environment, environment.Kind);
         Assert.IsNotNull(environment.Part(TexRole.Begin));
         Assert.IsNull(environment.Part(TexRole.End), "it was never ended");
-        Assert.AreEqual(1, environment.Parts(TexRole.Row).Count());
+        Assert.AreEqual(1, environment.Parts(Roles.Row).Count());
     }
 
     /// <summary>The one thing the formula is made of, ignoring the space around it.</summary>
-    private static TexNode Only(TexNode root)
+    private static ContentNode Only(ContentNode root)
     {
         var content = root.Children
-            .Where(child => child.Kind is not (TexKind.Space or TexKind.Comment))
+            .Where(child => child.Kind is not (Kinds.Space or Kinds.Comment))
             .ToList();
 
         Assert.AreEqual(1, content.Count, $"expected one thing, got: {string.Join(", ", content)}");

@@ -3,6 +3,7 @@ module WpfMath.Tests.Utils
 open System
 open System.Windows
 
+open Nexaflow.Markdown.Ast
 open Nexaflow.Markdown.Latex
 open WpfMath.Parsers
 open XamlMath
@@ -31,7 +32,7 @@ let private knowledge = WpfTeXFormulaParser.Instance
 /// carried across intact.
 let readAndBuild (markup: string) =
     let read = TexPipeline.Read(markup, (fun name -> TexFormulaBuilder.Draws(name, knowledge)))
-    let reading = TexReading.Of read
+    let reading = ContentReading.Of read
     reading, TexFormulaBuilder.Build(reading.Root, knowledge)
 
 /// The formula. Fails only where nothing at all could be set as maths — which the app answers by

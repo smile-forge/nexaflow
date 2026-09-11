@@ -4,6 +4,7 @@ using System.Linq;
 using XamlMath.Atoms;
 using XamlMath.Boxes;
 using XamlMath.Rendering;
+using Nexaflow.Markdown.Ast;
 
 namespace XamlMath;
 
@@ -45,8 +46,8 @@ public sealed class TexFormula
     /// is also the only moment the answer can still be right, after an edit or two.
     /// </para>
     /// </summary>
-    public IReadOnlyList<Nexaflow.Markdown.Latex.TexPart> Ignored { get; internal set; } =
-        new List<Nexaflow.Markdown.Latex.TexPart>();
+    public IReadOnlyList<Nexaflow.Markdown.Ast.ContentPart> Ignored { get; internal set; } =
+        new List<Nexaflow.Markdown.Ast.ContentPart>();
 
     public void SetForeground(IBrush brush)
     {

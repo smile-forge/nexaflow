@@ -4,6 +4,7 @@ using System.Linq;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -89,12 +90,12 @@ public class TexPipelineTests
         // blank, and the argument of an unknown command is usually ordinary maths.
         var tree = TexPipeline.Checked(TexParser.Parse(@"\wat{x + y}"), Nothing);
 
-        var shown = tree.SelfAndDescendants().Where(node => node.Kind == TexKind.Verbatim).ToList();
+        var shown = tree.SelfAndDescendants().Where(node => node.Kind == Kinds.Verbatim).ToList();
         Assert.AreEqual(1, shown.Count, "the whole command was shown, not just its name");
         Assert.AreEqual(@"\wat", shown[0].Text);
         Assert.IsNotNull(shown[0].Trouble, "nothing was said about why it could not be drawn");
 
-        Assert.IsTrue(tree.SelfAndDescendants().Any(node => node.Kind == TexKind.Char && node.Text == "x"),
+        Assert.IsTrue(tree.SelfAndDescendants().Any(node => node.Kind == Kinds.Char && node.Text == "x"),
             "the argument stopped being maths");
     }
 
@@ -105,7 +106,7 @@ public class TexPipelineTests
         // their half-written command is invalid on every keystroke is the wrong thing to draw.
         var tree = TexPipeline.ShownAsWritten(TexParser.Parse(@"\frac{a}{b}"), 0, 5);
 
-        foreach (var node in tree.SelfAndDescendants().Where(node => node.Kind == TexKind.Verbatim))
+        foreach (var node in tree.SelfAndDescendants().Where(node => node.Kind == Kinds.Verbatim))
             Assert.IsNull(node.Trouble, $"{node.Text} was complained about while it was being typed");
     }
 
@@ -160,10 +161,10 @@ public class TexPipelineTests
         Assert.AreEqual(latex, tree.Print(), "a stage may re-nest anything and may change no character");
 
         var sign = tree.Children.Single();
-        Assert.AreEqual(@"\not", sign.Part(TexRole.Name)?.Text, "one node, and it is the \\not");
+        Assert.AreEqual(@"\not", sign.Part(Roles.Name)?.Text, "one node, and it is the \\not");
         Assert.AreEqual("p", sign.Part(TexRole.Base)?.Print(),
             "what the slash is drawn over is the letter — a kern is not something to draw over");
-        Assert.AreEqual(@"\!", sign.Part(TexRole.Element)?.Print(),
+        Assert.AreEqual(@"\!", sign.Part(Roles.Element)?.Print(),
             "and the kern that puts it there came inside rather than being dropped");
     }
 

@@ -1,7 +1,9 @@
+using Nexaflow.Markdown.Ast;
+
 namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
-/// What a piece is <em>to</em> the thing holding it.
+/// What a piece is <em>to</em> the thing holding it — the roles only LaTeX has.
 ///
 /// <para>
 /// The point of the whole tree. A <c>3</c> is a 3 wherever it appears; a 3 whose role is
@@ -13,11 +15,14 @@ namespace Nexaflow.Markdown.Latex;
 /// every consumer switches over — and so these can be compared directly with the roles the typesetter's
 /// own slots carry while both trees are in play. The meaning-bearing names below are exactly its names.
 /// </para>
+/// <para>
+/// The machinery every language has — a command's name, a group's braces, a separator, the space inside a
+/// construct, a row and a cell, what a construct holds, and what a macro stands for — is the shared
+/// <see cref="Roles"/>. A macro's expansion is <see cref="Roles.Derived"/>: it stands for no source.
+/// </para>
 /// </summary>
 public static class TexRole
 {
-    // ── Parts that mean something to the construct holding them ─────────────
-
     /// <summary>What a script, an accent or a limit is attached to.</summary>
     public const string Base = "base";
 
@@ -53,65 +58,8 @@ public static class TexRole
     /// <summary>A bracketed argument: <c>[3]</c>, and the column spec of an <c>array</c>.</summary>
     public const string Option = "option";
 
-    /// <summary>One of several things in a row, which is all a sequence can say about what is in it.</summary>
-    public const string Element = "element";
-
-    /// <summary>One cell of a grid.</summary>
-    public const string Cell = "cell";
-
-    /// <summary>One line of a grid.</summary>
-    public const string Row = "row";
-
-    /// <summary>What is between <c>\begin</c> and <c>\end</c>, or between a fence's delimiters.</summary>
-    public const string Body = "body";
-
-    // ── Parts that are machinery ────────────────────────────────────────────
-    //
-    // Carried so the tree can be printed back, and so that nothing has to go looking at the characters
-    // around a span to find out whether the writer used braces. Nothing points at one of these on its
-    // own: a brace without its partner cannot be read, and neither can half a \begin.
-
-    /// <summary>The mark that makes a construct what it is: a command's <c>\name</c>, a script's
-    /// <c>^</c> or <c>_</c>.</summary>
-    public const string Name = "name";
-
-    public const string Open = "open";
-    public const string Close = "close";
-
-    /// <summary>An <c>&amp;</c> or a <c>\\</c>.</summary>
-    public const string Separator = "separator";
-
     /// <summary>The <c>\begin{matrix}</c> and <c>\end{matrix}</c> of an environment.</summary>
     public const string Begin = "begin";
 
     public const string End = "end";
-
-    /// <summary>
-    /// Space or a comment that fell inside a construct — between a command and its argument, say. Kept
-    /// where it was found, because it is where the writer put it.
-    /// </summary>
-    public const string Trivia = "trivia";
-
-
-    // ── Parts that were never written ───────────────────────────────────────
-    //
-    // Everything above stands for characters somebody typed. This does not.
-
-    /// <summary>
-    /// What a macro resolves to, hung under the macro itself.
-    ///
-    /// <para>
-    /// <c>\neq</c> is one command the writer typed and a slash over an equals sign to whoever sets it. The
-    /// tree carries both: the command, with its expansion beneath it. So a reader of the tree can ask what
-    /// was written and get <c>\neq</c>, and a setter of it can walk down and find the two things to draw,
-    /// and neither has to know what the other wanted.
-    /// </para>
-    /// <para>
-    /// <strong>An expansion is not source, and nothing that measures source may see it.</strong> It has no
-    /// width, it prints as nothing, it is not placed anywhere and it holds no leaves — which is exactly
-    /// what keeps <c>Print(Parse(s)) == s</c> true once a macro has been resolved into the tree. It is
-    /// still a part like any other to anything asking what the formula <em>means</em>.
-    /// </para>
-    /// </summary>
-    public const string Expansion = "expansion";
 }
