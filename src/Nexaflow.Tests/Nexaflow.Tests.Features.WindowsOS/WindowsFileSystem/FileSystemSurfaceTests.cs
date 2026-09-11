@@ -108,7 +108,9 @@ public class FileSystemSurfaceTests
         File.WriteAllText(Path.Combine(_scratch, "b.txt"), "");
 
         var vm = AtScratch(out _);
-        Assert.IsTrue(SpinWaitFor(() => vm.HasFolders && vm.HasFiles), "the folder to finish loading");
+        // The flags are set before the counts are written, on the load's own thread, so they can be seen
+        // before the text is: wait for the load to finish, not for them.
+        Assert.IsTrue(SpinWaitFor(() => !vm.IsLoadingEntries && vm.HasFolders && vm.HasFiles), "the folder to finish loading");
 
         Assert.AreEqual("1 folder", vm.FolderCountText);
         Assert.AreEqual("2 files", vm.FileCountText);

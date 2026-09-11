@@ -162,7 +162,7 @@ public sealed class LatexBuilder : ContentBuilder
 
         // An equation's number, where one was written, set against the right edge of the block the formula is
         // displayed in — see Numbered.
-        var (tree, size) = formula.Number is { } number
+        var (tree, size) = XamlMath.TexFormulaBuilder.Number(reading.Root) is { } number
             ? Numbered(laid, capture, number, environment, reading)
             : (laid, capture.Size);
 
