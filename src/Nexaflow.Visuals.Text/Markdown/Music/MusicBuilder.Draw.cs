@@ -4,13 +4,13 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Music.Abc;
+
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
+namespace Nexaflow.Visuals.Text.Markdown.Music;
 
 /// <summary>
 /// The half of the engraver that puts pieces into the tree: what each thing is drawn as, what holds it,
@@ -28,7 +28,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// curves are paired before anything is drawn rather than gathering finished notes at the end.
 /// </para>
 /// </summary>
-internal sealed partial class AbcBuilder
+internal abstract partial class MusicBuilder
 {
     private readonly LayoutBuilder _build = new();
 
@@ -79,12 +79,12 @@ internal sealed partial class AbcBuilder
 
     // ── The whole of it ─────────────────────────────────────────────────────
 
-    private (LayoutTree Tree, Size Size) Engrave(double width)
+    private (LayoutTree Tree, Size Size) Engrave(Tune tune, double width)
     {
         _noteHead = Smufl.Advance(Smufl.NoteheadBlack, S);
         if (_noteHead <= 0) _noteHead = 1.18 * S;
 
-        var rows = Rows();
+        var rows = tune.Rows;
         var systems = Wrap(rows, Math.Max(width, 12 * S));
 
         if (systems.Count > 0) Justify(systems, width);
@@ -97,7 +97,7 @@ internal sealed partial class AbcBuilder
         // is the same number to within an overhanging slur, and it is available before anything is drawn —
         // which it has to be, because the heading is what the music starts under and a piece's anchor is
         // fixed when it opens.
-        var header = AbcHeader.Of(_reading);
+        var header = tune.Header;
         var paper = systems.Count == 0 ? width : systems.Max(s => s.Right) + RightMargin;
 
         _build.Open("score");
@@ -194,8 +194,8 @@ internal sealed partial class AbcBuilder
         Glyph("clef", geometry.ClefGlyph, new Point(x, clefY));
         x += Smufl.Advance(geometry.ClefGlyph, S) + (0.6 * S);
 
-        x = DrawKeySignature(system, geometry, x, system.Row.Context.Fifths);
-        if (system.ShowMeter) Meter(system, x, system.Row.Context.Beats, system.Row.Context.BeatUnit);
+        x = DrawKeySignature(system, geometry, x, system.Row.Fifths);
+        if (system.ShowMeter && system.Row.Meter is { } meter) Meter(system, x, meter.Beats, meter.Unit, meter.Sign);
     }
 
     private double DrawKeySignature(System system, StaffGeometry geometry, double x, int fifths)
@@ -216,13 +216,13 @@ internal sealed partial class AbcBuilder
         return x + (0.4 * S);
     }
 
-    private void Meter(System system, double x, int beats, int unit, int? asked = null)
+    private void Meter(System system, double x, int beats, int unit, int? sign)
     {
         // A sign where the tune wrote one — `M:C` and `M:C|` are asking for the symbol rather than for
         // the figures they happen to count as.
-        if ((asked ?? MeterSign) is { } sign)
+        if (sign is { } symbol)
         {
-            Glyph("meter", sign, new Point(x, Y(system, 4)));
+            Glyph("meter", symbol, new Point(x, Y(system, 4)));
             return;
         }
 
@@ -255,9 +255,9 @@ internal sealed partial class AbcBuilder
     /// The children of a bar that stand for events: a beamed run is one of them, and anything else is one
     /// of its own. What a curve's ends are counted in when it gathers two of them.
     /// </summary>
-    private static List<(ContentPart? Beam, List<Event> Events)> Runs(Bar bar)
+    private static List<(ISourcePart? Beam, List<Event> Events)> Runs(Bar bar)
     {
-        var runs = new List<(ContentPart? Beam, List<Event> Events)>();
+        var runs = new List<(ISourcePart? Beam, List<Event> Events)>();
 
         foreach (var ev in bar.Events)
         {
@@ -276,7 +276,7 @@ internal sealed partial class AbcBuilder
         _build.Reserves(0, StaffHeight);
 
         var x = bar.X;
-        if (bar.Opened is not null) x = Barline(system, bar.Opened, x);
+        if (bar.Opened is not null) x = DrawBarline(system, bar.Opened, x);
 
         // A mid-tune key or meter change, printed where it takes effect.
         if (bar.KeyChange is { } key) x = DrawKeySignature(system, geometry, x, key.Fifths);
@@ -336,7 +336,7 @@ internal sealed partial class AbcBuilder
         }
 
         Tuplets(system, geometry, bar);
-        Barline(system, bar);
+        DrawBarline(system, bar);
 
         if (_build.Reached.IsEmpty)
             _build.Covers(In(new Rect(bar.X, system.StaffTop, bar.Width, StaffHeight)));
@@ -357,7 +357,7 @@ internal sealed partial class AbcBuilder
     /// share this parent and nothing else can span them without lifting them out of it.
     /// </para>
     /// </summary>
-    private void Beamed(System system, StaffGeometry geometry, Bar bar, ContentPart beam, List<Event> events)
+    private void Beamed(System system, StaffGeometry geometry, Bar bar, ISourcePart beam, List<Event> events)
     {
         var beamed = events.Where(e => e.Beamable).ToList();
         var plan = Plan(system, geometry, beamed);
@@ -406,7 +406,7 @@ internal sealed partial class AbcBuilder
         var halves = events.SelectMany(e => e.Heads.Select(geometry.HalfSpacesAbove)).ToList();
         if (halves.Count == 0) return null;
 
-        var down = StemsDown(halves);
+        var down = Engraving.StemDown(halves);
 
         var xs = new List<double>();
         var outer = new List<double>();
@@ -655,7 +655,7 @@ internal sealed partial class AbcBuilder
             ? ev.Heads.Select(geometry.HalfSpacesAbove).ToList()
             : [Engraving.MiddleLine];
 
-        var down = StemsDown(halves);
+        var down = Engraving.StemDown(halves);
         var at = down ? halves.Max() + 2 : halves.Min() - 2;
 
         foreach (var glyph in ev.HeadMarks)
@@ -680,7 +680,7 @@ internal sealed partial class AbcBuilder
 
         var y = Math.Min(
             system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)
-                + (system.HasChordRow ? ChordRow : 0) + MarkRow,
+                + (system.HasChordRow ? TextRow : 0) + MarkRow,
             over);
 
         foreach (var glyph in ev.StaffMarks)
@@ -709,7 +709,7 @@ internal sealed partial class AbcBuilder
                 AnnotationPlacement.Above => new Point(ev.X, system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)),
                 AnnotationPlacement.Below => new Point(
                     ev.X,
-                    system.StaffTop + StaffHeight + system.Below - (system.TextBelow * ChordRow) + (below++ * ChordRow)),
+                    system.StaffTop + StaffHeight + system.Below - (system.TextBelow * TextRow) + (below++ * TextRow)),
                 AnnotationPlacement.Left => new Point(ev.X - glyphs.Width - (0.3 * S), system.StaffTop + S),
                 _ => new Point(ev.X + _noteHead + (0.3 * S), system.StaffTop + S),
             };
@@ -736,7 +736,7 @@ internal sealed partial class AbcBuilder
         if (ev.IsRest || ev.Heads.Length == 0 || ev.BaseValue <= 1) return;
 
         var halves = ev.Heads.Select(geometry.HalfSpacesAbove).ToList();
-        var down = stemsDown ?? StemsDown(halves);
+        var down = stemsDown ?? Engraving.StemDown(halves);
 
         var fromY = Y(system, down ? halves.Max() : halves.Min());
         var endY = toY ?? (down ? Y(system, halves.Min()) + StemLen : Y(system, halves.Max()) - StemLen);
@@ -830,7 +830,7 @@ internal sealed partial class AbcBuilder
     /// </summary>
     private void Lyrics(System system, Event ev, Event? before)
     {
-        foreach (var (verse, _, text, hyphen, melisma, part) in ev.Lyrics)
+        foreach (var (verse, text, hyphen, melisma, part) in ev.Lyrics)
         {
             var y = system.LyricTop + (verse * LyricRow);
 
@@ -930,7 +930,7 @@ internal sealed partial class AbcBuilder
 
             if (halves.Count > 0 && bar.Events[at].TupletNumber > 1)
             {
-                var down = StemsDown(halves);
+                var down = Engraving.StemDown(halves);
                 var glyphs = ScoreText.Build(
                     bar.Events[at].TupletNumber.ToString(global::System.Globalization.CultureInfo.InvariantCulture),
                     VoltaSize, _ppd, style: FontStyles.Italic);
@@ -956,21 +956,25 @@ internal sealed partial class AbcBuilder
     /// The line that closes a bar. It carries a part, because somebody wrote it: a reader can point at one,
     /// and a selection of every note in a bar has to cover it before it can grow into the bar.
     /// </summary>
-    private void Barline(System system, Bar bar)
+    private void DrawBarline(System system, Bar bar)
     {
         if (bar.Closed is null) return;
-        Barline(system, bar.Closed, bar.X + bar.Width - BarlineWidth(bar.Closed) + (0.25 * S));
+        DrawBarline(system, bar.Closed, bar.X + bar.Width - BarlineWidth(bar.Closed) + (0.25 * S));
     }
 
     /// <summary>Draws one bar line at <paramref name="from"/>, and says where it ended.</summary>
-    private double Barline(System system, ContentPart line, double from)
+    private double DrawBarline(System system, Barline line, double from)
     {
-        var written = line.Node.Print();
+        var written = line.Drawn;
         var x = from;
         var top = system.StaffTop;
         var height = StaffHeight;
 
-        _staff.Add(Open("barline", line, new Point(from, top)));
+        var piece = Open("barline", line.Part, new Point(from, top));
+
+        // On the staff's run only where somebody wrote it: a line the meter implied names nothing, and a run is
+        // what a drag selects along.
+        if (line.Part is not null) _staff.Add(piece);
 
         foreach (var mark in written)
         {
@@ -1091,7 +1095,7 @@ internal sealed partial class AbcBuilder
             if (system.Bars[at].Volta is not { } part) continue;
 
             var to = at;
-            while (to < system.Bars.Count && !system.Bars[to].EndsRepeat
+            while (to < system.Bars.Count && !system.Bars[to].EndsRepeat && !system.Bars[to].EndsBracket
                    && (to == at || system.Bars[to].Volta is null)) to++;
 
             var last = Math.Min(to, system.Bars.Count - 1);
@@ -1185,7 +1189,7 @@ internal sealed partial class AbcBuilder
         public Bar? In;
 
         /// <summary>The beamed group inside that bar, where both ends are in one.</summary>
-        public ContentPart? Beam;
+        public ISourcePart? Beam;
 
         /// <summary>The children it spans, inclusive, within whatever gathers it.</summary>
         public int First = -1;
@@ -1251,7 +1255,7 @@ internal sealed partial class AbcBuilder
                 // Opposite the stems, which is the whole rule: a stem leaving the head upward is what the curve
                 // has to keep clear of, so it bows underneath, and the other way round for a down stem. Where
                 // the two ends disagree it goes above, which is the side with room.
-                Above = StemsDown(Stems(one)) || StemsDown(Stems(other)),
+                Above = Engraving.StemDown(Stems(one)) || Engraving.StemDown(Stems(other)),
             };
 
         if (ReferenceEquals(one.Bar, other.Bar))
@@ -1305,7 +1309,7 @@ internal sealed partial class AbcBuilder
     private static int Slot(Bar bar, Event of)
     {
         var at = -1;
-        ContentPart? beam = null;
+        ISourcePart? beam = null;
         var first = true;
 
         foreach (var ev in bar.Events)
@@ -1362,7 +1366,7 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>The sets gathered at one level of one bar, widest first so they nest as they are opened.</summary>
-    private List<Curve> Gathering(Bar bar, ContentPart? beam) =>
+    private List<Curve> Gathering(Bar bar, ISourcePart? beam) =>
         [.. _curves
             .Where(c => ReferenceEquals(c.In, bar) && ReferenceEquals(c.Beam, beam))
             .OrderByDescending(c => c.Last - c.First)

@@ -4,19 +4,19 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Music.Abc;
+
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
+namespace Nexaflow.Visuals.Text.Markdown.Music;
 
 /// <summary>
 /// The half of the engraver that knows about a page: how much room each event takes, where the systems
 /// break, how they are justified, and where every glyph lands.
 /// </summary>
-internal sealed partial class AbcBuilder
+internal abstract partial class MusicBuilder
 {
     /// <summary>A run of bars set on one line, with the room its notation actually needs above and below.</summary>
     private sealed class System
@@ -127,7 +127,7 @@ internal sealed partial class AbcBuilder
 
         // A syllable is centred under its head and so charges the note only half of itself — the other half
         // is its neighbour's problem. Charging the full width made a line of long and short words lurch.
-        foreach (var (_, _, text, _, _, _) in ev.Lyrics)
+        foreach (var (_, text, _, _, _) in ev.Lyrics)
         {
             if (text.Length == 0) continue;
             var wanted = (ScoreText.Width(text, LyricSize, _ppd) / 2) + LyricGap;
@@ -189,17 +189,17 @@ internal sealed partial class AbcBuilder
     private double SectionAir => _spacing.SectionAir;
 
     /// <summary>Whether a bar line is one that stops the music: anything written with more than one mark.</summary>
-    private static bool Stops(ContentPart? line) => line?.Node.Print().Trim().Length > 1;
+    private static bool Stops(Barline? line) => line?.Drawn.Trim().Length > 1;
 
-    private double LeadIn(ContentPart? line) => BarLeadIn + (Stops(line) ? SectionAir : 0);
+    private double LeadIn(Barline? line) => BarLeadIn + (Stops(line) ? SectionAir : 0);
 
-    private double LeadOut(ContentPart? line) => BarLeadOut + (Stops(line) ? SectionAir : 0);
+    private double LeadOut(Barline? line) => BarLeadOut + (Stops(line) ? SectionAir : 0);
 
-    private static double BarlineWidth(ContentPart? line) =>
-        line is null ? 0 : Math.Max(0.5 * S, (line.Node.Print().Length * 0.28 * S) + (0.35 * S));
+    private static double BarlineWidth(Barline? line) =>
+        line is null ? 0 : Math.Max(0.5 * S, (line.Drawn.Length * 0.28 * S) + (0.35 * S));
 
     /// <summary>The room an opening bar line takes at the head of a bar — a repeat start, usually.</summary>
-    private static double OpeningWidth(ContentPart? line) => BarlineWidth(line);
+    private static double OpeningWidth(Barline? line) => BarlineWidth(line);
 
     private double KeyWidth(KeySignature key, ClefKind clef) =>
         Math.Abs(key.Fifths) == 0
@@ -207,8 +207,8 @@ internal sealed partial class AbcBuilder
             : Math.Min(Math.Abs(key.Fifths), 7)
               * (Smufl.Advance(key.Fifths > 0 ? Smufl.AccidentalSharp : Smufl.AccidentalFlat, S) + (0.08 * S));
 
-    private double MeterWidth(int? sign = null) =>
-        (sign ?? MeterSign) is { } drawn ? Smufl.Advance(drawn, S) + (0.2 * S) : 2.2 * S;
+    private static double MeterWidth(int? sign) =>
+        sign is { } drawn ? Smufl.Advance(drawn, S) + (0.2 * S) : 2.2 * S;
 
     /// <summary>How far a stem reaches past its head, in half-spaces.</summary>
     private const int StemHalfSpaces = 7;
@@ -237,7 +237,7 @@ internal sealed partial class AbcBuilder
 
             // A semibreve has no stem to make room for.
             var stem = group.Any(e => e.BaseValue >= 2) ? StemHalfSpaces : 0;
-            var down = StemsDown(halves);
+            var down = Engraving.StemDown(halves);
 
             high = Math.Max(high, halves.Max() + (down ? 0 : stem));
             low = Math.Min(low, halves.Min() - (down ? stem : 0));
@@ -268,9 +268,9 @@ internal sealed partial class AbcBuilder
             : 0;
 
         var width = LeftMargin + named + Smufl.Advance(StaffGeometry.For(row.Clef).ClefGlyph, S) + (0.6 * S);
-        width += KeyWidth(KeySignature.FromFifths(row.Context.Fifths), row.Clef);
+        width += KeyWidth(KeySignature.FromFifths(row.Fifths), row.Clef);
         if (width > 0) width += 0.4 * S;
-        if (meter) width += MeterWidth();
+        if (meter && row.Meter is { } shown) width += MeterWidth(shown.Sign);
 
         // The same air whether or not a meter was printed. Hanging it off the meter meant a tune without
         // one opened with its first note against the key signature.
@@ -300,7 +300,7 @@ internal sealed partial class AbcBuilder
 
         // The parts that sound together, in the order they were written. ABC writes one voice's line after
         // another and leaves the reader to count, so this is the counting.
-        foreach (var together in rows.GroupBy(r => (r.Voice.Length == 0 ? "" : "v", r.Index))
+        foreach (var together in rows.GroupBy(r => (r.Piece, r.Voice.Length == 0 ? "" : "v", r.Index))
                                      .OrderBy(g => rows.IndexOf(g.First())))
         {
             var parts = together.ToList();
@@ -308,7 +308,7 @@ internal sealed partial class AbcBuilder
                 foreach (var bar in row.Bars) Measure(bar, row);
 
             var shared = Share(parts);
-            var opening = parts.Max(r => HeadWidth(r, meter: MeterWritten));
+            var opening = parts.Max(r => HeadWidth(r, meter: true));
             var later = parts.Max(r => HeadWidth(r, meter: false));
             var from = systems.Count;
 
@@ -391,7 +391,7 @@ internal sealed partial class AbcBuilder
             var current = new System
             {
                 Row = row, HeadWidth = head, ShowName = row.Index == 0,
-                ShowMeter = row.Index == 0 && MeterWritten,
+                ShowMeter = row.Index == 0 && row.Meter is not null,
             };
             var used = 0.0;
 
@@ -557,7 +557,7 @@ internal sealed partial class AbcBuilder
     /// symbol belongs above the music, and how high that is depends on how high the music went.
     /// </para>
     /// </summary>
-    private static void Stack(List<System> systems, double below)
+    private void Stack(List<System> systems, double below)
     {
         var y = below + S;
 
@@ -603,10 +603,10 @@ internal sealed partial class AbcBuilder
             // chord symbol belongs above the music, and how high that is depends on how high the music
             // went. Stacked in the order they are read outward from the staff.
             system.Above += system.MarksAbove * MarkRow;
-            if (system.HasChordRow) system.Above += ChordRow;
+            if (system.HasChordRow) system.Above += TextRow;
             if (system.HasVoltaRow) system.Above += VoltaRow;
 
-            system.Below += system.TextBelow * ChordRow;
+            system.Below += system.TextBelow * TextRow;
 
             system.StaffTop = y + system.Above;
 
@@ -671,25 +671,41 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>Whether a bar line is more than the plain divider between two bars.</summary>
-    private static bool Heavier(ContentPart? line) =>
-        line is not null && line.Node.Print().Trim() is not ("|" or "");
+    private static bool Heavier(Barline? line) =>
+        line is not null && line.Drawn.Trim() is not ("|" or "");
 
     /// <summary>
-    /// The stretch of source a run of bars covers, from the first character of the first to the last of
-    /// whatever closes the last.
+    /// The stretch of source a run of bars covers, from the first character anything in it was written with to
+    /// the last — or nothing, where nothing in it was written at all.
     /// </summary>
-    private static SourceSpan Spanning(List<Bar> bars)
+    private static ISourcePart? Spanning(List<Bar> bars)
     {
-        var start = bars[0].Part.Start;
-        var end = bars.Max(bar => Math.Max(bar.Part.End(), bar.Closed?.End() ?? 0));
-        return new SourceSpan(start, Math.Max(0, end - start));
+        var start = int.MaxValue;
+        var end = int.MinValue;
+
+        void Take(ISourcePart? part)
+        {
+            if (part is null) return;
+            start = Math.Min(start, part.Start);
+            end = Math.Max(end, part.End());
+        }
+
+        foreach (var bar in bars)
+        {
+            Take(bar.Part);
+            Take(bar.Opened?.Part);
+            Take(bar.Closed?.Part);
+            foreach (var ev in bar.Events) Take(ev.Part);
+        }
+
+        return start > end ? null : new SourceSpan(start, end - start);
     }
 
     // ── The small pieces ────────────────────────────────────────────────────
 
     /// <summary>Whether a bar line ends the music rather than merely dividing it.</summary>
-    private static bool Closes(ContentPart? line) =>
-        line?.Node.Print() is { } written && (written.Contains(']') || written == "||");
+    private static bool Closes(Barline? line) =>
+        line?.Drawn is { } written && (written.Contains(']') || written == "||");
 
     // ── Bracketed systems ───────────────────────────────────────────────────
 
@@ -698,15 +714,6 @@ internal sealed partial class AbcBuilder
     // ── Repeat brackets ─────────────────────────────────────────────────────
 
     // ── Glyphs and geometry ─────────────────────────────────────────────────
-
-    /// <summary>
-    /// Which way a stem points: away from the middle line, with the note reaching furthest from it
-    /// deciding for the whole group. The tie — a note on the middle line, or a group reaching equally far
-    /// both ways — goes down, which is a convention borrowed from the corpus rather than a rule. See
-    /// <see cref="Engraving.StemDown"/>, which this is the half-space form of.
-    /// </summary>
-    private static bool StemsDown(IReadOnlyList<int> halves) =>
-        halves.Max() - Engraving.MiddleLine >= Engraving.MiddleLine - halves.Min();
 
     /// <summary>Where a half-space above the bottom staff line lands on the page.</summary>
     private static double Y(System system, int half) => system.StaffTop + StaffHeight - (half * (S / 2));
@@ -757,4 +764,14 @@ internal sealed partial class AbcBuilder
         <= -2 => Smufl.AccidentalDoubleFlat,
         _ => Smufl.AccidentalNatural,
     };
+
+    /// <summary>
+    /// One row of words above or below the staff — chord names, and text put above or below a note: tall enough
+    /// for a line of either face set in it, with air before the staff. A fixed height undercut the words it held;
+    /// the row was shorter than a line of the body face, so text over the staff sat on its top line.
+    /// </summary>
+    private double TextRow => _textRow ??= Math.Max(ChordRow,
+        Math.Max(ScoreText.Build("Hg", ChordSize, _ppd).Height, ScoreText.Chord("Hg", ChordSize, _ppd).Height) + (0.5 * S));
+
+    private double? _textRow;
 }

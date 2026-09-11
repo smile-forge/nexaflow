@@ -3,6 +3,7 @@ using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Markdown.Music.Abc.Stages;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Music;
 
 namespace Nexaflow.Tests.Markdown.Music.Abc;
 
@@ -178,7 +179,7 @@ public class AbcPipelineTests
             .Select(n => ResolveNotes.LengthOf(n)).ToList();
 
         Assert.AreEqual(3, lengths.Count);
-        foreach (var length in lengths) Assert.AreEqual(new AbcLength(1, 3).Quarters, length.Quarters, 1e-9);
+        foreach (var length in lengths) Assert.AreEqual(new Duration(1, 3).Quarters, length.Quarters, 1e-9);
 
         // Three of them add up to two eighths — the whole point of the notation.
         Assert.AreEqual(1.0, lengths.Sum(l => l.Quarters), 1e-9);

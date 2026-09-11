@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using Nexaflow.Markdown.Music.Abc;
+using Nexaflow.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 using Nexaflow.Visuals.Text.Editing;
 using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
 using Nexaflow.Markdown.Ast;
 
-namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
+namespace Nexaflow.Visuals.Text.Markdown.Music;
 
 /// <summary>
 /// The prose around a tune — its title, who wrote it, and the verses under it — engraved into the same
@@ -28,7 +28,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// TextBlock ever was, and one drag can run from the heading through the music to the last verse.
 /// </para>
 /// </summary>
-internal sealed partial class AbcBuilder
+internal abstract partial class MusicBuilder
 {
     /// <summary>Between two lines of the heading, and between two lines of the verses.</summary>
     private const double ProseLine = 0.2 * S;
@@ -44,7 +44,7 @@ internal sealed partial class AbcBuilder
     /// the rhythm at the left and the composer at the right. Gives back the room it took, which is where
     /// the music starts.
     /// </summary>
-    private double Heading(AbcHeader header, double width)
+    private double Heading(MusicHeader header, double width)
     {
         var y = 0.0;
 
@@ -82,7 +82,7 @@ internal sealed partial class AbcBuilder
     /// A blank line among them is the gap between two stanzas, so it takes room and draws nothing.
     /// </para>
     /// </summary>
-    private void Verses(AbcHeader header, double width, double top)
+    private void Verses(MusicHeader header, double width, double top)
     {
         if (header.Footer.Count == 0) return;
 
@@ -108,7 +108,7 @@ internal sealed partial class AbcBuilder
     }
 
     /// <summary>One line of the verses — or the gap between two stanzas, which is a line that is empty.</summary>
-    private double Verse(AbcHeader.Prose line, double y, double x, double room) =>
+    private double Verse(MusicHeader.Prose line, double y, double x, double room) =>
         line.Text.Trim().Length == 0
             ? y + (FooterSize * 0.7)
             : Written(line, "verse", y, room, FooterSize, TextAlignment.Left, at: x);
@@ -131,7 +131,7 @@ internal sealed partial class AbcBuilder
     /// half.
     /// </para>
     /// </summary>
-    private static int? ColumnBreak(IReadOnlyList<AbcHeader.Prose> footer)
+    private static int? ColumnBreak(IReadOnlyList<MusicHeader.Prose> footer)
     {
         const int Enough = 6;
         const int Short = 44;
@@ -160,7 +160,7 @@ internal sealed partial class AbcBuilder
     /// </para>
     /// </summary>
     /// <returns>The y the next line starts at.</returns>
-    private double Written(AbcHeader.Prose prose, string kind, double y, double room,
+    private double Written(MusicHeader.Prose prose, string kind, double y, double room,
                            double size, TextAlignment align, double? at = null,
                            FontWeight? weight = null, FontStyle? style = null)
     {
@@ -184,7 +184,7 @@ internal sealed partial class AbcBuilder
     /// one line, and for those two there is no character-by-character answer to give.
     /// </para>
     /// </summary>
-    private static IReadOnlyList<ISourcePart>? Letters(AbcHeader.Prose prose) =>
+    private static IReadOnlyList<ISourcePart>? Letters(MusicHeader.Prose prose) =>
         prose is { IsWritten: true, Part: { } part }
             ? [.. Enumerable.Range(0, prose.Text.Length)
                   .Select(at => (ISourcePart)new SourceSpan(part.Start + at, 1))]

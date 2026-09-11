@@ -3213,7 +3213,7 @@ internal sealed class MarkdownSamples : ISampleSet
             c4 d e f | g a b c | d1 | c1
           }
           \new Lyrics \lyricsto "tune" {
-            Held o -- ver __ two notes, then a _ skip.
+            Held o -- ver __ _ two notes, then a _ skip.
           }
         >>
         #%
