@@ -814,7 +814,11 @@ public static class BlockRenderer
             Foreground      = ctx.Palette.Accent,
             TextDecorations = TextDecorations.Underline,
             Cursor          = System.Windows.Input.Cursors.Hand,   // signal the link is clickable
-            NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null,
+            // An absolute URL, or an in-page #anchor (relative, but it names a place in this very document, which
+            // the surface resolves — see MarkdownAnchors). Any other relative link stays inert.
+            NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri
+                            : MarkdownAnchors.IsInPage(url, out _) ? new Uri(url!, UriKind.Relative)
+                            : null,
             Tag             = url,   // raw source URL — NavigateUri normalizes (trailing slash, casing),
                                      // and MarkdownInlineSerializer needs the exact original to round-trip
         };
@@ -823,8 +827,10 @@ public static class BlockRenderer
         {
             var nav = e.Uri.ToString();
             e.Handled = true;
-            // In-app handler wins; otherwise fall back to the OS browser.
+            // In-app handler wins; otherwise fall back to the OS browser — never for a relative link, which names
+            // nothing the browser could open.
             if (onNavigate is not null && onNavigate(nav)) return;
+            if (!e.Uri.IsAbsoluteUri) return;
             try { Process.Start(new ProcessStartInfo(nav) { UseShellExecute = true }); }
             catch { }
         };

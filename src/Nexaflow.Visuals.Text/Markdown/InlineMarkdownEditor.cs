@@ -791,7 +791,14 @@ public partial class InlineMarkdownEditor : UserControl
 
         e.Handled = true;
         var url = uri.ToString();
+        // An in-page #anchor scrolls this document to its heading; it means nothing to the host or a browser.
+        if (MarkdownAnchors.IsInPage(url, out var anchor))
+        {
+            MarkdownAnchors.ScrollTo(_rtb, anchor);
+            return true;
+        }
         if (LinkNavigate?.Invoke(url) == true) return true;
+        if (!uri.IsAbsoluteUri) return true;   // names nothing a browser could open
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
         catch { }
         return true;

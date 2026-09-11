@@ -1,5 +1,6 @@
 using Markdig;
 using Nexaflow.Visuals.Text.Markdown.Music;
+using Markdig.Extensions.AutoIdentifiers;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -30,6 +31,7 @@ public static class MarkdownPipelineFactory
             .UseCitations()
             .UseMathematics()
             .UseDiagrams()
+            .UseAutoIdentifiers(AutoIdentifierOptions.GitHub)   // every heading gets a GitHub-style id, so [x](#heading) links reach it
             .UseMusicNotation()   // #%abc … #% / #%lilypond … #% → sheet music
             .Build();
 }

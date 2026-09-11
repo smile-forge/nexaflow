@@ -222,10 +222,24 @@ public class SelectableMarkdownView : UserControl
         _search?.Clear();
         _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = LinkNavigate, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
     }
 
-    // ── Search (rendered text) ────────────────────────────────────────────────
+    /// <summary>Scrolls the heading with in-page anchor <paramref name="anchor"/> — a <c>#anchor</c> link's target,
+    /// without the hash — to the top of the view; false when the document has no such heading. See
+    /// <see cref="MarkdownAnchors"/>.</summary>
+    public bool ScrollToAnchor(string anchor) => MarkdownAnchors.ScrollTo(_rtb, anchor);
+
+    // A link into this document scrolls it, and stops there: a bare #anchor means nothing to the host or a browser.
+    // Anything else is the host's (LinkNavigate), then the browser's.
+    private bool OpenLink(string url)
+    {
+        if (!MarkdownAnchors.IsInPage(url, out var anchor)) return LinkNavigate?.Invoke(url) ?? false;
+        ScrollToAnchor(anchor);
+        return true;
+    }
+
+    // ── Search (rendered text)────────────────────────────────────────────────
 
     private RenderedMarkdownSearch? _search;
     private RenderedMarkdownSearch Search => _search ??= new RenderedMarkdownSearch(_rtb);
