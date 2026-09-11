@@ -11,6 +11,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
@@ -345,7 +346,7 @@ public class AbcBuilderTests
     /// <summary>A score, measured and arranged into a given width at a given zoom.</summary>
     private static Nexaflow.Visuals.Text.Editing.ContentElement Engraved(string abc, double available, double zoom)
     {
-        var element = AbcScore.Engraved(abc, MarkdownPalette.Dark, zoom: zoom);
+        var element = MusicScore.Engraved(MusicDialect.Abc, abc, MarkdownPalette.Dark, zoom: zoom);
         element.Measure(new Size(available, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
         return element;
@@ -370,7 +371,7 @@ public class AbcBuilderTests
     {
         // Rendering to a bitmap forces OnRender to run — measure and arrange alone would not — so this
         // exercises every draw path end to end: clef, key, meter, heads, stems, flags, beams, bar lines.
-        var element = AbcScore.Engraved(SpeedThePlough, MarkdownPalette.Dark);
+        var element = MusicScore.Engraved(MusicDialect.Abc, SpeedThePlough, MarkdownPalette.Dark);
         element.Measure(new Size(700, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

@@ -14,6 +14,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
@@ -235,7 +236,7 @@ public class AbcAgainstTheOldRendererTests
     /// </para>
     /// </summary>
     private static FrameworkElement New(string abc) =>
-        AbcScore.Engraved(abc, MarkdownPalette.Light, spacing: ScoreSpacing.Previous);
+        MusicScore.Engraved(MusicDialect.Abc, abc, MarkdownPalette.Light, spacing: ScoreSpacing.Previous);
 
     /// <summary>…and as the old one does, through the parser and element the <c>#%abc</c> block uses.</summary>
     private static FrameworkElement Old(string abc) =>

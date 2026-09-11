@@ -680,7 +680,7 @@ internal abstract partial class MusicBuilder
 
         var y = Math.Min(
             system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)
-                + (system.HasChordRow ? ChordRow : 0) + MarkRow,
+                + (system.HasChordRow ? TextRow : 0) + MarkRow,
             over);
 
         foreach (var glyph in ev.StaffMarks)
@@ -709,7 +709,7 @@ internal abstract partial class MusicBuilder
                 AnnotationPlacement.Above => new Point(ev.X, system.StaffTop - system.Above + (system.HasVoltaRow ? VoltaRow : 0)),
                 AnnotationPlacement.Below => new Point(
                     ev.X,
-                    system.StaffTop + StaffHeight + system.Below - (system.TextBelow * ChordRow) + (below++ * ChordRow)),
+                    system.StaffTop + StaffHeight + system.Below - (system.TextBelow * TextRow) + (below++ * TextRow)),
                 AnnotationPlacement.Left => new Point(ev.X - glyphs.Width - (0.3 * S), system.StaffTop + S),
                 _ => new Point(ev.X + _noteHead + (0.3 * S), system.StaffTop + S),
             };
@@ -1095,7 +1095,7 @@ internal abstract partial class MusicBuilder
             if (system.Bars[at].Volta is not { } part) continue;
 
             var to = at;
-            while (to < system.Bars.Count && !system.Bars[to].EndsRepeat
+            while (to < system.Bars.Count && !system.Bars[to].EndsRepeat && !system.Bars[to].EndsBracket
                    && (to == at || system.Bars[to].Volta is null)) to++;
 
             var last = Math.Min(to, system.Bars.Count - 1);

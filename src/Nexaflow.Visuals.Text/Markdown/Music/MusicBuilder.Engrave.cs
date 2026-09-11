@@ -300,7 +300,7 @@ internal abstract partial class MusicBuilder
 
         // The parts that sound together, in the order they were written. ABC writes one voice's line after
         // another and leaves the reader to count, so this is the counting.
-        foreach (var together in rows.GroupBy(r => (r.Voice.Length == 0 ? "" : "v", r.Index))
+        foreach (var together in rows.GroupBy(r => (r.Piece, r.Voice.Length == 0 ? "" : "v", r.Index))
                                      .OrderBy(g => rows.IndexOf(g.First())))
         {
             var parts = together.ToList();
@@ -557,7 +557,7 @@ internal abstract partial class MusicBuilder
     /// symbol belongs above the music, and how high that is depends on how high the music went.
     /// </para>
     /// </summary>
-    private static void Stack(List<System> systems, double below)
+    private void Stack(List<System> systems, double below)
     {
         var y = below + S;
 
@@ -603,10 +603,10 @@ internal abstract partial class MusicBuilder
             // chord symbol belongs above the music, and how high that is depends on how high the music
             // went. Stacked in the order they are read outward from the staff.
             system.Above += system.MarksAbove * MarkRow;
-            if (system.HasChordRow) system.Above += ChordRow;
+            if (system.HasChordRow) system.Above += TextRow;
             if (system.HasVoltaRow) system.Above += VoltaRow;
 
-            system.Below += system.TextBelow * ChordRow;
+            system.Below += system.TextBelow * TextRow;
 
             system.StaffTop = y + system.Above;
 
@@ -773,4 +773,14 @@ internal abstract partial class MusicBuilder
         <= -2 => Smufl.AccidentalDoubleFlat,
         _ => Smufl.AccidentalNatural,
     };
+
+    /// <summary>
+    /// One row of words above or below the staff — chord names, and text put above or below a note: tall enough
+    /// for a line of either face set in it, with air before the staff. A fixed height undercut the words it held;
+    /// the row was shorter than a line of the body face, so text over the staff sat on its top line.
+    /// </summary>
+    private double TextRow => _textRow ??= Math.Max(ChordRow,
+        Math.Max(ScoreText.Build("Hg", ChordSize, _ppd).Height, ScoreText.Chord("Hg", ChordSize, _ppd).Height) + (0.5 * S));
+
+    private double? _textRow;
 }

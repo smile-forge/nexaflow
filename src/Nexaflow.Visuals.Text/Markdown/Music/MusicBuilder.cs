@@ -229,6 +229,13 @@ internal abstract partial class MusicBuilder : ContentBuilder
 
         /// <summary>True when the line closing this bar ends a repeat, which is where a bracket stops.</summary>
         public bool EndsRepeat;
+
+
+        /// <summary>
+        /// True where a repeat bracket stops without the music going back — the last of a set of numbered endings,
+        /// which LilyPond closes where the ending closes rather than at the end of the line.
+        /// </summary>
+        public bool EndsBracket;
     }
 
     /// <summary>One line of music, which is where a system may break.</summary>
@@ -252,6 +259,14 @@ internal abstract partial class MusicBuilder : ContentBuilder
         /// </summary>
         public string Voice = "";
         public int Index;
+
+
+        /// <summary>
+        /// Which piece of music it belongs to, where one source holds several: LilyPond engraves each music
+        /// expression written at the top of a file as a score of its own. Rows of different pieces are never set
+        /// as one system, whatever else they share.
+        /// </summary>
+        public int Piece;
 
         /// <summary>What to print at the left of the first system, where a voice has a name.</summary>
         public string? Name;

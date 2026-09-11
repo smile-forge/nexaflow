@@ -27,6 +27,7 @@ public static class SingleBlockFiles
     private static readonly Dictionary<string, string> ByExtension = new(StringComparer.OrdinalIgnoreCase)
     {
         [".abc"] = "abc",
+        [".ly"] = "lilypond",
     };
 
     /// <summary>

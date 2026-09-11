@@ -8,9 +8,8 @@ using MdMarkdown = Markdig.Markdown;
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
 /// <summary>
-/// End-to-end dispatch: a <c>#% … #%</c> block parsed by the pipeline renders through
-/// <see cref="BlockRenderer"/> → <see cref="MusicRenderer"/> to an engraved element for valid notation,
-/// and degrades to a themed source-text <see cref="Border"/> (never throws) for notation that yields no music.
+/// End-to-end dispatch: a <c>#% … #%</c> block parsed by the pipeline renders through <see cref="BlockRenderer"/>
+/// onto the same engraved page a fenced <c>abc</c> or <c>lilypond</c> block makes.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -36,14 +35,5 @@ public class MusicRendererTests
         var fe = BlockRenderer.Render(mb);
         Assert.IsNotNull(fe);
         Assert.IsFalse(fe is Border);
-    });
-
-    [TestMethod]
-    public void UnparseableNotation_FallsBackToSourceBox() => UiThread.Run(() =>
-    {
-        // Header only, no music → an empty score → the themed source-text fallback (a Border).
-        var mb = Block("#%abc\nX:1\nT:Empty\n#%\n");
-        var fe = BlockRenderer.Render(mb);
-        Assert.IsInstanceOfType(fe, typeof(Border), "no music should degrade to the source-text box");
     });
 }

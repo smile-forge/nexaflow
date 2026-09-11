@@ -11,8 +11,8 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
 /// <summary>
 /// A score inside the <em>selectable</em> surface. The block renderer's path was covered; this one was not,
-/// which is where a text-tree crash was able to hide: the score's prose is now real FlowDocument text, and the
-/// RichTextBox walks that text on every caret move, selection and focus change.
+/// which is where a text-tree crash was able to hide: the score is an element embedded in the FlowDocument, and
+/// the RichTextBox walks that tree on every caret move, selection and focus change.
 /// </summary>
 [TestClass]
 [TestCategory("Desktop")]
@@ -21,14 +21,15 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 public class MusicFlowDocumentTests
 {
     /// <summary>
-    /// A document of the older <c>#%abc … #%</c> blocks, which is what these tests are about: the flow-document
-    /// renderer that stacks a score's words around its drawing. It used to be read from the ABC sample until
-    /// that moved onto <c>```abc</c> fences, so it is kept here — where changing the sample cannot change what
-    /// these tests test. One tune with a title, one with notes, one with blank verse lines.
+    /// A document of the older <c>#%abc … #%</c> blocks, which draw onto the same page a fenced block does: one tune
+    /// with a title, one with notes, one with blank verse lines.
     /// </summary>
     private static string SampleDoc() =>
         """
         # Old-style ABC blocks
+
+        Three tunes in the older fence, with words between them: a reel, a slip jig whose fields carry
+        comments, and a lesson in lining words up under notes.
 
         #%abc
         X:1
@@ -137,7 +138,8 @@ public class MusicFlowDocumentTests
                 p.GetCharacterRect(LogicalDirection.Forward);
                 if (++steps > 20_000) break;
             }
-            Assert.IsTrue(steps > 50, "the document should have real content to walk");
+            Assert.IsTrue(steps > 10, "the document should have real content to walk");
+            Assert.AreEqual(3, doc.Blocks.OfType<BlockUIContainer>().Count(), "and every tune in it is an engraved score");
 
             // …and back by character offset, which is the path that faulted.
             for (int i = 0; i < 400; i++)
@@ -169,7 +171,7 @@ public class MusicFlowDocumentTests
             host.Show();
             rtb.UpdateLayout();
 
-            var score = Descendants(rtb).OfType<Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreElement>().First();
+            var score = Descendants(rtb).OfType<Nexaflow.Visuals.Text.Editing.ContentElement>().First();
             Assert.IsFalse(score.Focusable,
                 "an engraved score must not take keyboard focus: it lives inside the RichTextBox's text tree, " +
                 "and focus landing on it makes the caret reconciliation walk a node that has no text");
@@ -198,27 +200,4 @@ public class MusicFlowDocumentTests
             foreach (var d in Descendants(child)) yield return d;
         }
     }
-
-    [TestMethod]
-    public void ScoreProse_IsSelectableText_InTheDocument() => UiThread.Run(() =>
-    {
-        var doc = MarkdownFlowDocument.Build(SampleDoc(), MarkdownPalette.Light);
-        string text = new TextRange(doc.ContentStart, doc.ContentEnd).Text;
-
-        StringAssert.Contains(text, "Speed the Plough", "a score title is text, not pixels");
-        StringAssert.Contains(text, "Notes: see also Playford", "…and so are the notes under the score");
-    });
-
-    /// <summary>An empty <c>W:</c> line is a blank verse. It must not become an empty Run — a paragraph with no
-    /// text symbols is exactly the kind of node the FlowDocument text tree trips over.</summary>
-    [TestMethod]
-    public void BlankVerseLines_DoNotProduceEmptyRuns() => UiThread.Run(() =>
-    {
-        var doc = MarkdownFlowDocument.Build(SampleDoc(), MarkdownPalette.Light);
-        var empty = doc.Blocks.OfType<Paragraph>()
-            .SelectMany(p => p.Inlines.OfType<Run>())
-            .Where(r => r.Text.Length == 0)
-            .ToList();
-        Assert.AreEqual(0, empty.Count, "no zero-length runs in the document");
-    });
 }
