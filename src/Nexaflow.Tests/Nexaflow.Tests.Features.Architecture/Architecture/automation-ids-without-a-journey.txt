@@ -99,9 +99,6 @@ Image_ViewExplore
 # src/Nexaflow.Features/Nexaflow.Features.Network/Views/DevicePanel.xaml
 Net_PanelTabs
 
-# src/Nexaflow.Features/Nexaflow.Features.Network/Views/NetworkView.xaml
-Net_Panel
-
 # src/Nexaflow.Features/Nexaflow.Features.Pdf/Views/PdfView.xaml
 Pdf_Contents
 Pdf_ContentsEmpty

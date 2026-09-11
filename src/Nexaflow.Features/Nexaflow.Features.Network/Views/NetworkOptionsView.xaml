@@ -1,0 +1,100 @@
+<UserControl x:Class="Nexaflow.Features.Network.Views.NetworkOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignHeight="460" d:DesignWidth="620">
+
+    <UserControl.Resources>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+    </UserControl.Resources>
+
+    <!-- Bound to the edit model rather than to the config the panel set as this control's DataContext: that
+         config is the live one, and a change the user then cancelled would already have happened. -->
+    <StackPanel x:Name="Root">
+
+        <TextBlock Text="Sending" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{StaticResource TextMutedBrush}"
+                   Text="Everything the Network page sends goes through one guard. Switched off, the page still shows what this PC already knows about its neighbours, but nothing is sent: no discovery traffic and no device actions."/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <ToggleButton Style="{StaticResource ToggleSwitch}"
+                          AutomationProperties.AutomationId="NetOpt_Enabled"
+                          IsChecked="{Binding Enabled, Mode=TwoWay}"/>
+            <TextBlock Text="Let the Network page send" Margin="8,0,0,0" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextBrush}"/>
+        </StackPanel>
+
+        <TextBlock Text="Adapters" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{StaticResource TextMutedBrush}"
+                   Text="An adapter you stop using is left out of discovery, and nothing may be sent through it. An address sweep pings every address on a network, one after another, to find devices that never talk to this PC. Intrusion detection sees that, so allow it only on networks you look after. The permission is for the network the adapter is on now — the same adapter on another network needs its own."/>
+
+        <ItemsControl ItemsSource="{Binding Adapters}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="4" Padding="10,8" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}"/>
+                                <TextBlock Text="{Binding Description}" FontSize="11" Margin="0,2,0,0"
+                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Description}"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding Segment}" FontSize="11" FontFamily="Consolas" Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <CheckBox Content="Use for discovery"
+                                          Foreground="{StaticResource TextBrush}"
+                                          AutomationProperties.AutomationId="{Binding Id, StringFormat='NetOpt_Use_{0}'}"
+                                          IsChecked="{Binding Use, Mode=TwoWay}"/>
+                                <CheckBox Content="Allow an address sweep on this network" Margin="0,6,0,0"
+                                          Foreground="{StaticResource TextBrush}"
+                                          AutomationProperties.AutomationId="{Binding Id, StringFormat='NetOpt_Sweep_{0}'}"
+                                          IsEnabled="{Binding SweepAvailable}"
+                                          IsChecked="{Binding AllowSweep, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="Limits" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold" Margin="0,12,0,4"/>
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="110"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"
+                       Text="Most packets one discovery run may send"
+                       Foreground="{StaticResource TextBrush}"/>
+            <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkTextBox}"
+                     AutomationProperties.AutomationId="NetOpt_MaxPackets"
+                     Text="{Binding MaxPacketsPerRun, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,0,0" VerticalAlignment="Center"
+                       Text="Longest one discovery run may take, in seconds"
+                       Foreground="{StaticResource TextBrush}"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" Style="{StaticResource DarkTextBox}"
+                     AutomationProperties.AutomationId="NetOpt_MaxSeconds"
+                     Text="{Binding MaxRunSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+        </Grid>
+
+        <TextBlock Text="{Binding LimitsHint}" TextWrapping="Wrap" Margin="0,4,0,0"
+                   Foreground="{StaticResource WarningBrush}"
+                   Visibility="{Binding ShowLimitsHint, Converter={StaticResource BoolVis}}"/>
+    </StackPanel>
+</UserControl>

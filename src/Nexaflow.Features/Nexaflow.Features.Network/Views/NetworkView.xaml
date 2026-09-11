@@ -49,6 +49,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,18,0"
                                     ToolTip="{Binding Description}">
                             <ToggleButton Style="{StaticResource ToggleSwitch}"
+                                          AutomationProperties.AutomationId="{Binding Id, StringFormat='Net_Layer_{0}'}"
                                           IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
                             <TextBlock Text="{Binding Name}"
                                        Margin="8,0,0,0"
@@ -177,8 +178,9 @@
                           ResizeBehavior="PreviousAndNext"
                           Visibility="{Binding Selected, Converter={StaticResource NullToVis}}" />
 
+            <!-- No id here: one set at the placement overrides the panel's own Net_DevicePanel, which is the
+                 id the journey waits for — and it then waited for nothing and passed. -->
             <v:DevicePanel Grid.Column="2"
-                           AutomationProperties.AutomationId="Net_Panel"
                            Visibility="{Binding Selected, Converter={StaticResource NullToVis}}" />
         </Grid>
 
