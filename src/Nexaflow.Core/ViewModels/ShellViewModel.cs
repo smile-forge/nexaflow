@@ -118,12 +118,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // panes. FocusedPane is the leaf the user last interacted with: new tabs and AI context follow it,
     // while operations on a specific tab follow whichever pane owns that tab.
 
-    public Pane RootPane { get; } = new();
-
     /// <summary>The window's root content — a lone <see cref="Pane"/>, or a <see cref="SplitPaneNode"/> when split.</summary>
     [ObservableProperty] private IPaneNode _rootPaneNode = null!;
 
-    /// <summary>The leaf new tabs and AI context route to. Equals <see cref="RootPane"/> when unsplit.</summary>
+    /// <summary>The leaf new tabs and AI context route to — the lone pane while unsplit.</summary>
     [ObservableProperty] private Pane _focusedPane = null!;
 
     /// <summary>The leaf panes under the current root — one when unsplit, two when split (First then Second).</summary>
@@ -136,6 +134,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     /// <summary>True while the tab area is split in two.</summary>
     public bool IsSplit => RootPaneNode is SplitPaneNode;
+
+    /// <summary>The one pane while unsplit. Read from the live root rather than a pane captured at startup: once
+    /// the left pane has collapsed away the survivor is the old right pane, and a split built on anything else
+    /// would leave every open tab outside the tree.</summary>
+    private Pane SoleLeaf => RootPaneNode as Pane ?? FocusedPane;
 
     private Pane? OwningPane(Page tab) => LeafPanes.FirstOrDefault(p => p.Pages.Contains(tab));
 
@@ -152,8 +155,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     private void WireRootPane()
     {
-        FocusedPane  = RootPane;
-        RootPaneNode = RootPane;     // fires OnRootPaneNodeChanged → subscribes the leaf pane(s)
+        var first    = new Pane();
+        FocusedPane  = first;
+        RootPaneNode = first;     // fires OnRootPaneNodeChanged → subscribes the leaf pane(s)
     }
 
     // The breadcrumb/content bind each Pane directly in PaneView, so the shell only owes a re-notify of its
@@ -807,7 +811,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     [RelayCommand(CanExecute = nameof(CanSplitRight))]
     private void SplitRight(Page tab)
     {
-        var left = OwningPane(tab) ?? RootPane;
+        var left = OwningPane(tab) ?? SoleLeaf;
         left.Remove(tab);
         var right = new Pane();
         right.Add(tab);
@@ -819,7 +823,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     /// <summary>Splits the tab area, adding an empty right-hand pane.</summary>
     [RelayCommand(CanExecute = nameof(CanSplitEmpty))]
-    private void SplitEmpty() => Split(RootPane, new Pane());
+    private void SplitEmpty() => Split(SoleLeaf, new Pane());
 
     private bool CanSplitEmpty() => !IsSplit;
 

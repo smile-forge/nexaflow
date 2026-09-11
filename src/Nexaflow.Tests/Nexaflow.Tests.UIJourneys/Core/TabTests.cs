@@ -159,8 +159,60 @@ public class TabTests : UITestBase
         Assert.IsFalse(App.HasExited, "App crashed while collapsing the split.");
     }
 
+    [TestMethod]
+    [CoversNode("dual-pane")]
+    [CoversNode("win-cux-split-empty")]
+    public void Split_AfterClosingTheLeftPane_KeepsTheSurvivorsTabs()
+    {
+        // Closing the LEFT pane leaves the old right pane as the root. Splitting again used to build the new split
+        // from the first pane the window was created with — long since emptied and detached — so every open tab
+        // dropped out of the window. Help splits through the same path, so this is the case it would hit first.
+        var ribbon = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("RibbonControl"));
+        var firstBtn = ribbon?.FindFirstDescendant(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Button));
+        if (firstBtn is null) { Assert.Inconclusive("No ribbon buttons available to open a tab."); return; }
+        firstBtn.AsButton().Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(400);
+
+        RightClickEmptyStripArea();
+        var split = FindMenuItem("Split");
+        if (split is null) { Assert.Inconclusive("'Split' was not offered."); return; }
+        split.AsMenuItem().Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(500);
+        Assert.AreEqual(2, CountTabStrips(), "Expected two panes after Split.");
+        var tabsBefore = CountTabs();
+        Assert.IsTrue(tabsBefore >= 1, "Expected at least one open tab before collapsing.");
+
+        // Close the LEFT pane: its tabs move into the right one, which becomes the window's only pane.
+        RightClickStrip(rightMost: false);
+        var closePane = FindMenuItem("Close pane");
+        Assert.IsNotNull(closePane, "'Close pane' was not offered on the left pane while split.");
+        closePane.AsMenuItem().Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(500);
+        Assert.AreEqual(1, CountTabStrips(), "Expected one pane after closing the left pane.");
+
+        RightClickEmptyStripArea();
+        split = FindMenuItem("Split");
+        Assert.IsNotNull(split, "'Split' was not offered after the collapse.");
+        split.AsMenuItem().Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(500);
+
+        Assert.AreEqual(2, CountTabStrips(), "Expected two panes after splitting again.");
+        Assert.AreEqual(tabsBefore, CountTabs(), "Splitting after the left pane closed lost the open tabs.");
+        Assert.IsFalse(App.HasExited, "App crashed while re-splitting.");
+    }
+
     private int CountTabStrips()
         => MainWindow.FindAllDescendants(cf => cf.ByAutomationId("TabStrip")).Length;
+
+    // Every tab in every pane — tab items are tagged TabItem_<PageKind>.
+    private int CountTabs()
+        => MainWindow.FindAllDescendants(cf => cf.ByAutomationId("TabStrip"))
+                     .Sum(s => s.FindAllDescendants()
+                                .Count(e => e.Properties.AutomationId.ValueOrDefault?.StartsWith("TabItem_") == true));
 
     // Right-click near the right edge of the strip, clear of any tabs (which pack from the left),
     // so the strip's own "Split" context menu shows rather than a tab's menu.
