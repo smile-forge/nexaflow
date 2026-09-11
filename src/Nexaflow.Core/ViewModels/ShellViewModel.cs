@@ -13,6 +13,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Nexaflow.Core.Localization;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -368,11 +369,11 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
         vm.SaveCompleted       += () =>
         {
             OptionsOpen = false;
-            // A theme change can't live-reflow (StaticResource by design); restart this window in place,
-            // reopening the same tabs against the new theme.
+            // Neither a theme nor a language live-reflows (StaticResource, and strings resolved once as the XAML
+            // loads — both by design); restart this window in place, reopening the same pane layout.
             if (ConfigManager.Instance.GetAll().OfType<ShellConfig>().FirstOrDefault() is { } shell
-                && shell.Theme != ThemeManager.Current)
-                _shellServices.RestartWindowForTheme(this, shell.Theme);
+                && (shell.Theme != ThemeManager.Current || !LanguageManager.Instance.IsCurrent(shell.Language)))
+                _shellServices.RestartWindowForAppearance(this, shell.Theme, shell.Language);
         };
         if (RequestedOptionsSection is { } section)
         {

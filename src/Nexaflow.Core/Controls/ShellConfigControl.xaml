@@ -50,11 +50,11 @@
 
             <!-- Restart notice -->
             <TextBlock Margin="180,2,0,12"
-                       Text="A restart is required for theme changes to take effect."
+                       Text="Theme and language changes restart the window to take effect."
                        Foreground="{StaticResource TextMutedBrush}"
                        FontSize="11"/>
 
-            <!-- ── Language ── -->
+            <!-- ── Language ── (the installed language packs; a LanguageInfo shows its DisplayName) -->
             <Grid Margin="0,6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="180"/>
@@ -67,7 +67,8 @@
                           Style="{StaticResource DarkComboBox}"
                           AutomationProperties.AutomationId="ShellLanguageCombo"
                           ItemsSource="{Binding LanguageOptions}"
-                          SelectedItem="{Binding SelectedLanguage}"/>
+                          SelectedValuePath="Code"
+                          SelectedValue="{Binding SelectedLanguage}"/>
             </Grid>
 
             <!-- ── Text size ── -->

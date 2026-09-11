@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Core.Localization;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using System.Windows;
@@ -57,8 +58,12 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     private static readonly string[] SwatchKeys =
         ["BgColor", "SurfaceColor", "Surface2Color", "AccentColor", "Accent2Color", "TextColor"];
 
-    public IReadOnlyList<string> ThemeOptions    { get; } = Enum.GetNames<ThemeOption>();
-    public IReadOnlyList<string> LanguageOptions { get; } = Enum.GetNames<LanguageOption>();
+    public IReadOnlyList<string> ThemeOptions { get; } = Enum.GetNames<ThemeOption>();
+
+    /// <summary>The installed language packs, read from their file names (nothing is loaded to list them). Before
+    /// startup has created the language manager — a design surface, a test — only English is on offer.</summary>
+    public IReadOnlyList<LanguageInfo> LanguageOptions { get; } =
+        LanguageManager.TryInstance?.Available ?? [new LanguageInfo(LanguageManager.FallbackCode, "English", "")];
 
     /// <summary>Sizes offered for <see cref="TextFontSize"/>. A fixed list rather than a spinner over the
     /// whole clamped range: every step here is one a reader would actually pick, and the large end is
@@ -72,13 +77,16 @@ internal sealed partial class ShellConfigViewModel : ObservableObject
     [ObservableProperty] private bool _disableAnimationsOnBattery;
     [ObservableProperty] private IReadOnlyList<Color> _swatches = [];
 
-    public ThemeOption    Theme    => Enum.Parse<ThemeOption>(SelectedTheme);
-    public LanguageOption Language => Enum.Parse<LanguageOption>(SelectedLanguage);
+    public ThemeOption Theme    => Enum.Parse<ThemeOption>(SelectedTheme);
+    public string      Language => SelectedLanguage;
 
     public ShellConfigViewModel(ShellConfig cfg)
     {
         _selectedTheme              = cfg.Theme.ToString();
-        _selectedLanguage           = cfg.Language.ToString();
+        // As a code the list offers, so the combo shows a selection: the "English" an older build stored, or a
+        // language whose pack has since been removed, both open on English — which is what the app is running in.
+        var language                = LanguageManager.Normalize(cfg.Language);
+        _selectedLanguage           = LanguageOptions.Any(l => l.Code == language) ? language : LanguageManager.FallbackCode;
         // Snapped onto an offered size so the combo shows a selection: a config carrying 13.5 (or anything
         // off-list, including a value a future build offered) would otherwise open blank and, once touched,
         // silently become whichever size the user happened to click past.
