@@ -1,0 +1,107 @@
+<UserControl x:Class="Nexaflow.Core.Help.HelpView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
+
+    <UserControl.Resources>
+        <vcc:BoolToVisibilityConverter        x:Key="HelpBoolVis"/>
+        <vcc:InverseBoolToVisibilityConverter x:Key="HelpNotBoolVis"/>
+        <vcc:NullToCollapsedConverter         x:Key="HelpNullCollapsed"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ── Search: this page first (highlighted in place), then every other help page (listed below) ── -->
+        <Border Grid.Row="0" Padding="12,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Background="{StaticResource Surface2Brush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="🔍" FontSize="12" Margin="10,0,6,0" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                        <Grid Grid.Column="1">
+                            <TextBox x:Name="SearchBox"
+                                     AutomationProperties.AutomationId="Help_SearchBox"
+                                     AutomationProperties.Name="{loc:Str Help.Search.Placeholder}"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="Transparent" BorderThickness="0" Padding="0,6"
+                                     Foreground="{StaticResource TextBrush}" CaretBrush="{StaticResource AccentBrush}"
+                                     VerticalContentAlignment="Center" FontSize="13"
+                                     PreviewKeyDown="OnSearchKeyDown"/>
+                            <TextBlock Text="{loc:Str Help.Search.Placeholder}" IsHitTestVisible="False"
+                                       Margin="2,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Visibility="{Binding HasSearchText, Converter={StaticResource HelpNotBoolVis}}"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <vc:SearchStatusChip Grid.Column="1" PagePrefix="Help" Margin="10,0,0,0"/>
+
+                <Button Grid.Column="2" Style="{StaticResource TbBtn}" Content="☰" Margin="8,0,0,0" Padding="8,2"
+                        AutomationProperties.AutomationId="Help_IndexButton"
+                        AutomationProperties.Name="{loc:Str Help.Index.Button}"
+                        ToolTip="{loc:Str Help.Index.Button}"
+                        Command="{Binding ShowIndexCommand}"/>
+            </Grid>
+        </Border>
+
+        <!-- ── What the search found in every other help page (and why a search could not run) ── -->
+        <StackPanel Grid.Row="1" Margin="12,6,12,0">
+            <TextBlock Text="{Binding SearchError}" TextWrapping="Wrap" FontSize="11"
+                       Foreground="{StaticResource WarningBrush}"
+                       Visibility="{Binding SearchError, Converter={StaticResource HelpNullCollapsed}}"/>
+            <StackPanel Visibility="{Binding HasOtherResults, Converter={StaticResource HelpBoolVis}}">
+                <TextBlock Text="{loc:Str Help.OtherPages.Header}" FontSize="11" Margin="0,0,0,4"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+                <!-- Selecting a result opens it; the selection is cleared again, since a result is an action. -->
+                <ListBox x:Name="OtherResults"
+                         AutomationProperties.AutomationId="Help_OtherResults"
+                         ItemsSource="{Binding OtherResults}"
+                         SelectionChanged="OnOtherResultSelected"
+                         MaxHeight="150" Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,2">
+                                <TextBlock FontSize="12">
+                                    <Run Text="{Binding Topic.Title, Mode=OneWay}" FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextBrush}"/>
+                                    <Run Text="  "/>
+                                    <Run Text="{Binding CountLabel, Mode=OneWay}" Foreground="{StaticResource AccentBrush}"/>
+                                </TextBlock>
+                                <TextBlock Text="{Binding Preview}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ── The help page: read-only, and it scrolls itself (the search moves its viewport, so never nest it in a ScrollViewer) ── -->
+        <md:SelectableMarkdownView Grid.Row="2" x:Name="Doc"
+                                   AutomationProperties.AutomationId="Help_Document"
+                                   Margin="16,8,8,8"
+                                   VerticalScrollBarVisibility="Auto"
+                                   Markdown="{Binding Markdown}"/>
+    </Grid>
+</UserControl>

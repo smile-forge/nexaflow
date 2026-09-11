@@ -146,6 +146,13 @@ public partial class MainWindow : Window
                 _vm.CloseActiveTabCommand.Execute(null);
                 e.Handled = true;
             }
+            // F1 is Help, as everywhere else: this page's help beside it, or closed again. After the page's own keys,
+            // so a page that wants F1 still gets it first.
+            else if (e.Key == Key.F1 && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                _vm.ToggleHelpCommand.Execute(null);
+                e.Handled = true;
+            }
         };
 
         SizeChanged    += (_, _) => CapAiRowHeight();

@@ -14,10 +14,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Core.Localization;
+using Nexaflow.Core.Help;
 
 namespace Nexaflow.Core.ViewModels;
 
-public partial class ShellViewModel : ObservableObject, IWindowHost
+public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHost
 {
     // ── IWindowHost ───────────────────────────────────────────────────────
 
@@ -141,6 +142,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     /// would leave every open tab outside the tree.</summary>
     private Pane SoleLeaf => RootPaneNode as Pane ?? FocusedPane;
 
+    /// <summary>Opens, re-points and closes this window's Help tab (the Help button / F1).</summary>
+    private readonly HelpPaneController _help;
+
     private Pane? OwningPane(Page tab) => LeafPanes.FirstOrDefault(p => p.Pages.Contains(tab));
 
     // Legacy facades — kept so existing call sites keep working; all route through the focused/owning pane.
@@ -165,6 +169,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
     // computed ActiveTab/CurrentPage facades when the *focused* pane's active page changes.
     private void OnLeafPanePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Any pane: an open Help tab in the other one follows what this one now shows.
+        if (e.PropertyName == nameof(Pane.ActivePage) && sender is Pane changed)
+            _help.OnActivePageChanged(changed);
+
         if (e.PropertyName == nameof(Pane.ActivePage) && ReferenceEquals(sender, FocusedPane))
         {
             OnPropertyChanged(nameof(ActiveTab));
@@ -631,6 +639,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
                 RefreshOverlayCoverage();
         };
 
+        _help = new HelpPaneController(this);   // before the panes exist: their first page change already asks it
         WireRootPane();
 
         // If this workspace was removed in the Options panel, switch to the first available.
@@ -980,6 +989,39 @@ public partial class ShellViewModel : ObservableObject, IWindowHost
 
     [RelayCommand]
     private void CloseOptions() => OptionsOpen = false;
+
+    // ── Help ──────────────────────────────────────────────────────────────
+    // The Help button / F1: this page's help in the pane beside it (see HelpPaneController).
+
+    [RelayCommand]
+    private void ToggleHelp()
+    {
+        if (OptionsOpen || WorkspaceConfigOpen) return;   // a modal overlay owns the window
+        _help.Toggle();
+    }
+
+    IReadOnlyList<Pane> IHelpPaneHost.LeafPanes => LeafPanes.ToList();
+
+    Pane IHelpPaneHost.FocusedPane => FocusedPane;
+
+    Pane IHelpPaneHost.SplitBeside(Pane subject)
+    {
+        if (RootPaneNode is SplitPaneNode split)
+            return ReferenceEquals(split.First, subject) ? split.Second : split.First;
+        var beside = new Pane();
+        Split(subject, beside);
+        return beside;
+    }
+
+    void IHelpPaneHost.OpenInPane(Pane pane, string pageKind, Dictionary<string, string> pageParams)
+    {
+        FocusedPane = pane;   // AddTab lands in the focused pane
+        _shellServices.AddFreshTab(this, pageKind, pageParams);
+    }
+
+    void IHelpPaneHost.Activate(Page page) => ((IWindowHost)this).SetActiveTab(page);
+
+    void IHelpPaneHost.Close(Page page) => _shellServices.CloseTab(page);
 
     // ── Configure (per-workspace) ─────────────────────────────────────────
 

@@ -276,10 +276,7 @@ public sealed class ShellServices : IShellServices
         if (inRightPane)
         {
             targetWindow.FocusSecondPane();
-            var fresh = CreateTab(pageKind, pageParams);
-            if (fresh is null) return;
-            _tabToWindow[fresh] = targetWindow;
-            targetWindow.AddTab(fresh);
+            AddFreshTab(targetWindow, pageKind, pageParams);
             return;
         }
 
@@ -305,6 +302,17 @@ public sealed class ShellServices : IShellServices
 
         _tabToWindow[tab] = targetWindow;
         targetWindow.AddTab(tab);
+    }
+
+    /// <summary>Creates a fresh <paramref name="pageKind"/> tab and adds it to <paramref name="target"/>'s focused pane —
+    /// no search for an existing tab to reuse. Backs "open in the right pane" and the Help pane.</summary>
+    internal Page? AddFreshTab(IWindowHost target, string pageKind, Dictionary<string, string>? pageParams)
+    {
+        var fresh = CreateTab(pageKind, pageParams);
+        if (fresh is null) return null;
+        _tabToWindow[fresh] = target;
+        target.AddTab(fresh);
+        return fresh;
     }
 
     // ── Default-tab restore (debounced) ───────────────────────────────────
