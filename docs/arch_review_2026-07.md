@@ -55,7 +55,6 @@ high-value structure; **P3** = worthwhile polish.
 | D2 | `ShellServices` — the second god object | **worse: 1,120 lines** (was 958 at review). Three leaf concerns still unsplit | `wc -l src/Nexaflow.Core/Services/ShellServices.cs` | M | P2 |
 | D3 | RibbonEditor: procedural code-behind | open — **749 lines**, unchanged | `wc -l src/Nexaflow.Core/Controls/RibbonEditor.xaml.cs` | L | P3 |
 | D4 | Window-position constants duplicated | open, and **three copies now**: the `const` in `PositionWindow`, `MainWindow.xaml.cs`, and a `TopBarHeight` GridLength in every `Colors.*.xaml` — the theme resource is the obvious single home | `$nfi graph grep "TopBarHeight" --mode content` | S | P3 |
-| E1 | Hand-rolled modal overlays — **12 in 7 files**, every one a form (plus Registry's multi-line prompt), now held to a list that can only shrink. The ratchet's first run found one the re-audit missed: Core's own `RibbonEditor` | **◐ PR 2 of 3 done 2026-09-11** (re-audit in §E1 — the old "13 sites" counted mentions, not adopters). PR 1 sent every yes/no question through the shell — one confirm model where there were four. PR 2 added `Visuals.Common`'s `ModalCard`, the `ScrimBrush` token and `HandRolledModalRatchetTests`, and moved Product's take-snapshot form onto the card. Next: PR 3 moves the rest | the line count of `src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/hand-rolled-modals.txt` — `HandRolledModalRatchetTests` fails whenever it disagrees with the views, so the count cannot rot | M | P2 |
 | E4 | Colour literals outside the theme layer | **nearly closed** — all five original clusters are done. What is left is 3 sites, and the biggest is `Core/MainWindow.xaml` itself: the shell hard-codes an accent while every feature is forbidden to | `$nfi graph grep "#[0-9A-Fa-f]{6}\"" --mode content --limit 400`, then **exclude** `Themes/` · `Tokens.xaml` · `Colors.*.xaml` · tests — a raw count reads the theme layer as debt | S | P3 |
 | E5 | 5 process-global mutable registries in WindowsFileSystem | open — all five still `static … Instance` | `$nfi graph grep "public static .* Instance" --from product:win-file-system --scope owned --mode content` | M | P3 |
 | E6 | ViewModel outliers | open and grown: FileSystem **2,019**, Json **1,499**, Text **1,344**, Product **964** | `wc -l` on the four | M–L | P3 |
@@ -85,6 +84,11 @@ hoisted — re-verified 2026-09-05, one copy each) · F1 (cancellation ×4 + Gem
 `Tests.Features` is now seven suites (`.Viewers`, `.WindowsOS`, `.Architecture`, `.Common`, plus
 `Tests.Components` and `Tests.Initiatives`), which is the **L**-effort fix this file deferred as too
 expensive. The per-feature `[TestCategory]` mitigation it proposed instead is moot.
+
+**2026-09-11:** E1, in three PRs — every yes/no question goes through the shell (one confirm model
+where there were four); `Visuals.Common`'s `ModalCard`, the `ScrimBrush` token and
+`HandRolledModalRatchetTests`; and all twelve hand-rolled forms moved onto the card, `RibbonEditor`
+included. `hand-rolled-modals.txt` is empty and the ratchet keeps it so.
 
 ---
 
@@ -228,6 +232,9 @@ backwards while being tracked. ~13 banner concerns (window registry, tab registr
 
 ### E1. Modal-overlay primitive — the most-copied scaffold in the repo (M) ⭐
 
+> **✅ Closed 2026-09-11.** All three PRs below landed; `hand-rolled-modals.txt` is empty and
+> `HandRolledModalRatchetTests` keeps it that way.
+>
 > **Re-audited 2026-09-11, and the row had it backwards.** Its "`ConfirmationRequest` at 13 sites" was the
 > number of graph nodes that *mention* the type — its own class, its constructor, the dialog's dependency
 > property — so it could never reach zero and could not tell adoption from existence. Adoption was **one**:
@@ -269,7 +276,7 @@ backwards while being tracked. ~13 banner concerns (window registry, tab registr
 >    rule in Architecture.md; and an architecture test shaped like the AutomationId ratchet — a
 >    scrim-wrapped centred card outside `Visuals.Common` fails unless listed, keyed
 >    `file#<Visibility binding>` so line drift cannot break it, and the list can only shrink.
-> 3. **Forms → `ModalCard` (M, mechanical, per feature).** Chrome only — content, bindings and ids
+> 3. **Forms → `ModalCard` (M, mechanical, per feature).** ✅ 2026-09-11 — all twelve, `RibbonEditor` included. Chrome only — content, bindings and ids
 >    untouched, so journeys and surface tests stay green. Form *state* stays in the view-models; shrinking it
 >    is §E6, and the shape to copy is FileSystem's wizard (a nullable form VM, non-null exactly while open,
 >    bound as the card's `DataContext`).
@@ -463,8 +470,7 @@ Steps 1–3, 4, 6 and most of 5 and 7 are done; what follows is the **remaining*
 3. **Finish E4, then B4.** Only three sites remain, and the largest is Core's own `MainWindow.xaml` — so
    this is now an **S**, and it is the last thing standing between the repo and a colour analyzer with a
    short allow-list. Doing them in the other order is what makes B4 expensive. *(S, then M)*
-4. **E1, in its three PRs** (§E1). PR 1 — questions to the shell — is the one that deletes code; PR 2's
-   ratchet is what finally makes "on touch" happen, so land it before PR 3's sweep. *(S, S, M)*
+4. ✅ **E1** — done 2026-09-11, in three PRs (§E1): questions to the shell, then `ModalCard` + the ratchet, then the twelve forms.
 5. **AI-Ready campaign** (H1): write the recipe, then batch-close concern links worst-area-first. This is
    the largest product-visible win left and nothing blocks it. *(M, ongoing)*
 6. **Shell splits** (D1, D2) when next touching those files — extract-on-touch rather than big-bang. D2 is

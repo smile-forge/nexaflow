@@ -10,6 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.WindowsRegistry.ClientTools;
 using Nexaflow.Features.WindowsRegistry.Services;
+using Nexaflow.Visuals.Common.Dialogs;
 
 namespace Nexaflow.Features.WindowsRegistry.ViewModels;
 
@@ -589,35 +590,16 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
 
     // ── Input prompt ─────────────────────────────────────────────────────────────
     // In-tab on purpose: REG_MULTI_SZ data is edited one string per line and the shell's prompt is
-    // single-line. Deletes ask the shell's window-modal confirmation instead (arch review §E1).
-    [ObservableProperty] private bool   _inputPromptVisible;
-    [ObservableProperty] private string _inputPromptTitle = string.Empty;
-    [ObservableProperty] private string _inputPromptLabel = string.Empty;
-    [ObservableProperty] private string _inputPromptValue = string.Empty;
-    private Action<string>? _pendingInputConfirm;
-    private Action?         _pendingInputCancel;
+    // single-line, so this is a small form in the tab's ModalCard rather than a shell question (arch review
+    // §E1). Deletes ask the shell's confirmation. The request owns the edited value and its one-shot OK /
+    // Cancel; null until the first prompt.
+    [ObservableProperty] private PromptRequest? _inputPrompt;
 
     public void ShowInputPrompt(string title, string label, string initialValue,
                                 Action<string> onConfirm, Action onCancel)
     {
-        _pendingInputConfirm = onConfirm; _pendingInputCancel = onCancel;
-        InputPromptTitle = title; InputPromptLabel = label; InputPromptValue = initialValue;
-        InputPromptVisible = true;
-    }
-
-    [RelayCommand]
-    private void ConfirmInputPrompt()
-    {
-        InputPromptVisible = false;
-        var confirm = _pendingInputConfirm; var value = InputPromptValue;
-        _pendingInputConfirm = null; _pendingInputCancel = null; confirm?.Invoke(value);
-    }
-
-    [RelayCommand]
-    private void CancelInputPrompt()
-    {
-        InputPromptVisible = false;
-        var cancel = _pendingInputCancel; _pendingInputConfirm = null; _pendingInputCancel = null; cancel?.Invoke();
+        InputPrompt?.CancelCommand.Execute(null);   // a new question answers an open one Cancel, as the shell's does
+        InputPrompt = new PromptRequest(title, label, initialValue, onConfirm, onCancel);
     }
 
     // ── Path parsing ─────────────────────────────────────────────────────────────

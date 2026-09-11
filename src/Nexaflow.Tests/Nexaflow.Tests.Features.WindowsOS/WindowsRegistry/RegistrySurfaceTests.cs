@@ -56,9 +56,9 @@ public class RegistrySurfaceTests
 
         vm.NewKeyCommand.Execute(null);
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        Assert.AreEqual("New Key", vm.InputPromptTitle);
-        Assert.AreEqual("New Key", vm.InputPromptValue, "the box is pre-filled so Enter alone is meaningful");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        Assert.AreEqual("New Key", vm.InputPrompt!.Title);
+        Assert.AreEqual("New Key", vm.InputPrompt!.Value, "the box is pre-filled so Enter alone is meaningful");
     }
 
     [TestMethod]
@@ -69,9 +69,9 @@ public class RegistrySurfaceTests
 
         vm.RenameKeyCommand.Execute(null);
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        Assert.AreEqual("Rename Key", vm.InputPromptTitle);
-        Assert.AreEqual("Microsoft", vm.InputPromptValue, "renaming starts from the existing name");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        Assert.AreEqual("Rename Key", vm.InputPrompt!.Title);
+        Assert.AreEqual("Microsoft", vm.InputPrompt!.Value, "renaming starts from the existing name");
     }
 
     [TestMethod]
@@ -83,7 +83,7 @@ public class RegistrySurfaceTests
 
         vm.RenameKeyCommand.Execute(null);
 
-        Assert.IsFalse(vm.InputPromptVisible, "a hive root has no name to rename");
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true, "a hive root has no name to rename");
     }
 
     [TestMethod]
@@ -122,9 +122,9 @@ public class RegistrySurfaceTests
 
         vm.NewValueCommand.Execute("DWord");
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        StringAssert.Contains(vm.InputPromptTitle, "REG_DWORD");
-        Assert.AreEqual(string.Empty, vm.InputPromptValue, "a new value starts unnamed");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        StringAssert.Contains(vm.InputPrompt!.Title, "REG_DWORD");
+        Assert.AreEqual(string.Empty, vm.InputPrompt!.Value, "a new value starts unnamed");
     }
 
     [TestMethod]
@@ -135,7 +135,7 @@ public class RegistrySurfaceTests
 
         vm.NewValueCommand.Execute("NotARegistryKind");
 
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
@@ -147,9 +147,9 @@ public class RegistrySurfaceTests
 
         vm.EditValueCommand.Execute(row);
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        StringAssert.Contains(vm.InputPromptTitle, "REG_SZ");
-        StringAssert.Contains(vm.InputPromptLabel, "SomeName");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        StringAssert.Contains(vm.InputPrompt!.Title, "REG_SZ");
+        StringAssert.Contains(vm.InputPrompt!.Label, "SomeName");
     }
 
     [TestMethod]
@@ -160,7 +160,7 @@ public class RegistrySurfaceTests
 
         vm.EditValueCommand.Execute(null);      // no row passed and none selected
 
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
@@ -186,12 +186,12 @@ public class RegistrySurfaceTests
         string? got = null;
         vm.ShowInputPrompt("Title", "Label", "seed", v => got = v, () => Assert.Fail("cancel must not fire"));
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        vm.InputPromptValue = "typed by the user";
-        vm.ConfirmInputPromptCommand.Execute(null);
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        vm.InputPrompt!.Value = "typed by the user";
+        vm.InputPrompt!.ConfirmCommand.Execute(null);
 
         Assert.AreEqual("typed by the user", got);
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
@@ -202,10 +202,10 @@ public class RegistrySurfaceTests
         bool cancelled = false;
         vm.ShowInputPrompt("Title", "Label", "seed", _ => Assert.Fail("confirm must not fire"), () => cancelled = true);
 
-        vm.CancelInputPromptCommand.Execute(null);
+        vm.InputPrompt!.CancelCommand.Execute(null);
 
         Assert.IsTrue(cancelled);
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
@@ -216,8 +216,8 @@ public class RegistrySurfaceTests
         int confirms = 0;
         vm.ShowInputPrompt("Title", "Label", "seed", _ => confirms++, () => { });
 
-        vm.ConfirmInputPromptCommand.Execute(null);
-        vm.ConfirmInputPromptCommand.Execute(null);
+        vm.InputPrompt!.ConfirmCommand.Execute(null);
+        vm.InputPrompt!.ConfirmCommand.Execute(null);
 
         Assert.AreEqual(1, confirms, "a stale callback must not re-run against a later key");
     }

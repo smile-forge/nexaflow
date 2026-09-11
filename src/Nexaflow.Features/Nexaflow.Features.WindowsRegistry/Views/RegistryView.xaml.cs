@@ -55,10 +55,10 @@ public partial class RegistryView : UserControl, IPageView
 
     private void InputPrompt_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && ViewModel.ConfirmInputPromptCommand.CanExecute(null))
-            ViewModel.ConfirmInputPromptCommand.Execute(null);
-        else if (e.Key == Key.Escape && ViewModel.CancelInputPromptCommand.CanExecute(null))
-            ViewModel.CancelInputPromptCommand.Execute(null);
+        // Escape belongs to the card: ModalCard runs the prompt's cancel command.
+        var prompt = ViewModel.InputPrompt;
+        if (e.Key == Key.Enter && prompt is not null && prompt.ConfirmCommand.CanExecute(null))
+            prompt.ConfirmCommand.Execute(null);
     }
 
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject

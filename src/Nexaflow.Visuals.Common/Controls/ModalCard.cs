@@ -24,7 +24,7 @@ public enum ModalTone
 /// and the form. A <i>question</i> ΓÇö yes/no, one line of text ΓÇö is not a form: ask it through
 /// <c>IShellServices.ConfirmAsync</c> / <c>ShowPrompt</c>, which are window-modal (arch review ┬ºE1).
 /// <para>
-/// Only the chrome is shared. The form's content, bindings and AutomationIds stay the feature's own, so a
+/// Only the chrome is shared — <see cref="Control.Background"/> is the card's (the theme's surface unless a form was designed on another); the scrim is always the theme's <c>ScrimBrush</c>. The form's content, bindings and AutomationIds stay the feature's own, so a
 /// journey clicks exactly what it clicked before. Put one in the view's root grid spanning the area it blocks,
 /// bind <see cref="IsOpen"/>, and hand it the form's cancel command so Escape backs out:
 /// <code>&lt;ctrl:ModalCard Grid.RowSpan="2" Header="Take snapshot" CardWidth="360"

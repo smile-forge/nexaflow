@@ -3,22 +3,6 @@
 # ModalCard. HandRolledModalRatchetTests fails on a scaffold that is not listed here, and on a line whose
 # scaffold has moved onto ModalCard — so when you move one, delete its line. This file can only shrink.
 # Key: <view>#<the property its Visibility binds>.
-
-# In-tab on purpose until it moves onto ModalCard + PromptRequest: REG_MULTI_SZ data is edited one string
-# per line, and the shell's prompt is single-line.
-src/Nexaflow.Features/Nexaflow.Features.WindowsRegistry/Views/RegistryView.xaml#InputPromptVisible
-
-src/Nexaflow.Features/Nexaflow.Features.Compressed/Views/CompressedView.xaml#ChoiceVisible
-src/Nexaflow.Features/Nexaflow.Features.Compressed/Views/CompressedView.xaml#PasswordVisible
-src/Nexaflow.Features/Nexaflow.Features.ProductManager/Views/ProductView.xaml#SettingsVisible
-src/Nexaflow.Features/Nexaflow.Features.ProductManager/Views/ProductView.xaml#ConcernSnaplinksVisible
-src/Nexaflow.Features/Nexaflow.Features.ProductManager/Views/ProductView.xaml#RestructureVisible
-src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml#CreateOverlayVisible
-src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Views/FileSystemView.xaml#WizardOverlayVisible
-src/Nexaflow.Visuals.Terminal/Views/TerminalView.xaml#EnvEditVisible
-src/Nexaflow.Visuals.Terminal/Views/TerminalView.xaml#EnvPickerVisible
-src/Nexaflow.Features/Nexaflow.Features.AIChat/Views/AiChatPage.xaml#IsAnalysisOverlayOpen
-
-# Core's own: the ribbon editor is a whole-window form, and its host (MainWindow) decides when it shows.
-# Found by this ratchet's first run — the E1 re-audit missed it. Moves in PR 3, or with D3's rewrite.
-src/Nexaflow.Core/Controls/RibbonEditor.xaml#root
+#
+# Empty since E1's PR 3 moved the last twelve onto ModalCard. Keep it that way: a new modal is a question
+# for the shell or a form in a ModalCard, never a line here.

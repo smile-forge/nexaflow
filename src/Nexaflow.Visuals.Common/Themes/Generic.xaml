@@ -115,6 +115,9 @@
          the card so a keyboard user can't wander into the page it covers. -->
     <Style TargetType="{x:Type c:ModalCard}">
         <Setter Property="Padding" Value="20"/>
+        <!-- The card's own surface; a form designed on another (Surface2) sets Background. The scrim is
+             always the theme's ScrimBrush. -->
+        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle"/>
         <Setter Property="Template">
@@ -122,7 +125,7 @@
                 <ControlTemplate TargetType="{x:Type c:ModalCard}">
                     <Border Background="{DynamicResource ScrimBrush}">
                         <Border x:Name="PART_Card"
-                                Background="{DynamicResource SurfaceBrush}"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8"
                                 Padding="{TemplateBinding Padding}"
                                 Width="{TemplateBinding CardWidth}" MinWidth="{TemplateBinding CardMinWidth}"
