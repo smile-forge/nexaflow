@@ -407,8 +407,8 @@ Theme switching restarts the window, so a fresh read per paint always reflects t
 **Genuinely-not-a-colour exceptions** (leave as literals): `Transparent`; drop-shadow `Color="Black"`;
 and scene art (`OceanReefScene` etc., which *is* the theme). A modal scrim is no longer one of them: it is
 the `ScrimBrush` token (`Tokens.xaml`), which `Visuals.Common`'s `ModalCard` and the shell's overlay host
-bind, so a theme can retune it. A view that still paints its own scrim around a card is a hand-rolled modal,
-and `HandRolledModalRatchetTests` holds those to a shrinking list.
+bind, so a theme can retune it. A view that paints its own scrim around a card is a hand-rolled modal, and
+`HandRolledModalRatchetTests` fails on it.
 
 ### Diagram tokens (markdown)
 

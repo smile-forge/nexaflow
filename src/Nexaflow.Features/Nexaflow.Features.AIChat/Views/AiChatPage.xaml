@@ -142,117 +142,112 @@
         </ScrollViewer>
 
         <!-- ── Analysis detail overlay (modal: backdrop blocks the list) ── -->
-        <Border Grid.Row="0" Grid.RowSpan="2" Background="#CC0B0B0F"
-                Visibility="{Binding IsAnalysisOverlayOpen, Converter={StaticResource BoolVis}}">
-            <Border Width="640" MaxHeight="560"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{StaticResource Surface2Brush}"
-                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                    CornerRadius="10" Padding="20">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/> <!-- header -->
-                        <RowDefinition Height="*"/>    <!-- body -->
-                        <RowDefinition Height="Auto"/> <!-- footer -->
-                    </Grid.RowDefinitions>
+        <vcc:ModalCard Grid.Row="0" Grid.RowSpan="2" Background="{StaticResource Surface2Brush}"
+                       CardWidth="640" CardMaxHeight="560"
+                       IsOpen="{Binding IsAnalysisOverlayOpen}" CancelCommand="{Binding CloseAnalysisCommand}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/> <!-- header -->
+                    <RowDefinition Height="*"/>    <!-- body -->
+                    <RowDefinition Height="Auto"/> <!-- footer -->
+                </Grid.RowDefinitions>
 
-                    <!-- Header: title + close -->
-                    <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
-                                   Text="{Binding AnalysisOverlayItem.Title}"
-                                   FontSize="16" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextBrush}"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                        <Button AutomationProperties.AutomationId="AiChat_CloseAnalysis" Grid.Column="1"
-                                Style="{StaticResource RibbonButton}"
-                                Padding="9,5" ToolTip="Close"
-                                Command="{Binding CloseAnalysisCommand}">
-                            <TextBlock Text="&#x2715;" FontSize="13"/>
-                        </Button>
-                    </Grid>
-
-                    <!-- Body -->
-                    <ScrollViewer Grid.Row="1"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <Grid>
-                            <!-- No analysis yet / disabled -->
-                            <TextBlock Text="{Binding AnalysisOverlayItem.SummaryText}"
-                                       FontSize="13" TextWrapping="Wrap"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       Visibility="{Binding AnalysisOverlayItem.HasAnalysis, Converter={StaticResource InvBoolVis}}"/>
-
-                            <!-- Structured analysis (outer keeps VM context for Visibility;
-                                 inner rebinds to the analysis object) -->
-                            <StackPanel Visibility="{Binding AnalysisOverlayItem.HasAnalysis, Converter={StaticResource BoolVis}}">
-                              <StackPanel DataContext="{Binding AnalysisOverlayItem.Analysis}">
-                                <TextBlock Text="{Binding Summary}"
-                                           FontSize="14" TextWrapping="Wrap" FontWeight="Medium"
-                                           Foreground="{StaticResource TextBrush}"/>
-
-                                <TextBlock Text="Topic" Style="{StaticResource SummaryHeading}"/>
-                                <TextBlock Text="{Binding Topic}" Style="{StaticResource SummaryBody}"/>
-
-                                <TextBlock Text="Tone" Style="{StaticResource SummaryHeading}"/>
-                                <TextBlock Text="{Binding Tone}" Style="{StaticResource SummaryBody}"/>
-
-                                <TextBlock Text="Tone Evolution" Style="{StaticResource SummaryHeading}"/>
-                                <TextBlock Text="{Binding ToneEvolution}" Style="{StaticResource SummaryBody}"/>
-
-                                <TextBlock Text="Understanding of User" Style="{StaticResource SummaryHeading}"/>
-                                <TextBlock Text="{Binding UnderstandingOfUser}" Style="{StaticResource SummaryBody}"/>
-
-                                <TextBlock Text="Understanding of Agent" Style="{StaticResource SummaryHeading}"/>
-                                <TextBlock Text="{Binding UnderstandingOfAgent}" Style="{StaticResource SummaryBody}"/>
-
-                                <TextBlock Text="Key Decision Points" Style="{StaticResource SummaryHeading}"/>
-                                <ItemsControl ItemsSource="{Binding KeyDecisionPoints}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" Style="{StaticResource SummaryBody}" Margin="8,1,0,1"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <TextBlock Text="Important Facts" Style="{StaticResource SummaryHeading}"/>
-                                <ItemsControl ItemsSource="{Binding ImportantFacts}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" Style="{StaticResource SummaryBody}" Margin="8,1,0,1"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <TextBlock Text="Valuable Attachments" Style="{StaticResource SummaryHeading}"/>
-                                <ItemsControl ItemsSource="{Binding ValuableAttachments}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" Style="{StaticResource SummaryBody}" Margin="8,1,0,1"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                              </StackPanel>
-                            </StackPanel>
-                        </Grid>
-                    </ScrollViewer>
-
-                    <!-- Footer: Open -->
-                    <Button AutomationProperties.AutomationId="AiChat_AnalysisOpenConversation" Grid.Row="2" HorizontalAlignment="Right" Margin="0,12,0,0"
-                            Style="{StaticResource RibbonButton}" Padding="14,7"
-                            Command="{Binding OpenConversationCommand}"
-                            CommandParameter="{Binding AnalysisOverlayItem}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#x1F4AC;" FontSize="13" Margin="0,0,6,0"/>
-                            <TextBlock Text="Open conversation" FontSize="12"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
-                        </StackPanel>
+                <!-- Header: title + close -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding AnalysisOverlayItem.Title}"
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <Button AutomationProperties.AutomationId="AiChat_CloseAnalysis" Grid.Column="1"
+                            Style="{StaticResource RibbonButton}"
+                            Padding="9,5" ToolTip="Close"
+                            Command="{Binding CloseAnalysisCommand}">
+                        <TextBlock Text="&#x2715;" FontSize="13"/>
                     </Button>
                 </Grid>
-            </Border>
-        </Border>
+
+                <!-- Body -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Grid>
+                        <!-- No analysis yet / disabled -->
+                        <TextBlock Text="{Binding AnalysisOverlayItem.SummaryText}"
+                                   FontSize="13" TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Visibility="{Binding AnalysisOverlayItem.HasAnalysis, Converter={StaticResource InvBoolVis}}"/>
+
+                        <!-- Structured analysis (outer keeps VM context for Visibility;
+                             inner rebinds to the analysis object) -->
+                        <StackPanel Visibility="{Binding AnalysisOverlayItem.HasAnalysis, Converter={StaticResource BoolVis}}">
+                          <StackPanel DataContext="{Binding AnalysisOverlayItem.Analysis}">
+                            <TextBlock Text="{Binding Summary}"
+                                       FontSize="14" TextWrapping="Wrap" FontWeight="Medium"
+                                       Foreground="{StaticResource TextBrush}"/>
+
+                            <TextBlock Text="Topic" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{Binding Topic}" Style="{StaticResource SummaryBody}"/>
+
+                            <TextBlock Text="Tone" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{Binding Tone}" Style="{StaticResource SummaryBody}"/>
+
+                            <TextBlock Text="Tone Evolution" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{Binding ToneEvolution}" Style="{StaticResource SummaryBody}"/>
+
+                            <TextBlock Text="Understanding of User" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{Binding UnderstandingOfUser}" Style="{StaticResource SummaryBody}"/>
+
+                            <TextBlock Text="Understanding of Agent" Style="{StaticResource SummaryHeading}"/>
+                            <TextBlock Text="{Binding UnderstandingOfAgent}" Style="{StaticResource SummaryBody}"/>
+
+                            <TextBlock Text="Key Decision Points" Style="{StaticResource SummaryHeading}"/>
+                            <ItemsControl ItemsSource="{Binding KeyDecisionPoints}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Style="{StaticResource SummaryBody}" Margin="8,1,0,1"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Important Facts" Style="{StaticResource SummaryHeading}"/>
+                            <ItemsControl ItemsSource="{Binding ImportantFacts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Style="{StaticResource SummaryBody}" Margin="8,1,0,1"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Valuable Attachments" Style="{StaticResource SummaryHeading}"/>
+                            <ItemsControl ItemsSource="{Binding ValuableAttachments}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Style="{StaticResource SummaryBody}" Margin="8,1,0,1"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+
+                <!-- Footer: Open -->
+                <Button AutomationProperties.AutomationId="AiChat_AnalysisOpenConversation" Grid.Row="2" HorizontalAlignment="Right" Margin="0,12,0,0"
+                        Style="{StaticResource RibbonButton}" Padding="14,7"
+                        Command="{Binding OpenConversationCommand}"
+                        CommandParameter="{Binding AnalysisOverlayItem}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x1F4AC;" FontSize="13" Margin="0,0,6,0"/>
+                        <TextBlock Text="Open conversation" FontSize="12"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </vcc:ModalCard>
     </Grid>
 </UserControl>
