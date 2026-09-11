@@ -62,4 +62,23 @@ public static class TreeSitterLanguages
 
     /// <summary>True when a tree-sitter grammar can parse this file (i.e. it has a class/method outline).</summary>
     public static bool IsCode(string fileName) => ForFile(fileName) is not null;
+
+    /// <summary>
+    /// The grammar that proves an edit to this file: <see cref="ForFile"/>, and XML for project and solution
+    /// files, which are XML to an edit and to nothing else.
+    /// <para>
+    /// Not registered through <see cref="Register"/>, because <see cref="ForFile"/> also decides which files the
+    /// graph walks as code, and the graph reads these through its structured layer instead — their project
+    /// references and member projects. Registering them would walk them twice. An edit wants one thing from a
+    /// grammar, proof that the file still parses, and that is all this lends them.
+    /// </para>
+    /// </summary>
+    public static string? ForEdit(string fileName) =>
+        ForFile(fileName) ?? (EditedAsXml.Contains(Path.GetExtension(fileName)) ? "xml" : null);
+
+    /// <summary>Project and solution files: XML, read by the graph's structured layer rather than as code.</summary>
+    private static readonly HashSet<string> EditedAsXml = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".csproj", ".fsproj", ".vbproj", ".vcxproj", ".wixproj", ".slnx",
+    };
 }
