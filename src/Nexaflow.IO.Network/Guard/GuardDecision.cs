@@ -33,6 +33,9 @@ public enum GuardRefusal
 
     /// <summary>Forbidden outright, with no override — see <see cref="NetworkGuard"/>.</summary>
     Forbidden,
+
+    /// <summary>A sweep-cost send to a network nobody agreed may be swept — Options → Network.</summary>
+    SweepNotPermitted,
 }
 
 /// <summary>The guard's answer. <paramref name="Reason"/> is user-facing: a refusal the user cannot

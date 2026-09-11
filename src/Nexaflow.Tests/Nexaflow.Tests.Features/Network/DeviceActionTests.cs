@@ -39,14 +39,20 @@ public class DeviceActionTests
         public void Error(string m, Exception? ex = null) { }
     }
 
-    private sealed class Wire(bool pingAnswers = true, TimeSpan? rtt = null) : IGuardedTransport
+    private sealed class Wire(bool pingAnswers = true, TimeSpan? rtt = null, GuardDecision? refuse = null)
+        : IGuardedTransport
     {
         public List<IPAddress> Pinged { get; } = [];
+        public List<SendIntent> Intents { get; } = [];
 
-        public Task<(bool Ok, TimeSpan Rtt)> PingAsync(IPAddress t, TimeSpan timeout, CancellationToken ct)
+        public Task<PingOutcome> PingAsync(SendIntent i, TimeSpan timeout, CancellationToken ct)
         {
-            Pinged.Add(t);
-            return Task.FromResult((pingAnswers, rtt ?? TimeSpan.FromMilliseconds(7)));
+            Intents.Add(i);
+            if (refuse is { } no) return Task.FromResult(PingOutcome.Refused(no));
+
+            Pinged.Add(i.Target);
+            return Task.FromResult(
+                new PingOutcome(GuardDecision.Allow(), pingAnswers, rtt ?? TimeSpan.FromMilliseconds(7)));
         }
 
         public Task<GuardDecision> SendUdpAsync(SendIntent i, ReadOnlyMemory<byte> p, CancellationToken ct)
@@ -190,6 +196,36 @@ public class DeviceActionTests
         Assert.AreEqual("false", reachable.Value.Text);
         Assert.IsFalse(result.Learned.Facts.Any(f => f.Key.Name == "rtt"),
             "and there is no round-trip time for a round trip that did not happen");
+    }
+
+    [TestMethod]
+    [CoversNode("network-action-ping")]
+    public async Task A_ping_is_the_users_own_echo_and_goes_through_the_guard()
+    {
+        var wire = new Wire();
+        var device = Device(("net.ipv4", "192.168.1.42"));
+
+        await new PingAction().PerformAsync(device, new Host(wire), CancellationToken.None);
+
+        var sent = wire.Intents.Single();
+        Assert.AreEqual(SendLayer.Icmp, sent.Layer);
+        Assert.AreEqual(SendInitiator.User, sent.Initiator);
+        Assert.AreEqual(device.Id, sent.DeviceNodeId);
+    }
+
+    [TestMethod]
+    [CoversNode("network-action-ping")]
+    public async Task And_a_refused_ping_says_why_and_learns_nothing()
+    {
+        // Refused is not silent: nothing was asked, so there is nothing to record about the device.
+        var no = GuardDecision.Deny(GuardRefusal.Disabled, "Network actions are switched off.");
+
+        var result = await new PingAction().PerformAsync(
+            Device(("net.ipv4", "192.168.1.42")), new Host(new Wire(refuse: no)), CancellationToken.None);
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "switched off");
+        Assert.IsNull(result.Learned);
     }
 
     [TestMethod]

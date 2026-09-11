@@ -11,8 +11,9 @@ namespace Nexaflow.IO.Network.Guard;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every method asks <see cref="NetworkGuard"/> first and records against the <see cref="RunBudget"/> only
-/// when a packet actually left. A refusal comes back as a <see cref="GuardDecision"/> rather than an
+/// Every method asks <see cref="NetworkGuard"/> first and books the send against the
+/// <see cref="RunBudget"/> in the same step (<see cref="RunBudget.Admit"/>), so two sends racing for the
+/// last of a ceiling cannot both go. A refusal comes back as a <see cref="GuardDecision"/> rather than an
 /// exception, because a probe declining to send is an outcome — a VPN adapter that will not join a group,
 /// a target off-segment — and an exception there would abort a whole sweep for something normal.
 /// </para>
@@ -27,7 +28,7 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
     public async Task<GuardDecision> SendUdpAsync(SendIntent intent, ReadOnlyMemory<byte> payload,
                                                   CancellationToken ct)
     {
-        var decision = guard.Evaluate(intent, budget);
+        var decision = budget.Admit(guard, intent);
         if (!decision.Allowed) return decision;
 
         using var socket = Bound(intent);
@@ -35,7 +36,6 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
         await socket.SendToAsync(payload, SocketFlags.None,
                                  new IPEndPoint(intent.Target, intent.Port), ct).ConfigureAwait(false);
 
-        budget.Record(intent);
         return decision;
     }
 
@@ -51,7 +51,7 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
         SendIntent intent, ReadOnlyMemory<byte> payload, TimeSpan window,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        var decision = guard.Evaluate(intent, budget);
+        var decision = budget.Admit(guard, intent);
         if (!decision.Allowed) yield break;
 
         using var socket = Bound(intent);
@@ -60,7 +60,6 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
 
         await socket.SendToAsync(payload, SocketFlags.None,
                                  new IPEndPoint(intent.Target, intent.Port), ct).ConfigureAwait(false);
-        budget.Record(intent);
 
         await foreach (var got in Collect(socket, intent.SourceId, closing.Token).ConfigureAwait(false))
             yield return got;
@@ -89,19 +88,29 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
             yield return got;
     }
 
-    public Task<(bool Ok, TimeSpan Rtt)> PingAsync(IPAddress target, TimeSpan timeout, CancellationToken ct)
-        => Task.Run(() =>
+    public async Task<PingOutcome> PingAsync(SendIntent intent, TimeSpan timeout, CancellationToken ct)
+    {
+        var decision = budget.Admit(guard, intent);
+        if (!decision.Allowed) return PingOutcome.Refused(decision);
+
+        using var ping = new System.Net.NetworkInformation.Ping();
+        try
         {
-            using var ping = new System.Net.NetworkInformation.Ping();
-            try
-            {
-                var reply = ping.Send(target, (int)timeout.TotalMilliseconds);
-                return reply.Status == System.Net.NetworkInformation.IPStatus.Success
-                    ? (true, TimeSpan.FromMilliseconds(reply.RoundtripTime))
-                    : (false, TimeSpan.Zero);
-            }
-            catch (System.Net.NetworkInformation.PingException) { return (false, TimeSpan.Zero); }
-        }, ct);
+            // The cancellable overload, so stopping a sweep stops the echoes in flight rather than waiting
+            // out every one of their timeouts.
+            var reply = await ping.SendPingAsync(intent.Target, timeout,
+                                                 new byte[Math.Clamp(intent.ByteCount, 0, 1472)],
+                                                 options: null, ct).ConfigureAwait(false);
+
+            return reply.Status == System.Net.NetworkInformation.IPStatus.Success
+                ? new PingOutcome(decision, true, TimeSpan.FromMilliseconds(reply.RoundtripTime))
+                : new PingOutcome(decision, false, TimeSpan.Zero);
+        }
+        catch (System.Net.NetworkInformation.PingException)
+        {
+            return new PingOutcome(decision, false, TimeSpan.Zero);
+        }
+    }
 
     public async Task<bool> TcpConnectAsync(IPAddress target, int port, TimeSpan timeout, CancellationToken ct)
     {
@@ -156,7 +165,7 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
     public async Task<FetchedDocument> FetchAsync(SendIntent intent, Uri url, TimeSpan timeout,
                                                   CancellationToken ct)
     {
-        var decision = guard.Evaluate(intent, budget);
+        var decision = budget.Admit(guard, intent);
         if (!decision.Allowed) return FetchedDocument.Nothing(decision.Reason);
 
         using var handler = new HttpClientHandler
@@ -175,7 +184,6 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
         try
         {
             using var answer = await http.GetAsync(url, giveUp.Token).ConfigureAwait(false);
-            budget.Record(intent);
 
             if (!answer.IsSuccessStatusCode)
                 return FetchedDocument.Nothing($"{(int)answer.StatusCode} {answer.ReasonPhrase}");
@@ -189,7 +197,6 @@ public sealed class UdpTransport(NetworkGuard guard, RunBudget budget) : IGuarde
         {
             // A device that advertised an address and does not serve it is ordinary — plenty publish a
             // LOCATION on a port that hosts only that one file, and some publish one that answers nothing.
-            budget.Record(intent);
             return FetchedDocument.Nothing(e is OperationCanceledException ? "timed out" : e.Message);
         }
     }

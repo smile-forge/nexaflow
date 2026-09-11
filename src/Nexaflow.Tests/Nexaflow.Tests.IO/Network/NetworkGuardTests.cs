@@ -1,5 +1,6 @@
 using Nexaflow.IO.Network.Adapters;
 using Nexaflow.IO.Network.Guard;
+using Nexaflow.IO.Network.Probes;
 using Nexaflow.Tests.Fixtures;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -44,11 +45,12 @@ public class NetworkGuardTests
     }
 
     private static SendIntent To(string ip, int port = 9, SendInitiator who = SendInitiator.Probe,
-                                 bool broadcast = false, SendLayer layer = SendLayer.Udp, int bytes = 102)
+                                 bool broadcast = false, SendLayer layer = SendLayer.Udp, int bytes = 102,
+                                 ProbeCost cost = ProbeCost.Light)
         => new()
         {
             Target = IPAddress.Parse(ip), Port = port, Layer = layer, ByteCount = bytes,
-            Initiator = who, Broadcast = broadcast, SourceId = "test",
+            Initiator = who, Broadcast = broadcast, SourceId = "test", Cost = cost,
         };
 
     // ── Target allow-list ─────────────────────────────────────────────────────
@@ -108,6 +110,19 @@ public class NetworkGuardTests
             "a user-entered target is the one way the allow-list widens — and only a user gesture can do it");
     }
 
+    [TestMethod]
+    public void A_subnets_own_network_and_broadcast_addresses_are_not_unicast_targets()
+    {
+        // Both reach every host on the segment. A send meant for all of them has to say it is a broadcast,
+        // so the broadcast rules — and a draft's ban on them — are the ones that apply.
+        foreach (var target in new[] { "192.168.1.0", "192.168.1.255" })
+        {
+            var d = Guard().Evaluate(To(target), new RunBudget());
+            Assert.IsFalse(d.Allowed, $"{target} went out as a unicast");
+            Assert.AreEqual(GuardRefusal.Forbidden, d.Refusal, target);
+        }
+    }
+
     // ── Broadcast ─────────────────────────────────────────────────────────────
 
     [TestMethod]
@@ -164,6 +179,84 @@ public class NetworkGuardTests
             Assert.IsFalse(d.Allowed, $"{layer} must be refused");
             Assert.AreEqual(GuardRefusal.LayerNotPermitted, d.Refusal);
         }
+    }
+
+    [TestMethod]
+    public void An_echo_is_judged_like_any_other_send()
+    {
+        // An address sweep is nothing but these. An echo that skipped the guard was a sweep the kill switch
+        // could not stop.
+        var g = Guard();
+        Assert.IsTrue(g.Evaluate(To("192.168.1.77", 0, layer: SendLayer.Icmp, bytes: PingOutcome.EchoBytes),
+                                 new RunBudget()).Allowed);
+        Assert.AreEqual(GuardRefusal.TargetNotLocal,
+                        g.Evaluate(To("8.8.8.8", 0, layer: SendLayer.Icmp), new RunBudget()).Refusal);
+
+        g.Enabled = false;
+        Assert.AreEqual(GuardRefusal.Disabled,
+                        g.Evaluate(To("192.168.1.77", 0, layer: SendLayer.Icmp), new RunBudget()).Refusal);
+    }
+
+    // ── Sweeps ────────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void A_sweep_is_refused_on_a_network_nobody_allowed()
+    {
+        var d = Guard().Evaluate(To("192.168.1.77", cost: ProbeCost.Sweep), new RunBudget());
+
+        Assert.IsFalse(d.Allowed);
+        Assert.AreEqual(GuardRefusal.SweepNotPermitted, d.Refusal);
+        StringAssert.Contains(d.Reason, "Options → Network", "the refusal has to say where it can be allowed");
+    }
+
+    [TestMethod]
+    public void And_allowed_on_the_network_that_was()
+    {
+        var g = Guard();
+        g.SetSweepConsent([("eth0", "192.168.1.0/24")]);
+
+        Assert.IsTrue(g.Evaluate(To("192.168.1.77", cost: ProbeCost.Sweep), new RunBudget()).Allowed);
+    }
+
+    [TestMethod]
+    public void Consent_belongs_to_the_network_not_the_card()
+    {
+        // The same adapter on another subnet — a laptop allowed at home, now at the office — is not allowed.
+        var g = Guard();
+        g.SetSweepConsent([("eth0", "10.0.0.0/24")]);
+
+        Assert.AreEqual(GuardRefusal.SweepNotPermitted,
+                        g.Evaluate(To("192.168.1.77", cost: ProbeCost.Sweep), new RunBudget()).Refusal);
+    }
+
+    [TestMethod]
+    public void Every_card_on_the_subnet_needs_consent_because_the_route_picks_the_card()
+    {
+        // An echo carries no source address. With Ethernet and Wi-Fi on one subnet the route table chooses
+        // which one it leaves by, so consent for one of them is not consent for the sweep.
+        var wifi = new NetworkAdapterInfo
+        {
+            Id = "wifi0", Name = "Wi-Fi", Description = "Test adapter",
+            Type = NetworkInterfaceType.Wireless80211, Status = OperationalStatus.Up,
+            MacAddress = "11:22:33:44:55:66",
+        };
+        wifi.Addresses.Add(new AdapterAddress(IPAddress.Parse("192.168.1.60"), 24));
+
+        var g = new NetworkGuard();
+        g.SetAdapters([LocalAdapter(), wifi]);
+
+        g.SetSweepConsent([("eth0", "192.168.1.0/24")]);
+        Assert.AreEqual(GuardRefusal.SweepNotPermitted,
+                        g.Evaluate(To("192.168.1.77", cost: ProbeCost.Sweep), new RunBudget()).Refusal);
+
+        g.SetSweepConsent([("eth0", "192.168.1.0/24"), ("wifi0", "192.168.1.0/24")]);
+        Assert.IsTrue(g.Evaluate(To("192.168.1.77", cost: ProbeCost.Sweep), new RunBudget()).Allowed);
+    }
+
+    [TestMethod]
+    public void Ordinary_traffic_needs_no_sweep_consent()
+    {
+        Assert.IsTrue(Guard().Evaluate(To("192.168.1.77", cost: ProbeCost.Light), new RunBudget()).Allowed);
     }
 
     // ── Budgets ───────────────────────────────────────────────────────────────
@@ -241,6 +334,20 @@ public class NetworkGuardTests
     }
 
     [TestMethod]
+    public void Rate_limits_a_whole_run_not_only_each_target()
+    {
+        // An address sweep touches every target once, so the per-target limit never sees it.
+        var now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var g = Guard(new GuardLimits { MaxPacketsPerSecondPerRun = 3 });
+        var budget = new RunBudget(() => now);
+
+        for (int host = 10; host < 13; host++)
+            Assert.IsTrue(budget.Admit(g, To($"192.168.1.{host}")).Allowed);
+
+        Assert.AreEqual(GuardRefusal.RateLimited, budget.Admit(g, To("192.168.1.13")).Refusal);
+    }
+
+    [TestMethod]
     public void A_refused_send_does_not_consume_budget()
     {
         // Otherwise one refusal cascades into refusing everything after it.
@@ -250,6 +357,40 @@ public class NetworkGuardTests
         Assert.IsFalse(g.Evaluate(To("8.8.8.8"), budget).Allowed);
         Assert.AreEqual(0, budget.Packets);
         Assert.IsTrue(g.Evaluate(To("192.168.1.77"), budget).Allowed);
+    }
+
+    // ── Admission ─────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Admit_books_what_it_allows_and_nothing_it_refuses()
+    {
+        var g = Guard();
+        var budget = new RunBudget();
+
+        Assert.IsTrue(budget.Admit(g, To("192.168.1.77")).Allowed);
+        Assert.IsFalse(budget.Admit(g, To("8.8.8.8")).Allowed);
+        Assert.AreEqual(1, budget.Packets);
+    }
+
+    [TestMethod]
+    public void Sends_racing_for_the_last_of_a_ceiling_cannot_both_have_it()
+    {
+        // Checked on one side of an await and spent on the other, a ceiling could be spent twice. Admission
+        // decides and books under one lock, so a parallel sweep lands on the ceiling exactly.
+        var g = Guard(new GuardLimits
+        {
+            MaxPacketsPerRun = 50, MaxPacketsPerSecondPerTarget = 10_000, MaxPacketsPerSecondPerRun = 10_000,
+        });
+        var budget = new RunBudget();
+        int allowed = 0;
+
+        Parallel.For(0, 400, i =>
+        {
+            if (budget.Admit(g, To($"192.168.1.{2 + i % 200}")).Allowed) Interlocked.Increment(ref allowed);
+        });
+
+        Assert.AreEqual(50, allowed);
+        Assert.AreEqual(50, budget.Packets);
     }
 
     // ── Kill switch ───────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 using System.Net;
 using Nexaflow.IO.Network.Actions;
+using Nexaflow.IO.Network.Guard;
 using Nexaflow.IO.Network.Model;
 using Nexaflow.IO.Network.Probes;
 using Nexaflow.Plugins;
@@ -41,8 +42,18 @@ public sealed class PingAction : IDeviceAction
         if (Address(device) is not { } target)
             return DeviceActionResult.Failed("This device has no address to ping.");
 
-        var (ok, rtt) = await host.Transport.PingAsync(target, TimeSpan.FromSeconds(2), ct)
-                                  .ConfigureAwait(false);
+        var outcome = await host.Transport.PingAsync(new SendIntent
+        {
+            Target = target, Port = 0, Layer = SendLayer.Icmp, ByteCount = PingOutcome.EchoBytes,
+            Initiator = SendInitiator.User, SourceId = ActionId, DeviceNodeId = device.Id,
+        }, TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
+
+        // Refused is not the same as silent: nothing was asked, so there is nothing to record about the
+        // device — only why, which is the guard's to say.
+        if (!outcome.Decision.Allowed)
+            return DeviceActionResult.Failed(outcome.Decision.Reason);
+
+        var (ok, rtt) = (outcome.Ok, outcome.Rtt);
 
         var now = DateTimeOffset.UtcNow;
         var obs = new ProbeObservation { SourceProbe = ActionId, ObservedUtc = now };

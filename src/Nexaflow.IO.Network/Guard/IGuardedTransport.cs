@@ -21,6 +21,18 @@ public readonly record struct FetchedDocument(bool Ok, byte[] Body, string Conte
 public readonly record struct ReceivedDatagram(
     IPEndPoint From, byte[] Payload, DateTimeOffset ReceivedUtc, string ViaAdapterId);
 
+/// <summary>What an echo came to.</summary>
+/// <param name="Decision">The guard's verdict. A refusal means nothing was sent, and the rest is empty.</param>
+/// <param name="Ok">Whether the target answered.</param>
+/// <param name="Rtt">The round trip, when it did.</param>
+public readonly record struct PingOutcome(GuardDecision Decision, bool Ok, TimeSpan Rtt)
+{
+    /// <summary>The echo payload every ping here carries, and so what its intent's byte count says.</summary>
+    public const int EchoBytes = 32;
+
+    public static PingOutcome Refused(GuardDecision decision) => new(decision, false, TimeSpan.Zero);
+}
+
 /// <summary>
 /// The only route to the wire. Every method takes a <see cref="SendIntent"/> and puts it through
 /// <see cref="NetworkGuard"/> first; a refusal is returned as a result, never thrown, so a probe or a
@@ -70,8 +82,9 @@ public interface IGuardedTransport
 
     /// <summary>ICMP echo. An engine primitive rather than a raw-socket concern: Windows blocks raw
     /// TCP/UDP send from user mode, and offering ping directly removes the commonest reason a protocol
-    /// document would ever ask to build IP headers.</summary>
-    Task<(bool Ok, TimeSpan Rtt)> PingAsync(IPAddress target, TimeSpan timeout, CancellationToken ct);
+    /// document would ever ask to build IP headers. Judged like any other send — an address sweep is
+    /// nothing but these, and an echo that skipped the guard was a sweep the kill switch could not stop.</summary>
+    Task<PingOutcome> PingAsync(SendIntent intent, TimeSpan timeout, CancellationToken ct);
 
     /// <summary>TCP connect probe — open/closed/filtered without sending a payload.</summary>
     Task<bool> TcpConnectAsync(IPAddress target, int port, TimeSpan timeout, CancellationToken ct);
