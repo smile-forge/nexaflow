@@ -127,6 +127,7 @@ public sealed partial class NetworkViewModel : ObservableObject
     private readonly IReadOnlyList<ISubfeatureHandle<IDeviceAction>> _actions;
     private readonly NetworkConfig _config;
     private readonly IShellServices _shell;
+    private readonly GuardLimits _limits;
     private readonly NetworkGuard _guard;
     private readonly IReadOnlyList<(string AdapterId, string Segment)> _sweptNetworks;
 
@@ -145,9 +146,16 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// Everything known about these segments, kept for the life of the page.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// One graph rather than one per sweep: a device seen last time and missing now is <i>absent</i> rather
     /// than forgotten, and a fact an action established has somewhere to live until the next discovery
     /// either confirms or supersedes it.
+    /// </para>
+    /// <para>
+    /// <b>Touched only on the UI thread.</b> The list, the panel and an action's result all read it there, so a
+    /// sweep does not write it from its worker: what the layers find comes back through a <see cref="PageSink"/>
+    /// and is applied here, a batch at a time. An action is handed a snapshot of its device, not the node.
+    /// </para>
     /// </remarks>
     private readonly DeviceGraph _graph = new();
 
@@ -173,8 +181,9 @@ public sealed partial class NetworkViewModel : ObservableObject
         // target are one decision, made in Options → Network.
         Adapters = [.. NetworkAdapters.Usable().Where(a => !config.IsExcluded(a.Id))];
         _sweptNetworks = config.SweptNetworks();
+        _limits = config.Limits();
 
-        _guard = new NetworkGuard(config.Limits()) { Enabled = config.Enabled };
+        _guard = new NetworkGuard(_limits) { Enabled = config.Enabled };
         _guard.SetAdapters(Adapters);
         _guard.SetSweepConsent(_sweptNetworks);
 
@@ -252,17 +261,36 @@ public sealed partial class NetworkViewModel : ObservableObject
     /// Rebuilds the panel for whatever is selected.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The actions are recomputed rather than filtered at render time, because <c>AppliesTo</c> is the whole
     /// contract: a device that has published no web address is not offered a button for one, so the user
     /// never meets a control that cannot do anything.
+    /// </para>
+    /// <para>
+    /// The same device arriving in a fresh row — the list rebuilt under it while a layer reported — refills
+    /// what discovery knows and keeps the tabs. Closing an action's result because some other layer found
+    /// something would throw away what the user was reading.
+    /// </para>
     /// </remarks>
-    partial void OnSelectedChanged(DeviceRow? value)
+    partial void OnSelectedChanged(DeviceRow? oldValue, DeviceRow? newValue)
     {
+        if (oldValue is not null && newValue is not null && oldValue.Node.Id == newValue.Node.Id)
+        {
+            if (Tabs.FirstOrDefault(t => !t.CanClose) is { } known)
+            {
+                known.Rows.Clear();
+                Fill(known, newValue.Node, newValue.Node.Facts.Where(f => f.SupersededUtc is null));
+            }
+
+            OfferActions(newValue);
+            return;
+        }
+
         Tabs.Clear();
         Actions.Clear();
         ActiveTab = null;
 
-        if (value is null)
+        if (newValue is null)
         {
             PanelWidth = new GridLength(0);
             return;
@@ -271,12 +299,19 @@ public sealed partial class NetworkViewModel : ObservableObject
         if (PanelWidth.Value <= 0) PanelWidth = new GridLength(360);
 
         var discovery = new PanelTab("Discovery", "", canClose: false);
-        Fill(discovery, value.Node, value.Node.Facts.Where(f => f.SupersededUtc is null));
+        Fill(discovery, newValue.Node, newValue.Node.Facts.Where(f => f.SupersededUtc is null));
         Tabs.Add(discovery);
         ActiveTab = discovery;
 
+        OfferActions(newValue);
+    }
+
+    private void OfferActions(DeviceRow row)
+    {
+        Actions.Clear();
+
         foreach (var handle in _actions)
-            if (handle.Value.AppliesTo(value.Node)) Actions.Add(new ActionRow(handle.Value, RunActionAsync));
+            if (handle.Value.AppliesTo(row.Node)) Actions.Add(new ActionRow(handle.Value, RunActionAsync));
     }
 
     /// <summary>Puts facts into a tab, grouped by layer and stable within it.</summary>
@@ -345,9 +380,12 @@ public sealed partial class NetworkViewModel : ObservableObject
         // refused because a discovery earlier spent it.
         var host = new ActionHost(new UdpTransport(_guard, new RunBudget()), _shell, Log);
 
+        // A copy, because the action runs on a pool thread and the node goes on changing under a sweep.
+        var device = target.Node.Snapshot();
+
         try
         {
-            var result = await Task.Run(() => action.PerformAsync(target.Node, host, _lifetime.Token))
+            var result = await Task.Run(() => action.PerformAsync(device, host, _lifetime.Token))
                                    .ConfigureAwait(false);
 
             await _shell.RunOnUiAsync(() => Report(action, target, result));
@@ -440,45 +478,71 @@ public sealed partial class NetworkViewModel : ObservableObject
 
     // ── Discovery ─────────────────────────────────────────────────────────────
 
-    [RelayCommand(CanExecute = nameof(CanDiscover))]
-    private async Task DiscoverAsync()
+    /// <summary>
+    /// Runs every switched-on layer once.
+    /// </summary>
+    /// <param name="stop">The Stop button — <c>DiscoverCancelCommand</c>.</param>
+    [RelayCommand(CanExecute = nameof(CanDiscover), IncludeCancelCommand = true)]
+    private async Task DiscoverAsync(CancellationToken stop)
     {
         IsSweeping = true;
         DiscoverCommand.NotifyCanExecuteChanged();
         Status = "Looking…";
 
+        var chosen = Layers.Where(l => l.IsEnabled).Select(l => l.Id).ToHashSet(StringComparer.Ordinal);
+        var probes = _layers.Where(h => chosen.Contains(h.Id)).Select(h => h.Value).ToList();
+
+        var run = new DiscoveryRun(Adapters, new UdpTransport(_guard, new RunBudget()),
+                                   sweepNetworks: _sweptNetworks);
+        var applier = new GraphApplier(_graph);
+        var started = DateTimeOffset.UtcNow;
+
+        // Three ways a run ends early, kept apart so the status can say which: Stop, the time limit set in
+        // Options → Network, and the tab closing.
+        using var limit = new CancellationTokenSource(_limits.MaxRunDuration);
+        using var any = CancellationTokenSource.CreateLinkedTokenSource(stop, limit.Token, _lifetime.Token);
+
         try
         {
-            var chosen = Layers.Where(l => l.IsEnabled).Select(l => l.Id).ToHashSet(StringComparer.Ordinal);
-            var probes = _layers.Where(h => chosen.Contains(h.Id)).Select(h => h.Value).ToList();
-
-            // Everything below here is off the UI thread: reading a neighbour table takes milliseconds and
-            // an SSDP window takes seconds, and a feature never touches the dispatcher itself.
-            var sweep = Task.Run(() => SweepAsync(probes, _lifetime.Token), _lifetime.Token);
+            // Off the UI thread: a neighbour table takes milliseconds, an SSDP window or a sweep takes seconds,
+            // and a feature never touches the dispatcher itself. What they find comes back through the sink.
+            var sweep = Task.Run(() => run.SweepAsync(probes, new PageSink(this, applier), any.Token), any.Token);
             _inFlight = sweep;
 
-            var (rows, messages, summary) = await sweep.ConfigureAwait(false);
+            var result = await sweep.ConfigureAwait(false);
 
             await _shell.RunOnUiAsync(() =>
             {
-                var was = Selected?.Node.Id;
+                // Only a run that finished looked everywhere, so only a finished run marks anything absent.
+                applier.Finish(started);
+                Refresh();
+                ShowLog(result.Log);
 
-                Devices.Clear();
-                foreach (var row in rows) Devices.Add(row);
-
-                Log.Clear();
-                foreach (var m in messages) Log.Add(m);
-
-                Status = summary;
-
-                // Keep the panel on whatever it was on. A sweep that silently deselected would throw away
-                // what the user was reading every time it refreshed.
-                Selected = was is null ? null : Devices.FirstOrDefault(d => d.Node.Id == was);
+                Status = Devices.Count == 0
+                    ? "Nothing answered. The neighbour table may be empty on a quiet network, and some adapters "
+                    + "refuse a multicast join — the log says which."
+                    : $"{Devices.Count} device(s) from {result.Observations} observation(s) "
+                    + $"across {probes.Count} layer(s).";
             });
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
             // The tab closed mid-sweep. Nothing is waiting for the answer.
+        }
+        catch (OperationCanceledException)
+        {
+            var why = stop.IsCancellationRequested
+                ? "Stopped"
+                : $"Stopped at the {_limits.MaxRunDuration.TotalSeconds:0}-second limit set in Options → Network";
+
+            // What was found before the stop is real, and stays. Nothing is marked absent: a run that did not
+            // finish did not look everywhere.
+            await _shell.RunOnUiAsync(() =>
+            {
+                Refresh();
+                ShowLog(run.Messages);
+                Status = $"{why} — {Devices.Count} device(s) so far.";
+            });
         }
         finally
         {
@@ -492,13 +556,27 @@ public sealed partial class NetworkViewModel : ObservableObject
 
     private bool CanDiscover() => !IsSweeping && Adapters.Count > 0 && Layers.Any(l => l.IsEnabled);
 
-    private async Task<(List<DeviceRow> Rows, List<string> Log, string Summary)> SweepAsync(
-        IReadOnlyList<INetworkProbe> probes, CancellationToken ct)
+    /// <summary>
+    /// Where a run's findings land: on the UI thread, a batch at a time, so the graph keeps one writer and the
+    /// list fills in as each layer reports rather than all at once at the end.
+    /// </summary>
+    private sealed class PageSink(NetworkViewModel page, GraphApplier applier) : IDiscoverySink
     {
-        var run = new DiscoveryRun(Adapters, new UdpTransport(_guard, new RunBudget()), graph: _graph,
-                                   sweepNetworks: _sweptNetworks);
+        public Task ObservedAsync(string probeId, NetworkAdapterInfo adapter, IReadOnlyList<ProbeObservation> batch)
+            => page._shell.RunOnUiAsync(() =>
+            {
+                applier.Apply(batch);
+                page.Refresh();
+            });
 
-        var result = await run.SweepAsync(probes, ct).ConfigureAwait(false);
+        public Task CompletedAsync(string probeId, NetworkAdapterInfo adapter)
+            => page._shell.RunOnUiAsync(() => applier.Completed(probeId, adapter));
+    }
+
+    /// <summary>Rebuilds the rows from the graph, keeping whatever was selected. UI thread only.</summary>
+    private void Refresh()
+    {
+        var was = Selected?.Node.Id;
 
         var rows = _graph.Nodes
             .Where(IsADevice)
@@ -507,13 +585,18 @@ public sealed partial class NetworkViewModel : ObservableObject
             .Select(Row)
             .ToList();
 
-        string summary = rows.Count == 0
-            ? "Nothing answered. The neighbour table may be empty on a quiet network, and some adapters "
-            + "refuse a multicast join — the log says which."
-            : $"{rows.Count} device(s) from {result.Observations} observation(s) "
-            + $"across {probes.Count} layer(s).";
+        Devices.Clear();
+        foreach (var row in rows) Devices.Add(row);
 
-        return (rows, [.. result.Log], summary);
+        // Keep the panel on whatever it was on. A refresh that silently deselected would throw away what the
+        // user was reading every time a layer reported.
+        Selected = was is null ? null : Devices.FirstOrDefault(d => d.Node.Id == was);
+    }
+
+    private void ShowLog(IEnumerable<string> lines)
+    {
+        Log.Clear();
+        foreach (var line in lines) Log.Add(line);
     }
 
     /// <summary>

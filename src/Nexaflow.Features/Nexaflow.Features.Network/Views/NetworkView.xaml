@@ -38,6 +38,17 @@
                     Padding="16,6"
                     Command="{Binding DiscoverCommand}" />
 
+            <!-- Only while a run is going: a sweep across a subnet is seconds, not milliseconds, and the
+                 time limit in Options → Network is a ceiling rather than a way to change one's mind. -->
+            <Button DockPanel.Dock="Left"
+                    Style="{StaticResource TbBtn}"
+                    AutomationProperties.AutomationId="Net_Stop"
+                    Content="Stop"
+                    Padding="16,6"
+                    Margin="8,0,0,0"
+                    Command="{Binding DiscoverCancelCommand}"
+                    Visibility="{Binding IsSweeping, Converter={StaticResource BoolToVis}}" />
+
             <ItemsControl DockPanel.Dock="Left" Margin="16,0,0,0"
                           VerticalAlignment="Center"
                           ItemsSource="{Binding Layers}">

@@ -32,7 +32,13 @@ namespace Nexaflow.Features.Network.Arp;
     Order = 0)]
 public sealed class ArpProbe : INetworkProbe
 {
+    private readonly Func<IReadOnlyList<NeighborEntry>> _readTable;
     private IProbeHost? _host;
+
+    public ArpProbe() : this(NativeMethods.ReadNeighborTable) { }
+
+    /// <summary>The seam a test reads a table through, instead of the kernel's.</summary>
+    internal ArpProbe(Func<IReadOnlyList<NeighborEntry>> readTable) => _readTable = readTable;
 
     public string ProbeId => "network.arp";
     public string DisplayName => "ARP / neighbour table";
@@ -72,139 +78,27 @@ public sealed class ArpProbe : INetworkProbe
 
         // The interop is synchronous and can take a few ms on a large table — keep it off the caller's
         // thread so a sweep across adapters stays responsive to cancellation.
-        var rows = await Task.Run(NativeMethods.ReadNeighborTable, ct).ConfigureAwait(false);
+        var rows = await Task.Run(_readTable, ct).ConfigureAwait(false);
 
-        uint ifIndex = InterfaceIndexOf(adapter);
         var now = DateTimeOffset.UtcNow;
-        var segment = adapter.SegmentId;
-        int reported = 0;
+        var devices = NeighborRows.OnAdapter(rows, adapter, includeStale, includeUnreachable);
+        var shared = NeighborRows.SharedMacs(devices);
 
-        foreach (var row in rows)
+        foreach (var row in devices)
         {
             ct.ThrowIfCancellationRequested();
-
-            if (ifIndex != 0 && row.InterfaceIndex != ifIndex) continue;
-            if (!Wanted(row.State, includeStale, includeUnreachable)) continue;
-
-            // Our own address is not a discovered device.
-            if (adapter.Addresses.Any(a => a.Address.Equals(row.Address))) continue;
-            if (IPAddress.IsLoopback(row.Address)) continue;
-
-            // A multicast or broadcast address in the table is an artefact, not a neighbour.
-            if (IsMulticastOrBroadcast(row.Address, adapter)) continue;
-
-            yield return Build(row, adapter, segment, now);
-            reported++;
+            yield return NeighborRows.Observe(row, adapter, ProbeId, now, withMac: !shared.Contains(row.Mac));
         }
 
-        _host?.Log.Info($"{ProbeId}: {reported} neighbour(s) on {adapter.Name} "
+        foreach (var mac in shared)
+            _host?.Log.Warn($"{ProbeId}: {mac} answers for more than {NeighborRows.MostAddressesPerMac} addresses on "
+                          + $"{adapter.Name} — proxy ARP, or an access point isolating its clients. Those rows are "
+                          + "listed by address alone rather than fused into one device.");
+
+        _host?.Log.Info($"{ProbeId}: {devices.Count} neighbour(s) on {adapter.Name} "
                       + $"(table held {rows.Count} row(s) across all interfaces).");
-    }
-
-    private ProbeObservation Build(NeighborEntry row, NetworkAdapterInfo adapter, string segment, DateTimeOffset now)
-    {
-        var obs = new ProbeObservation { SourceProbe = ProbeId, ObservedUtc = now };
-
-        // MAC is scoped to the segment: the same address genuinely can appear on two isolated segments,
-        // and fusing those would be wrong. Asserted, because the kernel resolved it on this link.
-        obs.Identities.Add(new IdentityClaim(IdentityKind.Mac, row.Mac, segment, Confidence.Asserted));
-        obs.Identities.Add(new IdentityClaim(IdentityKind.Ip, row.Address.ToString(), segment, Confidence.Strong));
-
-        // A Permanent/Reachable row was confirmed on the wire; a Stale one is remembered, not observed —
-        // and that difference must reach the graph, or a device that left looks as live as one that answered.
-        var confidence = row.State is NeighborState.Reachable or NeighborState.Permanent
-            ? Confidence.Asserted
-            : Confidence.Likely;
-
-        obs.Facts.Add(Fact(new FactKey("link", "mac"), FactValue.OfText(row.Mac), now, Confidence.Asserted,
-                           $"neighbour table, interface {row.InterfaceIndex}"));
-
-        obs.Facts.Add(Fact(
-            row.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                ? new FactKey("net", "ipv6")
-                : new FactKey("net", "ipv4"),
-            FactValue.OfAddress(row.Address.ToString()), now, confidence,
-            $"neighbour table, state {row.State}"));
-
-        obs.Facts.Add(Fact(new FactKey("link", "adapter"), FactValue.OfText(adapter.Name), now, Confidence.Asserted,
-                           "observed via this adapter"));
-        obs.Facts.Add(Fact(new FactKey("link", "segment"), FactValue.OfText(segment), now, Confidence.Asserted,
-                           "adapter prefix"));
-
-        // Only claim reachability when the OS actually confirmed it. A stale row is not evidence of presence,
-        // and treating it as such is how a device that left keeps looking alive.
-        if (row.State is NeighborState.Reachable or NeighborState.Permanent)
-            obs.Facts.Add(Fact(new FactKey("net", "reachable"), FactValue.OfBool(true), now, Confidence.Strong,
-                               $"neighbour state {row.State}", ttl: TimeSpan.FromMinutes(5)));
-
-        // The router flag is the cheapest gateway signal we get, and it costs nothing.
-        if (row.IsRouter)
-            obs.Facts.Add(Fact(new FactKey("dev", "class"), FactValue.OfText("router"), now, Confidence.Likely,
-                               "neighbour table IsRouter flag"));
-
-        // Edge to the default gateway, so the topology graph has a spine from layer 0 alone.
-        foreach (var gw in adapter.Gateways)
-        {
-            if (gw.Equals(row.Address)) continue;
-            if (!adapter.Addresses.Any(a => a.Contains(gw))) continue;
-
-            obs.Edges.Add(new ProbeObservation.PendingEdge(
-                new IdentityClaim(IdentityKind.Ip, gw.ToString(), segment, Confidence.Strong),
-                EdgeKind.DefaultGateway, Confidence.Strong, adapter.Name));
-        }
-
-        return obs;
-    }
-
-    private DeviceFact Fact(FactKey key, FactValue value, DateTimeOffset now, Confidence confidence,
-                            string detail, TimeSpan? ttl = null)
-        => new()
-        {
-            Key = key, Value = value, SourceProbe = ProbeId, SourceDetail = detail,
-            ObservedUtc = now, Confidence = confidence, Ttl = ttl,
-            Layer = FactOntology.Describe(key).Layer,
-        };
-
-    private static bool Wanted(NeighborState state, bool includeStale, bool includeUnreachable) => state switch
-    {
-        NeighborState.Reachable or NeighborState.Permanent => true,
-        NeighborState.Stale or NeighborState.Delay or NeighborState.Probe => includeStale,
-        NeighborState.Unreachable => includeUnreachable,
-        _ => false,   // Incomplete: we asked and nobody answered — that is not a device
-    };
-
-    private static bool IsMulticastOrBroadcast(IPAddress addr, NetworkAdapterInfo adapter)
-    {
-        if (addr.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
-            return addr.IsIPv6Multicast;
-
-        var b = addr.GetAddressBytes();
-        if (b[0] >= 224) return true;                                   // 224.0.0.0/4 multicast + 240/4 reserved
-        return adapter.Addresses.Any(a => a.DirectedBroadcast is { } d && d.Equals(addr));
     }
 
     private bool Flag(string name, bool @default)
         => _host?.Setting(name) is { Length: > 0 } s && bool.TryParse(s, out var v) ? v : @default;
-
-    /// <summary>Maps our adapter snapshot back to the OS interface index the table rows carry. Returns 0
-    /// when it cannot be determined, which makes the caller report every row rather than none — losing
-    /// per-adapter attribution is much better than silently finding nothing.</summary>
-    private static uint InterfaceIndexOf(NetworkAdapterInfo adapter)
-    {
-        try
-        {
-            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                if (!string.Equals(nic.Id, adapter.Id, StringComparison.OrdinalIgnoreCase)) continue;
-
-                var props = nic.GetIPProperties();
-                try { return (uint)props.GetIPv4Properties().Index; }
-                catch (NetworkInformationException) { }
-                try { return (uint)props.GetIPv6Properties().Index; }
-                catch (NetworkInformationException) { }
-            }
-        }
-        catch (NetworkInformationException) { }
-        return 0;
-    }
 }

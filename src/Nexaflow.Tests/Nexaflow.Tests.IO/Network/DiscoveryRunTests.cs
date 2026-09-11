@@ -10,11 +10,11 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.IO.Network;
 
 /// <summary>
-/// What a run hands each probe, and which probes it runs where.
+/// What a run hands each probe, which probes it runs where, and what it hands on.
 /// </summary>
 /// <remarks>
-/// No socket and no real probe: the run is orchestration, so a probe that records what it was given is all
-/// either half needs.
+/// No socket and no real probe: the run is orchestration, so a probe that records what it was given, and a
+/// sink that records what it was handed, are all either half needs.
 /// </remarks>
 [TestClass]
 [CoversNode("network-discovery")]
@@ -25,6 +25,15 @@ public class DiscoveryRunTests
         public IProbeHost? Host { get; private set; }
         public List<string> RanOn { get; } = [];
         public Func<IProbeHost, NetworkAdapterInfo, Task>? Doing { get; init; }
+
+        /// <summary>How many findings to report on each adapter.</summary>
+        public int Yields { get; init; }
+
+        /// <summary>Called after each finding is taken — where a test stops the run part-way.</summary>
+        public Action<int>? AfterEach { get; init; }
+
+        /// <summary>Throw once the findings are out.</summary>
+        public bool Fails { get; init; }
 
         public string ProbeId => id;
         public string DisplayName => id;
@@ -38,7 +47,33 @@ public class DiscoveryRunTests
         {
             RanOn.Add(adapter.Id);
             if (Doing is { } act) await act(Host!, adapter);
-            yield break;
+
+            for (int i = 0; i < Yields; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return Seen(id, 20 + i);
+                AfterEach?.Invoke(i);
+            }
+
+            if (Fails) throw new InvalidOperationException("the layer broke");
+        }
+    }
+
+    private sealed class Sink : IDiscoverySink
+    {
+        public List<(string Probe, string Adapter, int Count)> Batches { get; } = [];
+        public List<(string Probe, string Adapter)> Completed { get; } = [];
+
+        public Task ObservedAsync(string probeId, NetworkAdapterInfo adapter, IReadOnlyList<ProbeObservation> batch)
+        {
+            Batches.Add((probeId, adapter.Id, batch.Count));
+            return Task.CompletedTask;
+        }
+
+        public Task CompletedAsync(string probeId, NetworkAdapterInfo adapter)
+        {
+            Completed.Add((probeId, adapter.Id));
+            return Task.CompletedTask;
         }
     }
 
@@ -84,6 +119,19 @@ public class DiscoveryRunTests
         };
         a.Addresses.Add(new AdapterAddress(IPAddress.Parse(ip), 24));
         return a;
+    }
+
+    private static ProbeObservation Seen(string probeId, int host, DateTimeOffset? at = null)
+    {
+        var when = at ?? DateTimeOffset.UtcNow;
+        var obs = new ProbeObservation { SourceProbe = probeId, ObservedUtc = when };
+        obs.Identities.Add(new IdentityClaim(IdentityKind.Ip, $"192.168.1.{host}", "192.168.1.0/24", Confidence.Strong));
+        obs.Facts.Add(new DeviceFact
+        {
+            Key = new FactKey("net", "ipv4"), Value = FactValue.OfAddress($"192.168.1.{host}"),
+            SourceProbe = probeId, ObservedUtc = when, Confidence = Confidence.Strong,
+        });
+        return obs;
     }
 
     // ── Where a sweep may run ─────────────────────────────────────────────────
@@ -169,9 +217,101 @@ public class DiscoveryRunTests
         Assert.AreEqual("test.b", b.Host!.Setting("anything"));
     }
 
+    // ── What it hands on ──────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task A_sink_gets_what_each_layer_found_and_hears_when_it_finished()
+    {
+        // In batches, so a slow layer's early answers can show before its window closes.
+        var sink = new Sink();
+        var run = new DiscoveryRun([Adapter("eth0", "192.168.1.50")], new Wire());
+
+        var result = await run.SweepAsync([new Probe("test.p", ProbeCost.Passive) { Yields = 40 }], sink,
+                                          CancellationToken.None);
+
+        Assert.AreEqual(40, result.Observations);
+        Assert.AreEqual(40, sink.Batches.Sum(b => b.Count));
+        Assert.IsTrue(sink.Batches.Count > 1, "forty findings are not one hand-off");
+        CollectionAssert.AreEqual(new[] { ("test.p", "eth0") }, sink.Completed);
+    }
+
+    [TestMethod]
+    public async Task A_run_with_a_sink_writes_no_graph_of_its_own()
+    {
+        // The page's graph is touched on its UI thread only. A run that also wrote one from its worker is the
+        // race the sink exists to remove.
+        var run = new DiscoveryRun([Adapter("eth0", "192.168.1.50")], new Wire());
+
+        await run.SweepAsync([new Probe("test.p", ProbeCost.Passive) { Yields = 3 }], new Sink(),
+                             CancellationToken.None);
+
+        Assert.AreEqual(0, run.Graph.Nodes.Count);
+    }
+
+    [TestMethod]
+    public async Task A_layer_that_fails_hands_over_what_it_found_but_did_not_look()
+    {
+        // What it found before breaking is real. Having broken, it cannot say what is not there.
+        var sink = new Sink();
+        var run = new DiscoveryRun([Adapter("eth0", "192.168.1.50")], new Wire());
+
+        await run.SweepAsync([new Probe("test.broken", ProbeCost.Passive) { Yields = 2, Fails = true }], sink,
+                             CancellationToken.None);
+
+        Assert.AreEqual(2, sink.Batches.Sum(b => b.Count));
+        Assert.AreEqual(0, sink.Completed.Count);
+        Assert.IsTrue(run.Messages.Any(m => m.StartsWith("error:") && m.Contains("test.broken")));
+    }
+
+    [TestMethod]
+    [CoversNode("network-page-cancel")]
+    public async Task A_stop_still_hands_over_what_arrived_before_it()
+    {
+        using var stop = new CancellationTokenSource();
+        var sink = new Sink();
+        var run = new DiscoveryRun([Adapter("eth0", "192.168.1.50")], new Wire());
+        var probe = new Probe("test.p", ProbeCost.Passive) { Yields = 5, AfterEach = _ => stop.Cancel() };
+
+        bool stopped = false;
+        try { await run.SweepAsync([probe], sink, stop.Token); }
+        catch (OperationCanceledException) { stopped = true; }
+
+        Assert.IsTrue(stopped, "a stopped run finished anyway");
+        Assert.AreEqual(1, sink.Batches.Sum(b => b.Count), "the one finding before the stop was handed over");
+        Assert.AreEqual(0, sink.Completed.Count, "and a stopped layer did not look everywhere");
+    }
+
+    [TestMethod]
+    public async Task The_applier_knows_which_layers_looked_where()
+    {
+        var applier = new GraphApplier(new DeviceGraph());
+        var run = new DiscoveryRun([Adapter("eth0", "192.168.1.50")], new Wire());
+
+        await run.SweepAsync([new Probe("test.ok", ProbeCost.Passive) { Yields = 2 },
+                              new Probe("test.broken", ProbeCost.Passive) { Fails = true }], applier,
+                             CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { ("test.ok", "192.168.1.0/24") }, applier.Covered.ToArray());
+        Assert.AreEqual(2, applier.Observations);
+        Assert.AreEqual(2, applier.Graph.Nodes.Count);
+    }
+
+    [TestMethod]
+    public async Task A_finished_headless_run_marks_what_it_did_not_see_absent()
+    {
+        var graph = new DeviceGraph();
+        var before = graph.Observe(Seen("test.old", 99, DateTimeOffset.UtcNow.AddMinutes(-5)))!;
+
+        var run = new DiscoveryRun([Adapter("eth0", "192.168.1.50")], new Wire(), graph: graph);
+        await run.SweepAsync([new Probe("test.p", ProbeCost.Passive) { Yields = 1 }], CancellationToken.None);
+
+        Assert.AreEqual(Presence.Absent, graph.Find(before.Id)!.Presence);
+    }
+
     // ── Stopping ──────────────────────────────────────────────────────────────
 
     [TestMethod]
+    [CoversNode("network-page-cancel")]
     public async Task Cancelling_stops_the_run_before_the_next_layer()
     {
         using var stop = new CancellationTokenSource();

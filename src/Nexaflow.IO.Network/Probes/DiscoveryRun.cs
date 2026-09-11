@@ -7,14 +7,12 @@ using Nexaflow.IO.Network.Model;
 namespace Nexaflow.IO.Network.Probes;
 
 /// <summary>What a completed sweep came to.</summary>
-/// <param name="Observations">How many a probe handed over.</param>
-/// <param name="Devices">How many distinct devices the graph resolved them into — fewer, when two probes
-/// found the same one, which is the whole point of the graph.</param>
+/// <param name="Observations">How many the probes handed over.</param>
 /// <param name="Log">What the probes said while they worked.</param>
-public readonly record struct SweepResult(int Observations, int Devices, IReadOnlyList<string> Log);
+public readonly record struct SweepResult(int Observations, IReadOnlyList<string> Log);
 
 /// <summary>
-/// Runs every probe across every adapter and folds what they find into one device graph.
+/// Runs every probe across every adapter and hands what they find to whoever owns the graph.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -37,6 +35,10 @@ public readonly record struct SweepResult(int Observations, int Devices, IReadOn
 /// </remarks>
 public sealed class DiscoveryRun : IProbeLog
 {
+    /// <summary>How many findings travel together. Small enough that a slow layer's early answers show
+    /// before its window closes; large enough that a full neighbour table is not a hundred hand-offs.</summary>
+    private const int BatchSize = 32;
+
     private readonly List<string> _log = [];
     private readonly Func<string, string, string> _setting;
     private readonly Func<ValuePrompt, CancellationToken, Task<string?>>? _prompt;
@@ -48,9 +50,8 @@ public sealed class DiscoveryRun : IProbeLog
     /// <param name="transport">The only route to the wire.</param>
     /// <param name="setting">Resolves (probeId, name) to a configured value, or empty to take the default the
     /// probe itself declared.</param>
-    /// <param name="graph">The graph to fold findings into. A caller that keeps one across sweeps passes
-    /// it in, so a device seen last time and missing now is absent rather than forgotten — and so a fact an
-    /// action established survives the next discovery.</param>
+    /// <param name="graph">The graph a headless sweep folds into. A caller that keeps one across sweeps passes
+    /// it in, so a device seen last time and missing now is absent rather than forgotten.</param>
     /// <param name="sweepNetworks">The (adapter, subnet) pairs the user has agreed may be swept. A probe
     /// whose cost is <see cref="ProbeCost.Sweep"/> or more is not run anywhere else — the guard would refuse
     /// every packet it tried, and one line in the log says that better than two hundred refusals.</param>
@@ -74,22 +75,41 @@ public sealed class DiscoveryRun : IProbeLog
     public IReadOnlyList<NetworkAdapterInfo> Adapters { get; }
     public IGuardedTransport Transport { get; }
 
-    /// <summary>The graph every sweep folds into. Kept across runs, so a device seen last time and missing
-    /// now is <i>absent</i> rather than forgotten.</summary>
+    /// <summary>The graph a headless sweep folds into. Kept across runs, so a device seen last time and
+    /// missing now is <i>absent</i> rather than forgotten.</summary>
     public DeviceGraph Graph { get; }
 
     public IReadOnlyList<string> Messages => _log;
 
     /// <summary>
-    /// Sweeps once.
+    /// Sweeps once, folding what is found into <see cref="Graph"/> on the calling thread — for a caller that
+    /// owns no other thread the graph must stay on.
     /// </summary>
-    /// <param name="probes">Every layer to run, in whatever order they were discovered — a probe may not
-    /// depend on another having run, because the user can switch any of them off.</param>
     public async Task<SweepResult> SweepAsync(IReadOnlyList<INetworkProbe> probes, CancellationToken ct)
     {
         var started = DateTimeOffset.UtcNow;
+        var applier = new GraphApplier(Graph);
+
+        var result = await SweepAsync(probes, applier, ct).ConfigureAwait(false);
+
+        // Anything the graph knew and nothing saw this time is absent, not gone. A device that was off is
+        // a fact worth keeping — deleting it would make every sweep look like a first one.
+        applier.Finish(started);
+        return result;
+    }
+
+    /// <summary>
+    /// Sweeps once, handing what is found to <paramref name="sink"/> rather than writing any graph.
+    /// </summary>
+    /// <param name="probes">Every layer to run, in whatever order they were discovered — a probe may not
+    /// depend on another having run, because the user can switch any of them off.</param>
+    /// <remarks>
+    /// A stop still hands over what arrived before it: it was real when it was found.
+    /// </remarks>
+    public async Task<SweepResult> SweepAsync(IReadOnlyList<INetworkProbe> probes, IDiscoverySink sink,
+                                              CancellationToken ct)
+    {
         int observations = 0;
-        List<string> seen = [];
 
         foreach (var probe in probes)
         {
@@ -108,27 +128,37 @@ public sealed class DiscoveryRun : IProbeLog
                     continue;
                 }
 
+                List<ProbeObservation> batch = [];
                 try
                 {
                     await foreach (var observed in probe.DiscoverAsync(adapter, ct).ConfigureAwait(false))
                     {
                         observations++;
-                        if (Graph.Observe(observed) is { } node) seen.Add(node.Id);
+                        batch.Add(observed);
+
+                        if (batch.Count < BatchSize) continue;
+                        await sink.ObservedAsync(probe.ProbeId, adapter, batch).ConfigureAwait(false);
+                        batch = [];
                     }
+
+                    if (batch.Count > 0) await sink.ObservedAsync(probe.ProbeId, adapter, batch).ConfigureAwait(false);
+                    await sink.CompletedAsync(probe.ProbeId, adapter).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException) { throw; }
+                catch (OperationCanceledException)
+                {
+                    if (batch.Count > 0) await sink.ObservedAsync(probe.ProbeId, adapter, batch).ConfigureAwait(false);
+                    throw;
+                }
                 catch (Exception ex)
                 {
+                    // What it found before it failed is still real; what it did not get to is not "absent".
+                    if (batch.Count > 0) await sink.ObservedAsync(probe.ProbeId, adapter, batch).ConfigureAwait(false);
                     Error($"{probe.ProbeId} failed on {adapter.Name}", ex);
                 }
             }
         }
 
-        // Anything the graph knew and nothing saw this time is absent, not gone. A device that was off is
-        // a fact worth keeping — deleting it would make every sweep look like a first one.
-        Graph.MarkAbsentExcept(seen, started);
-
-        return new SweepResult(observations, Graph.Nodes.Count, [.. _log]);
+        return new SweepResult(observations, [.. _log]);
     }
 
     /// <summary>A probe that sweeps runs only on a network the user agreed may be swept.</summary>
@@ -144,7 +174,10 @@ public sealed class DiscoveryRun : IProbeLog
 
     private void Error(string message, Exception ex) => ((IProbeLog)this).Error(message, ex);
 
-    private void Say(string level, string message) => _log.Add($"{level}{message}");
+    private void Say(string level, string message)
+    {
+        lock (_log) _log.Add($"{level}{message}");
+    }
 
     /// <summary>
     /// What one probe is handed.

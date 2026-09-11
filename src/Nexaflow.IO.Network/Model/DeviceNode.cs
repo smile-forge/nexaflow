@@ -91,5 +91,23 @@ public sealed class DeviceNode
         }
     }
 
+    /// <summary>
+    /// A copy to hand to something that reads a device away from the graph's thread.
+    /// </summary>
+    /// <remarks>
+    /// An action runs on a pool thread while the page's graph goes on changing under its node. The claims and
+    /// facts are values, so copying the two lists is copying everything that can change.
+    /// </remarks>
+    public DeviceNode Snapshot()
+    {
+        var copy = new DeviceNode
+        {
+            Id = Id, FirstSeenUtc = FirstSeenUtc, LastSeenUtc = LastSeenUtc, Presence = Presence, IsNew = IsNew,
+        };
+        copy.Identities.AddRange(Identities);
+        copy.Facts.AddRange(Facts);
+        return copy;
+    }
+
     public override string ToString() => $"{DisplayName} ({Id})";
 }

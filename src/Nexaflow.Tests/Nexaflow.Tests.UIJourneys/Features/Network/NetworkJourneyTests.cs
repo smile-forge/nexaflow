@@ -93,6 +93,34 @@ public class NetworkJourneyTests : UiJourneyTestBase
         AssertJourney();
     }
 
+    [TestMethod]
+    [CoversNode("network-page-cancel")]
+    public void Network_A_Sweep_Can_Be_Stopped()
+    {
+        MainWindow.SetForeground();
+        Thread.Sleep(500);
+
+        Assert.IsNotNull(WaitForId("NetworkView", 30), "the Network tab did not open");
+
+        CheckInvoke("Discover", "Net_Discover");
+
+        // SSDP waits out its MX window, so a run is in flight for a few seconds — long enough to stop.
+        CheckPresent("Stop, while a run is going", "Net_Stop", 3);
+        Shoot("stop-1-running");
+
+        CheckInvoke("Stop", "Net_Stop");
+
+        // Collapsed once the run has ended, and a collapsed button leaves the automation tree with it.
+        Check("Stop ends the run", () =>
+        {
+            Thread.Sleep(1500);
+            return Find("Net_Stop") is null;
+        });
+        Shoot("stop-2-stopped");
+
+        AssertJourney();
+    }
+
     private AutomationElement? Find(string automationId)
         => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
 

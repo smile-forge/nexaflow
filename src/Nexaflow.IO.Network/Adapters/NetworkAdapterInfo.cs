@@ -41,6 +41,36 @@ public readonly record struct AdapterAddress(IPAddress Address, int PrefixLength
         }
     }
 
+    /// <summary>How many host addresses the prefix holds: all of it but the network and broadcast addresses,
+    /// where the prefix is large enough to have them. Zero for IPv6, which nobody sweeps.</summary>
+    public long HostCount
+    {
+        get
+        {
+            if (Address.AddressFamily != AddressFamily.InterNetwork || PrefixLength is < 0 or > 32) return 0;
+
+            long size = 1L << (32 - PrefixLength);
+            return PrefixLength >= 31 ? size : size - 2;
+        }
+    }
+
+    /// <summary>Every host address on this IPv4 prefix, in order — what an address sweep walks.</summary>
+    public IEnumerable<IPAddress> Hosts()
+    {
+        if (HostCount == 0) yield break;
+
+        var bytes = Address.GetAddressBytes();
+        uint addr = (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
+        uint mask = PrefixLength == 0 ? 0u : uint.MaxValue << (32 - PrefixLength);
+
+        ulong first = addr & mask;
+        ulong last = first + (1UL << (32 - PrefixLength)) - 1;
+        if (PrefixLength < 31) { first++; last--; }
+
+        for (ulong h = first; h <= last; h++)
+            yield return new IPAddress(new[] { (byte)(h >> 24), (byte)(h >> 16), (byte)(h >> 8), (byte)h });
+    }
+
     /// <summary>True if <paramref name="other"/> is on this same prefix — the test the send guard uses to
     /// decide whether a target is locally attached.</summary>
     public bool Contains(IPAddress other)

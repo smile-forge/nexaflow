@@ -1,0 +1,69 @@
+{
+  "branch": "claude/network-sweep",
+  "nodes": {
+    "network-discovery-sweep": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Network.Arp/AddressSweepProbe.cs",
+          "class": "AddressSweepProbe"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Network.Arp/NeighborRows.cs",
+          "class": "NeighborRows"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features/Network/AddressSweepProbeTests.cs",
+            "class": "AddressSweepProbeTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Network/AdapterAddressTests.cs",
+            "class": "AdapterAddressTests"
+          }
+        ]
+      }
+    },
+    "network-page-cancel": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Network/ViewModels/NetworkViewModel.cs",
+          "class": "NetworkViewModel",
+          "method": "DiscoverAsync"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Network/Probes/DiscoverySink.cs",
+          "class": "GraphApplier"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Network/DiscoveryRunTests.cs",
+            "class": "DiscoveryRunTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Network/NetworkJourneyTests.cs",
+            "class": "NetworkJourneyTests",
+            "method": "Network_A_Sweep_Can_Be_Stopped"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "network-discovery-sweep",
+    "network-page-cancel"
+  ]
+}
