@@ -1,4 +1,5 @@
 using System.Net;
+using Nexaflow.IO.Network.Probes;
 
 namespace Nexaflow.IO.Network.Guard;
 
@@ -20,8 +21,10 @@ public enum SendInitiator
 }
 
 /// <summary>The transport a send wants. Anything below <see cref="Udp"/> needs elevation and is not
-/// enabled at all in the first release, which keeps the elevation surface at zero.</summary>
-public enum SendLayer { Udp = 0, Tcp = 1, Tls = 2, RawIp = 3, Ethernet = 4 }
+/// enabled at all in the first release, which keeps the elevation surface at zero — except
+/// <see cref="Icmp"/>, an echo the operating system sends on the caller's behalf rather than a header
+/// anybody builds.</summary>
+public enum SendLayer { Udp = 0, Tcp = 1, Tls = 2, RawIp = 3, Ethernet = 4, Icmp = 5 }
 
 /// <summary>
 /// Everything the guard needs to decide whether a send may happen. Constructed at the boundary and passed
@@ -41,6 +44,16 @@ public sealed record SendIntent
 
     /// <summary>Probe id or <c>protocol:&lt;id&gt;</c>. Recorded in the audit log.</summary>
     public required string SourceId { get; init; }
+
+    /// <summary>
+    /// How much traffic the sender puts on the network — what a sweep's consent is decided on.
+    /// </summary>
+    /// <remarks>
+    /// Set by whoever runs the sender rather than taken on its word: <c>DiscoveryRun</c> stamps each
+    /// probe's declared cost on everything that probe sends, so a probe cannot reach a network nobody
+    /// agreed to sweep by describing its packets as lighter than they are.
+    /// </remarks>
+    public ProbeCost Cost { get; init; } = ProbeCost.Light;
 
     /// <summary>
     /// The local address to send FROM, where the caller cares which segment this goes out on.

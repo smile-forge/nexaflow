@@ -446,6 +446,9 @@ public partial class OptionsViewModel : ObservableObject
     {
         if (!CanSave) return;
 
+        // Read before anything is applied: applying is what clears a custom editor's change flag.
+        var changed = ConfigTypesToRefresh(Sections);
+
         foreach (var section in Sections)
         {
             section.ApplyToReal();
@@ -460,13 +463,12 @@ public partial class OptionsViewModel : ObservableObject
             }
         }
 
-        // Request tab refresh for feature configs (only meaningful when a window is open).
+        // Request tab refresh for the feature configs that changed (only meaningful when a window is open).
+        // A refresh closes and reopens the tab, so reopening every feature's tabs on any save threw away
+        // pages whose settings nobody touched — a Network sweep in flight among them.
         var activeCtx = WorkspaceManager.Instance.FirstActive;
-        var pageKindsToRefresh = activeCtx is null ? [] : Sections
-            .Where(s => s.RealConfig is IFeatureConfig)
-            .SelectMany(s => FeatureManager.Instance.GetPageKindsForConfig(
-                s.RealConfig.GetType(),
-                activeCtx))
+        var pageKindsToRefresh = activeCtx is null ? [] : changed
+            .SelectMany(type => FeatureManager.Instance.GetPageKindsForConfig(type, activeCtx))
             .Distinct()
             .ToList();
 
@@ -475,4 +477,10 @@ public partial class OptionsViewModel : ObservableObject
 
         SaveCompleted?.Invoke();
     }
+
+    /// <summary>The feature config types whose tabs a save should reopen: the ones whose section changed.</summary>
+    internal static IReadOnlyList<Type> ConfigTypesToRefresh(IEnumerable<ConfigEditViewModel> sections)
+        => [.. sections.Where(s => s.HasChanges && s.RealConfig is IFeatureConfig)
+                       .Select(s => s.RealConfig.GetType())
+                       .Distinct()];
 }

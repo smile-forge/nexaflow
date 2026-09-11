@@ -3,7 +3,6 @@ using System.Linq;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
-using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Features.UI;
@@ -32,27 +31,8 @@ namespace Nexaflow.Tests.Features.UI;
 /// </summary>
 [TestClass]
 [NoCoverage("options journey")]
-public class OptionsJourneyTests : UiJourneyTestBase
+public class OptionsJourneyTests : OptionsOverlayJourney
 {
-    /// <summary>Opens the modal overlay and returns its section list.</summary>
-    private AutomationElement OpenOptions()
-    {
-        Assert.IsNotNull(WaitForId("DirectoryTree", 15), "Default FileSystem tab did not load.");
-
-        CheckInvoke("Options button (open)", "Chrome_OptionsButton");
-        CheckPresent("Options overlay",      "Chrome_OptionsPanel");
-
-        var list = WaitForId("Options_SectionList", 10);
-        Assert.IsNotNull(list, "Options section list not found — the overlay did not render its contents.");
-        return list!;
-    }
-
-    /// <summary>
-    /// Options is MODAL, so it must be closed however the test ends — a left-open overlay blocks
-    /// everything after it, including the next journey in the same app instance.
-    /// </summary>
-    private void CloseOptions() => CheckInvoke("Options button (close)", "Chrome_OptionsButton");
-
     [TestMethod]
     public void Options_SectionsRender_AndAboutReportsComponents()
     {
@@ -87,7 +67,7 @@ public class OptionsJourneyTests : UiJourneyTestBase
             }
 
             // ── About → System components ────────────────────────────────────
-            SelectSection(list, "About");
+            SelectSection(list, "About", "About_ComponentsToggle");
 
             CheckPresent("System components heading", "About_ComponentsToggle", 10);
 
@@ -128,87 +108,10 @@ public class OptionsJourneyTests : UiJourneyTestBase
         }
         finally
         {
-            // Cancel rather than the chrome toggle, so the panel's own dismissal is what gets exercised.
-            // If it fails to close, CloseOptions still runs — a modal left open blocks everything after it.
-            CheckDoes("Cancel closes the Options overlay", "Options_Cancel",
-                      () => WaitForId("Chrome_OptionsPanel", 3) is null);
-            if (WaitForId("Chrome_OptionsPanel", 1) is not null) CloseOptions();
+            CancelOptions();
         }
 
         AssertJourney();
-    }
-
-    /// <summary>
-    /// A section row's visible label. The row's own automation Name is not dependable: the list binds
-    /// view-models through an ItemTemplate, so a container may report the view-model rather than the text
-    /// the user reads. The TextBlock inside it is the thing that actually shows the section name.
-    /// </summary>
-    private static string Label(AutomationElement row)
-    {
-        if (!string.IsNullOrWhiteSpace(row.Name)) return row.Name;
-        return row.FindAllDescendants()
-                  .Select(d => d.Name ?? string.Empty)
-                  .FirstOrDefault(n => n.Length > 0) ?? string.Empty;
-    }
-
-    /// <summary>
-    /// Selects a section by label, scrolling the list until it is realised.
-    /// <para>
-    /// The scroll is not optional. The list virtualises, so only the rows currently on screen exist in the
-    /// automation tree — and "About" is deliberately sorted to the very bottom, below every feature's
-    /// section. Querying the children once finds everything except the row this journey most needs.
-    /// </para>
-    /// </summary>
-    private void SelectSection(AutomationElement list, string label)
-    {
-        if (FindSection(list, label) is { } target)
-        {
-            target.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
-            target.Patterns.SelectionItem.PatternOrDefault?.Select();
-            Wait.UntilInputIsProcessed();
-            System.Threading.Thread.Sleep(250);
-            return;
-        }
-
-        // Fall back to the keyboard. "About" is sorted to the very bottom of the list, and End is how a
-        // person gets to the bottom of a ListBox — it moves selection to the last item and realises it,
-        // without depending on how the row reports itself to automation.
-        list.Focus();
-        Keyboard.Press(FlaUI.Core.WindowsAPI.VirtualKeyShort.END);
-        Wait.UntilInputIsProcessed();
-        System.Threading.Thread.Sleep(300);
-
-        var seen = string.Join(" | ", list.FindAllChildren().Select(Label));
-        Check($"'{label}' section reachable (rows seen: {seen})",
-              () => FindSection(list, label) is not null
-                 || WaitForId("About_ComponentsToggle", 3) is not null);
-    }
-
-    private static AutomationElement? FindSection(AutomationElement list, string label)
-    {
-        bool Matches(AutomationElement r) =>
-            Label(r).StartsWith(label, StringComparison.OrdinalIgnoreCase);
-
-        var found = list.FindAllChildren().FirstOrDefault(Matches);
-        if (found is not null) return found;
-
-        var scroll = list.Patterns.Scroll.PatternOrDefault;
-        if (scroll is null || !scroll.VerticallyScrollable.Value) return null;
-
-        // Walk to the bottom a page at a time, re-querying as new rows realise.
-        for (var i = 0; i < 12; i++)
-        {
-            scroll.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount,
-                          FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
-            Wait.UntilInputIsProcessed();
-            System.Threading.Thread.Sleep(120);
-
-            found = list.FindAllChildren().FirstOrDefault(Matches);
-            if (found is not null) return found;
-
-            if (scroll.VerticalScrollPercent.Value >= 99.0) break;
-        }
-        return null;
     }
 
     /// <summary>Expands a collapsible section, tolerating one that is already open.</summary>

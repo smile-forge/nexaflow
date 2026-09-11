@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -115,16 +116,30 @@ public sealed partial class ActionRow(IDeviceAction action, Func<IDeviceAction, 
 /// kind is a new assembly, and — for a discovery that is merely request and response — a new JSON file.
 /// </para>
 /// <para>
-/// The guard is given the adapter list before anything runs, so the set of legal targets is exactly the set
-/// of segments this machine is on. Nothing here can widen that, and neither can a probe or an action.
+/// The guard is built from Options → Network and given the adapter list before anything runs, so the set of
+/// legal targets is exactly the set of segments this machine is on, less the ones the user excluded. Nothing
+/// here can widen that, and neither can a probe or an action.
 /// </para>
 /// </remarks>
 public sealed partial class NetworkViewModel : ObservableObject
 {
     private readonly IReadOnlyList<ISubfeatureHandle<INetworkProbe>> _layers;
     private readonly IReadOnlyList<ISubfeatureHandle<IDeviceAction>> _actions;
+    private readonly NetworkConfig _config;
     private readonly IShellServices _shell;
-    private readonly NetworkGuard _guard = new();
+    private readonly NetworkGuard _guard;
+    private readonly IReadOnlyList<(string AdapterId, string Segment)> _sweptNetworks;
+
+    /// <summary>
+    /// Everything this page has in flight, cancelled when its tab closes for good.
+    /// </summary>
+    /// <remarks>
+    /// Options → Save closes and reopens the tab to apply what changed, and the page being closed must stop
+    /// sending then rather than finish a sweep under settings the user has just changed — the kill switch
+    /// among them.
+    /// </remarks>
+    private readonly CancellationTokenSource _lifetime = new();
+    private Task _inFlight = Task.CompletedTask;
 
     /// <summary>
     /// Everything known about these segments, kept for the life of the page.
@@ -138,21 +153,36 @@ public sealed partial class NetworkViewModel : ObservableObject
 
     public NetworkViewModel(IReadOnlyList<ISubfeatureHandle<INetworkProbe>> layers,
                             IReadOnlyList<ISubfeatureHandle<IDeviceAction>> actions,
+                            NetworkConfig config,
                             IShellServices shell)
     {
         _layers = layers;
         _actions = actions;
+        _config = config;
         _shell = shell;
 
         foreach (var layer in layers)
-            Layers.Add(new LayerRow(layer.Id, layer.DisplayName, layer.Description, layer.DefaultEnabled));
+        {
+            var row = new LayerRow(layer.Id, layer.DisplayName, layer.Description,
+                                   config.LayerEnabled.TryGetValue(layer.Id, out var on) ? on : layer.DefaultEnabled);
+            row.PropertyChanged += OnLayerSwitched;
+            Layers.Add(row);
+        }
 
-        Adapters = [.. NetworkAdapters.Usable()];
+        // An excluded adapter is gone from the page AND from the guard's allow-list — hidden and not-a-legal-
+        // target are one decision, made in Options → Network.
+        Adapters = [.. NetworkAdapters.Usable().Where(a => !config.IsExcluded(a.Id))];
+        _sweptNetworks = config.SweptNetworks();
+
+        _guard = new NetworkGuard(config.Limits()) { Enabled = config.Enabled };
         _guard.SetAdapters(Adapters);
+        _guard.SetSweepConsent(_sweptNetworks);
 
         Status = Adapters.Count == 0
             ? "No usable network adapter — nothing to discover on."
-            : $"{Adapters.Count} adapter(s), {Layers.Count} discovery layer(s). Nothing found yet.";
+            : !config.Enabled
+                ? "Sending is switched off in Options → Network, so only what this PC already knows can be shown."
+                : $"{Adapters.Count} adapter(s), {Layers.Count} discovery layer(s). Nothing found yet.";
     }
 
     /// <summary>One installed discovery layer, and whether the user wants it.</summary>
@@ -192,6 +222,29 @@ public sealed partial class NetworkViewModel : ObservableObject
     [ObservableProperty] private GridLength _panelWidth = new(0);
     [ObservableProperty] private string _status = "";
     [ObservableProperty] private bool _isSweeping;
+
+    /// <summary>Remembers a layer switch, so the page opens the way it was left.</summary>
+    private void OnLayerSwitched(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(LayerRow.IsEnabled) || sender is not LayerRow row) return;
+
+        _config.LayerEnabled[row.Id] = row.IsEnabled;
+        _shell.SaveFeatureConfig(_config);
+        DiscoverCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Stops whatever the page has in flight. Called when its tab closes for good.
+    /// </summary>
+    public async Task ShutDownAsync()
+    {
+        _lifetime.Cancel();
+
+        // A cancelled sweep ends in a cancellation, and anything else it ended in was reported to the page
+        // that is now closing. There is nobody left to tell either way.
+        try { await _inFlight.ConfigureAwait(false); }
+        catch { }
+    }
 
     // ── The panel ─────────────────────────────────────────────────────────────
 
@@ -294,10 +347,14 @@ public sealed partial class NetworkViewModel : ObservableObject
 
         try
         {
-            var result = await Task.Run(() => action.PerformAsync(target.Node, host, CancellationToken.None))
+            var result = await Task.Run(() => action.PerformAsync(target.Node, host, _lifetime.Token))
                                    .ConfigureAwait(false);
 
             await _shell.RunOnUiAsync(() => Report(action, target, result));
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            // The tab closed under it. There is no panel left to report to.
         }
         catch (Exception ex)
         {
@@ -397,7 +454,10 @@ public sealed partial class NetworkViewModel : ObservableObject
 
             // Everything below here is off the UI thread: reading a neighbour table takes milliseconds and
             // an SSDP window takes seconds, and a feature never touches the dispatcher itself.
-            var (rows, messages, summary) = await Task.Run(() => SweepAsync(probes)).ConfigureAwait(false);
+            var sweep = Task.Run(() => SweepAsync(probes, _lifetime.Token), _lifetime.Token);
+            _inFlight = sweep;
+
+            var (rows, messages, summary) = await sweep.ConfigureAwait(false);
 
             await _shell.RunOnUiAsync(() =>
             {
@@ -416,21 +476,29 @@ public sealed partial class NetworkViewModel : ObservableObject
                 Selected = was is null ? null : Devices.FirstOrDefault(d => d.Node.Id == was);
             });
         }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            // The tab closed mid-sweep. Nothing is waiting for the answer.
+        }
         finally
         {
-            IsSweeping = false;
-            await _shell.RunOnUiAsync(() => DiscoverCommand.NotifyCanExecuteChanged());
+            await _shell.RunOnUiAsync(() =>
+            {
+                IsSweeping = false;
+                DiscoverCommand.NotifyCanExecuteChanged();
+            });
         }
     }
 
     private bool CanDiscover() => !IsSweeping && Adapters.Count > 0 && Layers.Any(l => l.IsEnabled);
 
     private async Task<(List<DeviceRow> Rows, List<string> Log, string Summary)> SweepAsync(
-        IReadOnlyList<INetworkProbe> probes)
+        IReadOnlyList<INetworkProbe> probes, CancellationToken ct)
     {
-        var run = new DiscoveryRun(Adapters, new UdpTransport(_guard, new RunBudget()), graph: _graph);
+        var run = new DiscoveryRun(Adapters, new UdpTransport(_guard, new RunBudget()), graph: _graph,
+                                   sweepNetworks: _sweptNetworks);
 
-        var result = await run.SweepAsync(probes, CancellationToken.None).ConfigureAwait(false);
+        var result = await run.SweepAsync(probes, ct).ConfigureAwait(false);
 
         var rows = _graph.Nodes
             .Where(IsADevice)

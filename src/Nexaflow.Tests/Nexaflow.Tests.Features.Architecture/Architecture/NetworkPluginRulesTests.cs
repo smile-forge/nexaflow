@@ -118,4 +118,34 @@ public class NetworkPluginRulesTests
 
         Assert.AreEqual(0, bare.Count, $"[Subfeature] needs a Description: {string.Join(", ", bare)}");
     }
+
+    [TestMethod]
+    public void A_probes_id_is_its_owner_and_subfeature_id()
+    {
+        // One key for three things: the page's saved layer switch (keyed by the [Subfeature] id), a setting's
+        // resolver (keyed by ProbeId) and a fact's provenance. Two spellings of one id is how those drift
+        // apart — "ssdp" in one place and "network.ssdp" in another, each right on its own.
+        List<string> wrong = [];
+
+        foreach (var asm in PluginAssemblies())
+        {
+            Type[] types;
+            try { types = asm.GetTypes(); }
+            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
+
+            foreach (var t in types)
+            {
+                if (t.IsAbstract || t.GetCustomAttribute<SubfeatureAttribute>() is not { } sf) continue;
+                if (!t.GetInterfaces().Any(i => i.FullName == "Nexaflow.IO.Network.Probes.INetworkProbe")) continue;
+
+                var probe = Activator.CreateInstance(t);
+                var id = t.GetProperty("ProbeId")?.GetValue(probe) as string;
+
+                if (id != $"{sf.Owner}.{sf.Id}")
+                    wrong.Add($"{t.Name}: ProbeId '{id}' where [Subfeature] says '{sf.Owner}.{sf.Id}'");
+            }
+        }
+
+        Assert.AreEqual(0, wrong.Count, string.Join("; ", wrong));
+    }
 }
