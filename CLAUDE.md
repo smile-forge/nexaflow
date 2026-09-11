@@ -45,6 +45,8 @@ src/
                                     Powers the installer build gate and PowerShell tooling (exit 1 = broken links)
   Nexaflow.Elevation/               Elevation.Contracts (pure DTO leaf) + PrivilegeBridge (separate requireAdministrator
                                     exe) — the RunElevatedAsync trust boundary; see docs/Architecture.md → Elevation
+  Nexaflow.Languages/               one resource-only pack per language (Nexaflow.Language.<code>), gathered from every
+                                    project's own Localization/<code>/ (help pages, strings.json); see docs/localization.md
   Nexaflow.Providers/
     Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types, PromptComposer
     Nexaflow.Providers.{Claude,Gemini,OpenAI,Ollama,Aria}/  one per LLM backend (Aria = named pipe, rest = vendor SDK)

@@ -36,6 +36,7 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Shared leaves (non-contract) | `Nexaflow.Visuals.Common` (controls/converters/formatters), `Nexaflow.Visuals.Text` (markdown rendering), `Nexaflow.Visuals.Terminal` (terminal input logic), `Nexaflow.IO.Common` (encoding/line-endings, glob, hashing, base64 + `IStreamCodec`/`IArchiveHandler` codec contracts, the archive `VirtualFileSystem`, text index/transforms, file watching/splitting), `Nexaflow.IO.Terminal` (PTY host), `Nexaflow.Syntax` (tree-sitter engine) | Concrete shared code a feature may reference; never references Core or a feature |
 | Providers | `Nexaflow.Providers.Common` + one project per LLM backend (Claude, Gemini, OpenAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
+| Languages | `Nexaflow.Language.<code>` under `src/Nexaflow.Languages/` — one resource-only pack per language, gathered from every project's `Localization/<code>/` | Shipped to `Languages\` and loaded by path, never referenced — see [localization.md](localization.md) |
 | Tests | `Nexaflow.Tests.{Core,Features,Providers}` + `Nexaflow.Tests.Fixtures` | See [testing.md](testing.md) |
 
 **Dependency rules** (mechanically enforced since 2026-07 by `Nexaflow.Tests.Features/Architecture/*`
@@ -77,9 +78,10 @@ The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved
 | `WorkspaceManager` | The `Workspaces` list (dropdown source) + the live `WorkspaceRuntime`s; create/switch/reconfigure/dispose lifecycle | — |
 | `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances **per (Type, WorkspaceRuntime)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
 | `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan | — |
+| `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
 | `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 
-**Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
+**Global configs** (registered app-level, shared by every workspace): `ShellConfig` (theme, language), `WorkspacesConfig` (the workspace-list metadata; `ConfigName` is `"workcontexts"` on disk — compat), `FileMapConfig`, `ExternalAppsConfig`, `VoiceConfig`.
 
 > ⚠️ The **AI persona** (`AiPersonaConfig`: assistant name + system prompt) is **per-`Workspace`**
 > (persisted under `Contexts\<name>\ai-persona`, exposed as `Workspace.Persona`) — as are the
@@ -168,6 +170,8 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `Controls/BreadcrumbBar.xaml.cs` | Renders segments; dispatches `TargetPageKind` clicks back to shell |
 | `Models/RibbonItem.cs` | Ribbon item state + `TabFactory` delegate + serialization metadata |
 | `Models/PageKinds.cs` | String constants for Core-owned page kinds (`FileSystem`, `Placeholder`) |
+| `Help/` | Core's own page kind, `Help`, discovered like any feature's: the ? above Options / F1 (`HelpPaneController`) opens the help for the page in use in the pane beside it — splitting if need be — follows that pane's page until the reader moves within help, and closes when pressed while showing it. `HelpLibrary` reads `help/<PageKind>.md` out of the language packs; `HelpSearchIndex` searches the page shown first, then every help page, with the same matcher the page highlights with |
+| `Localization/` | `LanguageManager` + `AssemblyLanguagePack` — the language packs; see [localization.md](localization.md) |
 
 ### Nexaflow.Features.Common
 
@@ -214,7 +218,7 @@ Non-contract UI shared across features and Core. Features may reference these (t
 
 | Assembly | Holds |
 |----------|-------|
-| `Nexaflow.Visuals.Common` | Reusable WPF controls (`PieChart`) and the value converters (`BoolToVisibilityConverter`, `InverseBoolToVisibilityConverter`, `NullToBoolConverter`, …) used in nearly every feature view |
+| `Nexaflow.Visuals.Common` | Reusable WPF controls (`PieChart`) and the value converters (`BoolToVisibilityConverter`, `InverseBoolToVisibilityConverter`, `NullToBoolConverter`, …) used in nearly every feature view; and the UI-string seam, `Localization/` — `Str.Get` / `{loc:Str Key}`, whose source Core sets at startup ([localization.md](localization.md)) |
 | `Nexaflow.Visuals.Text` | Markdown rendering: `MarkdownView` / `SelectableMarkdownView` (copy-aware) over `MarkdownFlowDocument` + `BlockRenderer`, plus Mermaid `DiagramRenderer`. Used by Core's `AiResponseOverlay` and AIChat's `ConversationView` |
 
 **Theme/styles:** application brushes **and** shared control styles live in the app-merged `Nexaflow.Core/Themes/Styles.xaml`. Feature XAML references them by `{StaticResource <key>}` — there is no assembly reference; the lookup resolves up the tree to `Application.Resources`. Define a shared style there once rather than copy-pasting per view (`arch_improvements.md` tracks the duplicated toolbar/list/grid styles that should move here).
@@ -550,6 +554,9 @@ App.OnStartup
       → ConfigManager.Initialize(%AppData%\Smile\nexaflow)   ← base data path
       → register GLOBAL configs: ShellConfig (+ apply theme), WorkspacesConfig,
         FileMapConfig, ExternalAppsConfig, VoiceConfig
+      → LanguageManager.Initialize(Languages\, ShellConfig.Language)   ← records the language, points Str at it;
+            loads nothing — the first string or help page asked for reads the pack. After the first-run wizard
+            the language is selected again, before the first window's strings resolve
       → ProviderManager.Initialize(activityManager)         ← records the shared ActivityManager
       → for each saved workspace: temp AiConfig ← ConfigManager.LoadFrom(workspace dir)
             (need each workspace's columns to know which provider DLLs to load)
