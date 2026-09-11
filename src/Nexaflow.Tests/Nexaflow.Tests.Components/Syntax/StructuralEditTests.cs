@@ -581,6 +581,52 @@ public class StructuralEditTests
         Assert.IsFalse(unparseable.Ok, "the result still has to parse");
     }
 
+    [TestMethod]
+    public void SubstituteInText_EditsAFileNoGrammarCovers()
+    {
+        const string notes = "# Notes\n\nThe first line.\n\n- one\n- two\n";
+
+        var result = StructuralEdit.SubstituteInText(notes, "- three", new StructuralEdit.Options(Find: "- two"));
+
+        Assert.AreEqual("# Notes\n\nThe first line.\n\n- one\n- three\n", Applied(result));
+    }
+
+    [TestMethod]
+    public void SubstituteInText_KeepsTheMatchingRules()
+    {
+        const string notes = "- one\n- one\n";
+
+        var ambiguous = StructuralEdit.SubstituteInText(notes, "- two", new StructuralEdit.Options(Find: "- one"));
+        Assert.IsFalse(ambiguous.Ok, "two matches and no --all is a refusal, not a guess");
+
+        var both = StructuralEdit.SubstituteInText(notes, "- two",
+            new StructuralEdit.Options(Find: "- one", AllOccurrences: true));
+        Assert.AreEqual("- two\n- two\n", Applied(both));
+
+        var missing = StructuralEdit.SubstituteInText(notes, "x", new StructuralEdit.Options(Find: "- three"));
+        Assert.IsFalse(missing.Ok, "text that is not there changes nothing");
+    }
+
+    [TestMethod]
+    public void SubstituteInFile_StillRefusesAFileWithNoGrammar()
+    {
+        var result = StructuralEdit.SubstituteInFile("", "x\n", "y", new StructuralEdit.Options(Find: "x"));
+
+        Assert.IsFalse(result.Ok, "only SubstituteInText edits without a parse; this one relies on one");
+    }
+
+    [TestMethod]
+    public void AProjectFileIsXmlToAnEdit_AndStillNotCodeToTheGraph()
+    {
+        Assert.AreEqual("xml", TreeSitterLanguages.ForEdit("src/App/App.csproj"));
+        Assert.AreEqual("xml", TreeSitterLanguages.ForEdit("Nexaflow.slnx"));
+        Assert.IsNull(TreeSitterLanguages.ForFile("src/App/App.csproj"),
+            "the graph reads project files through its structured layer; as code they would be walked twice");
+        Assert.IsFalse(TreeSitterLanguages.IsCode("Nexaflow.slnx"));
+        Assert.AreEqual("c-sharp", TreeSitterLanguages.ForEdit("src/A.cs"), "a code file keeps its own grammar");
+        Assert.IsNull(TreeSitterLanguages.ForEdit("docs/notes.md"), "text has no grammar; it is edited as text");
+    }
+
     // ── Delete leaves the spacing it found ──────────────────────────────────
 
     private const string ThreeMembers = """

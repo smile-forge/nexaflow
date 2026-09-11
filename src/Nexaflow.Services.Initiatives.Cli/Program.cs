@@ -1333,7 +1333,7 @@ internal static class Program
 
         // Same bar as an edit: a file that does not parse must not be written, because the next tool to read
         // it sees a root ERROR node and every declaration in it vanishes from the graph.
-        var grammar = TreeSitterLanguages.ForFile(rel);
+        var grammar = TreeSitterLanguages.ForEdit(rel);
         if (grammar is { Length: > 0 } && !new DeclarationAnchors().ParsesCleanly(grammar, text))
         {
             Console.Error.WriteLine($"error: that content does not parse as {grammar}, so {rel} was not created.");

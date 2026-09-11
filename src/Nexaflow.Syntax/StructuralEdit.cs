@@ -144,6 +144,33 @@ public static class StructuralEdit
     }
 
     /// <summary>
+    /// A substitution in a file no grammar covers — prose, a list, a config file.
+    /// <para>
+    /// The same matching as <see cref="SubstituteInFile"/>: literal unless asked otherwise, refused unless it
+    /// matches exactly once, indentation set aside when the exact text is not there. What it cannot give is the
+    /// parse afterwards, because there is no grammar to ask — and text has no shape an edit could break, so there
+    /// is nothing a parse would have caught.
+    /// </para>
+    /// <para>
+    /// A separate entry rather than <see cref="SubstituteInFile"/> taking a missing grammar, so that "no grammar"
+    /// stays a refusal everywhere a grammar is what is being relied on. Whether a file is text at all is the
+    /// caller's to decide: this is handed characters and cannot tell what they were read from.
+    /// </para>
+    /// </summary>
+    public static Result SubstituteInText(string source, string? replacement, Options options)
+    {
+        var notes = new List<string>();
+        var whole = new DeclarationAnchor("file", 0, source.Length, 0, null, null, null, null, null, null);
+
+        var (text, error) = Substitute("", source, whole, replacement, options,
+                                       SourceText.Of(source).Newline, "", notes);
+        if (error is { } why) return Result.Fail(why);
+
+        return new Result(true, "substitute in the file", text, HunkOf(source, text!), notes,
+                          ChangeOf(source, text!));
+    }
+
+    /// <summary>
     /// Adds an import (a <c>using</c>, an <c>import</c>, a <c>#include</c>) in the place the file already
     /// keeps them: after the last one, or — when there are none — above the first declaration but below any
     /// header comment, so a licence block stays at the top.

@@ -169,6 +169,13 @@ matching indentation** — an exact match wins, and failing that the fragment is
 leading whitespace, so a snippet pasted as you read it or written flush-left is found either way. When it
 isn't there at all, the refusal names the declaration that *does* contain it, with its node id.
 
+**A file no grammar covers is edited as text.** Markdown, a config file, a list: `substitute file:<relpath>`
+and `create` work on any text file, with the same matching rules — literal, exactly once unless `--all`,
+indentation set aside — and no parse, because text has no shape an edit could break. Project and solution
+files (`.csproj`, `.slnx`, …) are parse-checked as XML for an edit without becoming code to the graph, which
+reads them through its own structured layer. A file that is not text (it holds a NUL) is refused, and the
+declaration ops still need a grammar.
+
 There is deliberately **no line-addressed edit inside a body**: line numbers are the failure mode this design
 removes, and a `substitute` whose search text you extend by a line either side is both unambiguous and
 self-verifying.
