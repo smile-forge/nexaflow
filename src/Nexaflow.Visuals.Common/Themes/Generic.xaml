@@ -109,4 +109,54 @@
         </Setter>
     </Style>
 
+    <!-- ModalCard: the shared chrome of a tab-modal form — a scrim that swallows clicks and a centred card.
+         Only the chrome lives here; the form's content, bindings and AutomationIds stay the feature's. A
+         yes/no question is not a form: it goes through IShellServices (arch review §E1). Tab cycles inside
+         the card so a keyboard user can't wander into the page it covers. -->
+    <Style TargetType="{x:Type c:ModalCard}">
+        <Setter Property="Padding" Value="20"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type c:ModalCard}">
+                    <Border Background="{DynamicResource ScrimBrush}">
+                        <Border x:Name="PART_Card"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                Width="{TemplateBinding CardWidth}" MinWidth="{TemplateBinding CardMinWidth}"
+                                MaxWidth="{TemplateBinding CardMaxWidth}" MaxHeight="{TemplateBinding CardMaxHeight}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <DockPanel>
+                                <ContentPresenter x:Name="PART_Header" DockPanel.Dock="Top" ContentSource="Header"
+                                                  Margin="0,0,0,10" TextElement.FontSize="14"
+                                                  TextElement.FontWeight="SemiBold"
+                                                  TextElement.Foreground="{DynamicResource TextBrush}"/>
+                                <ContentPresenter/>
+                            </DockPanel>
+                        </Border>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="HasHeader" Value="False">
+                            <Setter TargetName="PART_Header" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="Tone" Value="Accent">
+                            <Setter TargetName="PART_Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="Tone" Value="Danger">
+                            <Setter TargetName="PART_Card" Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <!-- Closed: collapsed, so it takes no layout and blocks nothing behind it. -->
+            <Trigger Property="IsOpen" Value="False">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

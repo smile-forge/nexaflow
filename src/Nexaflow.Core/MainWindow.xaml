@@ -747,7 +747,7 @@
              ═══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="0" Grid.RowSpan="5" Panel.ZIndex="150"
               Visibility="{Binding ActiveOverlay, Converter={StaticResource NullToVis}}">
-            <Border Background="#CC0F1117" MouseDown="OverlayBackdrop_MouseDown"/>
+            <Border Background="{DynamicResource ScrimBrush}" MouseDown="OverlayBackdrop_MouseDown"/>
             <ContentControl Content="{Binding ActiveOverlay}"/>
         </Grid>
 

@@ -408,29 +408,23 @@
         </Grid>
 
         <!-- Take-snapshot overlay -->
-        <Border Grid.RowSpan="2" Visibility="{Binding TakeSnapshotVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="21">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="360" Padding="20"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="Take snapshot" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                    <TextBlock Text="Exports the current tree to the export folder and, if the folder is a git repo, commits it and creates a tag."
-                               FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                    <TextBlock Text="Version number (also the git tag)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox Text="{Binding NewSnapshotVersion, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
-                        <TextBox.InputBindings>
-                            <KeyBinding Key="Return" Command="{Binding ConfirmTakeSnapshotCommand}"/>
-                        </TextBox.InputBindings>
-                    </TextBox>
-                    <Button Content="Take snapshot" Command="{Binding ConfirmTakeSnapshotCommand}"
-                            Style="{StaticResource GhostButton}" Margin="0,0,0,6"/>
-                    <Button Content="Cancel" Command="{Binding CancelTakeSnapshotCommand}" Style="{StaticResource GhostButton}"/>
-                </StackPanel>
-            </Border>
-        </Border>
+        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="21" Header="Take snapshot" CardWidth="360"
+                        IsOpen="{Binding TakeSnapshotVisible}" CancelCommand="{Binding CancelTakeSnapshotCommand}">
+            <StackPanel>
+                <TextBlock Text="Exports the current tree to the export folder and, if the folder is a git repo, commits it and creates a tag."
+                           FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                <TextBlock Text="Version number (also the git tag)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBox Text="{Binding NewSnapshotVersion, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Return" Command="{Binding ConfirmTakeSnapshotCommand}"/>
+                    </TextBox.InputBindings>
+                </TextBox>
+                <Button Content="Take snapshot" Command="{Binding ConfirmTakeSnapshotCommand}"
+                        Style="{StaticResource GhostButton}" Margin="0,0,0,6"/>
+                <Button Content="Cancel" Command="{Binding CancelTakeSnapshotCommand}" Style="{StaticResource GhostButton}"/>
+            </StackPanel>
+        </ctrl:ModalCard>
 
         <!-- Settings overlay -->
         <Border Grid.RowSpan="2" Visibility="{Binding SettingsVisible, Converter={StaticResource BoolVis}}"

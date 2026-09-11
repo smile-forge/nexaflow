@@ -405,7 +405,10 @@ The literal is the last resort, never the source of truth. For a translucent was
 Theme switching restarts the window, so a fresh read per paint always reflects the current theme.
 
 **Genuinely-not-a-colour exceptions** (leave as literals): `Transparent`; drop-shadow `Color="Black"`;
-modal scrims (`#CC000000`); and scene art (`OceanReefScene` etc., which *is* the theme).
+and scene art (`OceanReefScene` etc., which *is* the theme). A modal scrim is no longer one of them: it is
+the `ScrimBrush` token (`Tokens.xaml`), which `Visuals.Common`'s `ModalCard` and the shell's overlay host
+bind, so a theme can retune it. A view that still paints its own scrim around a card is a hand-rolled modal,
+and `HandRolledModalRatchetTests` holds those to a shrinking list.
 
 ### Diagram tokens (markdown)
 
