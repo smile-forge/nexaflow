@@ -1044,7 +1044,7 @@ place's meter — so the builder works them out by playing the music through, no
 | Beams | the meter, or a manual `[ … ]` | Eighths in fours in common and cut time, the whole bar in three-four, threes in a compound meter, pairs otherwise; shorter values by the beat. A tuplet beams as itself, and a beam never runs from one tuplet into the next |
 | Bar lines | `\bar "\|\|" "\|." ".\|:" ":\|." ":\|.\|:"` | Double, final, both repeat forms — reaching back to the bar the meter already closed |
 | Bar checks / pickup | `\|`, `\partial 4`, `\cadenzaOn` | A check names the bar line it checks; a pickup shortens the first bar; a cadenza suspends barring and prints no meter |
-| Repeats | `\repeat volta 2 { … }`, `\alternative` | Repeat bar lines + numbered brackets, the last one stopping where its ending does; `\repeat unfold n` is written out |
+| Repeats | `\repeat volta 2 { … }`, `\alternative`, `\volta 1,2 { … }` | Repeat bar lines + numbered brackets — numbered as each `\volta` says, or in order — the last one stopping where its ending does; `\repeat unfold n` is written out |
 | Tuplets | `\tuplet 3/2 { … }`, `\times 2/3 { … }` | Compressed spacing + the number; the *time* is scaled, so the bar still adds up |
 | Ties & slurs | `c~ c`, `c( d e)`, phrasing `\(` `\)` | Curves; `(` opens on the note it *follows*, where ABC's precedes |
 | Chords | `<c e g>2`, `<c e g>~`, `q` | Stacked heads on one stem; `q` repeats the chord before it |

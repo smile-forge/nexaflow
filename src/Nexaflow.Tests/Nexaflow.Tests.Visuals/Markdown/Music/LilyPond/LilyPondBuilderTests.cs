@@ -176,6 +176,20 @@ public class LilyPondBuilderTests
     });
 
     [TestMethod]
+    public void EndingsWrittenWithVoltaAreNumberedAsTheySay() => UiThread.Run(() =>
+    {
+        // LilyPond's own spelling since 2.24, and abc2ly's: each ending says which time through it is played.
+        // Read as a bare command beside its music, every \volta passed for an ending of its own — four endings,
+        // numbered 1 to 4, two of them brackets over nothing.
+        var classic = Lay(@"\relative c' { \time 4/4 \repeat volta 2 { c4 d e f } \alternative { { g1 } { a1 } } }");
+        var numbered = Lay(@"\relative c' { \time 4/4 \repeat volta 2 { c4 d e f } \alternative { \volta 1 { g1 } \volta 2 { a1 } } }");
+
+        Assert.AreEqual(Bars(classic).Count, Bars(numbered).Count, "the same bars either way");
+        CollectionAssert.AreEqual(new[] { "1", "2" },
+            All(numbered, "volta").Select(v => Printed(v).Trim().TrimEnd('.')).ToArray());
+    });
+
+    [TestMethod]
     public void AnUnfoldedRepeatIsWrittenOut_EveryTimeNamingTheSameNotes() => UiThread.Run(() =>
     {
         var layout = Lay(@"\relative c' { \time 4/4 \repeat unfold 3 { c4 d e f } }");

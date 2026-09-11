@@ -523,9 +523,11 @@ internal sealed partial class LilyPondBuilder
     {
         if (Body(command) is not { } body) return;
 
+        // An ending is braced music, a definition used as one, or — LilyPond's own spelling since 2.24, and
+        // abc2ly's — music under a \volta that says which times through it is played.
         var endings = body.Children
             .Where(c => c.Kind is LilyPondKinds.Sequential or LilyPondKinds.Simultaneous
-                        || (c.Kind == LilyPondKinds.Command && Reference(c) is not null))
+                        || (c.Kind == LilyPondKinds.Command && (Numbered(c) || Reference(c) is not null)))
             .ToList();
 
         // `\alternative { g1 }`, with no braces inside, is one ending.
@@ -535,14 +537,19 @@ internal sealed partial class LilyPondBuilder
 
         for (var n = 0; n < endings.Count; n++)
         {
-            stream.Add(new Bracketed($"{n + 1}", endings[n]));
-            Play(endings[n], playing, active);
+            var music = Numbered(endings[n]) ? Body(endings[n]) ?? endings[n] : endings[n];
+
+            stream.Add(new Bracketed(Numbered(endings[n]) ? Argument(endings[n]) : $"{n + 1}", music));
+            Play(music, playing, active);
             if (n < endings.Count - 1)
-                stream.Add(new Lined(":|]", endings[n].Part(Roles.Close) ?? (ISourcePart)endings[n]));
+                stream.Add(new Lined(":|]", music.Part(Roles.Close) ?? (ISourcePart)music));
         }
 
         // The last ending carries on into whatever follows, and its bracket stops where it does.
         stream.Add(new Unbracketed());
+
+        static bool Numbered(ContentPart ending) =>
+            ending.Kind == LilyPondKinds.Command && CommandName(ending) == @"\volta";
     }
 
     /// <summary><c>\tuplet 3/2 { … }</c>: the music inside, marked as one tuplet with its number over it.</summary>

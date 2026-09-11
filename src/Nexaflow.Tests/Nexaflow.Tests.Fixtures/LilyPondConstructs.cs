@@ -48,6 +48,9 @@ public static class LilyPondConstructs
         ("repeats and alternatives",
             @"\relative c'' { \repeat volta 2 { c4 d e f } \alternative { { g1 } { a1 } } \repeat unfold 2 { c4 d } }"),
 
+        ("endings numbered by volta, as LilyPond writes them since 2.24",
+            @"\relative c'' { \repeat volta 3 { c4 d e f } \alternative { \volta 1,2 { g1 } \volta 3 { a1 } } }"),
+
         ("tuplets both ways round",
             @"\relative c'' { \tuplet 3/2 { c8 d e } \times 2/3 { f g a } \tuplet 3/2 4 { b c d e f g } }"),
 

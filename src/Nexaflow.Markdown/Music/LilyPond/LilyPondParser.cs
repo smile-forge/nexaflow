@@ -593,6 +593,11 @@ public static class LilyPondParser
                     Arg(parts, () => MusicOf(mode));
                     break;
 
+                case "volta":
+                    Arg(parts, () => Word(w => w.Split(',').All(number => number.Length > 0 && number.All(char.IsAsciiDigit))));
+                    Arg(parts, () => MusicOf(mode));
+                    break;
+
                 case "tuplet":
                     Arg(parts, () => Word(w => LilyPondTheory.Fraction(w) is not null));
                     Arg(parts, () => Word(w => LilyPondTheory.Length(w) is not null));
