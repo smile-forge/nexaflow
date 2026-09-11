@@ -333,25 +333,26 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
     }
 
     [RelayCommand]
-    private void DeleteValue(RegistryValue? value)
+    private async Task DeleteValue(RegistryValue? value)
     {
         value ??= SelectedValue;
         if (value is null || value.IsDefault) return;   // the default value can't be deleted, only cleared
+        var root = CurrentRoot;
+        var sub  = CurrentSubPath;
 
-        ShowConfirmation("Delete value", $"Delete value '{value.Name}'? This cannot be undone.",
-            async () =>
-            {
-                var args = new Dictionary<string, string>
-                {
-                    [ElevatedArgs.RegHive] = CurrentRoot.Token,
-                    [ElevatedArgs.RegPath] = CurrentSubPath,
-                    [ElevatedArgs.RegName] = value.RawName,
-                };
-                if (await ApplyWriteAsync(ElevatedOps.RegDeleteValue, args,
-                        () => RegistryWriter.DeleteValue(CurrentRoot, CurrentSubPath, value.RawName)))
-                    Refresh();
-            },
-            () => { });
+        if (!await _shell.ConfirmAsync("Delete value", $"Delete value '{value.Name}'? This cannot be undone.",
+                "Delete", "Cancel", _cts.Token))
+            return;
+
+        var args = new Dictionary<string, string>
+        {
+            [ElevatedArgs.RegHive] = root.Token,
+            [ElevatedArgs.RegPath] = sub,
+            [ElevatedArgs.RegName] = value.RawName,
+        };
+        if (await ApplyWriteAsync(ElevatedOps.RegDeleteValue, args,
+                () => RegistryWriter.DeleteValue(root, sub, value.RawName)))
+            Refresh();
     }
 
     private string ReadEditSeed(string name, RegistryValueKind kind)
@@ -428,29 +429,29 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
     }
 
     [RelayCommand]
-    private void DeleteKey()
+    private async Task DeleteKey()
     {
         if (CurrentSubPath.Length == 0) return;   // can't delete a hive root
-        var path = CurrentKeyPath;
-        var parent = ParentOf(CurrentSubPath);
+        // Captured before asking: what is deleted is exactly what the question named.
+        var root   = CurrentRoot;
+        var sub    = CurrentSubPath;
+        var parent = ParentOf(sub);
 
-        ShowConfirmation("Delete key",
-            $"Delete '{path}' and all its subkeys and values? This cannot be undone.",
-            async () =>
-            {
-                var args = new Dictionary<string, string>
-                {
-                    [ElevatedArgs.RegHive] = CurrentRoot.Token,
-                    [ElevatedArgs.RegPath] = CurrentSubPath,
-                };
-                if (await ApplyWriteAsync(ElevatedOps.RegDeleteKey, args,
-                        () => RegistryWriter.DeleteKey(CurrentRoot, CurrentSubPath)))
-                {
-                    ReloadTreeAt(CurrentRoot, parent);
-                    NavigateTo(parent.Length == 0 ? CurrentRoot.Token : $"{CurrentRoot.Token}\\{parent}");
-                }
-            },
-            () => { });
+        if (!await _shell.ConfirmAsync("Delete key",
+                $"Delete '{CurrentKeyPath}' and all its subkeys and values? This cannot be undone.",
+                "Delete", "Cancel", _cts.Token))
+            return;
+
+        var args = new Dictionary<string, string>
+        {
+            [ElevatedArgs.RegHive] = root.Token,
+            [ElevatedArgs.RegPath] = sub,
+        };
+        if (await ApplyWriteAsync(ElevatedOps.RegDeleteKey, args, () => RegistryWriter.DeleteKey(root, sub)))
+        {
+            ReloadTreeAt(root, parent);
+            NavigateTo(parent.Length == 0 ? root.Token : $"{root.Token}\\{parent}");
+        }
     }
 
     // ── Export / Import ──────────────────────────────────────────────────────────
@@ -586,33 +587,9 @@ public sealed partial class RegistryViewModel : ObservableObject, IPageViewModel
     public ContextSecurityRisk GetContextSecurityRisk() =>
         CurrentRoot == RegistryRoot.CurrentUser ? ContextSecurityRisk.Medium : ContextSecurityRisk.High;
 
-    // ── Overlays (mirrors the file-system tab's in-tab prompt/confirm) ───────────
-    [ObservableProperty] private bool   _confirmationVisible;
-    [ObservableProperty] private string _confirmationTitle  = "Are you sure?";
-    [ObservableProperty] private string _confirmationPrompt = string.Empty;
-    private Action? _pendingConfirm;
-    private Action? _pendingCancel;
-
-    public void ShowConfirmation(string title, string prompt, Action onConfirm, Action onCancel)
-    {
-        _pendingConfirm = onConfirm; _pendingCancel = onCancel;
-        ConfirmationTitle = title; ConfirmationPrompt = prompt; ConfirmationVisible = true;
-    }
-
-    [RelayCommand]
-    private void ConfirmAction()
-    {
-        ConfirmationVisible = false;
-        var a = _pendingConfirm; _pendingConfirm = null; _pendingCancel = null; a?.Invoke();
-    }
-
-    [RelayCommand]
-    private void CancelConfirmation()
-    {
-        ConfirmationVisible = false;
-        var c = _pendingCancel; _pendingConfirm = null; _pendingCancel = null; c?.Invoke();
-    }
-
+    // ── Input prompt ─────────────────────────────────────────────────────────────
+    // In-tab on purpose: REG_MULTI_SZ data is edited one string per line and the shell's prompt is
+    // single-line. Deletes ask the shell's window-modal confirmation instead (arch review §E1).
     [ObservableProperty] private bool   _inputPromptVisible;
     [ObservableProperty] private string _inputPromptTitle = string.Empty;
     [ObservableProperty] private string _inputPromptLabel = string.Empty;

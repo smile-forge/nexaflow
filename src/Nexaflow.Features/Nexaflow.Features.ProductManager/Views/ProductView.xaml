@@ -407,9 +407,6 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- Confirmation overlay (shared Visuals.Common dialog) -->
-        <ctrl:ConfirmationDialog Request="{Binding Confirmation}" Grid.RowSpan="2" Panel.ZIndex="40"/>
-
         <!-- Take-snapshot overlay -->
         <Border Grid.RowSpan="2" Visibility="{Binding TakeSnapshotVisible, Converter={StaticResource BoolVis}}"
                 Background="#CC000000" Panel.ZIndex="21">

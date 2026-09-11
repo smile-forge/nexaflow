@@ -50,12 +50,6 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     [ObservableProperty] private BacklogItemViewModel? _selectedItem;
     [ObservableProperty] private string _newTodoTitle = string.Empty;
 
-    // ── Confirmation overlay (delete) ──
-    [ObservableProperty] private bool   _confirmationVisible;
-    [ObservableProperty] private string _confirmationTitle  = "Are you sure?";
-    [ObservableProperty] private string _confirmationPrompt = string.Empty;
-    private Action? _pendingConfirmAction;
-
     public event Action<string>? OpenFilesRequested;
 
     private bool _loading;
@@ -233,19 +227,18 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
     }
 
     [RelayCommand]
-    private void DeleteTodo(BacklogItemViewModel? item)
+    private async Task DeleteTodo(BacklogItemViewModel? item)
     {
         if (item is null || IsReadOnly) return;
-        ShowConfirmation(
-            "Delete backlog item",
-            $"Delete \"{item.Title}\"? This cannot be undone.",
-            () =>
-            {
-                _svc.RemoveToDo(FolderName, item.Id);
-                Backlog.Remove(item);
-                if (SelectedItem == item) SelectedItem = null;
-                RefreshLastModified();
-            });
+        if (_shell is null) return;   // no shell (e.g. tests) → nothing can confirm, so nothing is deleted
+        if (!await _shell.ConfirmAsync("Delete backlog item", $"Delete \"{item.Title}\"? This cannot be undone.",
+                "Delete", "Cancel"))
+            return;
+
+        _svc.RemoveToDo(FolderName, item.Id);
+        Backlog.Remove(item);
+        if (SelectedItem == item) SelectedItem = null;
+        RefreshLastModified();
     }
 
     [RelayCommand]
@@ -297,31 +290,6 @@ public partial class ProjectDetailViewModel : ObservableObject, IPageViewModel
             ["conversationId"] = record.Id,
             ["initialPrompt"]  = prompt,
         });
-    }
-
-    // ── Confirmation overlay ──
-
-    [RelayCommand]
-    private void ConfirmAction()
-    {
-        ConfirmationVisible = false;
-        _pendingConfirmAction?.Invoke();
-        _pendingConfirmAction = null;
-    }
-
-    [RelayCommand]
-    private void CancelConfirmation()
-    {
-        ConfirmationVisible = false;
-        _pendingConfirmAction = null;
-    }
-
-    private void ShowConfirmation(string title, string prompt, Action onConfirm)
-    {
-        ConfirmationTitle     = title;
-        ConfirmationPrompt    = prompt;
-        _pendingConfirmAction = onConfirm;
-        ConfirmationVisible   = true;
     }
 
     // ── IPageViewModel ──

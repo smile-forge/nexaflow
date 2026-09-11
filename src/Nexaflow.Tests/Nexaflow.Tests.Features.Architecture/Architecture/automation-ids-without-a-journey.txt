@@ -235,12 +235,10 @@ Conversation_ClosePreview
 Conversation_AttachmentRemove
 
 # src/Nexaflow.Core/MainWindow.xaml
-# Transient, event-driven chrome: the confirmation overlay, the notification rows and the toast all exist
-# only while something has raised them, and nothing a journey does from a cold launch raises one. Reaching
-# them means a journey that first provokes the event — a shell confirmation, a queued background task —
-# rather than one that presses what is on screen.
-Chrome_ConfirmOk
-Chrome_ConfirmCancel
+# Transient, event-driven chrome: the notification rows and the toast exist only while something has raised
+# them, and nothing a journey does from a cold launch raises one. Reaching them means a journey that first
+# provokes the event — a queued background task — rather than one that presses what is on screen. (The
+# shell confirmation left this list when the Projects journey began deleting through it.)
 Notif_ItemAction
 Notif_Dismiss
 Toast_Dismiss

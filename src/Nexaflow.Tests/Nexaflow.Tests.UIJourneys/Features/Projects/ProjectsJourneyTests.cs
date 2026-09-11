@@ -131,17 +131,18 @@ public class ProjectsJourneyTests : UiJourneyTestBase
             mine.Click();
             System.Threading.Thread.Sleep(250);
 
+            // The question is the shell's window-modal confirmation, so its buttons carry the chrome's ids.
             CheckDoes("Delete raises the confirmation", "Projects_Detail_DeleteTodo",
-                      () => WaitForId("Projects_Detail_CancelConfirm", 5) is not null);
-            CheckPresent("Confirm delete", "Projects_Detail_ConfirmDelete");
-            CheckDoes("Cancel backs out of the prompt", "Projects_Detail_CancelConfirm",
-                      () => WaitForId("Projects_Detail_ConfirmDelete", 3) is null);
+                      () => WaitForId("Chrome_ConfirmCancel", 5) is not null);
+            CheckPresent("Confirm delete", "Chrome_ConfirmOk");
+            CheckDoes("Cancel backs out of the prompt", "Chrome_ConfirmCancel",
+                      () => WaitForId("Chrome_ConfirmOk", 3) is null);
             Check("the row survived the cancel", () => WaitForName(added, 3) is not null);
 
             // And again, this time through — leaving the fixture as it was found.
             CheckDoes("Delete raises it again", "Projects_Detail_DeleteTodo",
-                      () => WaitForId("Projects_Detail_ConfirmDelete", 5) is not null);
-            CheckDoes("Confirm removes the added row", "Projects_Detail_ConfirmDelete",
+                      () => WaitForId("Chrome_ConfirmOk", 5) is not null);
+            CheckDoes("Confirm removes the added row", "Chrome_ConfirmOk",
                       () => WaitForName(added, 3) is null);
         }
 

@@ -55,7 +55,7 @@ high-value structure; **P3** = worthwhile polish.
 | D2 | `ShellServices` — the second god object | **worse: 1,120 lines** (was 958 at review). Three leaf concerns still unsplit | `wc -l src/Nexaflow.Core/Services/ShellServices.cs` | M | P2 |
 | D3 | RibbonEditor: procedural code-behind | open — **749 lines**, unchanged | `wc -l src/Nexaflow.Core/Controls/RibbonEditor.xaml.cs` | L | P3 |
 | D4 | Window-position constants duplicated | open, and **three copies now**: the `const` in `PositionWindow`, `MainWindow.xaml.cs`, and a `TopBarHeight` GridLength in every `Colors.*.xaml` — the theme resource is the obvious single home | `$nfi graph grep "TopBarHeight" --mode content` | S | P3 |
-| E1 | Modal-overlay scaffold copy-pasted across 6 features | ◐ primitive shipped and spreading — `ConfirmationRequest` at 13 sites; the rest migrate on touch | `$nfi graph grep "ConfirmationRequest" --mode content` | M | P2 |
+| E1 | Hand-rolled modal overlays — **12 in 6 files**, every one a form (plus Registry's multi-line prompt) | **◐ PR 1 of 3 done 2026-09-11** (re-audit in §E1 — the old "13 sites" counted mentions, not adopters). Every yes/no question now goes through the shell: Registry, Projects and Product deletes `ConfirmAsync`, `ConfirmationDialog` is gone, and `OverlayCoordinator` holds one `ConfirmationRequest` / `PromptRequest` — one confirm model where there were four. Next: PR 2 (`ModalCard` + ratchet), then PR 3 | `$nfi graph grep 'Background="#CC[0-9A-Fa-f]{6}"' --mode content`, keeping each hit whose child is a centred card (drop the shell's own host, FileSystem's tick and drop tooltip, Text's banner) — §E1's PR 2 replaces this with a ratchet list whose line count *is* the answer | M | P2 |
 | E4 | Colour literals outside the theme layer | **nearly closed** — all five original clusters are done. What is left is 3 sites, and the biggest is `Core/MainWindow.xaml` itself: the shell hard-codes an accent while every feature is forbidden to | `$nfi graph grep "#[0-9A-Fa-f]{6}\"" --mode content --limit 400`, then **exclude** `Themes/` · `Tokens.xaml` · `Colors.*.xaml` · tests — a raw count reads the theme layer as debt | S | P3 |
 | E5 | 5 process-global mutable registries in WindowsFileSystem | open — all five still `static … Instance` | `$nfi graph grep "public static .* Instance" --from product:win-file-system --scope owned --mode content` | M | P3 |
 | E6 | ViewModel outliers | open and grown: FileSystem **2,019**, Json **1,499**, Text **1,344**, Product **964** | `wc -l` on the four | M–L | P3 |
@@ -228,6 +228,67 @@ backwards while being tracked. ~13 banner concerns (window registry, tab registr
 
 ### E1. Modal-overlay primitive — the most-copied scaffold in the repo (M) ⭐
 
+> **Re-audited 2026-09-11, and the row had it backwards.** Its "`ConfirmationRequest` at 13 sites" was the
+> number of graph nodes that *mention* the type — its own class, its constructor, the dialog's dependency
+> property — so it could never reach zero and could not tell adoption from existence. Adoption was **one**:
+> ProductManager, migrated the day the primitive shipped (2026-07-08). At least 19 commits touched the other
+> overlay-bearing views since, and none migrated.
+>
+> - **What spread was the shell's own modal.** ~30 feature call sites across ~17 features ask through
+>   `IShellServices.ConfirmAsync` / `ShowConfirmation` / `ShowPrompt`. FileSystem moved its confirm and
+>   prompt there and deleted its copies — the only real reduction since the review (7 → 2).
+> - **The confirm state machine was written four times** — `ConfirmationRequest`, Core's
+>   `OverlayCoordinator`, `RegistryViewModel`, `ProjectDetailViewModel` — and the prompt twice (Core,
+>   Registry). `ProjectDetailViewModel` and `ProductViewModel` each asked the shell some questions and their
+>   own overlay others.
+> - **The shared dialog could not be adopted where it mattered:** its buttons carried no AutomationId
+>   (NXUI001 ×2), so moving Projects onto it would have cost Projects its journey.
+> - **The count was wrong in both directions.** Terminal's two overlays and AIChat's analysis overlay were
+>   missed; FileSystem's button-flash dim and drop tooltip, Json's loading veil and the PostIt header shade
+>   are not modals.
+>
+> **Why "migrate on touch" never fired:** the primitive fit only the three yes/no sites — where the shell
+> was already the better answer — and nothing fit the eleven forms; and nothing tells an agent editing a
+> view for another reason that its overlay is debt.
+>
+> **The rule this settles:** a *question* (yes/no, one line of text) is window-modal and goes through
+> `IShellServices`; a *form* — content the user works in — is tab-modal. Forms do not go through
+> `ShowOverlay`: the host holds one overlay and `OverlayCoordinator.Sync` ranks a feature overlay above the
+> confirmation, so a form that asked "are you sure?" would hide its own question — and a shell-modal wizard
+> locks every tab while the user may need another one to fill it in.
+>
+> **Three PRs:**
+>
+> 1. **Questions → shell (S).** ✅ 2026-09-11. Registry's, Projects' and ProductManager's deletes `await ConfirmAsync(…,
+>    "Delete", "Cancel")`; `ConfirmationDialog` goes; `OverlayCoordinator` holds a `ConfirmationRequest` /
+>    `PromptRequest` instead of its own field bags. The Projects journey moves to `Chrome_ConfirmOk` /
+>    `Chrome_ConfirmCancel` — the shell confirmation's first journey.
+> 2. **`ModalCard` + a ratchet (S).** A lookless `HeaderedContentControl` in `Visuals.Common` (scrim +
+>    centred card, `Tone`, Esc → cancel) with its default style in `Themes/Generic.xaml`; one `ScrimBrush`
+>    token for the three scrim literals (`#CC000000`, the shell's `#CC0F1117`, AIChat's `#CC0B0B0F`); the
+>    rule in Architecture.md; and an architecture test shaped like the AutomationId ratchet — a
+>    scrim-wrapped centred card outside `Visuals.Common` fails unless listed, keyed
+>    `file#<Visibility binding>` so line drift cannot break it, and the list can only shrink.
+> 3. **Forms → `ModalCard` (M, mechanical, per feature).** Chrome only — content, bindings and ids
+>    untouched, so journeys and surface tests stay green. Form *state* stays in the view-models; shrinking it
+>    is §E6, and the shape to copy is FileSystem's wizard (a nullable form VM, non-null exactly while open,
+>    bound as the card's `DataContext`).
+>
+> | Site (2026-09-11) | Kind | Goes to |
+> |---|---|---|
+> | `RegistryView` confirmation · `ProjectDetailView` confirmation · `ProductView`'s `ConfirmationDialog` | yes/no | shell `ConfirmAsync` — PR 1 |
+> | `RegistryView` input prompt | text, **multi-line** — REG_MULTI_SZ splits on newlines, the shell prompt is single-line | `ModalCard` + `PromptRequest` — PR 3 |
+> | `CompressedView` choice · password | icon grid / list, `PasswordBox` | `ModalCard` — PR 3 |
+> | `ProductView` snapshot · settings · concern snaplinks · restructure | forms | `ModalCard` — PR 3 |
+> | `FileSystemView` create · Define-New wizard | forms | `ModalCard` — PR 3 |
+> | `TerminalView` env edit · env picker | forms | `ModalCard` — PR 3 |
+> | `AiChatPage` analysis detail | form | `ModalCard` — PR 3 |
+>
+> Registry's prompt stays in-tab on purpose: widening `IShellServices` (already §C5's god-interface) for one
+> caller is the wrong trade.
+
+The original finding, for the record:
+
 The scrim + centered Surface/Accent card pattern appears **~15 times across 6 features** (FileSystemView ×7, ProductView ×5, Compressed ×2, Registry ×2, Json, ProjectDetail), with matching duplicated VM-side confirmation/prompt state (`FileSystemViewModel` has three overlay regions; `ProductViewModel` has *two separate* "Confirmation overlay" regions at :107 and :811). Ship in `Visuals.Common`: (a) a `DialogCard`/overlay style, (b) a small `ConfirmationRequest`-style VM helper. Directly shrinks the two biggest feature VMs (§E6). Note `IShellServices.ShowOverlay`/`ShowConfirmation` already exist for *shell-modal* cases — part of this work is deciding which of the 15 should simply route there.
 
 ### E2. Converter duplication past rule-of-three (S–M)
@@ -273,10 +334,10 @@ the sanctioned token definition). 2. ~~Logs level pips~~ — **done**. 3. ~~Imag
 
 Line counts re-measured 2026-09-05; all four have grown since the review.
 
-- `FileSystemViewModel` (**2,019 lines**, ~16 regions): three overlay concerns (→E1), Define-New wizard, tree management, right-panel management, ribbon pinning, background folder load. The one true outlier — extract overlays first (cheap, mechanical), then tree/right-panel collaborators. **L** in total, incremental.
+- `FileSystemViewModel` (**2,019 lines**, ~16 regions): the create-form overlay (its confirm and prompt already moved to the shell — →E1), Define-New wizard, tree management, right-panel management, ribbon pinning, background folder load. The one true outlier — extract overlays first (cheap, mechanical), then tree/right-panel collaborators. **L** in total, incremental.
 - `JsonViewModel` (**1,499**): the root-array **table mode** is a feature-within-a-feature, separable from the streaming/windowing reader. **M.**
 - `TextViewModel` (**1,344**): already partially decomposed; low priority.
-- `ProductViewModel` (**964**): consolidate the two duplicate confirmation regions; lift Snaplinks/Concerns/Restructure overlays. **M.**
+- `ProductViewModel` (**964**): its two confirmation regions are already one (and go to the shell in §E1's PR 1); lift the Snapshot/Settings/Snaplinks/Restructure overlays' state into form VMs. **M.**
 
 ### E7. Navigational-breadcrumb helper (M, optional)
 
@@ -401,13 +462,15 @@ Steps 1–3, 4, 6 and most of 5 and 7 are done; what follows is the **remaining*
 3. **Finish E4, then B4.** Only three sites remain, and the largest is Core's own `MainWindow.xaml` — so
    this is now an **S**, and it is the last thing standing between the repo and a colour analyzer with a
    short allow-list. Doing them in the other order is what makes B4 expensive. *(S, then M)*
-4. **AI-Ready campaign** (H1): write the recipe, then batch-close concern links worst-area-first. This is
-   the largest product-visible win left and it is now the only P2 with nothing blocking it. *(M, ongoing)*
-5. **Shell splits** (D1, D2) when next touching those files — extract-on-touch rather than big-bang. D2 is
+4. **E1, in its three PRs** (§E1). PR 1 — questions to the shell — is the one that deletes code; PR 2's
+   ratchet is what finally makes "on touch" happen, so land it before PR 3's sweep. *(S, S, M)*
+5. **AI-Ready campaign** (H1): write the recipe, then batch-close concern links worst-area-first. This is
+   the largest product-visible win left and nothing blocks it. *(M, ongoing)*
+6. **Shell splits** (D1, D2) when next touching those files — extract-on-touch rather than big-bang. D2 is
    the one row that has moved *backwards* (958 → 1,120), so it wants a decision rather than more drift. *(M)*
-6. **Contract shape** (C3, C5, C7): the tool merger, the two interface peels, the small notes. *(S–M)*
-7. **Perf tail** (G1 image virtualization, G5 chat virtualization, G6–G8) opportunistically. *(S–M)*
-8. **Provider tail** (F7 Aria, F8 test seam). *(S–M)*
-9. **E5, E6, E7, D3** — the expensive structural ones, on touch. *(M–L)*
+7. **Contract shape** (C3, C5, C7): the tool merger, the two interface peels, the small notes. *(S–M)*
+8. **Perf tail** (G1 image virtualization, G5 chat virtualization, G6–G8) opportunistically. *(S–M)*
+9. **Provider tail** (F7 Aria, F8 test seam). *(S–M)*
+10. **E5, E6, E7, D3** — the expensive structural ones, on touch. *(M–L)*
 
 Deliberately deferred: the colour analyzer (B4 — do E4 first), `IShellServices`/`IAIService` splits beyond the two facet peels (C5), RibbonEditor rewrite (D3), per-feature test project split (H2), and any umbrella file-reader abstraction (the four windowing strategies remain correctly feature-specific — unchanged verdict from the last review).

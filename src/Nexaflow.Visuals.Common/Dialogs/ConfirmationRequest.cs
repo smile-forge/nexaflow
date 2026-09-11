@@ -5,10 +5,11 @@ using System;
 namespace Nexaflow.Visuals.Common.Dialogs;
 
 /// <summary>
-/// The view-model half of the shared confirmation dialog (<c>Controls.ConfirmationDialog</c>).
-/// Self-closing: Confirm/Cancel flip <see cref="IsOpen"/> and fire the callback, so a host only
-/// assigns a new request — it never clears state or declares per-dialog commands:
-/// <code>Confirmation = new("Delete node", "Really?", onConfirm: Delete, confirmLabel: "Delete");</code>
+/// The one yes/no model. The shell's window-modal confirmation renders it: a feature asks through
+/// <c>IShellServices.ConfirmAsync</c> / <c>ShowConfirmation</c> rather than hosting one, because a question
+/// is window-modal and only a form is tab-modal (arch review §E1). Self-closing — Confirm/Cancel flip
+/// <see cref="IsOpen"/> and fire the callback once, so a host only assigns a new request and never clears
+/// state or declares per-dialog commands. <see cref="PromptRequest"/> is its text-input sibling.
 /// </summary>
 public sealed partial class ConfirmationRequest : ObservableObject
 {

@@ -93,7 +93,7 @@ public partial class ProductView : UserControl, IPageView
 
         menu.Items.Add(Item("Add child node", () => ViewModel.AddChild(id)));
         menu.Items.Add(Item("Rename…",        () => ViewModel.RenameNode(id)));
-        menu.Items.Add(Item("Delete…",        () => ViewModel.DeleteNode(id)));
+        menu.Items.Add(Item("Delete…",        () => ViewModel.DeleteNodeCommand.Execute(id)));
         menu.Items.Add(new Separator());
         var promote = Item("Promote (out a level)",  () => ViewModel.PromoteNode(id));
         promote.IsEnabled = ViewModel.CanPromoteNode(id);
@@ -208,7 +208,7 @@ public partial class ProductView : UserControl, IPageView
         var node = NodeUnder(e.OriginalSource as DependencyObject);
         if (node is null || node.IsProductRoot) return;
         var menu = new ContextMenu { PlacementTarget = sender as UIElement };
-        menu.Items.Add(Item("Delete…", () => ViewModel.DeleteNode(node.Id)));
+        menu.Items.Add(Item("Delete…", () => ViewModel.DeleteNodeCommand.Execute(node.Id)));
         menu.IsOpen = true;
         e.Handled = true;
     }
