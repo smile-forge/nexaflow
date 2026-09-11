@@ -307,6 +307,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcBuilderTests.cs",
             "class": "AbcBuilderTests",
             "method": "ARepeatBracketRunsFromItsNumberToWhereTheRepeatEnds"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcBuilderTests.cs",
+            "class": "AbcBuilderTests",
+            "method": "AKeyCanNameTheClef_WithOrWithoutClefEquals"
           }
         ]
       }
@@ -375,6 +381,12 @@
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcBuilderTests.cs",
             "class": "AbcBuilderTests",
             "method": "ButVoicesBarredDifferentlyStackHonestlyInstead"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Music/Abc/AbcBuilderTests.cs",
+            "class": "AbcBuilderTests",
+            "method": "ALineThatNamesItsVoiceFirstIsThatVoicesLine"
           }
         ]
       }

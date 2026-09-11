@@ -1009,11 +1009,11 @@ only thing that makes the rest of them editable at all.
 | Decorations | `.` `~` `H` `L` `M` `O` `P` `S` `T` `u` `v`, `!name!` | Staccato, roll, fermata, accent, mordents, coda, segno, trill, bowings — note marks hug the head, staff marks stack above |
 | Grace notes | `{g}A`, `{gAGAG}A`, `{/g}A` | Cue-size heads, beamed, slashed for an acciaccatura |
 | Chords | `[CEG]2` `[A4d4]` | Stacked heads on one stem; seconds displaced across it |
-| Keys & modes | `K:C` `K:Cm` `K:C Lydian` `K:Bb` `K:F# clef=bass` | Full circle of fifths from tonic + mode, in any case, glued or spaced |
+| Keys & modes | `K:C` `K:Cm` `K:C Lydian` `K:Bb` `K:F# clef=bass` `K:F bass` | Full circle of fifths from tonic + mode, in any case, glued or spaced; a clef named on the `K:` with or without its `clef=` |
 | Meter | `M:4/4` `M:C` `M:C\|` `M:none` | Figures, or the **C / ¢ symbols** when the source asked for them; free meter prints none |
 | Mid-tune changes | `K:` `M:` in the body, `[K:G]` inline | Key/meter change printed in place and carried into the next system's header. A mid-tune `T:` is read and not printed (see above) |
 | Rests | `z2` `x2` `Z` | Visible, invisible (time only), whole-bar (centred) |
-| Voices | `V:` / `[V: P1]` | A **bracketed system**: one staff per voice, sharing one bar grid, with the bar lines running through and the voice names at the left, each voice in the clef its `V:` or `K:` names. Voices the source barred differently fall back to an honest stack |
+| Voices | `V:` / `V: 1` / `[V: P1]` at the start of a line | A **bracketed system**: one staff per voice, sharing one bar grid, with the bar lines running through and the voice names at the left, each voice in the clef its `V:` or `K:` names. A line that opens by naming its voice is that voice's line — the shape a part song written a bar to a line takes. Voices the source barred differently fall back to an honest stack |
 | Lyrics | `w:` with `-` `_` `*` `\|` `~` `\-` | Syllables under the notes, hyphens, melisma extenders, bar sync, stacked verses |
 | Header fields | `T:` `C:` `O:` `R:` `S:` `Z:` `N:` `W:` | Title + subtitles centred; `R:` italic top-left; `C: (O:)` top-right; `N:`/`S:`/`Z:`/`W:` under the score |
 

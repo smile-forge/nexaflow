@@ -34,11 +34,11 @@ public sealed class ResolveContext : IAstStage
 
         foreach (var line in tree.Children)
         {
-            // A music line is told what is in force as it starts. An inline field further along changes
-            // it from there, which the stages reading this handle as they walk.
+            // A music line is told what is in force as it starts, the voice it opens by naming included. An
+            // inline field further along changes it from there, which the stages reading this handle as they walk.
             if (line.Kind == AbcKinds.Line)
             {
-                var told = Told(line, context);
+                var told = Told(line, Opening(line, context));
                 moved |= !ReferenceEquals(told, line);
                 lines.Add(told);
 
@@ -60,6 +60,29 @@ public sealed class ResolveContext : IAstStage
             (AbcKinds.Text, AbcRoles.Length, context.Unit.ToString()),
             (AbcKinds.Text, AbcRoles.Duration, $"{context.Beats}/{context.BeatUnit}"),
             (AbcKinds.Text, AbcRoles.Value, context.Voice));
+
+    /// <summary>
+    /// What a line starts in: what is in force, and the voice it names before any of its music. A part song is
+    /// written a line per voice — <c>[V:1] e |</c> — and that line is voice 1's, not a line of whichever voice came
+    /// before it that switches on its first character. Told the voice before it, every part of a chorale took its
+    /// neighbour's clef.
+    /// </summary>
+    private static AbcContext Opening(ContentNode line, AbcContext context)
+    {
+        foreach (var piece in line.Children)
+        {
+            if (piece.Kind is AbcKinds.Note or AbcKinds.Rest or AbcKinds.Chord or AbcKinds.Grace) break;
+            if (piece.Kind != AbcKinds.InlineField) continue;
+            if (piece.Part(Roles.Name)?.Text is not { Length: 2 } name || char.ToUpperInvariant(name[0]) != 'V') continue;
+
+            return VoiceId(piece.Part(AbcRoles.Value)?.Text ?? "") is { Length: > 0 } id ? context with { Voice = id } : context;
+        }
+
+        return context;
+    }
+
+    /// <summary>A <c>V:</c> value's voice id: its first word.</summary>
+    private static string VoiceId(string value) => value.Trim().Split([' ', '\t'], 2)[0];
 
     /// <summary>What is in force after a field line.</summary>
     private static AbcContext Field(ContentNode field, AbcContext context, ref bool explicitUnit)
@@ -110,7 +133,7 @@ public sealed class ResolveContext : IAstStage
                 return context with { Unit = unit };
 
             case 'V':
-                var id = value.Split([' ', '\t'], 2)[0].Trim();
+                var id = VoiceId(value);
                 return id.Length == 0 ? context : context with { Voice = id };
 
             default:

@@ -120,6 +120,9 @@ internal sealed class AbcBuilder : MusicBuilder
         var names = new Dictionary<string, string>();
         var clefs = new Dictionary<string, ClefKind>();
 
+        // The clef a K: asks for, which a voice that names none of its own is written in.
+        ClefKind? keyClef = null;
+
         // The `w:` lines sung under each row, in the order they were written — verse 0 first. Kept so a
         // syllable can be given the characters it was written with: a syllable is drawn under the note it is
         // sung on and written in a line of its own, so what joins the two is the index the aligning stage
@@ -151,9 +154,11 @@ internal sealed class AbcBuilder : MusicBuilder
                 {
                     var (id, label) = VoiceName(value);
                     if (label is not null) names[id] = label;
-                    if (ClefIn(value) is { } asked) clefs[id] = asked;
+                    if (ClefIn(name, value) is { } asked) clefs[id] = asked;
                     continue;
                 }
+
+                if (name.StartsWith('K') && ClefIn(name, value) is { } keyed) keyClef = keyed;
 
                 // A key or meter written between lines changes what the next system opens with, and the
                 // change is printed at the head of the bar it reaches. Only once the music has started: the
@@ -200,7 +205,7 @@ internal sealed class AbcBuilder : MusicBuilder
                 {
                     Fifths = context.Fifths,
                     Meter = (context.Beats, context.BeatUnit, null),
-                    Clef = ClefOf(line) ?? clefs.GetValueOrDefault(context.Voice, ClefKind.Treble),
+                    Clef = ClefOf(line) ?? (clefs.TryGetValue(context.Voice, out var voiced) ? voiced : keyClef ?? ClefKind.Treble),
                     Voice = context.Voice,
                     Index = lines.TryGetValue(context.Voice, out var seen) ? seen : 0,
                     Name = names.GetValueOrDefault(context.Voice),
@@ -350,7 +355,7 @@ internal sealed class AbcBuilder : MusicBuilder
     /// </summary>
     private static (string Id, string? Name) VoiceName(string field)
     {
-        var id = field.Split([' ', '\t'], 2)[0].Trim();
+        var id = field.Trim().Split([' ', '\t'], 2)[0];
 
         var at = field.IndexOf("name=", StringComparison.OrdinalIgnoreCase);
         if (at < 0) at = field.IndexOf("nm=", StringComparison.OrdinalIgnoreCase);
@@ -637,26 +642,42 @@ internal sealed class AbcBuilder : MusicBuilder
 
     /// <summary>
     /// The clef a line asks for inline, or null where it asks for none — in which case its voice's own
-    /// <c>V:</c> answers, and failing that the treble does.
+    /// <c>V:</c> answers, then the <c>K:</c>, and failing both the treble does.
     /// </summary>
     private static ClefKind? ClefOf(ContentPart line)
     {
         foreach (var piece in line.SelfAndDescendants())
         {
             if (piece.Kind is not (AbcKinds.InlineField or AbcKinds.Field)) continue;
-            if (ClefIn(piece.Part(AbcRoles.Value)?.Node.Text ?? "") is { } asked) return asked;
+            if (ClefIn(piece.Part(Roles.Name)?.Text ?? "", piece.Part(AbcRoles.Value)?.Node.Text ?? "") is { } asked) return asked;
         }
 
         return null;
     }
 
-    /// <summary>The clef a field's value names, or null. Written on a <c>K:</c> as often as on a <c>V:</c>.</summary>
-    private static ClefKind? ClefIn(string value)
+    /// <summary>
+    /// The clef a field asks for, or null. A clef is written on a <c>K:</c> or a <c>V:</c>, and the standard makes
+    /// its <c>clef=</c> optional — <c>K:F bass</c> is <c>K:F clef=bass</c> — so on those two a bare clef name counts
+    /// too, past a <c>V:</c>'s first word, which is the voice's id. Anywhere else only a written <c>clef=</c> does:
+    /// a title about a bass is not a clef.
+    /// </summary>
+    private static ClefKind? ClefIn(string field, string value)
     {
-        if (value.Contains("clef=bass", StringComparison.OrdinalIgnoreCase)) return ClefKind.Bass;
-        if (value.Contains("clef=alto", StringComparison.OrdinalIgnoreCase)) return ClefKind.Alto;
-        if (value.Contains("clef=tenor", StringComparison.OrdinalIgnoreCase)) return ClefKind.Tenor;
-        if (value.Contains("clef=treble", StringComparison.OrdinalIgnoreCase)) return ClefKind.Treble;
+        var voice = field.StartsWith('V');
+        var bare = voice || field.StartsWith('K');
+
+        foreach (var word in value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Skip(voice ? 1 : 0))
+        {
+            var written = word.StartsWith("clef=", StringComparison.OrdinalIgnoreCase);
+            if (!written && !bare) continue;
+
+            var name = (written ? word[5..] : word).Trim('"').ToLowerInvariant();
+            if (name.StartsWith("bass", StringComparison.Ordinal)) return ClefKind.Bass;
+            if (name.StartsWith("alto", StringComparison.Ordinal)) return ClefKind.Alto;
+            if (name.StartsWith("tenor", StringComparison.Ordinal)) return ClefKind.Tenor;
+            if (name.StartsWith("treble", StringComparison.Ordinal)) return ClefKind.Treble;
+        }
+
         return null;
     }
 }
