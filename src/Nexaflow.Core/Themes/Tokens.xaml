@@ -72,6 +72,9 @@
     <SolidColorBrush x:Key="DangerBrush"       Color="#DC2626"/>
     <!-- Subtle hover fill for danger-action surfaces (same hue at ~15% opacity). -->
     <SolidColorBrush x:Key="DangerSubtleBrush" Color="#26DC2626"/>
+    <!-- Modal scrim: the translucent veil a modal lays over whatever it blocks. Bound by Visuals.Common's
+         ModalCard (tab-modal forms) and the shell's overlay host, so a theme retunes every modal at once. -->
+    <SolidColorBrush x:Key="ScrimBrush" Color="#CC000000"/>
 
     <!-- Semantic status colours — meaning, not tone. DELIBERATELY NOT aliased to the palette's
          Green/Orange: those are mood-tinted per theme (Ocean "green" is a reef-cyan), which would make

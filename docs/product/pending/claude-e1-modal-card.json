@@ -1,0 +1,28 @@
+{
+  "branch": "claude/e1-modal-card",
+  "nodes": {
+    "vcommon-modal-card": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/ModalCard.cs",
+          "class": "ModalCard"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Controls/ModalCardTests.cs",
+            "class": "ModalCardTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "vcommon-modal-card"
+  ]
+}
