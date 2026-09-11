@@ -280,10 +280,11 @@ public static class TexParser
 
             var children = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, name, Roles.Name) };
 
-            // Nothing in the table takes arguments *and* is shorthand for something, so a macro is only
-            // ever looked for here, where a command turns out to take none.
+            // A name the table has no entry for takes no arguments. If it is shorthand for something, what it
+            // stands for is hung beneath it later, by the ExpandMacros stage: that is reading what was written,
+            // not writing it down.
             if (TexCommands.Lookup(name) is not { } command)
-                return Resolved(ContentNode.Branch(TexKinds.Command, children), name);
+                return ContentNode.Branch(TexKinds.Command, children);
 
             if (command.Option is { } option) this.Optional(children, option, until);
 
@@ -303,41 +304,6 @@ public static class TexParser
 
             return ContentNode.Branch(TexKinds.Command, children);
         }
-
-        /// <summary>
-        /// The same command with what it is shorthand for hung underneath it, where it is shorthand for
-        /// anything.
-        ///
-        /// <para>
-        /// The expansion is parsed here rather than anywhere later because it is a reading, and this is
-        /// the reader. It stands for no source — see <see cref="Roles.Derived"/> — so hanging it on
-        /// changes nothing about what the tree prints back, only about what can be asked of it.
-        /// </para>
-        /// <para>
-        /// Bounded, because a definition may name another macro and nothing stops a table from one day
-        /// naming itself. Six is well past the deepest real chain (<c>\iff</c> reaches a strut in three)
-        /// and shallow enough that a cycle stops rather than fills the stack.
-        /// </para>
-        /// </summary>
-        private static ContentNode Resolved(ContentNode command, string name)
-        {
-            if (_depth >= 6 || TexMacros.Lookup(name) is not { } definition) return command;
-
-            _depth++;
-            try
-            {
-                var expansion = TexParser.Parse(definition).As(Roles.Derived);
-                return command.With([.. command.Children, expansion]);
-            }
-            finally
-            {
-                _depth--;
-            }
-        }
-
-        /// <summary>How many macros deep this reading already is. Per thread, like the reading itself.</summary>
-        [System.ThreadStatic]
-        private static int _depth;
 
         /// <summary>The one thing written as an argument: a braced group, a command, or a character.</summary>
         private ContentNode? Argument(Until until, bool grid = false)

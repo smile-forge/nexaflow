@@ -14,7 +14,7 @@ namespace Nexaflow.Markdown.Latex;
 /// macro at all.
 /// </para>
 /// <para>
-/// What comes of a lookup is written into the tree beneath the command, under
+/// What comes of a lookup is hung beneath the command by <see cref="Stages.ExpandMacros"/>, under
 /// <see cref="Roles.Derived"/>: the command is still what the writer typed, and its expansion is
 /// what it means, and both are there to be asked. An expansion stands for no source, so the tree still
 /// prints back exactly as it was written.

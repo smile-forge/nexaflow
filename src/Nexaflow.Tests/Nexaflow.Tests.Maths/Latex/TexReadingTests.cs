@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Latex.Stages;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -25,7 +26,7 @@ public class TexReadingTests
         foreach (var (what, written) in LatexConstructs.Everything)
         {
             var latex = LatexConstructs.Flatten(written);
-            var reading = ContentReading.Of(TexParser.Parse(latex));
+            var reading = ContentReading.Of(new ExpandMacros().Run(TexParser.Parse(latex)));
 
             // Everything a macro stands for is skipped, and has to be: it prints as what it means and
             // stands for none of what was written, so there is no stretch of the source to hold it
@@ -41,7 +42,7 @@ public class TexReadingTests
     {
         foreach (var (what, written) in LatexConstructs.Everything)
         {
-            var reading = ContentReading.Of(TexParser.Parse(LatexConstructs.Flatten(written)));
+            var reading = ContentReading.Of(new ExpandMacros().Run(TexParser.Parse(LatexConstructs.Flatten(written))));
 
             foreach (var part in reading.Root.SelfAndDescendants().Where(part => part.Derived))
             {

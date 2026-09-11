@@ -5,6 +5,8 @@ using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Latex.Stages;
+using Nexaflow.Markdown.Pipeline.Stages;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -41,7 +43,7 @@ public class TexPipelineTests
             // across a closing brace, over the & between two cells.
             for (var start = 0; start < latex.Length; start++)
                 for (var length = 1; start + length <= latex.Length; length++)
-                    Assert.AreEqual(latex, TexPipeline.ShownAsWritten(tree, start, length).Print(),
+                    Assert.AreEqual(latex, new ShowAsWritten(start, length).Run(tree).Print(),
                         $"{what}: showing {start}+{length} changed the source");
         }
     }
@@ -53,7 +55,7 @@ public class TexPipelineTests
         {
             var latex = LatexConstructs.Flatten(written);
 
-            Assert.AreEqual(latex, TexPipeline.Checked(TexParser.Parse(latex), Nothing).Print(),
+            Assert.AreEqual(latex, new CheckDrawable(Nothing).Run(TexParser.Parse(latex)).Print(),
                 $"{what}: finding nothing drawable changed the source");
         }
     }
@@ -78,7 +80,7 @@ public class TexPipelineTests
         {
             var tree = TexParser.Parse(LatexConstructs.Flatten(written));
 
-            Assert.AreSame(tree, TexPipeline.Checked(tree, Everything),
+            Assert.AreSame(tree, new CheckDrawable(Everything).Run(tree),
                 $"{what}: a tree with nothing wrong came back rebuilt");
         }
     }
@@ -88,7 +90,7 @@ public class TexPipelineTests
     {
         // Only the name is shown. `\textrm{Hello}` set in the wrong face is much closer to right than a
         // blank, and the argument of an unknown command is usually ordinary maths.
-        var tree = TexPipeline.Checked(TexParser.Parse(@"\wat{x + y}"), Nothing);
+        var tree = new CheckDrawable(Nothing).Run(TexParser.Parse(@"\wat{x + y}"));
 
         var shown = tree.SelfAndDescendants().Where(node => node.Kind == Kinds.Verbatim).ToList();
         Assert.AreEqual(1, shown.Count, "the whole command was shown, not just its name");
@@ -104,7 +106,7 @@ public class TexPipelineTests
     {
         // The other reason a piece is shown rather than read, and it is nobody's fault: telling somebody
         // their half-written command is invalid on every keystroke is the wrong thing to draw.
-        var tree = TexPipeline.ShownAsWritten(TexParser.Parse(@"\frac{a}{b}"), 0, 5);
+        var tree = new ShowAsWritten(0, 5).Run(TexParser.Parse(@"\frac{a}{b}"));
 
         foreach (var node in tree.SelfAndDescendants().Where(node => node.Kind == Kinds.Verbatim))
             Assert.IsNull(node.Trouble, $"{node.Text} was complained about while it was being typed");
@@ -156,7 +158,7 @@ public class TexPipelineTests
     public void ASlashAndWhatItCrossesAreOneSign()
     {
         const string latex = @"\not\!p";
-        var tree = TexPipeline.Gathered(TexParser.Parse(latex));
+        var tree = new GatherSigns().Run(TexParser.Parse(latex));
 
         Assert.AreEqual(latex, tree.Print(), "a stage may re-nest anything and may change no character");
 
@@ -173,7 +175,7 @@ public class TexPipelineTests
     public void AndAFormulaWithNoneOfThatIsUntouched()
     {
         var read = TexParser.Parse(@"\frac{a}{b} + \not= x");
-        Assert.AreSame(read, TexPipeline.Gathered(read));
+        Assert.AreSame(read, new GatherSigns().Run(read));
     }
 
     /// <summary>
@@ -186,7 +188,73 @@ public class TexPipelineTests
         foreach (var (what, written) in LatexConstructs.Everything)
         {
             var latex = LatexConstructs.Flatten(written);
-            Assert.AreEqual(latex, TexPipeline.Gathered(TexParser.Parse(latex)).Print(), what);
+            Assert.AreEqual(latex, new GatherSigns().Run(TexParser.Parse(latex)).Print(), what);
         }
+    }
+
+    /// <summary>
+    /// The rule, stage by stage rather than end to end, so a failure names the actor that broke it.
+    /// </summary>
+    [TestMethod]
+    public void EveryStageLeavesTheSourceExactlyAsItFoundIt()
+    {
+        foreach (var (what, written) in LatexConstructs.Everything)
+        {
+            var latex = LatexConstructs.Flatten(written);
+            var tree = TexParser.Parse(latex);
+
+            foreach (var stage in TexPipeline.Of(Nothing, holes: true).Stages)
+            {
+                tree = stage.Run(tree);
+                Assert.AreEqual(latex, tree.Print(), $"{what}: after {stage.Name}");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void AMacroIsReadAsWritten_AndWhatItMeansIsAStagesToSay()
+    {
+        var parsed = TexParser.Parse(@"\neq");
+        Assert.IsFalse(parsed.SelfAndDescendants().Any(node => node.Role == Roles.Derived),
+            "the parser reads what was written; what a name stands for is a stage's to say");
+
+        var expanded = new ExpandMacros().Run(parsed);
+        var meaning = expanded.Children.Single().Part(Roles.Derived);
+
+        Assert.IsNotNull(meaning, "the expansion hangs under the macro it came from");
+        Assert.AreEqual(@"\not\equals", string.Concat(meaning.Children.Select(child => child.Print())));
+        Assert.AreEqual(@"\neq", expanded.Print(), "and the source is exactly what was written");
+    }
+
+    [TestMethod]
+    public void AnExpansionThatNamesAMacroIsExpandedInTurn()
+    {
+        // \iff is a thick space either side of \Longleftrightarrow, which is itself shorthand.
+        var iff = new ExpandMacros().Run(TexParser.Parse(@"\iff")).Children.Single();
+        var inner = iff.Part(Roles.Derived)!.SelfAndDescendants()
+            .Single(node => node.Kind == TexKinds.Command && node.Part(Roles.Name)?.Text == @"\Longleftrightarrow");
+
+        Assert.IsNotNull(inner.Part(Roles.Derived), "the macro inside the expansion was left unexpanded");
+    }
+
+    [TestMethod]
+    public void ExpandingWhatIsAlreadyExpandedChangesNothing()
+    {
+        var once = new ExpandMacros().Run(TexParser.Parse(@"a \neq b \iff \cos x"));
+
+        Assert.AreSame(once, new ExpandMacros().Run(once), "a second pass hung a second expansion");
+    }
+
+    [TestMethod]
+    public void AnArgumentLeftEmptyGetsAHole_UnlessItsCommandMayTakeItEmpty()
+    {
+        static int Holes(string latex) =>
+            TexPipeline.Read(latex, holes: true).SelfAndDescendants().Count(node => node.Kind == Kinds.Hole);
+
+        Assert.AreEqual(1, Holes(@"\frac{}{2}"), "an empty numerator is somewhere still to write");
+        Assert.AreEqual(0, Holes(@"\genfrac{}{}{}{}{a}{b}"),
+            "\\genfrac's first four arguments mean the default when empty, not something missing");
+        Assert.AreEqual(0, Holes(@"\hbar"),
+            "the empty group in \\hbar's definition is how it draws, not a gap the writer left");
     }
 }

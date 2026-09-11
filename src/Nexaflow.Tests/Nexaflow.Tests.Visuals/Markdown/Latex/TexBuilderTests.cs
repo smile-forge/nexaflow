@@ -274,7 +274,7 @@ public class TexBuilderTests
     public void EverythingItClaimsToKnowItCanBuild() => UiThread.Run(() =>
     {
         foreach (var latex in Known)
-            Assert.IsNotNull(TexFormulaBuilder.Build(ContentReading.Of(TexParser.Parse(latex)).Root, WpfTeXFormulaParser.Instance), latex);
+            Assert.IsNotNull(TexFormulaBuilder.Build(ContentReading.Of(TexPipeline.Read(latex)).Root, WpfTeXFormulaParser.Instance), latex);
     });
 
     [TestMethod]
@@ -282,7 +282,7 @@ public class TexBuilderTests
     {
         // What none of this is possible without, and what the parser can never provide: an atom that
         // came from a reading which still knows where every brace was.
-        var reading = ContentReading.Of(TexParser.Parse(@"\frac{a}{b}"));
+        var reading = ContentReading.Of(TexPipeline.Read(@"\frac{a}{b}"));
         var formula = TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance);
         Assert.IsNotNull(formula);
 
@@ -309,7 +309,7 @@ public class TexBuilderTests
                                       @"\hline",           // nor this: it is a rule between rows
                                       @"x + \nosuchthing" })
             Assert.IsNotNull(
-                TexFormulaBuilder.Build(ContentReading.Of(TexParser.Parse(latex)).Root, WpfTeXFormulaParser.Instance), latex);
+                TexFormulaBuilder.Build(ContentReading.Of(TexPipeline.Read(latex)).Root, WpfTeXFormulaParser.Instance), latex);
     });
 
     /// <summary>
