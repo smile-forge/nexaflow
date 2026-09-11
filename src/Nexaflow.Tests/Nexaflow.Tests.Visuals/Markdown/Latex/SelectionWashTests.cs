@@ -38,7 +38,7 @@ public class SelectionWashTests
         {
             formula.Select(offset, 1);
 
-            var glyph = formula.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == offset);
+            var glyph = formula.Laid.Root.Leaves().Single(n => n.Sits().Start == offset);
             var wash = RectanglesDrawnBy(formula)
                 .Where(r => r.Contains(glyph.Bounds))
                 .OrderBy(r => r.Width * r.Height)
@@ -63,7 +63,7 @@ public class SelectionWashTests
         return formula;
     }
 
-    /// <summary>Every rectangle the element painted, in its own coordinates.</summary>
+    /// <summary>The box of every shape the element painted, in its own coordinates.</summary>
     private static IEnumerable<Rect> RectanglesDrawnBy(FormulaElement formula)
     {
         formula.InvalidateVisual();
@@ -79,8 +79,8 @@ public class SelectionWashTests
         {
             if (drawing is DrawingGroup nested)
                 foreach (var rect in Rectangles(nested)) yield return rect;
-            else if (drawing is GeometryDrawing { Geometry: RectangleGeometry geometry })
-                yield return geometry.Rect;
+            else if (drawing is GeometryDrawing { Geometry: { } geometry })
+                yield return geometry.Bounds;
         }
     }
 }

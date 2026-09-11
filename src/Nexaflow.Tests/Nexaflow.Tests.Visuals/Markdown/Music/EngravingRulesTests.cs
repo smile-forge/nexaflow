@@ -23,13 +23,15 @@ public class EngravingRulesTests
 
     [TestMethod]
     [CoversNode("sr-notes")]
-    public void StemFlips_StrictlyAboveTheMiddleLine()
+    public void StemFlips_AtTheMiddleLine()
     {
-        // Treble middle line is B4. Everything up to and including it stems up; c5 and above stem down.
+        // Treble middle line is B4. Everything below it stems up; the middle line itself and above stem
+        // down. The middle line is a tie either way is valid for, so this asserts a convention rather than
+        // a rule — the one the corpus's own engraver keeps across all ten thousand of its tunes.
         Assert.IsFalse(Engraving.StemDown(At('C', 4), Treble), "middle C, below the staff");
         Assert.IsFalse(Engraving.StemDown(At('A', 4), Treble), "second space");
-        Assert.IsFalse(Engraving.StemDown(At('B', 4), Treble), "ON the middle line — stem up");
-        Assert.IsTrue(Engraving.StemDown(At('C', 5), Treble), "third space — the first note that stems down");
+        Assert.IsTrue(Engraving.StemDown(At('B', 4), Treble), "ON the middle line — the tie goes down");
+        Assert.IsTrue(Engraving.StemDown(At('C', 5), Treble), "third space");
         Assert.IsTrue(Engraving.StemDown(At('G', 5), Treble), "top line");
     }
 

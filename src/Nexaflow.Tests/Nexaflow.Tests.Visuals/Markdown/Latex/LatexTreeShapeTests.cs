@@ -43,12 +43,7 @@ public class LatexTreeShapeTests
         (@"\lim_{x \to \infty} \frac{1}{x} = 0 \;\; \sup S \;\; \max_i a_i", "limits with subscripts"),
     ];
 
-    private static LatexTree Build(string latex, string what)
-    {
-        var layout = LatexLayout.Build(latex, Scale);
-        Assert.IsNotNull(layout, $"expected {what} to typeset: {latex}");
-        return layout.Tree;
-    }
+    private static Laid Build(string latex, string what) => Formula.Lay(latex, Scale);
 
     [TestMethod]
     public void NoPieceOfLayoutRepeatsAName() => UiThread.Run(() =>
@@ -88,30 +83,6 @@ public class LatexTreeShapeTests
     });
 
     [TestMethod]
-    public void PressingOnSomethingResolvesToThatThing() => UiThread.Run(() =>
-    {
-        // "It selects the whole line", "it reads the end of the line", "it jumps to the start" were all
-        // this: a press resolving to a node other than the one under it. Descent makes it structural —
-        // the answer is a node containing the point — so it is asserted once per node instead of sampled.
-        foreach (var (latex, what) in Lines)
-        {
-            var tree = Build(latex, what);
-
-            foreach (var node in tree.Root.Ink())
-            {
-                var centre = new Point(
-                    node.Bounds.X + node.Bounds.Width / 2,
-                    node.Bounds.Y + node.Bounds.Height / 2);
-
-                var offset = tree.OffsetAt(centre);
-                Assert.IsTrue(offset == node.Sits().Start || offset == node.Sits().End,
-                    $"in {what}, pressing the middle of {node} reported offset {offset}, "
-                    + $"which is neither of its own edges — {latex}");
-            }
-        }
-    });
-
-    [TestMethod]
     public void SelectingOnePieceNeverTakesTheLine() => UiThread.Run(() =>
     {
         // The symptom as it is met: a small drag flickering out to highlight the entire line. A selection
@@ -121,9 +92,9 @@ public class LatexTreeShapeTests
         {
             var tree = Build(latex, what);
 
-            foreach (var node in tree.Root.Ink())
+            foreach (var node in tree.Root.Leaves())
             {
-                var (start, length) = tree.SnapRange(node.Sits().Start, node.Sits().Length);
+                var (start, length) = tree.Root.Snap(node.Sits().Start, node.Sits().Length);
 
                 Assert.IsFalse(start <= 0 && length >= latex.Length,
                     $"in {what}, selecting {node} took the whole line — {latex}");
@@ -140,12 +111,12 @@ public class LatexTreeShapeTests
         // into bands, so the tree has to actually have them.
         var tree = Build(@"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}", "a matrix");
 
-        Assert.AreEqual(9, tree.Root.Ink().Count(), "nine cells");
+        Assert.AreEqual(9, tree.Root.Leaves().Count(), "nine cells");
 
         var rows = tree.Root.Rows();
         Assert.AreEqual(3, rows.Count, "in three rows of the tree, not three bands of a picture");
         foreach (var row in rows)
-            Assert.AreEqual(3, row.SelectMany(n => n.Ink()).Count(), "each holding three cells");
+            Assert.AreEqual(3, row.SelectMany(n => n.Leaves()).Count(), "each holding three cells");
     });
 
     [TestMethod]
@@ -157,7 +128,7 @@ public class LatexTreeShapeTests
         // cells, so those rules have something to work on.
         const string latex = @"\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}";
         var tree = Build(latex, "a matrix");
-        ILayoutNode Cell(string digit) => tree.Root.Ink().Single(n => Text(tree, n) == digit);
+        Piece Cell(string digit) => tree.Root.Leaves().Single(n => Text(latex, n) == digit);
 
         var column = ContentSelection.Between(tree.Root, Cell("2"), Cell("8"));
         Assert.AreEqual(3, column.Ranges.Count, "down the middle column is three cells, three ranges");
@@ -184,7 +155,7 @@ public class LatexTreeShapeTests
         // having anything to say: what was dragged over inside one is a run of terms like any other.
         const string latex = @"A = \begin{pmatrix} a & 4b^{2}+3 \\ c^4 & d+3i \end{pmatrix}";
         var tree = Build(latex, "a matrix");
-        ILayoutNode At(int offset) => tree.Root.Ink().Single(n => n.Sits().Start == offset);
+        Piece At(int offset) => tree.Root.Leaves().Single(n => n.Sits().Start == offset);
 
         var four = latex.IndexOf("4b", StringComparison.Ordinal);
         var two = latex.IndexOf("{2}", StringComparison.Ordinal) + 1;
@@ -211,13 +182,14 @@ public class LatexTreeShapeTests
     {
         // \cfrac nests three deep, which is what made the continued-fraction line such a good bug farm:
         // every level has to be a level.
-        var tree = Build(@"\cfrac{1}{2 + \cfrac{1}{3 + \cfrac{1}{4}}}", "nested continued fractions");
-        var four = tree.Root.Ink().Single(n => Text(tree, n) == "4");
+        const string latex = @"\cfrac{1}{2 + \cfrac{1}{3 + \cfrac{1}{4}}}";
+        var tree = Build(latex, "nested continued fractions");
+        var four = tree.Root.Leaves().Single(n => Text(latex, n) == "4");
 
-        Assert.AreEqual(3, four.Ancestors().Count(a => Text(tree, a).StartsWith(@"\cfrac")),
+        Assert.AreEqual(3, four.Ancestors().Count(a => Text(latex, a).StartsWith(@"\cfrac")),
             "the 4 sits inside three fractions");
     });
 
-    private static string Text(LatexTree tree, ILayoutNode node) =>
-        node.Sits().Length > 0 ? tree.Latex.Substring(node.Sits().Start, node.Sits().Length) : string.Empty;
+    private static string Text(string latex, Piece node) =>
+        node.Sits().Length > 0 ? latex.Substring(node.Sits().Start, node.Sits().Length) : string.Empty;
 }

@@ -245,12 +245,29 @@ public static class TexPipeline
     {
         if (node.IsLeaf) return node;
 
+        // Never inside an expansion. A macro is the writer's one command and its definition is ours: `\hbar` is
+        // `\bar{}` over nothing with an h slid under it, and that empty group is how the bar is drawn, not an
+        // argument anybody left unwritten. Hollowing it put a hole in every \hbar, a hole is trouble, and an
+        // inline formula with trouble is shown as its source — so one \hbar took a line of 26 symbols with it.
+        if (node.Role == TexRole.Expansion) return node;
+
         var rebuilt = new List<TexNode>(node.Children.Count + 1);
         var moved = false;
 
+        // Arguments that may be written empty mean "the default" when they are, not "not written yet":
+        // \genfrac{}{}{}{}{a}{b} is a plain fraction, and a hole in each of its first four arguments was four
+        // problems reported against a formula with nothing wrong in it — enough, inline, to show it as source.
+        var mayBeEmpty = node.Kind == TexKind.Command
+                         && node.Part(TexRole.Name)?.Text is { } name
+                         && TexCommands.Lookup(name) is { MayBeEmpty: > 0 } command
+            ? command.MayBeEmpty
+            : 0;
+        var argument = 0;
+
         foreach (var child in node.Children)
         {
-            var seen = Hollow(child);
+            var allowedEmpty = child.Kind == TexKind.Group && argument++ < mayBeEmpty;
+            var seen = allowedEmpty ? child : Hollow(child);
             moved |= !ReferenceEquals(seen, child);
             rebuilt.Add(seen);
         }

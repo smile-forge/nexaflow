@@ -1,5 +1,6 @@
 using Nexaflow.Visuals.Text.Markdown.Barcode;
 using System.Windows;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 
@@ -35,12 +36,37 @@ public sealed class BarcodeDiagramHandler : IDiagramHandler
     /// <see cref="DiagramRenderOptions.SourceOffset"/>. The parser is handed the fence's content and
     /// reports offsets into that; an editing host splices into the whole block, fence lines and all, and
     /// without the bias every edit would land a couple of lines early.
+    ///
+    /// <para>
+    /// A plain <see cref="ContentElement"/> and a builder, with no element of its own in between. There used
+    /// to be a <c>BarcodeElement</c>: four hundred lines that hosted a layout, measured it, painted it,
+    /// hit-tested it, held a selection and a caret and drew it blinking — every one of them a second copy of
+    /// what the shared element already did, and each drifting from it as the other moved. What was genuinely
+    /// the barcode's — reading the value, saying why it would not encode, and striking the bars through when
+    /// it did not — belongs to the builder and is there now.
+    /// </para>
     /// </summary>
     public FrameworkElement Render(string source, DiagramRenderOptions options)
     {
         if (!BarcodeBlockParser.TryParse(source, out var block, out string? error))
             return DiagramRenderer.ErrorElement(error!, source);
 
-        return new BarcodeElement(block!.At(block.ValueStart + options.SourceOffset), options.Palette);
+        var placed = block!.At(block.ValueStart + options.SourceOffset);
+
+        return new Editing.ContentElement(placed.Value, options.Palette,
+            (state, _, pixelsPerDip) => BarcodeBuilder.Build(placed.With(state.Source), options.Palette, pixelsPerDip))
+        {
+            // Where the value sits inside the fence that produced it. Without it the host reads this as a
+            // block that IS its content — which only a $$…$$ formula is — and puts the delimiters back on
+            // every edit, so typing a digit into a barcode turned it into a formula.
+                SourceStart = placed.ValueStart,
+                SourceLength = placed.Value.Length,
+
+                // Air between one barcode and the next. The quiet zone inside the symbol is part of the symbol —
+                // it is what a scanner needs either side of the bars — and being the same white as the ground it
+                // separates nothing to the eye: a page of barcodes ran together into one field with bars in it.
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 6, 0, 10),
+            };
     }
 }

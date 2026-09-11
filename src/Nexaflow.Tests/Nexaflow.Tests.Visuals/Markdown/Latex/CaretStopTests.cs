@@ -59,8 +59,8 @@ public class CaretStopTests
 
     private static IReadOnlyList<int> StopsIn(string latex)
     {
-        var layout = LatexLayout.Build(latex, 16);
+        var layout = LatexBuilder.Build(latex, 16);
         Assert.IsNotNull(layout, latex);
-        return layout.Tree.CaretStops;
+        return layout.Stops;
     }
 }

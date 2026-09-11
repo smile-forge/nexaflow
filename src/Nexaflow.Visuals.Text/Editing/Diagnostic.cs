@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -51,9 +52,9 @@ public sealed record Diagnostic(int Start, int Length, DiagnosticSeverity Severi
     /// <summary>One past the last character it covers.</summary>
     public int End => Start + Length;
 
-    /// <summary>Whether this node's source falls inside the trouble.</summary>
-    public bool Covers(ILayoutNode node) =>
-        node.Sits() is { Length: > 0 } at && at.Start >= Start && at.End <= End;
+    /// <summary>Whether this piece's source falls inside the trouble.</summary>
+    public bool Covers(Piece piece) =>
+        piece.Sits() is { Length: > 0 } at && at.Start >= Start && at.End <= End;
 }
 
 /// <summary>

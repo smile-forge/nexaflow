@@ -42,7 +42,7 @@ public class LatexConstructCoverageTests
     public void EveryConstructTypesets() => UiThread.Run(() =>
     {
         foreach (var (what, latex) in LatexConstructs.Everything)
-            Assert.IsNotNull(LatexLayout.Build(LatexConstructs.Flatten(latex), Scale), $"{what} no longer typesets");
+            Assert.IsNotNull(LatexBuilder.Build(LatexConstructs.Flatten(latex), Scale), $"{what} no longer typesets");
     });
 
     [TestMethod]
@@ -52,10 +52,10 @@ public class LatexConstructCoverageTests
         // failed to repair would still be caught.
         foreach (var (what, latex) in LatexConstructs.Everything)
         {
-            var layout = LatexLayout.Build(LatexConstructs.Flatten(latex), Scale);
+            var layout = LatexBuilder.Build(LatexConstructs.Flatten(latex), Scale);
             Assert.IsNotNull(layout, what);
 
-            foreach (var node in layout.Tree.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
+            foreach (var node in layout.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
             {
                 Assert.IsFalse(
                     node.Ancestors().Any(a => a.Sits().Start == node.Sits().Start && a.Sits().Length == node.Sits().Length),

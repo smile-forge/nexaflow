@@ -48,6 +48,12 @@ public sealed class TexFormula
     public IReadOnlyList<Nexaflow.Maths.Latex.TexPart> Ignored { get; internal set; } =
         new List<Nexaflow.Maths.Latex.TexPart>();
 
+    /// <summary>
+    /// An equation's number, where one was written with <c>\tag</c> — its own formula rather than part of this one,
+    /// because it goes against the right edge of the block this is displayed in rather than where it was written.
+    /// </summary>
+    public TexFormula? Number { get; internal set; }
+
     public void SetForeground(IBrush brush)
     {
         if (this.RootAtom is StyledAtom sa)

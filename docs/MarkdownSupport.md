@@ -1,4 +1,4 @@
-﻿# Markdown Support
+# Markdown Support
 
 What the Nexaflow markdown renderer (`Nexaflow.Visuals.Text`) currently supports,
 checked against the Markdig [CommonMark](https://xoofx.github.io/markdig/docs/commonmark/)
@@ -131,6 +131,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `datamatrix` | ✅ | ✅ — see [Data Matrix](#data-matrix--sub-support) below |
 | `pdf417` | ✅ | ✅ — see [PDF417](#pdf417--sub-support) below |
 | `aztec` | ✅ | ✅ — see [Aztec Code](#aztec-code--sub-support) below |
+| `abc` | ✅ | ✅ — ABC music on the shared syntax tree; see [Musical Notation](#musical-notation--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
 
@@ -858,6 +859,61 @@ the standard's.
 
 ## Musical Notation — sub-support
 
+### Two paths, on purpose
+
+There are two ways to write music, and they are different engines rather than two spellings of one.
+
+- **```abc** is the new one, and the one everything else is moving onto: ABC read into the shared syntax
+  tree, worked over by a pipeline of stages, engraved by a builder that says which characters every piece
+  of the picture was drawn from, and drawn out of the layout tree the formulas and barcodes already use.
+  That is what makes a note something a reader can click, select and — next — edit in place. Registered as
+  an `IDiagramHandler` ([`AbcDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/AbcDiagramHandler.cs)),
+  so one entry lights it up on both markdown surfaces. Design: [docs/markdown-ast.md](markdown-ast.md).
+- **`#% … #%`** is the older one, described below, and is untouched. It still serves both ABC and
+  LilyPond through the shared `Score` IR and its own engraver. The two meet, and the older one goes, when
+  LilyPond moves across.
+
+**Editing it.** A ```abc block is written on in place. Click a note head to select the note, click a
+beamed pair to select the pair, drag for a run — then:
+
+| | |
+|---|---|
+| `A`–`G` | a note, in the octave the one before it was in |
+| Page Up / Page Down | an octave up or down |
+| `#` / `_` | a semitone up or down, spelled out |
+| `+` / `-` | longer or shorter |
+
+…all of them on the selection, or on the note the caret has just passed. A right-click offers the same set
+as a small ribbon, so nobody has to remember a key. Design: [docs/markdown-ast.md](markdown-ast.md).
+
+A part song is a **bracketed system**: one staff per voice, sharing one bar grid, with a bracket down the
+left, the bar lines running through, the voice names at the left of the first line, and each voice in the
+clef its `V:` asked for. Voices the source barred differently stack honestly instead — forcing a grid onto
+parts that disagree about where the bars are would misalign every bar after the first difference.
+
+**What it reads and does not act on.** Everything below parses and round-trips — the tree holds every
+character of it — and nothing downstream does anything with it yet. That is the honest shape of a gap in
+this design: the reading is never the thing that is missing.
+
+| | |
+|---|---|
+| Voice overlays (`&`) | read, and marked *read and not engraved* so a reader is told |
+| `Q:` tempo, on a line or inline | read; no tempo is printed anywhere |
+| `%%` stylesheet directives | read as comments; none is obeyed |
+| `P:` parts | read as a field; the part order is not applied |
+| A mid-tune `T:` | read; not printed as a section heading |
+| Clef **inference** | a voice takes the clef its `V:` or `K:` names, and the treble otherwise. It does not read one off the part's range, so a bass line that names no clef sits in ledger lines |
+
+**What the corpus does and does not say.** Ten thousand real tunes are held against the reading
+(`AbcCorpusTests`, parse-level, no fonts): every one round-trips exactly, the parser only ever copies, and
+no pipeline stage changes the source. A sample of them is engraved as well (`AbcCorpusRenderTests`): none
+throws, almost none comes out empty, and every piece that names source names source the tune has.
+
+**None of that says the drawing is right.** The corpus ships a reference picture beside every tune and
+nothing here has ever looked at one. A ranking sweep against them — the shape `LatexPictureSweepTests`
+already has, with `GrayImage.InkOverlap` — is the missing oracle, and until it exists "it engraves" is the
+strongest claim available.
+
 Musical notation is written in a **`#% … #%`** block — the repo's only custom Markdig block extension
 ([`MusicBlockExtension`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs), registered
 via `UseMusicNotation()`). The opening fence carries an optional dialect tag; the dialect is
@@ -890,6 +946,35 @@ degrades to a themed source-text box; unsupported constructs render what they ca
 the Plough* — the tune both sample docs print — from ABC and from LilyPond and asserts the two scores agree note for
 note, duration for duration, bar line for bar line. It is the only test that can catch one parser drifting from the
 other, and it doubles as the guarantee that neither sample document contains a wrong note.
+
+### A tune can also be a file
+
+`.abc` opens in the **markdown tab**, as the one block it is rather than as a document that contains one.
+
+The mechanism is `InlineMarkdownEditor.SingleBlock` — a fenced language name, or empty for a document. The
+editor owns the fence: the host hands it the tune, the editor puts a ```` ```abc ```` around it to render,
+and takes it off again on the way out. So `MarkdownViewModel.Markdown` holds ABC and nothing else, `Save`
+writes exactly what was read, and **the bytes on disk never carry a wrapper**. A file that was never
+markdown does not become markdown by having been opened.
+
+That property was already there for maths — it is how the Solver's LaTeX tab has always worked, with `$$`
+instead of a fence — and was called `SingleFormula`. ABC is what made it worth generalising: the concept is
+"one block of one language", and only the delimiters were ever LaTeX's.
+
+| Touch point | Where |
+|---|---|
+| Which extensions are one block, and in what language | [`SingleBlockFiles`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/SingleBlockFiles.cs) — one row per file type |
+| The tab that opens | [`ShowMusicAction`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/FileActions/ShowMusicAction.cs), experience `/text/music` |
+| The extension → experience mapping | `default-filemap.json` |
+| The editor property | [`InlineMarkdownEditor.SingleBlock`](../src/Nexaflow.Visuals.Text/Markdown/InlineMarkdownEditor.cs) |
+
+Adding another notation is a row in `SingleBlockFiles`, a filemap entry, and nothing else — the reading,
+the rendering, the inline editing, the dirty tracking and the saving are the markdown tab's, unchanged.
+
+**One thing this fixed on the way past.** The editor only ever adopted a `FormulaElement` when a single
+block took focus, so any other language rendered and then could not be typed into — a caret no keystroke
+reached. Adoption now goes through the `IEditableBlock` seam, which is the same behaviour for maths and the
+only thing that makes the rest of them editable at all.
 
 ### ABC coverage
 

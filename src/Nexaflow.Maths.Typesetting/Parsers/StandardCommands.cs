@@ -893,7 +893,7 @@ internal static class StandardCommands
     /// document is already its own display, with no page, no equation numbers, and no margins to be
     /// flush with. The wrapper is dropped and the body parsed in its place.
     /// </summary>
-    private sealed class TransparentEnvironment
+    internal sealed class TransparentEnvironment
     {
         public static TransparentEnvironment Instance { get; } = new();
     }

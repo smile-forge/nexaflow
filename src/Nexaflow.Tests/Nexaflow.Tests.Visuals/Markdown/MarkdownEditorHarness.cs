@@ -31,7 +31,7 @@ internal static class MarkdownEditorHarness
     /// <summary>Shows an editor loaded with <paramref name="markdown"/>, runs <paramref name="test"/>, closes it.</summary>
     /// <param name="configure">
     /// Applied before the text is loaded, for the properties that change what the document even is —
-    /// <see cref="InlineMarkdownEditor.SingleFormula"/> decides whether the text is fenced as maths, so
+    /// <see cref="InlineMarkdownEditor.SingleBlock"/> decides whether the text is fenced as maths, so
     /// setting it afterwards would mean loading the text once as the wrong thing.
     /// </param>
     public static void Run(string markdown, Action<InlineMarkdownEditor, RichTextBox> test,

@@ -39,9 +39,15 @@ internal static class Engraving
     public const int MiddleLine = 4;
 
     /// <summary>
-    /// Stems point away from the middle line, and the note that reaches furthest from it decides for the whole
-    /// beam group. A note sitting <em>on</em> the middle line takes an up stem — the tie breaks upward, which
-    /// is what ABC engravers do and what the reference tunes show.
+    /// Stems point away from the middle line, and the note that reaches furthest from it decides for the
+    /// whole beam group.
+    /// <para>
+    /// <strong>The tie goes down</strong> — a note sitting <em>on</em> the middle line, or a group reaching
+    /// equally far both ways. There is no rule to appeal to here: engravers take either way and choose by
+    /// how the line looks, which is not a judgement this can make. So it is settled by matching the corpus,
+    /// whose own engraver stems the middle line down across all ten thousand of its tunes. A convention
+    /// borrowed is worth more than a coin flip, and this is the only case the rule leaves open.
+    /// </para>
     /// </summary>
     public static bool StemDown(IReadOnlyList<MusicalEvent> group, StaffGeometry g)
     {
@@ -52,7 +58,7 @@ internal static class Engraving
             lo = Math.Min(lo, a);
             hi = Math.Max(hi, b);
         }
-        return hi - MiddleLine > MiddleLine - lo;
+        return hi - MiddleLine >= MiddleLine - lo;
     }
 
     public static bool StemDown(MusicalEvent ev, StaffGeometry g) => StemDown([ev], g);

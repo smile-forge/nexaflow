@@ -69,15 +69,15 @@ public class LatexPaintTests
     {
         // The formula is painted with the theme's brush, so a theme change must repaint without
         // re-typesetting. What a \textcolor asked for is its own and must survive that.
-        var layout = LatexLayout.Build(@"\textcolor{red}{x} + y", Scale);
+        var layout = LatexBuilder.Build(@"\textcolor{red}{x} + y", Scale);
         Assert.IsNotNull(layout);
 
-        var black = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black));
-        var white = Draw(layout.Size, dc => layout.Paint(dc, Brushes.White));
+        var black = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black));
+        var white = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.White));
         Assert.AreNotEqual(black, white, "the theme's colour never reached the glyphs");
 
-        var reddish = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black), Colors.Red);
-        var plain = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black), Colors.White);
+        var reddish = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black), Colors.Red);
+        var plain = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black), Colors.White);
         Assert.AreNotEqual(reddish, plain,
             "a red glyph on red paper should vanish — the \\textcolor was overwritten by the theme");
     });
@@ -88,14 +88,14 @@ public class LatexPaintTests
         // What the whole-formula drawing cache used to prevent. Painting a subtree must give that subtree
         // and nothing else, in the same place it sits in the whole.
         const string latex = @"\frac{x^2}{2}+y";
-        var layout = LatexLayout.Build(latex, Scale);
+        var layout = LatexBuilder.Build(latex, Scale);
         Assert.IsNotNull(layout);
 
-        var fraction = layout.Tree.Root.SelfAndDescendants()
+        var fraction = layout.Root.SelfAndDescendants()
             .First(n => n.Sits().Start == 0 && n.Sits().Length == 13);
 
-        var whole = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black));
-        var part = Draw(layout.Size, dc => layout.Paint(dc, Brushes.Black, fraction));
+        var whole = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black));
+        var part = Draw(layout.Size, dc => LayoutPainter.PaintOne(dc, fraction, Brushes.Black));
 
         Assert.AreNotEqual(whole, part, "painting one term drew the whole formula");
 

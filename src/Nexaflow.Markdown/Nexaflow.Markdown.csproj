@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The rendering domain, WPF-free: one formal syntax tree that owns its text, a pipeline of stages that
+    re-read it without changing what it prints as, and the per-language parsers that feed it.
+
+    A leaf on purpose, and eventually the home of everything markdown renders — maths, music, barcodes,
+    diagrams, and markdown's own text blocks. Each of those is the same four stages: a parser that only
+    copies, a pipeline of actors that re-nest, a builder that decides geometry, and a layout tree that
+    answers what a click meant. Only the parser and the builder are language-specific.
+
+    Depends on nothing, so it can sit under Visuals.Text (which renders from it) and under anything
+    headless that wants to read a formula, a tune or a symbol without a desktop.
+
+    Design: docs/markdown-ast.md. The LaTeX half of the same idea: docs/latex-parse-tree.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+</Project>

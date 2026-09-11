@@ -360,7 +360,7 @@ public class TexBuilderTests
     /// </summary>
     private static string Drawn(TexFormula formula, TexReading reading)
     {
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
@@ -371,7 +371,7 @@ public class TexBuilderTests
         // a prefix script sits on, the place an empty group keeps — and counting them called a difference
         // in the *picture* what is a difference in the tree, which is the one distinction this exists to
         // draw. A reader cannot see a box of no width; nor should this.
-        foreach (var node in capture.Root!.SelfAndDescendants())
+        foreach (var node in ((capture.Tree?.Root ?? default)).SelfAndDescendants())
             if (node.Children.Count == 0 && node.Bounds.Width > 0 && node.Bounds.Height > 0)
                 text.Append(node.Kind).Append(' ')
                     .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
@@ -542,16 +542,16 @@ public class TexBuilderTests
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull(capture.Root, $"nothing was drawn for {reading.Latex}");
+        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Latex}");
 
         var tree = 14695981039346656037UL;
         var ink = 14695981039346656037UL;
 
-        foreach (var node in capture.Root.SelfAndDescendants())
+        foreach (var node in (capture.Tree?.Root ?? default).SelfAndDescendants())
         {
             tree = Mixed(tree, node);
 
@@ -563,7 +563,7 @@ public class TexBuilderTests
     }
 
     /// <summary>One box folded into a running fingerprint, rounded exactly as the text was.</summary>
-    private static ulong Mixed(ulong so, Nexaflow.Visuals.Text.Editing.ILayoutNode node)
+    private static ulong Mixed(ulong so, Piece node)
     {
         so = Fold(so, (ulong)node.Kind.GetHashCode());
         so = Fold(so, (ulong)(long)Math.Round(node.Bounds.X * 100));
@@ -579,15 +579,15 @@ public class TexBuilderTests
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexLayoutCapture(Scale, reading);
+        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         formula.RenderTo(capture, _setting, 0, 0);
         capture.FinishRendering();
 
-        Assert.IsNotNull(capture.Root, $"nothing was drawn for {reading.Latex}");
+        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Latex}");
 
         var text = new StringBuilder();
 
-        foreach (var node in capture.Root.SelfAndDescendants())
+        foreach (var node in (capture.Tree?.Root ?? default).SelfAndDescendants())
             text.Append(node.Kind).Append(' ')
                 .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
                 .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))
@@ -641,14 +641,14 @@ public class TexBuilderTests
 
         foreach (var name in TexMacros.All.Keys)
         {
-            var layout = LatexLayout.Build(name, 16);
+            var layout = LatexBuilder.Build(name, 16);
 
             if (layout is null) { unbuilt.Add($"{name} draws nothing at all"); continue; }
 
             // A warning here is the builder saying it had no drawing for something and set the
             // characters instead — which for a macro means the definition names something this cannot
             // build, and the reader sees the definition rather than the symbol.
-            foreach (var trouble in layout.Tree.Diagnostics)
+            foreach (var trouble in layout.Trouble)
                 unbuilt.Add($"{name}: {trouble.Message}");
         }
 

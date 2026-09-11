@@ -74,11 +74,17 @@ public class MusicSampleDocTests
         for (int i = 0; i < lines.Length; i++)
         {
             if (lines[i].StartsWith("## songs", StringComparison.OrdinalIgnoreCase)) features = false;
-            if (!lines[i].StartsWith("#%", StringComparison.Ordinal)) continue;
-            if (lines[i].Trim() == "#%" ) continue;                       // a closing fence with no opener above it
+
+            // Either fence: the older `#%lilypond … #%`, or a ```abc code fence. A line that is only the
+            // closing mark is a closer with no opener above it, and is skipped.
+            var opener = lines[i].Trim();
+            var close = opener.StartsWith("#%", StringComparison.Ordinal) && opener != "#%" ? "#%"
+                      : opener.StartsWith("```", StringComparison.Ordinal) && opener != "```" ? "```"
+                      : null;
+            if (close is null) continue;
 
             int end = i + 1;
-            while (end < lines.Length && lines[end].Trim() != "#%") end++;
+            while (end < lines.Length && lines[end].Trim() != close) end++;
             blocks.Add((string.Join("\n", lines[(i + 1)..end]), features));
             i = end;
         }

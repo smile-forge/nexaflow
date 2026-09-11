@@ -19,41 +19,84 @@ namespace Nexaflow.Tests.Visuals.Editing;
 [CoversNode("latex-selection")]
 public class ContentSelectionTests
 {
-    /// <summary>A 3x3 grid: rows of cells, each cell wrapping its content the way a typesetter does.</summary>
-    private static LayoutNode Matrix()
+    /// <summary>
+    /// A 3x3 grid: rows of cells, each cell wrapping its content the way a typesetter does — and each cell
+    /// told which run it reads along and which stack it lines up in.
+    ///
+    /// <para>
+    /// Declared rather than recognised, which is the whole change. A grid used to be a shape found in the
+    /// geometry — rows clustered by vertical overlap, and a grid was a stack of rows that happened to hold
+    /// the same number of things. That only ever worked for a matrix, because a matrix is the one thing
+    /// whose rows are all the same length.
+    /// </para>
+    /// <para>
+    /// The runs are declared after the tree is sealed, which is when a real one learns them too: which
+    /// piece stands for a cell is a question about what was drawn.
+    /// </para>
+    /// </summary>
+    private static Piece Matrix()
     {
-        var root = new LayoutNode(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid", isInk: false);
+        var build = new LayoutBuilder();
+        var cells = new int[3, 3];
+
+        build.At(new Rect(0, 0, 70, 60), new TestPart(0, 9), "grid");
+
         for (var r = 0; r < 3; r++)
         {
-            var row = root.Add(new LayoutNode(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row", isInk: false));
+            build.At(new Rect(0, r * 20, 70, 13), new TestPart(r * 3, 3), "row");
+
             for (var c = 0; c < 3; c++)
             {
-                var cell = row.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), new TestPart(r * 3 + c, 1), "cell", isInk: false));
-                cell.Add(new LayoutNode(new Rect(c * 25, r * 20, 10, 13), new TestPart(r * 3 + c, 1), "char", isInk: true));
+                cells[r, c] = build.At(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1),
+                                       "cell");
+
+                build.Leaf(new Rect(c * 25, r * 20, 10, 13), new TestPart((r * 3) + c, 1), "char");
+                build.Close();
             }
+
+            build.Close();
         }
-        return root;
+
+        build.Close();
+
+        var tree = build.Seal();
+
+        for (var r = 0; r < 3; r++)
+            tree.Runs([tree.At(cells[r, 0]), tree.At(cells[r, 1]), tree.At(cells[r, 2])], vertical: false);
+
+        for (var c = 0; c < 3; c++)
+            tree.Runs([tree.At(cells[0, c]), tree.At(cells[1, c]), tree.At(cells[2, c])], vertical: true);
+
+        return tree.Root;
     }
 
     /// <summary><c>\frac{x^2}{2}+y</c> — rows without columns, which is not a grid.</summary>
-    private static LayoutNode Fraction()
+    private static Piece Fraction()
     {
-        var root = new LayoutNode(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row", isInk: false);
+        var build = new LayoutBuilder();
 
-        var frac = root.Add(new LayoutNode(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction", isInk: false));
-        var numerator = frac.Add(new LayoutNode(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script", isInk: false));
-        numerator.Add(new LayoutNode(new Rect(2, 8, 11, 9), new TestPart(6, 1), "char", isInk: true));
-        numerator.Add(new LayoutNode(new Rect(14, 0, 7, 9), new TestPart(8, 1), "char", isInk: true));
-        frac.Add(new LayoutNode(new Rect(2, 20, 22, 2), null, "rule", isInk: false));
-        frac.Add(new LayoutNode(new Rect(7, 30, 10, 13), new TestPart(11, 1), "char", isInk: true));
+        build.At(new Rect(0, 0, 100, 44), new TestPart(0, 15), "row");
 
-        root.Add(new LayoutNode(new Rect(28, 18, 16, 13), new TestPart(13, 1), "char", isInk: true));
-        root.Add(new LayoutNode(new Rect(46, 18, 11, 13), new TestPart(14, 1), "char", isInk: true));
-        return root;
+        build.At(new Rect(0, 0, 26, 44), new TestPart(0, 13), "fraction");
+
+        build.At(new Rect(2, 0, 20, 17), new TestPart(6, 3), "script");
+        build.Leaf(new Rect(2, 8, 11, 9), new TestPart(6, 1), "char");
+        build.Leaf(new Rect(14, 0, 7, 9), new TestPart(8, 1), "char");
+        build.Close();
+
+        build.Leaf(new Rect(2, 20, 22, 2), null, "rule");
+        build.Leaf(new Rect(7, 30, 10, 13), new TestPart(11, 1), "char");
+        build.Close();
+
+        build.Leaf(new Rect(28, 18, 16, 13), new TestPart(13, 1), "char");
+        build.Leaf(new Rect(46, 18, 11, 13), new TestPart(14, 1), "char");
+        build.Close();
+
+        return build.Seal().Root;
     }
 
-    private static ILayoutNode Cell(LayoutNode grid, int offset) =>
-        grid.Ink().Single(n => n.Sits().Start == offset);
+    private static Piece Cell(Piece grid, int offset) =>
+        grid.Leaves().Single(n => n.Sits().Start == offset);
 
     // ── A grid selects like a sheet ─────────────────────────────────────────
 
@@ -116,21 +159,6 @@ public class ContentSelectionTests
     // ── Everything else selects like a line of text ─────────────────────────
 
     [TestMethod]
-    public void AFractionIsNotAGrid()
-    {
-        // Rows without columns. Dragging from the numerator to the denominator has to mean the fraction,
-        // not a column of it — which is exactly the guarantee promotion gives.
-        var root = Fraction();
-
-        Assert.AreEqual(0, root.Children.First().Grid().Count, "a numerator, a rule and a denominator");
-
-        var selection = ContentSelection.Between(root, Cell(root, 6), Cell(root, 11));
-
-        Assert.AreEqual(1, selection.Ranges.Count);
-        Assert.AreEqual((0, 13), selection.Ranges[0], "the whole fraction, braces and bar included");
-    }
-
-    [TestMethod]
     public void ARunOfTermsSelectsFromOneToTheOther()
     {
         var root = Fraction();
@@ -144,40 +172,59 @@ public class ContentSelectionTests
     [TestMethod]
     public void SelectingNothingIsNotASelection()
     {
-        Assert.IsTrue(ContentSelection.Between(Fraction(), null, null).IsEmpty);
+        Assert.IsTrue(ContentSelection.Between(Fraction(), default, default).IsEmpty);
         Assert.IsTrue(ContentSelection.None.IsEmpty);
     }
 
     // ── The grid itself ─────────────────────────────────────────────────────
 
     [TestMethod]
-    public void AGridIsRowsAndColumnsOfTheTree()
+    public void ACellKnowsWhatItReadsAlongAndWhatItStacksWith()
     {
-        var cells = Matrix().Grid();
+        // The two runs are the whole of what makes a sheet a sheet, and they are facts the builder wrote
+        // down rather than a shape anybody found. Asked of a cell, because that is where selection asks:
+        // it climbs from what was pointed at to the first thing on a run.
+        var grid = Matrix();
+        var middle = Cell(grid, 4).Ancestors().First(piece => piece.RunOn(vertical: false) >= 0);
 
-        Assert.AreEqual(3, cells.Count);
-        Assert.IsTrue(cells.All(r => r.Count == 3));
         CollectionAssert.AreEqual(
-            new[] { 6, 7, 8 },
-            cells[2].Select(c => c.Sits().Start).ToArray(),
-            "and in reading order, left to right");
+            new[] { 3, 4, 5 },
+            middle.Sharing(vertical: false).Select(c => c.Sits().Start).ToArray(),
+            "along its row, left to right");
+
+        CollectionAssert.AreEqual(
+            new[] { 1, 4, 7 },
+            middle.Sharing(vertical: true).Select(c => c.Sits().Start).ToArray(),
+            "down its column, top to bottom");
     }
 
     [TestMethod]
-    public void ARaggedThingIsNotAGrid()
+    public void SomethingThatDeclaredNoRunsSelectsAsARunOfTerms()
     {
-        // Rows of different widths are a stack of rows, not a sheet, and block selection would have to
-        // invent an answer for the cells that are not there.
-        var root = new LayoutNode(new Rect(0, 0, 70, 40), new TestPart(0, 5), "rows", isInk: false);
+        // Rows of different widths used to be refused as a grid, because block selection would have had to
+        // invent an answer for the cells that are not there. Nothing refuses anything now: a builder that
+        // declared no runs gets the behaviour everything had before any of this — the stretch from one
+        // piece to the other, grown out to whole constructs.
+        var build = new LayoutBuilder();
 
-        var first = root.Add(new LayoutNode(new Rect(0, 0, 70, 13), new TestPart(0, 3), "row", isInk: false));
+        build.At(new Rect(0, 0, 70, 40), new TestPart(0, 5), "rows");
+
+        build.At(new Rect(0, 0, 70, 13), new TestPart(0, 3), "row");
         for (var c = 0; c < 3; c++)
-            first.Add(new LayoutNode(new Rect(c * 25, 0, 10, 13), new TestPart(c, 1), "char", isInk: true));
+            build.Leaf(new Rect(c * 25, 0, 10, 13), new TestPart(c, 1), "char");
+        build.Close();
 
-        var second = root.Add(new LayoutNode(new Rect(0, 20, 70, 13), new TestPart(3, 2), "row", isInk: false));
+        build.At(new Rect(0, 20, 70, 13), new TestPart(3, 2), "row");
         for (var c = 0; c < 2; c++)
-            second.Add(new LayoutNode(new Rect(c * 25, 20, 10, 13), new TestPart(3 + c, 1), "char", isInk: true));
+            build.Leaf(new Rect(c * 25, 20, 10, 13), new TestPart(3 + c, 1), "char");
+        build.Close();
 
-        Assert.AreEqual(0, root.Grid().Count);
+        build.Close();
+        var root = build.Seal().Root;
+
+        var selection = ContentSelection.Between(root, Cell(root, 1), Cell(root, 3));
+
+        Assert.AreEqual(1, selection.Ranges.Count, "one stretch, not a block of cells that are not there");
+        Assert.AreEqual((1, 3), selection.Ranges[0]);
     }
 }

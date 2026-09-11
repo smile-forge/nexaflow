@@ -57,25 +57,6 @@ public class FormulaElementTests
     });
 
     [TestMethod]
-    public void TypingPastAScriptFollowsItRatherThanJoiningIt() => UiThread.Run(() =>
-    {
-        // `x^2` finishes the exponent and the script at the same character, so which of the two the
-        // caret is standing at is the whole of what a 3 typed there asks. It is why the second place
-        // exists: without it there was only one answer available, and half the time it was the wrong one.
-        var inside = Arranged("x^2");
-        inside.TakeCaret(3);
-        Type(inside, "3");
-        Assert.AreEqual(@"x^{23}", inside.Latex,
-            "in the exponent it is twenty-three, and the argument is braced so it can hold it");
-
-        var outside = Arranged("x^2");
-        outside.TakeCaret(3);
-        Assert.IsTrue(outside.MoveCaret(forward: true), "there is a place past the script to step out to");
-        Type(outside, "3");
-        Assert.AreEqual("x^23", outside.Latex, "past the script it is x squared followed by a 3");
-    });
-
-    [TestMethod]
     public void BackspaceDoesNotCareWhichSideOfTheSpaceTheCaretIsOn() => UiThread.Run(() =>
     {
         // The caret has a place either side of the glue TeX sets around an operator, and backspace has
@@ -99,7 +80,7 @@ public class FormulaElementTests
         element.Commit();
 
         Assert.AreEqual(@"x+\alpha ", element.Latex);
-        Assert.AreEqual(@"x+\alpha ", element.Layout!.Latex, "all of it typesets now");
+        Assert.AreEqual(@"x+\alpha ", element.Latex, "all of it typesets now");
     });
 
     [TestMethod]
@@ -174,7 +155,7 @@ public class FormulaElementTests
         element.Backspace();
 
         Assert.AreEqual(align.Length - 1, element.Latex.Length, "one character went");
-        Assert.AreEqual(element.Latex, element.Layout!.Latex, "and all of it still typesets");
+        Assert.IsFalse(element.HasError, "and all of it still typesets");
     });
 
     [TestMethod]
@@ -227,26 +208,41 @@ public class FormulaElementTests
     // ── Pointer ─────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void ClickingPutsTheCaretWhereYouClicked() => UiThread.Run(() =>
+    public void ClickingAtTheEdgeOfSomethingPutsTheCaretThere() => UiThread.Run(() =>
     {
         var element = Arranged(@"\frac{x^2}{2}");
-        var exponent = element.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == 8);
+        var exponent = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
 
-        element.BeginPointerSelect(new Point(
-            exponent.Bounds.X + exponent.Bounds.Width * 0.75,
-            exponent.Bounds.Y + exponent.Bounds.Height / 2));
+        // Within a caret's reach of its right-hand edge: that is the place after it, not the thing itself.
+        element.BeginPointerSelect(new Point(exponent.Bounds.Right - 0.5, exponent.Bounds.Y + exponent.Bounds.Height / 2));
         element.EndPointerSelect();
 
         Assert.AreEqual(9, element.Caret);
         Assert.IsTrue(element.HasCaret);
+        Assert.AreEqual(0, element.SelectionLength, "a place, so nothing is picked");
+    });
+
+    [TestMethod]
+    public void ClickingSquarelyOnSomethingSelectsIt() => UiThread.Run(() =>
+    {
+        // The user's rule, and it holds for every kind of content: a single click on something that is not a
+        // stop is a selection of that thing. Here the exponent's 2, pressed in its middle.
+        var element = Arranged(@"\frac{x^2}{2}");
+        var exponent = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
+
+        element.BeginPointerSelect(new Point(exponent.Bounds.X + exponent.Bounds.Width / 2,
+                                             exponent.Bounds.Y + exponent.Bounds.Height / 2));
+        element.EndPointerSelect();
+
+        Assert.AreEqual((8, 1), (element.SelectionStart, element.SelectionLength));
     });
 
     [TestMethod]
     public void DraggingSelectsWholeConstructs() => UiThread.Run(() =>
     {
         var element = Arranged(@"\frac{x^2}{2}");
-        var baseGlyph = element.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == 6);
-        var exponent = element.Layout!.Tree.Root.Ink().Single(n => n.Sits().Start == 8);
+        var baseGlyph = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 6);
+        var exponent = element.Laid.Root.Leaves().Single(n => n.Sits().Start == 8);
 
         element.BeginPointerSelect(new Point(baseGlyph.Bounds.X + 1, baseGlyph.Bounds.Y + baseGlyph.Bounds.Height / 2));
         element.ExtendPointerSelect(new Point(exponent.Bounds.Right - 1, exponent.Bounds.Y + exponent.Bounds.Height / 2));

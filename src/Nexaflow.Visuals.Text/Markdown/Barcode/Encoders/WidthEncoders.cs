@@ -67,17 +67,24 @@ private static string Widths(string pattern, char wide = Wide) =>
         text    = null;
         error   = null;
 
-        // Lower case is not a different character in Code 39, it is simply absent; folding it up is what
-        // every reader of this format expects, and refusing would be pedantry.
-        string upper = value.ToUpperInvariant();
-
-        foreach (char c in upper)
+        foreach (char c in value)
         {
             if (c == '*')
             {
                 error = "'*' is Code 39's start and stop mark and cannot appear in the value.";
                 return false;
             }
+
+            // Code 39 has no lower case. Folding it up printed a capital the value does not have, and a symbol
+            // printing something other than what was typed has nowhere in it for a caret — so the letter that
+            // needed fixing was the one that could not be reached. Refused like anything else the format cannot
+            // carry, which leaves the value on the page as it was written, to be fixed where it stands.
+            if (c is >= 'a' and <= 'z')
+            {
+                error = $"'{c}' is lower case, and Code 39 has none — write it as '{char.ToUpperInvariant(c)}'.";
+                return false;
+            }
+
             if (!Code39.ContainsKey(c))
             {
                 error = $"'{c}' is not in Code 39, which carries A–Z, digits, space and - . $ / + %.";
@@ -92,11 +99,11 @@ private static string Widths(string pattern, char wide = Wide) =>
         // It works out because the counts are odd: nine elements to a character and one to a gap leaves every
         // character starting on ink, which is what its pattern is written for.
         var elements = new StringBuilder(Widths(Code39['*']));
-        foreach (char c in upper) elements.Append('1').Append(Widths(Code39[c]));
+        foreach (char c in value) elements.Append('1').Append(Widths(Code39[c]));
         elements.Append('1').Append(Widths(Code39['*']));
 
         modules = BarcodePattern.FromWidths([elements.ToString()]);
-        text    = upper;
+        text    = value;
         return true;
     }
 
