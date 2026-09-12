@@ -1,6 +1,7 @@
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -142,7 +143,7 @@ public class TexRoundTripTests
     /// Both invariants, because the sweep is the only place a construct nobody remembered gets asked
     /// about at all, and asking it only the weaker of the two would be a waste of the corpus.
     /// </remarks>
-    private static string? Complaint(TexNode root, string latex)
+    private static string? Complaint(ContentNode root, string latex)
     {
         var printed = root.Print();
         if (printed != latex) return $"read back as: {printed}";

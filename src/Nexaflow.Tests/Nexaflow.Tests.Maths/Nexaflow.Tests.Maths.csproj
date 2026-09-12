@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Nexaflow.Maths — the LaTeX parse tree, its printer, and what it knows about commands.
+    The LaTeX reader in Nexaflow.Markdown — the parse tree, its printer, and what it knows about commands.
 
     The same shape as Nexaflow.Tests.IO and Nexaflow.Tests.Initiatives: the subject is a WPF-free
     library, so the suite is one too. Plain net10.0, no desktop session, no shell, and no reference to
@@ -32,7 +32,7 @@
 
   <ItemGroup>
     <!-- The subject, and the shared construct list + [CoversNode]. -->
-    <ProjectReference Include="..\..\Nexaflow.Maths\Nexaflow.Maths.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
     <!-- An oracle, not a dependency of the subject. AngouriMath writes LaTeX and knows exactly what
          structure it wrote, which makes it a better check on the parse tree than the typesetter — whose

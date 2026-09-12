@@ -1,4 +1,6 @@
-namespace Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Ast;
+
+namespace Nexaflow.Markdown.Latex;
 
 /// <summary>
 /// The names that are not commands at all, but shorthand: <c>\neq</c> is a slash over an equals sign,
@@ -12,8 +14,8 @@ namespace Nexaflow.Maths.Latex;
 /// macro at all.
 /// </para>
 /// <para>
-/// What comes of a lookup is written into the tree beneath the command, under
-/// <see cref="TexRole.Expansion"/>: the command is still what the writer typed, and its expansion is
+/// What comes of a lookup is hung beneath the command by <see cref="Stages.ExpandMacros"/>, under
+/// <see cref="Roles.Derived"/>: the command is still what the writer typed, and its expansion is
 /// what it means, and both are there to be asked. An expansion stands for no source, so the tree still
 /// prints back exactly as it was written.
 /// </para>

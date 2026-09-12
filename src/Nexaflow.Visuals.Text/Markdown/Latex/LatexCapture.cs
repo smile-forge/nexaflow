@@ -1,4 +1,4 @@
-﻿using Nexaflow.Maths.Latex;
+﻿using Nexaflow.Markdown.Latex;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +19,7 @@ using GuidelineSet = System.Windows.Media.GuidelineSet;
 using Point = System.Windows.Point;
 using Size = System.Windows.Size;
 using Vector = System.Windows.Vector;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -55,7 +56,7 @@ internal sealed class LatexCapture : IElementRenderer
 {
     private readonly LayoutBuilder _build = new();
     private readonly double _scale;
-    private readonly TexReading _reading;
+    private readonly ContentReading _reading;
 
     /// <summary>
     /// For each open piece: where it sits, and where its own drawing is measured from.
@@ -72,7 +73,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// The parts of everything the piece being built is inside, nearest last — what says whether its own
     /// part is a new one. See <see cref="Owns"/>.
     /// </summary>
-    private readonly List<Nexaflow.Maths.Latex.TexPart> _above = [];
+    private readonly List<Nexaflow.Markdown.Ast.ContentPart> _above = [];
 
     /// <summary>Whether anything inside the piece being built stands for a part of its own.</summary>
     // OverUnderBox (\overrightarrow and friends) draws through RenderTransformed, so a box can be shifted
@@ -92,7 +93,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// </summary>
     private bool _built;
 
-    public LatexCapture(double scale, TexReading reading)
+    public LatexCapture(double scale, ContentReading reading)
     {
         _scale = scale;
         _reading = reading;
@@ -232,7 +233,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// its drawing, and simply stands for nothing, so a press on it resolves to whatever encloses it.
     /// </para>
     /// </summary>
-    private Nexaflow.Maths.Latex.TexPart? Owns(Box box)
+    private Nexaflow.Markdown.Ast.ContentPart? Owns(Box box)
     {
         // A strut and a piece of glue are room rather than ink, and were written by nobody.
         var part = box is StrutBox or GlueBox ? null : box.Node?.Origin;
@@ -247,7 +248,7 @@ internal sealed class LatexCapture : IElementRenderer
     }
 
     /// <summary>Whether one part is the other, or written somewhere inside it.</summary>
-    private static bool Within(Nexaflow.Maths.Latex.TexPart part, Nexaflow.Maths.Latex.TexPart enclosing) =>
+    private static bool Within(Nexaflow.Markdown.Ast.ContentPart part, Nexaflow.Markdown.Ast.ContentPart enclosing) =>
         ReferenceEquals(part, enclosing) || part.Ancestors().Any(up => ReferenceEquals(up, enclosing));
 
     /// <summary>
@@ -256,8 +257,8 @@ internal sealed class LatexCapture : IElementRenderer
     /// construct names its parts <c>numerator</c>, <c>radicand</c>, <c>superscript</c> — each meaning
     /// something to the construct. So the roles already carry the distinction.
     /// </summary>
-    internal static bool IsRun(Nexaflow.Maths.Latex.TexPart part) =>
-        part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Maths.Latex.TexRole.Element);
+    internal static bool IsRun(Nexaflow.Markdown.Ast.ContentPart part) =>
+        part.Parts.Any() && part.Parts.All(inner => inner.Role == Nexaflow.Markdown.Ast.Roles.Element);
 
     /// <summary>
     /// Whether the things in a run reach both of its ends, so that it has no edge of its own for a caret to
@@ -280,7 +281,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// as one piece, so asking a wrapper what its parts cover only asks about the wrapper.
     /// </para>
     /// </summary>
-    private static bool Covered(Nexaflow.Maths.Latex.TexPart run)
+    private static bool Covered(Nexaflow.Markdown.Ast.ContentPart run)
     {
         var inner = run;
         while (inner.Parts.Count() == 1 && IsRun(inner)) inner = inner.Parts.First();
@@ -433,6 +434,6 @@ internal sealed class LatexCapture : IElementRenderer
     /// they can point at on its own.
     /// </summary>
     private static bool IsPlace(string role) =>
-        role is not (TexRole.Name or TexRole.Open or TexRole.Close
-                     or TexRole.Separator or TexRole.Trivia or TexRole.Row);
+        role is not (Roles.Name or Roles.Open or Roles.Close
+                     or Roles.Separator or Roles.Trivia or Roles.Row);
 }

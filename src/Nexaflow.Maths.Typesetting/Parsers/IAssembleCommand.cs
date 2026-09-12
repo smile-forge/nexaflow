@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using XamlMath.Atoms;
+using Nexaflow.Markdown.Ast;
 
 namespace XamlMath.Parsers;
 
@@ -23,5 +24,5 @@ namespace XamlMath.Parsers;
 internal interface IAssembleCommand
 {
     /// <summary>The atom this command stands for, or null when these arguments do not suit it.</summary>
-    Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Maths.Latex.TexPart? origin);
+    Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin);
 }

@@ -1,11 +1,13 @@
 using System.Linq;
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Latex.Stages;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
 /// <summary>
-/// The macro table held against what the parser actually does with it.
+/// The macro table held against what expanding macros actually does with it.
 ///
 /// <para>
 /// A row in <see cref="TexMacros"/> is a claim that a name is shorthand for something, and a claim of
@@ -22,8 +24,8 @@ public class TexMacroTableTests
     public void EveryMacroActuallyResolvesWhenItIsWritten()
     {
         var inert = TexMacros.All.Keys
-            .Where(name => !TexParser.Parse(name).SelfAndDescendants()
-                .Any(node => node.Role == TexRole.Expansion))
+            .Where(name => !Expanded(name).SelfAndDescendants()
+                .Any(node => node.Role == Roles.Derived))
             .ToList();
 
         Assert.AreEqual(0, inert.Count,
@@ -37,7 +39,7 @@ public class TexMacroTableTests
         foreach (var name in TexMacros.All.Keys)
         {
             var written = $"a {name} b";
-            Assert.AreEqual(written, TexParser.Parse(written).Print(),
+            Assert.AreEqual(written, Expanded(written).Print(),
                 $"{name} stopped printing back as it was written");
         }
     }
@@ -47,8 +49,8 @@ public class TexMacroTableTests
     {
         foreach (var (name, definition) in TexMacros.All)
         {
-            var expansion = TexParser.Parse(name).SelfAndDescendants()
-                .FirstOrDefault(node => node.Role == TexRole.Expansion);
+            var expansion = Expanded(name).SelfAndDescendants()
+                .FirstOrDefault(node => node.Role == Roles.Derived);
 
             Assert.IsNotNull(expansion, $"{name} resolved to nothing");
 
@@ -67,12 +69,15 @@ public class TexMacroTableTests
         // pushed along, and nothing inside it claims a stretch of what the writer typed.
         foreach (var name in TexMacros.All.Keys)
         {
-            var root = TexParser.Parse(name);
+            var root = Expanded(name);
 
-            foreach (var expansion in root.SelfAndDescendants().Where(node => node.Role == TexRole.Expansion))
+            foreach (var expansion in root.SelfAndDescendants().Where(node => node.Role == Roles.Derived))
                 Assert.AreEqual(0, expansion.Width, $"{name}'s expansion claims {expansion.Width} character(s)");
 
             Assert.AreEqual(name.Length, root.Width, $"{name} measures wrong once resolved");
         }
     }
+
+    /// <summary>What written LaTeX amounts to once its macros are expanded — the stage under test.</summary>
+    private static ContentNode Expanded(string latex) => new ExpandMacros().Run(TexParser.Parse(latex));
 }

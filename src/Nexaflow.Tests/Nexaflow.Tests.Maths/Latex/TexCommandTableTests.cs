@@ -1,5 +1,6 @@
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -34,7 +35,7 @@ public class TexCommandTableTests
             // an environment, so the command itself is a part of the construct it starts rather than a
             // thing standing on its own.
             var node = TexParser.Parse(latex).SelfAndDescendants()
-                .FirstOrDefault(n => n.Kind == TexKind.Command && n.Part(TexRole.Name)?.Text == command.Name);
+                .FirstOrDefault(n => n.Kind == TexKinds.Command && n.Part(Roles.Name)?.Text == command.Name);
 
             Assert.IsNotNull(node, $"{latex} did not read as a command at all");
 

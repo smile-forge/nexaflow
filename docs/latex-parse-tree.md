@@ -67,9 +67,11 @@ something the tree cannot hold — which is what half-finished input always is.
 
 ## Where it lives
 
-A new leaf: `src/Nexaflow.Maths/` — `net10.0`, no WPF, no dependencies. Tests in
-`src/Nexaflow.Tests/Nexaflow.Tests.Maths/`, the same shape as `Tests.IO` and `Tests.Initiatives`:
-plain `net10.0`, no desktop session.
+`src/Nexaflow.Markdown/Latex/`, beside ABC and LilyPond, read into the same tree every rendered
+language uses — `ContentNode`, `ContentPart`, and an `AstPipeline` of stages (see
+[markdown-ast.md](markdown-ast.md)). It began as a leaf of its own, `src/Nexaflow.Maths/`, and grew a
+private copy of that tree there; it moved so that it could share the stages rather than copy them.
+Tests are still in `src/Nexaflow.Tests/Nexaflow.Tests.Maths/`: plain `net10.0`, no desktop session.
 
 Not in `Nexaflow.Syntax`, which is the tree-sitter engine — the solver would then need tree-sitter
 grammars on its dependency path in order to solve an equation. Not in `Visuals.Text`, which is WPF and
@@ -103,24 +105,15 @@ Each stage stands on its own and leaves the app working.
    `APartInsideAStyledGroupStillKnowsWhatItIs`: a style atom names no parts at all, so the numerator of
    a fraction written inside `\displaystyle` — or `\mathrm`, `{\bf …}`, `\cancel` — used to be the
    numerator of nothing as far as the editor could tell, and is a numerator again.
-5. 🔄 **Edits become tree operations.** `TexEdit` takes a part and gives back a whole new root, sharing
-   every subtree it did not touch, and the character peeking is deleted rather than ported: `IsBraced`,
-   `IsOneToken`, `EndsWithControlWord`, `Separated`, `Place` and `ArgumentAt` are gone from `LatexTree`,
-   and its three callers — typing, a text move, a block dragged out of a matrix — all go through
-   `TexEdit.Write`, which says the brace and the space in the tree instead.
+5. 🗑 **Edits became tree operations, and then went.** `TexEdit` took a part and gave back a whole new
+   root, sharing every subtree it did not touch, and replaced the character peeking in `LatexTree`
+   (`IsBraced`, `IsOneToken`, `EndsWithControlWord`, `Separated`, `Place`, `ArgumentAt`). A matrix's
+   rows and columns were reordered the same way, by `TexEdit.Rows` and `TexEdit.Columns`.
 
-   A matrix moves the same way where the move is a **reordering**: whole columns and whole rows are a
-   permutation of cells that are already there, so `TexEdit.Columns` and `TexEdit.Rows` permute the
-   nodes and every untouched cell keeps the node it was — its spacing included. `LatexGrid` still
-   decides *which* columns go where, and still renders for the three cases that change what is written
-   in a cell rather than which order the cells are in: a partial block moved, a block taken out, and a
-   block joined in as new rows or columns.
-
-   A cell carries the separator that follows it and a row carries its own break, so a reordering moves
-   where the separators are rather than moving cells across them — the last of each gives its up, and
-   what is appended is a separator the table already had, so a document that writes them one way keeps
-   writing them that way. `AColumnMovedLeavesEveryOtherCellExactlyAsItWasWritten` is the whole point of
-   it: a matrix somebody lined up by hand still reads that way after a drag somewhere else in it.
+   Nothing calls it now — typing into a formula is `LatexContent`'s on-edit handler, and the matrix drag
+   it served is gone — so it was deleted, with `TexWrite`, when the reader moved onto the shared tree. A
+   structured edit, when one is wanted again, is written against `ContentNode` and returns the shared
+   `AstWrite`, as ABC's `AbcEdit` does.
 
    What comes back from an edit is *provisional*, and that is the rule the whole thing turns on. The
    stages between the parser and the builder do not re-derive themselves when a tree is changed
@@ -161,7 +154,7 @@ part worth having.
 
 **The builder never touches the source, and nothing it builds names a point in it.**
 
-The builder is handed a `TexReading` and never the string. There is no offset for it to take, because
+The builder is handed a `ContentReading` and never the string. There is no offset for it to take, because
 nothing gives it one — every atom's `Source` is left null, and what a thing came from is its `Origin`,
 a parse-tree part. *Where* that part is written is the reading's to answer, worked out by a walk when
 somebody asks.
@@ -191,7 +184,7 @@ turn a part back into a `(start, length)` the moment a box arrived, and its thre
 in pairs of numbers; each is now a question about the tree. `Detach` disowns a piece whose part is
 already claimed above it — reference identity, where it compared spans — and one whose part is neither
 the enclosing part nor anything under it, which is the honest form of "a piece drawn inside another
-cannot have been written outside it". `MarkInk` asks `TexPart.Derived`, which says outright that a
+cannot have been written outside it". `MarkInk` asks `ContentPart.Derived`, which says outright that a
 macro's insides stand for nothing written. `LatexNode.Formula` went with them: the layout no longer
 holds the typesetting tree at all, only the parse-tree part.
 
@@ -206,9 +199,9 @@ that part is *written* is asked of the part, every time.
 so being told is the only answer that cannot be wrong — and a piece with no part is drawn but not
 selectable and not editable, which is the honest thing to say about a rule the typesetter added.
 
-**`ISourcePart` is the whole of what the seam asks a part for** — `Start` and `Length`. It lives in the
-editing seam, so `TexPart` cannot implement it: a reading that had to know about an editor would be the
-wrong way round. `TexSourcePart` adapts one to the other, and it is where the last narrowing of an
+**`ISourcePart` is the whole of what the seam asks a part for** — `Start` and `Length`. It lives with
+the shared tree, and `ContentPart` implements it directly. `TexSourcePart` wraps one where LaTeX names a
+part by less than it spans, and it is where the last narrowing of an
 answer to suit an editor now lives — a braced argument named by its contents, a cell by its ink,
 because handing over the honest span instead re-braces an argument that is already braced. Being on
 this side of the boundary is the point: the reading stays true and the editor is told what it needs.
@@ -247,7 +240,7 @@ mismatches.** Not one piece that names any source reports it differently.
 A hole is the piece that makes the distinction worth drawing: it is drawn, it stands for no characters,
 and it still has to know exactly where it is, because typing into it has to land between those braces.
 So it is not a piece drawn from nothing — it is drawn from an empty argument, which is a part like any
-other. Its part is `Derived` (`TexNode.IsDerived` counts `TexKind.Hole`), which is why `MarkInk` reads
+other. Its part is `Derived` (`ContentNode.IsDerived` counts `Kinds.Hole`), which is why `MarkInk` reads
 `node.Origin is { Derived: false } || node.IsPlaceholder()`: the first clause rejects a hole and the
 second has to rescue it. `AHoleCarriesThePartItWillBeWrittenInto` pins it, because the corpus never
 could — real LaTeX has no empty arguments, so holes appear only on a surface being written on.
@@ -292,7 +285,7 @@ anywhere in the 238,329 formulas: whatever produced the dataset wrote them out a
 `\exp\left\{` arrives as `e x p \left\{`. Moving all 43 into the macro table changed the reading of
 exactly zero formulas, and the sweep reported a clean pass that meant *nothing was tested*. This is the
 trap the paragraph above is about, sprung the first time it could be. What covers them instead is
-`TexMacroTableTests`, which holds every row of the table against what the parser does with it —
+`TexMacroTableTests`, which holds every row of the table against what expanding macros does with it —
 including that the row fires at all, which is how a row for a name the command table already claims
 gets caught rather than sitting there looking correct.
 
@@ -387,10 +380,12 @@ A macro is a fact about what was *written* — one name standing for something t
 typed out longhand — so resolving it is reading, not setting. The typesetter had a table of them only
 because it used to be the reader as well.
 
-`TexMacros` is that table, in `Nexaflow.Maths`, and the parser writes what it finds into the tree:
-the command the writer typed, with its expansion hanging underneath it under a new
-`TexRole.Expansion`. Both are there to be asked — what was written, and what it means — and neither
-half has to know what the other wanted.
+`TexMacros` is that table, and a pipeline stage, `ExpandMacros`, writes what it finds into the tree:
+the command the writer typed, with its expansion hanging underneath it as a `Roles.Derived` part —
+the shared tree's one role for what a piece amounts to rather than what was typed. Both are there to
+be asked — what was written, and what it means — and neither half has to know what the other wanted.
+It is a stage rather than the parser's work because it says what the text amounts to: the parser finds
+the name, and the table says what it stands for.
 
 **An expansion is not source, and nothing that measures source may see it.** It has no width, prints
 as nothing, is not placed anywhere and holds no leaves. That is what keeps `Print(Parse(s)) == s`
@@ -456,7 +451,7 @@ no predefined formulas, no XML of them, no `Func<TexFormula?>` threaded through 
 carry an empty dictionary. What is not a macro is a length in mu with no LaTeX spelling, and those
 are built beside the symbols by `StandardCommands.PrimitiveOf`.
 
-`TexMacroTableTests` holds every row against what the parser does with it, and the first thing it
+`TexMacroTableTests` holds every row against what expanding macros does with it, and the first thing it
 asks is whether the row fires at all. A row for a name the command table already claims is invisible
 otherwise: nothing breaks, nothing complains, and the sweep reports a clean pass. That happened once
 already, to `\mod`.

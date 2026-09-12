@@ -41,9 +41,6 @@
          re-read it without changing what it prints as. ISourcePart lives here too: the seam asks a part
          where it sits, and that question has nothing to do with WPF. See docs/markdown-ast.md. -->
     <ProjectReference Include="..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
-    <!-- The LaTeX parse tree. It is what says a matrix is a table and where each cell is; the
-         typesetter's atoms only say what to draw. See docs/latex-parse-tree.md. -->
-    <ProjectReference Include="..\Nexaflow.Maths\Nexaflow.Maths.csproj" />
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
 

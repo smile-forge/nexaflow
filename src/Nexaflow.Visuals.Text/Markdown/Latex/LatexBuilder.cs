@@ -2,13 +2,14 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using WpfMath.Parsers;
 using WpfMath.Rendering;
 using XamlMath;
 using XamlMath.Rendering;
 using System.Collections.Generic;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -117,7 +118,7 @@ public sealed class LatexBuilder : ContentBuilder
         // a different answer: a `\ ` the builder sets directly was shown as its own characters in red.
         var read = TexPipeline.Read(
             Source, name => XamlMath.TexFormulaBuilder.Draws(name, knowledge), editing, _placeholders);
-        var reading = TexReading.Of(read);
+        var reading = ContentReading.Of(read);
         var formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
 
         if (formula is null)
@@ -125,7 +126,7 @@ public sealed class LatexBuilder : ContentBuilder
             // Nothing here could set it as maths, so it is set as it was typed. Which is the same
             // answer this gives a stretch under the caret and a command nobody has heard of, reached
             // by the same road — and a great deal more use to whoever wrote it than a blank space.
-            reading = TexReading.Of(TexNode.Branch(TexKind.Sequence, [TexNode.Shown(Source)]));
+            reading = ContentReading.Of(ContentNode.Branch(Kinds.Sequence, [ContentNode.Shown(Source)]));
             formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
         }
 
@@ -186,7 +187,7 @@ public sealed class LatexBuilder : ContentBuilder
     /// </para>
     /// </summary>
     private (LayoutTree Tree, System.Windows.Size Size) Numbered(LayoutTree formula, LatexCapture laid, TexFormula number,
-                                                 XamlMath.TexEnvironment environment, TexReading reading)
+                                                 XamlMath.TexEnvironment environment, ContentReading reading)
     {
         var capture = new LatexCapture(_scale, reading);
         number.RenderTo(capture, environment, 0, 0);
@@ -246,7 +247,7 @@ public sealed class LatexBuilder : ContentBuilder
     /// difference of nine walks on the smallest interesting case and rather more on a real one.
     /// </para>
     /// </summary>
-    private static void Order(TexReading reading, Piece root)
+    private static void Order(ContentReading reading, Piece root)
     {
         if (root.Tree is not { } tree) return;
 

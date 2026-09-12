@@ -1,0 +1,39 @@
+{
+  "branch": "claude/one-renderer-pass-1eccb8",
+  "nodes": {
+    "maths-latex-edit": {
+      "links": [],
+      "concerns": {
+        "tests": []
+      }
+    },
+    "latex-placeholders": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Latex/TexPipeline.cs",
+          "class": "TexPipeline",
+          "method": "Holds"
+        }
+      ]
+    },
+    "latex-shown-as-written": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Pipeline/Stages/ShowAsWritten.cs",
+          "class": "ShowAsWritten"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "latex-placeholders",
+    "latex-shown-as-written",
+    "maths-latex-edit"
+  ]
+}

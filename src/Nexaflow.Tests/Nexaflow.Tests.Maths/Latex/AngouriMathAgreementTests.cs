@@ -1,6 +1,7 @@
 using AngouriMath;
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -209,7 +210,7 @@ public class AngouriMathAgreementTests
     /// <summary>How many of them the tree read as that command with every one of these parts.</summary>
     private static int Complete(string latex, string command, params string[] roles) =>
         TexParser.Parse(latex).SelfAndDescendants().Count(
-            node => node.Kind == TexKind.Command
-                    && node.Part(TexRole.Name)?.Text == command
+            node => node.Kind == TexKinds.Command
+                    && node.Part(Roles.Name)?.Text == command
                     && roles.All(role => node.Part(role) is not null));
 }

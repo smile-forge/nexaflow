@@ -2,6 +2,7 @@
 using System.Linq;
 using XamlMath.Atoms;
 using XamlMath.Exceptions;
+using Nexaflow.Markdown.Ast;
 
 namespace XamlMath.Parsers.Matrices;
 
@@ -78,7 +79,7 @@ internal sealed class MatrixCommandParser
     /// </param>
     internal Atom Assemble(
         IEnumerable<IEnumerable<Atom?>> cells,
-        Nexaflow.Maths.Latex.TexPart? origin = null)
+        Nexaflow.Markdown.Ast.ContentPart? origin = null)
     {
         // A matrix has no outer gap - its brackets sit against its contents - but an aligned block is
         // not bracketed and its columns are its own business, so it keeps what it had.

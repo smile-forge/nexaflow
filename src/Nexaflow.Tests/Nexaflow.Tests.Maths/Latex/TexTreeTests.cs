@@ -1,6 +1,7 @@
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -23,8 +24,8 @@ public class TexTreeTests
     {
         var fraction = Only(@"\frac{a}{b}");
 
-        Assert.AreEqual(TexKind.Command, fraction.Kind);
-        Assert.AreEqual(@"\frac", fraction.Part(TexRole.Name)?.Text);
+        Assert.AreEqual(TexKinds.Command, fraction.Kind);
+        Assert.AreEqual(@"\frac", fraction.Part(Roles.Name)?.Text);
         Assert.AreEqual("{a}", fraction.Part(TexRole.Numerator)?.Print());
         Assert.AreEqual("{b}", fraction.Part(TexRole.Denominator)?.Print());
     }
@@ -46,7 +47,7 @@ public class TexTreeTests
         // x^\alpha needs no braces, because a control word is one token.
         var script = Only(@"x^\alpha");
 
-        Assert.AreEqual(TexKind.Script, script.Kind);
+        Assert.AreEqual(TexKinds.Script, script.Kind);
         Assert.AreEqual("x", script.Part(TexRole.Base)?.Print());
         Assert.AreEqual(@"\alpha", script.Part(TexRole.Superscript)?.Print());
     }
@@ -58,7 +59,7 @@ public class TexTreeTests
         // same one thing.
         var script = Only("x^2_i");
 
-        Assert.AreEqual(TexKind.Script, script.Kind);
+        Assert.AreEqual(TexKinds.Script, script.Kind);
         Assert.AreEqual("x", script.Part(TexRole.Base)?.Print());
         Assert.AreEqual("2", script.Part(TexRole.Superscript)?.Print());
         Assert.AreEqual("i", script.Part(TexRole.Subscript)?.Print());
@@ -72,7 +73,7 @@ public class TexTreeTests
         // which is a reading and not a fact about what was written.
         var script = Only("f''");
 
-        Assert.AreEqual(TexKind.Script, script.Kind);
+        Assert.AreEqual(TexKinds.Script, script.Kind);
         Assert.AreEqual("f", script.Part(TexRole.Base)?.Print());
         Assert.AreEqual(2, script.Children.Count(child => child.Role == TexRole.Mark));
         Assert.AreEqual("f''", script.Print());
@@ -86,7 +87,7 @@ public class TexTreeTests
         // would draw the i under a prime instead of under the x.
         var script = Only("x''_{i}");
 
-        Assert.AreEqual(TexKind.Script, script.Kind);
+        Assert.AreEqual(TexKinds.Script, script.Kind);
         Assert.AreEqual("x", script.Part(TexRole.Base)?.Print());
         Assert.AreEqual(2, script.Children.Count(child => child.Role == TexRole.Mark));
         Assert.AreEqual("{i}", script.Part(TexRole.Subscript)?.Print());
@@ -101,7 +102,7 @@ public class TexTreeTests
 
         Assert.AreEqual(3, run.Children.Count);
         Assert.AreEqual("~", run.Children[1].Print());
-        Assert.AreEqual(TexKind.Script, run.Children[2].Kind);
+        Assert.AreEqual(TexKinds.Script, run.Children[2].Kind);
         Assert.IsNull(run.Children[2].Part(TexRole.Base));
     }
 
@@ -112,7 +113,7 @@ public class TexTreeTests
         // script, because that is where it was written, and it is not between two separate things.
         var script = Only("x ^2");
 
-        Assert.AreEqual(TexKind.Script, script.Kind);
+        Assert.AreEqual(TexKinds.Script, script.Kind);
         Assert.AreEqual("x ^2", script.Print());
     }
 
@@ -142,10 +143,10 @@ public class TexTreeTests
         // the source to look.
         var group = Only("{a+b}");
 
-        Assert.AreEqual(TexKind.Group, group.Kind);
-        Assert.AreEqual("{", group.Part(TexRole.Open)?.Text);
-        Assert.AreEqual("}", group.Part(TexRole.Close)?.Text);
-        Assert.AreEqual(3, group.Parts(TexRole.Element).Count(), "a, +, b");
+        Assert.AreEqual(TexKinds.Group, group.Kind);
+        Assert.AreEqual("{", group.Part(Roles.Open)?.Text);
+        Assert.AreEqual("}", group.Part(Roles.Close)?.Text);
+        Assert.AreEqual(3, group.Parts(Roles.Element).Count(), "a, +, b");
     }
 
     [TestMethod]
@@ -153,9 +154,9 @@ public class TexTreeTests
     {
         var fence = Only(@"\left( a \right)");
 
-        Assert.AreEqual(TexKind.Fence, fence.Kind);
-        Assert.AreEqual(@"\left(", fence.Part(TexRole.Open)?.Print());
-        Assert.AreEqual(@"\right)", fence.Part(TexRole.Close)?.Print());
+        Assert.AreEqual(TexKinds.Fence, fence.Kind);
+        Assert.AreEqual(@"\left(", fence.Part(Roles.Open)?.Print());
+        Assert.AreEqual(@"\right)", fence.Part(Roles.Close)?.Print());
     }
 
     [TestMethod]
@@ -163,16 +164,16 @@ public class TexTreeTests
     {
         var matrix = Only(@"\begin{matrix} 1 & 2 & 3 \\ a & b & c \end{matrix}");
 
-        Assert.AreEqual(TexKind.Environment, matrix.Kind);
+        Assert.AreEqual(TexKinds.Environment, matrix.Kind);
         Assert.AreEqual("matrix", TexParser.NameOf(matrix.Part(TexRole.Begin)!));
 
-        var rows = matrix.Parts(TexRole.Row).ToList();
+        var rows = matrix.Parts(Roles.Row).ToList();
         Assert.AreEqual(2, rows.Count);
 
         foreach (var row in rows)
-            Assert.AreEqual(3, row.Parts(TexRole.Cell).Count(), $"in {row.Print()}");
+            Assert.AreEqual(3, row.Parts(Roles.Cell).Count(), $"in {row.Print()}");
 
-        Assert.AreEqual(" 1 ", rows[0].Parts(TexRole.Cell).First().Print().TrimEnd('&'));
+        Assert.AreEqual(" 1 ", rows[0].Parts(Roles.Cell).First().Print().TrimEnd('&'));
     }
 
     [TestMethod]
@@ -181,13 +182,13 @@ public class TexTreeTests
         // Which is the whole reason a column can be moved. A separator that only existed in the source
         // would have to be counted out of the characters every time, and reinserted by hand.
         var matrix = Only(@"\begin{matrix} 1 & 2 \\ a & b \end{matrix}");
-        var rows = matrix.Parts(TexRole.Row).ToList();
+        var rows = matrix.Parts(Roles.Row).ToList();
 
-        Assert.AreEqual("&", rows[0].Parts(TexRole.Cell).First().Part(TexRole.Separator)?.Text);
-        Assert.IsNull(rows[0].Parts(TexRole.Cell).Last().Part(TexRole.Separator),
+        Assert.AreEqual("&", rows[0].Parts(Roles.Cell).First().Part(Roles.Separator)?.Text);
+        Assert.IsNull(rows[0].Parts(Roles.Cell).Last().Part(Roles.Separator),
             "the last cell of a row ends with the row, not with an ampersand");
-        Assert.AreEqual(@"\\", rows[0].Part(TexRole.Separator)?.Print());
-        Assert.IsNull(rows[1].Part(TexRole.Separator), "and the last row ends with the environment");
+        Assert.AreEqual(@"\\", rows[0].Part(Roles.Separator)?.Print());
+        Assert.IsNull(rows[1].Part(Roles.Separator), "and the last row ends with the environment");
     }
 
     [TestMethod]
@@ -197,7 +198,7 @@ public class TexTreeTests
         // every matrix written that way a blank row nobody typed.
         var matrix = Only(@"\begin{matrix} a & b \\ \end{matrix}");
 
-        Assert.AreEqual(1, matrix.Parts(TexRole.Row).Count());
+        Assert.AreEqual(1, matrix.Parts(Roles.Row).Count());
     }
 
     [TestMethod]
@@ -208,7 +209,7 @@ public class TexTreeTests
         var array = Only(@"\begin{array}{cc} a & b \end{array}");
 
         Assert.AreEqual("{cc}", array.Part(TexRole.Option)?.Print());
-        Assert.AreEqual(2, array.Parts(TexRole.Row).First().Parts(TexRole.Cell).Count());
+        Assert.AreEqual(2, array.Parts(Roles.Row).First().Parts(Roles.Cell).Count());
     }
 
     [TestMethod]
@@ -219,8 +220,8 @@ public class TexTreeTests
         var root = TexParser.Parse(@"\notacommand{x}");
 
         Assert.AreEqual(2, root.Children.Count);
-        Assert.AreEqual(TexKind.Command, root.Children[0].Kind);
-        Assert.AreEqual(TexKind.Group, root.Children[1].Kind);
+        Assert.AreEqual(TexKinds.Command, root.Children[0].Kind);
+        Assert.AreEqual(TexKinds.Group, root.Children[1].Kind);
     }
 
     [TestMethod]
@@ -277,8 +278,8 @@ public class TexTreeTests
 
             seen++;
             var whole = TexParser.Parse(latex).SelfAndDescendants()
-                .Any(node => node.Kind == TexKind.Command
-                             && node.Part(TexRole.Name)?.Text == @"\frac"
+                .Any(node => node.Kind == TexKinds.Command
+                             && node.Part(Roles.Name)?.Text == @"\frac"
                              && node.Part(TexRole.Numerator) is not null
                              && node.Part(TexRole.Denominator) is not null);
 
@@ -291,10 +292,10 @@ public class TexTreeTests
     }
 
     /// <summary>The one thing the formula is made of, ignoring the space around it.</summary>
-    private static TexNode Only(string latex)
+    private static ContentNode Only(string latex)
     {
         var content = TexParser.Parse(latex).Children
-            .Where(child => child.Kind is not (TexKind.Space or TexKind.Comment))
+            .Where(child => child.Kind is not (Kinds.Space or Kinds.Comment))
             .ToList();
 
         Assert.AreEqual(1, content.Count, $"expected one thing, got: {string.Join(", ", content)}");
