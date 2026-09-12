@@ -188,6 +188,7 @@ internal static class Program
             "doctor"      => Doctor(args[1..]),
             "pending"     => Pending(args[1..]),
             "promote"     => Promote(args[1..]),
+            "ask"         => Answered(Ask(args[1..])),
             "graph"       => Graph(args[1..]),
             _ => Usage($"unknown command '{args[0]}'")
         };
@@ -225,6 +226,7 @@ internal static class Program
               nfi batch      <script-file> [<root>] [--dry-run]
               nfi lint       [<root>] [--under <id>] [--json]
               nfi doctor     [<root>] [--fix]
+              nfi ask        '<stage> | <stage> ...' [<root>]   several graph questions, one answer
               nfi graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
 
             validate   Checks every snaplink still points at a real target (file exists, md heading resolves,
@@ -312,6 +314,15 @@ internal static class Program
                        snaplink whose doc goes through a linked git worktree (.claude/worktrees/<name>/…) back
                        onto the repo's own copy. Use it after any tree corruption, or after linking work done
                        in a worktree. exit: 0 clean/fixed, 1 issues found without --fix.
+            ask        Several graph questions chained into ONE answer: stages separated by |, the set of nodes
+                       flowing left to right, and only the last stage printing. Start with search <term> /
+                       grep <regex> / node <id>; narrow with callers / callees / members / like <regex> /
+                       limit <n>; print with ids [n] / source [n] / files / count (ids, when you say nothing).
+                       One question per line, so a pattern may hold a ';' - but quote one holding a '|', or it
+                       reads as a stage break.
+                         ask 'search GraphGrep | source'      find it and read it, without the second call
+                         ask 'grep "\.StartsWith" | files'    does anything still do this, and where
+                         ask 'node <id> | callers | source'   who uses it, and what their code looks like
             graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.bin,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
@@ -707,6 +718,10 @@ internal static class Program
                   --dry-run prints the hunk and writes nothing. --expect S refuses unless the block still
                   contains S, for a caller pinning an edit to what it read.
 
+            chaining:   `nfi ask '<stage> | <stage>'` asks several of these at once and prints one answer -
+                  `search X | source` is search and code without the second call, `grep X | files` or
+                  `| count` answers "does anything still do this" without printing every hit, and
+                  `node <id> | callers | source` is node and code for each caller. See: nfi (the ask entry).
             node types: product | file | type | member | external
             edge rels:  contains extends implements imports calls references instantiates tests documents view_of depends_on
             hyper rels: signature (member→return,params)  annotated (target→attr)  calls (caller→callee,args)
@@ -950,12 +965,60 @@ internal static class Program
             s0 = Math.Max(0, from - 1);
             e0 = Math.Min(lines.Length - 1, to - 1);
         }
+        else if (PrintedOutline(a, root, rel, lineCount: lines.Length)) return Clean;
         else { s0 = 0; e0 = lines.Length - 1; }   // whole file
 
         Console.WriteLine($"// {rel}:{s0 + 1}-{e0 + 1}   {id}");
         for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++)
             Console.WriteLine($"{i + 1,5}  {lines[i]}");
         return Clean;
+    }
+
+    /// <summary>
+    /// A big file answers with what it holds rather than with itself.
+    /// <para>
+    /// Reading a whole file to find one declaration in it is the habit the graph exists to replace, and `cat`
+    /// made it the cheapest thing to type - so past a few hundred lines the answer is the outline, carrying
+    /// the id of every block in it, which is what the call after this one wanted anyway. `--all` still prints
+    /// the file, and so does a file the graph has never seen: an outline that cannot be drawn is no reason to
+    /// refuse the question that was asked.
+    /// </para>
+    /// </summary>
+    private static bool PrintedOutline(VerbArgs a, string root, string rel, int lineCount)
+    {
+        const int outlineAbove = 400;
+        if (a.Has("--all") || lineCount <= outlineAbove) return false;
+        if (!TryLoadGraph(root, out var g, out _)) return false;
+        if (!GraphQuery.Index(g).TryGetValue($"file:{rel}", out var node)) return false;
+
+        Console.Write(GraphAsk.Outline(g, node));
+        Console.WriteLine($"// {rel} is {lineCount} lines; this is its outline. --lines A-B for a slice, "
+                        + "`graph code <id>` for one block, --all for the file itself.");
+        return true;
+    }
+
+    /// <summary>
+    /// `nfi ask '<stage> | <stage>'` - several graph questions chained into one answer.
+    /// <para>
+    /// The vocabulary and the answer are <see cref="GraphAsk"/>'s, which knows nothing about working trees.
+    /// This is the half that has to: which graph, whether it is current, and where the source behind a node
+    /// is read from.
+    /// </para>
+    /// </summary>
+    private static int Ask(string[] args)
+    {
+        if (!TryRead(Specs.Ask, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (a.Positionals.Count == 0)
+            return VerbUsage("ask needs a question, quoted - e.g. nfi ask 'search GraphGrep | source'");
+
+        if (!TryLoadGraph(root, out var g, out var code)) return code;
+        BeginFreshness(root, a.Has("--main"), g);
+        RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
+
+        var main = a.Has("--main");
+        var answer = GraphAsk.Run(g, a[0], rel => TryReadLines(root, rel, main));
+        Console.WriteLine(answer.Text);
+        return answer.Ok ? Clean : Error;
     }
 
     /// <summary>
@@ -1710,9 +1773,11 @@ internal static class Program
 
             var tally = ScanContent(codeNodes, limit, scanCap, HitsIn, (n, hits) =>
             {
-                Console.WriteLine(GraphReport.NodeLine(n));
-                foreach (var (line, text) in hits.Take(6)) Console.WriteLine($"      {line,5}: {text.Trim()}");
-                if (hits.Count > 6) Console.WriteLine($"      … +{hits.Count - 6} more matching line(s)");
+                // The id alone, rather than NodeLine's two lines: the id already names the file and the declaration,
+                // and a sweep printing forty of these pays for the second line forty times over.
+                Console.WriteLine($"  {n.Id}");
+                foreach (var (line, text) in hits.Take(4)) Console.WriteLine($"      {line,5}: {text.Trim()}");
+                if (hits.Count > 4) Console.WriteLine($"      … +{hits.Count - 4} more matching line(s)");
             });
 
             // Say plainly when the answer is partial. "Raise --limit to see more" reads as pagination, and a
@@ -2611,8 +2676,13 @@ internal static class Program
         public static readonly VerbSpec GraphGrep = new("graph grep", 1,
             ["--from", "--hops", "--scope", "--mode", "--type", "--limit", "--scan-cap"], ["--main", "--refresh"],
             "graph grep <pattern> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N] [--scan-cap N] [--main] [--refresh]");
-        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main", "--refresh"],
-            "graph code <id> [<root>] [--lines A-B] [--main] [--refresh]");
+        public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main", "--refresh", "--all"],
+            "graph code <id> [<root>] [--lines A-B] [--all] [--main] [--refresh]");
+
+        // One positional, and it is the whole question - a pipeline typed inline. Nothing here reads a file:
+        // a question you have to write to disk before you can ask it is one that gets asked with grep instead.
+        public static readonly VerbSpec Ask = new("ask", 1, None, ["--main", "--refresh"],
+            "ask '<stage> | <stage> ...' [<root>] [--main] [--refresh]");
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file"],
             ["--stdin", "--find-stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh",

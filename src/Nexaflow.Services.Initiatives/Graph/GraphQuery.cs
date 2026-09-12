@@ -282,29 +282,42 @@ public static class GraphQuery
     }
 
     /// <summary>
-    /// Search the <i>source</i> of nodes near a starting point — the thing plain grep cannot do, because it
-    /// has no notion of "near". With no start node it searches every code node in the graph.
+    /// Grep the source of every node near <paramref name="fromId"/> (or of the whole graph when none is
+    /// given), reporting each hit with the node that declares it.
     /// </summary>
     public static IReadOnlyList<GrepHit> Grep(KnowledgeGraph g, string pattern, ReadLines read,
                                               string? fromId = null, int hops = 2, int limit = 40,
-                                              GrepScope scope = GrepScope.Hops)
+                                              GrepScope scope = GrepScope.Hops) =>
+        GrepNodes(Scope(g, fromId, hops, scope, out _), pattern, read, limit);
+
+    /// <summary>
+    /// The scan itself, over whatever set of nodes the caller has already settled on - so a search can be
+    /// narrowed by something other than a radius (the previous stage of a pipeline, say) without that
+    /// scoping being reinvented alongside it.
+    /// <para>
+    /// Each file is read once, tested once, and parsed at most once. Testing the WHOLE file first is what
+    /// keeps that affordable: a file with no matching line anywhere cannot have a matching block, so its
+    /// nodes are skipped before anything is parsed - and most files match nothing.
+    /// </para>
+    /// <para>
+    /// <paramref name="limit"/> stops the scan rather than trimming the report, so a caller that needs a
+    /// true total passes none - and one that only wants a screenful keeps paying for a screenful.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<GrepHit> GrepNodes(IEnumerable<GraphNode> nodes, string pattern, ReadLines read,
+                                                   int limit = int.MaxValue)
     {
         Regex regex;
         try { regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant); }
         catch (ArgumentException) { return []; }
 
-        var searched = Scope(g, fromId, hops, scope, out _);
-
-        // Each file is read once, tested once, and parsed at most once. Testing the WHOLE file first is what
-        // keeps that affordable: a file with no matching line anywhere cannot have a matching block, so its
-        // nodes are skipped before anything is parsed - and most files match nothing.
         var spans = new SourceSpans();
         var files = new Dictionary<string, string[]?>(StringComparer.Ordinal);
         var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
         string[]? Read(string rel) => files.TryGetValue(rel, out var c) ? c : files[rel] = read(rel);
 
         var hits = new List<GrepHit>();
-        foreach (var node in searched.Where(n => n.FilePath is { Length: > 0 }))
+        foreach (var node in nodes.Where(n => n.FilePath is { Length: > 0 }))
         {
             if (hits.Count >= limit) break;
             var rel = node.FilePath!;
