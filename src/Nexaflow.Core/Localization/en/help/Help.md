@@ -28,6 +28,17 @@ Every help page opens with its **Topics**: click one to jump straight to it. Eac
 topics**, which takes you back to that list. Links to other help pages open in this pane, some of them straight at
 the part they mean.
 
+## Show me where
+
+Some help points at the screen instead of describing it. A link with a pin on it, [like this one](locate:Chrome_HelpButton),
+throws a red lasso round the control it means — there for five seconds, or until you click, whichever comes first.
+
+One link can point at several things in turn: [the search box, then all help pages, then the ? button](locate:Help_SearchBox,Help_IndexButton,Chrome_HelpButton).
+Click, or wait, and the lasso moves on to the next; the number on it says how far through you are. **Esc** stops it.
+
+A "show me" link points at the window you are in, so what it names has to be on screen — usually because help is open
+beside the page it belongs to. When it isn't, the pane says so rather than leaving you looking for a lasso.
+
 ## Searching
 
 Type in the box at the top of the pane.

@@ -41,6 +41,13 @@
          not over a scene — a translucent veil under body text is a readability cost with nothing to show. ── -->
     <SolidColorBrush x:Key="Help.Bg"         Color="{StaticResource SurfaceColor}"/>
 
+    <!-- ── Locate lasso: the loop a help page's "show me" link throws round a control on screen (LocateTour), and the
+         badge numbering a chain of them. Deliberately neither the accent nor DangerBrush: for its five seconds it has to
+         outshout everything on screen in every theme, and it is not an error. A loud red on the dark themes; the light
+         ones deepen it below. ── -->
+    <SolidColorBrush x:Key="Locate.Stroke"    Color="#FF2E4D"/>
+    <SolidColorBrush x:Key="Locate.BadgeText" Color="White"/>
+
     <!-- ── AI interaction bar (MainWindow row 4). ── -->
     <SolidColorBrush x:Key="AiBar.Bg"        Color="{StaticResource SurfaceColor}"/>
     <SolidColorBrush x:Key="AiBar.InputBg"   Color="{StaticResource Surface2Color}"/>

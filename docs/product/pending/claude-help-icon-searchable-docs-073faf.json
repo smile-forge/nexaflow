@@ -389,10 +389,80 @@
           }
         ]
       }
+    },
+    "help-locate": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LocateTour.cs",
+          "class": "LocateTour"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LocateLink.cs",
+          "class": "LocateLink"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/AutomationIdLookup.cs",
+          "class": "AutomationIdLookup"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/LocateTourTests.cs",
+            "class": "LocateTourTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/LocateLinkTests.cs",
+            "class": "LocateLinkTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/AutomationIdLookupTests.cs",
+            "class": "AutomationIdLookupTests"
+          }
+        ]
+      }
+    },
+    "help-locate-lasso": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LassoAdorner.cs",
+          "class": "LassoAdorner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LassoGeometry.cs",
+          "class": "LassoGeometry"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/LassoGeometryTests.cs",
+            "class": "LassoGeometryTests"
+          }
+        ]
+      }
+    },
+    "md-link-decorator": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownRenderContext.cs",
+          "class": "MarkdownRenderContext"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 39,
+  "changed_sets": 44,
   "touched_nodes": [
     "chrome-help-button",
     "help",
@@ -400,6 +470,8 @@
     "help-document",
     "help-index-button",
     "help-library",
+    "help-locate",
+    "help-locate-lasso",
     "help-other-results",
     "help-pane",
     "help-pane-controller",
@@ -416,6 +488,7 @@
     "markdown",
     "md-anchor-links",
     "md-image-resolver",
+    "md-link-decorator",
     "text-viewer",
     "theme-switch-restart",
     "win-file-system"

@@ -61,6 +61,9 @@
          button clearly reddens on hover. -->
     <SolidColorBrush x:Key="DangerSubtleBrush" Color="#55DC2626"/>
 
+    <!-- Locate lasso: the dark themes' bright red thins out over a light surface — deepen it so the loop still shouts. -->
+    <SolidColorBrush x:Key="Locate.Stroke" Color="#D9001B"/>
+
     <!-- AI status dot: taken from the plate (leaf, marigold, lavender petal) but deepened to read on
          the light linen bar, and kept mutually distinct. The handler indigo is held well clear of the
          rose accent so a matched handler never reads as "primary action". -->

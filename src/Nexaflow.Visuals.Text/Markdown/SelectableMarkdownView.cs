@@ -207,6 +207,10 @@ public class SelectableMarkdownView : UserControl
     /// <see cref="MarkdownRenderContext.ImageResolver"/>. Read at render time, so set it before <see cref="Markdown"/>.</summary>
     public Func<string, System.Windows.Media.ImageSource?>? ImageResolver { get; set; }
 
+    /// <summary>Host hook for a link's look, called with each link's source URL once its text is in place — see
+    /// <see cref="MarkdownRenderContext.DecorateLink"/>. Read at render time, so set it before <see cref="Markdown"/>.</summary>
+    public Action<System.Windows.Documents.Hyperlink, string>? LinkDecorator { get; set; }
+
     /// <summary>When true, a diagram renders at full height (no inner scrollbar) and scales down to the
     /// control width instead of getting its own scrollbars — so only this surface's scrollbar moves. Off by
     /// default. Set it on surfaces that already scroll (e.g. the "As Code" structure panel).</summary>
@@ -222,7 +226,7 @@ public class SelectableMarkdownView : UserControl
         _search?.Clear();
         _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, DecorateLink = LinkDecorator, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
     }
 
     /// <summary>Scrolls the heading with in-page anchor <paramref name="anchor"/> — a <c>#anchor</c> link's target,
