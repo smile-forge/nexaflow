@@ -82,7 +82,7 @@ public sealed class DeclarationAnchors
                  ?? Pick(candidates, n => n.EndPosition.Row == endLine1 - 1)
                  ?? Pick(candidates, n => n.StartPosition.Row == line1 - 1);
 
-                return chosen is null ? null : Anchor(chosen, WithDecorators(chosen), text);
+                return chosen is null ? null : Anchor(chosen, SpanOf(chosen), text);
             });
         }
         catch { return null; }   // a malformed parse yields no anchor, never an exception mid-edit
@@ -172,20 +172,66 @@ public sealed class DeclarationAnchors
     }
 
     /// <summary>
-    /// Climbs to the wrapper a grammar puts decorators in (Python's <c>decorated_definition</c>, and the
-    /// equivalents elsewhere) so <c>@cache</c> above a function is part of the function rather than an orphan
-    /// left behind by a delete. The wrapper only widens the <i>span</i>: <c>name</c>, <c>parameters</c> and
-    /// <c>body</c> stay on the declaration itself, which is where the grammar declares those fields.
+    /// The node an edit has to cover, which is not always the node carrying the name.
+    ///
+    /// <para>
+    /// Two climbs. A decorator wrapper (Python's <c>decorated_definition</c>, and the equivalents elsewhere), so
+    /// <c>@cache</c> above a function is part of the function rather than an orphan left behind by a delete. And
+    /// the declaration around a declarator: a field is <em>named</em> by its declarator — <c>_count</c> — while
+    /// what an edit covers is <c>private int _count;</c>, with its modifiers, its type, its attributes and its
+    /// semicolon. Without that, deleting a field took the line its name was on and left the attribute and the
+    /// doc comment above it stranded on the next declaration, where an attribute does not even compile.
+    /// </para>
+    /// <para>
+    /// Either climb only widens the <i>span</i>: <c>name</c>, <c>parameters</c> and <c>body</c> stay on the
+    /// declaration itself, which is where the grammar declares those fields.
+    /// </para>
     /// </summary>
-    private static Node WithDecorators(Node node)
+    private static Node SpanOf(Node node)
     {
-        var current = node;
+        var current = WholeDeclaration(node);
+
         while (current.Parent is { } parent
                && parent.EndIndex == current.EndIndex
                && (parent.Type.Contains("decorat", StringComparison.Ordinal)
                 || parent.Type.Contains("annotat", StringComparison.Ordinal)))
             current = parent;
         return current;
+    }
+
+    /// <summary>
+    /// The declaration a declarator belongs to, climbed only while that declaration declares this one name.
+    /// <c>int a, b;</c> declares two, and taking the statement away for one of them would take the other with
+    /// it, so there the declarator stays the span.
+    /// <para>
+    /// A list of declarations is not one: a class body whose only member is a field would otherwise climb out
+    /// of the field and swallow the class.
+    /// </para>
+    /// </summary>
+    private static Node WholeDeclaration(Node node)
+    {
+        if (!node.Type.Contains("declarator", StringComparison.Ordinal)) return node;
+
+        var current = node;
+        while (current.Parent is { } parent && Declares(parent) && Declarators(parent) <= 1)
+            current = parent;
+        return current;
+    }
+
+    /// <summary>Whether a node is a declaration rather than a collection of them.</summary>
+    private static bool Declares(Node node) =>
+        node.Type.Contains("declaration", StringComparison.Ordinal)
+        && !node.Type.Contains("list", StringComparison.Ordinal)
+        && !node.Type.Contains("body", StringComparison.Ordinal)
+        && !node.Type.Contains("block", StringComparison.Ordinal);
+
+    /// <summary>How many names a declaration declares.</summary>
+    private static int Declarators(Node node)
+    {
+        var found = 0;
+        foreach (var child in node.NamedChildren)
+            found += child.Type.Contains("declarator", StringComparison.Ordinal) ? 1 : Declarators(child);
+        return found;
     }
 
     /// <param name="declaration">The node carrying the <c>name</c>/<c>parameters</c>/<c>body</c> fields.</param>

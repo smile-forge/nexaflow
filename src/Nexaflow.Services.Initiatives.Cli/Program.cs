@@ -2168,13 +2168,15 @@ internal static class Program
         // Standalone, a no-op remap is an answer rather than a failure: nothing referenced that path.
         // Inside batch it IS a failure (ApplyRemap) - there the path comes from a move the author already
         // made, so a miss means the script is wrong and the whole transaction should abort.
+        // Asked before the rewrite: afterwards no link names the old path any more.
+        var touched = SnaplinkRemapper.Touching(state, a[0]);
         var changed = SnaplinkRemapper.Remap(state, a[0], a[1], a.Value("--class"), a.Value("--method"));
         if (changed == 0)
         {
             Console.WriteLine($"No snaplink referenced '{a[0]}' - nothing remapped.");
             return Clean;
         }
-        return SaveAndValidate(state, root, $"Remapped {changed} snaplink(s): {a[0]} -> {a[1]}.", written: LinksAt(state, [a[1]]));
+        return SaveAndValidate(state, root, $"Remapped {changed} snaplink(s): {a[0]} -> {a[1]}.", touched, LinksAt(state, [a[1]]));
     }
 
     private static (bool Ok, string Message) ApplyRemap(ProductState s, VerbArgs a)
@@ -2225,11 +2227,14 @@ internal static class Program
 
         var dryRun = a.Has("--dry-run");
         var total = 0; var touched = 0; var destinations = new List<string>();
+        var touchedLinks = new List<(string NodeId, string? Concern)>();
         foreach (var (oldPath, newPath) in renames)
         {
+            var here = SnaplinkRemapper.Touching(state, oldPath);
             var changed = SnaplinkRemapper.Remap(state, oldPath, newPath, null, null);
             if (changed == 0) continue;
             total += changed; touched++; destinations.Add(newPath);
+            touchedLinks.AddRange(here);
             Console.WriteLine($"  {changed} snaplink(s): {oldPath} -> {newPath}");
         }
 
@@ -2244,7 +2249,7 @@ internal static class Program
             return Clean;
         }
         return SaveAndValidate(state, root, $"Remapped {total} snaplink(s) across {touched} renamed file(s) from git '{range}'.",
-                               written: LinksAt(state, destinations));
+                               [.. touchedLinks.Distinct()], LinksAt(state, destinations));
     }
 
     /// <summary>Runs git in <paramref name="repo"/> and returns its stdout lines, or null if it failed.</summary>
@@ -3373,7 +3378,10 @@ internal static class Program
             var line = lines[i].Trim();
             if (line.Length == 0 || line.StartsWith('#')) continue;   // blank lines + # comments
             var tokens = Tokenize(line).ToArray();
-            if (LinkTargetOf(tokens) is { } target) touchedLinks.Add(target);
+            // A remap names no node - it rewrites wherever the path is - so what it touches is asked of the tree
+            // before the line runs, or a branch rewrites the tree every other worktree reads.
+            if (tokens is ["remap", var moved, ..]) touchedLinks.AddRange(SnaplinkRemapper.Touching(state, moved));
+            else if (LinkTargetOf(tokens) is { } target) touchedLinks.Add(target);
             var (ok, msg) = ApplyOne(state, tokens, root);
 
             if (!ok)

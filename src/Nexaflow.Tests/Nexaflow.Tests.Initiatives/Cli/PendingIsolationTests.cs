@@ -224,4 +224,49 @@ public class PendingIsolationTests
             "src/Alpha.cs exists only on the branch, so a leaked link would fail here — and that failure is "
           + "the noise every other agent was reading as a broken build");
     }
+
+    // ── remap names no node, and still belongs to the branch that ran it ─────
+
+    /// <summary>
+    /// A remap rewrites wherever the path is, so no argument names the node it touches — which is how it wrote
+    /// straight past the branch and into the shared tree. A moved file exists on the branch alone, so the
+    /// rewrite is true nowhere else until that branch merges.
+    /// </summary>
+    [TestMethod]
+    public void ARemapOnABranch_StaysWithTheBranch()
+    {
+        Run(_main, "add-snaplink", "two", _main, "--type", "code", "--doc", "src/Shared.cs", "--class", "Shared");
+        Assert.AreEqual(1, SharedLinks("two").Count, "the main checkout writes to the shared tree");
+
+        File.WriteAllText(Path.Combine(_worktree, "src", "Moved.cs"), "namespace D;\npublic class Shared { }\n");
+
+        Assert.AreEqual(0, FromBranch("remap", "src/Shared.cs", "src/Moved.cs", _main));
+
+        Assert.AreEqual("src/Shared.cs", SharedLinks("two")[0].Doc,
+            "every other worktree still has that file where it is");
+
+        var branchView = Shared;
+        Deferred.ApplyTo(branchView);
+        Assert.AreEqual("src/Moved.cs", branchView.Nodes["two"].Snaplinks![0].Doc,
+            "and the branch reads its own rewrite");
+    }
+
+    /// <summary>The same through a batch, which is how a move of several files is written.</summary>
+    [TestMethod]
+    public void ARemapInsideABatch_StaysWithTheBranchToo()
+    {
+        Run(_main, "add-snaplink", "two", _main, "--type", "code", "--doc", "src/Shared.cs", "--class", "Shared");
+        File.WriteAllText(Path.Combine(_worktree, "src", "Moved.cs"), "namespace D;\npublic class Shared { }\n");
+
+        var script = Path.Combine(_worktree, "move.batch");
+        File.WriteAllText(script, "remap src/Shared.cs src/Moved.cs\n");
+
+        Assert.AreEqual(0, FromBranch("batch", script, _main));
+
+        Assert.AreEqual("src/Shared.cs", SharedLinks("two")[0].Doc);
+
+        var branchView = Shared;
+        Deferred.ApplyTo(branchView);
+        Assert.AreEqual("src/Moved.cs", branchView.Nodes["two"].Snaplinks![0].Doc);
+    }
 }

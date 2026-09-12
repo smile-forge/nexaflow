@@ -1206,4 +1206,55 @@ public class StructuralEditTests
         Assert.IsFalse(text.Contains("                        First();"),
             "it must not keep the depth it happened to have in the listing it came from");
     }
+
+    // ── a field is named by its declarator, and edited as its declaration ────
+
+    [TestMethod]
+    public void DeletingAField_TakesItsDocCommentAndItsAttributeWithIt()
+    {
+        const string source =
+            "class C\n" +
+            "{\n" +
+            "    /// <summary>How deep this reading is.</summary>\n" +
+            "    [ThreadStatic]\n" +
+            "    private static int _depth;\n" +
+            "\n" +
+            "    public int Count => 1;\n" +
+            "}\n";
+
+        var text = Applied(StructuralEdit.Apply("c-sharp", source, "T:C/F:_depth", "_depth",
+            StructuralEdit.Op.Delete, null));
+
+        StringAssert.Contains(text, "public int Count => 1;", "the neighbour is untouched");
+        Assert.IsFalse(text.Contains("_depth"), "the field went");
+        Assert.IsFalse(text.Contains("ThreadStatic"),
+            "an attribute left behind lands on the next declaration, where it does not compile at all");
+        Assert.IsFalse(text.Contains("How deep"), "and the doc comment written for it went too");
+    }
+
+    [TestMethod]
+    public void ReplacingAField_ReplacesTheDeclarationAndNotJustTheName()
+    {
+        const string source = "class C\n{\n    private static int _depth;\n}\n";
+
+        var text = Applied(StructuralEdit.Apply("c-sharp", source, "T:C/F:_depth", "_depth",
+            StructuralEdit.Op.Replace, "private int _depth = 1;"));
+
+        StringAssert.Contains(text, "private int _depth = 1;");
+        Assert.IsFalse(text.Contains("static"), "the modifiers of what it replaced went with it");
+    }
+
+    [TestMethod]
+    public void DeletingTheOnlyFieldOfATypeLeavesTheTypeStanding()
+    {
+        // The climb from a declarator to its declaration stops at the declaration: a class body holding one
+        // field is a list of declarations, and climbing into that would take the class away with the field.
+        const string source = "class C\n{\n    private int _only;\n}\n";
+
+        var text = Applied(StructuralEdit.Apply("c-sharp", source, "T:C/F:_only", "_only",
+            StructuralEdit.Op.Delete, null));
+
+        StringAssert.Contains(text, "class C");
+        Assert.IsFalse(text.Contains("_only"));
+    }
 }
