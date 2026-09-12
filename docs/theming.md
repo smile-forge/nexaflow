@@ -101,6 +101,7 @@ a palette colour in `Tokens.xaml`; a theme overrides only the ones it wants to a
 | `TabStrip` / `Tab` | `TabStrip.Bg`, `TabStrip.Border`, `Tab.HoverBg`, `Tab.ActiveBg`, `Tab.Accent` | `PaneView.xaml` (header + breadcrumb divider), `TabStrip.xaml` (tab item states) |
 | `AiBar` | `AiBar.Bg`, `AiBar.InputBg`, `AiBar.ClusterBg`, `AiBar.Border` | `MainWindow.xaml` (row 4 — surround, input panel, button clusters) |
 | `Help` | `Help.Bg` | `Help/HelpView.xaml` — the whole Help pane. Opaque by default in every theme (`SurfaceColor`): help is read beside a page, not over a scene |
+| `Locate` | `Locate.Stroke`, `Locate.BadgeText` | `Visuals.Common/Locate/LassoAdorner.cs` — the lasso a "show me" link throws round a control, and the badge numbering a chain. Code-drawn, so resolved at paint time; a loud red on the dark themes, deepened on the light ones |
 | `FileList` | `FileList.PanelBg` | `FileSystemView.xaml` (tree + action strip; a *feature* consuming a Core token) |
 | `Page` | *(none yet — passthrough)* | `PaneView.xaml` wraps the content host; relies on a translucent `BgBrush` + the window scene |
 | `Window` | *(scene only — `Window.Bg` intentionally absent)* | `MainWindow.xaml` back layer |

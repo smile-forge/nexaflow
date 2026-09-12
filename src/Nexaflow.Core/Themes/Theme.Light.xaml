@@ -34,6 +34,9 @@
          clearly reddens on hover. -->
     <SolidColorBrush x:Key="DangerSubtleBrush" Color="#55DC2626"/>
 
+    <!-- Locate lasso: the dark themes' bright red thins out over a light surface — deepen it so the loop still shouts. -->
+    <SolidColorBrush x:Key="Locate.Stroke" Color="#D9001B"/>
+
     <!-- AI status dot: deepen the indicator hues so they read on the light grey/white AI bar
          (the bright dark-theme versions wash out). Still mutually distinct. -->
     <SolidColorBrush x:Key="AiStatus.Ready"   Color="#16A34A"/>  <!-- green  -->

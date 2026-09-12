@@ -1,0 +1,634 @@
+{
+  "branch": "claude/help-icon-searchable-docs-073faf",
+  "nodes": {
+    "help-locate": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LocateTour.cs",
+          "class": "LocateTour"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LocateLink.cs",
+          "class": "LocateLink"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/AutomationIdLookup.cs",
+          "class": "AutomationIdLookup"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/LocateTourTests.cs",
+            "class": "LocateTourTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/LocateLinkTests.cs",
+            "class": "LocateLinkTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/AutomationIdLookupTests.cs",
+            "class": "AutomationIdLookupTests"
+          }
+        ]
+      }
+    },
+    "help-locate-lasso": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LassoAdorner.cs",
+          "class": "LassoAdorner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Locate/LassoGeometry.cs",
+          "class": "LassoGeometry"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Locate/LassoGeometryTests.cs",
+            "class": "LassoGeometryTests"
+          }
+        ]
+      }
+    },
+    "md-link-decorator": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownRenderContext.cs",
+          "class": "MarkdownRenderContext"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownLinkDecoratorTests.cs",
+            "class": "MarkdownLinkDecoratorTests"
+          }
+        ]
+      }
+    },
+    "aichat": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.AIChat/Localization/en/help/AIChat.md",
+            "title_path": [
+              "AI Chat"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.AIChat/Localization/en/help/Conversation.md",
+            "title_path": [
+              "Conversation"
+            ]
+          }
+        ]
+      }
+    },
+    "audio": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Audio/Localization/en/help/Audio.md",
+            "title_path": [
+              "Audio player"
+            ]
+          }
+        ]
+      }
+    },
+    "code": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Code/Localization/en/help/Code.md",
+            "title_path": [
+              "Code editor"
+            ]
+          }
+        ]
+      }
+    },
+    "compressed": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Compressed/Localization/en/help/Compressed.md",
+            "title_path": [
+              "Archive inspector"
+            ]
+          }
+        ]
+      }
+    },
+    "console": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Console/Localization/en/help/Console.md",
+            "title_path": [
+              "Console"
+            ]
+          }
+        ]
+      }
+    },
+    "dicom": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Dicom/Localization/en/help/Dicom.md",
+            "title_path": [
+              "DICOM viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "email": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Email/Localization/en/help/Email.md",
+            "title_path": [
+              "Email viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "executable-inspector": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Localization/en/help/Executable.md",
+            "title_path": [
+              "Executable Inspector"
+            ]
+          }
+        ]
+      }
+    },
+    "font": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Font/Localization/en/help/Font.md",
+            "title_path": [
+              "Font viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "hex": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Hex/Localization/en/help/Hex.md",
+            "title_path": [
+              "Hex Editor"
+            ]
+          }
+        ]
+      }
+    },
+    "images": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Images/Localization/en/help/Images.md",
+            "title_path": [
+              "Images"
+            ]
+          }
+        ]
+      }
+    },
+    "json": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Json/Localization/en/help/Json.md",
+            "title_path": [
+              "JSON viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "log-viewer": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Logs/Localization/en/help/Logs.md",
+            "title_path": [
+              "Log viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "model3d": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Model3D/Localization/en/help/Model3D.md",
+            "title_path": [
+              "3D Model viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "network": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/dynamic-protocol.md"
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Network/Localization/en/help/Network.md",
+            "title_path": [
+              "Network"
+            ]
+          }
+        ]
+      }
+    },
+    "notebook": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Notebook/Localization/en/help/Notebook.md",
+            "title_path": [
+              "Notebook"
+            ]
+          }
+        ]
+      }
+    },
+    "pdf": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/help/Pdf.md",
+            "title_path": [
+              "PDF reader"
+            ]
+          }
+        ]
+      }
+    },
+    "svg": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Svg/Localization/en/help/Svg.md",
+            "title_path": [
+              "SVG viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "scratchpad": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Localization/en/help/Scratchpad.md",
+            "title_path": [
+              "Scratchpad"
+            ]
+          }
+        ]
+      }
+    },
+    "video": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Video/Localization/en/help/Video.md",
+            "title_path": [
+              "Video player"
+            ]
+          }
+        ]
+      }
+    },
+    "tabular": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/Localization/en/help/Tabular.md",
+            "title_path": [
+              "Tabular"
+            ]
+          }
+        ]
+      }
+    },
+    "processes": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Processes/Localization/en/help/Processes.md",
+            "title_path": [
+              "Processes"
+            ]
+          }
+        ]
+      }
+    },
+    "details-view": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Processes/Localization/en/help/ProcessDetail.md",
+            "title_path": [
+              "Process detail"
+            ]
+          }
+        ]
+      }
+    },
+    "web-viewer": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/Localization/en/help/Html.md",
+            "title_path": [
+              "Web browser"
+            ]
+          }
+        ]
+      }
+    },
+    "windowsapps": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Localization/en/help/WindowsApps.md",
+            "title_path": [
+              "Installed Apps"
+            ]
+          }
+        ]
+      }
+    },
+    "win-registry": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsRegistry/Localization/en/help/WindowsRegistry.md",
+            "title_path": [
+              "Registry"
+            ]
+          }
+        ]
+      }
+    },
+    "virtual-disk-viewer": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Localization/en/help/VirtualDisk.md",
+            "title_path": [
+              "Virtual Disk"
+            ]
+          }
+        ]
+      }
+    },
+    "win-search": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.WindowsSearch/Localization/en/help/Search.md",
+            "title_path": [
+              "Search"
+            ]
+          }
+        ]
+      }
+    },
+    "solver": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Solver/Localization/en/help/Solver.md",
+            "title_path": [
+              "Solver"
+            ]
+          }
+        ]
+      }
+    },
+    "sysinfoview": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Localization/en/help/SystemInfo.md",
+            "title_path": [
+              "System Info"
+            ]
+          }
+        ]
+      }
+    },
+    "sysinfo-envvars": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Localization/en/help/SystemEnvVars.md",
+            "title_path": [
+              "Environment Variables"
+            ]
+          }
+        ]
+      }
+    },
+    "sysinfo-services": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Localization/en/help/SystemServices.md",
+            "title_path": [
+              "Services"
+            ]
+          }
+        ]
+      }
+    },
+    "product": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.ProductManager/Localization/en/help/ProductManager.md",
+            "title_path": [
+              "Product"
+            ]
+          }
+        ]
+      }
+    },
+    "product-search-page": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.ProductManager/Localization/en/help/ProductSearch.md",
+            "title_path": [
+              "Search"
+            ]
+          }
+        ]
+      }
+    },
+    "product-integrity": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.ProductManager/Localization/en/help/ProductIntegrity.md",
+            "title_path": [
+              "Integrity"
+            ]
+          }
+        ]
+      }
+    },
+    "product-graph": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.ProductManager/Localization/en/help/GraphViewer.md",
+            "title_path": [
+              "Graph"
+            ]
+          }
+        ]
+      }
+    },
+    "projects": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Projects/Localization/en/help/Projects.md",
+            "title_path": [
+              "Projects"
+            ]
+          }
+        ]
+      }
+    },
+    "projects-detail": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Projects/Localization/en/help/ProjectDetail.md",
+            "title_path": [
+              "Project"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 44,
+  "touched_nodes": [
+    "aichat",
+    "audio",
+    "code",
+    "compressed",
+    "console",
+    "details-view",
+    "dicom",
+    "email",
+    "executable-inspector",
+    "font",
+    "help-locate",
+    "help-locate-lasso",
+    "hex",
+    "images",
+    "json",
+    "log-viewer",
+    "md-link-decorator",
+    "model3d",
+    "network",
+    "notebook",
+    "pdf",
+    "processes",
+    "product",
+    "product-graph",
+    "product-integrity",
+    "product-search-page",
+    "projects",
+    "projects-detail",
+    "scratchpad",
+    "solver",
+    "svg",
+    "sysinfo-envvars",
+    "sysinfo-services",
+    "sysinfoview",
+    "tabular",
+    "video",
+    "virtual-disk-viewer",
+    "web-viewer",
+    "win-registry",
+    "win-search",
+    "windowsapps"
+  ]
+}

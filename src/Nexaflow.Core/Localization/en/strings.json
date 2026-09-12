@@ -10,6 +10,8 @@
   "Help.Index.Button": "All help pages",
   "Help.Index.AllTopics": "All help pages",
   "Help.NoShowcase": "There is no help page for {0} yet.",
+  "Help.Locate.Tooltip": "Show me where this is",
+  "Help.Locate.NotFound": "That isn't on screen just now — open the page it belongs to beside help, and try again.",
   "Help.Topics": "Topics",
   "Help.Topics.Back": "↑ Back to topics"
 }

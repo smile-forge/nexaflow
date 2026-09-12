@@ -114,6 +114,87 @@ public partial class LocalizationContentGuardTests
         Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
     }
 
+    [TestMethod]
+    public void EveryLocateLink_NamesAnAutomationIdTheAppDeclares()
+    {
+        var (exact, patterns) = DeclaredAutomationIds();
+        var problems = new List<string>();
+
+        foreach (var page in HelpPages())
+            foreach (Match link in LocateLinks().Matches(OutsideCode(File.ReadAllText(page.Path))))
+                foreach (var id in link.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    if (!exact.Contains(id) && !patterns.Any(p => p.IsMatch(id)))
+                        problems.Add($"{page.Path}: locate:{id}");
+
+        Assert.AreEqual(0, problems.Count,
+                        "a \"show me\" link can only point at a control the app gives an AutomationId — these name none:\n"
+                      + string.Join("\n", problems));
+    }
+
+    // Every AutomationId a view gives a control: a literal in XAML or in code; a shape, where code joins a prefix to data
+    // ("Ribbon_" + label, $"TabItem_{kind}"), which stands for every id of that shape; and the search chip's five, composed
+    // from each PagePrefix a view hands it.
+    private static (HashSet<string> Exact, List<Regex> Patterns) DeclaredAutomationIds()
+    {
+        var exact = new HashSet<string>(StringComparer.Ordinal);
+        var patterns = new List<Regex>();
+
+        foreach (var project in ProjectDirs())
+        {
+            foreach (var file in SourceFiles(project, "*.xaml"))
+            {
+                var xaml = XmlComment().Replace(File.ReadAllText(file), "");
+                foreach (Match m in XamlAutomationId().Matches(xaml))
+                {
+                    var id = m.Groups[1].Value.Trim();
+                    if (!id.StartsWith('{')) exact.Add(id);   // a markup extension is a run-time value, not an id
+                }
+                foreach (Match m in ChipPagePrefix().Matches(xaml))
+                    foreach (var part in ChipIds)
+                        exact.Add(m.Groups[1].Value + part);
+            }
+
+            foreach (var file in SourceFiles(project, "*.cs"))
+                foreach (Match m in CodeAutomationId().Matches(LineComment().Replace(File.ReadAllText(file), "")))
+                {
+                    var written = m.Groups[1].Value.Trim();
+                    if (LiteralId().Match(written) is { Success: true } literal) exact.Add(literal.Groups[1].Value);
+                    else if (PrefixedId().Match(written) is { Success: true } prefixed)
+                        patterns.Add(new Regex("^" + Regex.Escape(prefixed.Groups[1].Value) + ".+$"));
+                    else if (InterpolatedId().Match(written) is { Success: true } interpolated)
+                        patterns.Add(new Regex("^" + string.Join(".+", Hole().Split(interpolated.Groups[1].Value).Select(Regex.Escape)) + "$"));
+                }
+        }
+        return (exact, patterns);
+    }
+
+    private static readonly string[] ChipIds =
+        ["_SearchStatus", "_SearchMatchCount", "_SearchPrevious", "_SearchNext", "_SearchClear"];
+
+    [GeneratedRegex(@"\]\(\s*<?locate:([^)\s>]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex LocateLinks();
+
+    [GeneratedRegex(@"AutomationProperties\.AutomationId\s*=\s*""([^""]+)""")]
+    private static partial Regex XamlAutomationId();
+
+    [GeneratedRegex(@"SearchStatusChip[^>]*?PagePrefix\s*=\s*""([^""{]+)""")]
+    private static partial Regex ChipPagePrefix();
+
+    [GeneratedRegex(@"AutomationProperties\.SetAutomationId\(\s*[^,]+,\s*([^;]+?)\)\s*;")]
+    private static partial Regex CodeAutomationId();
+
+    [GeneratedRegex(@"^""([^""]+)""$")]
+    private static partial Regex LiteralId();
+
+    [GeneratedRegex(@"^""([^""]+)""\s*\+")]
+    private static partial Regex PrefixedId();
+
+    [GeneratedRegex(@"^\$""([^""]*)""$")]
+    private static partial Regex InterpolatedId();
+
+    [GeneratedRegex(@"\{[^}]*\}")]
+    private static partial Regex Hole();
+
     // ── What the source holds ─────────────────────────────────────────────
 
     private sealed record HelpPage(string Project, string Language, string Topic, string Path, string ProjectDir);

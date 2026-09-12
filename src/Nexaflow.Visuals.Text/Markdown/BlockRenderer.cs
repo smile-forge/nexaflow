@@ -748,6 +748,7 @@ public static class BlockRenderer
             case LinkInline link when !link.IsImage:
                 var hyper = NewHyperlink(link.Url, ctx);
                 foreach (var child in link) AddInlines(hyper.Inlines, child, ctx);
+                Decorate(hyper, link.Url, ctx);
                 target.Add(hyper);
                 break;
 
@@ -755,6 +756,7 @@ public static class BlockRenderer
                 // CommonMark <https://…> / <user@host> — a distinct inline from LinkInline; the URL is also the label.
                 var autoLink = NewHyperlink(auto.IsEmail ? $"mailto:{auto.Url}" : auto.Url, ctx);
                 autoLink.Inlines.Add(new Run(auto.Url) { Tag = auto.Span });
+                Decorate(autoLink, auto.IsEmail ? $"mailto:{auto.Url}" : auto.Url, ctx);
                 target.Add(autoLink);
                 break;
 
@@ -835,6 +837,14 @@ public static class BlockRenderer
             catch { }
         };
         return hyper;
+    }
+
+    // The host's say in how a link looks, once its text is in (MarkdownRenderContext.DecorateLink).
+    private static void Decorate(Hyperlink hyper, string? url, MarkdownRenderContext ctx)
+    {
+        if (ctx.DecorateLink is not { } decorate || string.IsNullOrEmpty(url)) return;
+        try { decorate(hyper, url); }
+        catch { }   // a decoration is a flourish: losing it must not cost the document
     }
 
     /// <summary>

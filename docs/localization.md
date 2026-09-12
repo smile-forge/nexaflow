@@ -61,6 +61,11 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   the page's own project, and are never fetched from the web.
 - `[text](help:Text)` opens another help page in place, and `[text](help:Text#searching)` opens it at a heading; any
   other link opens in the browser.
+- `[text](locate:Chrome_HelpButton)` points at the screen instead of going anywhere: following it throws a lasso round
+  that control, wherever it is in the window. A comma-separated list is a chain —
+  `locate:Chrome_OptionsButton,ShellLanguageCombo` lassoes each in turn, five seconds apiece or until the reader clicks.
+  Only an id some view actually declares may be named, and `LocalizationContentGuardTests` enforces it; a control inside
+  a menu or popup cannot be lassoed, so point at the button that opens it.
 - Every heading has a GitHub-style anchor — lower-case, spaces to hyphens, punctuation dropped, a repeat numbered `-1` —
   so `[see Searching](#searching)` jumps within the page. This is the markdown renderer's, so it works on any rendered
   markdown surface, not just help.
@@ -91,7 +96,7 @@ off into a satellite assembly instead of the pack.
 | Guard | Catches |
 |---|---|
 | `LanguagePackContentTests` | a shipped pack that doesn't hold exactly the source files; a mangled name; a satellite |
-| `LocalizationContentGuardTests` | a help page for a page kind its project doesn't register; an index outside Core; a missing picture; a key used in code but missing from English, or outside its project's area; a translation with keys or pages English lacks |
+| `LocalizationContentGuardTests` | a help page for a page kind its project doesn't register; an index outside Core; a missing picture; a key used in code but missing from English, or outside its project's area; a translation with keys or pages English lacks; a `locate:` link naming an AutomationId no view declares |
 | `LanguageManagerTests`, `LocalizedStringsTests` | discovery that loads packs; the fallback chain; a pack loaded twice |
 | `nexaflowSetup.wixproj` | an installer payload missing a pack |
 

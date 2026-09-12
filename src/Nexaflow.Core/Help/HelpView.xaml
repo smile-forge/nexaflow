@@ -105,5 +105,15 @@
                                    Margin="16,8,8,8"
                                    VerticalScrollBarVisibility="Auto"
                                    Markdown="{Binding Markdown}"/>
+
+        <!-- A "show me" link whose control is nowhere on screen says so where the reader is already looking, rather
+             than appearing to do nothing. Over the page, out of the way of the pointer. -->
+        <Border Grid.Row="2" x:Name="LocateHint" Visibility="Collapsed" IsHitTestVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16,0,16,16" Padding="12,7"
+                MaxWidth="420" Background="{StaticResource Surface2Brush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+            <TextBlock Text="{loc:Str Help.Locate.NotFound}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextBrush}"/>
+        </Border>
     </Grid>
 </UserControl>

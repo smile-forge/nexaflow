@@ -96,6 +96,13 @@ public sealed class MarkdownRenderContext
     public Func<string, System.Windows.Media.ImageSource?>? ImageResolver { get; init; }
 
     /// <summary>
+    /// Optional host hook, called for every rendered link once its text is in place, with the link's source URL. For a host
+    /// that gives some links a look of their own — the help pane marks a <c>locate:</c> link, which points at a control on
+    /// screen rather than going anywhere. A hook that throws costs that link its decoration, never the document.
+    /// </summary>
+    public Action<System.Windows.Documents.Hyperlink, string>? DecorateLink { get; init; }
+
+    /// <summary>
     /// When true, a diagram wider/taller than the available width is scaled down (uniformly) to fit
     /// rather than getting its own scrollbars. Set by the inline editor: scrollbars inside an editable
     /// surface fight text selection (you can't grab the thumb), so the diagram fits the column instead.

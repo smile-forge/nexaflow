@@ -43,6 +43,9 @@
     <!-- Danger hover: strengthen so the Delete button clearly reddens on the light cream surface. -->
     <SolidColorBrush x:Key="DangerSubtleBrush" Color="#55DC2626"/>
 
+    <!-- Locate lasso: the dark themes' bright red thins out over a light surface — deepen it so the loop still shouts. -->
+    <SolidColorBrush x:Key="Locate.Stroke" Color="#D9001B"/>
+
     <!-- AI status dot: deepen the hues to read on the bright cream/white bar; playful but distinct. -->
     <SolidColorBrush x:Key="AiStatus.Ready"   Color="#1FA565"/>  <!-- green  -->
     <SolidColorBrush x:Key="AiStatus.Busy"    Color="#FF7A2D"/>  <!-- orange -->

@@ -170,7 +170,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `Controls/BreadcrumbBar.xaml.cs` | Renders segments; dispatches `TargetPageKind` clicks back to shell |
 | `Models/RibbonItem.cs` | Ribbon item state + `TabFactory` delegate + serialization metadata |
 | `Models/PageKinds.cs` | String constants for Core-owned page kinds (`FileSystem`, `Placeholder`) |
-| `Help/` | Core's own page kind, `Help`, discovered like any feature's: the ? above Options / F1 (`HelpPaneController`) opens the help for the page in use in the pane beside it — splitting if need be — follows that pane's page until the reader moves within help, and closes when pressed while showing it. `HelpLibrary` reads `help/<PageKind>.md` out of the language packs; `HelpSearchIndex` searches the page shown first, then every help page, with the same matcher the page highlights with |
+| `Help/` | Core's own page kind, `Help`, discovered like any feature's: the ? above Options / F1 (`HelpPaneController`) opens the help for the page in use in the pane beside it — splitting if need be — follows that pane's page until the reader moves within help, and closes when pressed while showing it. `HelpLibrary` reads `help/<PageKind>.md` out of the language packs; `HelpSearchIndex` searches the page shown first, then every help page, with the same matcher the page highlights with. A `locate:` link in a page points at the screen rather than navigating: `LocateTour` lassoes each control it names, found in-process by its AutomationId |
 | `Localization/` | `LanguageManager` + `AssemblyLanguagePack` — the language packs; see [localization.md](localization.md) |
 
 ### Nexaflow.Features.Common
@@ -218,7 +218,7 @@ Non-contract UI shared across features and Core. Features may reference these (t
 
 | Assembly | Holds |
 |----------|-------|
-| `Nexaflow.Visuals.Common` | Reusable WPF controls (`PieChart`) and the value converters (`BoolToVisibilityConverter`, `InverseBoolToVisibilityConverter`, `NullToBoolConverter`, …) used in nearly every feature view; and the UI-string seam, `Localization/` — `Str.Get` / `{loc:Str Key}`, whose source Core sets at startup ([localization.md](localization.md)) |
+| `Nexaflow.Visuals.Common` | Reusable WPF controls (`PieChart`) and the value converters (`BoolToVisibilityConverter`, `InverseBoolToVisibilityConverter`, `NullToBoolConverter`, …) used in nearly every feature view; and the UI-string seam, `Localization/` — `Str.Get` / `{loc:Str Key}`, whose source Core sets at startup ([localization.md](localization.md)); and `Locate/` — the `locate:` link scheme and the animated lasso it throws round a control on screen |
 | `Nexaflow.Visuals.Text` | Markdown rendering: `MarkdownView` / `SelectableMarkdownView` (copy-aware) over `MarkdownFlowDocument` + `BlockRenderer`, plus Mermaid `DiagramRenderer`. Used by Core's `AiResponseOverlay` and AIChat's `ConversationView` |
 
 **Theme/styles:** application brushes **and** shared control styles live in the app-merged `Nexaflow.Core/Themes/Styles.xaml`. Feature XAML references them by `{StaticResource <key>}` — there is no assembly reference; the lookup resolves up the tree to `Application.Resources`. Define a shared style there once rather than copy-pasting per view (`arch_improvements.md` tracks the duplicated toolbar/list/grid styles that should move here).

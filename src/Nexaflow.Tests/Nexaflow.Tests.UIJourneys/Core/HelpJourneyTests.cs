@@ -61,6 +61,20 @@ public class HelpJourneyTests : UiJourneyTestBase
         CheckDoes("the index button lists every help page", "Help_IndexButton",
                   () => WaitForId("Help_Document", Affordable(3)) is not null);
 
+        // Help's own page is where locate: links are shown off — the one kind of link that points at a control on screen
+        // instead of navigating. Reaching it from the index is the index doing its job.
+        Check("an index entry opens that help page", () => InvokeLink(name => name == "Help"));
+        Check("a locate: link lassoes the control it names", () =>
+            InvokeLink(name => name.Contains("like this one", StringComparison.Ordinal))
+            && WaitForId("Locate_Lasso", Affordable(4)) is not null);
+        Check("and a click takes the lasso down", () =>
+        {
+            WaitForId("Help_SearchBox", Affordable(3))?.Click();
+            Wait.UntilInputIsProcessed();
+            Thread.Sleep(600);
+            return MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Locate_Lasso")) is null;
+        });
+
         // The reader moved within help (a result, the index), so the pane stayed where they took it: F1 points it back
         // at the page in use, and pressed again while it shows that page, closes it.
         Check("F1 points help back at the page in use", () =>
@@ -79,6 +93,21 @@ public class HelpJourneyTests : UiJourneyTestBase
         });
 
         AssertJourney();
+    }
+
+    /// <summary>Follows a link in the help document by its text. Rendered hyperlinks are the document's own UIA children;
+    /// a locate: link's name carries its pin glyph too, so callers match on part of the text rather than all of it.</summary>
+    private bool InvokeLink(Func<string, bool> matches)
+    {
+        var link = WaitForId("Help_Document", Affordable(3))
+            ?.FindAllDescendants(cf => cf.ByControlType(ControlType.Hyperlink))
+            .FirstOrDefault(l => l.Name is { } name && matches(name));
+        if (link?.Patterns.Invoke.PatternOrDefault is not { } invoke) return false;
+
+        invoke.Invoke();
+        Wait.UntilInputIsProcessed();
+        Thread.Sleep(400);
+        return true;
     }
 
     private int TabStrips() => MainWindow.FindAllDescendants(cf => cf.ByAutomationId("TabStrip")).Length;
