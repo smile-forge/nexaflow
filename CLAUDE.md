@@ -106,6 +106,30 @@ node). Regenerate with `graph build` (incremental) after code changes, then expl
 & $nfi graph build             # regenerate .product/graph.bin after code changes (incremental)
 ```
 
+**One call, one answer — `nfi ask '<stage> | <stage>'`.** Every verb above answers exactly one thing, so the
+questions actually worth asking cost three or four calls, each re-printing its headers — and *that* is what
+makes a graph query lose to a blanket grep, not the graph's answers. `ask` chains them: stages separated by
+`|`, the set of nodes flowing left to right, and **only the last stage prints**.
+
+```powershell
+& $nfi ask 'search GraphGrep | source'           # find it AND read it — the two-call pattern, in one call
+& $nfi ask 'grep "\.StartsWith" | files'         # does anything still do this, and WHERE (no hit list)
+& $nfi ask 'grep SupportsMultipleFiles | count'  # just the number — the cheapest possible sweep
+& $nfi ask 'node <id> | callers | source'        # who uses it, and what their code actually looks like
+& $nfi ask 'node file:src/Foo.cs | source'       # what a file holds: its outline, not its text
+& $nfi ask 'search Reader | grep Dispose | ids'  # a grep scoped to whatever the stage before it found
+```
+
+**start** with `search <term>` / `grep <regex>` / `node <id>[,<id>…]` · **narrow** with `callers` / `callees` /
+`members` / `like <regex>` / `limit <n>` · **print** with `ids [n]` / `source [n]` / `files` / `count` — `ids`
+when the question says nothing. **One question per line**, so several unrelated ones are still one call. A
+regex holding a `|` has to be quoted or it reads as a stage break; the refusal says so, and every refusal
+prints the whole vocabulary, which is shorter than an explanation of which half was wrong.
+
+`grep` covers the whole graph with nothing before it and only the previous stage's nodes after one — which is
+how a search gets narrowed to a feature without first choosing between `--hops` and `--scope owned`. Reach for
+`ask` first and the single verbs when one answer really is the whole question.
+
 **The graph edits too, and structurally — `graph edit <op> <node-id>`.** Addressing a change by *what it is*
 rather than by which lines it currently occupies:
 
@@ -423,7 +447,8 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
 
 - **Discovery goes through `nfi.exe` — never Grep/Glob/Read-first.** "Where is X / what is X / who calls or instantiates X / what feature owns X / how does X relate to Y" is answered by `graph search`, `graph context`, `find` or `describe` (see above) **before any file is opened**; Read is for the specific block the graph names. Reach for it as reflexively as for Grep — it is cheaper and it surfaces call/ownership/dependency edges grep cannot. Sub-agents follow the same rule: point them at the exe, or spawn `nexaflow-explorer`.
   - **This covers searching for a code *pattern*, not just a named thing.** "Which code looks like Y" feels like a different job from "where is X" and is the same verb: `graph grep <regex> --mode content` (scope it per the table above). That split is how the rule gets abandoned in practice — the entity lookup goes through the graph, then the pattern hunt falls back to `grep -rn`. It shouldn't: the graph answers it, faster, and names the owning member and feature of every hit instead of just a line.
-  - **Read a block with `graph code <id>`, a whole file with `graph cat file:<relpath>`** — never `sed -n A,Bp` on line numbers guessed from a search hit. Both take `--lines A-B` for a slice, and both are worktree-aware; hand-sliced ranges are neither.
+  - **Read a block with `graph code <id>`, a whole file with `graph cat file:<relpath>`** — never `sed -n A,Bp` on line numbers guessed from a search hit. Both take `--lines A-B` for a slice, and both are worktree-aware; hand-sliced ranges are neither. **Past 400 lines `cat file:` answers with the file's outline** — every declaration, with its id — because reading a whole file to reach one block is the habit the graph exists to replace; `graph code <id>` then takes one of them, and `--all` prints the file when that is genuinely what you want.
+  - **Chain the question instead of asking it in instalments.** "Find it and read it", "who calls this and what do their call sites look like", "does anything still do X and where" are one `nfi ask '<stage> | <stage>'` each (see above), not three calls. A sweep whose answer is a number or a file list is `| count` / `| files` — never a hit list you then have to read.
 - **Before calling a change complete, ask the graph who else depends on what you touched.** Discovery-first finds the thing; this finds the *rest* of it. A package bump is `graph node external:<Name>` (its `depends_on` edges list every consuming project); a type or member is `graph node <id>` / `graph walk <id> --hops 2` for the incoming callers. Do this before you say a fix is done — grep answers "where is this token", the graph answers "what else breaks", and only the second one closes a change.
   > Worked example: the NAudio 3.0 bump renamed `WaveOutEvent`→`WaveOut` and `WaveInEvent`→`WaveIn`. Fixing the Audio feature's playback looked complete and wasn't — Core's `VoiceManager` captures audio and broke the same way. `graph node external:NAudio` names both `Nexaflow.Core.csproj` and `Nexaflow.Features.Audio.csproj` in one query; a grep of the feature you happen to be in names neither.
 - Features depend only on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) — never on Core, rarely on each other
