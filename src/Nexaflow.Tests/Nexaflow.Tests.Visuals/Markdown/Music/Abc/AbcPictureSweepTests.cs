@@ -14,6 +14,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
@@ -205,7 +206,7 @@ public class AbcPictureSweepTests
                 var width = reference.Width + Margin;
                 var zoom = ZoomFor(reference);
 
-                var element = new AbcScore(Text(tune.Abc), MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
+                var element = new MusicScore(MusicDialect.Abc, Text(tune.Abc), MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
                 element.Measure(new Size(width, double.PositiveInfinity));
                 element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 
@@ -277,7 +278,7 @@ public class AbcPictureSweepTests
             var width = theirs.Width + Margin;
             var zoom = ZoomFor(theirs);
 
-            var element = new AbcScore(abc, MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
+            var element = new MusicScore(MusicDialect.Abc, abc, MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
             element.Measure(new Size(width, double.PositiveInfinity));
 
             var size = element.DesiredSize;

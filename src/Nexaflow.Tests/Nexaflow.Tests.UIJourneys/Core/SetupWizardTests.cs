@@ -29,12 +29,17 @@ public class SetupWizardTests
     private string          _configDir = null!;
     private Application      _app       = null!;
     private UIA3Automation   _automation = null!;
+    private IDisposable?     _gate;
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
     [TestInitialize]
     public void Setup()
     {
+        // Taken the way every journey takes the machine — consent, a DPI-aware host, the gate. Launching on
+        // its own, this ran straight through a declined prompt.
+        _gate = UITestBase.TakeMachine();
+
         _configDir  = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
 
@@ -50,6 +55,8 @@ public class SetupWizardTests
     {
         try { _app?.Kill(); } catch { /* already exited */ }
         _automation?.Dispose();
+        _gate?.Dispose();               // hand the machine to the next host, however this test ended
+        _gate = null;
 
         // Surface any unhandled exception the wizard logged (the dated crash logs live in the isolated dir).
         var crash = UITestBase.ReadCrashLogs(_configDir);

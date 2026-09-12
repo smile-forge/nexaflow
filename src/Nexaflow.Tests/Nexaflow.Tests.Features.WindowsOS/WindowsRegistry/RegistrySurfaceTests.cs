@@ -12,12 +12,13 @@ using NSubstitute;
 namespace Nexaflow.Tests.Features.WindowsRegistry;
 
 /// <summary>
-/// The registry editor's <b>pre-write</b> surface: every destructive action goes through an in-tab overlay
-/// first, so what these assert is that the right overlay opens, seeded correctly, and that the guards fire
-/// <i>before</i> anything is written — a hive root can't be renamed or deleted, the default value can't be
-/// deleted, and a cancelled file picker aborts cleanly. Nothing here touches the live registry: the writes
-/// themselves live behind <see cref="RegistryWriterTests"/> (a disposable HKCU subtree) and the elevation
-/// bridge.
+/// The registry editor's <b>pre-write</b> surface: every destructive action asks first — a delete through the
+/// shell's window-modal confirmation, a name or value through the in-tab prompt — so what these assert is that
+/// the right question is asked, seeded correctly, and that the guards fire <i>before</i> anything is written: a
+/// hive root can't be renamed or deleted, the default value can't be deleted, and a cancelled file picker
+/// aborts cleanly. Nothing here touches the live registry: every confirmation is declined (the substitute's
+/// default), the writes themselves live behind <see cref="RegistryWriterTests"/>, and "declined writes
+/// nothing" is shown on a disposable key by <see cref="RegistryDeleteConfirmationTests"/>.
 /// </summary>
 [TestClass]
 public class RegistrySurfaceTests
@@ -36,6 +37,15 @@ public class RegistrySurfaceTests
         return vm;
     }
 
+    /// <summary>Every question the view-model asked the shell — title and message — whichever of
+    /// <c>ConfirmAsync</c>'s overloads or the callback-style <c>ShowConfirmation</c> it used.</summary>
+    private static List<(string Title, string Message)> Asked(IShellServices shell) =>
+        shell.ReceivedCalls()
+             .Where(c => c.GetMethodInfo().Name is nameof(IShellServices.ConfirmAsync)
+                                                or nameof(IShellServices.ShowConfirmation))
+             .Select(c => ((string)c.GetArguments()[0]!, (string)c.GetArguments()[1]!))
+             .ToList();
+
     // ── Key tree actions ──────────────────────────────────────────────────────
 
     [TestMethod]
@@ -46,9 +56,9 @@ public class RegistrySurfaceTests
 
         vm.NewKeyCommand.Execute(null);
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        Assert.AreEqual("New Key", vm.InputPromptTitle);
-        Assert.AreEqual("New Key", vm.InputPromptValue, "the box is pre-filled so Enter alone is meaningful");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        Assert.AreEqual("New Key", vm.InputPrompt!.Title);
+        Assert.AreEqual("New Key", vm.InputPrompt!.Value, "the box is pre-filled so Enter alone is meaningful");
     }
 
     [TestMethod]
@@ -59,9 +69,9 @@ public class RegistrySurfaceTests
 
         vm.RenameKeyCommand.Execute(null);
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        Assert.AreEqual("Rename Key", vm.InputPromptTitle);
-        Assert.AreEqual("Microsoft", vm.InputPromptValue, "renaming starts from the existing name");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        Assert.AreEqual("Rename Key", vm.InputPrompt!.Title);
+        Assert.AreEqual("Microsoft", vm.InputPrompt!.Value, "renaming starts from the existing name");
     }
 
     [TestMethod]
@@ -73,33 +83,33 @@ public class RegistrySurfaceTests
 
         vm.RenameKeyCommand.Execute(null);
 
-        Assert.IsFalse(vm.InputPromptVisible, "a hive root has no name to rename");
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true, "a hive root has no name to rename");
     }
 
     [TestMethod]
     [CoversNode("registry-delete-key")]
-    public void DeleteKey_ConfirmsFirst_AndNamesTheKeyItWouldDestroy()
+    public async Task DeleteKey_ConfirmsFirst_AndNamesTheKeyItWouldDestroy()
     {
-        var vm = AtSubKey(out _, @"HKCU\Software\Microsoft");
+        var vm = AtSubKey(out var shell, @"HKCU\Software\Microsoft");
 
-        vm.DeleteKeyCommand.Execute(null);
+        await vm.DeleteKeyCommand.ExecuteAsync(null);
 
-        Assert.IsTrue(vm.ConfirmationVisible);
-        Assert.AreEqual("Delete key", vm.ConfirmationTitle);
-        StringAssert.Contains(vm.ConfirmationPrompt, @"HKCU\Software\Microsoft");
-        StringAssert.Contains(vm.ConfirmationPrompt, "subkeys");
+        var (title, message) = Asked(shell).Single();
+        Assert.AreEqual("Delete key", title);
+        StringAssert.Contains(message, @"HKCU\Software\Microsoft");
+        StringAssert.Contains(message, "subkeys");
     }
 
     [TestMethod]
     [CoversNode("registry-delete-key")]
-    public void DeleteKey_AtAHiveRoot_IsRefusedBeforeAnyConfirmation()
+    public async Task DeleteKey_AtAHiveRoot_IsRefusedBeforeAnyConfirmation()
     {
-        var vm = Make(out _);
+        var vm = Make(out var shell);
         vm.NavigateTo("HKLM");
 
-        vm.DeleteKeyCommand.Execute(null);
+        await vm.DeleteKeyCommand.ExecuteAsync(null);
 
-        Assert.IsFalse(vm.ConfirmationVisible, "a whole hive is never a deletion target");
+        Assert.AreEqual(0, Asked(shell).Count, "a whole hive is never a deletion target");
     }
 
     // ── Value list actions ────────────────────────────────────────────────────
@@ -112,9 +122,9 @@ public class RegistrySurfaceTests
 
         vm.NewValueCommand.Execute("DWord");
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        StringAssert.Contains(vm.InputPromptTitle, "REG_DWORD");
-        Assert.AreEqual(string.Empty, vm.InputPromptValue, "a new value starts unnamed");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        StringAssert.Contains(vm.InputPrompt!.Title, "REG_DWORD");
+        Assert.AreEqual(string.Empty, vm.InputPrompt!.Value, "a new value starts unnamed");
     }
 
     [TestMethod]
@@ -125,7 +135,7 @@ public class RegistrySurfaceTests
 
         vm.NewValueCommand.Execute("NotARegistryKind");
 
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
@@ -137,9 +147,9 @@ public class RegistrySurfaceTests
 
         vm.EditValueCommand.Execute(row);
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        StringAssert.Contains(vm.InputPromptTitle, "REG_SZ");
-        StringAssert.Contains(vm.InputPromptLabel, "SomeName");
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        StringAssert.Contains(vm.InputPrompt!.Title, "REG_SZ");
+        StringAssert.Contains(vm.InputPrompt!.Label, "SomeName");
     }
 
     [TestMethod]
@@ -150,21 +160,20 @@ public class RegistrySurfaceTests
 
         vm.EditValueCommand.Execute(null);      // no row passed and none selected
 
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
     [CoversNode("registry-delete-value")]
-    public void DeleteValue_ConfirmsFirst_ButRefusesTheDefaultValue()
+    public async Task DeleteValue_ConfirmsFirst_ButRefusesTheDefaultValue()
     {
-        var vm = AtSubKey(out _);
+        var vm = AtSubKey(out var shell);
 
-        vm.DeleteValueCommand.Execute(new RegistryValue("", RegistryValueKind.String, "x"));
-        Assert.IsFalse(vm.ConfirmationVisible, "the key's default value can only be cleared, never deleted");
+        await vm.DeleteValueCommand.ExecuteAsync(new RegistryValue("", RegistryValueKind.String, "x"));
+        Assert.AreEqual(0, Asked(shell).Count, "the key's default value can only be cleared, never deleted");
 
-        vm.DeleteValueCommand.Execute(new RegistryValue("Named", RegistryValueKind.String, "x"));
-        Assert.IsTrue(vm.ConfirmationVisible);
-        StringAssert.Contains(vm.ConfirmationPrompt, "Named");
+        await vm.DeleteValueCommand.ExecuteAsync(new RegistryValue("Named", RegistryValueKind.String, "x"));
+        StringAssert.Contains(Asked(shell).Single().Message, "Named");
     }
 
     // ── Overlays ──────────────────────────────────────────────────────────────
@@ -177,12 +186,12 @@ public class RegistrySurfaceTests
         string? got = null;
         vm.ShowInputPrompt("Title", "Label", "seed", v => got = v, () => Assert.Fail("cancel must not fire"));
 
-        Assert.IsTrue(vm.InputPromptVisible);
-        vm.InputPromptValue = "typed by the user";
-        vm.ConfirmInputPromptCommand.Execute(null);
+        Assert.IsTrue(vm.InputPrompt?.IsOpen == true);
+        vm.InputPrompt!.Value = "typed by the user";
+        vm.InputPrompt!.ConfirmCommand.Execute(null);
 
         Assert.AreEqual("typed by the user", got);
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
@@ -193,10 +202,10 @@ public class RegistrySurfaceTests
         bool cancelled = false;
         vm.ShowInputPrompt("Title", "Label", "seed", _ => Assert.Fail("confirm must not fire"), () => cancelled = true);
 
-        vm.CancelInputPromptCommand.Execute(null);
+        vm.InputPrompt!.CancelCommand.Execute(null);
 
         Assert.IsTrue(cancelled);
-        Assert.IsFalse(vm.InputPromptVisible);
+        Assert.IsFalse(vm.InputPrompt?.IsOpen == true);
     }
 
     [TestMethod]
@@ -207,29 +216,10 @@ public class RegistrySurfaceTests
         int confirms = 0;
         vm.ShowInputPrompt("Title", "Label", "seed", _ => confirms++, () => { });
 
-        vm.ConfirmInputPromptCommand.Execute(null);
-        vm.ConfirmInputPromptCommand.Execute(null);
+        vm.InputPrompt!.ConfirmCommand.Execute(null);
+        vm.InputPrompt!.ConfirmCommand.Execute(null);
 
         Assert.AreEqual(1, confirms, "a stale callback must not re-run against a later key");
-    }
-
-    [TestMethod]
-    [CoversNode("registry-confirmation")]
-    public void Confirmation_DeleteRunsTheAction_CancelRunsTheCancelPath()
-    {
-        var vm = Make(out _);
-        bool confirmed = false, cancelled = false;
-
-        vm.ShowConfirmation("T", "P", () => confirmed = true, () => { });
-        Assert.IsTrue(vm.ConfirmationVisible);
-        vm.ConfirmActionCommand.Execute(null);
-        Assert.IsTrue(confirmed);
-        Assert.IsFalse(vm.ConfirmationVisible);
-
-        vm.ShowConfirmation("T", "P", () => Assert.Fail("confirm must not fire"), () => cancelled = true);
-        vm.CancelConfirmationCommand.Execute(null);
-        Assert.IsTrue(cancelled);
-        Assert.IsFalse(vm.ConfirmationVisible);
     }
 
     // ── Export / Import ───────────────────────────────────────────────────────

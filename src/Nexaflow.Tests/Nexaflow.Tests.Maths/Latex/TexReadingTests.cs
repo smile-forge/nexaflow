@@ -1,6 +1,8 @@
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Latex.Stages;
 
 namespace Nexaflow.Tests.Maths.Latex;
 
@@ -24,7 +26,7 @@ public class TexReadingTests
         foreach (var (what, written) in LatexConstructs.Everything)
         {
             var latex = LatexConstructs.Flatten(written);
-            var reading = TexReading.Of(latex);
+            var reading = ContentReading.Of(new ExpandMacros().Run(TexParser.Parse(latex)));
 
             // Everything a macro stands for is skipped, and has to be: it prints as what it means and
             // stands for none of what was written, so there is no stretch of the source to hold it
@@ -40,7 +42,7 @@ public class TexReadingTests
     {
         foreach (var (what, written) in LatexConstructs.Everything)
         {
-            var reading = TexReading.Of(LatexConstructs.Flatten(written));
+            var reading = ContentReading.Of(new ExpandMacros().Run(TexParser.Parse(LatexConstructs.Flatten(written))));
 
             foreach (var part in reading.Root.SelfAndDescendants().Where(part => part.Derived))
             {
@@ -61,7 +63,7 @@ public class TexReadingTests
     {
         foreach (var (what, written) in LatexConstructs.Everything)
         {
-            var reading = TexReading.Of(LatexConstructs.Flatten(written));
+            var reading = ContentReading.Of(TexParser.Parse(LatexConstructs.Flatten(written)));
 
             foreach (var part in reading.Root.SelfAndDescendants())
             {
@@ -83,7 +85,7 @@ public class TexReadingTests
     {
         foreach (var (what, written) in LatexConstructs.Everything)
         {
-            var reading = TexReading.Of(LatexConstructs.Flatten(written));
+            var reading = ContentReading.Of(TexParser.Parse(LatexConstructs.Flatten(written)));
 
             foreach (var part in reading.Root.SelfAndDescendants())
             {
@@ -101,9 +103,9 @@ public class TexReadingTests
         // The seam between the two readings of a formula: a typesetter drops the braces as soon as it
         // has understood them, so its box for an argument covers what is inside them, where the part
         // that IS the argument here is the group.
-        var group = TexReading.Of("{a+b}").Root.Children[0];
+        var group = ContentReading.Of(TexParser.Parse("{a+b}")).Root.Children[0];
 
-        Assert.AreEqual(TexKind.Group, group.Kind);
+        Assert.AreEqual(TexKinds.Group, group.Kind);
         Assert.AreEqual((0, 5), group.Span);
         Assert.AreEqual((1, 3), group.Contents);
     }
@@ -111,7 +113,7 @@ public class TexReadingTests
     [TestMethod]
     public void AnythingElseIsItsOwnContents()
     {
-        var symbol = TexReading.Of(@"\alpha").Root.Children[0];
+        var symbol = ContentReading.Of(TexParser.Parse(@"\alpha")).Root.Children[0];
 
         Assert.AreEqual(symbol.Span, symbol.Contents);
     }
@@ -119,7 +121,7 @@ public class TexReadingTests
     [TestMethod]
     public void AnUnclosedGroupStillHasContents()
     {
-        var group = TexReading.Of("{ab").Root.Children[0];
+        var group = ContentReading.Of(TexParser.Parse("{ab")).Root.Children[0];
 
         Assert.AreEqual((1, 2), group.Contents, "everything past the brace that was typed");
     }
@@ -130,11 +132,11 @@ public class TexReadingTests
         // The same stretch of `\frac{a}{b}` is both the letter a and the whole contents of the
         // numerator. Asking what is written there has to answer the letter — otherwise backspace over
         // an a would take back a fraction's worth of argument.
-        var standing = TexReading.Of(@"\frac{a}{b}").Standing(6, 1);
+        var standing = ContentReading.Of(TexParser.Parse(@"\frac{a}{b}")).Standing(6, 1);
 
         Assert.AreEqual(1, standing.Count);
         Assert.AreEqual("a", standing[0].Node.Print());
-        Assert.AreEqual(TexKind.Char, standing[0].Kind);
+        Assert.AreEqual(Kinds.Char, standing[0].Kind);
     }
 
     [TestMethod]
@@ -142,7 +144,7 @@ public class TexReadingTests
     {
         // A typesetter's box for the numerator of `\frac{a+b}{c}` covers `a+b` — three things here, and
         // no single part. The group is what that box is a picture of, so it is what comes back.
-        var standing = TexReading.Of(@"\frac{a+b}{c}").Standing(6, 3);
+        var standing = ContentReading.Of(TexParser.Parse(@"\frac{a+b}{c}")).Standing(6, 3);
 
         Assert.AreEqual(1, standing.Count);
         Assert.AreEqual("{a+b}", standing[0].Node.Print());
@@ -155,10 +157,10 @@ public class TexReadingTests
         // Cells wrap what is written in them the same way braces do: the ampersand belongs to the table,
         // not to either of the cells it stands between.
         const string latex = @"\begin{matrix} a + b & c \end{matrix}";
-        var standing = TexReading.Of(latex).Standing(latex.IndexOf("a + b", StringComparison.Ordinal), 5);
+        var standing = ContentReading.Of(TexParser.Parse(latex)).Standing(latex.IndexOf("a + b", StringComparison.Ordinal), 5);
 
         Assert.AreEqual(1, standing.Count);
-        Assert.AreEqual(TexRole.Cell, standing[0].Role);
+        Assert.AreEqual(Roles.Cell, standing[0].Role);
     }
 
     [TestMethod]
@@ -166,11 +168,11 @@ public class TexReadingTests
     {
         // A formula that is one fraction: the whole formula and the fraction stand for the same
         // characters, and which of them a question is about depends on the question.
-        var naming = TexReading.Of(@"\frac{a}{b}").Naming(0, 11).ToList();
+        var naming = ContentReading.Of(TexParser.Parse(@"\frac{a}{b}")).Naming(0, 11).ToList();
 
         Assert.AreEqual(2, naming.Count);
-        Assert.AreEqual(TexKind.Sequence, naming[0].Kind, "outermost first");
-        Assert.AreEqual(TexKind.Command, naming[1].Kind);
+        Assert.AreEqual(Kinds.Sequence, naming[0].Kind, "outermost first");
+        Assert.AreEqual(TexKinds.Command, naming[1].Kind);
     }
 
     [TestMethod]
@@ -178,7 +180,7 @@ public class TexReadingTests
     {
         // A command's own name, a group's braces, a row's line break: in the tree so it can be written
         // back out, not because anything is written in them.
-        var fraction = TexReading.Of(@"\frac{a}{b}").Root.Children[0];
+        var fraction = ContentReading.Of(TexParser.Parse(@"\frac{a}{b}")).Root.Children[0];
 
         Assert.AreEqual(3, fraction.Children.Count, "the name and two arguments");
         CollectionAssert.AreEquivalent(

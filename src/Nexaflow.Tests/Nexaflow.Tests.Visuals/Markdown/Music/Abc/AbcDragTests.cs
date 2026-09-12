@@ -7,6 +7,7 @@ using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
@@ -94,7 +95,7 @@ public class AbcDragTests
 
         const string One = "X:1\nL:1/8\nK:G\n{g}A {/g}B {^d}c {gAG}d |\n";
 
-        var element = AbcScore.Engraved(One, MarkdownPalette.Light, zoom: 4.0);
+        var element = MusicScore.Engraved(MusicDialect.Abc, One, MarkdownPalette.Light, zoom: 4.0);
         element.Measure(new System.Windows.Size(1600, double.PositiveInfinity));
         element.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), element.DesiredSize));
 
@@ -115,7 +116,7 @@ public class AbcDragTests
         // the width and centred in the rest — so what it must never do is take a width of its own choosing.
         const double Given = 1284;
 
-        var score = new AbcScore(AuldGreyCat, MarkdownPalette.Light, 0);
+        var score = new MusicScore(MusicDialect.Abc, AuldGreyCat, MarkdownPalette.Light, 0);
         score.Measure(new System.Windows.Size(Given, double.PositiveInfinity));
         score.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), score.DesiredSize));
         score.UpdateLayout();

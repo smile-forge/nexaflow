@@ -69,12 +69,28 @@ public abstract class UITestBase
     /// </summary>
     protected virtual void SeedConfig(string configDir) { }
 
+    /// <summary>
+    /// What a journey owes the machine before it launches the app: the owner's consent, a DPI-aware host so its
+    /// clicks land on the pixels it means, and the machine-wide gate so no other host's app is up at the same time.
+    /// <para>
+    /// The one way in. A journey that called <c>Application.Launch</c> on its own skipped all three — the setup
+    /// wizard's did, and so ran through a declined prompt onto a machine someone was using.
+    /// </para>
+    /// </summary>
+    /// <returns>The gate: dispose it once the app is gone.</returns>
+    internal static IDisposable TakeMachine()
+    {
+        UiTakeoverPrompt.EnsureAllowed();
+        UiTestGate.EnsureDpiAware();
+        return UiTestGate.Acquire(GateTimeout);
+    }
+
     [TestInitialize]
     public void UISetup()
     {
         // Before anything is launched or seeded: these drive the real mouse and keyboard, so ask once
-        // whether the machine is free. No-ops on CI and after the first answer.
-        UiTakeoverPrompt.EnsureAllowed();
+        // whether the machine is free (a no-op on CI and after the first answer), then take it.
+        _gate = TakeMachine();
 
         _configDir = Path.Combine(Path.GetTempPath(), "nexaflow-uitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_configDir);
@@ -95,11 +111,6 @@ public abstract class UITestBase
             psi.ArgumentList.Add(kind);
         }
         psi.EnvironmentVariables["NEXAFLOW_CONFIG_DIR"] = _configDir;   // isolated, fresh
-        // Before any window or automation object exists: an unaware host clicks the wrong pixels.
-        UiTestGate.EnsureDpiAware();
-
-        // One UI test at a time across every test host on this desktop, not just this assembly.
-        _gate = UiTestGate.Acquire(GateTimeout);
 
         App = Application.Launch(psi);
 

@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
 using Content = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -29,13 +30,13 @@ namespace Nexaflow.Tests.Visuals.Editing;
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("markdown-editing")]
 public class ContentFromABuilderAloneTests
 {
     [TestMethod]
+    [CoversNode("abc-editing")]
     public void ATuneTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
-        var tune = Laid(AbcScore.Engraved("X:1\nL:1/8\nK:C\nCDEF|\n", MarkdownPalette.Dark, sourceStart: 0));
+        var tune = Laid(MusicScore.Engraved(MusicDialect.Abc, "X:1\nL:1/8\nK:C\nCDEF|\n", MarkdownPalette.Dark, sourceStart: 0));
 
         Assert.IsTrue(tune.AcceptsCaret, "the engraver named parts of the source, so there is somewhere to stand");
         Assert.IsTrue(tune.Laid.Places.Count > 0);
@@ -50,6 +51,7 @@ public class ContentFromABuilderAloneTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void ABarcodeTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
         var barcode = Laid(Barcode("format: CODE128\nvalue: HELLO123"));
@@ -64,6 +66,7 @@ public class ContentFromABuilderAloneTests
     });
 
     [TestMethod]
+    [CoversNode("barcode-editing")]
     public void ABarcodeKnowsWhereItsValueSitsInTheFence() => UiThread.Run(() =>
     {
         // The host reads SourceStart < 0 as "the whole block IS this content", which only a $$…$$

@@ -243,14 +243,9 @@
     <Platform Project="x64" />
   </Project>
   <!-- The rendering domain, WPF-free: one formal syntax tree every rendered language is read into, the
-       pipeline of stages that re-read it, and the per-language parsers. Music lives here; maths and the
+       pipeline of stages that re-read it, and the per-language parsers. Music and maths live here; the
        rest follow. See docs/markdown-ast.md. -->
   <Project Path="src/Nexaflow.Markdown/Nexaflow.Markdown.csproj">
-    <Platform Project="x64" />
-  </Project>
-  <!-- The maths domain, WPF-free: the LaTeX parse tree that owns its text. Under both Visuals.Text
-       (which renders from it) and Features.Solver (which will solve from it). -->
-  <Project Path="src/Nexaflow.Maths/Nexaflow.Maths.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- TeX's typesetting engine and its Computer Modern metrics, ingested from XAML-Math (MIT). The

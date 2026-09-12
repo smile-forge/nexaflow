@@ -37,7 +37,7 @@
   <ItemGroup>
     <!-- The parse tree the boxes are built from. This is the arrow the ingest was for: a reading that
          keeps every brace and space, and a box that knows which part of it it was set from. -->
-    <ProjectReference Include="..\Nexaflow.Maths\Nexaflow.Maths.csproj" />
+    <ProjectReference Include="..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
   </ItemGroup>
 
   <ItemGroup>

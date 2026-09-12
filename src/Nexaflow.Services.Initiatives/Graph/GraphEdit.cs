@@ -71,7 +71,7 @@ public static class GraphEdit
         if (read(rel) is not { } original)
             return Result.Fail($"Could not read {rel}.");
 
-        var grammar = TreeSitterLanguages.ForFile(rel);
+        var grammar = TreeSitterLanguages.ForEdit(rel);
         if (grammar is not { Length: > 0 })
             return Result.Fail($"No tree-sitter grammar covers {rel}, so an edit there cannot be verified.");
 
@@ -113,7 +113,7 @@ public static class GraphEdit
         var astPath = nodeId[(hash + 1)..];
 
         if (read(rel) is not { } original) return Result.Fail($"Could not read {rel}.");
-        if (TreeSitterLanguages.ForFile(rel) is not { Length: > 0 } grammar)
+        if (TreeSitterLanguages.ForEdit(rel) is not { Length: > 0 } grammar)
             return Result.Fail($"No tree-sitter grammar covers {rel}, so an edit there cannot be verified.");
 
         if (op is StructuralEdit.Op.Import) return Import(rel, text, read);
@@ -133,17 +133,31 @@ public static class GraphEdit
     {
         if (read(rel) is not { } original) return Result.Fail($"Could not read {rel}.");
 
-        var grammar = TreeSitterLanguages.ForFile(rel);
-        if (grammar is not { Length: > 0 })
-            return Result.Fail($"No tree-sitter grammar covers {rel}, so an edit there cannot be verified.");
+        var o = options ?? new StructuralEdit.Options();
 
-        var result = StructuralEdit.SubstituteInFile(grammar, original, text, options ?? new StructuralEdit.Options());
+        // A grammar proves the file still parses afterwards. A text file with none can still be edited: it has no
+        // shape a substitution could break, so the matching rules are the whole of the check. Something that is
+        // not text at all — an image, a DLL — has no characters to match, and is refused.
+        StructuralEdit.Result result;
+        if (TreeSitterLanguages.ForEdit(rel) is { Length: > 0 } grammar)
+            result = StructuralEdit.SubstituteInFile(grammar, original, text, o);
+        else if (IsText(original))
+            result = StructuralEdit.SubstituteInText(original, text, o);
+        else
+            return Result.Fail($"{rel} is not text, so there is nothing a substitution could safely change.");
+
         if (!result.Ok || result.NewText is null || result.Hunk is null)
             return Result.Fail($"{result.Message} ({rel})");
 
         return new Result(true, $"{result.Message} {rel}",
                           [new FileChange(rel, original, result.NewText, result.Hunk)], result.Notes);
     }
+
+    /// <summary>
+    /// Whether what was read is text. A NUL is the one character no text format writes and every binary one
+    /// does, which is the same test git applies before calling a file binary.
+    /// </summary>
+    private static bool IsText(string content) => !content.Contains('\0');
 
     private static Result Import(string rel, string? text, ReadText read)
     {

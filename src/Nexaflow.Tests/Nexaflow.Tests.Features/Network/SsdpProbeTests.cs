@@ -64,8 +64,8 @@ public class SsdpProbeTests
             => AsyncEnumerable.Empty<ReceivedDatagram>();
         public Task<IProtocolStream?> ConnectAsync(SendIntent i, TimeSpan t, CancellationToken ct, Action<GuardDecision>? d = null)
             => Task.FromResult<IProtocolStream?>(null);
-        public Task<(bool Ok, TimeSpan Rtt)> PingAsync(IPAddress t, TimeSpan timeout, CancellationToken ct)
-            => Task.FromResult((false, TimeSpan.Zero));
+        public Task<PingOutcome> PingAsync(SendIntent i, TimeSpan timeout, CancellationToken ct)
+            => Task.FromResult(new PingOutcome(GuardDecision.Allow(), false, TimeSpan.Zero));
         public Task<bool> TcpConnectAsync(IPAddress t, int port, TimeSpan timeout, CancellationToken ct)
             => Task.FromResult(false);
 

@@ -2,39 +2,38 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Text.Markdown.Music.Model;
-using Nexaflow.Visuals.Text.Markdown.Music.Parsers;
+using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
 /// <summary>
-/// Holds the two sample documents to what they claim. Each is a showcase, so a block that quietly fails to engrave
-/// is worse than a bug — it is a lie in the documentation, and nothing else in the suite would catch it.
+/// Holds the two sample documents to what they claim. Each is a showcase, so a block that quietly fails to
+/// engrave is worse than a bug — it is a lie in the documentation, and nothing else in the suite would catch it.
 ///
-/// The <em>features</em> section of each doc is held to the stricter bar: every construct it shows must engrave with
-/// <em>no warnings at all</em>. A warning means the sample is advertising something the parser cannot actually do.
-/// The <em>songs</em> section is allowed them, because one of the songs is there precisely to show what happens when
-/// a real-world file contains things the engraver has to skip.
+/// The <em>features</em> section of each doc is held to the stricter bar: nothing it shows may be marked as
+/// something the reader could not read or the engraver could not draw. The <em>songs</em> section is allowed
+/// that, because one of the songs is there precisely to show what happens when a real-world file contains
+/// things the engraver has to skip.
 /// </summary>
 [TestClass]
+[TestCategory("UI")]
 [CoversNode("abc-notation")]
 public class MusicSampleDocTests
 {
     [TestMethod]
     [CoversNode("ly-core")]
-    public void EveryLilyPondSampleBlock_Engraves()
-    {
-        AssertDoc("music-lilypond.md", src => new LilyPondParser().Parse(src));
-    }
+    public void EveryLilyPondSampleBlock_Engraves() => UiThread.Run(() =>
+        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Build(ly, 900, Brushes.Black, 1.0)));
 
     [TestMethod]
-    public void EveryAbcSampleBlock_Engraves()
-    {
-        AssertDoc("music-abc.md", src => new AbcParser().Parse(src));
-    }
+    public void EveryAbcSampleBlock_Engraves() => UiThread.Run(() =>
+        AssertDoc("music-abc.md", abc => AbcBuilder.Build(abc, 900, Brushes.Black, 1.0)));
 
-    private static void AssertDoc(string file, Func<string, Score> parse)
+    private static void AssertDoc(string file, Func<string, Laid> build)
     {
         var blocks = Blocks(File.ReadAllText(Path.Combine(TestSampleData.Root, "markdown", file)));
         Assert.IsTrue(blocks.Count > 10, $"{file} should showcase the notation, not sample it ({blocks.Count} blocks)");
@@ -43,28 +42,22 @@ public class MusicSampleDocTests
 
         foreach (var (source, features) in blocks)
         {
-            string title = First(source);
-            var score = parse(source);
+            var title = First(source);
+            var layout = build(source);
 
-            if (score.IsEmpty)
-            {
-                broken.Add($"{title}: engraved nothing");
-                continue;
-            }
-            foreach (var staff in score.Staves)
-                if (staff.Measures.Count == 0)
-                    broken.Add($"{title}: a staff with no measures");
+            if (!layout.Root.SelfAndDescendants().Any(p => p.Kind == "system"))
+                broken.Add($"{title}: engraved no staff");
 
-            if (features && score.Warnings.Count > 0)
-                broken.Add($"{title}: the features section may not warn — {string.Join("; ", score.Warnings)}");
+            if (features && layout.Trouble.Count > 0)
+                broken.Add($"{title}: the features section may not be marked — {string.Join("; ", layout.Trouble.Select(t => t.Message))}");
         }
 
         if (broken.Count > 0)
             Assert.Fail($"{file}:{Environment.NewLine}  " + string.Join(Environment.NewLine + "  ", broken));
     }
 
-    /// <summary>Every <c>#% … #%</c> block in a sample doc, flagged with whether it sits above the "## songs"
-    /// heading (and so is part of the coverage showcase rather than a real-world tune).</summary>
+    /// <summary>Every <c>#% … #%</c> block and every fenced block in a sample doc, flagged with whether it sits
+    /// above the "## songs" heading (and so is part of the coverage showcase rather than a real-world tune).</summary>
     private static List<(string Source, bool Features)> Blocks(string markdown)
     {
         var blocks = new List<(string, bool)>();

@@ -25,6 +25,22 @@ public readonly record struct AdapterAddress(IPAddress Address, int PrefixLength
         }
     }
 
+    /// <summary>The prefix's own address, the one below the first host. Null for IPv6, where nothing treats
+    /// it specially.</summary>
+    public IPAddress? Network
+    {
+        get
+        {
+            if (Address.AddressFamily != AddressFamily.InterNetwork || PrefixLength is < 0 or > 32) return null;
+
+            var bytes = Address.GetAddressBytes();
+            uint addr = (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
+            uint mask = PrefixLength == 0 ? 0u : uint.MaxValue << (32 - PrefixLength);
+            uint net = addr & mask;
+            return new IPAddress(new[] { (byte)(net >> 24), (byte)(net >> 16), (byte)(net >> 8), (byte)net });
+        }
+    }
+
     /// <summary>True if <paramref name="other"/> is on this same prefix — the test the send guard uses to
     /// decide whether a target is locally attached.</summary>
     public bool Contains(IPAddress other)

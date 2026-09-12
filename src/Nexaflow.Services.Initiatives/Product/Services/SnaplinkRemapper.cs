@@ -101,4 +101,31 @@ public static class SnaplinkRemapper
     }
 
     private static string Norm(string p) => p.Replace('\\', '/').TrimEnd('/');
+
+    /// <summary>
+    /// Every link list a remap of <paramref name="oldPath"/> would rewrite — the node it hangs on, and the
+    /// concern when it hangs on one.
+    /// <para>
+    /// Asked <em>before</em> the rewrite, because afterwards no link names the old path any more. Asked at all
+    /// because a remap names no node: a caller on a branch has to record what it changed against that branch,
+    /// and without this list it wrote its unmerged paths into the tree every other worktree reads.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<(string NodeId, string? Concern)> Touching(ProductState state, string oldPath)
+    {
+        var prefix = Norm(oldPath);
+        var touched = new List<(string NodeId, string? Concern)>();
+
+        foreach (var (id, node) in state.Nodes)
+        {
+            if (Matches(node.Snaplinks)) touched.Add((id, null));
+
+            foreach (var concern in node.Concerns ?? [])
+                if (Matches(concern.Snaplinks)) touched.Add((id, concern.Tag));
+        }
+        return touched;
+
+        bool Matches(List<Snaplink>? links) =>
+            links?.Any(link => link.Doc is { } doc && TryRewrite(doc, prefix, prefix, out _)) == true;
+    }
 }

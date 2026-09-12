@@ -1,4 +1,5 @@
 using Nexaflow.IO.Network.Adapters;
+using Nexaflow.IO.Network.Probes;
 using System.Net;
 using System.Net.Sockets;
 
@@ -13,6 +14,10 @@ public sealed class GuardLimits
     public TimeSpan MaxRunDuration { get; init; } = TimeSpan.FromSeconds(60);
     public int MaxPacketsPerSecondPerTarget { get; init; } = 20;
     public int MaxBroadcastsPerSecondPerAdapter { get; init; } = 2;
+
+    /// <summary>Everything one run sends in a second, whatever it is sent to. A backstop rather than a
+    /// setting: the per-target limit cannot see an address sweep, which touches each target once.</summary>
+    public int MaxPacketsPerSecondPerRun { get; init; } = 100;
 
     /// <summary>An unreviewed AI draft gets a far smaller budget than anything else — enough to prove a
     /// protocol works, nowhere near enough to sweep or flood.</summary>
@@ -42,6 +47,7 @@ public sealed class NetworkGuard(GuardLimits? limits = null)
     private IReadOnlyList<NetworkAdapterInfo> _adapters = [];
     private HashSet<IPAddress> _localAddresses = new();
     private readonly HashSet<string> _userApprovedTargets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<(string AdapterId, string Segment)> _sweepNetworks = [];
 
     /// <summary>The kill switch. False makes every send refuse, discovery included.</summary>
     public bool Enabled { get; set; } = true;
@@ -69,8 +75,27 @@ public sealed class NetworkGuard(GuardLimits? limits = null)
         lock (_lock) _userApprovedTargets.Add(address.ToString());
     }
 
-    /// <summary>Decides one send. Pure with respect to the counters — call <see cref="RunBudget.Record"/>
-    /// on the returned budget only when the send actually happens.</summary>
+    /// <summary>
+    /// The networks the user has agreed may be swept: an adapter <i>on a subnet</i>, not an adapter.
+    /// </summary>
+    /// <remarks>
+    /// Both halves, because consent to one is not consent to the other. Keyed by the card alone, a laptop's
+    /// Wi-Fi allowed at home would sweep the office the next morning — the network an intrusion-detection
+    /// system is watching. And the card is not the probe's to choose: an echo carries no source address, so
+    /// the route table picks which adapter it leaves by, which is why <see cref="Evaluate"/> asks every
+    /// adapter on the target's subnet rather than the one a probe happened to be running for.
+    /// </remarks>
+    public void SetSweepConsent(IEnumerable<(string AdapterId, string Segment)> networks)
+    {
+        lock (_lock)
+        {
+            _sweepNetworks.Clear();
+            _sweepNetworks.AddRange(networks);
+        }
+    }
+
+    /// <summary>Decides one send. Pure with respect to the counters — <see cref="RunBudget.Admit"/> is how a
+    /// send is decided and booked together.</summary>
     public GuardDecision Evaluate(SendIntent intent, RunBudget budget)
     {
         if (!Enabled)
@@ -120,6 +145,19 @@ public sealed class NetworkGuard(GuardLimits? limits = null)
                 $"{intent.Target} is not on a locally attached network and was not entered by you. "
                 + "Only devices on your own network segments can be contacted.");
         }
+        else if (IsSubnetAddress(intent.Target))
+        {
+            // Both ends of a subnet reach every host on it. A send meant for all of them has to say it is a
+            // broadcast, so the broadcast rules — and a draft's ban on them — are the ones that apply.
+            return GuardDecision.Deny(GuardRefusal.Forbidden,
+                $"{intent.Target} is the network or broadcast address of a local subnet, which reaches every "
+                + "host on it. A send meant for all of them has to say it is a broadcast.");
+        }
+
+        // ── Sweeps ───────────────────────────────────────────────────────────
+        if (intent.Cost >= ProbeCost.Sweep && !SweepPermitted(intent.Target, out var network))
+            return GuardDecision.Deny(GuardRefusal.SweepNotPermitted,
+                $"Sweeping {network} is not allowed. Allow it for this network in Options → Network.");
 
         // ── Budgets ──────────────────────────────────────────────────────────
         int packetCap = intent.Initiator == SendInitiator.AiDraft
@@ -142,6 +180,10 @@ public sealed class NetworkGuard(GuardLimits? limits = null)
             return GuardDecision.Deny(GuardRefusal.RateLimited,
                 $"Rate limit reached for {intent.Target} ({_limits.MaxPacketsPerSecondPerTarget}/s).");
 
+        if (budget.PacketsThisSecond >= _limits.MaxPacketsPerSecondPerRun)
+            return GuardDecision.Deny(GuardRefusal.RateLimited,
+                $"This run is sending too fast ({_limits.MaxPacketsPerSecondPerRun}/s).");
+
         return GuardDecision.Allow();
     }
 
@@ -160,6 +202,43 @@ public sealed class NetworkGuard(GuardLimits? limits = null)
             }
         }
         return false;
+    }
+
+    /// <summary>True for the first and last address of a local IPv4 subnet — its network address and its
+    /// directed broadcast — where the subnet is large enough to have them: in a /31 or a /32 every address
+    /// is a host.</summary>
+    private bool IsSubnetAddress(IPAddress target)
+    {
+        lock (_lock)
+            foreach (var adapter in _adapters)
+            {
+                if (adapter.IsLoopbackOrTunnel) continue;
+                foreach (var addr in adapter.Addresses)
+                    if (addr.PrefixLength <= 30 && addr.Contains(target)
+                        && (target.Equals(addr.Network) || target.Equals(addr.DirectedBroadcast)))
+                        return true;
+            }
+        return false;
+    }
+
+    /// <summary>True when every adapter on the target's subnet has consent for that subnet.</summary>
+    private bool SweepPermitted(IPAddress target, out string network)
+    {
+        network = target.ToString();
+
+        lock (_lock)
+        {
+            var on = _adapters
+                .Where(a => !a.IsLoopbackOrTunnel && a.Addresses.Any(x => x.Contains(target)))
+                .ToList();
+
+            if (on.Count == 0) return false;
+
+            network = on[0].SegmentId;
+            return on.All(a => _sweepNetworks.Any(n =>
+                string.Equals(n.AdapterId, a.Id, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(n.Segment, a.SegmentId, StringComparison.Ordinal)));
+        }
     }
 
     /// <summary>True for a directed broadcast of one of our prefixes, or a multicast group that cannot

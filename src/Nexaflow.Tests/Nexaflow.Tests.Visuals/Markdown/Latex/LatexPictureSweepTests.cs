@@ -6,13 +6,14 @@ using System.Linq;
 using System.Text;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Nexaflow.Maths.Latex;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 using Rect = System.Windows.Rect;
 using Nexaflow.Tests.Visuals.Markdown.Latex;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
@@ -234,10 +235,10 @@ public class LatexPictureSweepTests
         var text = new StringBuilder();
 
         text.Append("parse\n");
-        Parsed(TexReading.Of(latex).Root, 1, text);
+        Parsed(ContentReading.Of(TexParser.Parse(latex)).Root, 1, text);
 
         text.Append("read\n");
-        Parsed(TexReading.Of(TexPipeline.Read(latex, LatexBuilder.Draws, null, false)).Root, 1, text);
+        Parsed(ContentReading.Of(TexPipeline.Read(latex, LatexBuilder.Draws, null, false)).Root, 1, text);
 
         text.Append("layout ").Append(Round(layout.Size.Width)).Append('x').Append(Round(layout.Size.Height)).Append('\n');
         foreach (var node in layout.Root.SelfAndDescendants())
@@ -259,7 +260,7 @@ public class LatexPictureSweepTests
         return text.ToString();
     }
 
-    private static void Parsed(TexPart part, int depth, StringBuilder text)
+    private static void Parsed(ContentPart part, int depth, StringBuilder text)
     {
         text.Append(' ', depth).Append(part.Kind).Append(' ').Append(part.Role);
         if (part.Children.Count == 0) text.Append(" \"").Append(part.Text).Append('"');

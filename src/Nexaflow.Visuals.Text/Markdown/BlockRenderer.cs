@@ -123,7 +123,7 @@ public static class BlockRenderer
                 // MathBlock extends FencedCodeBlock — must match first
                 MathBlock          mb  => Aligned(RenderMathBlock(mb, rawMarkdown, ctx), ctx),
                 // Musical notation (#%abc … #% / #%lilypond … #%) → sheet music
-                Music.MusicBlock   mus => Aligned(Music.MusicRenderer.Render(mus, ctx), ctx),
+                Music.MusicBlock   mus => Aligned(RenderMusicBlock(mus, rawMarkdown, ctx), ctx),
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
                 => Aligned(RenderDiagramBlock(fc, rawMarkdown, ctx), ctx),
@@ -990,6 +990,23 @@ public static class BlockRenderer
     }
 
     /// <summary>
+    /// A <c>#% … #%</c> block, which is a fenced <c>abc</c> or <c>lilypond</c> block spelled another way — and so is
+    /// rendered by the same handler, onto the same page, and edited the same way.
+    /// </summary>
+    private static FrameworkElement RenderMusicBlock(Music.MusicBlock mus, string rawMarkdown, MarkdownRenderContext ctx)
+    {
+        var content = ExtractFencedContent(rawMarkdown, mus.Source);
+
+        return DiagramRenderer.Render(mus.Dialect == Music.MusicDialect.LilyPond ? "lilypond" : "abc", content,
+            new DiagramRenderOptions
+            {
+                Palette      = ctx.Palette,
+                SourceOffset = FencedContentOffset(rawMarkdown, content),
+                OnNavigate   = ctx.OnNavigate,
+            });
+    }
+
+    /// <summary>
     /// Where the extracted content begins inside the raw block — the opening fence line, plus whatever the
     /// trim took off the front.
     /// <para>
@@ -1011,17 +1028,24 @@ public static class BlockRenderer
     /// (strips the opening and closing fence lines).  Falls back to
     /// <see cref="FencedCodeBlock.Lines"/> if raw text is unavailable.
     /// </summary>
-    private static string ExtractFencedContent(FencedCodeBlock fc, string rawMarkdown)
+    private static string ExtractFencedContent(FencedCodeBlock fc, string rawMarkdown) =>
+        ExtractFencedContent(rawMarkdown, fc.Lines.ToString());
+
+    /// <summary>
+    /// The lines between a block's opening and closing fence, whichever way it is fenced — or
+    /// <paramref name="fallback"/> where the raw text is not to hand.
+    /// </summary>
+    private static string ExtractFencedContent(string rawMarkdown, string fallback)
     {
         if (!string.IsNullOrWhiteSpace(rawMarkdown))
         {
             var lines = rawMarkdown.Split('\n');
-            // lines[0] = opening fence (```lang), lines[^1] = closing fence (```)
+            // lines[0] = opening fence, lines[^1] = closing fence
             if (lines.Length > 2)
                 return string.Join('\n', lines[1..^1]).Trim();
             if (lines.Length == 2)
                 return string.Empty;
         }
-        return fc.Lines.ToString().Trim();
+        return fallback.Trim();
     }
 }

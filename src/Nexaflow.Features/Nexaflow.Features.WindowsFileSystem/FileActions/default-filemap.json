@@ -71,7 +71,8 @@
     "ExperienceId": "/text/music",
     "Source": "User",
     "Criteria": [
-      { "Type": "Extension", "Value": "*.abc" }
+      { "Type": "Extension", "Value": "*.abc" },
+      { "Type": "Extension", "Value": "*.ly" }
     ]
   },
   {

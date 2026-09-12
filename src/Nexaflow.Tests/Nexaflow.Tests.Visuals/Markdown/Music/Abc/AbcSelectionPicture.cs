@@ -10,6 +10,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
@@ -98,7 +99,7 @@ public class AbcSelectionPicture
 
     private static RenderTargetBitmap Shot(string tune, Func<Piece, Piece> from, Func<Piece, Piece> to)
     {
-        var element = AbcScore.Engraved(tune, MarkdownPalette.Light);
+        var element = MusicScore.Engraved(MusicDialect.Abc, tune, MarkdownPalette.Light);
         element.Measure(new Size(760, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

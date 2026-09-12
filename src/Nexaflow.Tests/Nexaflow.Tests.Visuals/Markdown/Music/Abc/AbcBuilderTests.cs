@@ -11,6 +11,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
@@ -323,6 +324,52 @@ public class AbcBuilderTests
     });
 
     [TestMethod]
+    public void AKeyCanNameTheClef_WithOrWithoutClefEquals() => UiThread.Run(() =>
+    {
+        // The standard makes `clef=` optional, and the corpus writes both. C, is the second space of a bass
+        // staff and far under a treble one, so where its head lands says which clef it was drawn in.
+        foreach (var key in new[] { "K:C bass", "K:C clef=bass" })
+        {
+            var layout = AbcBuilder.Build($"X:1\nL:1/4\n{key}\nC,|\n", 400, Brushes.Black, 1.0);
+            var staff = layout.Root.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
+            var head = layout.Root.SelfAndDescendants().First(n => n.Kind == "head").Ink();
+
+            Assert.IsTrue(head.Top >= staff[0].Bounds.Top - 1 && head.Bottom <= staff[^1].Bounds.Bottom + 1,
+                $"{key}: C, should sit on a bass staff, not hang under a treble one");
+        }
+
+        // …and only a K: or a V: can name one: a title about a bass is not a clef.
+        var titled = AbcBuilder.Build("X:1\nT:Bass line\nL:1/4\nK:C\nc|\n", 400, Brushes.Black, 1.0);
+        var lines = titled.Root.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
+        var c = titled.Root.SelfAndDescendants().First(n => n.Kind == "head").Ink();
+        Assert.IsTrue(c.Top >= lines[0].Bounds.Top - 1 && c.Bottom <= lines[^1].Bounds.Bottom + 1,
+            "middle c's octave above sits in a treble staff");
+    });
+
+    [TestMethod]
+    public void ALineThatNamesItsVoiceFirstIsThatVoicesLine() => UiThread.Run(() =>
+    {
+        // The chorale shape: every voice declared in the header, then each line of music opening with the voice
+        // it belongs to. Filed under the voice before it, every part took its neighbour's clef — the soprano hung
+        // off a bass staff and the bass off a treble one. One voice is declared `V: 2`, the way the chorales
+        // declare theirs: split on the space before its id, every voice was filed under the same empty one.
+        var layout = AbcBuilder.Build(
+            "X:1\nL:1/4\nM:C\nV:1 clef=treble\nV: 2 clef=bass\nK:C\n[V:1] c d e f |\n[V:2] C, D, E, F, |\n",
+            700, Brushes.Black, 1.0);
+
+        var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
+        Assert.AreEqual(2, systems.Count, "one staff per voice");
+
+        foreach (var system in systems)
+        {
+            var staff = system.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
+            foreach (var head in system.SelfAndDescendants().Where(n => n.Kind == "head").Select(n => n.Ink()))
+                Assert.IsTrue(head.Top >= staff[0].Bounds.Top - 9 && head.Bottom <= staff[^1].Bounds.Bottom + 9,
+                    "each part sits on a staff in its own clef, not its neighbour's");
+        }
+    });
+
+    [TestMethod]
     public void ZoomingOutReEngravesRatherThanShrinksThePicture() => UiThread.Run(() =>
     {
         // Both are given the same room to engrave in — one has it directly, the other because zooming out
@@ -345,7 +392,7 @@ public class AbcBuilderTests
     /// <summary>A score, measured and arranged into a given width at a given zoom.</summary>
     private static Nexaflow.Visuals.Text.Editing.ContentElement Engraved(string abc, double available, double zoom)
     {
-        var element = AbcScore.Engraved(abc, MarkdownPalette.Dark, zoom: zoom);
+        var element = MusicScore.Engraved(MusicDialect.Abc, abc, MarkdownPalette.Dark, zoom: zoom);
         element.Measure(new Size(available, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
         return element;
@@ -370,7 +417,7 @@ public class AbcBuilderTests
     {
         // Rendering to a bitmap forces OnRender to run — measure and arrange alone would not — so this
         // exercises every draw path end to end: clef, key, meter, heads, stems, flags, beams, bar lines.
-        var element = AbcScore.Engraved(SpeedThePlough, MarkdownPalette.Dark);
+        var element = MusicScore.Engraved(MusicDialect.Abc, SpeedThePlough, MarkdownPalette.Dark);
         element.Measure(new Size(700, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

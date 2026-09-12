@@ -283,116 +283,104 @@
         </Grid>
 
         <!-- ── Choice overlay (Recompress level / Convert format) ──────── -->
-        <Border Visibility="{Binding ChoiceVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="20">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="Auto" MinWidth="260" MaxWidth="500" Padding="16"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="{Binding ChoiceTitle}" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,12" TextWrapping="Wrap"/>
+        <vcc:ModalCard Panel.ZIndex="20" Tone="Accent" CardMinWidth="260" CardMaxWidth="500"
+                       Header="{Binding ChoiceTitle}"
+                       IsOpen="{Binding ChoiceVisible}" CancelCommand="{Binding CancelChoiceCommand}">
+            <StackPanel>
+                <!-- Grid mode (Convert): icon-badge buttons, two rows. -->
+                <ItemsControl ItemsSource="{Binding ChoiceOptions}" HorizontalAlignment="Center"
+                              Visibility="{Binding ChoiceAsGrid, Converter={StaticResource BoolVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="2"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Command="{Binding DataContext.PickChoiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding Value}" ToolTip="{Binding Label}"
+                                    AutomationProperties.AutomationId="Compressed_ConvertOption"
+                                    Width="84" Height="66" Margin="3" Cursor="Hand">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="4" Padding="4">
+                                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                            <TextBlock Text="{Binding Icon}" FontSize="17" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource AccentBrush}"
+                                                                       HorizontalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Label}" FontSize="10" Margin="0,3,0,0"
+                                                                       Foreground="{StaticResource TextBrush}"
+                                                                       HorizontalAlignment="Center" TextAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis" MaxWidth="74"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-                    <!-- Grid mode (Convert): icon-badge buttons, two rows. -->
-                    <ItemsControl ItemsSource="{Binding ChoiceOptions}" HorizontalAlignment="Center"
-                                  Visibility="{Binding ChoiceAsGrid, Converter={StaticResource BoolVis}}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Rows="2"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Command="{Binding DataContext.PickChoiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding Value}" ToolTip="{Binding Label}"
-                                        AutomationProperties.AutomationId="Compressed_ConvertOption"
-                                        Width="84" Height="66" Margin="3" Cursor="Hand">
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="4" Padding="4">
-                                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                                <TextBlock Text="{Binding Icon}" FontSize="17" FontWeight="SemiBold"
-                                                                           Foreground="{StaticResource AccentBrush}"
-                                                                           HorizontalAlignment="Center"/>
-                                                                <TextBlock Text="{Binding Label}" FontSize="10" Margin="0,3,0,0"
-                                                                           Foreground="{StaticResource TextBrush}"
-                                                                           HorizontalAlignment="Center" TextAlignment="Center"
-                                                                           TextTrimming="CharacterEllipsis" MaxWidth="74"/>
-                                                            </StackPanel>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                                                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                <!-- List mode (Recompress): a plain stacked list of labelled buttons. -->
+                <ItemsControl ItemsSource="{Binding ChoiceOptions}"
+                              Visibility="{Binding ChoiceAsList, Converter={StaticResource BoolVis}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Label}"
+                                    Command="{Binding DataContext.PickChoiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding Value}"
+                                    AutomationProperties.AutomationId="Compressed_RecompressOption"
+                                    HorizontalContentAlignment="Left" Cursor="Hand" Margin="0,0,0,6"
+                                    Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,7"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-                    <!-- List mode (Recompress): a plain stacked list of labelled buttons. -->
-                    <ItemsControl ItemsSource="{Binding ChoiceOptions}"
-                                  Visibility="{Binding ChoiceAsList, Converter={StaticResource BoolVis}}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Content="{Binding Label}"
-                                        Command="{Binding DataContext.PickChoiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding Value}"
-                                        AutomationProperties.AutomationId="Compressed_RecompressOption"
-                                        HorizontalContentAlignment="Left" Cursor="Hand" Margin="0,0,0,6"
-                                        Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,7"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <Button Content="Cancel" Command="{Binding CancelChoiceCommand}" Cursor="Hand"
-                            AutomationProperties.AutomationId="Compressed_ChoiceCancel"
-                            HorizontalAlignment="Right" Margin="0,6,0,0"
-                            Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
-                            BorderThickness="0" Padding="8,4"/>
-                </StackPanel>
-            </Border>
-        </Border>
+                <Button Content="Cancel" Command="{Binding CancelChoiceCommand}" Cursor="Hand"
+                        AutomationProperties.AutomationId="Compressed_ChoiceCancel"
+                        HorizontalAlignment="Right" Margin="0,6,0,0"
+                        Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
+                        BorderThickness="0" Padding="8,4"/>
+            </StackPanel>
+        </vcc:ModalCard>
 
         <!-- ── Password overlay (Encrypt / Decrypt) ────────────────────── -->
-        <Border Visibility="{Binding PasswordVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="21">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="320" Padding="16"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="{Binding PasswordTitle}" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
-                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="3" Margin="0,0,0,12">
-                        <PasswordBox x:Name="PasswordEntry"
-                                     Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
-                                     CaretBrush="{StaticResource TextBrush}" BorderThickness="0" FontSize="12" Padding="8,6"
-                                     KeyDown="PasswordEntry_KeyDown"/>
-                    </Border>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancel" Command="{Binding CancelPasswordCommand}" Cursor="Hand"
-                                AutomationProperties.AutomationId="Compressed_PasswordCancel"
-                                Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
-                                BorderThickness="0" Padding="10,6" Margin="0,0,8,0"/>
-                        <Button Content="OK" Click="PasswordOk_Click" Cursor="Hand"
-                                AutomationProperties.AutomationId="Compressed_PasswordOk"
-                                Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}"
-                                BorderThickness="0" Padding="18,6" FontWeight="SemiBold"/>
-                    </StackPanel>
+        <vcc:ModalCard Panel.ZIndex="21" Tone="Accent" CardWidth="320" Header="{Binding PasswordTitle}"
+                       IsOpen="{Binding PasswordVisible}" CancelCommand="{Binding CancelPasswordCommand}">
+            <StackPanel>
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="3" Margin="0,0,0,12">
+                    <PasswordBox x:Name="PasswordEntry"
+                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
+                                 CaretBrush="{StaticResource TextBrush}" BorderThickness="0" FontSize="12" Padding="8,6"
+                                 KeyDown="PasswordEntry_KeyDown"/>
+                </Border>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Cancel" Command="{Binding CancelPasswordCommand}" Cursor="Hand"
+                            AutomationProperties.AutomationId="Compressed_PasswordCancel"
+                            Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
+                            BorderThickness="0" Padding="10,6" Margin="0,0,8,0"/>
+                    <Button Content="OK" Click="PasswordOk_Click" Cursor="Hand"
+                            AutomationProperties.AutomationId="Compressed_PasswordOk"
+                            Background="{StaticResource AccentBrush}" Foreground="{StaticResource OnAccentBrush}"
+                            BorderThickness="0" Padding="18,6" FontWeight="SemiBold"/>
                 </StackPanel>
-            </Border>
-        </Border>
+            </StackPanel>
+        </vcc:ModalCard>
     </Grid>
 </UserControl>

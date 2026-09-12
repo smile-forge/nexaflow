@@ -349,10 +349,6 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     public bool   ConfirmationVisible => Overlays.ConfirmationVisible;
     public bool   PromptVisible       => Overlays.PromptVisible;
-    public string PromptValue { get => Overlays.PromptValue; set => Overlays.PromptValue = value; }
-
-    public IRelayCommand CancelShellConfirmationCommand => Overlays.CancelShellConfirmationCommand;
-    public IRelayCommand CancelShellPromptCommand       => Overlays.CancelShellPromptCommand;
 
     /// <summary>Shows a feature-supplied overlay view-model. Backs <see cref="IShellServices.ShowOverlay"/>.</summary>
     public void ShowOverlay(object overlayViewModel) => Overlays.ShowOverlay(overlayViewModel);
@@ -623,7 +619,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         // Modal-overlay state machine; the flags stay here (they gate switching/deep-links), the
         // coordinator owns everything else. Re-raise its changes under the same property names so
-        // existing XAML bindings (ActiveOverlay, PromptValue, …) and the airspace-coverage watcher
+        // existing XAML bindings (ActiveOverlay, ConfirmationVisible, …) and the airspace-coverage watcher
         // keep working against this VM.
         Overlays = new OverlayCoordinator(
             () => OptionsOpen, () => WorkspaceConfigOpen,

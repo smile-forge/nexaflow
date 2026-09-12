@@ -12,7 +12,6 @@ using Nexaflow.Features.ProductManager.Services;
 using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Visuals.Common.Controls;
-using Nexaflow.Visuals.Common.Dialogs;
 
 namespace Nexaflow.Features.ProductManager.ViewModels;
 
@@ -119,11 +118,9 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     [ObservableProperty] private string _newSettingsConcern = string.Empty;
     public ObservableCollection<ConcernDefRow> SettingsConcerns { get; } = [];
 
-    // ── Confirmation overlay (shared Visuals.Common dialog) ────────────────
-    [ObservableProperty] private ConfirmationRequest? _confirmation;
-
-    private void ShowConfirmation(string title, string prompt, Action onConfirm)
-        => Confirmation = new ConfirmationRequest(title, prompt, onConfirm, confirmLabel: "Delete");
+    // ── Confirmation: both deletes ask the shell's window-modal question (arch review §E1) ──
+    private Task<bool> ConfirmDeleteAsync(string title, string prompt)
+        => _shell.ConfirmAsync(title, prompt, "Delete", "Cancel");
 
     /// <summary>
     /// This page's hold on the product's live state — the tree loaded once and watched, and the knowledge graph
@@ -360,18 +357,17 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     }
 
     [RelayCommand]
-    private void DeleteSnapshot()
+    private async Task DeleteSnapshot()
     {
         var version = SelectedVersion;
         if (version == ProductStore.CurrentVersion) { _shell.ShowError("Current isn't a snapshot."); return; }
-        ShowConfirmation("Delete snapshot",
-            $"Delete snapshot \"{version}\" from {_exportDir}? The git tag, if any, is left in place.",
-            () =>
-            {
-                _store.DeleteSnapshot(_exportDir, version);
-                _suppress = true; SelectedVersion = ProductStore.CurrentVersion; _suppress = false;
-                Load();
-            });
+        if (!await ConfirmDeleteAsync("Delete snapshot",
+                $"Delete snapshot \"{version}\" from {_exportDir}? The git tag, if any, is left in place."))
+            return;
+
+        _store.DeleteSnapshot(_exportDir, version);
+        _suppress = true; SelectedVersion = ProductStore.CurrentVersion; _suppress = false;
+        Load();
     }
 
     // ── Navigation (called by the view from the sunburst) ────────────────────
@@ -805,20 +801,21 @@ public partial class ProductViewModel : ObservableObject, IPageViewModel, IDispo
     /// <summary>Navigates the view to a node (used by the "needs attention" list and breadcrumb).</summary>
     [RelayCommand] private void NavigateToNode(string? id) { if (id is not null) NavigateTo(id); }
 
-    public void DeleteNode(string id)
+    [RelayCommand]
+    private async Task DeleteNode(string id)
     {
         if (!IsEditable || id == ProductRootSentinel || !_state.Nodes.TryGetValue(id, out var node)) return;
-        ShowConfirmation("Delete node", $"Delete \"{node.Title}\" and all its descendants? This cannot be undone.",
-            () =>
-            {
-                var parent = node.Parent;
-                RemoveRecursive(id);
-                if (FocusedNodeId == id || (FocusedNodeId is not null && !_state.Nodes.ContainsKey(FocusedNodeId)))
-                    FocusedNodeId = parent is not null && _state.Nodes.ContainsKey(parent) ? parent : null;
-                SaveTree();
-                RebuildAll();
-                if (RestructureVisible) BuildRestructure();   // keep the restructure tree in sync
-            });
+        if (!await ConfirmDeleteAsync("Delete node",
+                $"Delete \"{node.Title}\" and all its descendants? This cannot be undone."))
+            return;
+
+        var parent = node.Parent;
+        RemoveRecursive(id);
+        if (FocusedNodeId == id || (FocusedNodeId is not null && !_state.Nodes.ContainsKey(FocusedNodeId)))
+            FocusedNodeId = parent is not null && _state.Nodes.ContainsKey(parent) ? parent : null;
+        SaveTree();
+        RebuildAll();
+        if (RestructureVisible) BuildRestructure();   // keep the restructure tree in sync
     }
 
     private void RemoveRecursive(string id)

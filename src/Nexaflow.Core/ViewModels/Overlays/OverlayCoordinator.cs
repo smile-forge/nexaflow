@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Visuals.Common.Dialogs;
 
 namespace Nexaflow.Core.ViewModels.Overlays;
 
@@ -15,7 +15,7 @@ namespace Nexaflow.Core.ViewModels.Overlays;
 /// <c>PropertyChanged</c> under the same names, so existing XAML bindings and callers are unchanged.
 /// </para>
 /// </summary>
-public sealed partial class OverlayCoordinator : ObservableObject
+public sealed class OverlayCoordinator : ObservableObject
 {
     private readonly Func<bool> _optionsOpen;
     private readonly Func<bool> _workspaceConfigOpen;
@@ -37,8 +37,6 @@ public sealed partial class OverlayCoordinator : ObservableObject
     public object? ActiveOverlay { get; private set; }
 
     private object? _featureOverlay;
-    private object? _confirmationOverlay;
-    private object? _promptOverlay;
     private object? _optionsPanel;
     private object? _workspaceConfigPanel;
 
@@ -57,8 +55,8 @@ public sealed partial class OverlayCoordinator : ObservableObject
             _featureOverlay
             ?? (_optionsOpen()         ? _optionsPanel         : null)
             ?? (_workspaceConfigOpen() ? _workspaceConfigPanel : null)
-            ?? (ConfirmationVisible    ? _confirmationOverlay  : null)
-            ?? (PromptVisible          ? _promptOverlay        : null);
+            ?? (object?)Confirmation
+            ?? Prompt;
 
         if (ReferenceEquals(next, ActiveOverlay)) return;
         ActiveOverlay = next;
@@ -79,124 +77,81 @@ public sealed partial class OverlayCoordinator : ObservableObject
         if (_featureOverlay is not null) { _featureOverlay = null; Sync(); return; }
         if (_optionsOpen())               _closeOptions();
         else if (_workspaceConfigOpen())  _closeWorkspaceConfig();
-        else if (ConfirmationVisible)     CancelShellConfirmation();
-        else if (PromptVisible)           CancelShellPrompt();
+        else if (Confirmation is { } c)   c.CancelCommand.Execute(null);
+        else if (Prompt is { } p)         p.CancelCommand.Execute(null);
     }
 
     // ── Confirmation modal ────────────────────────────────────────────────
-    // A window-level yes/no overlay (ribbon right-click Delete, IShellServices.ShowConfirmation, …).
+    // A window-level yes/no overlay (ribbon right-click Delete, IShellServices.ShowConfirmation /
+    // ConfirmAsync, …). The request is the whole state — it closes itself and fires its callback once — so
+    // this only holds the open one, and drops it the moment it is answered.
 
-    [ObservableProperty] private bool   _confirmationVisible;
-    [ObservableProperty] private string _confirmationTitle  = string.Empty;
-    [ObservableProperty] private string _confirmationPrompt = string.Empty;
+    /// <summary>The open confirmation, or null. The overlay host renders it by its type's DataTemplate.</summary>
+    public ConfirmationRequest? Confirmation { get; private set; }
 
-    private Action? _confirmationOnConfirm;
-    private Action? _confirmationOnCancel;
-    private string  _confirmationConfirmLabel = "Confirm";
-    private string  _confirmationCancelLabel  = "Cancel";
+    public bool ConfirmationVisible => Confirmation is not null;
 
     public void ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel = null,
                                  string? confirmLabel = null, string? cancelLabel = null)
     {
-        ConfirmationTitle         = title;
-        ConfirmationPrompt        = prompt;
-        _confirmationConfirmLabel = string.IsNullOrWhiteSpace(confirmLabel) ? "Confirm" : confirmLabel!;
-        _confirmationCancelLabel  = string.IsNullOrWhiteSpace(cancelLabel)  ? "Cancel"  : cancelLabel!;
-        _confirmationOnConfirm    = onConfirm;
-        _confirmationOnCancel     = onCancel;
-        ConfirmationVisible       = true;
+        // A new question supersedes an open one, which is answered Cancel — so an awaiting ConfirmAsync
+        // completes rather than hanging on a dialog nobody can reach any more.
+        Confirmation?.CancelCommand.Execute(null);
+
+        ConfirmationRequest? request = null;
+        request = new ConfirmationRequest(title, prompt,
+            onConfirm: () => { CloseConfirmation(request!); onConfirm(); },
+            onCancel:  () => { CloseConfirmation(request!); onCancel?.Invoke(); },
+            confirmLabel: string.IsNullOrWhiteSpace(confirmLabel) ? "Confirm" : confirmLabel,
+            cancelLabel:  string.IsNullOrWhiteSpace(cancelLabel)  ? "Cancel"  : cancelLabel);
+        SetConfirmation(request);
     }
 
-    [RelayCommand]
-    private void ConfirmShellConfirmation()
+    // Runs before the caller's callback, so a callback that asks again opens a fresh question.
+    private void CloseConfirmation(ConfirmationRequest request)
     {
-        ConfirmationVisible = false;
-        var cb = _confirmationOnConfirm;
-        _confirmationOnConfirm = _confirmationOnCancel = null;
-        cb?.Invoke();
+        if (ReferenceEquals(Confirmation, request)) SetConfirmation(null);
     }
 
-    [RelayCommand]
-    private void CancelShellConfirmation()
+    private void SetConfirmation(ConfirmationRequest? request)
     {
-        ConfirmationVisible = false;
-        var cb = _confirmationOnCancel;
-        _confirmationOnConfirm = _confirmationOnCancel = null;
-        cb?.Invoke();
-    }
-
-    partial void OnConfirmationVisibleChanged(bool value)
-    {
-        // Title/Prompt/labels are set before ConfirmationVisible flips true (see ShowConfirmation).
-        _confirmationOverlay = value
-            ? new ConfirmationOverlay
-              {
-                  Title          = ConfirmationTitle,
-                  Prompt         = ConfirmationPrompt,
-                  ConfirmCommand = ConfirmShellConfirmationCommand,
-                  CancelCommand  = CancelShellConfirmationCommand,
-                  ConfirmLabel   = _confirmationConfirmLabel,
-                  CancelLabel    = _confirmationCancelLabel,
-              }
-            : null;
+        Confirmation = request;
+        OnPropertyChanged(nameof(Confirmation));
+        OnPropertyChanged(nameof(ConfirmationVisible));
         Sync();
     }
 
     // ── Input-prompt modal ────────────────────────────────────────────────
-    // Window-level text-input prompt; the destination for IShellServices.ShowPrompt.
+    // Window-level text-input prompt; the destination for IShellServices.ShowPrompt. Same shape as the
+    // confirmation: the request owns its editable Value and its one-shot OK / Cancel.
 
-    [ObservableProperty] private bool   _promptVisible;
-    [ObservableProperty] private string _promptTitle = string.Empty;
-    [ObservableProperty] private string _promptLabel = string.Empty;
-    [ObservableProperty] private string _promptValue = string.Empty;
+    /// <summary>The open prompt, or null. Its template two-way-binds the request's own <c>Value</c>.</summary>
+    public PromptRequest? Prompt { get; private set; }
 
-    private Action<string>? _promptOnConfirm;
-    private Action?         _promptOnCancel;
+    public bool PromptVisible => Prompt is not null;
 
     public void ShowPrompt(string title, string label, string initialValue,
                            Action<string> onConfirm, Action? onCancel = null)
     {
-        PromptTitle      = title;
-        PromptLabel      = label;
-        PromptValue      = initialValue;
-        _promptOnConfirm = onConfirm;
-        _promptOnCancel  = onCancel;
-        PromptVisible    = true;
+        Prompt?.CancelCommand.Execute(null);
+
+        PromptRequest? request = null;
+        request = new PromptRequest(title, label, initialValue,
+            onConfirm: value => { ClosePrompt(request!); onConfirm(value); },
+            onCancel:  ()    => { ClosePrompt(request!); onCancel?.Invoke(); });
+        SetPrompt(request);
     }
 
-    [RelayCommand]
-    private void ConfirmShellPrompt()
+    private void ClosePrompt(PromptRequest request)
     {
-        PromptVisible = false;
-        var value = PromptValue;
-        var cb    = _promptOnConfirm;
-        _promptOnConfirm = null;
-        _promptOnCancel  = null;
-        cb?.Invoke(value);
+        if (ReferenceEquals(Prompt, request)) SetPrompt(null);
     }
 
-    [RelayCommand]
-    private void CancelShellPrompt()
+    private void SetPrompt(PromptRequest? request)
     {
-        PromptVisible = false;
-        var cb = _promptOnCancel;
-        _promptOnConfirm = null;
-        _promptOnCancel  = null;
-        cb?.Invoke();
-    }
-
-    partial void OnPromptVisibleChanged(bool value)
-    {
-        // The editable PromptValue stays on this object; the template two-way-binds to it via the window.
-        _promptOverlay = value
-            ? new PromptOverlay
-              {
-                  Title          = PromptTitle,
-                  Label          = PromptLabel,
-                  ConfirmCommand = ConfirmShellPromptCommand,
-                  CancelCommand  = CancelShellPromptCommand,
-              }
-            : null;
+        Prompt = request;
+        OnPropertyChanged(nameof(Prompt));
+        OnPropertyChanged(nameof(PromptVisible));
         Sync();
     }
 }

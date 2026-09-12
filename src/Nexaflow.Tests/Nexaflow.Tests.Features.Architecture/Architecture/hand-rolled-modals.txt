@@ -1,0 +1,8 @@
+# Hand-rolled modals — a scrim around a centred card — that predate the rule (arch review §E1).
+# A yes/no question or one line of text goes through IShellServices; a form goes in Visuals.Common's
+# ModalCard. HandRolledModalRatchetTests fails on a scaffold that is not listed here, and on a line whose
+# scaffold has moved onto ModalCard — so when you move one, delete its line. This file can only shrink.
+# Key: <view>#<the property its Visibility binds>.
+#
+# Empty since E1's PR 3 moved the last twelve onto ModalCard. Keep it that way: a new modal is a question
+# for the shell or a form in a ModalCard, never a line here.

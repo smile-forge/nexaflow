@@ -316,50 +316,22 @@
             </ListView>
         </Grid>
 
-        <!-- ── Input-prompt overlay ───────────────────────────────────── -->
-        <Border Grid.Row="0" Grid.RowSpan="2" Background="#CC000000" Panel.ZIndex="20"
-                Visibility="{Binding InputPromptVisible, Converter={StaticResource BoolToVis}}">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="380" Padding="16"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="{Binding InputPromptTitle}" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                    <TextBlock Text="{Binding InputPromptLabel}" Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="11" Margin="0,0,0,6"/>
-                    <TextBox Text="{Binding InputPromptValue, UpdateSourceTrigger=PropertyChanged}"
-                             Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
-                             BorderThickness="0" Padding="8,6" AcceptsReturn="True" MaxLines="6"
-                             TextWrapping="Wrap" KeyDown="InputPrompt_KeyDown"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                        <Button Style="{StaticResource RegTbBtn}" Content="Cancel"
-                                Command="{Binding CancelInputPromptCommand}"/>
-                        <Button Style="{StaticResource RegTbBtn}" Content="OK"
-                                Command="{Binding ConfirmInputPromptCommand}"/>
-                    </StackPanel>
+        <!-- ── Input prompt — in-tab: REG_MULTI_SZ data needs line breaks the shell's prompt can't take ── -->
+        <vcc:ModalCard Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="20" Tone="Accent" CardWidth="380"
+                       DataContext="{Binding InputPrompt}" IsOpen="{Binding IsOpen, FallbackValue=False}"
+                       Header="{Binding Title}" CancelCommand="{Binding CancelCommand}">
+            <StackPanel>
+                <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="11" Margin="0,0,0,6"/>
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
+                         BorderThickness="0" Padding="8,6" AcceptsReturn="True" MaxLines="6"
+                         TextWrapping="Wrap" KeyDown="InputPrompt_KeyDown"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <Button Style="{StaticResource RegTbBtn}" Content="Cancel" Command="{Binding CancelCommand}"/>
+                    <Button Style="{StaticResource RegTbBtn}" Content="OK" Command="{Binding ConfirmCommand}"/>
                 </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- ── Confirmation overlay ───────────────────────────────────── -->
-        <Border Grid.Row="0" Grid.RowSpan="2" Background="#CC000000" Panel.ZIndex="19"
-                Visibility="{Binding ConfirmationVisible, Converter={StaticResource BoolToVis}}">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource DangerBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="380" Padding="16"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="{Binding ConfirmationTitle}" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                    <TextBlock Text="{Binding ConfirmationPrompt}" Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="12" TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                        <Button Style="{StaticResource RegTbBtn}" Content="Cancel"
-                                Command="{Binding CancelConfirmationCommand}"/>
-                        <Button Style="{StaticResource RegTbBtn}" Content="Delete"
-                                Command="{Binding ConfirmActionCommand}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </Border>
+            </StackPanel>
+        </vcc:ModalCard>
     </Grid>
 </UserControl>

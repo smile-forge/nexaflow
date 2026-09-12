@@ -1,6 +1,7 @@
 <UserControl x:Class="Nexaflow.Features.WindowsFileSystem.Views.FileSystemView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:vm="clr-namespace:Nexaflow.Features.WindowsFileSystem.ViewModels"
              xmlns:conv="clr-namespace:Nexaflow.Features.WindowsFileSystem.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
@@ -1060,461 +1061,432 @@
                  (tree + right pane), not just the file list. ─────────────────── -->
 
             <!-- ── Create Overlay (single pane: type picker + filename) ─────── -->
-            <Border x:Name="CreateOverlay"
-                    Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
-                    Visibility="{Binding CreateOverlayVisible,
-                                 Converter={StaticResource BoolToVis}}"
-                    Background="#CC000000"
-                    Panel.ZIndex="21">
-                <Border Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource AccentBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Width="520"
-                        MaxHeight="470"
-                        Padding="16"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Create new"
-                                   Foreground="{StaticResource TextBrush}"
-                                   FontSize="13" FontWeight="SemiBold"
-                                   Margin="0,0,0,10"/>
+            <vcc:ModalCard x:Name="CreateOverlay"
+                           Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3" Panel.ZIndex="21"
+                           Tone="Accent" CardWidth="520" CardMaxHeight="470" Header="Create new"
+                           IsOpen="{Binding CreateOverlayVisible}" CancelCommand="{Binding CancelCreateCommand}">
+                <DockPanel>
+                    <!-- Bottom: filename, existence warning, action buttons -->
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <Border BorderThickness="1" CornerRadius="3" Margin="0,10,0,0">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CreateNameExists}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBox x:Name="CreateFileNameBox"
+                                     Text="{Binding CreateFileName, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource Surface2Brush}"
+                                     Foreground="{StaticResource TextBrush}"
+                                     CaretBrush="{StaticResource TextBrush}"
+                                     BorderThickness="0"
+                                     FontSize="12"
+                                     Padding="8,6"
+                                     GotFocus="CreateFileNameBox_GotFocus"
+                                     KeyDown="CreateFileNameBox_KeyDown"/>
+                        </Border>
+                        <TextBlock x:Name="CreateNameWarning"
+                                   Text="An item with this name already exists."
+                                   Foreground="{StaticResource WarningBrush}"
+                                   FontSize="11"
+                                   Margin="0,4,0,0"
+                                   Visibility="{Binding CreateNameExists, Converter={StaticResource BoolToVis}}"/>
+                        <Button x:Name="CreateConfirmButton" Content="Create"
+                        AutomationProperties.AutomationId="FileSystem_CreateConfirm"
+                                Command="{Binding CreateCommand}"
+                                Cursor="Hand"
+                                Margin="0,10,0,6">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background"      Value="{StaticResource AccentBrush}"/>
+                                    <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Padding"         Value="0,7"/>
+                                    <Setter Property="FontSize"        Value="12"/>
+                                    <Setter Property="FontWeight"      Value="SemiBold"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd"
+                                                        Background="{TemplateBinding Background}"
+                                                        CornerRadius="4"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Cancel"
+                                Command="{Binding CancelCreateCommand}"
+                                AutomationProperties.AutomationId="FileSystem_CreateCancel"
+                                Cursor="Hand">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
+                                    <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Padding"         Value="0,7"/>
+                                    <Setter Property="FontSize"        Value="12"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd"
+                                                        Background="{TemplateBinding Background}"
+                                                        CornerRadius="4"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background"
+                                                                Value="{StaticResource BorderBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
 
-                        <!-- Bottom: filename, existence warning, action buttons -->
-                        <StackPanel DockPanel.Dock="Bottom">
-                            <Border BorderThickness="1" CornerRadius="3" Margin="0,10,0,0">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CreateNameExists}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBox x:Name="CreateFileNameBox"
-                                         Text="{Binding CreateFileName, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="{StaticResource Surface2Brush}"
-                                         Foreground="{StaticResource TextBrush}"
-                                         CaretBrush="{StaticResource TextBrush}"
-                                         BorderThickness="0"
-                                         FontSize="12"
-                                         Padding="8,6"
-                                         GotFocus="CreateFileNameBox_GotFocus"
-                                         KeyDown="CreateFileNameBox_KeyDown"/>
-                            </Border>
-                            <TextBlock x:Name="CreateNameWarning"
-                                       Text="An item with this name already exists."
-                                       Foreground="{StaticResource WarningBrush}"
-                                       FontSize="11"
-                                       Margin="0,4,0,0"
-                                       Visibility="{Binding CreateNameExists, Converter={StaticResource BoolToVis}}"/>
-                            <Button x:Name="CreateConfirmButton" Content="Create"
-                            AutomationProperties.AutomationId="FileSystem_CreateConfirm"
-                                    Command="{Binding CreateCommand}"
-                                    Cursor="Hand"
-                                    Margin="0,10,0,6">
-                                <Button.Style>
-                                    <Style TargetType="Button">
-                                        <Setter Property="Background"      Value="{StaticResource AccentBrush}"/>
-                                        <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-                                        <Setter Property="BorderThickness" Value="0"/>
-                                        <Setter Property="Padding"         Value="0,7"/>
-                                        <Setter Property="FontSize"        Value="12"/>
-                                        <Setter Property="FontWeight"      Value="SemiBold"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="Bd"
-                                                            Background="{TemplateBinding Background}"
-                                                            CornerRadius="4"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter HorizontalAlignment="Center"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsEnabled" Value="False">
-                                                            <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                            <Button Content="Cancel"
-                                    Command="{Binding CancelCreateCommand}"
-                                    AutomationProperties.AutomationId="FileSystem_CreateCancel"
-                                    Cursor="Hand">
-                                <Button.Style>
-                                    <Style TargetType="Button">
-                                        <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
-                                        <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-                                        <Setter Property="BorderThickness" Value="0"/>
-                                        <Setter Property="Padding"         Value="0,7"/>
-                                        <Setter Property="FontSize"        Value="12"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="Bd"
-                                                            Background="{TemplateBinding Background}"
-                                                            CornerRadius="4"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter HorizontalAlignment="Center"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Bd" Property="Background"
-                                                                    Value="{StaticResource BorderBrush}"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </StackPanel>
-
-                        <!-- Middle: scrollable type icons — ~5 columns, 2 visible rows then scroll
-                             (each 84×74 cell + 3px margin = 90×80; 2 rows ≈ 160px). -->
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      MaxHeight="166"
-                                      Margin="0,0,0,4">
-                            <ItemsControl ItemsSource="{Binding CreateActions}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:CreateActionViewModel}">
-                                        <Button Command="{Binding SelectCommand}"
-                                                AutomationProperties.AutomationId="{Binding DisplayName}"
-                                                ToolTip="{Binding DisplayName}"
-                                                Width="84" Height="74" Margin="3"
-                                                Cursor="Hand">
-                                            <Button.Style>
-                                                <Style TargetType="Button">
-                                                    <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
-                                                    <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
-                                                    <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
-                                                    <Setter Property="BorderThickness" Value="1"/>
-                                                    <Setter Property="Template">
-                                                        <Setter.Value>
-                                                            <ControlTemplate TargetType="Button">
-                                                                <Border x:Name="Bd"
-                                                                        Background="{TemplateBinding Background}"
-                                                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                                                        CornerRadius="4"
-                                                                        Padding="4">
-                                                                    <StackPanel VerticalAlignment="Center"
-                                                                                HorizontalAlignment="Center">
-                                                                        <Image Source="{Binding IconImage}"
-                                                                               Width="22" Height="22"
-                                                                               RenderOptions.BitmapScalingMode="HighQuality">
-                                                                            <Image.Style>
-                                                                                <Style TargetType="Image">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
-                                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </Image.Style>
-                                                                        </Image>
-                                                                        <TextBlock Text="{Binding Icon}"
-                                                                                   FontSize="20"
-                                                                                   HorizontalAlignment="Center">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
-                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                        <TextBlock Text="{Binding DisplayName}"
-                                                                                   FontSize="9"
-                                                                                   HorizontalAlignment="Center"
-                                                                                   TextAlignment="Center"
-                                                                                   TextTrimming="CharacterEllipsis"
-                                                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                                                   Margin="0,3,0,0"
-                                                                                   MaxWidth="74"/>
-                                                                    </StackPanel>
-                                                                </Border>
-                                                                <ControlTemplate.Triggers>
-                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                        <Setter TargetName="Bd" Property="BorderBrush"
-                                                                                Value="{StaticResource AccentBrush}"/>
-                                                                    </Trigger>
-                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                        <Setter TargetName="Bd" Property="BorderBrush"
-                                                                                Value="{StaticResource AccentBrush}"/>
-                                                                        <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
-                                                                    </DataTrigger>
-                                                                </ControlTemplate.Triggers>
-                                                            </ControlTemplate>
-                                                        </Setter.Value>
-                                                    </Setter>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
-            </Border>
+                    <!-- Middle: scrollable type icons — ~5 columns, 2 visible rows then scroll
+                         (each 84×74 cell + 3px margin = 90×80; 2 rows ≈ 160px). -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  MaxHeight="166"
+                                  Margin="0,0,0,4">
+                        <ItemsControl ItemsSource="{Binding CreateActions}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:CreateActionViewModel}">
+                                    <Button Command="{Binding SelectCommand}"
+                                            AutomationProperties.AutomationId="{Binding DisplayName}"
+                                            ToolTip="{Binding DisplayName}"
+                                            Width="84" Height="74" Margin="3"
+                                            Cursor="Hand">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Background"      Value="{StaticResource Surface2Brush}"/>
+                                                <Setter Property="Foreground"      Value="{StaticResource TextBrush}"/>
+                                                <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="Bd"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                    CornerRadius="4"
+                                                                    Padding="4">
+                                                                <StackPanel VerticalAlignment="Center"
+                                                                            HorizontalAlignment="Center">
+                                                                    <Image Source="{Binding IconImage}"
+                                                                           Width="22" Height="22"
+                                                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                                                        <Image.Style>
+                                                                            <Style TargetType="Image">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Image.Style>
+                                                                    </Image>
+                                                                    <TextBlock Text="{Binding Icon}"
+                                                                               FontSize="20"
+                                                                               HorizontalAlignment="Center">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IconImage, Converter={x:Static cv:NullToBoolConverter.Instance}}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <TextBlock Text="{Binding DisplayName}"
+                                                                               FontSize="9"
+                                                                               HorizontalAlignment="Center"
+                                                                               TextAlignment="Center"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                                               Margin="0,3,0,0"
+                                                                               MaxWidth="74"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="BorderBrush"
+                                                                            Value="{StaticResource AccentBrush}"/>
+                                                                </Trigger>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter TargetName="Bd" Property="BorderBrush"
+                                                                            Value="{StaticResource AccentBrush}"/>
+                                                                    <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                                                                </DataTrigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </vcc:ModalCard>
 
             <!-- ── Define-New association wizard overlay ────────────────────── -->
-            <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3"
-                    Visibility="{Binding WizardOverlayVisible, Converter={StaticResource BoolToVis}}"
-                    Background="#CC000000"
-                    Panel.ZIndex="23">
-                <Border Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource AccentBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Width="560"
-                        MaxHeight="600"
-                        Padding="18"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        DataContext="{Binding Wizard}">
-                    <DockPanel>
-                        <!-- Header -->
-                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                            <TextBlock Text="Define new file association"
-                                       Foreground="{StaticResource TextBrush}"
-                                       FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding StepIndicator}"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       FontSize="11" Margin="0,2,0,0"/>
-                        </StackPanel>
+            <vcc:ModalCard Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3" Panel.ZIndex="23"
+                           Tone="Accent" CardWidth="560" CardMaxHeight="600"
+                           IsOpen="{Binding WizardOverlayVisible}" CancelCommand="{Binding Wizard.CancelCommand}">
+                <DockPanel DataContext="{Binding Wizard}">
+                    <!-- Header -->
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <TextBlock Text="Define new file association"
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding StepIndicator}"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="11" Margin="0,2,0,0"/>
+                    </StackPanel>
 
-                        <!-- Footer -->
-                        <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
-                            <Button DockPanel.Dock="Left" Content="Cancel"
+                    <!-- Footer -->
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+                        <Button DockPanel.Dock="Left" Content="Cancel"
+                                Style="{StaticResource WzSecondaryBtn}"
+                                Command="{Binding CancelCommand}"
+                                AutomationProperties.AutomationId="DefineNew_Cancel"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="Back"
                                     Style="{StaticResource WzSecondaryBtn}"
-                                    Command="{Binding CancelCommand}"
-                                    AutomationProperties.AutomationId="DefineNew_Cancel"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Back"
-                                        Style="{StaticResource WzSecondaryBtn}"
-                                        Command="{Binding BackCommand}"
-                                        AutomationProperties.AutomationId="DefineNew_Back"
-                                        Visibility="{Binding ShowBack, Converter={StaticResource BoolToVis}}"
-                                        Margin="0,0,8,0"/>
-                                <Button Content="{Binding AdvanceButtonText}"
-                                        Style="{StaticResource WzPrimaryBtn}"
-                                        Command="{Binding AdvanceCommand}"
-                                        AutomationProperties.AutomationId="DefineNew_Advance"/>
+                                    Command="{Binding BackCommand}"
+                                    AutomationProperties.AutomationId="DefineNew_Back"
+                                    Visibility="{Binding ShowBack, Converter={StaticResource BoolToVis}}"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="{Binding AdvanceButtonText}"
+                                    Style="{StaticResource WzPrimaryBtn}"
+                                    Command="{Binding AdvanceCommand}"
+                                    AutomationProperties.AutomationId="DefineNew_Advance"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Body -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <Grid>
+                            <!-- Page 1: what to open with -->
+                            <StackPanel Visibility="{Binding ShowModePage, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="What should these files open with?"
+                                           Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
+                                             Content="An internal viewer"
+                                             IsChecked="{Binding IsInternalSelected, Mode=TwoWay}"
+                                             AutomationProperties.AutomationId="DefineNew_TargetInternal"/>
+                                <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
+                                             Content="An existing external app"
+                                             IsEnabled="{Binding HasExistingApps}"
+                                             AutomationProperties.AutomationId="DefineNew_TargetExistingApp"
+                                             IsChecked="{Binding IsExistingSelected, Mode=TwoWay}"/>
+                                <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
+                                             Content="A new external app"
+                                             IsChecked="{Binding IsNewSelected, Mode=TwoWay}"
+                                             AutomationProperties.AutomationId="DefineNew_TargetNewApp"/>
                             </StackPanel>
-                        </DockPanel>
 
-                        <!-- Body -->
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <Grid>
-                                <!-- Page 1: what to open with -->
-                                <StackPanel Visibility="{Binding ShowModePage, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="What should these files open with?"
-                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
-                                    <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
-                                                 Content="An internal viewer"
-                                                 IsChecked="{Binding IsInternalSelected, Mode=TwoWay}"
-                                                 AutomationProperties.AutomationId="DefineNew_TargetInternal"/>
-                                    <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
-                                                 Content="An existing external app"
-                                                 IsEnabled="{Binding HasExistingApps}"
-                                                 AutomationProperties.AutomationId="DefineNew_TargetExistingApp"
-                                                 IsChecked="{Binding IsExistingSelected, Mode=TwoWay}"/>
-                                    <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
-                                                 Content="A new external app"
-                                                 IsChecked="{Binding IsNewSelected, Mode=TwoWay}"
-                                                 AutomationProperties.AutomationId="DefineNew_TargetNewApp"/>
-                                </StackPanel>
-
-                                <!-- Page 2 (internal): pick the viewer -->
-                                <StackPanel Visibility="{Binding ShowInternalPicker, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="Choose an internal viewer"
-                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
-                                    <ListBox ItemsSource="{Binding Experiences}"
-                                             SelectedItem="{Binding SelectedExperience, Mode=TwoWay}"
-                                             AutomationProperties.AutomationId="DefineNew_InternalPicker"
-                                             Background="{StaticResource Surface2Brush}"
-                                             BorderBrush="{StaticResource BorderBrush}"
-                                             BorderThickness="1"
-                                             MaxHeight="300" Margin="0,8,0,0">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal" Margin="2,3">
-                                                    <TextBlock Text="{Binding Icon}" FontSize="18"
-                                                               Width="26" TextAlignment="Center"
-                                                               VerticalAlignment="Center"/>
-                                                    <StackPanel>
-                                                        <TextBlock Text="{Binding DisplayName}"
-                                                                   Foreground="{StaticResource TextBrush}"
-                                                                   FontSize="12" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="{Binding Description}"
-                                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                                   FontSize="11" TextWrapping="Wrap"
-                                                                   MaxWidth="440"/>
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </StackPanel>
-
-                                <!-- Page 2a: existing external app (user-defined + system handlers) -->
-                                <StackPanel Visibility="{Binding ShowAppPickPage, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="Choose an app"
-                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
-                                    <ListBox ItemsSource="{Binding ExistingApps}"
-                                             SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
-                                             Background="{StaticResource Surface2Brush}"
-                                             BorderBrush="{StaticResource BorderBrush}"
-                                             BorderThickness="1"
-                                             MaxHeight="300" Margin="0,8,0,0">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Margin="2,3">
+                            <!-- Page 2 (internal): pick the viewer -->
+                            <StackPanel Visibility="{Binding ShowInternalPicker, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Choose an internal viewer"
+                                           Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                <ListBox ItemsSource="{Binding Experiences}"
+                                         SelectedItem="{Binding SelectedExperience, Mode=TwoWay}"
+                                         AutomationProperties.AutomationId="DefineNew_InternalPicker"
+                                         Background="{StaticResource Surface2Brush}"
+                                         BorderBrush="{StaticResource BorderBrush}"
+                                         BorderThickness="1"
+                                         MaxHeight="300" Margin="0,8,0,0">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="2,3">
+                                                <TextBlock Text="{Binding Icon}" FontSize="18"
+                                                           Width="26" TextAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                                <StackPanel>
                                                     <TextBlock Text="{Binding DisplayName}"
                                                                Foreground="{StaticResource TextBrush}"
                                                                FontSize="12" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="{Binding SubText}"
+                                                    <TextBlock Text="{Binding Description}"
                                                                Foreground="{StaticResource TextMutedBrush}"
-                                                               FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                                               FontSize="11" TextWrapping="Wrap"
+                                                               MaxWidth="440"/>
                                                 </StackPanel>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </StackPanel>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
 
-                                <!-- Page 2b: new external app fields -->
-                                <StackPanel Visibility="{Binding ShowAppFieldsPage, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="Application path" Style="{StaticResource WzLabel}" Margin="0,0,0,3"/>
+                            <!-- Page 2a: existing external app (user-defined + system handlers) -->
+                            <StackPanel Visibility="{Binding ShowAppPickPage, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Choose an app"
+                                           Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                <ListBox ItemsSource="{Binding ExistingApps}"
+                                         SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
+                                         Background="{StaticResource Surface2Brush}"
+                                         BorderBrush="{StaticResource BorderBrush}"
+                                         BorderThickness="1"
+                                         MaxHeight="300" Margin="0,8,0,0">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="2,3">
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Foreground="{StaticResource TextBrush}"
+                                                           FontSize="12" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding SubText}"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+
+                            <!-- Page 2b: new external app fields -->
+                            <StackPanel Visibility="{Binding ShowAppFieldsPage, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Application path" Style="{StaticResource WzLabel}" Margin="0,0,0,3"/>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="Browse…"
+                                            Style="{StaticResource WzSecondaryBtn}"
+                                            Command="{Binding BrowseAppPathCommand}"
+                                            AutomationProperties.AutomationId="DefineNew_BrowseAppPath" Margin="8,0,0,0"/>
+                                    <TextBox Style="{StaticResource WzInput}"
+                                             Text="{Binding NewAppPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                </DockPanel>
+
+                                <TextBlock Text="Display name" Style="{StaticResource WzLabel}"/>
+                                <TextBox Style="{StaticResource WzInput}"
+                                         Text="{Binding NewAppDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                <!-- Advanced (collapsed by default) -->
+                                <Button Content="{Binding AdvancedHeader}"
+                                        Command="{Binding ToggleAdvancedCommand}"
+                                        AutomationProperties.AutomationId="DefineNew_ToggleAdvanced"
+                                        HorizontalAlignment="Left" Cursor="Hand"
+                                        Background="Transparent" BorderThickness="0" Padding="0,4"
+                                        Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,12,0,0"/>
+
+                                <StackPanel Visibility="{Binding AdvancedExpanded, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Arguments" Style="{StaticResource WzLabel}"/>
+                                    <TextBox Style="{StaticResource WzInput}"
+                                             ContextMenu="{StaticResource WzTokenMenu}"
+                                             Text="{Binding NewAppArguments, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                               Text="Tokens: #file, #filenoext, #filepath, #pathonly (append [n] for the nth selected file). %VAR% expands environment variables. Right-click to insert."/>
+                                    <TextBlock Text="Working directory" Style="{StaticResource WzLabel}"/>
+                                    <TextBox Style="{StaticResource WzInput}"
+                                             ContextMenu="{StaticResource WzTokenMenu}"
+                                             Text="{Binding NewAppWorkingDir, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                               Text="Leave blank to run in the file's own folder."/>
+                                    <TextBlock Text="Icon path" Style="{StaticResource WzLabel}"/>
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Content="Browse…"
                                                 Style="{StaticResource WzSecondaryBtn}"
-                                                Command="{Binding BrowseAppPathCommand}"
-                                                AutomationProperties.AutomationId="DefineNew_BrowseAppPath" Margin="8,0,0,0"/>
+                                                Command="{Binding BrowseIconPathCommand}"
+                                                AutomationProperties.AutomationId="DefineNew_BrowseIconPath" Margin="8,0,0,0"/>
                                         <TextBox Style="{StaticResource WzInput}"
-                                                 Text="{Binding NewAppPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding NewAppIconPath, UpdateSourceTrigger=PropertyChanged}"/>
                                     </DockPanel>
+                                    <TextBlock Text="Multi-file behaviour" Style="{StaticResource WzLabel}"/>
+                                    <ComboBox ItemsSource="{Binding MultiFileOptions}"
+                                              SelectedItem="{Binding NewAppMultiFileName, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </StackPanel>
 
-                                    <TextBlock Text="Display name" Style="{StaticResource WzLabel}"/>
-                                    <TextBox Style="{StaticResource WzInput}"
-                                             Text="{Binding NewAppDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+                            <!-- Final page: scope -->
+                            <StackPanel Visibility="{Binding ShowScopePage, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Where does this apply?"
+                                           Foreground="{StaticResource TextBrush}" FontSize="12"/>
+                                <DockPanel Margin="0,10,0,2">
+                                    <TextBlock Text="Extension:" Foreground="{StaticResource TextMutedBrush}"
+                                               FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Style="{StaticResource WzInput}" Width="140" HorizontalAlignment="Left"
+                                             Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}"/>
+                                </DockPanel>
 
-                                    <!-- Advanced (collapsed by default) -->
-                                    <Button Content="{Binding AdvancedHeader}"
-                                            Command="{Binding ToggleAdvancedCommand}"
-                                            AutomationProperties.AutomationId="DefineNew_ToggleAdvanced"
-                                            HorizontalAlignment="Left" Cursor="Hand"
-                                            Background="Transparent" BorderThickness="0" Padding="0,4"
-                                            Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,12,0,0"/>
-
-                                    <StackPanel Visibility="{Binding AdvancedExpanded, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="Arguments" Style="{StaticResource WzLabel}"/>
-                                        <TextBox Style="{StaticResource WzInput}"
-                                                 ContextMenu="{StaticResource WzTokenMenu}"
-                                                 Text="{Binding NewAppArguments, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
-                                                   Text="Tokens: #file, #filenoext, #filepath, #pathonly (append [n] for the nth selected file). %VAR% expands environment variables. Right-click to insert."/>
-                                        <TextBlock Text="Working directory" Style="{StaticResource WzLabel}"/>
-                                        <TextBox Style="{StaticResource WzInput}"
-                                                 ContextMenu="{StaticResource WzTokenMenu}"
-                                                 Text="{Binding NewAppWorkingDir, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
-                                                   Text="Leave blank to run in the file's own folder."/>
-                                        <TextBlock Text="Icon path" Style="{StaticResource WzLabel}"/>
-                                        <DockPanel>
-                                            <Button DockPanel.Dock="Right" Content="Browse…"
-                                                    Style="{StaticResource WzSecondaryBtn}"
-                                                    Command="{Binding BrowseIconPathCommand}"
-                                                    AutomationProperties.AutomationId="DefineNew_BrowseIconPath" Margin="8,0,0,0"/>
-                                            <TextBox Style="{StaticResource WzInput}"
-                                                     Text="{Binding NewAppIconPath, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </DockPanel>
-                                        <TextBlock Text="Multi-file behaviour" Style="{StaticResource WzLabel}"/>
-                                        <ComboBox ItemsSource="{Binding MultiFileOptions}"
-                                                  SelectedItem="{Binding NewAppMultiFileName, Mode=TwoWay}"/>
+                                <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                             IsEnabled="{Binding HasSelectedFile}"
+                                             IsChecked="{Binding IsScopeThisFile, Mode=TwoWay}"
+                                             AutomationProperties.AutomationId="DefineNew_ScopeThisFile">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Only this file ("/>
+                                        <TextBlock Text="{Binding SelectedFileName}"/>
+                                        <TextBlock Text=")"/>
                                     </StackPanel>
-                                </StackPanel>
+                                </RadioButton>
+                                <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                             IsChecked="{Binding IsScopeExtFolder, Mode=TwoWay}"
+                                             AutomationProperties.AutomationId="DefineNew_ScopeExtInFolder">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="All "/>
+                                        <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
+                                        <TextBlock Text=" in this folder + subfolders"/>
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                             IsChecked="{Binding IsScopeExtAnywhere, Mode=TwoWay}"
+                                             AutomationProperties.AutomationId="DefineNew_ScopeExtAnywhere">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="All "/>
+                                        <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
+                                        <TextBlock Text=" anywhere on this PC"/>
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
+                                             Content="Custom globs (; separated, full-path)"
+                                             IsChecked="{Binding IsScopeCustom, Mode=TwoWay}"
+                                             AutomationProperties.AutomationId="DefineNew_ScopeCustomGlobs"/>
+                                <TextBox Style="{StaticResource WzInput}" Margin="0,4,0,0"
+                                         IsEnabled="{Binding IsScopeCustom}"
+                                         Text="{Binding CustomGlobs, UpdateSourceTrigger=PropertyChanged}"/>
 
-                                <!-- Final page: scope -->
-                                <StackPanel Visibility="{Binding ShowScopePage, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="Where does this apply?"
-                                               Foreground="{StaticResource TextBrush}" FontSize="12"/>
-                                    <DockPanel Margin="0,10,0,2">
-                                        <TextBlock Text="Extension:" Foreground="{StaticResource TextMutedBrush}"
-                                                   FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBox Style="{StaticResource WzInput}" Width="140" HorizontalAlignment="Left"
-                                                 Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </DockPanel>
-
-                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
-                                                 IsEnabled="{Binding HasSelectedFile}"
-                                                 IsChecked="{Binding IsScopeThisFile, Mode=TwoWay}"
-                                                 AutomationProperties.AutomationId="DefineNew_ScopeThisFile">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="Only this file ("/>
-                                            <TextBlock Text="{Binding SelectedFileName}"/>
-                                            <TextBlock Text=")"/>
-                                        </StackPanel>
-                                    </RadioButton>
-                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
-                                                 IsChecked="{Binding IsScopeExtFolder, Mode=TwoWay}"
-                                                 AutomationProperties.AutomationId="DefineNew_ScopeExtInFolder">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="All "/>
-                                            <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
-                                            <TextBlock Text=" in this folder + subfolders"/>
-                                        </StackPanel>
-                                    </RadioButton>
-                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
-                                                 IsChecked="{Binding IsScopeExtAnywhere, Mode=TwoWay}"
-                                                 AutomationProperties.AutomationId="DefineNew_ScopeExtAnywhere">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="All "/>
-                                            <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
-                                            <TextBlock Text=" anywhere on this PC"/>
-                                        </StackPanel>
-                                    </RadioButton>
-                                    <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
-                                                 Content="Custom globs (; separated, full-path)"
-                                                 IsChecked="{Binding IsScopeCustom, Mode=TwoWay}"
-                                                 AutomationProperties.AutomationId="DefineNew_ScopeCustomGlobs"/>
-                                    <TextBox Style="{StaticResource WzInput}" Margin="0,4,0,0"
-                                             IsEnabled="{Binding IsScopeCustom}"
-                                             Text="{Binding CustomGlobs, UpdateSourceTrigger=PropertyChanged}"/>
-
-                                    <TextBlock Text="{Binding FolderPath}"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               FontSize="10" TextTrimming="CharacterEllipsis"
-                                               Margin="0,10,0,0"/>
-                                </StackPanel>
-                            </Grid>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
-            </Border>
+                                <TextBlock Text="{Binding FolderPath}"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="10" TextTrimming="CharacterEllipsis"
+                                           Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </DockPanel>
+            </vcc:ModalCard>
 
         <!-- ── Drop tooltip: follows cursor during drag-over ────────────── -->
         <Popup x:Name="DropTooltipPopup"

@@ -407,329 +407,306 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- Confirmation overlay (shared Visuals.Common dialog) -->
-        <ctrl:ConfirmationDialog Request="{Binding Confirmation}" Grid.RowSpan="2" Panel.ZIndex="40"/>
-
         <!-- Take-snapshot overlay -->
-        <Border Grid.RowSpan="2" Visibility="{Binding TakeSnapshotVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="21">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="360" Padding="20"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="Take snapshot" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                    <TextBlock Text="Exports the current tree to the export folder and, if the folder is a git repo, commits it and creates a tag."
-                               FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-                    <TextBlock Text="Version number (also the git tag)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox Text="{Binding NewSnapshotVersion, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
-                        <TextBox.InputBindings>
-                            <KeyBinding Key="Return" Command="{Binding ConfirmTakeSnapshotCommand}"/>
-                        </TextBox.InputBindings>
-                    </TextBox>
-                    <Button Content="Take snapshot" Command="{Binding ConfirmTakeSnapshotCommand}"
-                            Style="{StaticResource GhostButton}" Margin="0,0,0,6"/>
-                    <Button Content="Cancel" Command="{Binding CancelTakeSnapshotCommand}" Style="{StaticResource GhostButton}"/>
-                </StackPanel>
-            </Border>
-        </Border>
+        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="21" Header="Take snapshot" CardWidth="360"
+                        IsOpen="{Binding TakeSnapshotVisible}" CancelCommand="{Binding CancelTakeSnapshotCommand}">
+            <StackPanel>
+                <TextBlock Text="Exports the current tree to the export folder and, if the folder is a git repo, commits it and creates a tag."
+                           FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                <TextBlock Text="Version number (also the git tag)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBox Text="{Binding NewSnapshotVersion, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Return" Command="{Binding ConfirmTakeSnapshotCommand}"/>
+                    </TextBox.InputBindings>
+                </TextBox>
+                <Button Content="Take snapshot" Command="{Binding ConfirmTakeSnapshotCommand}"
+                        Style="{StaticResource GhostButton}" Margin="0,0,0,6"/>
+                <Button Content="Cancel" Command="{Binding CancelTakeSnapshotCommand}" Style="{StaticResource GhostButton}"/>
+            </StackPanel>
+        </ctrl:ModalCard>
 
         <!-- Settings overlay -->
-        <Border Grid.RowSpan="2" Visibility="{Binding SettingsVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="21">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="360" Padding="20"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="Product settings" Foreground="{StaticResource TextBrush}"
-                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                    <TextBlock Text="Export folder (relative to the product root)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox Text="{Binding SettingsExportDir, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
+        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="21" Header="Product settings" CardWidth="360"
+                        IsOpen="{Binding SettingsVisible}" CancelCommand="{Binding CancelSettingsCommand}">
+            <StackPanel>
+                <TextBlock Text="Export folder (relative to the product root)" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBox Text="{Binding SettingsExportDir, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource DarkTextBox}" Margin="0,2,0,16">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Return" Command="{Binding ConfirmSettingsCommand}"/>
+                    </TextBox.InputBindings>
+                </TextBox>
+                <TextBlock Text="Cross-cutting concerns  (✓ = auto-added to new nodes · 🔗 = needs a snaplink when done)" FontSize="11"
+                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                <ItemsControl ItemsSource="{Binding SettingsConcerns}" MaxHeight="180">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ConcernDefRow}">
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsDefault}" VerticalAlignment="Center"
+                                          ToolTip="Default — auto-added to new nodes as 'should'"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Margin="8,0,0,0"
+                                           Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Column="2" Content="🔗" IsChecked="{Binding RequiresSnaplink}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                          ToolTip="Requires a snaplink — validation fails if a node marks this concern done/faulted with no snaplink"/>
+                                <Button Grid.Column="3" Command="{Binding RemoveCommand}" Style="{StaticResource IconBtn}" ToolTip="Remove concern" Margin="8,0,0,0">
+                                    <TextBlock Text="✕" FontSize="9"/>
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Grid Margin="0,4,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                             Text="{Binding NewSettingsConcern, UpdateSourceTrigger=PropertyChanged}">
                         <TextBox.InputBindings>
-                            <KeyBinding Key="Return" Command="{Binding ConfirmSettingsCommand}"/>
+                            <KeyBinding Key="Return" Command="{Binding AddSettingsConcernCommand}"/>
                         </TextBox.InputBindings>
                     </TextBox>
-                    <TextBlock Text="Cross-cutting concerns  (✓ = auto-added to new nodes · 🔗 = needs a snaplink when done)" FontSize="11"
-                               Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
-                    <ItemsControl ItemsSource="{Binding SettingsConcerns}" MaxHeight="180">
-                        <ItemsControl.Template>
-                            <ControlTemplate TargetType="ItemsControl">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
-                            </ControlTemplate>
-                        </ItemsControl.Template>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:ConcernDefRow}">
-                                <Grid Margin="0,0,0,4">
+                    <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding AddSettingsConcernCommand}">
+                        <TextBlock Text="+ Add"/>
+                    </Button>
+                </Grid>
+                <Button Content="Save" Command="{Binding ConfirmSettingsCommand}"
+                        Style="{StaticResource GhostButton}" Margin="0,0,0,6"/>
+                <Button Content="Cancel" Command="{Binding CancelSettingsCommand}" Style="{StaticResource GhostButton}"/>
+            </StackPanel>
+        </ctrl:ModalCard>
+
+        <!-- Concern snaplinks overlay -->
+        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="22" CardWidth="600"
+                        IsOpen="{Binding ConcernSnaplinksVisible}" CancelCommand="{Binding CloseConcernSnaplinksCommand}">
+            <ctrl:ModalCard.Resources>
+                <!-- The default WPF selection highlight (esp. when unfocused) is light → unreadable on the
+                     dark text. Retune the picker tree/list selection to theme tokens. -->
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+            </ctrl:ModalCard.Resources>
+            <StackPanel>
+                <!-- header: title + close ✕ -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding ConcernSnaplinksTitle}" Foreground="{StaticResource TextBrush}"
+                               FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseConcernSnaplinksCommand}" ToolTip="Close">
+                        <TextBlock Text="✕" FontSize="12"/>
+                    </Button>
+                </Grid>
+
+                <!-- existing snaplinks: open ↗ / remove ✕ -->
+                <ItemsControl ItemsSource="{Binding ConcernSnaplinkRows}" MaxHeight="120" Margin="0,0,0,12">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:SnaplinkRow}">
+                            <Border Background="{StaticResource Surface2Brush}" CornerRadius="6" Padding="8,5" Margin="0,0,0,4">
+                                <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsDefault}" VerticalAlignment="Center"
-                                              ToolTip="Default — auto-added to new nodes as 'should'"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Margin="8,0,0,0"
-                                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
-                                    <CheckBox Grid.Column="2" Content="🔗" IsChecked="{Binding RequiresSnaplink}" VerticalAlignment="Center" Margin="8,0,0,0"
-                                              ToolTip="Requires a snaplink — validation fails if a node marks this concern done/faulted with no snaplink"/>
-                                    <Button Grid.Column="3" Command="{Binding RemoveCommand}" Style="{StaticResource IconBtn}" ToolTip="Remove concern" Margin="8,0,0,0">
+                                    <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" CornerRadius="3" Padding="5,1" Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding Type}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding Display}" FontSize="12" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+                                    <Button Grid.Column="2" Style="{StaticResource IconBtn}" Command="{Binding OpenCommand}" ToolTip="Open in a new tab">
+                                        <TextBlock Text="↗" FontSize="11"/>
+                                    </Button>
+                                    <Button Grid.Column="3" Style="{StaticResource IconBtn}" Command="{Binding RemoveCommand}" ToolTip="Remove" Margin="2,0,0,0">
                                         <TextBlock Text="✕" FontSize="9"/>
                                     </Button>
                                 </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <Grid Margin="0,4,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox Grid.Column="0" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
-                                 Text="{Binding NewSettingsConcern, UpdateSourceTrigger=PropertyChanged}">
-                            <TextBox.InputBindings>
-                                <KeyBinding Key="Return" Command="{Binding AddSettingsConcernCommand}"/>
-                            </TextBox.InputBindings>
-                        </TextBox>
-                        <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding AddSettingsConcernCommand}">
-                            <TextBlock Text="+ Add"/>
-                        </Button>
-                    </Grid>
-                    <Button Content="Save" Command="{Binding ConfirmSettingsCommand}"
-                            Style="{StaticResource GhostButton}" Margin="0,0,0,6"/>
-                    <Button Content="Cancel" Command="{Binding CancelSettingsCommand}" Style="{StaticResource GhostButton}"/>
-                </StackPanel>
-            </Border>
-        </Border>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-        <!-- Concern snaplinks overlay -->
-        <Border Grid.RowSpan="2" Visibility="{Binding ConcernSnaplinksVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="22">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="600" Padding="20"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Border.Resources>
-                    <!-- The default WPF selection highlight (esp. when unfocused) is light → unreadable on the
-                         dark text. Retune the picker tree/list selection to theme tokens. -->
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
-                </Border.Resources>
-                <StackPanel>
-                    <!-- header: title + close ✕ -->
-                    <Grid Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding ConcernSnaplinksTitle}" Foreground="{StaticResource TextBrush}"
-                                   FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseConcernSnaplinksCommand}" ToolTip="Close">
-                            <TextBlock Text="✕" FontSize="12"/>
-                        </Button>
-                    </Grid>
-
-                    <!-- existing snaplinks: open ↗ / remove ✕ -->
-                    <ItemsControl ItemsSource="{Binding ConcernSnaplinkRows}" MaxHeight="120" Margin="0,0,0,12">
-                        <ItemsControl.Template>
-                            <ControlTemplate TargetType="ItemsControl">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
-                            </ControlTemplate>
-                        </ItemsControl.Template>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:SnaplinkRow}">
-                                <Border Background="{StaticResource Surface2Brush}" CornerRadius="6" Padding="8,5" Margin="0,0,0,4">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" CornerRadius="3" Padding="5,1" Margin="0,0,8,0">
-                                            <TextBlock Text="{Binding Type}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                <!-- add: two tabs — link a file (heading / class / method) or link a URL -->
+                <TabControl Background="Transparent" BorderThickness="0" Margin="0,0,0,12">
+                    <TabControl.Resources>
+                        <Style TargetType="TabItem">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TabItem">
+                                        <Border x:Name="bd" Padding="12,6" Margin="0,0,4,0" CornerRadius="6,6,0,0"
+                                                Background="Transparent">
+                                            <ContentPresenter ContentSource="Header" TextElement.Foreground="{StaticResource TextMutedBrush}"/>
                                         </Border>
-                                        <TextBlock Grid.Column="1" Text="{Binding Display}" FontSize="12" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
-                                        <Button Grid.Column="2" Style="{StaticResource IconBtn}" Command="{Binding OpenCommand}" ToolTip="Open in a new tab">
-                                            <TextBlock Text="↗" FontSize="11"/>
-                                        </Button>
-                                        <Button Grid.Column="3" Style="{StaticResource IconBtn}" Command="{Binding RemoveCommand}" ToolTip="Remove" Margin="2,0,0,0">
-                                            <TextBlock Text="✕" FontSize="9"/>
-                                        </Button>
-                                    </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
+                                                <Setter TargetName="bd" Property="TextElement.Foreground" Value="{StaticResource TextBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.Resources>
+
+                    <!-- ── Link file ── -->
+                    <TabItem Header="Link file">
+                        <StackPanel Margin="0,10,0,0">
+                            <TextBlock Text="Pick a file, then a heading / class / method" FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                            <Grid Height="230" DataContext="{Binding Picker}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                                    <TreeView x:Name="PickerTree" ItemsSource="{Binding Roots}" Background="Transparent" BorderThickness="0"
+                                              SelectedItemChanged="PickerTree_SelectedItemChanged">
+                                        <TreeView.ItemContainerStyle>
+                                            <Style TargetType="TreeViewItem">
+                                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                            </Style>
+                                        </TreeView.ItemContainerStyle>
+                                        <TreeView.Resources>
+                                            <HierarchicalDataTemplate DataType="{x:Type vm:FileNode}" ItemsSource="{Binding Children}">
+                                                <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{StaticResource TextBrush}"/>
+                                            </HierarchicalDataTemplate>
+                                        </TreeView.Resources>
+                                    </TreeView>
                                 </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <!-- add: two tabs — link a file (heading / class / method) or link a URL -->
-                    <TabControl Background="Transparent" BorderThickness="0" Margin="0,0,0,12">
-                        <TabControl.Resources>
-                            <Style TargetType="TabItem">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="TabItem">
-                                            <Border x:Name="bd" Padding="12,6" Margin="0,0,4,0" CornerRadius="6,6,0,0"
-                                                    Background="Transparent">
-                                                <ContentPresenter ContentSource="Header" TextElement.Foreground="{StaticResource TextMutedBrush}"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2Brush}"/>
-                                                    <Setter TargetName="bd" Property="TextElement.Foreground" Value="{StaticResource TextBrush}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </TabControl.Resources>
-
-                        <!-- ── Link file ── -->
-                        <TabItem Header="Link file">
-                            <StackPanel Margin="0,10,0,0">
-                                <TextBlock Text="Pick a file, then a heading / class / method" FontSize="11"
-                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
-                                <Grid Height="230" DataContext="{Binding Picker}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="8"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-                                        <TreeView x:Name="PickerTree" ItemsSource="{Binding Roots}" Background="Transparent" BorderThickness="0"
-                                                  SelectedItemChanged="PickerTree_SelectedItemChanged">
-                                            <TreeView.ItemContainerStyle>
-                                                <Style TargetType="TreeViewItem">
-                                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                                </Style>
-                                            </TreeView.ItemContainerStyle>
-                                            <TreeView.Resources>
-                                                <HierarchicalDataTemplate DataType="{x:Type vm:FileNode}" ItemsSource="{Binding Children}">
-                                                    <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{StaticResource TextBrush}"/>
-                                                </HierarchicalDataTemplate>
-                                            </TreeView.Resources>
-                                        </TreeView>
-                                    </Border>
-                                    <Border Grid.Column="2" Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-                                        <ListBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}"
-                                                 Background="Transparent" BorderThickness="0"
-                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type vm:SnaplinkTarget}">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Border Width="{Binding Indent}"/>
-                                                        <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                    </Border>
-                                </Grid>
-                                <TextBlock Text="{Binding Picker.SelectedFileLabel}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
-                                           TextTrimming="CharacterEllipsis" Margin="0,6,0,8"/>
-                                <Button Command="{Binding AddPickedSnaplinkCommand}" HorizontalAlignment="Left">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Picker.SelectedTarget}" Value="{x:Null}">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                    <TextBlock Text="+ Add selected"/>
-                                </Button>
-                            </StackPanel>
-                        </TabItem>
-
-                        <!-- ── Link URL ── -->
-                        <TabItem Header="Link URL">
-                            <StackPanel Margin="0,10,0,0">
-                                <TextBox Style="{StaticResource DarkTextBox}" Margin="0,0,0,8"
-                                         Text="{Binding NewSnaplinkUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                <Border AllowDrop="True" DragOver="UrlDrop_DragOver" Drop="UrlDrop_Drop"
-                                        Height="150" CornerRadius="6" Background="{StaticResource BgBrush}"
-                                        BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" Margin="0,0,0,8">
-                                    <TextBlock Text="Drop a URL here" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                <Border Grid.Column="2" Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                                    <ListBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}"
+                                             Background="Transparent" BorderThickness="0"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:SnaplinkTarget}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="{Binding Indent}"/>
+                                                    <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
                                 </Border>
-                                <Button Command="{Binding AddConcernUrlCommand}" HorizontalAlignment="Left">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding NewSnaplinkUrl}" Value="">
-                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                    <TextBlock Text="🔗 Add URL"/>
-                                </Button>
-                            </StackPanel>
-                        </TabItem>
-                    </TabControl>
+                            </Grid>
+                            <TextBlock Text="{Binding Picker.SelectedFileLabel}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
+                                       TextTrimming="CharacterEllipsis" Margin="0,6,0,8"/>
+                            <Button Command="{Binding AddPickedSnaplinkCommand}" HorizontalAlignment="Left">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Picker.SelectedTarget}" Value="{x:Null}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <TextBlock Text="+ Add selected"/>
+                            </Button>
+                        </StackPanel>
+                    </TabItem>
 
-                    <Button Content="Close" Command="{Binding CloseConcernSnaplinksCommand}" Style="{StaticResource GhostButton}"/>
-                </StackPanel>
-            </Border>
-        </Border>
+                    <!-- ── Link URL ── -->
+                    <TabItem Header="Link URL">
+                        <StackPanel Margin="0,10,0,0">
+                            <TextBox Style="{StaticResource DarkTextBox}" Margin="0,0,0,8"
+                                     Text="{Binding NewSnaplinkUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Border AllowDrop="True" DragOver="UrlDrop_DragOver" Drop="UrlDrop_Drop"
+                                    Height="150" CornerRadius="6" Background="{StaticResource BgBrush}"
+                                    BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" Margin="0,0,0,8">
+                                <TextBlock Text="Drop a URL here" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                            </Border>
+                            <Button Command="{Binding AddConcernUrlCommand}" HorizontalAlignment="Left">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding NewSnaplinkUrl}" Value="">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <TextBlock Text="🔗 Add URL"/>
+                            </Button>
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
+
+                <Button Content="Close" Command="{Binding CloseConcernSnaplinksCommand}" Style="{StaticResource GhostButton}"/>
+            </StackPanel>
+        </ctrl:ModalCard>
 
         <!-- Restructure overlay — drag-drop the whole tree to re-parent -->
-        <Border Grid.RowSpan="2" Visibility="{Binding RestructureVisible, Converter={StaticResource BoolVis}}"
-                Background="#CC000000" Panel.ZIndex="23">
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Width="460" MaxHeight="640" Padding="20"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Border.Resources>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
-                </Border.Resources>
-                <DockPanel>
-                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Restructure" Foreground="{StaticResource TextBrush}"
-                                   FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseRestructureCommand}" ToolTip="Close">
-                            <TextBlock Text="✕" FontSize="12"/>
-                        </Button>
-                    </Grid>
-                    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
-                               Text="Drag a node onto another to re-parent it. Drop on the product (or empty space) to make it top-level."/>
-                    <Button DockPanel.Dock="Bottom" Content="Done" Margin="0,10,0,0"
-                            Command="{Binding CloseRestructureCommand}" Style="{StaticResource GhostButton}"/>
-                    <Border Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-                        <TreeView ItemsSource="{Binding RestructureRoots}" Background="Transparent" BorderThickness="0"
-                                  AllowDrop="True" MinHeight="280"
-                                  PreviewMouseLeftButtonDown="RestructureTree_PreviewMouseLeftButtonDown"
-                                  PreviewMouseMove="RestructureTree_PreviewMouseMove"
-                                  MouseRightButtonUp="RestructureTree_MouseRightButtonUp"
-                                  DragOver="RestructureTree_DragOver"
-                                  Drop="RestructureTree_Drop">
-                            <TreeView.ItemContainerStyle>
-                                <Style TargetType="TreeViewItem">
-                                    <Setter Property="IsExpanded" Value="True"/>
-                                </Style>
-                            </TreeView.ItemContainerStyle>
-                            <TreeView.Resources>
-                                <HierarchicalDataTemplate DataType="{x:Type vm:RestructureNode}" ItemsSource="{Binding Children}">
-                                    <TextBlock Text="{Binding Title}" FontSize="12" Padding="2,1"
-                                               Foreground="{StaticResource TextBrush}"/>
-                                </HierarchicalDataTemplate>
-                            </TreeView.Resources>
-                        </TreeView>
-                    </Border>
-                </DockPanel>
-            </Border>
-        </Border>
+        <ctrl:ModalCard Grid.RowSpan="2" Panel.ZIndex="23" CardWidth="460" CardMaxHeight="640"
+                        IsOpen="{Binding RestructureVisible}" CancelCommand="{Binding CloseRestructureCommand}">
+            <ctrl:ModalCard.Resources>
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource Surface2Color}"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+            </ctrl:ModalCard.Resources>
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Restructure" Foreground="{StaticResource TextBrush}"
+                               FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Style="{StaticResource IconBtn}" Command="{Binding CloseRestructureCommand}" ToolTip="Close">
+                        <TextBlock Text="✕" FontSize="12"/>
+                    </Button>
+                </Grid>
+                <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
+                           Text="Drag a node onto another to re-parent it. Drop on the product (or empty space) to make it top-level."/>
+                <Button DockPanel.Dock="Bottom" Content="Done" Margin="0,10,0,0"
+                        Command="{Binding CloseRestructureCommand}" Style="{StaticResource GhostButton}"/>
+                <Border Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                    <TreeView ItemsSource="{Binding RestructureRoots}" Background="Transparent" BorderThickness="0"
+                              AllowDrop="True" MinHeight="280"
+                              PreviewMouseLeftButtonDown="RestructureTree_PreviewMouseLeftButtonDown"
+                              PreviewMouseMove="RestructureTree_PreviewMouseMove"
+                              MouseRightButtonUp="RestructureTree_MouseRightButtonUp"
+                              DragOver="RestructureTree_DragOver"
+                              Drop="RestructureTree_Drop">
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem">
+                                <Setter Property="IsExpanded" Value="True"/>
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                        <TreeView.Resources>
+                            <HierarchicalDataTemplate DataType="{x:Type vm:RestructureNode}" ItemsSource="{Binding Children}">
+                                <TextBlock Text="{Binding Title}" FontSize="12" Padding="2,1"
+                                           Foreground="{StaticResource TextBrush}"/>
+                            </HierarchicalDataTemplate>
+                        </TreeView.Resources>
+                    </TreeView>
+                </Border>
+            </DockPanel>
+        </ctrl:ModalCard>
 
     </Grid>
 </UserControl>

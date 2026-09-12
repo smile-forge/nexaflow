@@ -407,6 +407,56 @@ public class GraphEditTests
     }
 
     [TestMethod]
+    public void AFileIdEditsATextFile_WhichNoGrammarCovers()
+    {
+        const string notes = "# Notes\n\nOld line.\n";
+
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "file:docs/notes.md", StructuralEdit.Op.Substitute,
+            "New line.", Reader(notes), new StructuralEdit.Options(Find: "Old line."));
+
+        Assert.AreEqual("# Notes\n\nNew line.\n", Applied(result));
+    }
+
+    [TestMethod]
+    public void AProjectFileIsEditedAsXml_SoBreakingItIsRefused()
+    {
+        const string project =
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
+            "  <ItemGroup>\n" +
+            "    <ProjectReference Include=\"..\\Old\\Old.csproj\" />\n" +
+            "  </ItemGroup>\n" +
+            "</Project>\n";
+
+        var moved = GraphEdit.Plan(new KnowledgeGraph(), "file:src/App/App.csproj", StructuralEdit.Op.Substitute,
+            "..\\New\\New.csproj", Reader(project), new StructuralEdit.Options(Find: "..\\Old\\Old.csproj"));
+        StringAssert.Contains(Applied(moved), "..\\New\\New.csproj");
+
+        var broken = GraphEdit.Plan(new KnowledgeGraph(), "file:src/App/App.csproj", StructuralEdit.Op.Substitute,
+            "", Reader(project), new StructuralEdit.Options(Find: "</ItemGroup>"));
+        Assert.IsFalse(broken.Ok, "an element left unclosed does not parse as XML, so it is not written");
+    }
+
+    [TestMethod]
+    public void AFileThatIsNotText_IsRefused()
+    {
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "file:assets/icon.png", StructuralEdit.Op.Substitute,
+            "y", Reader("PNG\0\0x"), new StructuralEdit.Options(Find: "x"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "not text");
+    }
+
+    [TestMethod]
+    public void ATextFileHasNoDeclarations_SoADeclarationEditIsStillRefused()
+    {
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "code:docs/notes.md#T:Notes", StructuralEdit.Op.Delete,
+            null, Reader("# Notes\n"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "No tree-sitter grammar");
+    }
+
+    [TestMethod]
     public void AFileIdIsRefusedForAnOpThatNeedsADeclaration()
     {
         var result = GraphEdit.Plan(new KnowledgeGraph(), "file:src/Sample.cs", StructuralEdit.Op.Rename,
