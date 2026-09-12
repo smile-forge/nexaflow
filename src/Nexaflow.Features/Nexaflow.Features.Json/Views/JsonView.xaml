@@ -9,6 +9,11 @@
              AutomationProperties.AutomationId="JsonView"
              Background="{StaticResource BgBrush}">
 
+    <!-- Ctrl+S saves, as in every other editor surface (Hex, Markdown, Text, the shared editor). -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}"/>
+    </UserControl.InputBindings>
+
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
         <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
