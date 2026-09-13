@@ -67,7 +67,7 @@ jobs:
         run: dotnet build nexaflowSetup/nexaflowSetup.wixproj -c Release -p:Platform=x64 --no-restore
 
       # Build the WHOLE solution, not just the five projects whose tests run below. Naming projects meant the
-      # other suites — Typesetting (F#), Visuals, Components, Maths, the Viewers/WindowsOS/Architecture ones —
+      # other suites — Visuals, Components, Maths, the Viewers/WindowsOS/Architecture ones —
       # were never compiled here, so a break in any of them passed CI and only surfaced when somebody opened
       # the solution in Visual Studio. That is exactly how the ApprovalTests 6→7 bump reached main: it broke
       # Tests.Typesetting, which nothing in this workflow built. The five exes below still land in the same
@@ -124,22 +124,3 @@ jobs:
           }
           if ($failed) { exit 1 }
 
-      # The typesetting approvals (F#/xunit, ingested with the engine) are deliberately NOT run here, and
-      # this comment exists so the gap is not "closed" again by someone who sees a suite with no step.
-      #
-      # They pass locally — 716/716 in Debug — and fail 59 of them in Release, which is the only way CI
-      # runs anything. The failure is not in the maths: ApprovalTests works out WHICH test is running by
-      # walking the stack for a recognisable xunit frame, and in Release it cannot find one, so every
-      # approval-based test throws "Could Not Detect Test Framework" before it compares anything. The
-      # obvious levers do not move it — Optimize=false, DebugType=full and Tailcalls=false were each
-      # tried, together and separately, and all 59 still fail. It is a property of that library's
-      # stack-walking namer, not of this repo, and chasing it further costs more than the coverage is
-      # worth while the suite is an oracle rather than a gate.
-      #
-      # So run them by hand, in Debug, from their own directory (global.json beside them pins the runner):
-      #
-      #     cd src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
-      #     dotnet test Nexaflow.Tests.Typesetting.fsproj -c Debug
-      #
-      # Worth doing whenever the LaTeX parser replacement moves, since these approvals are the precise
-      # record of what the old parser produced for each of 148 formulas — the thing it is measured against.

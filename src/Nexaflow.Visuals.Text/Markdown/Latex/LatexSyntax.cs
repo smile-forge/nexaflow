@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
-using WpfMath.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
 
@@ -39,9 +39,10 @@ public static class LatexSyntax
             //
             // The same reading the renderer works from, and now literally so: one call, one tree, and
             // the complaints are what the pieces of it say about themselves rather than a second list
-            // kept alongside.
-            var reading = ContentReading.Of(
-                TexPipeline.Read(latex, WpfTeXFormulaParser.Instance.Draws, holes: true));
+            // kept alongside. What can be drawn is asked of the builder, as the renderer asks it — the
+            // tables only know what the typesetter's own parser read, so `a\ b` and every `\,` were
+            // called unfinished here while drawing without a word, and the solver lost their chips.
+            var reading = ContentReading.Of(TexPipeline.Read(latex, LatexBuilder.Draws, holes: true));
 
             return reading.Root.SelfAndDescendants()
                 .Where(part => part.Node.Trouble is not null)

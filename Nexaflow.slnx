@@ -219,11 +219,6 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Nexaflow.Tests.Markdown.csproj">
       <Platform Project="x64" />
     </Project>
-    <!-- The typesetting engine's own suite, ingested with it. F#/xunit, and run from its own directory
-         because of the test runner — see the global.json beside it. -->
-    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Typesetting/Nexaflow.Tests.Typesetting.fsproj">
-      <Platform Project="x64" />
-    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Nexaflow.Tests.UIJourneys.csproj">
       <Platform Project="x64" />
     </Project>
@@ -248,14 +243,7 @@
   <Project Path="src/Nexaflow.Markdown/Nexaflow.Markdown.csproj">
     <Platform Project="x64" />
   </Project>
-  <!-- TeX's typesetting engine and its Computer Modern metrics, ingested from XAML-Math (MIT). The
-       atoms are internal and we build them ourselves now, which is why they live here. -->
-  <Project Path="src/Nexaflow.Maths.Typesetting/Nexaflow.Maths.Typesetting.csproj">
-    <Platform Project="x64" />
-  </Project>
-  <Project Path="src/Nexaflow.Visuals.Maths/Nexaflow.Visuals.Maths.csproj">
-    <Platform Project="x64" />
-  </Project>
+
   <!-- WPF-free Portable Executable reader: headers, imports/exports, resources, entropy,
        Authenticode. Reaches the app transitively through Nexaflow.Features.Executable. -->
   <Project Path="src/Nexaflow.IO.Pe/Nexaflow.IO.Pe.csproj">

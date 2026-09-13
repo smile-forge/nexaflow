@@ -3,9 +3,8 @@ using System.Linq;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using WpfMath.Parsers;
-using WpfMath.Rendering;
-using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Tests.Visuals.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Source;
@@ -296,7 +295,7 @@ public class LatexLayoutTests
         }
     });
 
-    private static XamlMath.TexEnvironment Environment() =>
+    private static Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment Environment() =>
         WpfTeXEnvironment.Create(scale: Scale);
 
     [TestMethod]
@@ -469,7 +468,7 @@ public class LatexLayoutTests
         Assert.IsNotNull(here, "the repository root was not found from " + System.AppContext.BaseDirectory);
 
         var source = System.IO.File.ReadAllText(System.IO.Path.Combine(
-            here.FullName, "src", "Nexaflow.Maths.Typesetting", "TexFormulaBuilder.cs"));
+            here.FullName, "src", "Nexaflow.Visuals.Text", "Markdown", "Latex", "LatexBuilder.Setting.cs"));
 
         var cased = System.Text.RegularExpressions.Regex
             .Matches(source, "^\\s*case @\"(?<name>\\\\[^\"]*)\":",
@@ -479,12 +478,12 @@ public class LatexLayoutTests
 
         Assert.AreNotEqual(0, cased.Count, "the switch was not found — this guard has stopped reading it");
 
-        var unsaid = cased.Where(name => !XamlMath.TexFormulaBuilder.Handles.Contains(name)).ToList();
+        var unsaid = cased.Where(name => !LatexBuilder.Handles.Contains(name)).ToList();
         Assert.AreEqual(0, unsaid.Count,
             "the builder has a case for these and does not say so, so the reading will show them as their "
             + "own characters:\n" + string.Join("\n", unsaid));
 
-        var unset = XamlMath.TexFormulaBuilder.Handles.Where(name => !cased.Contains(name)).ToList();
+        var unset = LatexBuilder.Handles.Where(name => !cased.Contains(name)).ToList();
         Assert.AreEqual(0, unset.Count,
             "these are claimed and have no case, so the reading will pass them to a builder with no "
             + "drawing for them:\n" + string.Join("\n", unset));

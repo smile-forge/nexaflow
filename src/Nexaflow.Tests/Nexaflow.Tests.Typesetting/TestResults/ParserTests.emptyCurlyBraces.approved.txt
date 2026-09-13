@@ -1,8 +1,0 @@
-{
-  "RootAtom": {
-    "[AtomType]": "NullAtom",
-    "Slots": [],
-    "Type": "Ordinary"
-  },
-  "TextStyle": null
-}

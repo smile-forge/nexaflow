@@ -21,32 +21,13 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
-| `Nexaflow.Tests.Typesetting` | `net10.0-windows`, **F# / xunit** | TeX's box model and the Computer Modern metrics — 762 approval tests that came with the engine when it was ingested. They also record what its old LaTeX parser produced, which is the oracle our own builder is measured against | `Nexaflow.Maths.Typesetting`, `Nexaflow.Visuals.Maths` |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
-**`Nexaflow.Tests.Typesetting` is the odd one out and has to be run from its own directory.** It is F# on
-xunit/VSTest where everything else is C# on MSTest under Microsoft.Testing.Platform, and `dotnet test`
-refuses to mix runners — so a `global.json` beside it shadows the repo's choice:
-
-```powershell
-cd src/Nexaflow.Tests/Nexaflow.Tests.Typesetting
-dotnet test Nexaflow.Tests.Typesetting.fsproj -c Debug
-```
-
-It is worth the awkwardness: it is the only thing watching the largest and most intricate part of the
-maths stack, and it caught a change of ours the day before the engine was ingested.
-
-**`-c Debug` is not incidental, and this suite is deliberately not run by CI.** In Release, 59 of its 716
-fail — not on the maths, but before any comparison happens: ApprovalTests identifies which test is
-running by walking the stack for a recognisable xunit frame, and in Release it does not find one, so every
-approval-based test throws *"Could Not Detect Test Framework"*. `Optimize=false`, `DebugType=full` and
-`Tailcalls=false` were each tried, together and separately, and all 59 still fail — it is a property of
-that library's namer rather than of this repo. CI builds the project (it is in `Nexaflow.slnx`), so a
-**compile** break is still caught; what is not gated is the approvals themselves. Run them by hand when
-the maths stack moves, and especially when the LaTeX parser replacement does, since they are the record
-the replacement is measured against. `.github/workflows/ci.yml` carries the same note, so the missing
-step is not mistaken for an oversight and re-added.
+**TeX's own layout rules are tested in `Nexaflow.Tests.Visuals`, under `Markdown/Latex/Typesetting/`.** They came with the
+engine as an F# approval suite that recorded the atom and box trees its old parser built; with the atoms gone those trees
+no longer exist, so the rules they pinned — where an integral's limits go, which face a letter comes from, how far a
+sized delimiter grows — are measured on what the builder sets instead, and run in CI with the rest of the suite.
 
 No `Nexaflow.Tests.Features*` suite references Core (they mirror the architectural rule that features
 don't depend on Core). The sample-data generator therefore lives in its own dependency-free library,
