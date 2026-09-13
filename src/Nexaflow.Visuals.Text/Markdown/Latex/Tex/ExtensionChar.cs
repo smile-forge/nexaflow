@@ -1,4 +1,4 @@
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 /// <summary>Extension character that contains character information for each of its parts.</summary>
 public class ExtensionChar

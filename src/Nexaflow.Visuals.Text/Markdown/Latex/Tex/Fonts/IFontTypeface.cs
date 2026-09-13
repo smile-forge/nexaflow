@@ -1,4 +1,4 @@
-namespace XamlMath.Fonts;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 /// <summary>
 /// A marker interface for font typeface. Used to extract font glyphs. Should be casted back in the

@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Xml.Linq;
-using XamlMath.Data;
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Data;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 // Parses settings for predefined formulas from XML file.
 internal sealed class TexPredefinedFormulaSettingsParser

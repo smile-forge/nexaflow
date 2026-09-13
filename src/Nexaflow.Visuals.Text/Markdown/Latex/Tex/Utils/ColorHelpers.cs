@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 
-namespace XamlMath.Utils;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
 internal static class ColorHelpers
 {

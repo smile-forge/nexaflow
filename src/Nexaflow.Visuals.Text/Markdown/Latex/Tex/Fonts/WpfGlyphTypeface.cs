@@ -1,6 +1,6 @@
 using System.Windows.Media;
-using XamlMath.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
-namespace WpfMath.Fonts;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 internal record WpfGlyphTypeface(GlyphTypeface Typeface) : IFontTypeface;

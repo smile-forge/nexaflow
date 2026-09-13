@@ -1,9 +1,9 @@
 using System.Linq;
 using System.Windows.Media;
-using WpfMath.Fonts;
-using XamlMath;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
-namespace WpfMath.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
 public static class WpfTeXEnvironment
 {

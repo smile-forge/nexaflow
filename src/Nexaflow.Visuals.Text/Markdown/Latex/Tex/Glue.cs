@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 // Represents glueElement for holding together boxes.
 internal sealed class Glue

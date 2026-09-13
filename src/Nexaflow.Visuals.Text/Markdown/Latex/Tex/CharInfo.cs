@@ -1,6 +1,6 @@
-using XamlMath.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 /// <summary>Single character together with information about font and metrics.</summary>
 public class CharInfo

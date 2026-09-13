@@ -2,12 +2,12 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
-using XamlMath;
-using XamlMath.Exceptions;
-using XamlMath.Fonts;
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
-namespace WpfMath.Fonts;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 internal sealed class WpfSystemFont : ITeXFont
 {

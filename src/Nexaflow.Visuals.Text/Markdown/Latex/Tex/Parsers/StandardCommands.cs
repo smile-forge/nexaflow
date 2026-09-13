@@ -2,12 +2,12 @@
 using System.Globalization;
 using System.IO.Pipes;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using XamlMath.Exceptions;
-using XamlMath.Parsers.Matrices;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers.Matrices;
 using System;
 using Nexaflow.Markdown.Ast;
 
-namespace XamlMath.Parsers;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
 
 internal static class StandardCommands
 {

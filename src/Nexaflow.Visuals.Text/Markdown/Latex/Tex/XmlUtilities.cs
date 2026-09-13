@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using System.Xml.Linq;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 internal static class XmlUtilities
 {

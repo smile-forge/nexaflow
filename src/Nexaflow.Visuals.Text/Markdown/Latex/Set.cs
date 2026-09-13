@@ -1,10 +1,9 @@
 using System;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
-using WpfMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using System.Collections.Generic;
-using XamlMath;
-using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -59,7 +58,7 @@ internal sealed record Set
     public Action<LatexCapture, Set, double, double>? Draw { get; init; }
 
     /// <summary>The font of the last glyph this draws, or none: what a space measured in x-heights is measured against.</summary>
-    public int LastFontId { get; init; } = XamlMath.TexFontUtilities.NoFontId;
+    public int LastFontId { get; init; } = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexFontUtilities.NoFontId;
 
     public double TotalWidth => Width + Italic;
 

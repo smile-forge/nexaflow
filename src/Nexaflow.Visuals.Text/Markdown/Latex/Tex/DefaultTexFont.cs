@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using XamlMath.Exceptions;
-using XamlMath.Fonts;
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 /// <summary>Default implementation of ITeXFont that reads all font information from XML file.</summary>
 internal sealed class DefaultTexFont : ITeXFont

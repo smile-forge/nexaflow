@@ -1,4 +1,4 @@
-namespace XamlMath.Rendering.Transformations;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
 
 /// <summary>Geometrical transformation.</summary>
 public abstract class Transformation

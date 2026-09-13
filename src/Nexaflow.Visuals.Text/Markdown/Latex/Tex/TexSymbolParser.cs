@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Xml.Linq;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using XamlMath.Data;
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Data;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 // Parse definitions of symbols from XML files.
 internal sealed class TexSymbolParser

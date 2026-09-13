@@ -1,9 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Windows.Media;
-using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using WpfPoint = System.Windows.Point;
 
-namespace WpfMath.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
 public static class WpfExtensions
 {

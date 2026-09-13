@@ -1,4 +1,4 @@
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 /// <summary>Specifies font metrics for single character.</summary>
 public class TeXFontMetrics

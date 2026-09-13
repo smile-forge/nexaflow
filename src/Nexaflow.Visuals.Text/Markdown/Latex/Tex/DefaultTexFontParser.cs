@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Xml.Linq;
-using XamlMath.Data;
-using XamlMath.Fonts;
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Data;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 // Parses information for DefaultTeXFont settings from XML file.
 internal sealed class DefaultTexFontParser

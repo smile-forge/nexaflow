@@ -1,7 +1,7 @@
-using XamlMath.Fonts;
-using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 /// <summary>Specifies current graphical parameters used to create boxes.</summary>
 public sealed record TexEnvironment(

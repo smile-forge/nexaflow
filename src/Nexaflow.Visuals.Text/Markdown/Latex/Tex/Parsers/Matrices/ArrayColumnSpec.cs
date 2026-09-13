@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
-using XamlMath.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
 
-namespace XamlMath.Parsers.Matrices;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers.Matrices;
 
 /// <summary>
 /// The column preamble of an <c>array</c> environment: <c>{lcr}</c> gives each column its alignment,

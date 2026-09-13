@@ -7,10 +7,9 @@ using System.Threading;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
-using WpfMath.Parsers;
-using XamlMath;
-using XamlMath.Rendering;
-using WpfMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
 
@@ -292,7 +291,7 @@ public class TexBuilderTests
     /// to the thread that made it.
     /// </summary>
     [ThreadStatic]
-    private static XamlMath.TexEnvironment? _setting;
+    private static Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment? _setting;
 
     /// <summary>
     /// Every macro draws as something, rather than as its own name in plain letters.

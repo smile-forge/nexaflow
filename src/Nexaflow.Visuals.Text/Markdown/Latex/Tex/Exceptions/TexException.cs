@@ -1,6 +1,6 @@
 using System;
 
-namespace XamlMath.Exceptions;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
 
 public abstract class TexException : Exception
 {

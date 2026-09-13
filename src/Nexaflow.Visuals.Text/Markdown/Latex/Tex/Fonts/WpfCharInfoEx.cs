@@ -2,10 +2,10 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using XamlMath;
-using XamlMath.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
 
-namespace WpfMath.Fonts;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 public static class WpfCharInfoEx
 {

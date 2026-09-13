@@ -5,10 +5,10 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using WpfMath.Parsers;
-using WpfMath.Rendering;
-using XamlMath;
-using TexEnvironment = XamlMath.TexEnvironment;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 

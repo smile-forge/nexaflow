@@ -1,6 +1,6 @@
 using System.Linq;
 using Nexaflow.Tests.Fixtures;
-using XamlMath;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 

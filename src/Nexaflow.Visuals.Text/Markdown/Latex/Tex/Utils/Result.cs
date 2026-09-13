@@ -1,6 +1,6 @@
 using System;
 
-namespace XamlMath.Utils;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
 public static class Result
 {

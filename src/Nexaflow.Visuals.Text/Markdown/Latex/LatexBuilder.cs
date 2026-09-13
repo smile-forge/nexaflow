@@ -4,10 +4,9 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
-using WpfMath.Parsers;
-using WpfMath.Rendering;
-using XamlMath;
-using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using System.Collections.Generic;
 using Nexaflow.Markdown.Ast;
 

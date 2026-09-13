@@ -1,4 +1,4 @@
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 /// <summary>Single character together with specific font.</summary>
 public class CharFont

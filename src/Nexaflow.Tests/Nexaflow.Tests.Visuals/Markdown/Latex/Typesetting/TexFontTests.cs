@@ -1,10 +1,10 @@
 using System;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using WpfMath.Fonts;
-using XamlMath;
-using XamlMath.Exceptions;
-using XamlMath.Rendering.Transformations;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
 

@@ -1,4 +1,4 @@
-namespace XamlMath.Fonts;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 public interface IFontProvider
 {

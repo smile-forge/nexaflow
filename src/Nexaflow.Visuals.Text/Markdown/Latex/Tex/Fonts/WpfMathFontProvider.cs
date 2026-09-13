@@ -2,9 +2,9 @@ using System;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
-using XamlMath.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
-namespace WpfMath.Fonts;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 /// <summary>A font provider implementation specifically for the WpfMath assembly.</summary>
 internal sealed class WpfMathFontProvider : IFontProvider

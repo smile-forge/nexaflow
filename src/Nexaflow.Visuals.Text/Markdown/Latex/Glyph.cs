@@ -1,7 +1,7 @@
 using Nexaflow.Markdown.Ast;
-using XamlMath;
-using XamlMath.Fonts;
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 

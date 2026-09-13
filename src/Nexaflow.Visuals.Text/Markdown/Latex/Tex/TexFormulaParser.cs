@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using XamlMath.Exceptions;
-using XamlMath.Parsers;
-using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 // TODO: Put all error strings into resources.
 // TODO: Use TextReader for lexing.

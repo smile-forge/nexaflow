@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Xml.Linq;
-using XamlMath.Data;
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Data;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 // Parses information about glue settings from XML file.
 internal sealed class GlueSettingsParser

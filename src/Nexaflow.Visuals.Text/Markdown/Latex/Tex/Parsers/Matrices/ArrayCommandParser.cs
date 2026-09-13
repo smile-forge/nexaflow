@@ -1,9 +1,9 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using XamlMath.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
 using Nexaflow.Markdown.Ast;
 
-namespace XamlMath.Parsers.Matrices;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers.Matrices;
 
 /// <summary>
 /// The <c>array</c> environment. Unlike the other matrix-shaped environments it takes an argument -

@@ -3,12 +3,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
-using XamlMath;
-using XamlMath.Rendering;
-using XamlMath.Rendering.Transformations;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
 
-using WpfMath.Fonts;
-using WpfMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 using Rect = System.Windows.Rect;
 using Transform = System.Windows.Media.Transform;
@@ -327,7 +326,7 @@ internal sealed class LatexCapture
             (foreground as WpfBrush)?.Value));
     }
 
-    internal void Line(XamlMath.Rendering.Point point0, XamlMath.Rendering.Point point1, IBrush? foreground) =>
+    internal void Line(Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Point point0, Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Point point1, IBrush? foreground) =>
         _build.Draw(new LineMark(Local(point0.X, point0.Y), Local(point1.X, point1.Y),
                                  (foreground as WpfBrush)?.Value));
 

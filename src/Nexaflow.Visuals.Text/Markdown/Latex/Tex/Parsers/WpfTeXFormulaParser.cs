@@ -1,7 +1,7 @@
-using WpfMath.Rendering;
-using XamlMath;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
-namespace WpfMath.Parsers;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
 
 public static class WpfTeXFormulaParser
 {

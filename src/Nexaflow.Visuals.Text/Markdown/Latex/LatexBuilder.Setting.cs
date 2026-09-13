@@ -1,13 +1,13 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Markdown.Latex;
-using XamlMath.Exceptions;
-using XamlMath.Parsers;
-using XamlMath.Parsers.Matrices;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers.Matrices;
 using Nexaflow.Markdown.Ast;
-using XamlMath;
-using TexEnvironment = XamlMath.TexEnvironment;
-using XamlMath.Rendering.Transformations;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -562,7 +562,7 @@ public sealed partial class LatexBuilder
                 previous = new Previous(right, false);
         }
 
-        return Horizontal(children, whole, (environment.Background as WpfMath.Rendering.WpfBrush)?.Value);
+        return Horizontal(children, whole, (environment.Background as Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.WpfBrush)?.Value);
     }
 
     /// <summary>Pieces laid left to right on one baseline, each dropped by its own shift.</summary>

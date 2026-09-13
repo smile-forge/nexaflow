@@ -1,4 +1,4 @@
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 internal static class TexUtilities
 {

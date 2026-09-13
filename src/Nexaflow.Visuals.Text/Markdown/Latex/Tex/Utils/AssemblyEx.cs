@@ -3,7 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Xml.Linq;
 
-namespace XamlMath.Utils;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
 internal static class AssemblyEx
 {

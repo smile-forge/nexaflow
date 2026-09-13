@@ -1,4 +1,4 @@
-namespace XamlMath.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
 public record struct Point(double X, double Y);
 

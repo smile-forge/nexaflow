@@ -1,6 +1,6 @@
 using System;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 public sealed class SymbolMappingNotFoundException : Exception
 {

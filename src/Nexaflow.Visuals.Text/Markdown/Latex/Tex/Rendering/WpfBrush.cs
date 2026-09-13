@@ -1,7 +1,7 @@
 using System.Windows.Media;
-using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
-namespace WpfMath.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 
 public sealed record WpfBrush : GenericBrush<Brush>
 {

@@ -1,6 +1,6 @@
-using XamlMath.Utils;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 
-namespace XamlMath.Fonts;
+namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 
 /// <summary>Font that specifies how TexFormula objects are rendered.</summary>
 public interface ITeXFont
