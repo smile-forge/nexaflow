@@ -248,6 +248,7 @@ public static class TexFormulaBuilder
             TexKinds.Group when !part.Parts.Any() => Item.From(Empty(part)),
             TexKinds.Group when Written(part) => Grouped(part, style, knowledge),
             TexKinds.Group => Sequence(part.Parts, part, style, knowledge),
+            TexKinds.Script => Scripted(part, style, knowledge),
             _ => Of(part, style, knowledge) is { } atom ? Item.From(atom) : null,
         };
 
@@ -354,11 +355,11 @@ public static class TexFormulaBuilder
                 previous = new Previous(right, false);
         }
 
-        return Horizontal(children, whole, environment);
+        return Horizontal(children, whole, (environment.Background as WpfMath.Rendering.WpfBrush)?.Value);
     }
 
     /// <summary>Pieces laid left to right on one baseline, each dropped by its own shift.</summary>
-    private static Set Horizontal(List<Set> children, ContentPart? part, TexEnvironment environment)
+    private static Set Horizontal(List<Set> children, ContentPart? part, System.Windows.Media.Brush? background)
     {
         double run = 0, width = 0, height = 0, depth = 0, italic = 0;
         var lastFont = TexFontUtilities.NoFontId;
@@ -388,7 +389,7 @@ public static class TexFormulaBuilder
             Depth = depth,
             Italic = italic,
             Part = part,
-            Background = (environment.Background as WpfMath.Rendering.WpfBrush)?.Value,
+            Background = background,
             LastFontId = lastFont,
             Draw = (layer, x, y) =>
             {
@@ -400,6 +401,417 @@ public static class TexFormulaBuilder
                 }
             },
         };
+    }
+
+    /// <summary>Room and nothing else: a strut, which reserves space and makes no piece of the layout.</summary>
+    private static Set Strut(double width, double height, double depth, double shift = 0) => new()
+    {
+        Kind = "StrutBox",
+        Width = width,
+        Height = height,
+        Depth = depth,
+        Shift = shift,
+        Spacing = true,
+    };
+
+    /// <summary>
+    /// Pieces stacked top to bottom, each moved right by its own shift. The stack starts as tall as its first piece and
+    /// deepens by each piece after it; a caller that knows better states its height and depth outright, which is how
+    /// TeX pins a stack's baseline.
+    /// </summary>
+    private static Set Vertical(List<Set> children, double? height = null, double? depth = null)
+    {
+        double tall = 0, deep = 0;
+        double leftMost = double.MaxValue, rightMost = double.MinValue;
+        var lastFont = TexFontUtilities.NoFontId;
+        var counting = true;
+
+        for (var at = 0; at < children.Count; at++)
+        {
+            var child = children[at];
+
+            if (at == 0)
+            {
+                tall = child.Height;
+                deep = child.Depth;
+            }
+            else
+            {
+                deep += child.Height + child.Depth;
+            }
+
+            leftMost = System.Math.Min(leftMost, child.Shift);
+            rightMost = System.Math.Max(rightMost, child.Shift + (child.Width > 0 ? child.Width : 0));
+
+            if (counting)
+            {
+                lastFont = child.LastFontId;
+                counting = lastFont != TexFontUtilities.NoFontId;
+            }
+        }
+
+        var top = height ?? tall;
+        var left = leftMost;
+
+        return new Set
+        {
+            Kind = "VerticalBox",
+            Width = rightMost - leftMost,
+            Height = top,
+            Depth = depth ?? deep,
+            LastFontId = lastFont,
+            Draw = (layer, x, y) =>
+            {
+                var at = y - top;
+                foreach (var child in children)
+                {
+                    at += child.Height;
+                    layer.Place(child, x + child.Shift - left, at);
+                    at += child.Depth;
+                }
+            },
+        };
+    }
+
+    /// <summary>A piece centred in a wider row of its own, unless it is already that wide.</summary>
+    private static Set Widened(Set set, double width)
+    {
+        if (System.Math.Abs(width - set.Width) <= TexUtilities.FloatPrecision) return set;
+
+        var half = Strut((width - set.Width) / 2, 0, 0);
+        return Horizontal([half, set, half], null, null);
+    }
+
+    /// <summary>
+    /// A script, as <see cref="Script"/>: something written onto a base — or onto nothing, drawn where it was written
+    /// on a box of no width — or a brace wearing its label.
+    /// </summary>
+    private static Item? Scripted(ContentPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (part.Part(TexRole.Base) is null)
+            return ScriptedOn(part, Item.From(Tag(new NullAtom(), part)), style, knowledge);
+
+        if (Labelled(part, style, knowledge) is { } braced) return Item.From(braced);
+
+        return PartPiece(part, TexRole.Base, style, knowledge) is { } on
+            ? ScriptedOn(part, on, style, knowledge)
+            : null;
+    }
+
+    /// <summary>The one part with this role, as a piece — or null when it is absent or not buildable.</summary>
+    private static Item? PartPiece(ContentPart whole, string role, string? style, TexFormulaParser knowledge)
+    {
+        foreach (var part in whole.Children)
+            if (part.Role == role) return Piece(part, style, knowledge);
+
+        return null;
+    }
+
+    /// <summary>Everything written onto a base, once the base itself is built — as <see cref="Scripted(ContentPart, Atom, string?, TexFormulaParser)"/>.</summary>
+    private static Item? ScriptedOn(ContentPart part, Item on, string? style, TexFormulaParser knowledge)
+    {
+        // A prefix: an empty box wearing the scripts, followed by the base.
+        if (Order(part, Roles.Name) is var name and >= 0 && Order(part, TexRole.Base) > name)
+        {
+            var carried = ScriptsOn(part, Item.From(Tag(new NullAtom(), part)), style, knowledge);
+            if (carried is null) return null;
+
+            return Sequenced([carried, on], part);
+        }
+
+        // The marks first, and separately: all of them make one superscript on the base, and whatever is written after
+        // them goes on the whole of that.
+        var marks = part.Children.Where(child => child.Role == TexRole.Mark).ToList();
+
+        if (marks.Count > 0)
+        {
+            var primes = marks.Select(mark => Item.From(Tag(SymbolAtom.GetAtom("prime"), mark))).ToList();
+            on = Scripts(on, null, Sequenced(primes, part), part);
+        }
+
+        var superscript = PartPiece(part, TexRole.Superscript, style, knowledge);
+        var subscript = PartPiece(part, TexRole.Subscript, style, knowledge);
+
+        if (part.Part(TexRole.Superscript) is not null && superscript is null) return null;
+        if (part.Part(TexRole.Subscript) is not null && subscript is null) return null;
+
+        if (superscript is null && subscript is null) return marks.Count > 0 ? on : null;
+
+        var asked = part.Part(TexRole.Base)?.Children
+            .FirstOrDefault(child => child.Kind == TexKinds.Command
+                                     && child.Part(Roles.Name)?.Text is @"\limits" or @"\nolimits")
+            ?.Part(Roles.Name)?.Text switch
+        {
+            @"\limits" => true,
+            @"\nolimits" => false,
+            _ => (bool?)null,
+        };
+
+        // Scripts on a big operator are its limits — over and under it, or beside it as scripts, by style and by what
+        // was asked for — and so are scripts on anything typed as one.
+        if (on.Atom is BigOperatorAtom big)
+            return Operator(big.BaseAtom is { } sign ? Item.From(sign) : null, subscript, superscript,
+                            asked ?? big.UseVerticalLimits, part);
+
+        if (on.Left == TexAtomType.BigOperator)
+            return Operator(on, subscript, superscript, asked, part);
+
+        return Scripts(on, subscript, superscript, part);
+    }
+
+    /// <summary>This node's scripts set on whatever is handed in, as <see cref="Scripts(ContentPart, Atom, string?, TexFormulaParser)"/> — used for a prefix.</summary>
+    private static Item? ScriptsOn(ContentPart part, Item on, string? style, TexFormulaParser knowledge)
+    {
+        var superscript = PartPiece(part, TexRole.Superscript, style, knowledge);
+        var subscript = PartPiece(part, TexRole.Subscript, style, knowledge);
+
+        if (part.Part(TexRole.Superscript) is not null && superscript is null) return null;
+        if (part.Part(TexRole.Subscript) is not null && subscript is null) return null;
+        if (superscript is null && subscript is null) return null;
+
+        return Scripts(on, subscript, superscript, part);
+    }
+
+    /// <summary>A superscript of half a point's room after it, which is what keeps a script off whatever follows it.</summary>
+    private static readonly SpaceAtom ScriptSpace = new(TexUnit.Point, 0.5, 0, 0);
+
+    /// <summary>Scripts on a base, as TeX's rules for sub- and superscripts set them — the piece standing for <paramref name="part"/>.</summary>
+    private static Item Scripts(Item on, Item? subscript, Item? superscript, ContentPart? part) =>
+        new(on.Left, on.Right, null, (environment, _) =>
+        {
+            var set = ScriptsSet(on, subscript, superscript, environment);
+            return set.Part is null ? set with { Part = part } : set;
+        });
+
+    private static Set ScriptsSet(Item? on, Item? subscript, Item? superscript, TexEnvironment environment)
+    {
+        var texFont = environment.MathFont;
+        var style = environment.Style;
+
+        var baseSet = on is null ? Strut(0, 0, 0) : on.Make(environment, null);
+        if (subscript is null && superscript is null)
+        {
+            // Only a big operator's own scripts-less fall-through lands here, and its glyph is centred on the axis.
+            if (baseSet.Kind == "CharBox")
+                baseSet = baseSet with
+                {
+                    Shift = -(baseSet.Height + baseSet.Depth) / 2 - environment.MathFont.GetAxisHeight(environment.Style),
+                };
+
+            return baseSet;
+        }
+
+        var result = new List<Set> { baseSet };
+
+        var lastFontId = baseSet.LastFontId;
+        if (lastFontId == TexFontUtilities.NoFontId) lastFontId = texFont.GetMuFontId();
+
+        var subscriptStyle = environment.GetSubscriptStyle();
+        var superscriptStyle = environment.GetSuperscriptStyle();
+
+        var delta = 0d;
+        double shiftUp, shiftDown;
+
+        if (on?.Atom is SymbolAtom { Type: TexAtomType.BigOperator } symbol)
+        {
+            var charInfo = texFont.GetCharInfo(symbol.Name, style).Value;
+            if (style < TexStyle.Text && texFont.HasNextLarger(charInfo))
+                charInfo = texFont.GetNextLargerCharInfo(charInfo, style);
+
+            var glyph = Set.Of(new Boxes.CharBox(environment, charInfo));
+            glyph = glyph with { Shift = -(glyph.Height + glyph.Depth) / 2 - environment.MathFont.GetAxisHeight(environment.Style) };
+            result = [glyph];
+
+            delta = charInfo.Metrics.Italic;
+            if (delta > TexUtilities.FloatPrecision && subscript is null)
+                result.Add(Strut(delta, 0, 0));
+
+            var measured = Horizontal(result, null, null);
+            shiftUp = measured.Height - texFont.GetSupDrop(superscriptStyle.Style);
+            shiftDown = measured.Depth + texFont.GetSubDrop(subscriptStyle.Style);
+        }
+        else if (on?.Atom is CharSymbol letter && letter.IsSupportedByFont(texFont, style))
+        {
+            var charFont = letter.GetCharFont(texFont).Value;
+            if (!letter.IsTextSymbol || !texFont.HasSpace(charFont.FontId))
+                delta = texFont.GetCharInfo(charFont, style).Value.Metrics.Italic;
+
+            if (delta > TexUtilities.FloatPrecision && subscript is null)
+            {
+                result.Add(Strut(delta, 0, 0));
+                delta = 0;
+            }
+
+            shiftUp = 0;
+            shiftDown = 0;
+        }
+        else
+        {
+            // Anything that is not a single character is measured as what it came out as — which is what lifts a
+            // script clear of an accent, lining the exponent of \dot{C} up with the dot rather than the C.
+            shiftUp = baseSet.Height - texFont.GetSupDrop(superscriptStyle.Style);
+            shiftDown = baseSet.Depth + texFont.GetSubDrop(subscriptStyle.Style);
+        }
+
+        Set? superscriptSet = null, subscriptSet = null;
+        List<Set>? superscriptRow = null, subscriptRow = null;
+
+        if (superscript is not null)
+        {
+            superscriptSet = superscript.Make(superscriptStyle, null);
+            superscriptRow = [superscriptSet, Set.Of(ScriptSpace.CreateBox(environment))];
+
+            double p;
+            if (style == TexStyle.Display)
+                p = texFont.GetSup1(style);
+            else if (environment.GetCrampedStyle().Style == style)
+                p = texFont.GetSup3(style);
+            else
+                p = texFont.GetSup2(style);
+
+            shiftUp = System.Math.Max(System.Math.Max(shiftUp, p),
+                                      superscriptSet.Depth + System.Math.Abs(texFont.GetXHeight(style, lastFontId)) / 4);
+        }
+
+        if (subscript is not null)
+        {
+            subscriptSet = subscript.Make(subscriptStyle, null);
+            subscriptRow = [subscriptSet, Set.Of(ScriptSpace.CreateBox(environment))];
+        }
+
+        if (subscriptSet is null)
+        {
+            result.Add(Horizontal(superscriptRow!, null, null) with { Shift = -shiftUp });
+            return Horizontal(result, null, null);
+        }
+
+        if (superscriptSet is null)
+        {
+            var drop = System.Math.Max(System.Math.Max(shiftDown, texFont.GetSub1(style)),
+                                       subscriptSet.Height - 4 * System.Math.Abs(texFont.GetXHeight(style, lastFontId)) / 5);
+            result.Add(Horizontal(subscriptRow!, null, null) with { Shift = drop });
+            return Horizontal(result, null, null);
+        }
+
+        shiftDown = System.Math.Max(shiftDown, texFont.GetSub2(style));
+
+        var rule = texFont.GetDefaultLineThickness(style);
+        var between = shiftUp - superscriptSet.Depth + shiftDown - subscriptSet.Height;
+        if (between < 4 * rule)
+        {
+            shiftUp += 4 * rule - between;
+
+            // The bottom of the superscript at least four fifths of an x-height above the baseline.
+            var psi = 0.8 * System.Math.Abs(texFont.GetXHeight(style, lastFontId)) - (shiftUp - superscriptSet.Depth);
+            if (psi > 0)
+            {
+                shiftUp += psi;
+                shiftDown -= psi;
+            }
+        }
+
+        between = shiftUp - superscriptSet.Depth + shiftDown - subscriptSet.Height;
+
+        result.Add(Vertical(
+            [
+                Horizontal(superscriptRow!, null, null) with { Shift = delta },
+                Strut(0, between, 0),
+                Horizontal(subscriptRow!, null, null),
+            ],
+            height: shiftUp + superscriptSet.Height,
+            depth: shiftDown + subscriptSet.Depth));
+
+        return Horizontal(result, null, null);
+    }
+
+    /// <summary>
+    /// A big operator wearing limits, as TeX sets them: over and under the sign in display style or where
+    /// <c>\limits</c> asked, beside it as scripts otherwise.
+    /// </summary>
+    private static Item Operator(Item? sign, Item? lower, Item? upper, bool? vertical, ContentPart part) =>
+        new(TexAtomType.BigOperator, TexAtomType.BigOperator, null, (environment, _) =>
+        {
+            var set = OperatorSet(sign, lower, upper, vertical, environment);
+            return set.Part is null ? set with { Part = part } : set;
+        });
+
+    private static Set OperatorSet(Item? sign, Item? lower, Item? upper, bool? vertical, TexEnvironment environment)
+    {
+        if ((vertical.HasValue && !vertical.Value) || (!vertical.HasValue && environment.Style >= TexStyle.Text))
+        {
+            // An operator with nothing attached still has to be the right size: the display form of its glyph is
+            // picked here.
+            if (lower is null && upper is null) return OperatorSign(sign, environment).Set;
+
+            return ScriptsSet(sign, lower, upper, environment);
+        }
+
+        var (signSet, delta) = OperatorSign(sign, environment);
+        var upperSet = upper?.Make(environment.GetSuperscriptStyle(), null);
+        var lowerSet = lower?.Make(environment.GetSubscriptStyle(), null);
+
+        // Every component as wide as the widest.
+        var width = System.Math.Max(System.Math.Max(signSet.Width, upperSet?.Width ?? 0), lowerSet?.Width ?? 0);
+        signSet = Widened(signSet, width);
+        upperSet = upperSet is null ? null : Widened(upperSet, width);
+        lowerSet = lowerSet is null ? null : Widened(lowerSet, width);
+
+        var texFont = environment.MathFont;
+        var style = environment.Style;
+        var spacing5 = texFont.GetBigOpSpacing5(style);
+        var kern = 0d;
+
+        var stack = new List<Set>();
+
+        if (upperSet is not null)
+        {
+            stack.Add(Strut(0, spacing5, 0));
+            stack.Add(upperSet with { Shift = delta / 2 });
+            kern = System.Math.Max(texFont.GetBigOpSpacing1(style), texFont.GetBigOpSpacing3(style) - upperSet.Depth);
+            stack.Add(Strut(0, kern, 0));
+        }
+
+        stack.Add(signSet);
+
+        if (lowerSet is not null)
+        {
+            stack.Add(Strut(0, System.Math.Max(texFont.GetBigOpSpacing2(style), texFont.GetBigOpSpacing4(style) - lowerSet.Height), 0));
+            stack.Add(lowerSet with { Shift = -delta / 2 });
+            stack.Add(Strut(0, spacing5, 0));
+        }
+
+        var measured = Vertical(stack);
+        var total = measured.Height + measured.Depth;
+        var height = signSet.Height;
+        if (upperSet is not null) height += spacing5 + kern + upperSet.Height + upperSet.Depth;
+
+        return Vertical(stack, height, total - height);
+    }
+
+    /// <summary>A big operator's sign at the size its style asks for, centred on the axis, and how far it leans.</summary>
+    private static (Set Set, double Delta) OperatorSign(Item? sign, TexEnvironment environment)
+    {
+        if (sign?.Atom is SymbolAtom { Type: TexAtomType.BigOperator } symbol)
+        {
+            var texFont = environment.MathFont;
+            var style = environment.Style;
+
+            var character = texFont.GetCharInfo(symbol.Name, style).Value;
+            if (style < TexStyle.Text && texFont.HasNextLarger(character))
+                character = texFont.GetNextLargerCharInfo(character, style);
+
+            // The sign is the operator's own drawing of itself, and says which part it was set from.
+            var glyph = Set.Of(new Boxes.CharBox(environment, character)) with { Part = symbol.Origin };
+            glyph = glyph with { Shift = -(glyph.Height + glyph.Depth) / 2 - environment.MathFont.GetAxisHeight(environment.Style) };
+
+            var delta = character.Metrics.Italic;
+            List<Set> row = [glyph];
+            if (delta > TexUtilities.FloatPrecision) row.Add(Strut(delta, 0, 0));
+
+            return (Horizontal(row, null, null), delta);
+        }
+
+        return (Horizontal([sign is null ? Strut(0, 0, 0) : sign.Make(environment, null)], null, null), 0);
     }
 
     // ── One part ────────────────────────────────────────────────────────────
