@@ -386,6 +386,13 @@ internal sealed class LatexCapture
         return guidelines;
     }
 
+    /// <summary>Lays a formula already set: its top at the origin, then the tree sealed.</summary>
+    internal void Lay(Set formula)
+    {
+        Place(formula, 0, formula.Height);
+        FinishRendering();
+    }
+
     /// <summary>
     /// Lays a whole formula: builds its box in <paramref name="environment"/> and places it with its top at
     /// the origin, then seals the tree. The one way in, for the builder and for the tests that look at what

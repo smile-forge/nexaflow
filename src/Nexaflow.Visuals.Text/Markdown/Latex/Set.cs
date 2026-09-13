@@ -53,6 +53,9 @@ internal sealed record Set
     /// <summary>Lays the piece's own marks and children, with the left end of its baseline at the point given.</summary>
     public Action<LatexCapture, double, double>? Draw { get; init; }
 
+    /// <summary>The font of the last glyph this draws, or none: what a space measured in x-heights is measured against.</summary>
+    public int LastFontId { get; init; } = XamlMath.TexFontUtilities.NoFontId;
+
     public double TotalWidth => Width + Italic;
 
     public double TotalHeight => Height + Depth;
@@ -73,5 +76,6 @@ internal sealed record Set
         Spacing = box is StrutBox or GlueBox,
         Background = (box.Background as WpfBrush)?.Value,
         Draw = box.Lay,
+        LastFontId = box.GetLastFontId(),
     };
 }

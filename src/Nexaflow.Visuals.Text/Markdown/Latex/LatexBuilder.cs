@@ -118,7 +118,13 @@ public sealed class LatexBuilder : ContentBuilder
         // a different answer: a `\ ` the builder sets directly was shown as its own characters in red.
         var read = TexPipeline.Read(Source, Draws, editing, _placeholders);
         var reading = ContentReading.Of(read);
-        var formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
+
+        var environment = WpfTeXEnvironment.Create(
+            style: _inline ? TexStyle.Text : TexStyle.Display,
+            scale: _scale,
+            systemTextFontName: _systemFont);
+
+        var (formula, ignored) = XamlMath.TexFormulaBuilder.Formula(reading.Root, environment, knowledge);
 
         if (formula is null)
         {
@@ -126,21 +132,16 @@ public sealed class LatexBuilder : ContentBuilder
             // answer this gives a stretch under the caret and a command nobody has heard of, reached
             // by the same road — and a great deal more use to whoever wrote it than a blank space.
             reading = ContentReading.Of(ContentNode.Branch(Kinds.Sequence, [ContentNode.Shown(Source)]));
-            formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
+            (formula, ignored) = XamlMath.TexFormulaBuilder.Formula(reading.Root, environment, knowledge);
         }
 
         if (formula is null) return null;
-
-        var environment = WpfTeXEnvironment.Create(
-            style: _inline ? TexStyle.Text : TexStyle.Display,
-            scale: _scale,
-            systemTextFontName: _systemFont);
 
         var capture = new LatexCapture(_scale, reading);
         // Laying it also settles the tree onto the origin. A shifted or transformed box can land above or left
         // of where the pen started, and a tree with negative coordinates would put the caret outside the
         // control that draws it — one number now, because everything in it is relative to the root.
-        capture.Lay(formula, environment);
+        capture.Lay(formula);
         if (capture.Tree is not { } laid) return null;
 
 
@@ -151,7 +152,7 @@ public sealed class LatexBuilder : ContentBuilder
         var trouble = reading.Root.SelfAndDescendants()
             .Where(part => part.Node.Trouble is not null)
             .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
-            .Concat(formula.Ignored.Select(part => TexSourcePart.Trouble(
+            .Concat(ignored.Select(part => TexSourcePart.Trouble(
                 part,
                 DiagnosticSeverity.Warning,
                 "This was read, and nothing here knows how to draw it.")))

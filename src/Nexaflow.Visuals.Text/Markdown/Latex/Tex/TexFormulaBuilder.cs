@@ -6,6 +6,7 @@ using XamlMath.Exceptions;
 using XamlMath.Parsers;
 using XamlMath.Parsers.Matrices;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath;
 
@@ -130,6 +131,275 @@ public static class TexFormulaBuilder
         return root.SelfAndDescendants().LastOrDefault(IsTag) is { } tag && Numbering(tag) is { } number
             ? new TexFormula { RootAtom = number }
             : null;
+    }
+
+    // ── Setting ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A formula's reading set in the environment it is displayed in — measured, and ready to lay — with whatever in it
+    /// nothing could draw. Null where nothing in it builds at all.
+    /// <para>
+    /// The way in that replaces <see cref="Build"/>. That one makes atoms, and the atoms are boxed later in whatever
+    /// environment somebody hands them; this sets each construct as it is reached, in the environment its parent chose,
+    /// so the atoms stop being a tree of their own. Constructs move here a family at a time, and one that has not moved
+    /// yet is still built as an atom and boxed on the spot — which is why both ways in exist for now.
+    /// </para>
+    /// </summary>
+    internal static (Set? Set, IReadOnlyList<ContentPart> Ignored) Formula(
+        ContentPart root, TexEnvironment environment, TexFormulaParser knowledge)
+    {
+        System.ArgumentNullException.ThrowIfNull(root);
+
+        var ignored = new List<ContentPart>();
+        var was = _ignored;
+        _ignored = ignored;
+
+        try
+        {
+            var set = Sequence(root.Parts, root, null, knowledge)?.Make(environment, null);
+            return (set, ignored);
+        }
+        finally
+        {
+            _ignored = was;
+        }
+    }
+
+    /// <summary>
+    /// One piece of a run before it is set: its TeX class at either end, and how to set it once the run knows what came
+    /// before it.
+    /// <para>
+    /// The class is known before anything is measured, which is what lets a run decide its spacing: TeX turns a binary
+    /// operator into an ordinary atom by looking at its neighbours, and the gaps between atoms come from their classes.
+    /// <see cref="Atom"/> is the typesetter's atom for a construct that has not moved into the builder yet — a run
+    /// still asks it about its glyph, to kern two letters or join them into a ligature.
+    /// </para>
+    /// </summary>
+    private sealed record Item(TexAtomType Left, TexAtomType Right, Atom? Atom, System.Func<TexEnvironment, Previous?, Set> Make)
+    {
+        /// <summary>Whether this is a kern: room that takes no part in the spacing rules around it.</summary>
+        public bool IsKern => Atom is SpaceAtom;
+
+        /// <summary>A construct still built as an atom, boxed where it is set.</summary>
+        public static Item From(Atom atom) => new(
+            atom.GetLeftType(),
+            atom.GetRightType(),
+            atom,
+            (environment, previous) =>
+                Set.Of((atom is IRow row ? row.WithPreviousAtom(Dummy(previous)) : atom).CreateBox(environment)));
+
+        /// <summary>The atom a row of the typesetter's takes as what stood before it.</summary>
+        private static DummyAtom? Dummy(Previous? previous) =>
+            previous is { } before
+                ? new DummyAtom(before.Right, before.IsKern ? new SpaceAtom() : new NullAtom(), false)
+                : null;
+    }
+
+    /// <summary>What stood before a piece of a run: its class on the side facing it, and whether it was a kern.</summary>
+    private readonly record struct Previous(TexAtomType Right, bool IsKern);
+
+    /// <summary>Several things in a row, or the one thing when there is only one — as <see cref="Run"/>.</summary>
+    private static Item? Sequence(IEnumerable<ContentPart> parts, ContentPart whole, string? style, TexFormulaParser knowledge)
+    {
+        var built = Pieces(parts, style, knowledge);
+        if (built is null || built.Count == 0) return null;
+
+        return built.Count == 1 ? built[0] : Sequenced(built, whole);
+    }
+
+    /// <summary>A run of pieces, as <see cref="Built"/>: a switch takes the rest of its group, and a piece nothing can draw is its characters.</summary>
+    private static List<Item>? Pieces(IEnumerable<ContentPart> parts, string? style, TexFormulaParser knowledge)
+    {
+        var built = new List<Item>();
+        var run = parts.ToList();
+
+        for (var at = 0; at < run.Count; at++)
+        {
+            if (Switch(run[at]) is { } switched)
+            {
+                if (Pieces(run.Skip(at + 1), switched.TextStyle ?? style, knowledge) is not { } after)
+                    return null;
+
+                var scope = after.Count switch
+                {
+                    0 => Item.From(Tag(new NullAtom(), run[at])),
+                    1 => after[0],
+                    _ => Sequenced(after, run[at]),
+                };
+
+                built.Add(switched.Style is { } size ? Styled(scope, size, run[at]) : scope);
+                break;
+            }
+
+            if (IsTag(run[at])) continue;
+            if (Discarded(run[at])) continue;
+
+            built.Add(Piece(run[at], style, knowledge) ?? Item.From(Unread(run[at], style)));
+        }
+
+        return built;
+    }
+
+    /// <summary>One piece of a run — a construct set here, or one still built as an atom.</summary>
+    private static Item? Piece(ContentPart part, string? style, TexFormulaParser knowledge) =>
+        part.Kind switch
+        {
+            Kinds.Sequence => Sequence(part.Parts, part, style, knowledge),
+            TexKinds.Group when !part.Parts.Any() => Item.From(Empty(part)),
+            TexKinds.Group when Written(part) => Grouped(part, style, knowledge),
+            TexKinds.Group => Sequence(part.Parts, part, style, knowledge),
+            _ => Of(part, style, knowledge) is { } atom ? Item.From(atom) : null,
+        };
+
+    /// <summary>
+    /// A braced group, as <see cref="Group"/>: an ordinary atom whatever it holds, because braces change a class. What
+    /// it holds is set as it would be anywhere, and names the group where it names nothing of its own.
+    /// </summary>
+    private static Item? Grouped(ContentPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (Sequence(part.Parts, part, style, knowledge) is not { } inner) return null;
+
+        return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+        {
+            var set = inner.Make(environment, null);
+            return set.Part is null or { Length: 0 } ? set with { Part = part } : set;
+        });
+    }
+
+    /// <summary>A scope set in a style of its own — <c>\displaystyle</c> and its family — as the rest of its group.</summary>
+    private static Item Styled(Item scope, TexStyle size, ContentPart part) =>
+        new(scope.Left, scope.Right, null, (environment, _) =>
+        {
+            var set = scope.Make(environment with { Style = size }, null);
+            return set.Part is null ? set with { Part = part } : set;
+        });
+
+    /// <summary>Pieces standing in a row, as one piece: its class is its first piece's on the left and its last piece's on the right.</summary>
+    private static Item Sequenced(List<Item> items, ContentPart whole) =>
+        new(items[0].Left, items[^1].Right, null, (environment, previous) => Row(items, whole, environment, previous));
+
+    /// <summary>Classes that make a binary operator after them an ordinary atom.</summary>
+    private static readonly HashSet<TexAtomType> OperandsNot =
+        [TexAtomType.BinaryOperator, TexAtomType.BigOperator, TexAtomType.Relation, TexAtomType.Opening, TexAtomType.Punctuation];
+
+    /// <summary>Classes a character may be kerned against, or joined with into a ligature.</summary>
+    private static readonly HashSet<TexAtomType> Kernable =
+        [TexAtomType.Ordinary, TexAtomType.BigOperator, TexAtomType.BinaryOperator, TexAtomType.Relation,
+         TexAtomType.Opening, TexAtomType.Closing, TexAtomType.Punctuation];
+
+    /// <summary>
+    /// A row: each piece set in turn, TeX's glue between them by class, a kern or a ligature between two letters that
+    /// have one.
+    /// <para>
+    /// <paramref name="outer"/> is what stood before the row in the row holding it. It decides whether the row's first
+    /// piece is a binary operator or an ordinary atom, and nothing else — the first piece never gets glue in front of it.
+    /// </para>
+    /// </summary>
+    private static Set Row(IReadOnlyList<Item> items, ContentPart whole, TexEnvironment environment, Previous? outer)
+    {
+        var children = new List<Set>();
+        var previous = outer;
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var current = items[i];
+            var left = current.Left;
+            var right = current.Right;
+            var next = i < items.Count - 1 ? items[i + 1] : null;
+
+            // A binary operator with nothing to operate on is an ordinary atom: at the start, after another operator,
+            // a relation, an opening or a comma — or before a relation, a closing or a comma.
+            if (left == TexAtomType.BinaryOperator && (previous is null || OperandsNot.Contains(previous.Value.Right)))
+                left = right = TexAtomType.Ordinary;
+            else if (next is not null && right == TexAtomType.BinaryOperator
+                     && next.Left is TexAtomType.Relation or TexAtomType.Closing or TexAtomType.Punctuation)
+                left = right = TexAtomType.Ordinary;
+
+            var kern = 0d;
+            if (next is not null && right == TexAtomType.Ordinary
+                && current.Atom is CharSymbol letter && next.Atom is CharSymbol following && Kernable.Contains(next.Left))
+            {
+                var font = following.GetStyledFont(environment);
+                var style = environment.Style;
+
+                if (font.SupportsMetrics && letter.IsSupportedByFont(font, style))
+                {
+                    var leftChar = letter.GetCharFont(font).Value;
+                    var rightChar = following.GetCharFont(font).Value;
+
+                    if (font.GetLigature(leftChar, rightChar) is { } ligature)
+                    {
+                        current = Item.From(new FixedCharAtom(ligature));
+                        left = right = current.Left;
+                        i++;
+                    }
+                    else
+                    {
+                        kern = font.GetKern(leftChar, rightChar, style);
+                    }
+                }
+            }
+
+            if (i != 0 && previous is { IsKern: false } before && !current.IsKern)
+                children.Add(Set.Of(Glue.CreateBox(before.Right, left, environment)));
+
+            var set = current.Make(environment, previous);
+            children.Add(set);
+            environment.LastFontId = set.LastFontId;
+
+            if (kern > TexUtilities.FloatPrecision)
+                children.Add(Set.Of(new Boxes.StrutBox(0, kern, 0, 0)));
+
+            if (!current.IsKern)
+                previous = new Previous(right, false);
+        }
+
+        return Horizontal(children, whole, environment);
+    }
+
+    /// <summary>Pieces laid left to right on one baseline, each dropped by its own shift.</summary>
+    private static Set Horizontal(List<Set> children, ContentPart? part, TexEnvironment environment)
+    {
+        double run = 0, width = 0, height = 0, depth = 0, italic = 0;
+        var lastFont = TexFontUtilities.NoFontId;
+        var counting = true;
+
+        foreach (var child in children)
+        {
+            run += child.Width;
+            width = System.Math.Max(width, run);
+            height = System.Math.Max(height, child.Height - child.Shift);
+            depth = System.Math.Max(depth, child.Depth + child.Shift);
+            italic = System.Math.Max(italic, child.Italic);
+
+            // The font of the last thing drawn — or none, as soon as something in the row draws in no font at all.
+            if (counting)
+            {
+                lastFont = child.LastFontId;
+                counting = lastFont != TexFontUtilities.NoFontId;
+            }
+        }
+
+        return new Set
+        {
+            Kind = "HorizontalBox",
+            Width = width,
+            Height = height,
+            Depth = depth,
+            Italic = italic,
+            Part = part,
+            Background = (environment.Background as WpfMath.Rendering.WpfBrush)?.Value,
+            LastFontId = lastFont,
+            Draw = (layer, x, y) =>
+            {
+                var at = x;
+                foreach (var child in children)
+                {
+                    layer.Place(child, at, y + child.Shift);
+                    at += child.Width;
+                }
+            },
+        };
     }
 
     // ── One part ────────────────────────────────────────────────────────────
