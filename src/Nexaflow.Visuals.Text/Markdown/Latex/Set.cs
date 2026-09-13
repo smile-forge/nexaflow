@@ -2,7 +2,9 @@ using System;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using WpfMath.Rendering;
-using XamlMath.Boxes;
+using System.Collections.Generic;
+using XamlMath;
+using XamlMath.Rendering;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -63,22 +65,213 @@ internal sealed record Set
 
     public double TotalHeight => Height + Depth;
 
-    /// <summary>
-    /// A box from the typesetter, as a piece — while the typesetter's constructs are moved into the builder one
-    /// family at a time.
-    /// </summary>
-    public static Set Of(Box box) => new()
+    /// <summary>One glyph, in the colours of the environment it is set in.</summary>
+    public static Set Glyph(TexEnvironment environment, CharInfo info)
     {
-        Kind = box.GetType().Name,
-        Width = box.Width,
-        Height = box.Height,
-        Depth = box.Depth,
-        Italic = box.Italic,
-        Shift = box.Shift,
-        Part = box.Node?.Origin,
-        Spacing = box is StrutBox or GlueBox,
-        Background = (box.Background as WpfBrush)?.Value,
-        Draw = (layer, _, x, y) => box.Lay(layer, x, y),
-        LastFontId = box.GetLastFontId(),
+        var foreground = environment.Foreground;
+
+        return new()
+        {
+            Kind = "CharBox",
+            Width = info.Metrics.Width,
+            Height = info.Metrics.Height,
+            Depth = info.Metrics.Depth,
+            Italic = info.Metrics.Italic,
+            Background = Wash(environment),
+            LastFontId = info.FontId,
+            Draw = (layer, _, x, y) => layer.Glyph(info, x, y, foreground),
+        };
+    }
+
+    /// <summary>A filled bar standing on the baseline: a fraction's, an overline's, an underscore.</summary>
+    public static Set Rule(TexEnvironment environment, double thickness, double width, double shift)
+    {
+        var foreground = environment.Foreground;
+
+        return new()
+        {
+            Kind = "HorizontalRule",
+            Width = width,
+            Height = thickness,
+            Shift = shift,
+            Background = Wash(environment),
+            Draw = (layer, _, x, y) => layer.Rule(new Rectangle(x, y - thickness, width, thickness), foreground),
+        };
+    }
+
+    /// <summary>The room TeX puts between two classes of thing, which draws nothing.</summary>
+    public static Set Glue(double width) => new()
+    {
+        Kind = "GlueBox",
+        Width = width,
+        Spacing = true,
     };
+
+    /// <summary>
+    /// The hollow box standing where an argument has still to be written.
+    /// <para>
+    /// An empty argument sets as nothing at all, so <c>\frac{}{}</c> draws a bar with two invisible sides — a formula a
+    /// reader cannot see, cannot aim at and cannot tell from a broken one. A box gives the hole a size and a place, which
+    /// is all anything else needs to treat it as an ordinary symbol. Drawn as four hairlines rather than a filled block or
+    /// a glyph: filled would read as content, and a glyph would be content.
+    /// </para>
+    /// </summary>
+    public static Set Placeholder(TexEnvironment environment)
+    {
+        // How far across the em the box runs and how far up — squat enough to read as a slot — and a line thin enough
+        // not to read as ink.
+        const double widthInEm = 0.55, heightInEm = 0.62, hairline = 0.07;
+
+        var size = environment.MathFont.GetXHeight(environment.Style, environment.LastFontId);
+        var width = size * (widthInEm / heightInEm);
+        var thickness = System.Math.Max(size * hairline, 0.4);
+        var foreground = environment.Foreground;
+
+        return new()
+        {
+            Kind = "PlaceholderBox",
+            Width = width,
+            Height = size,
+            Background = Wash(environment),
+            Draw = (layer, _, x, y) =>
+            {
+                var top = y - size;
+                layer.Rule(new Rectangle(x, top, width, thickness), foreground);
+                layer.Rule(new Rectangle(x, y - thickness, width, thickness), foreground);
+                layer.Rule(new Rectangle(x, top, thickness, size), foreground);
+                layer.Rule(new Rectangle(x + width - thickness, top, thickness, size), foreground);
+            },
+        };
+    }
+
+    /// <summary>A <c>\cancel</c> stroke drawn corner to corner across the room given.</summary>
+    public static Set Stroke(StrokeMode mode, double width, double height, double depth) => new()
+    {
+        Kind = "StrokeBox",
+        Width = width,
+        Height = height,
+        Depth = depth,
+        Draw = (layer, _, x, y) =>
+        {
+            if (mode.HasFlag(StrokeMode.Normal))
+                layer.Line(new Point(x, y + depth), new Point(x + width, y - height), null);
+
+            if (mode.HasFlag(StrokeMode.Back))
+                layer.Line(new Point(x, y - height), new Point(x + width, y + depth), null);
+        },
+    };
+
+    /// <summary>
+    /// A horizontal arrow spanning the width given: a shaft, arrowheads at either or both ends, and optionally a tail bar.
+    /// Both the stretchy accents (<c>\overrightarrow</c>) and the extensible arrows (<c>\xrightarrow</c>) are one of these.
+    /// </summary>
+    public static Set Arrow(TexEnvironment environment, double width, double thickness, ArrowDecoration decoration)
+    {
+        var headHalfHeight = 2.0 * thickness;
+        var height = 2.0 * headHalfHeight;
+        var foreground = environment.Foreground;
+
+        return new()
+        {
+            Kind = "ArrowBox",
+            Width = width,
+            Height = height,
+            Background = Wash(environment),
+            Draw = (layer, _, x, y) =>
+            {
+                // The shaft runs along the vertical middle; y is the lower edge.
+                var shaftY = y - height / 2;
+                var left = x;
+                var right = x + width;
+
+                if (decoration.HasFlag(ArrowDecoration.DoubleShaft))
+                {
+                    layer.Line(new Point(left, shaftY - thickness), new Point(right, shaftY - thickness), foreground);
+                    layer.Line(new Point(left, shaftY + thickness), new Point(right, shaftY + thickness), foreground);
+                }
+                else
+                {
+                    layer.Line(new Point(left, shaftY), new Point(right, shaftY), foreground);
+                }
+
+                // Arrowheads: two short strokes converging on the pointing end.
+                var headLength = System.Math.Min(5.0 * thickness, width);
+                if (decoration.HasFlag(ArrowDecoration.HeadRight))
+                {
+                    layer.Line(new Point(right, shaftY), new Point(right - headLength, shaftY - headHalfHeight), foreground);
+                    layer.Line(new Point(right, shaftY), new Point(right - headLength, shaftY + headHalfHeight), foreground);
+                }
+
+                if (decoration.HasFlag(ArrowDecoration.HeadLeft))
+                {
+                    layer.Line(new Point(left, shaftY), new Point(left + headLength, shaftY - headHalfHeight), foreground);
+                    layer.Line(new Point(left, shaftY), new Point(left + headLength, shaftY + headHalfHeight), foreground);
+                }
+
+                if (decoration.HasFlag(ArrowDecoration.TailBarLeft))
+                    layer.Line(new Point(left, shaftY - headHalfHeight), new Point(left, shaftY + headHalfHeight), foreground);
+            },
+        };
+    }
+
+    /// <summary>A rectangular frame round the room given, and nothing else — laid over what it frames, it is <c>\boxed</c>.</summary>
+    public static Set Frame(TexEnvironment environment, double thickness, double width, double height, double depth)
+    {
+        var foreground = environment.Foreground;
+
+        return new()
+        {
+            Kind = "FrameBox",
+            Width = width,
+            Height = height,
+            Depth = depth,
+            Background = Wash(environment),
+            Draw = (layer, _, x, y) =>
+            {
+                var top = y - height;
+                var total = height + depth;
+
+                layer.Rule(new Rectangle(x, top, width, thickness), foreground);
+                layer.Rule(new Rectangle(x, top + total - thickness, width, thickness), foreground);
+                layer.Rule(new Rectangle(x, top, thickness, total), foreground);
+                layer.Rule(new Rectangle(x + width - thickness, top, thickness, total), foreground);
+            },
+        };
+    }
+
+    /// <summary>
+    /// The rules of an array — the vertical ones <c>|</c> asks for, the horizontal ones <c>\hline</c> does — laid over the
+    /// grid they belong to, so they span the whole of it rather than being cut into the rows.
+    /// </summary>
+    /// <param name="verticalAt">X offsets, measured from the left edge of the grid.</param>
+    /// <param name="horizontalAt">Y offsets, measured down from the top edge of the grid.</param>
+    public static Set GridRules(
+        TexEnvironment environment, IReadOnlyList<double> verticalAt, IReadOnlyList<double> horizontalAt, double thickness,
+        double width, double height, double depth)
+    {
+        var foreground = environment.Foreground;
+
+        return new()
+        {
+            Kind = "GridRulesBox",
+            Width = width,
+            Height = height,
+            Depth = depth,
+            Background = Wash(environment),
+            Draw = (layer, _, x, y) =>
+            {
+                var top = y - height;
+                var total = height + depth;
+
+                foreach (var offset in verticalAt)
+                    layer.Rule(new Rectangle(x + offset, top, thickness, total), foreground);
+
+                foreach (var offset in horizontalAt)
+                    layer.Rule(new Rectangle(x, top + offset, width, thickness), foreground);
+            },
+        };
+    }
+
+    /// <summary>The <c>\colorbox</c> an environment carries, as the brush a piece set in it is washed with.</summary>
+    private static Brush? Wash(TexEnvironment environment) => (environment.Background as WpfBrush)?.Value;
 }

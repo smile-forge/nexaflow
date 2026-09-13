@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Pipes;
-using XamlMath.Boxes;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 using XamlMath.Exceptions;
 using XamlMath.Parsers.Matrices;
 using System;
@@ -447,18 +447,18 @@ internal static class StandardCommands
 
     internal sealed class CancelCommand
     {
-        public static CancelCommand BCancel { get; } = new(StrokeBoxMode.Back);
-        public static CancelCommand Cancel { get; } = new(StrokeBoxMode.Normal);
-        public static CancelCommand XCancel { get; } = new(StrokeBoxMode.Both);
+        public static CancelCommand BCancel { get; } = new(StrokeMode.Back);
+        public static CancelCommand Cancel { get; } = new(StrokeMode.Normal);
+        public static CancelCommand XCancel { get; } = new(StrokeMode.Both);
 
-        private CancelCommand(StrokeBoxMode strokeBoxMode)
+        private CancelCommand(StrokeMode strokeBoxMode)
         {
             _strokeBoxMode = strokeBoxMode;
         }
 
-        private readonly StrokeBoxMode _strokeBoxMode;
+        private readonly StrokeMode _strokeBoxMode;
 
-        internal StrokeBoxMode Mode => _strokeBoxMode;
+        internal StrokeMode Mode => _strokeBoxMode;
     }
 
     /// <summary>

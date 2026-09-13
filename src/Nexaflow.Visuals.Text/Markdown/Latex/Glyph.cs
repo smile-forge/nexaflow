@@ -1,6 +1,5 @@
 using Nexaflow.Markdown.Ast;
 using XamlMath;
-using XamlMath.Boxes;
 using XamlMath.Fonts;
 using XamlMath.Utils;
 
@@ -99,6 +98,6 @@ internal sealed record Glyph
             if (bold.IsSuccess) info = bold;
         }
 
-        return global::Nexaflow.Visuals.Text.Markdown.Latex.Set.Of(new CharBox(environment, info.Value)) with { Part = Origin };
+        return global::Nexaflow.Visuals.Text.Markdown.Latex.Set.Glyph(environment, info.Value) with { Part = Origin };
     }
 }

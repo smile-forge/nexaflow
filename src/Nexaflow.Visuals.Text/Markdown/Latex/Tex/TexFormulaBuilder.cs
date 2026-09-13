@@ -320,7 +320,7 @@ public static class TexFormulaBuilder
     /// <summary>The hollow box standing where an argument has still to be written.</summary>
     private static Item HoleItem(ContentPart part) =>
         new(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
-            Set.Of(new Boxes.PlaceholderBox(environment)) with { Part = part });
+            Set.Placeholder(environment) with { Part = part });
 
     /// <summary>One character of the reading, as <see cref="Character"/>: a symbol by the table, a letter, or a tie.</summary>
     private static Item? CharacterItem(ContentPart part, string? style)
@@ -418,7 +418,7 @@ public static class TexFormulaBuilder
     private static Item SizedDelimiter(Glyph delimiter, double minHeight, TexAtomType type, ContentPart part) =>
         new(type, type, null, (environment, _) =>
         {
-            var set = Set.Of(DelimiterFactory.CreateBox(delimiter.SymbolName!, minHeight, environment));
+            var set = Delimiter(delimiter.SymbolName!, minHeight, environment);
             set = set with
             {
                 Shift = -((set.Height + set.Depth) / 2 - set.Height) - environment.MathFont.GetAxisHeight(environment.Style),
@@ -426,14 +426,66 @@ public static class TexFormulaBuilder
             return Horizontal([set], null, null) with { Part = part };
         });
 
+    /// <summary>
+    /// A delimiter at least as tall as asked: the first of the font's sizes that reaches it, or else one assembled from
+    /// the font's extension pieces — a top, a middle, a bottom, and a repeated piece between them until it is tall enough.
+    /// </summary>
+    private static Set Delimiter(string symbol, double minHeight, TexEnvironment environment)
+    {
+        var texFont = environment.MathFont;
+        var style = environment.Style;
+        var charInfo = texFont.GetCharInfo(symbol, style).Value;
+
+        // The first version of the character with at least the height asked for.
+        var totalHeight = charInfo.Metrics.Height + charInfo.Metrics.Depth;
+        while (totalHeight < minHeight && texFont.HasNextLarger(charInfo))
+        {
+            charInfo = texFont.GetNextLargerCharInfo(charInfo, style);
+            totalHeight = charInfo.Metrics.Height + charInfo.Metrics.Depth;
+        }
+
+        // Tall enough, or as tall as it comes and with nothing to build a taller one from.
+        if (totalHeight >= minHeight || !texFont.IsExtensionChar(charInfo))
+            return Set.Glyph(environment, charInfo);
+
+        var extension = texFont.GetExtension(charInfo, style);
+        var pieces = new List<Set>();
+        if (extension.Top != null) pieces.Add(Set.Glyph(environment, extension.Top));
+        if (extension.Middle != null) pieces.Add(Set.Glyph(environment, extension.Middle));
+        if (extension.Bottom != null) pieces.Add(Set.Glyph(environment, extension.Bottom));
+
+        if (extension.Repeat != null)
+        {
+            var repeat = Set.Glyph(environment, extension.Repeat);
+            do
+            {
+                if (extension.Top != null && extension.Bottom != null)
+                {
+                    pieces.Insert(1, repeat);
+                    if (extension.Middle != null) pieces.Insert(pieces.Count - 1, repeat);
+                }
+                else if (extension.Bottom != null)
+                {
+                    pieces.Insert(0, repeat);
+                }
+                else
+                {
+                    pieces.Add(repeat);
+                }
+            } while (pieces.Sum(piece => piece.Height + piece.Depth) < minHeight);
+        }
+
+        return Vertical(pieces);
+    }
+
     /// <summary>A drawn rule sized in a unit — <c>\_</c>, which the text encoding has no glyph for.</summary>
     private static Item RuleItem(TexUnit unit, double width, double thickness, double shift, ContentPart part) =>
         new(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
-            Set.Of(new Boxes.HorizontalRule(
-                environment,
-                thickness * Conversion(unit, environment),
-                width * Conversion(unit, environment),
-                shift * Conversion(unit, environment))) with { Part = part });
+            Set.Rule(
+                            environment,
+                            thickness * Conversion(unit, environment),
+                            width * Conversion(unit, environment),
+                            shift * Conversion(unit, environment)) with { Part = part });
 
     /// <summary>The delimiter a <c>\left</c> or <c>\right</c> was written with, as <see cref="Delimiter"/>, naming the whole of it.</summary>
     private static Glyph? DelimiterGlyph(ContentPart fence)
@@ -514,14 +566,14 @@ public static class TexFormulaBuilder
             }
 
             if (i != 0 && previous is { IsKern: false } before && !current.IsKern)
-                children.Add(Set.Of(Glue.CreateBox(before.Right, left, environment)));
+                children.Add(Set.Glue(Glue.Between(before.Right, left, environment)));
 
             var set = current.Make(environment, previous);
             children.Add(set);
             environment.LastFontId = set.LastFontId;
 
             if (kern > TexUtilities.FloatPrecision)
-                children.Add(Set.Of(new Boxes.StrutBox(0, kern, 0, 0)));
+                children.Add(Strut(0, kern, 0));
 
             if (!current.IsKern)
                 previous = new Previous(right, false);
@@ -799,7 +851,7 @@ public static class TexFormulaBuilder
             if (style < TexStyle.Text && texFont.HasNextLarger(charInfo))
                 charInfo = texFont.GetNextLargerCharInfo(charInfo, style);
 
-            var glyph = Set.Of(new Boxes.CharBox(environment, charInfo));
+            var glyph = Set.Glyph(environment, charInfo);
             glyph = glyph with { Shift = -(glyph.Height + glyph.Depth) / 2 - environment.MathFont.GetAxisHeight(environment.Style) };
             result = [glyph];
 
@@ -985,7 +1037,7 @@ public static class TexFormulaBuilder
                 character = texFont.GetNextLargerCharInfo(character, style);
 
             // The sign is the operator's own drawing of itself, and says which part it was set from.
-            var glyph = Set.Of(new Boxes.CharBox(environment, character)) with { Part = symbol.Origin };
+            var glyph = Set.Glyph(environment, character) with { Part = symbol.Origin };
             glyph = glyph with { Shift = -(glyph.Height + glyph.Depth) / 2 - environment.MathFont.GetAxisHeight(environment.Style) };
 
             var delta = character.Metrics.Italic;
@@ -1026,7 +1078,7 @@ public static class TexFormulaBuilder
         Vertical(
             [
                 Strut(0, thickness, 0),
-                Set.Of(new Boxes.HorizontalRule(environment, thickness, set.Width, 0)),
+                Set.Rule(environment, thickness, set.Width, 0),
                 Strut(0, kern, 0),
                 set,
             ],
@@ -1049,7 +1101,7 @@ public static class TexFormulaBuilder
         var inside = radicand.Make(environment.GetCrampedStyle(), null);
 
         var total = inside.Height + inside.Depth;
-        var sign = Set.Of(DelimiterFactory.CreateBox(sqrt, total + clearance + rule, environment));
+        var sign = Delimiter(sqrt, total + clearance + rule, environment);
 
         // Half of whatever the sign has to spare goes into the clearance.
         clearance += (sign.Depth - (total + clearance)) / 2;
@@ -1095,7 +1147,7 @@ public static class TexFormulaBuilder
             character = larger;
         }
 
-        var mark = Set.Of(new Boxes.CharBox(environment, character));
+        var mark = Set.Glyph(environment, character);
         var lean = character.Metrics.Italic;
         if (lean > TexUtilities.FloatPrecision) mark = Horizontal([mark, Strut(lean, 0, 0)], null, null);
 
@@ -1170,7 +1222,7 @@ public static class TexFormulaBuilder
                     var rule = environment.MathFont.GetDefaultLineThickness(environment.Style);
                     var set = inner.Make(environment, null);
                     return Vertical(
-                        [set, Strut(0, 3 * rule, 0), Set.Of(new Boxes.HorizontalRule(environment, rule, set.Width, 0))],
+                        [set, Strut(0, 3 * rule, 0), Set.Rule(environment, rule, set.Width, 0)],
                         height: set.Height,
                         depth: set.Depth + 5 * rule) with { Part = part };
                 });
@@ -1414,7 +1466,7 @@ public static class TexFormulaBuilder
                 return Made(TexAtomType.Ordinary, origin, environment =>
                 {
                     var set = inner.Make(environment, null);
-                    var stroke = Set.Of(new Boxes.StrokeBox(cancel.Mode) { Height = set.Height, Depth = set.Depth, Width = set.Width });
+                    var stroke = Set.Stroke(cancel.Mode, set.Width, set.Height, set.Depth);
                     return Layered([set, stroke]);
                 });
             }
@@ -1510,11 +1562,11 @@ public static class TexFormulaBuilder
     }
 
     /// <summary>A stretchy arrow over or under a piece — <c>\overrightarrow</c> and its family.</summary>
-    private static Set OverArrow(Item inner, Boxes.ArrowDecoration decoration, bool over, TexEnvironment environment)
+    private static Set OverArrow(Item inner, ArrowDecoration decoration, bool over, TexEnvironment environment)
     {
         var body = inner.Make(environment.GetCrampedStyle(), null);
         var thickness = environment.MathFont.GetDefaultLineThickness(environment.Style);
-        var arrow = Set.Of(new Boxes.ArrowBox(environment, body.Width, thickness, decoration));
+        var arrow = Set.Arrow(environment, body.Width, thickness, decoration);
 
         return over
             ? Vertical([Strut(0, thickness, 0), arrow, Strut(0, 3 * thickness, 0), body],
@@ -1604,7 +1656,7 @@ public static class TexFormulaBuilder
             }
 
             stack.Add(Strut(0, kern1, 0));
-            stack.Add(Set.Of(new Boxes.HorizontalRule(environment, thickness, top.Width, 0)));
+            stack.Add(Set.Rule(environment, thickness, top.Width, 0));
             stack.Add(Strut(0, kern2, 0));
         }
         else
@@ -1741,18 +1793,13 @@ public static class TexFormulaBuilder
             Depth = body.Depth + inset,
         };
 
-        var frame = Set.Of(new Boxes.FrameBox(environment, thickness)
-        {
-            Width = content.Width,
-            Height = content.Height,
-            Depth = content.Depth,
-        });
+        var frame = Set.Frame(environment, thickness, content.Width, content.Height, content.Depth);
 
         return Layered([content, frame]);
     }
 
     /// <summary>An arrow stretched to its labels — <c>\xrightarrow</c> and its family — its shaft on the axis.</summary>
-    private static Set ExtensibleArrow(Item over, Item? under, Boxes.ArrowDecoration decoration, TexEnvironment environment)
+    private static Set ExtensibleArrow(Item over, Item? under, ArrowDecoration decoration, TexEnvironment environment)
     {
         var overSet = over.Make(environment.GetSuperscriptStyle(), null);
         var underSet = under?.Make(environment.GetSubscriptStyle(), null);
@@ -1763,7 +1810,7 @@ public static class TexFormulaBuilder
         var width = System.Math.Max(quad, labels + 2 * padding);
 
         var thickness = environment.MathFont.GetDefaultLineThickness(environment.Style);
-        var arrow = Set.Of(new Boxes.ArrowBox(environment, width, thickness, decoration));
+        var arrow = Set.Arrow(environment, width, thickness, decoration);
         var gap = thickness;
 
         var stack = new List<Set> { Centred(overSet, width), Strut(0, gap, 0) };
@@ -1832,7 +1879,7 @@ public static class TexFormulaBuilder
                 TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][(int)(over ? TexDelimeterType.Over : TexDelimeterType.Under)]);
 
             var body = on.Make(environment, null);
-            var brace = Set.Of(DelimiterFactory.CreateBox(symbol!.SymbolName!, body.Width, environment));
+            var brace = Delimiter(symbol!.SymbolName!, body.Width, environment);
             var script = label?.Make(over ? environment.GetSuperscriptStyle() : environment.GetSubscriptStyle(), null);
 
             var width = System.Math.Max(body.Width, brace.Height + brace.Depth);
@@ -2188,12 +2235,7 @@ public static class TexFormulaBuilder
                 horizontalAt.Add(boundary >= rowHeights.Count ? y - thickness : y);
             }
 
-        var rules = Set.Of(new Boxes.GridRulesBox(environment, verticalAt, horizontalAt, thickness)
-        {
-            Width = grid.Width,
-            Height = grid.Height,
-            Depth = grid.Depth,
-        });
+        var rules = Set.GridRules(environment, verticalAt, horizontalAt, thickness, grid.Width, grid.Height, grid.Depth);
 
         return Layered([grid, rules]) with { Height = grid.Height, Depth = grid.Depth, Width = grid.Width };
     }
@@ -2228,16 +2270,16 @@ public static class TexFormulaBuilder
         Set Delimited(Glyph symbol)
         {
             // Which part drew it: a delimiter is built from a name and a height, so it has to be said.
-            var set = Set.Of(DelimiterFactory.CreateBox(symbol.SymbolName!, minHeight, environment)) with { Part = symbol.Origin };
+            var set = Delimiter(symbol.SymbolName!, minHeight, environment) with { Part = symbol.Origin };
             return set with { Shift = -((set.Height + set.Depth) / 2 - set.Height) - axis };
         }
 
         var row = new List<Set>();
 
         if (left is not null && left.SymbolName != Glyph.EmptyDelimiterName) row.Add(Delimited(left));
-        if (!inside.IsKern) row.Add(Set.Of(Glue.CreateBox(TexAtomType.Opening, inside.Left, environment)));
+        if (!inside.IsKern) row.Add(Set.Glue(Glue.Between(TexAtomType.Opening, inside.Left, environment)));
         row.Add(body);
-        if (!inside.IsKern) row.Add(Set.Of(Glue.CreateBox(inside.Right, TexAtomType.Closing, environment)));
+        if (!inside.IsKern) row.Add(Set.Glue(Glue.Between(inside.Right, TexAtomType.Closing, environment)));
         if (right is not null && right.SymbolName != Glyph.EmptyDelimiterName) row.Add(Delimited(right));
 
         return Horizontal(row, null, null);

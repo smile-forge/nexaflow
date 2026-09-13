@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using XamlMath.Boxes;
 
 namespace XamlMath;
 
@@ -16,12 +15,15 @@ internal sealed class Glue
         glueRules = parser.GetGlueRules();
     }
 
-    public static Box CreateBox(TexAtomType leftAtomType, TexAtomType rightAtomType, TexEnvironment environment)
+    /// <summary>How much room TeX puts between a thing of one class and a thing of another, in the style given.</summary>
+    public static double Between(TexAtomType leftAtomType, TexAtomType rightAtomType, TexEnvironment environment)
     {
         leftAtomType = leftAtomType > TexAtomType.Inner ? TexAtomType.Ordinary : leftAtomType;
         rightAtomType = rightAtomType > TexAtomType.Inner ? TexAtomType.Ordinary : rightAtomType;
         var glueType = glueRules[(int)leftAtomType, (int)rightAtomType, (int)environment.Style / 2];
-        return glueTypes[glueType].CreateBox(environment);
+        var texFont = environment.MathFont;
+        var quad = texFont.GetQuad(texFont.GetMuFontId(), environment.Style);
+        return (glueTypes[glueType].Space / 18.0f) * quad;
     }
 
     public Glue(double space, double stretch, double shrink, string name)
@@ -36,11 +38,4 @@ internal sealed class Glue
     public double Stretch { get; }
     public double Shrink { get; }
     public string Name { get; }
-
-    private Box CreateBox(TexEnvironment environment)
-    {
-        var texFont = environment.MathFont;
-        var quad = texFont.GetQuad(texFont.GetMuFontId(), environment.Style);
-        return new GlueBox((this.Space / 18.0f) * quad, (this.Stretch / 18.0f) * quad, (this.Shrink / 18.0f) * quad);
-    }
 }

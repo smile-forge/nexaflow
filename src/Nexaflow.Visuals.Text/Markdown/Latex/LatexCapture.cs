@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
 using XamlMath;
-using XamlMath.Boxes;
 using XamlMath.Rendering;
 using XamlMath.Rendering.Transformations;
 
@@ -108,9 +107,6 @@ internal sealed class LatexCapture
     /// How far down from its top the formula's baseline is — what a second layout set beside it lines up on.
     /// </summary>
     public double Baseline { get; private set; }
-
-    /// <summary>A box from the typesetter, laid as the piece it measures as.</summary>
-    internal void Place(Box box, double x, double y) => Place(Set.Of(box), x, y);
 
     internal void Place(Set piece, double x, double y)
     {
@@ -296,30 +292,6 @@ internal sealed class LatexCapture
         var last = new TexSourcePart(parts[^1]);
 
         return first.Start <= whole.Start && last.Start + last.Length >= whole.Start + whole.Length;
-    }
-
-    internal void PlaceTransformed(Box box, IEnumerable<Transformation> transforms, double x, double y)
-    {
-        var scaled = transforms.Select(t => t.Scale(_scale)).ToList();
-
-        // Two things are wanted from a transform and they are not the same thing. Where the box ends up
-        // is a move, and a move belongs in the anchor, where the tree can use it. Being turned is not a
-        // move and cannot go there, so it stays as a turn on the piece.
-        double dx = 0, dy = 0;
-        foreach (var transform in scaled)
-            if (transform is Transformation.Translate translate)
-            {
-                dx += translate.X;
-                dy += translate.Y;
-            }
-
-        _pending = scaled;
-
-        _offsetX += dx;
-        _offsetY += dy;
-        Place(box, x, y);
-        _offsetX -= dx;
-        _offsetY -= dy;
     }
 
     /// <summary>A measured piece placed through transformations — moved into its anchor, turned on the piece.</summary>
