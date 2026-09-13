@@ -109,19 +109,22 @@ internal sealed class LatexCapture
     /// </summary>
     public double Baseline { get; private set; }
 
-    internal void Place(Box box, double x, double y)
+    /// <summary>A box from the typesetter, laid as the piece it measures as.</summary>
+    internal void Place(Box box, double x, double y) => Place(Set.Of(box), x, y);
+
+    internal void Place(Set piece, double x, double y)
     {
         var turns = _pending;
         _pending = [];
 
-        // From two corners rather than an origin and a size, because a box's extent is signed: TeX kerns
+        // From two corners rather than an origin and a size, because a piece's extent is signed: TeX kerns
         // backwards to tuck a root's degree over its sign, so that strut is genuinely three-quarters of a
         // unit wide *to the left*. A Rect will not hold a negative size, and clamping one to zero would
         // quietly move its left edge to where the pen already was.
         var left = _scale * x;
-        var top = _scale * (y - box.Height);
-        var right = left + _scale * box.TotalWidth;
-        var bottom = top + _scale * box.TotalHeight;
+        var top = _scale * (y - piece.Height);
+        var right = left + _scale * piece.TotalWidth;
+        var bottom = top + _scale * piece.TotalHeight;
 
         var raw = new Point(Math.Min(left, right), Math.Min(top, bottom));
         var size = new Size(Math.Abs(right - left), Math.Abs(bottom - top));
@@ -132,10 +135,10 @@ internal sealed class LatexCapture
         // Spacing is not a thing on the page. A strut and a piece of glue are room the typesetter reserved,
         // and the builder places what comes after them at the offset that room produces — so the gap is the
         // gap, and there is nothing to make a piece for.
-        if (box is StrutBox or GlueBox) return;
+        if (piece.Spacing) return;
 
-        var kind = box.GetType().Name;
-        var owns = Owns(box);
+        var kind = piece.Kind;
+        var owns = Owns(piece);
 
         // What it *names*, which is narrower than what it was built from. A delimiter, a command name, a
         // row separator: the parse tree has nodes for those and the layout has no use for them. Naming one
@@ -169,19 +172,19 @@ internal sealed class LatexCapture
             stops: owns is { } run && IsRun(run) && Covered(run) ? Stops.None : Stops.Both,
 
 
-            // A typeset box is the height and depth it reserves on its line rather than a box around what
+            // A typeset piece is the height and depth it reserves on its line rather than a piece around what
             // it holds — a subscript hangs below the very piece that holds it — so it states its own
             // extent and never grows to fit.
             gathers: false,
 
-            paints: new LayoutPaint(Turn(turns, raw), Snap(box, x, y, raw)));
+            paints: new LayoutPaint(Turn(turns, raw), Snap(piece, x, y, raw)));
 
         _build.Covers(new Rect(0, 0, size.Width, size.Height));
 
         // A \colorbox, which goes under every glyph of the formula rather than only its own — see the
         // wash pass in LatexLayout.Paint.
-        if (box.Background is WpfBrush wash)
-            _build.Draw(new WashMark(new Rect(0, 0, size.Width, size.Height), wash.Value));
+        if (piece.Background is { } wash)
+            _build.Draw(new WashMark(new Rect(0, 0, size.Width, size.Height), wash));
 
         _built = true;
 
@@ -189,7 +192,7 @@ internal sealed class LatexCapture
         _open.Push((origin, raw));
 
 
-        box.Lay(this, x, y);   // the recursion - children place themselves through Place
+        piece.Draw?.Invoke(this, x, y);   // the recursion - children place themselves through Place
 
 
 
@@ -232,10 +235,10 @@ internal sealed class LatexCapture
     /// its drawing, and simply stands for nothing, so a press on it resolves to whatever encloses it.
     /// </para>
     /// </summary>
-    private Nexaflow.Markdown.Ast.ContentPart? Owns(Box box)
+    private Nexaflow.Markdown.Ast.ContentPart? Owns(Set piece)
     {
         // A strut and a piece of glue are room rather than ink, and were written by nobody.
-        var part = box is StrutBox or GlueBox ? null : box.Node?.Origin;
+        var part = piece.Spacing ? null : piece.Part;
 
         // The whole layout stands for the whole formula, whatever the outermost box happened to be built
         // from. Without this a selection that grew all the way out would stand for nothing at all.
@@ -372,12 +375,12 @@ internal sealed class LatexCapture
     /// faithfully is what keeps the picture identical; they are stated in the piece's own frame, which is
     /// the same frame its drawing is in.
     /// </summary>
-    private GuidelineSet Snap(Box box, double x, double y, Point raw)
+    private GuidelineSet Snap(Set piece, double x, double y, Point raw)
     {
         var guidelines = new GuidelineSet
         {
-            GuidelinesX = { (_scale * x) - raw.X, (_scale * (x + box.TotalWidth)) - raw.X },
-            GuidelinesY = { (_scale * y) - raw.Y, (_scale * (y + box.TotalHeight)) - raw.Y },
+            GuidelinesX = { (_scale * x) - raw.X, (_scale * (x + piece.TotalWidth)) - raw.X },
+            GuidelinesY = { (_scale * y) - raw.Y, (_scale * (y + piece.TotalHeight)) - raw.Y },
         };
         guidelines.Freeze();
         return guidelines;
