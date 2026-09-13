@@ -454,4 +454,53 @@ public class GraphToolTests
         }
         finally { try { Directory.Delete(bare, recursive: true); } catch { } }
     }
+
+    /// <summary>
+    /// The assistant's edit tool plans several edits the way the CLI's script does: a new file, then an edit to it that
+    /// only works because the create came first — and a plan with a bad step anywhere writes nothing.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("graph-edit-plan")]
+    public async Task Edit_SeveralEditsAreOnePlan_WrittenTogetherOrNotAtAll()
+    {
+        var planned = await Run("graph_edit", new JsonObject
+        {
+            ["edits"] = new JsonArray
+            {
+                new JsonObject { ["op"] = "create", ["node_id"] = "src/Gear.cs", ["text"] = "namespace Demo;\n\npublic class Gear\n{\n}\n" },
+                new JsonObject { ["op"] = "append", ["node_id"] = "code:src/Gear.cs#T:Gear", ["text"] = "public int Teeth => 12;" },
+            },
+        });
+
+        Assert.IsFalse(planned.IsError, planned.ModelText);
+        StringAssert.Contains(File.ReadAllText(Path.Combine(_root, "src", "Gear.cs")), "    public int Teeth => 12;");
+
+        var refused = await Run("graph_edit", new JsonObject
+        {
+            ["edits"] = new JsonArray
+            {
+                new JsonObject { ["op"] = "create", ["node_id"] = "src/Cog.cs", ["text"] = "namespace Demo;\n\npublic class Cog\n{\n}\n" },
+                new JsonObject { ["op"] = "delete", ["node_id"] = "code:src/Widget.cs#T:Widget/M:NotThere" },
+            },
+        });
+
+        Assert.IsTrue(refused.IsError, "the second edit cannot be planned");
+        Assert.IsFalse(File.Exists(Path.Combine(_root, "src", "Cog.cs")), "so the first is not written either");
+    }
+
+    /// <summary>A move through the assistant's tool: out of one file and into a new one, with the emptied file gone.</summary>
+    [TestMethod]
+    [CoversNode("graph-edit-move")]
+    public async Task Edit_MovesADeclarationToANewFile()
+    {
+        var moved = await Run("graph_edit", new JsonObject
+        {
+            ["op"] = "move", ["node_id"] = "code:src/Widget.cs#T:Widget", ["to"] = "file:src/Parts/Widget.cs",
+        });
+
+        Assert.IsFalse(moved.IsError, moved.ModelText);
+        Assert.IsTrue(File.Exists(Path.Combine(_root, "src", "Parts", "Widget.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(_root, "src", "Widget.cs")), "a file left holding only its namespace is removed");
+        StringAssert.Contains(File.ReadAllText(Path.Combine(_root, "src", "Parts", "Widget.cs")), "namespace Demo;");
+    }
 }

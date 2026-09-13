@@ -167,6 +167,10 @@ private readonly Func<ProductState>? _tree;
 
             var result = mutate(snapshot);
             _dirty     = true;
+
+            // A mutation is whatever the caller did, not a list of files, so a save cannot redo it on a newer archive — it
+            // writes over one, as every save did before the merge existed.
+            _refreshed = _forgotten = null;
             return result;
         }
     }
