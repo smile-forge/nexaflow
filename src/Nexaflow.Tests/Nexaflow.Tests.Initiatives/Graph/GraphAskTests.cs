@@ -40,6 +40,7 @@ public class GraphAskTests
     {
         ["src/Reader.cs"] = ReaderCs,
         ["src/Caller.cs"] = CallerCs,
+        ["docs/notes.md"] = "# Notes\n\nNXUI001 is what a button without an id is reported as.\n",
     };
 
     private static string[]? Read(string rel) =>
@@ -89,6 +90,19 @@ public class GraphAskTests
     };
 
     private static GraphAsk.Answer Ask(string question) => GraphAsk.Run(Repo(), question, Read);
+
+    /// <summary>The same repo with a feature that owns the reader through a snaplink, and a document.</summary>
+    private static KnowledgeGraph WithFeature()
+    {
+        var g = Repo();
+        g.Nodes = [.. g.Nodes,
+                   new GraphNode { Id = "product:reading", Type = NodeType.Product, Label = "Reading feature" },
+                   FileNode("docs/notes.md")];
+        g.Edges = [.. g.Edges, E("product:reading", "code:src/Reader.cs#T:Reader/M:Read", EdgeRelationship.Tests)];
+        return g;
+    }
+
+    private static GraphAsk.Answer AskFeature(string question) => GraphAsk.Run(WithFeature(), question, Read);
 
     // ── Composing ─────────────────────────────────────────────────────────────
 
@@ -237,5 +251,145 @@ public class GraphAskTests
 
         Assert.IsFalse(answer.Ok);
         StringAssert.Contains(answer.Text, "search code:src/Nope.cs#T:Nope");
+    }
+
+    /// <summary>Carrying on with the ids that did resolve answered a different question from the one asked,
+    /// and nothing in the answer said so.</summary>
+    [TestMethod]
+    public void NodeWithUnresolvedId_IsRefused_EvenBesideOnesThatResolve()
+    {
+        var answer = Ask("node code:src/Reader.cs#T:Reader,code:src/Nope.cs#T:Nope | ids");
+
+        Assert.IsFalse(answer.Ok);
+        StringAssert.Contains(answer.Text, "no node 'code:src/Nope.cs#T:Nope'");
+    }
+
+    // ── Scope: what a feature owns, and what is near ─────────────────────────
+
+    /// <summary>A feature has no source of its own; what it owns does. This is the stage for "grep this
+    /// feature", which as a single verb was --scope owned.</summary>
+    [TestMethod]
+    public void Owned_ExpandsAProductToItsFiles()
+    {
+        var answer = AskFeature("node product:reading | owned | grep Read | files");
+
+        Assert.IsTrue(answer.Ok, answer.Text);
+        StringAssert.Contains(answer.Text, "src/Reader.cs");
+        Assert.IsFalse(answer.Text.Contains("src/Caller.cs"),
+                       "Caller.cs calls Read too, but the feature does not own it: " + answer.Text);
+    }
+
+    /// <summary>
+    /// The flags a caller already knows from `graph grep`, inside a question. They used to be read as part of the
+    /// pattern — `grep Read --scope owned` searched for that whole phrase, found nothing, and said so.
+    /// </summary>
+    [DataTestMethod]
+    [DataRow("grep Read --from product:reading --scope owned | files")]
+    [DataRow("node product:reading | grep Read --scope owned | files")]
+    public void GrepScopeOwnedFlag_MatchesOwnedStage(string question)
+    {
+        var staged  = AskFeature("node product:reading | owned | grep Read | files");
+        var flagged = AskFeature(question);
+
+        Assert.IsTrue(flagged.Ok, flagged.Text);
+        Assert.AreEqual(staged.Text, flagged.Text, "a flag and the stage it spells out are one answer");
+    }
+
+    [TestMethod]
+    public void Near_WalksHops()
+    {
+        var answer = Ask("node code:src/Caller.cs#T:Caller/M:Go | near 1 | ids");
+
+        Assert.IsTrue(answer.Ok, answer.Text);
+        StringAssert.Contains(answer.Text, "code:src/Reader.cs#T:Reader/M:Read", "one call away");
+        StringAssert.Contains(answer.Text, "code:src/Caller.cs#T:Caller", "one containment away");
+    }
+
+    [TestMethod]
+    public void GrepFromFlag_SeedsLikeNode()
+    {
+        var flagged = Ask("grep Read --from code:src/Caller.cs#T:Caller/M:Go --hops 1 | files");
+        var staged  = Ask("node code:src/Caller.cs#T:Caller/M:Go | near 1 | grep Read | files");
+
+        Assert.IsTrue(flagged.Ok, flagged.Text);
+        Assert.AreEqual(staged.Text, flagged.Text);
+    }
+
+    [TestMethod]
+    public void UnknownFlagInStage_IsRefusedNamingOptions()
+    {
+        var grep = Ask("grep Read --mode content | count");
+        Assert.IsFalse(grep.Ok, "a flag grep does not take must not become part of its pattern");
+        StringAssert.Contains(grep.Text, "--scope owned|hops");
+
+        var search = Ask("search Reader --type type | ids");
+        Assert.IsFalse(search.Ok);
+        StringAssert.Contains(search.Text, "takes no flags");
+
+        var quoted = Ask("grep \"--scope\" | count");
+        Assert.IsTrue(quoted.Ok, "a quoted word is a pattern, whatever it looks like: " + quoted.Text);
+    }
+
+    [TestMethod]
+    public void GrepScopeFlags_KeepTheVerbsRules()
+    {
+        StringAssert.Contains(AskFeature("grep Read --from product:reading --scope owned --hops 1 | count").Text,
+                              "ignores radius");
+        StringAssert.Contains(Ask("grep Read --scope owned | count").Text, "relative to a node");
+        StringAssert.Contains(Ask("node code:src/Reader.cs#T:Reader | grep Read --from code:src/Reader.cs#T:Reader").Text,
+                              "cannot follow a |");
+    }
+
+    /// <summary>Grepping a feature node searched something with no source and found nothing — which reads as
+    /// "this feature never mentions it".</summary>
+    [TestMethod]
+    public void GrepOverProductNode_PointsAtOwned()
+    {
+        var answer = AskFeature("node product:reading | grep Read | files");
+
+        Assert.IsFalse(answer.Ok, "an answer of nothing here would be wrong, not empty");
+        StringAssert.Contains(answer.Text, "| owned |");
+    }
+
+    // ── Searching for what is not a name ─────────────────────────────────────
+
+    /// <summary>A diagnostic id, a message, a setting key: nothing is ever labelled with one, so a name search
+    /// said "no nodes" and sent the caller to grep.</summary>
+    [TestMethod]
+    public void SearchWithNoNameMatch_FallsBackToSourceWithNote()
+    {
+        var answer = AskFeature("search NXUI001 | files");
+
+        Assert.IsTrue(answer.Ok, answer.Text);
+        StringAssert.Contains(answer.Text, "docs/notes.md");
+        StringAssert.Contains(answer.Text, "nothing is named 'NXUI001'");
+    }
+
+    [TestMethod]
+    public void AName_StillWinsOverTheSource()
+    {
+        var answer = Ask("search Depth | ids");
+
+        Assert.IsFalse(answer.Text.Contains("nothing is named"), "a name was found, so no fallback: " + answer.Text);
+    }
+
+    /// <summary>A line inside a member is also inside its type and its file; counting it once per holder made
+    /// every total two or three times the truth.</summary>
+    [TestMethod]
+    public void Grep_FindsMarkdown_AndCountsALineOnce()
+    {
+        StringAssert.Contains(AskFeature("grep NXUI001 | files").Text, "docs/notes.md");
+
+        var depth = Ask("grep \"public int Depth\" | ids");
+        StringAssert.Contains(depth.Text, "1 matching line(s)");
+        StringAssert.Contains(depth.Text, "T:Reader/P:Depth", "credited to the innermost node that holds it");
+    }
+
+    [TestMethod]
+    public void AnEmptyAnswer_SaysWhichStageLeftNothing()
+    {
+        var answer = Ask("search Reader | like Zzz | count");
+
+        StringAssert.Contains(answer.Text, "`like Zzz` left nothing");
     }
 }

@@ -22,9 +22,36 @@ public static class GraphReport
         return $"  [{n.Type}{kind}] {n.Label}{loc}\n      {n.Id}";
     }
 
+    /// <summary>
+    /// A <see cref="GraphQuery.Find"/> result. Names are listed as always; source matches are introduced as
+    /// such, with the lines that matched under each node, because a node that merely mentions a term is a
+    /// different answer from one called by it.
+    /// </summary>
+    public static string Search(GraphQuery.Found found, string term, int limit)
+    {
+        if (!found.BySource) return Search(found.Nodes, term, limit);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"note: nothing is named '{term}', so the source was searched - these contain it:");
+        var byNode = found.Lines.GroupBy(h => h.Node.Id, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.ToList());
+        foreach (var n in found.Nodes.Take(limit))
+        {
+            sb.AppendLine(NodeLine(n));
+            var lines = byNode[n.Id];
+            foreach (var h in lines.Take(3))
+                sb.AppendLine($"      {h.Line,5}: {(h.Text.Length <= 160 ? h.Text : h.Text[..159] + "...")}");
+            if (lines.Count > 3) sb.AppendLine($"      ... +{lines.Count - 3} more line(s) here");
+        }
+
+        var files = found.Lines.Select(h => h.Node.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        sb.Append($"{found.Nodes.Count} node(s) contain it ({found.Lines.Count} line(s), {files} file(s))"
+                + (found.Nodes.Count > limit ? $" - showing {limit}" : "") + ".");
+        return sb.ToString();
+    }
+
     public static string Search(IReadOnlyList<GraphNode> hits, string term, int limit)
     {
-        if (hits.Count == 0) return $"No graph nodes match '{term}'.";
+        if (hits.Count == 0) return $"No graph nodes match '{term}', by name or in source.";
 
         var sb = new StringBuilder();
         foreach (var n in hits.Take(limit)) sb.AppendLine(NodeLine(n));
@@ -128,8 +155,10 @@ public static class GraphReport
         return sb.ToString();
     }
 
+    /// <param name="limit">How many matching lines to print. The total is always the true one: this trims the
+    /// report, never the search.</param>
     public static string Grep(IReadOnlyList<GraphQuery.GrepHit> hits, string pattern, string? fromId,
-                             GraphQuery.GrepScope scope = GraphQuery.GrepScope.Hops)
+                             GraphQuery.GrepScope scope = GraphQuery.GrepScope.Hops, int limit = int.MaxValue)
     {
         var where = fromId is { Length: > 0 }
             ? scope == GraphQuery.GrepScope.Owned ? $" in the files owned by '{fromId}'" : $" near '{fromId}'"
@@ -137,13 +166,14 @@ public static class GraphReport
         if (hits.Count == 0) return $"No source matches /{pattern}/{where}.";
 
         var sb = new StringBuilder();
-        foreach (var byNode in hits.GroupBy(h => h.Node.Id))
+        foreach (var byNode in hits.Take(limit).GroupBy(h => h.Node.Id))
         {
             var node = byNode.First().Node;
             sb.AppendLine($"  [{node.Type}] {node.Label}  ({node.FilePath})");
             foreach (var h in byNode) sb.AppendLine($"      {h.Line,5}  {h.Text}");
         }
-        sb.Append($"{hits.Count} match(es) for /{pattern}/{where}.");
+        sb.Append($"{hits.Count} match(es) for /{pattern}/{where}"
+                + (hits.Count > limit ? $" - showing {limit}, raise the limit for the rest" : "") + ".");
         return sb.ToString();
     }
 

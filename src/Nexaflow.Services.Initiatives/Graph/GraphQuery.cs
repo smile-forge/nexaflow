@@ -63,6 +63,41 @@ public static class GraphQuery
             .ThenBy(n => n.Id, StringComparer.Ordinal)];
     }
 
+    /// <summary>What a search found: the nodes, and — when nothing was <i>named</i> the term and the source was
+    /// searched for it instead — the lines that contain it.</summary>
+    public sealed record Found(IReadOnlyList<GraphNode> Nodes, IReadOnlyList<GrepHit> Lines)
+    {
+        /// <summary>True when these came from the source rather than from names, which the answer has to say:
+        /// "matched by name" and "mentioned somewhere" are different claims.</summary>
+        public bool BySource => Lines.Count > 0;
+    }
+
+    /// <summary>
+    /// <see cref="Search"/>, and when nothing is named <paramref name="term"/>, the nodes whose source contains it
+    /// — most mentions first.
+    /// <para>
+    /// A name search is right for a name, and a lot of what gets searched for is not one: a diagnostic id
+    /// (<c>NXUI001</c>), a message, a setting key. Those live in string literals and documents, where no label
+    /// will ever carry them, and "no graph nodes match" sent the caller off to grep — which is exactly the
+    /// habit the graph exists to replace, with the right answer one call away. Names still win whenever there
+    /// are any, so nothing a name search found before is found differently now.
+    /// </para>
+    /// </summary>
+    public static Found Find(KnowledgeGraph g, string term, ReadLines read, string? type = null)
+    {
+        var named = Search(g, term, type);
+        if (named.Count > 0 || string.IsNullOrWhiteSpace(term)) return new Found(named, []);
+
+        var lines = GrepNodes(type is null ? g.Nodes : g.Nodes.Where(n => n.Type == type), Regex.Escape(term), read);
+        var nodes = lines
+            .Select((hit, at) => (hit, at))
+            .GroupBy(x => x.hit.Node.Id, StringComparer.Ordinal)
+            .OrderByDescending(x => x.Count()).ThenBy(x => x.First().at)
+            .Select(x => x.First().hit.Node)
+            .ToList();
+        return new Found(nodes, lines);
+    }
+
     /// <summary>Product before type before file before member — the order someone exploring wants them.</summary>
     public static int TypeRank(string type) => type switch
     {
@@ -303,6 +338,13 @@ public static class GraphQuery
     /// <paramref name="limit"/> stops the scan rather than trimming the report, so a caller that needs a
     /// true total passes none - and one that only wants a screenful keeps paying for a screenful.
     /// </para>
+    /// <para>
+    /// A file node reads as the whole file. That is what makes a document searchable at all - markdown has no
+    /// declarations, so no node of it ever had a block to read - and it covers what sits outside every
+    /// declaration of a code file too: its imports, its header. Each matching line is then credited to the
+    /// innermost node in the set that holds it, once. Without that a line inside a member was also a line of
+    /// its type and of its file, and every total counted it two or three times.
+    /// </para>
     /// </summary>
     public static IReadOnlyList<GrepHit> GrepNodes(IEnumerable<GraphNode> nodes, string pattern, ReadLines read,
                                                    int limit = int.MaxValue)
@@ -316,20 +358,50 @@ public static class GraphQuery
         var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
         string[]? Read(string rel) => files.TryGetValue(rel, out var c) ? c : files[rel] = read(rel);
 
-        var hits = new List<GrepHit>();
+        // (file, line) -> the node holding it most tightly so far; and each node's place in the input.
+        var owner = new Dictionary<(string File, int Line), (GraphNode Node, int Span, string Text)>();
+        var place = new Dictionary<GraphNode, int>(ReferenceEqualityComparer.Instance);
         foreach (var node in nodes.Where(n => n.FilePath is { Length: > 0 }))
         {
-            if (hits.Count >= limit) break;
+            if (owner.Count >= limit) break;
             var rel = node.FilePath!;
             if (!interesting.TryGetValue(rel, out var any))
                 interesting[rel] = any = Read(rel) is { } all && all.Any(regex.IsMatch);
             if (!any) continue;
-            if (ReadSource(node, Read, BlockScanLines, spans) is not { } block) continue;
-            for (var i = 0; i < block.Lines.Count && hits.Count < limit; i++)
-                if (regex.IsMatch(block.Lines[i]))
-                    hits.Add(new GrepHit(node, block.StartLine + i, block.Lines[i].Trim()));
+
+            int first, span;
+            IReadOnlyList<string> lines;
+            if (node.Type == NodeType.File)
+            {
+                // A file node synthesised for an import that never resolved carries the file that REFERS to it,
+                // so reading it would credit that file's lines to a file that does not exist.
+                if (node.Source is { Length: > 0 } src && !string.Equals(src, rel, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (Read(rel) is not { } whole) continue;
+                (first, lines, span) = (1, whole, whole.Length + 1);   // a declaration as wide as its file still wins
+            }
+            else if (ReadSource(node, Read, BlockScanLines, spans) is { } block)
+                (first, lines, span) = (block.StartLine, block.Lines, block.Lines.Count + block.MoreLines);
+            else continue;
+
+            place.TryAdd(node, place.Count);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                if (!regex.IsMatch(lines[i])) continue;
+                var key = (rel, first + i);
+                if (owner.TryGetValue(key, out var held))
+                {
+                    if (held.Span <= span) continue;                 // something at least as tight holds it
+                }
+                else if (owner.Count >= limit) break;
+                owner[key] = (node, span, lines[i].Trim());
+            }
         }
-        return hits;
+
+        // In the order the nodes were given, then down the file - the order every caller printed before.
+        return [.. owner
+            .OrderBy(kv => place[kv.Value.Node]).ThenBy(kv => kv.Key.Line)
+            .Select(kv => new GrepHit(kv.Value.Node, kv.Key.Line, kv.Value.Text))];
     }
 
     // ── Shared internals ──────────────────────────────────────────────────────

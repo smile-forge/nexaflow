@@ -23,6 +23,13 @@ namespace Nexaflow.Services.Initiatives.Graph;
 /// <c>source</c>, and <c>callers | source</c> works anyway.
 /// </para>
 /// <para>
+/// The one concession is <c>grep</c>'s own flags. <c>graph grep --from X --scope owned</c> is what a caller
+/// already knows, and typing it inside a question used to search for the literal text <c>--scope owned</c>
+/// and report nothing found. So <c>grep</c> takes them and means by them exactly what the verb does — they
+/// are spelled-out <c>node</c>, <c>owned</c> and <c>near</c> stages — and every other flag in a stage is
+/// refused with the stage that does its job, rather than read as part of a pattern.
+/// </para>
+/// <para>
 /// Pure: a loaded graph and a callback for reading source in, text out — so the CLI and the in-app assistant
 /// can ask the same question and be told the same thing, exactly as with <see cref="GraphQuery"/>.
 /// </para>
@@ -35,8 +42,8 @@ public static class GraphAsk
     /// <summary>Printed with every refusal, because the whole vocabulary is shorter than an explanation of
     /// which part of it was wrong.</summary>
     public const string Vocabulary = """
-        start:  search <term> | grep <regex> | node <id>[,<id>...]
-        narrow: callers | callees | members | like <regex> | limit <n>
+        start:  search <term> | grep <regex> [--from <id>] [--scope owned|hops] [--hops <n>] | node <id>[,<id>...]
+        narrow: callers | callees | members | owned | near <n> | grep <regex> | like <regex> | limit <n>
         print:  ids [n] | source [n] | files | count            (ids, when the question says nothing)
         """;
 
@@ -54,6 +61,18 @@ public static class GraphAsk
         public bool Seeded;
         public string Sink = "ids";
         public int Room;
+
+        /// <summary>Said above the answer — how it was arrived at, when that changes what it means.</summary>
+        public List<string> Notes = [];
+
+        /// <summary>The stage that left nothing, so a zero names where the question went empty.</summary>
+        public string? EmptiedBy;
+    }
+
+    /// <summary>One word of a stage, and whether it was quoted — a quoted word is never a flag.</summary>
+    private readonly record struct Word(string Text, bool Quoted)
+    {
+        public bool IsFlag => !Quoted && Text.StartsWith("--", StringComparison.Ordinal) && Text.Length > 2;
     }
 
     /// <summary>
@@ -87,8 +106,13 @@ public static class GraphAsk
 
         var q = new Question();
         for (var i = 0; i < stages.Count; i++)
+        {
             if (Stage(g, read, q, stages[i], last: i == stages.Count - 1) is { } error)
                 return new Answer($"ask: {error}\n{Vocabulary}", false);
+
+            if (q.Seeded && q.Hits.Count == 0 && q.EmptiedBy is null)
+                q.EmptiedBy = string.Join(' ', stages[i].Select(w => w.Quoted ? $"\"{w.Text}\"" : w.Text));
+        }
 
         return new Answer(Print(g, q, read), true);
     }
@@ -100,25 +124,27 @@ public static class GraphAsk
     /// likely thing to carry one: <c>grep "Foo|Bar"</c> is one stage, and an unquoted alternation would
     /// otherwise be silently read as two.
     /// </summary>
-    private static bool Split(string text, out List<List<string>> stages, out string? error)
+    private static bool Split(string text, out List<List<Word>> stages, out string? error)
     {
         stages = [];
         error = null;
 
         // `stages` is an out parameter, and a local function cannot capture one - so the stages are gathered
         // here and handed over at the end.
-        var found = new List<List<string>>();
-        var words = new List<string>();
+        var found = new List<List<Word>>();
+        var words = new List<Word>();
         var word = new StringBuilder();
         var open = '\0';
         var started = false;
+        var quoted = false;
 
         void EndWord()
         {
             if (!started) return;
-            words.Add(word.ToString());
+            words.Add(new Word(word.ToString(), quoted));
             word.Clear();
             started = false;
+            quoted = false;
         }
 
         void EndStage()
@@ -138,7 +164,7 @@ public static class GraphAsk
                 continue;
             }
 
-            if (ch is '\'' or '"') { open = ch; started = true; continue; }
+            if (ch is '\'' or '"') { open = ch; started = true; quoted = true; continue; }
             if (ch == '|') { EndStage(); continue; }
             if (char.IsWhiteSpace(ch)) { EndWord(); continue; }
             word.Append(ch);
@@ -152,57 +178,57 @@ public static class GraphAsk
             error = "an empty stage - two | with nothing between them, or a | at one end. "
                   + "A regex holding a | has to be quoted.";
             return false;
-            }
-            stages = found;
-            return true;
+        }
+        stages = found;
+        return true;
     }
 
-    private static string? Stage(KnowledgeGraph g, GraphQuery.ReadLines read, Question q, List<string> words, bool last)
+    private static string? Stage(KnowledgeGraph g, GraphQuery.ReadLines read, Question q, List<Word> words, bool last)
     {
-        var name = words[0].ToLowerInvariant();
+        var name = words[0].Text.ToLowerInvariant();
         var rest = words.Skip(1).ToList();
-        var arg = rest.Count > 0 ? string.Join(' ', rest) : null;
+
+        if (name == "grep") return Grep(g, read, q, rest);
+
+        // Every other stage takes no flags. Read as part of a term, one silently searched for itself.
+        if (rest.FindIndex(w => w.IsFlag) is var flagAt and >= 0 && rest[flagAt].Text is var flag)
+            return $"{name} takes no flags, and '{flag}' is not part of a {name} term - quote it if it is. "
+                 + "In a question, what a flag would do is a stage: `node <id> | owned | grep <regex>` for "
+                 + "--scope owned, `node <id> | near <n>` for --hops.";
+
+        var arg = rest.Count > 0 ? string.Join(' ', rest.Select(w => w.Text)) : null;
 
         switch (name)
         {
             case "search":
+            {
                 if (arg is null) return "search needs a term: search <term>.";
                 if (q.Seeded) return "search starts a question, so it cannot follow a |.";
-                return Seed(q, GraphQuery.Search(g, arg));
+
+                // By name first; when nothing is called that, the source is searched instead — and the answer
+                // says so, because "named X" and "mentions X" are different claims.
+                var found = GraphQuery.Find(g, arg, read);
+                if (!found.BySource) return Seed(q, found.Nodes);
+
+                var lines = found.Lines.GroupBy(h => h.Node.Id, StringComparer.Ordinal)
+                                       .ToDictionary(x => x.Key, x => x.Select(h => (h.Line, h.Text)).ToList());
+                q.Hits = [.. found.Nodes.Select(n => new Hit(n, lines[n.Id]))];
+                q.Seeded = true;
+                q.Notes.Add($"note: nothing is named '{arg}', so the source was searched - these contain it.");
+                return null;
+            }
 
             case "node":
             {
                 if (rest.Count == 0) return "node needs an id: node <id>[,<id>...].";
                 if (q.Seeded) return "node starts a question, so it cannot follow a |.";
-                var byId = GraphQuery.Index(g);
-                var named = rest
-                    .SelectMany(w => w.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                    .ToList();
-                var found = named.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
-                if (found.Count == 0)
-                    return $"no node '{named[0]}' - `search {named[0]}` finds what the graph does call it.";
-                return Seed(q, found);
-            }
-
-            case "grep":
-            {
-                if (arg is null) return "grep needs a pattern: grep <regex> (quote it if it holds a |).";
-                try { _ = new Regex(arg); }
-                catch (ArgumentException ex) { return $"bad regex /{arg}/: {ex.Message}"; }
-
-                // With nothing before it, the whole graph; after something, only what that found - which is
-                // how a search gets narrowed to one feature without a scope flag to pick.
-                var over = q.Seeded ? q.Hits.Select(h => h.Node) : g.Nodes;
-                q.Hits = [.. GraphQuery.GrepNodes(over, arg, read)
-                    .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
-                    .Select(byNode => new Hit(byNode.First().Node, [.. byNode.Select(h => (h.Line, h.Text))]))];
-                q.Seeded = true;
-                return null;
+                return Nodes(g, q, rest.Select(w => w.Text));
             }
 
             case "callers" or "callees":
             {
                 if (!q.Seeded) return $"{name} needs somewhere to start: search, grep or node first.";
+                if (arg is not null) return $"{name} takes nothing after it (got '{arg}').";
                 var here = q.Hits.Select(h => h.Node.Id).ToHashSet(StringComparer.Ordinal);
                 var byId = GraphQuery.Index(g);
                 var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -222,8 +248,24 @@ public static class GraphAsk
             case "members":
             {
                 if (!q.Seeded) return "members needs somewhere to start: search, grep or node first.";
+                if (arg is not null) return $"members takes nothing after it (got '{arg}').";
                 var here = q.Hits.Select(h => h.Node.Id).ToHashSet(StringComparer.Ordinal);
                 return Seed(q, Contained(g, GraphQuery.Index(g), here));
+            }
+
+            case "owned":
+            {
+                if (!q.Seeded) return "owned needs something to be owned by: node, search or grep first.";
+                if (arg is not null) return $"owned takes nothing after it (got '{arg}').";
+                return Owned(g, q, [.. q.Hits.Select(h => h.Node)]);
+            }
+
+            case "near":
+            {
+                if (!q.Seeded) return "near needs somewhere to start: node, search or grep first.";
+                if (arg is null || !int.TryParse(arg, out var hops) || hops < 0)
+                    return $"near needs how many hops, as a number (got '{arg ?? "nothing"}').";
+                return Seed(q, Near(g, q.Hits.Select(h => h.Node), hops));
             }
 
             case "like":
@@ -262,6 +304,131 @@ public static class GraphAsk
         }
     }
 
+    /// <summary>
+    /// <c>grep</c>, with the flags <c>graph grep</c> takes meaning what they mean there. <c>--from</c> is a
+    /// <c>node</c> stage in front of it, <c>--scope owned</c> an <c>owned</c> stage, and <c>--hops</c> (or
+    /// <c>--scope hops</c>, or <c>--from</c> on its own) a <c>near</c> stage — so the flag and the stage cannot
+    /// give two answers to one question. Without a flag, it searches what the question has found so far, or the
+    /// whole graph when it opens the question.
+    /// </summary>
+    private static string? Grep(KnowledgeGraph g, GraphQuery.ReadLines read, Question q, List<Word> rest)
+    {
+        string? from = null, scope = null, hopsText = null;
+        var pattern = new List<string>();
+        for (var i = 0; i < rest.Count; i++)
+        {
+            var w = rest[i];
+            if (!w.IsFlag) { pattern.Add(w.Text); continue; }
+
+            if (w.Text is not ("--from" or "--scope" or "--hops"))
+                return $"grep takes --from <id>, --scope owned|hops and --hops <n>; '{w.Text}' is none of them - "
+                     + "quote it if it is part of the pattern.";
+            if (i + 1 >= rest.Count) return $"{w.Text} needs a value.";
+
+            var value = rest[++i].Text;
+            switch (w.Text)
+            {
+                case "--from":  from = value; break;
+                case "--scope": scope = value; break;
+                default:        hopsText = value; break;
+            }
+        }
+
+        if (pattern.Count == 0) return "grep needs a pattern: grep <regex> (quote it if it holds a |).";
+        var regex = string.Join(' ', pattern);
+        try { _ = new Regex(regex); }
+        catch (ArgumentException ex) { return $"bad regex /{regex}/: {ex.Message}"; }
+
+        // The same checks `graph grep` makes, with the same words, so the two cannot disagree about a scope.
+        if (scope is not (null or "hops" or "owned")) return $"--scope must be hops or owned (got '{scope}').";
+        if (scope == "owned" && hopsText is not null)
+            return "--scope owned ignores radius - drop --hops, or drop --scope.";
+        var hops = 2;
+        if (hopsText is not null && (!int.TryParse(hopsText, out hops) || hops < 0))
+            return $"--hops needs a number (got '{hopsText}').";
+
+        if (from is not null)
+        {
+            if (q.Seeded)
+                return "grep --from starts a question, so it cannot follow a | - the stage before it is already "
+                     + "where it searches.";
+            if (Nodes(g, q, [from]) is { } missing) return missing;
+        }
+
+        var scoped = scope is not null || hopsText is not null || from is not null;
+        if (scoped && !q.Seeded)
+            return $"{(scope == "owned" ? "--scope owned" : "--hops")} is relative to a node: give --from <id>, "
+                 + "or put a stage in front of the grep.";
+
+        if (scope == "owned")
+        {
+            if (Owned(g, q, [.. q.Hits.Select(h => h.Node)]) is { } error) return error;
+        }
+        else if (scoped)
+        {
+            Seed(q, Near(g, q.Hits.Select(h => h.Node), hops));
+        }
+        else if (q.Seeded && q.Hits.Count > 0 && q.Hits.All(h => h.Node.FilePath is not { Length: > 0 }))
+        {
+            // Grepping a feature node searched a node with no source and found nothing - which reads as "this
+            // feature never mentions it". What the caller meant is what the feature owns.
+            var first = q.Hits[0].Node.Id;
+            return $"grep reads source, and nothing the stage before it found has any ({first} is not code). "
+                 + $"`node {first} | owned | grep {regex}` searches the files it owns.";
+        }
+
+        var over = q.Seeded ? q.Hits.Select(h => h.Node) : g.Nodes;
+        q.Hits = [.. GraphQuery.GrepNodes(over, regex, read)
+            .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
+            .Select(byNode => new Hit(byNode.First().Node, [.. byNode.Select(h => (h.Line, h.Text))]))];
+        q.Seeded = true;
+        return null;
+    }
+
+    /// <summary>Seeds the question with the named nodes, refusing — and saying which — when any of them is not
+    /// one the graph has, rather than quietly carrying on with the rest.</summary>
+    private static string? Nodes(KnowledgeGraph g, Question q, IEnumerable<string> words)
+    {
+        var byId = GraphQuery.Index(g);
+        var named = words
+            .SelectMany(w => w.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToList();
+        if (named.Count == 0) return "node needs an id: node <id>[,<id>...].";
+
+        var missing = named.Where(id => !byId.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+            return $"no node '{missing[0]}'"
+                 + (missing.Count > 1 ? $" (nor {string.Join(", ", missing.Skip(1).Select(m => $"'{m}'"))})" : "")
+                 + $" - `search {missing[0]}` finds what the graph does call it.";
+
+        return Seed(q, named.Distinct(StringComparer.Ordinal).Select(id => byId[id]));
+    }
+
+    /// <summary>Every node in a file that what the question has found owns — see
+    /// <see cref="GraphQuery.OwnedFiles"/>, which is what <c>graph grep --scope owned</c> uses too.</summary>
+    private static string? Owned(KnowledgeGraph g, Question q, IReadOnlyList<GraphNode> from)
+    {
+        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in from) files.UnionWith(GraphQuery.OwnedFiles(g, node.Id));
+
+        if (files.Count == 0)
+            return $"{(from.Count == 1 ? $"'{from[0].Id}' owns" : "none of those own")} no files - there are no "
+                 + "snaplinks to code to follow.";
+
+        return Seed(q, g.Nodes.Where(n => n.FilePath is { Length: > 0 } p && files.Contains(p)));
+    }
+
+    /// <summary>Everything within <paramref name="hops"/> edges of any of <paramref name="from"/>.</summary>
+    private static List<GraphNode> Near(KnowledgeGraph g, IEnumerable<GraphNode> from, int hops)
+    {
+        var adjacency = GraphQuery.Adjacency(g);
+        var byId = GraphQuery.Index(g);
+        var reached = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in from)
+            reached.UnionWith(GraphQuery.Bfs(adjacency, node.Id, hops).Keys);
+        return [.. reached.Where(byId.ContainsKey).Select(id => byId[id])];
+    }
+
     private static string? Seed(Question q, IEnumerable<GraphNode> nodes)
     {
         q.Hits = [.. nodes.Select(n => new Hit(n, []))];
@@ -281,13 +448,14 @@ public static class GraphAsk
     private static string Print(KnowledgeGraph g, Question q, GraphQuery.ReadLines read)
     {
         if (!q.Seeded) return $"ask: no question.\n{Vocabulary}";
-        return q.Sink switch
+        var body = q.Sink switch
         {
             "count" => Tally(q, 0),
             "files" => Files(q),
             "source" => Source(g, q, read),
             _ => Ids(q),
         };
+        return q.Notes.Count == 0 ? body : string.Join('\n', q.Notes) + "\n" + body;
     }
 
     private static string Ids(Question q)
@@ -377,7 +545,7 @@ public static class GraphAsk
         text.Length <= max ? text : text[..(max - 1)] + "...";
 
     /// <summary>The one line every answer ends on: what was found, and how to see the part that was not
-    /// printed - by widening the sink, never by asking again.</summary>
+    /// printed - by widening the sink, never by asking again. A zero says which stage left nothing.</summary>
     private static string Tally(Question q, int shown)
     {
         var lines = q.Hits.Sum(h => h.Lines.Count);
@@ -390,6 +558,7 @@ public static class GraphAsk
         var more = shown > 0 && shown < q.Hits.Count
             ? $" - showing {shown}; `{q.Sink} {q.Hits.Count}` prints the rest"
             : "";
-        return what + more + ".";
+        var empty = q.Hits.Count == 0 && q.EmptiedBy is { } stage ? $" - `{stage}` left nothing" : "";
+        return what + more + empty + ".";
     }
 }

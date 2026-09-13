@@ -848,8 +848,9 @@ internal static class Program
         BeginFreshness(root, a.Has("--main"), g);
         RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
-        var hits = GraphQuery.Search(g, term, a.Value("--type"));
-        Console.WriteLine(GraphReport.Search(hits, term, limit));
+        var main  = a.Has("--main");
+        var found = GraphQuery.Find(g, term, rel => TryReadLines(root, rel, main), a.Value("--type"));
+        Console.WriteLine(GraphReport.Search(found, term, limit));
         return Clean;
     }
 
@@ -1749,28 +1750,20 @@ internal static class Program
 
         if (mode == "content")
         {
-            var codeNodes = searched.Where(n => n.FilePath is { Length: > 0 } && n.Metadata != null
-                                             && n.Metadata.ContainsKey("line") && n.Metadata.ContainsKey("ast"))
+            // Declarations, and the files themselves - a file is where a document's text lives, and where what
+            // sits outside every declaration of a code file does. Each matching line is credited once, to the
+            // innermost of these that holds it (GraphQuery.GrepNodes), so the totals are lines, not echoes.
+            var codeNodes = searched.Where(n => n.FilePath is { Length: > 0 }
+                                             && (n.Type == NodeType.File
+                                                 || (n.Metadata != null && n.Metadata.ContainsKey("line")
+                                                     && n.Metadata.ContainsKey("ast"))))
                                  .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
-            // A file is read once, regex-tested once as a whole, and parsed at most once. The whole-file test
-            // comes first because it is the cheap half: a file with no matching line anywhere cannot hold a
-            // matching block, so every node in it is dismissed without a parse - and most files match nothing.
-            var fileCache = new Dictionary<string, string[]?>(StringComparer.Ordinal);
-            var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
-            var spans = new SourceSpans();
-            List<(int Line, string Text)> HitsIn(GraphNode n)
-            {
-                var none = new List<(int, string)>();
-                if (!fileCache.TryGetValue(n.FilePath!, out var lines)) fileCache[n.FilePath!] = lines = TryReadLines(root, n.FilePath!, a.Has("--main"));
-                if (lines is null || !int.TryParse(n.Metadata!["line"], out var startLine)) return none;
-                if (!interesting.TryGetValue(n.FilePath!, out var any))
-                    interesting[n.FilePath!] = any = lines.Any(rx.IsMatch);
-                if (!any) return none;
-                var (s0, e0) = spans.Block(n.FilePath!, lines, n.Metadata!["ast"], startLine - 1, GraphQuery.BlockScanLines);
-                var hits = new List<(int Line, string Text)>();
-                for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) if (rx.IsMatch(lines[i])) hits.Add((i + 1, lines[i]));
-                return hits;
-            }
+
+            var main = a.Has("--main");
+            var byNode = GraphQuery.GrepNodes(codeNodes.Take(scanCap), pattern, rel => TryReadLines(root, rel, main))
+                .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
+                .ToDictionary(x => x.Key, x => x.Select(h => (h.Line, h.Text)).ToList(), StringComparer.Ordinal);
+            List<(int Line, string Text)> HitsIn(GraphNode n) => byNode.GetValueOrDefault(n.Id) ?? [];
 
             var tally = ScanContent(codeNodes, limit, scanCap, HitsIn, (n, hits) =>
             {

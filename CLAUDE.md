@@ -118,16 +118,27 @@ makes a graph query lose to a blanket grep, not the graph's answers. `ask` chain
 & $nfi ask 'node <id> | callers | source'        # who uses it, and what their code actually looks like
 & $nfi ask 'node file:src/Foo.cs | source'       # what a file holds: its outline, not its text
 & $nfi ask 'search Reader | grep Dispose | ids'  # a grep scoped to whatever the stage before it found
+& $nfi ask 'node product:<slug> | owned | grep X | files'   # grep a whole FEATURE (= graph grep --scope owned)
+& $nfi ask 'grep X --from product:<slug> --scope owned | count'   # the same, with graph grep's own flags
+& $nfi ask 'search NXUI001 | files'              # nothing is NAMED that? then it is searched for in source
 ```
 
-**start** with `search <term>` / `grep <regex>` / `node <id>[,<id>…]` · **narrow** with `callers` / `callees` /
-`members` / `like <regex>` / `limit <n>` · **print** with `ids [n]` / `source [n]` / `files` / `count` — `ids`
-when the question says nothing. **One question per line**, so several unrelated ones are still one call. A
-regex holding a `|` has to be quoted or it reads as a stage break; the refusal says so, and every refusal
-prints the whole vocabulary, which is shorter than an explanation of which half was wrong.
+**start** with `search <term>` / `grep <regex> [--from <id>] [--scope owned|hops] [--hops <n>]` / `node <id>[,<id>…]`
+· **narrow** with `callers` / `callees` / `members` / `owned` / `near <n>` / `grep <regex>` / `like <regex>` /
+`limit <n>` · **print** with `ids [n]` / `source [n]` / `files` / `count` — `ids` when the question says nothing.
+**One question per line**, so several unrelated ones are still one call. A regex holding a `|` has to be quoted
+or it reads as a stage break; the refusal says so, and every refusal prints the whole vocabulary, which is
+shorter than an explanation of which half was wrong. Stage words are strict: any other `--flag` inside a stage is
+refused with the stage that does its job (quote it if it really is part of a pattern), a `node` with an id the
+graph lacks is refused rather than dropped, and a zero answer names the stage that left nothing.
 
-`grep` covers the whole graph with nothing before it and only the previous stage's nodes after one — which is
-how a search gets narrowed to a feature without first choosing between `--hops` and `--scope owned`. Reach for
+`grep` covers the whole graph with nothing before it and only the previous stage's nodes after one. `owned` turns
+what it is given into every node in the files it owns (a feature's snaplinks, followed to whole files) and
+`near <n>` into its N-hop neighbourhood; `grep`'s flags are those stages spelled the way `graph grep` spells them,
+so the two cannot disagree. Grepping a feature node directly is refused and points at `| owned |` — a feature has
+no source of its own. **`search` falls back to source**: when nothing is *named* the term (a diagnostic id, a
+message, a setting key) it returns the nodes whose text contains it, and says so. Grep reads documents too
+(a file node is its whole file) and credits each matching line once, to the innermost node holding it. Reach for
 `ask` first and the single verbs when one answer really is the whole question.
 
 **The graph edits too, and structurally — `graph edit <op> <node-id>`.** Addressing a change by *what it is*

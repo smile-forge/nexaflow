@@ -186,8 +186,9 @@ public static class GraphTools
         if (string.IsNullOrWhiteSpace(term)) return ToolResult.Error("Provide a 'term' to search for.");
 
         var limit = Int(a, "limit", 40);
-        var hits = GraphQuery.Search(g, term, Blank(Str(a, "type")));
-        return ToolResult.Ok($"{hits.Count} match(es)", GraphReport.Search(hits, term, limit));
+        var found = GraphQuery.Find(g, term, Reader(root), Blank(Str(a, "type")));
+        return ToolResult.Ok(found.BySource ? $"{found.Nodes.Count} node(s) contain it" : $"{found.Nodes.Count} match(es)",
+                             GraphReport.Search(found, term, limit));
     }
 
     private static ToolResult Context(string root, JsonObject a)
@@ -240,8 +241,11 @@ public static class GraphTools
             return ToolResult.Error("'scope' of 'owned' needs a 'from' node - ownership is relative to one.");
         var scope = scopeText == "owned" ? GraphQuery.GrepScope.Owned : GraphQuery.GrepScope.Hops;
 
-        var hits = GraphQuery.Grep(g, pattern, Reader(root), from, Int(a, "hops", 2), Int(a, "limit", 40), scope);
-        return ToolResult.Ok($"{hits.Count} match(es)", GraphReport.Grep(hits, pattern, from, scope));
+        // The limit trims what is printed and never the search, so the count is the real one. Passed into the scan
+        // it stopped discovery at the fortieth hit, and "nothing else does this" read straight out of the total.
+        var hits = GraphQuery.Grep(g, pattern, Reader(root), from, Int(a, "hops", 2), int.MaxValue, scope);
+        return ToolResult.Ok($"{hits.Count} match(es)",
+                             GraphReport.Grep(hits, pattern, from, scope, Int(a, "limit", 40)));
     }
 
     private static ToolResult Code(string root, JsonObject a)
