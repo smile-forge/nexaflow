@@ -48,7 +48,8 @@ internal static class DaemonClient
     internal static int Run(string[] args, string productRoot, string? codeRoot)
     {
         var request = DaemonRequest.Command(DaemonRequest.NewTicket(), args, codeRoot,
-                                            Directory.GetCurrentDirectory(), ReadStdinIfWanted(args));
+                                            Directory.GetCurrentDirectory(), ReadStdinIfWanted(args),
+                                            CallerShell());
 
         var pipe  = DaemonProtocol.PipeName(productRoot, DaemonProtocol.BuildStamp());
         var reply = Send(pipe, request, connectMs: 200)
@@ -57,6 +58,16 @@ internal static class DaemonClient
         Console.Out.Write(reply.Out);
         Console.Error.Write(reply.Error);
         return reply.ExitCode;
+    }
+
+    /// <summary>This shell's values for the variables the daemon has to judge by the caller's environment
+    /// rather than its own — see <see cref="RequestScope.ShellVariables"/>.</summary>
+    private static Dictionary<string, string> CallerShell()
+    {
+        var shell = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in RequestScope.ShellVariables)
+            if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } value) shell[name] = value;
+        return shell;
     }
 
     /// <summary>

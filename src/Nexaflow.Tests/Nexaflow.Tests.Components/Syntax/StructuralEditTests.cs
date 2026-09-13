@@ -607,6 +607,156 @@ public class StructuralEditTests
         Assert.IsFalse(missing.Ok, "text that is not there changes nothing");
     }
 
+    // ── Matching that survives line endings and partial lines ───────────────
+
+    private const string StyledView = """
+        <UserControl x:Class="A.V"
+                     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+            <UserControl.Resources>
+                <Style x:Key="Cell" TargetType="Border">
+                    <Setter Property="Padding" Value="10,5"/>
+                    <Setter Property="Margin" Value="0"/>
+                </Style>
+            </UserControl.Resources>
+        </UserControl>
+        """;
+
+    private static string Ended(string text, string ending) => text.Replace("\r\n", "\n").Replace("\n", ending);
+
+    /// <summary>
+    /// A search typed on a command line arrives with LF breaks and this checkout keeps CRLF, so every search
+    /// spanning two lines used to fail — and the refusal said "not in the part of this declaration the edit
+    /// covers" about a file. It looked like a XAML problem because the views were where it was tried.
+    /// </summary>
+    [DataTestMethod]
+    [DataRow("Value=\"10,5\"/>\n<Setter Property=\"Margin\"",             "flush-left, beginning and ending part-way along a line")]
+    [DataRow("Value=\"10,5\"/>\n            <Setter Property=\"Margin\"", "exactly as the file has it, but with LF breaks")]
+    public void Substitute_MultiLineLfFind_MatchesACrlfFile(string find, string shape)
+    {
+        var src = Ended(StyledView, "\r\n");
+
+        var result = StructuralEdit.SubstituteInFile("xaml", src, "Value=\"12,6\"/>\n<Setter Property=\"Margin\"",
+                                                     new StructuralEdit.Options(Find: find));
+
+        var text = Applied(result);
+        AssertLine(text, "            <Setter Property=\"Padding\" Value=\"12,6\"/>");
+        AssertLine(text, "            <Setter Property=\"Margin\" Value=\"0\"/>");
+        Assert.AreEqual("\r\n", SoleEndingOf(text), $"{shape}: the file keeps its own endings");
+    }
+
+    [TestMethod]
+    public void SubstituteInText_MultiLineLfFind_MatchesACrlfFile()
+    {
+        var notes = Ended("# Notes\n\n- one\n- two\n- three\n", "\r\n");
+
+        var result = StructuralEdit.SubstituteInText(notes, "one\n- deux",
+                                                     new StructuralEdit.Options(Find: "one\n- two"));
+
+        Assert.AreEqual("# Notes\r\n\r\n- one\r\n- deux\r\n- three\r\n", Applied(result));
+    }
+
+    /// <summary>A fragment is copied from wherever the interesting part starts, which is seldom a line start —
+    /// and its middle lines can still carry a different indentation from the file's.</summary>
+    [TestMethod]
+    public void Substitute_PartialLineFragment_MatchesIgnoringIndentation()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Widget, "T:Widget/P:Count", StructuralEdit.Op.Substitute,
+                                          "=> _count + 0;\nset =>", new StructuralEdit.Options(Find: "=> _count;\nset =>"));
+
+        var text = Applied(result);
+        AssertLine(text, "        get => _count + 0;");
+        AssertLine(text, "        set => _count = value;");
+        CollectionAssert.Contains(result.Notes.ToList(), "matched ignoring indentation");
+    }
+
+    /// <summary>The splice replaces exactly what matched: a line the edit does not reach keeps whichever ending
+    /// it had, even in a file that mixes them.</summary>
+    [TestMethod]
+    public void Substitute_MixedEndings_OnlyTheMatchChanges()
+    {
+        var result = StructuralEdit.SubstituteInText("a\r\nb\nc\r\nd\n", "B\nC", new StructuralEdit.Options(Find: "b\nc"));
+
+        Assert.AreEqual("a\r\nB\r\nC\r\nd\n", Applied(result));
+    }
+
+    private const string Bordered = """
+        <Grid>
+            <Border Background="Red"
+                    Padding="4">
+            </Border>
+        </Grid>
+        """;
+
+    /// <summary>
+    /// What a group captured is the file's own text, indentation included. Expanding it first and indenting
+    /// the result added the destination's indentation on top of what it already had.
+    /// </summary>
+    [TestMethod]
+    public void RegexSubstitute_BackreferenceKeepsCapturedIndentation()
+    {
+        var src = Ended(Bordered, "\n");
+
+        var continued = StructuralEdit.SubstituteInFile("xml", src, "Background=\"Blue\"$1",
+            new StructuralEdit.Options(Find: "Background=\"Red\"(\\n\\s*Padding=\"4\")", FindIsRegex: true));
+        var text = Applied(continued);
+        AssertLine(text, "    <Border Background=\"Blue\"");
+        AssertLine(text, "            Padding=\"4\">");
+
+        var commented = StructuralEdit.SubstituteInFile("xml", src, "\n$1<!-- a border -->\n$1<Border",
+            new StructuralEdit.Options(Find: "\\n(\\s*)<Border", FindIsRegex: true));
+        text = Applied(commented);
+        AssertLine(text, "    <!-- a border -->");
+        AssertLine(text, "    <Border Background=\"Red\"");
+    }
+
+    /// <summary>
+    /// A fragment that begins part-way along a line: the line it begins on says nothing about the depth of the
+    /// lines after it. Placing the replacement at that line's depth moved an attribute aligned under the first
+    /// one back to the element's own indentation.
+    /// </summary>
+    [DataTestMethod]
+    [DataRow("Background=\"Red\"\nPadding=\"4\">", "Background=\"Blue\"\nPadding=\"4\"\nMargin=\"2\">", "flush-left")]
+    [DataRow("Background=\"Red\"\n        Padding=\"4\">", "Background=\"Blue\"\n        Padding=\"4\"\n        Margin=\"2\">", "as copied")]
+    public void Substitute_MidLineFragment_KeepsAlignedContinuations(string find, string replace, string written)
+    {
+        var text = Applied(StructuralEdit.SubstituteInFile("xml", Ended(Bordered, "\n"), replace,
+                                                           new StructuralEdit.Options(Find: find)));
+
+        AssertLine(text, "    <Border Background=\"Blue\"");
+        AssertLine(text, "            Padding=\"4\"");
+        AssertLine(text, "            Margin=\"2\">");
+    }
+
+    [TestMethod]
+    public void RegexSubstitute_NewlineMatchesCrlf_NoStrayCr()
+    {
+        var src = Ended(Bordered, "\r\n");
+
+        var result = StructuralEdit.SubstituteInFile("xml", src, "\n$1<!-- a border -->\n$1<Border",
+            new StructuralEdit.Options(Find: "\\n(\\s*)<Border", FindIsRegex: true));
+
+        var text = Applied(result);
+        Assert.AreEqual("\r\n", SoleEndingOf(text), "a \\n in the pattern is a line break, whatever the file uses");
+        AssertLine(text, "    <!-- a border -->");
+    }
+
+    /// <summary>"Not found" for a several-line search leaves the caller diffing it by eye. Usually one line
+    /// differs, and naming it is the next call.</summary>
+    [TestMethod]
+    public void NotFound_FileTarget_NamesFirstDifferingLine()
+    {
+        var result = StructuralEdit.SubstituteInText("one\ntwo\nthree\nfour\n", "x",
+                                                     new StructuralEdit.Options(Find: "two\nthree\nFIVE"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "does not occur in this file");
+        Assert.IsFalse(result.Message.Contains("declaration"), "a file target has no declaration: " + result.Message);
+        StringAssert.Contains(result.Message, "line 2");
+        StringAssert.Contains(result.Message, "\"FIVE\"");
+        StringAssert.Contains(result.Message, "\"four\" (line 4)");
+    }
+
     [TestMethod]
     public void SubstituteInFile_StillRefusesAFileWithNoGrammar()
     {

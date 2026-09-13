@@ -190,8 +190,13 @@ afterwards rather than assuming it. `substitute` is the safe form of a stream ed
 bounded to the one declaration so a common identifier can't be rewritten across the file, and refused unless
 it matches exactly once (`--all` to override, and it reports how many it touched). **`--find` does not need
 matching indentation** — an exact match wins, and failing that the fragment is matched line-by-line ignoring
-leading whitespace, so a snippet pasted as you read it or written flush-left is found either way. When it
-isn't there at all, the refusal names the declaration that *does* contain it, with its node id.
+leading whitespace, so a snippet pasted as you read it or written flush-left is found either way — and a
+multi-line one may begin and end part-way along a line. **Line endings are ignored too**: a `\n` search (or a
+`--regex` `\n`) matches a CRLF file, and the replacement leaves with the file's own endings. The replacement
+lines up with the lines it replaces, so an attribute or continuation aligned under the first stays aligned; with
+`--regex`, what a `$1` captured is inserted exactly as the file had it. When it isn't there at all, the refusal
+names the declaration that *does* contain it, with its node id — or, for a multi-line search, the closest line
+and the first line of the search that differs from the file.
 
 **A file no grammar covers is edited as text.** Markdown, a config file, a list: `substitute file:<relpath>`
 and `create` work on any text file, with the same matching rules — literal, exactly once unless `--all`,
@@ -260,9 +265,11 @@ arrives as `/ x` and lands a syntax error, and `--text-escaped '/// <x/>\nfoo'` 
 turned round and writes a literal `/n` into the file while reporting success. `nfi` warns when it sees an
 MSYS shell without the exclusion, and refuses an escaped payload carrying `/n` where its escapes should be,
 but the environment variable is the fix — or pass payloads through `--file` / `--find-file` / `--stdin`,
-which no shell touches. With `'*'` set nothing is converted at all, so a `--file` argument then has to be
-a Windows path (`C:\dir\x.cs`, or `$(cygpath -w "$p")`) — a `/c/…` one is passed through
-verbatim and not found.
+which no shell touches. With `'*'` set nothing is converted at all — so `nfi` converts a drive path itself:
+`/c/dir/x.cs` (and `/cygdrive/c/…`, `/mnt/c/…`) reaches `--file`, `--find-file` and every other path option as
+`C:\dir\x.cs`. A path rooted elsewhere in the MSYS tree (`/tmp/…`) has no Windows answer without the shell, and
+is refused with the `$(cygpath -w …)` to use instead. The shell checks read the *caller's* environment, carried
+with the request, not the resident process's.
 
 Two behaviours that read as bugs and are not: `--with-trivia` stops at a blank line, so deleting the last
 member under a `// ── section ──` header leaves the header (it belongs to the section, not the member);

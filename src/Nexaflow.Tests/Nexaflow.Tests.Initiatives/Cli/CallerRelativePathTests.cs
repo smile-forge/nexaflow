@@ -185,6 +185,69 @@ public class CallerRelativePathTests
         }
     }
 
+    // ── paths typed into Git Bash ────────────────────────────────────────────────────────────────
+
+    /// <summary><paramref name="windowsPath"/> as Git Bash spells it: <c>C:\a\b</c> → <c>/c/a/b</c>.</summary>
+    private static string Msys(string windowsPath, string prefix = "/") =>
+        prefix + char.ToLowerInvariant(windowsPath[0]) + windowsPath[2..].Replace('\\', '/');
+
+    /// <summary>
+    /// With <c>MSYS2_ARG_CONV_EXCL='*'</c> — which the tool asks for, so a <c>//</c> comment survives — the
+    /// shell converts nothing, and the path a Git Bash user types arrives as <c>/d/…</c>. Windows reads that
+    /// as rooted on the current drive, so every <c>--file</c> was "not found" until it was wrapped in cygpath.
+    /// </summary>
+    [DataTestMethod]
+    [DataRow("/")]
+    [DataRow("/cygdrive/")]
+    [DataRow("/mnt/")]
+    public void MsysDrivePath_ResolvesToWindowsPath(string prefix)
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Inconclusive("drive paths are a Windows question");
+        var script = Script(Caller);
+
+        Assert.AreEqual(script, CallerPath.Of(Msys(script, prefix)), ignoreCase: true);
+    }
+
+    /// <summary>The reported case end to end: a script named the way Git Bash names it is found and run.</summary>
+    [TestMethod]
+    public void AnMsysScriptPath_IsFound()
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Inconclusive("drive paths are a Windows question");
+        var script = Script(Caller);
+
+        Assert.AreEqual(Clean, Serve(Path.GetTempPath(), "batch", Msys(script), Product));
+        Assert.AreEqual(Status.Done, StatusOnDisk);
+    }
+
+    /// <summary>A path rooted elsewhere in the MSYS tree has no Windows answer without the shell's own mounts,
+    /// so it is not guessed at — the refusal says how to get the Windows form instead.</summary>
+    [TestMethod]
+    public void NonDrivePosixPath_FromMsysCaller_IsRefusedWithCygpathHint()
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Inconclusive("drive paths are a Windows question");
+
+        Assert.IsNull(CallerPath.FromMsys("/tmp/payload.cs"), "not a drive, so not converted");
+        StringAssert.Contains(CallerPath.PosixPathHint("/tmp/payload.cs"), "cygpath -w");
+        Assert.AreEqual("", CallerPath.PosixPathHint("payload.cs"), "a relative path needs no explanation");
+        Assert.AreEqual("", CallerPath.PosixPathHint(Msys(Script(Caller))), "a drive path was converted, not refused");
+    }
+
+    /// <summary>
+    /// The daemon inherits whichever shell started it, so asking its own environment told every caller of the
+    /// day what the first one was typing into. The caller's shell travels with the request.
+    /// </summary>
+    [TestMethod]
+    public void ShellWarning_ReadsCallersEnvironmentNotDaemons()
+    {
+        using (RequestScope.Begin(new StringWriter(), new StringWriter(),
+                   new RequestContext(Caller) { Shell = new Dictionary<string, string> { ["MSYSTEM"] = "MINGW64" } }))
+            Assert.IsTrue(CallerPath.IsMsysCaller, "the caller said it is Git Bash");
+
+        using (RequestScope.Begin(new StringWriter(), new StringWriter(),
+                   new RequestContext(Caller) { Shell = new Dictionary<string, string>() }))
+            Assert.IsFalse(CallerPath.IsMsysCaller, "the caller said nothing of the kind, whatever this process has");
+    }
+
     // ── the guarantee a failed spawn was said to have broken ─────────────────────────────────────
 
     /// <summary>

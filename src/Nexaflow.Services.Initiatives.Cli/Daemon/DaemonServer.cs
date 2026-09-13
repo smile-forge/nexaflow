@@ -227,9 +227,12 @@ internal static class DaemonServer
 
         try
         {
-            using var scope = RequestScope.Begin(stdout, stderr, request.WorkingDirectory);
-            Program.StandardInput = request.Stdin;
-            Program.Host          = host;
+            using var scope = RequestScope.Begin(stdout, stderr, new RequestContext(request.WorkingDirectory)
+            {
+                Shell = request.Shell,
+                Stdin = request.Stdin,
+                Host  = host,
+            });
 
             var code = request.Args.Length == 0 ? 0 : Program.Execute(request.Args);
             return new DaemonResponse(code, stdout.ToString(), stderr.ToString());
@@ -243,8 +246,6 @@ internal static class DaemonServer
         }
         finally
         {
-            Program.StandardInput = null;
-            Program.Host          = null;
             gate.Release();
 
             // Whatever the command changed is on disk before the next caller can ask for it, so an abrupt

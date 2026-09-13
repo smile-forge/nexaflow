@@ -149,13 +149,10 @@ internal static class Program
         deferred?.ApplyTo(state);
     }
 
-    /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
-    /// read it from. Null in a one-shot process, where <see cref="ReadStdin"/> reads the real thing.</summary>
-    internal static string? StandardInput { get; set; }
-
-    /// <summary>The warm host, when running inside the daemon. Null in a one-shot process, which builds its
-    /// own for the length of the command — same object, shorter life.</summary>
-    internal static InitiativesHost? Host { get; set; }
+    /// <summary>The warm host serving this request. A property of the request rather than of the process:
+    /// two callers on different trees are served at once, and a static set and cleared per command let one of
+    /// them null the other's host mid-command — which quietly fell back to a cold load, and a cold save.</summary>
+    private static InitiativesHost? Host => RequestScope.Host;
 
     /// <summary>The verb dispatch. Called by the daemon per request, and by nothing else.</summary>
     internal static int Execute(string[] args)
@@ -1030,6 +1027,9 @@ internal static class Program
     {
         if (!TryRead(Specs.GraphEdit, args, out var a, out var root, out var parseCode)) return parseCode;
 
+        // Before `create` as well: a new file's contents arrive through the same shell as an edit's.
+        WarnIfShellRewritesArguments();
+
         // `create` names a path that does not exist yet, so there is no node to look up and no graph to load.
         if (a[0] is "create" or "new") return GraphCreateFile(a, root);
 
@@ -1053,8 +1053,6 @@ internal static class Program
         if (op is null)
             return VerbUsage($"unknown edit op '{a[0]}' — expected replace | delete | signature | body | "
                            + "rename | insert-before | insert-after | append | doc | substitute | import");
-
-        WarnIfShellRewritesArguments();
 
         if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
 
@@ -1497,8 +1495,9 @@ internal static class Program
     /// </summary>
     private static void WarnIfShellRewritesArguments()
     {
-        if (Environment.GetEnvironmentVariable("MSYSTEM") is not { Length: > 0 }) return;
-        if (Environment.GetEnvironmentVariable("MSYS2_ARG_CONV_EXCL") is { Length: > 0 }) return;
+        // The caller's shell, not the daemon's: the process serving this inherited whichever shell started it.
+        if (!CallerPath.IsMsysCaller) return;
+        if (RequestScope.CallerVariable("MSYS2_ARG_CONV_EXCL") is { Length: > 0 }) return;
 
         Console.Error.WriteLine(
             "note: this is a Git Bash / MSYS shell, which rewrites arguments that look like POSIX paths — a "
@@ -1570,7 +1569,7 @@ internal static class Program
             // Caller-relative: a payload is nearly always named as a path from where the command was typed, and
             // the resident process serving it stands somewhere else entirely.
             var full = CallerPath.Of(path);
-            if (!File.Exists(full)) { error = $"no such file: {path}"; return false; }
+            if (!File.Exists(full)) { error = $"no such file: {path}{CallerPath.PosixPathHint(path)}"; return false; }
             text = File.ReadAllText(full);
         }
         else if (a.Has(stdinOpt)) text = ReadStdin();
@@ -1586,8 +1585,10 @@ internal static class Program
     /// </summary>
     private static string ReadStdin()
     {
-        // Inside the daemon there is no console to open: the client read the pipe's worth and carried it.
-        if (StandardInput is { } carried) return carried;
+        // Inside the daemon there is no console to open: the client read the pipe's worth and carried it. And
+        // when it carried nothing, there is nothing — the daemon's own standard input is a handle nobody
+        // inherited, and reading it blocked a command forever while it held its tree's lock.
+        if (RequestScope.Serving) return RequestScope.Stdin ?? "";
 
         using var reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         return reader.ReadToEnd();

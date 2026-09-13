@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace Nexaflow.Syntax;
 
@@ -564,39 +565,49 @@ public static class StructuralEdit
                                                             string? replacement, Options o, string newline,
                                                             string astPath, List<string> notes)
     {
-        if (o.Find is not { Length: > 0 } find) return (null, "Text to find is required for a substitution.");
+        if (o.Find is not { Length: > 0 } rawFind) return (null, "Text to find is required for a substitution.");
         if (replacement is null) return (null, "Replacement text is required (use an empty string to delete).");
 
-        var body = src[a.Start..a.End];
+        // Matched with every line break read as LF, whatever the file keeps, and spliced back into the text as
+        // it is. A search typed on a command line arrives LF, and this checkout keeps CRLF: matched raw, no
+        // fragment spanning two lines could ever be found, and the refusal blamed the fragment. Everything
+        // below works in LF and the splice gives the replacement the file's own endings.
+        var view  = LineBreakView.Of(src[a.Start..a.End]);
+        var body  = view.Text;
+        var edits = new List<(int Start, int End, string Text)>();
 
         if (o.FindIsRegex)
         {
             Regex regex;
-            try { regex = new Regex(find, RegexOptions.None, TimeSpan.FromSeconds(2)); }
-            catch (ArgumentException ex) { return (null, $"'{find}' is not a valid regular expression: {ex.Message}"); }
+            try { regex = new Regex(rawFind, RegexOptions.None, TimeSpan.FromSeconds(2)); }
+            catch (ArgumentException ex) { return (null, $"'{rawFind}' is not a valid regular expression: {ex.Message}"); }
 
-            var matches = regex.Matches(body).Count;
-            if (matches == 0) return (null, NotFound(grammarId, src, a, find, astPath));
-            if (matches > 1 && !o.AllOccurrences) return (null, Ambiguous(find, matches));
-            if (matches > 1) notes.Add($"replaced {matches} occurrences");
+            var matches = regex.Matches(body);
+            if (matches.Count == 0) return (null, NotFound(grammarId, src, a, rawFind, astPath));
+            if (matches.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(rawFind, matches.Count));
+            if (matches.Count > 1) notes.Add($"replaced {matches.Count} occurrences");
 
-            NoteIfInsideString(grammarId, src, a.Start + regex.Match(body).Index, notes);
+            NoteIfInsideString(grammarId, src, a.Start + view.ToOriginal(matches[0].Index), notes);
 
-            var replaced = regex.Replace(body, m => Indented(body, m.Index, m.Result(replacement), newline),
-                                         o.AllOccurrences ? int.MaxValue : 1);
-            return (src[..a.Start] + replaced + src[a.End..], null);
+            foreach (Match m in matches)
+                edits.Add((m.Index, m.Index + m.Length, Expanded(body, m, replacement)));
+            return (src[..a.Start] + view.Splice(edits, newline) + src[a.End..], null);
         }
+
+        var find = rawFind.Replace("\r\n", "\n");
 
         // Exact first, so a caller who reproduced the text byte-for-byte gets the match it asked for, at
         // character granularity.
-        var exact = Occurrences(body, find);
-        if (exact > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact));
-        if (exact > 0)
+        var exact = Positions(body, find);
+        if (exact.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact.Count));
+        if (exact.Count > 0)
         {
-            if (exact > 1) notes.Add($"replaced {exact} occurrences");
-            NoteIfInsideString(grammarId, src, a.Start + body.IndexOf(find, StringComparison.Ordinal), notes);
-            return (src[..a.Start] + ReplaceIndented(body, find, replacement, o.AllOccurrences, newline)
-                  + src[a.End..], null);
+            if (exact.Count > 1) notes.Add($"replaced {exact.Count} occurrences");
+            NoteIfInsideString(grammarId, src, a.Start + view.ToOriginal(exact[0]), notes);
+
+            foreach (var at in exact)
+                edits.Add((at, at + find.Length, Placed(body, at, at + find.Length, find, replacement)));
+            return (src[..a.Start] + view.Splice(edits, newline) + src[a.End..], null);
         }
 
         // Then ignoring indentation. Everywhere else this tool promises the caller does not handle
@@ -611,17 +622,145 @@ public static class StructuralEdit
             ? "matched ignoring indentation"
             : $"replaced {loose.Count} occurrences, matched ignoring indentation");
 
-        NoteIfInsideString(grammarId, src, a.Start + loose[0].Item1, notes);
+        NoteIfInsideString(grammarId, src, a.Start + view.ToOriginal(loose[0].Start), notes);
 
-        // Back to front, so an earlier match's offsets are still valid after a later one is replaced.
-        var edited = body;
-        foreach (var (start, end) in loose.AsEnumerable().Reverse())
-        {
-            var indent = SourceText.IndentOf(edited[start..]);
-            edited = edited[..start] + Block(replacement, indent, newline) + edited[end..];
-        }
-        return (src[..a.Start] + edited + src[a.End..], null);
+        foreach (var (start, end) in loose)
+            edits.Add((start, end, Placed(body, start, end, find, replacement)));
+        return (src[..a.Start] + view.Splice(edits, newline) + src[a.End..], null);
     }
+
+    /// <summary>
+    /// A literal replacement for the text between <paramref name="start"/> and <paramref name="end"/>, indented
+    /// to line up with the lines it replaces.
+    /// <para>
+    /// The indentation a replacement gets is the file's for the search's own margin — the depth that the
+    /// shallowest line of the search sits at in the file. That used to be simply the depth of the line the
+    /// match began on, which is the same thing for a block of code starting at its own statement, and wrong for
+    /// a fragment that begins part-way along a line: there the first line's depth says nothing about the lines
+    /// after it. A XAML attribute aligned under the first one (32 spaces, on a 24-space element) came back at
+    /// 24, and so did every continuation aligned under an <c>=</c>.
+    /// </para>
+    /// <para>
+    /// Part-way along a line, the first line's own indentation is hidden, so it takes no part in deciding the
+    /// margin. The same goes for the replacement when the search was written with its continuation lines
+    /// indented, as copied: the replacement is then read the same way. Written flush-left, both keep the rule
+    /// they always had, where every line is relative to the first.
+    /// </para>
+    /// </summary>
+    private static string Placed(string body, int start, int end, string find, string replacement)
+    {
+        var lineStart   = LineStart(body, start);
+        var indentFirst = start == lineStart;
+        var searched    = SourceText.BlockOf(find);
+
+        // The file's lines under the match, each beside the search line that matched it.
+        var fileLines = new List<string>();
+        for (var at = lineStart; at <= end && at <= body.Length;)
+        {
+            var next = body.IndexOf('\n', at);
+            fileLines.Add(next < 0 ? body[at..] : body[at..next]);
+            if (next < 0 || next >= end) break;
+            at = next + 1;
+        }
+
+        var considered = Enumerable.Range(0, Math.Min(fileLines.Count, searched.Count))
+            .Where(k => (indentFirst || k > 0) && fileLines[k].Trim().Length > 0 && searched[k].Trim().Length > 0)
+            .ToList();
+        if (considered.Count == 0) return Indented(body, start, replacement, "\n");
+
+        var searchMargin = SourceText.CommonIndent([.. considered.Select(k => searched[k])]).Length;
+
+        // The file's indentation at the search's margin, taken from whichever line puts that margin shallowest.
+        string? margin = null;
+        foreach (var k in considered)
+        {
+            var fileIndent = SourceText.IndentOf(fileLines[k]);
+            var deeper     = SourceText.IndentOf(searched[k]).Length - searchMargin;
+            if (deeper > fileIndent.Length) continue;
+            var here = fileIndent[..(fileIndent.Length - deeper)];
+            if (margin is null || here.Length < margin.Length) margin = here;
+        }
+        if (margin is null) return Indented(body, start, replacement, "\n");
+
+        var copied = !indentFirst && searchMargin > 0;
+        return Block(replacement, margin, "\n", indentFirst, commonFromSecond: copied);
+    }
+
+    /// <summary>
+    /// A regular-expression replacement for one match, indented for where it lands — with what the groups
+    /// captured left exactly as the file had it.
+    /// <para>
+    /// Expanding <c>$1</c> first and indenting the result treated text lifted out of the file as though the
+    /// caller had typed it flush-left: a capture spanning lines had the destination's indentation added on top
+    /// of its own (24 spaces became 56), and one that was the indentation got it twice. The template is what
+    /// the caller wrote, so the template is what gets indented. A line that begins inside a capture begins with
+    /// the file's own text and is kept as it came; a line that begins with the caller's text is indented like
+    /// any other payload.
+    /// </para>
+    /// </summary>
+    private static string Expanded(string body, Match m, string template)
+    {
+        template = template.Replace("\r\n", "\n");
+
+        var text     = new StringBuilder();
+        var captured = new List<(int Start, int End)>();
+        var from     = 0;
+        foreach (Match token in Substitution.Matches(template))
+        {
+            text.Append(template, from, token.Index - from);
+            from = token.Index + token.Length;
+
+            if (token.Value == "$$") { text.Append('$'); continue; }
+
+            var value = m.Result(token.Value);
+            if (value == token.Value) { text.Append(value); continue; }   // not a group this pattern has
+
+            captured.Add((text.Length, text.Length + value.Length));
+            text.Append(value);
+        }
+        text.Append(template, from, template.Length - from);
+
+        var expanded = text.ToString();
+
+        // No capture, or a single line the caller began with whitespace: exactly what a literal replacement
+        // does, including its one rule for a line whose indentation can only mean "put it here".
+        if (captured.Count == 0 || (!expanded.Contains('\n') && captured[0].Start > 0 && expanded[0] is ' ' or '\t'))
+            return Indented(body, m.Index, expanded, "\n");
+
+        var lineStart   = LineStart(body, m.Index);
+        var indent      = SourceText.IndentOf(body[lineStart..]);
+        var indentFirst = m.Index == lineStart;
+
+        // Each line, and whether its first character is the file's (inside a capture) or the caller's.
+        var lines = new List<(string Text, bool FromFile)>();
+        for (var start = 0; ;)
+        {
+            var end  = expanded.IndexOf('\n', start);
+            var line = end < 0 ? expanded[start..] : expanded[start..end];
+            lines.Add((line, line.Length > 0 && captured.Exists(c => start >= c.Start && start < c.End)));
+            if (end < 0) break;
+            start = end + 1;
+        }
+
+        var common = SourceText.CommonIndent([.. lines.Where(l => !l.FromFile).Select(l => l.Text)]);
+        var result = new List<string>(lines.Count);
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var (line, fromFile) = lines[i];
+            if (fromFile)                { result.Add(line); continue; }
+            if (line.Trim().Length == 0) { result.Add(i == 0 ? line : ""); continue; }
+
+            var own = line.StartsWith(common, StringComparison.Ordinal) ? line[common.Length..] : line.TrimStart();
+            // The first line starts wherever the match did. Part-way along a line, the indentation in front of
+            // it is already in the file.
+            result.Add(i == 0 && !indentFirst ? own : indent + own);
+        }
+        return string.Join("\n", result);
+    }
+
+    /// <summary>A substitution in a .NET replacement pattern: <c>$1</c>, <c>${name}</c>, <c>$$</c>,
+    /// <c>$&amp;</c>, <c>$`</c>, <c>$'</c>, <c>$+</c>, <c>$_</c>.</summary>
+    private static readonly Regex Substitution = new(@"\$(?:\d+|\{[^{}]+\}|[$&`'+_])", RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Says so when a substitution lands inside a string literal, because the payload means something different
@@ -710,29 +849,25 @@ public static class StructuralEdit
         return Block(replacement, SourceText.IndentOf(body[lineStart..]), newline, indentFirst: at == lineStart);
     }
 
-    /// <summary>Literal replacement, each occurrence indented for the line it lands on. Back to front, so an
-    /// earlier match's offset is still valid after a later one is replaced.</summary>
-    private static string ReplaceIndented(string body, string find, string replacement, bool all, string newline)
+    /// <summary>Where each non-overlapping occurrence of <paramref name="needle"/> starts.</summary>
+    private static List<int> Positions(string haystack, string needle)
     {
         var at = new List<int>();
-        for (var i = body.IndexOf(find, StringComparison.Ordinal); i >= 0;
-             i = body.IndexOf(find, i + find.Length, StringComparison.Ordinal))
-        {
+        for (var i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
             at.Add(i);
-            if (!all) break;
-        }
-
-        var edited = body;
-        foreach (var start in at.AsEnumerable().Reverse())
-            edited = edited[..start] + Indented(edited, start, replacement, newline)
-                   + edited[(start + find.Length)..];
-        return edited;
+        return at;
     }
 
     /// <summary>
-    /// Whole-line ranges within <paramref name="body"/> whose content matches <paramref name="find"/> once
-    /// each line's own indentation is set aside. Line-granular by nature: what is being matched is lines,
-    /// so what is replaced is lines.
+    /// Ranges within <paramref name="body"/> whose content matches <paramref name="find"/> once each line's own
+    /// indentation is set aside.
+    /// <para>
+    /// A one-line search matches whole lines. A longer one may also begin part-way along its first line and
+    /// end part-way along its last — a fragment is copied from wherever the interesting part starts, which is
+    /// seldom a line start, and the lines in between are what indentation could have made different. The ends
+    /// stay character-exact, so what was after the fragment on its last line is left where it was.
+    /// </para>
     /// </summary>
     private static List<(int Start, int End)> LooseMatches(string body, string find)
     {
@@ -741,15 +876,44 @@ public static class StructuralEdit
         if (pattern.Count == 0) return found;
 
         var lines = LineSpans(body);
+        var last  = pattern.Count - 1;
         for (var i = 0; i + pattern.Count <= lines.Count; i++)
         {
+            int? start = null, end = null;
             var matched = true;
             for (var k = 0; k < pattern.Count && matched; k++)
-                matched = body[lines[i + k].Start..lines[i + k].End].Trim() == pattern[k];
+            {
+                var (lineStart, lineEnd) = lines[i + k];
+                var line    = body[lineStart..lineEnd];
+                var trimmed = line.Trim();
+
+                if (trimmed == pattern[k])
+                {
+                    if (k == 0) start = lineStart;
+                    if (k == last) end = lineEnd;
+                    continue;
+                }
+
+                // Only the ends of a multi-line fragment may be partial, and only by what a copy leaves off:
+                // the start of its first line, the end of its last. A blank search line is never partial.
+                if (pattern.Count > 1 && pattern[k].Length > 0 && k == 0
+                    && line.TrimEnd().EndsWith(pattern[k], StringComparison.Ordinal))
+                {
+                    start = lineStart + line.TrimEnd().Length - pattern[k].Length;
+                    continue;
+                }
+                if (pattern.Count > 1 && pattern[k].Length > 0 && k == last
+                    && line.TrimStart().StartsWith(pattern[k], StringComparison.Ordinal))
+                {
+                    end = lineStart + (line.Length - line.TrimStart().Length) + pattern[k].Length;
+                    continue;
+                }
+                matched = false;
+            }
 
             if (!matched) continue;
-            found.Add((lines[i].Start, lines[i + pattern.Count - 1].End));
-            i += pattern.Count - 1;                       // matches never overlap
+            found.Add((start!.Value, end!.Value));
+            i += last;                                     // matches never overlap
         }
         return found;
     }
@@ -780,6 +944,15 @@ public static class StructuralEdit
     /// </summary>
     private static string NotFound(string grammarId, string src, DeclarationAnchor a, string find, string astPath)
     {
+        // A whole-file substitution has no declaration to talk about, and saying "this declaration" to someone
+        // who addressed a file sent them looking for one.
+        if (astPath.Length == 0) return NotFoundInFile(src, find);
+
+        // Only when more than its first line agrees: a first line alone ("{", a common call) says little about
+        // whether this is the declaration meant, and the check below may know one that holds all of it.
+        if (NearestMiss(src, a.Start, a.End, find, minimum: 2) is { } nearest)
+            return $"{Quote(find)} does not occur in this declaration, so nothing was changed. {nearest}";
+
         var probe = SourceText.BlockOf(find).FirstOrDefault()?.Trim();
         if (probe is { Length: > 0 })
         {
@@ -819,6 +992,63 @@ public static class StructuralEdit
 
         return $"{Quote(find)} does not occur in this declaration, so nothing was changed. Indentation is "
              + "ignored when matching, so the difference is in the text itself — re-read the declaration.";
+    }
+
+    private static string NotFoundInFile(string src, string find)
+    {
+        if (NearestMiss(src, 0, src.Length, find) is { } nearest)
+            return $"{Quote(find)} does not occur in this file, so nothing was changed. {nearest}";
+
+        return $"{Quote(find)} does not occur in this file, so nothing was changed. Indentation and line endings "
+             + "are ignored when matching, so the difference is in the text itself — re-read the file.";
+    }
+
+    /// <summary>
+    /// For a search of several lines, where the file comes closest to it: the line its first line is on, how
+    /// many lines match from there, and the first that does not — the search's version beside the file's.
+    /// Null for a one-line search, or when fewer than <paramref name="minimum"/> of its lines match anywhere.
+    /// <para>
+    /// "Not found" for a ten-line fragment leaves the caller diffing ten lines by eye. Almost always one line
+    /// is different — a renamed variable, a comment edited since it was read — and naming it is the next call.
+    /// </para>
+    /// </summary>
+    private static string? NearestMiss(string src, int from, int to, string find, int minimum = 1)
+    {
+        var pattern = SourceText.BlockOf(find).Select(l => l.Trim()).ToList();
+        if (pattern.Count < 2 || pattern[0].Length == 0) return null;
+
+        var lines = LineSpans(src);
+        (int Line, int Matched)? best = null;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var (start, end) = lines[i];
+            if (start < from || end > to) continue;
+            if (!src[start..end].Contains(pattern[0], StringComparison.Ordinal)) continue;
+
+            var matched = 1;
+            while (matched < pattern.Count && i + matched < lines.Count
+                   && src[lines[i + matched].Start..lines[i + matched].End].Trim() is var line
+                   && (line == pattern[matched]
+                       || (matched == pattern.Count - 1 && pattern[matched].Length > 0
+                           && line.StartsWith(pattern[matched], StringComparison.Ordinal))))
+                matched++;
+
+            if (best is null || matched > best.Value.Matched) best = (i, matched);
+        }
+
+        if (best is not { } b || b.Matched < minimum) return null;
+
+        if (b.Matched == pattern.Count)
+            return $"Its lines are all at line {b.Line + 1} onwards, but its first line does not end where line "
+                 + $"{b.Line + 1} does — a search across several lines must run on from the end of each one.";
+
+        var fileLine = b.Line + b.Matched < lines.Count
+            ? src[lines[b.Line + b.Matched].Start..lines[b.Line + b.Matched].End].Trim()
+            : null;
+        return $"The closest is line {b.Line + 1}: the first {b.Matched} line(s) of the search match there, and "
+             + $"line {b.Matched + 1} of the search is {Quote(pattern[b.Matched])} where the file has "
+             + (fileLine is null ? "nothing (the text ends)" : $"{Quote(fileLine)} (line {b.Line + b.Matched + 1})")
+             + ".";
     }
 
     /// <summary>At most this many line numbers before the message stops being one.</summary>
@@ -979,7 +1209,11 @@ public static class StructuralEdit
     /// ambiguous, so only it changed.
     /// </para>
     /// </summary>
-    private static string Block(string text, string indent, string newline, bool indentFirst = true)
+    /// <param name="commonFromSecond">Measure the block's own margin from its second line on, leaving the first
+    /// as written — for a block that begins part-way along a line and was written with the indentation its
+    /// later lines have in the file, where the first line's lack of any says nothing.</param>
+    private static string Block(string text, string indent, string newline, bool indentFirst = true,
+                                bool commonFromSecond = false)
     {
         var block = SourceText.BlockOf(text);
 
@@ -988,6 +1222,9 @@ public static class StructuralEdit
             // file in front of it — so drop that much of what the caller wrote and let the two add up to
             // exactly the line they asked for, rather than to both.
             return !indentFirst && only.StartsWith(indent, StringComparison.Ordinal) ? only[indent.Length..] : only;
+
+        if (commonFromSecond && block.Count > 1)
+            return string.Join(newline, [block[0], .. SourceText.Reindent([.. block.Skip(1)], indent)]);
 
         var lines = SourceText.Reindent(block, indent);
         if (!indentFirst && lines.Count > 0 && lines[0].StartsWith(indent, StringComparison.Ordinal))
