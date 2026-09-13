@@ -392,4 +392,56 @@ public class GraphAskTests
 
         StringAssert.Contains(answer.Text, "`like Zzz` left nothing");
     }
+
+    // ── Continuing an earlier answer ──────────────────────────────────────────
+
+    /// <summary>Narrowing an answer used to mean asking the whole question again with a stage added.</summary>
+    [TestMethod]
+    [CoversNode("graph-ask")]
+    public void AnEarlierAnswer_StartsANewQuestion_ByItsNumber()
+    {
+        var history = new AnswerHistory(_ => DateTime.UnixEpoch);
+
+        var first = GraphAsk.Run(Repo(), "search Reader | members", Read, history);
+        StringAssert.EndsWith(first.Text, "@1");
+
+        var narrowed = GraphAsk.Run(Repo(), "@1 | like Depth | ids", Read, history);
+        Assert.IsTrue(narrowed.Ok, narrowed.Text);
+        StringAssert.Contains(narrowed.Text, "T:Reader/P:Depth");
+        Assert.IsFalse(narrowed.Text.Contains("M:Read", StringComparison.Ordinal), narrowed.Text);
+        StringAssert.EndsWith(narrowed.Text, "@2");
+
+        var last = GraphAsk.Run(Repo(), "@ | count", Read, history);
+        StringAssert.StartsWith(last.Text, "1 node(s)", "@ is the last answer - the narrowed one");
+    }
+
+    /// <summary>An answer continued after a file it came from changed is asked again rather than reused.</summary>
+    [TestMethod]
+    [CoversNode("graph-ask")]
+    public void AnAnswerWhoseFilesHaveChanged_IsAskedAgain()
+    {
+        var written = DateTime.UnixEpoch;
+        var history = new AnswerHistory(_ => written);
+
+        GraphAsk.Run(Repo(), "search Reader | members", Read, history);
+        written = written.AddMinutes(1);
+
+        var continued = GraphAsk.Run(Repo(), "@1 | count", Read, history);
+        StringAssert.Contains(continued.Text, "asked again");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask")]
+    public void AnAnswerThatWasNeverGiven_IsRefused_NamingTheOnesThatWere()
+    {
+        var history = new AnswerHistory(_ => DateTime.UnixEpoch);
+        GraphAsk.Run(Repo(), "search Reader", Read, history);
+
+        var refused = GraphAsk.Run(Repo(), "@9 | ids", Read, history);
+        Assert.IsFalse(refused.Ok);
+        StringAssert.Contains(refused.Text, "@1 to @1");
+
+        var nowhere = Ask("@ | ids");
+        Assert.IsFalse(nowhere.Ok, "without a history there is nothing for @ to mean");
+    }
 }

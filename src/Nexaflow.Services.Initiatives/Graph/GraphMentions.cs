@@ -24,6 +24,26 @@ public static class GraphMentions
     /// <summary>The kinds of file a C# name can be used from.</summary>
     private static readonly string[] Extensions = [".cs", ".xaml"];
 
+    /// <summary>Attributes whose values are words for a person — a label, a tooltip — rather than names for the code. A
+    /// button captioned "Run" is not a use of <c>Run</c>, and counting it listed forty views for a method of that name.</summary>
+    private static readonly HashSet<string> Prose = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Text", "Content", "Header", "ToolTip", "Title", "Description", "Label", "Watermark", "PlaceholderText", "Tag",
+        "AutomationProperties.Name", "AutomationProperties.HelpText", "x:Uid",
+    };
+
+    private static readonly Regex Attribute = new(@"(?<name>[\w:.]+)\s*=\s*""(?<value>[^""]*)""", RegexOptions.CultureInvariant);
+
+    private static readonly Regex Tag = new(@"<\s*/?\s*(?:\w+:)?(?<tag>[\w.]+)", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Whether a line of a view names code: in an attribute that is not prose — a handler, a binding path, a type in a
+    /// markup extension — or as an element, the way a custom control is used. Text between tags is for reading.
+    /// </summary>
+    private static bool NamesInView(string line, Regex word) =>
+        Attribute.Matches(line).Any(m => !Prose.Contains(m.Groups["name"].Value) && word.IsMatch(m.Groups["value"].Value))
+     || Tag.Matches(line).Any(m => word.IsMatch(m.Groups["tag"].Value));
+
     /// <summary>
     /// Every line of <paramref name="files"/> — the C# and XAML among them — naming any of <paramref name="names"/> as a
     /// whole word, in path order. The files come from the caller rather than from the graph's file list, which does not
@@ -50,9 +70,10 @@ public static class GraphMentions
             if (read(rel) is not { } text || !wanted.Any(n => text.Contains(n, StringComparison.Ordinal))) continue;
 
             var lines = text.Split('\n');
+            var view = rel.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase);
             for (var i = 0; i < lines.Length; i++)
             {
-                if (!word.IsMatch(lines[i])) continue;
+                if (!(view ? NamesInView(lines[i], word) : word.IsMatch(lines[i]))) continue;
 
                 found.Add(new Mention(rel, i + 1, lines[i].Trim(), Innermost(declarations.GetValueOrDefault(rel), i + 1)));
                 if (found.Count >= limit) return found;

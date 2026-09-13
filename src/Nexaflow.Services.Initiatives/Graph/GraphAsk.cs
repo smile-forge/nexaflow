@@ -42,7 +42,7 @@ public static class GraphAsk
     /// <summary>Printed with every refusal, because the whole vocabulary is shorter than an explanation of
     /// which part of it was wrong.</summary>
     public const string Vocabulary = """
-        start:  search <term> | grep <regex> [--from <id>] [--scope owned|hops] [--hops <n>] | node <id>[,<id>...]
+        start:  search <term> | grep <regex> [--from <id>] [--scope owned|hops] [--hops <n>] | node <id>[,<id>...] | @ | @<n>
         narrow: callers | callees | members | owned | near <n> | grep <regex> | like <regex> | limit <n>
         print:  ids [n] | source [n] | files | count            (ids, when the question says nothing)
         """;
@@ -80,7 +80,8 @@ public static class GraphAsk
     /// semicolon and a <c>#</c> line is a comment. Ok is false if any of them could not be read, which is
     /// what the CLI turns into an exit code.
     /// </summary>
-    public static Answer Run(KnowledgeGraph graph, string script, GraphQuery.ReadLines read)
+    /// <param name="history">The answers given so far, which <c>@</c> refers back to — null where nothing keeps them.</param>
+    public static Answer Run(KnowledgeGraph graph, string script, GraphQuery.ReadLines read, AnswerHistory? history = null)
     {
         var questions = script.Split('\n')
             .Select(line => line.Trim())
@@ -93,19 +94,32 @@ public static class GraphAsk
         foreach (var question in questions)
         {
             if (questions.Count > 1) sb.AppendLine($"-- {question}");
-            var answer = One(graph, question, read);
+            var answer = One(graph, question, read, history);
             sb.AppendLine(answer.Text);
             ok &= answer.Ok;
         }
         return new Answer(sb.ToString().TrimEnd(), ok);
     }
 
-    private static Answer One(KnowledgeGraph g, string question, GraphQuery.ReadLines read)
+    private static Answer One(KnowledgeGraph g, string question, GraphQuery.ReadLines read, AnswerHistory? history)
     {
         if (!Split(question, out var stages, out var bad)) return new Answer($"ask: {bad}\n{Vocabulary}", false);
 
-        var q = new Question();
-        for (var i = 0; i < stages.Count; i++)
+        var q     = new Question();
+        var asked = stages;
+        var first = 0;
+
+        // `@` or `@3` in place of the first stage continues an earlier answer. What is kept is the question with it spelled
+        // out, so an answer continued from a continuation is still one question, asked again whole if it has to be.
+        if (stages[0] is [{ Quoted: false } handle] && handle.Text.StartsWith('@'))
+        {
+            if (Continue(g, read, q, handle.Text, history, out var earlier) is { } refused)
+                return new Answer($"ask: {refused}\n{Vocabulary}", false);
+            asked = [.. earlier, .. stages.Skip(1)];
+            first = 1;
+        }
+
+        for (var i = first; i < stages.Count; i++)
         {
             if (Stage(g, read, q, stages[i], last: i == stages.Count - 1) is { } error)
                 return new Answer($"ask: {error}\n{Vocabulary}", false);
@@ -114,8 +128,55 @@ public static class GraphAsk
                 q.EmptiedBy = string.Join(' ', stages[i].Select(w => w.Quoted ? $"\"{w.Text}\"" : w.Text));
         }
 
-        return new Answer(Print(g, q, read), true);
+        var printed = Print(g, q, read);
+        if (history is null || !q.Seeded) return new Answer(printed, true);
+
+        var number = history.Add(TextOf(asked.Where(s => !IsPrint(s))), [.. q.Hits.Select(h => (h.Node, h.Lines))]);
+        return new Answer($"{printed}   @{number}", true);
     }
+
+    /// <summary>
+    /// Starts a question from an earlier answer: from what it found, when nothing that was found in has changed since, and
+    /// otherwise by asking its question again. <paramref name="earlier"/> is that question's stages.
+    /// </summary>
+    private static string? Continue(KnowledgeGraph g, GraphQuery.ReadLines read, Question q, string handle, AnswerHistory? history,
+                                    out List<List<Word>> earlier)
+    {
+        earlier = [];
+        if (history is null)
+            return "@ continues an earlier answer, and answers are kept by nfi's resident process - there are none here.";
+
+        int? number = handle == "@" ? null : int.TryParse(handle.AsSpan(1), out var n) && n > 0 ? n : -1;
+        if (number == -1) return $"'{handle}' is not an answer: @ is the last one, @<n> the one numbered n.";
+
+        var (oldest, newest) = history.Range;
+        if (history.Get(number) is not { } entry)
+            return newest == 0 ? "there is no earlier answer to continue yet."
+                               : $"there is no answer {handle} - the ones kept are @{oldest} to @{newest}.";
+
+        if (!Split(entry.Question, out earlier, out var bad)) return $"@{entry.Number} could not be read back: {bad}";
+
+        var byId = GraphQuery.Index(g);
+        if (history.IsCurrent(entry) && entry.Found.All(f => byId.ContainsKey(f.NodeId)))
+        {
+            q.Hits   = [.. entry.Found.Select(f => new Hit(byId[f.NodeId], f.Lines))];
+            q.Seeded = true;
+            return null;
+        }
+
+        q.Notes.Add($"note: @{entry.Number} was asked again - something it was found in has changed since.");
+        foreach (var stage in earlier)
+            if (Stage(g, read, q, stage, last: false) is { } error) return $"@{entry.Number} could not be asked again: {error}";
+        return null;
+    }
+
+    /// <summary>Whether a stage prints rather than finds — which a continued answer leaves to the question continuing it.</summary>
+    private static bool IsPrint(List<Word> stage) => stage.Count > 0 && stage[0].Text.ToLowerInvariant() is "ids" or "source" or "files" or "count";
+
+    /// <summary>Stages as the question text they came from, quoting the words that were quoted.</summary>
+    private static string TextOf(IEnumerable<List<Word>> stages) =>
+        string.Join(" | ", stages.Select(stage => string.Join(' ', stage.Select(w =>
+            !w.Quoted ? w.Text : w.Text.Contains('\'', StringComparison.Ordinal) ? $"\"{w.Text}\"" : $"'{w.Text}'"))));
 
     // -- Reading the question ---------------------------------------------------
 

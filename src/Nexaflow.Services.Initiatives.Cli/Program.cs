@@ -1032,6 +1032,10 @@ internal static class Program
         return true;
     }
 
+    /// <summary>The answers each tree has been given in this process's life — what `@` in a question refers back to.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, AnswerHistory> Histories =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// `nfi ask '<stage> | <stage>'` - several graph questions chained into one answer.
     /// <para>
@@ -1051,7 +1055,13 @@ internal static class Program
         RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         var main = a.Has("--main");
-        var answer = GraphAsk.Run(g, a[0], rel => TryReadLines(root, rel, main));
+
+        // Kept by the process that answers, so only the resident process has a history for `@` to refer back to.
+        var history = RequestScope.Serving
+            ? Histories.GetOrAdd($"{CodeRootFor(root, main)}|{main}",
+                                 _ => new AnswerHistory(rel => CodeFilePath(root, rel, main) is { } full ? File.GetLastWriteTimeUtc(full) : null))
+            : null;
+        var answer = GraphAsk.Run(g, a[0], rel => TryReadLines(root, rel, main), history);
         Console.WriteLine(answer.Text);
         return answer.Ok ? Clean : Error;
     }

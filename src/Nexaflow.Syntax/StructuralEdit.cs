@@ -458,13 +458,40 @@ public static partial class StructuralEdit
         // supply one" means. When the replacement DOES open with one, keeping the old one too produces two,
         // which is never what was meant and compiles fine, so only reading the file catches it.
         var bringsOwnDoc = !withTrivia && a.TriviaStart < a.Start && OpensWithComment(grammarId, text);
-        if (bringsOwnDoc)
+        if (bringsOwnDoc && SummaryKept(src, a, text, newline) is { } merged)
+        {
+            // …except a doc comment with no summary in it, which is adding a <param> or a <remarks> to the one that is there,
+            // not replacing it. Taken whole, it deleted the summary every time, and nothing refused.
+            text = merged;
+            notes.Add("the replacement's doc comment had no <summary>, so the existing one was kept above it.");
+        }
+        else if (bringsOwnDoc)
             notes.Add("the replacement opens with a comment, so it replaced the existing doc comment rather "
                     + "than being added above it.");
 
         var replaceTrivia = withTrivia || bringsOwnDoc;
         var from = replaceTrivia ? LineStart(src, a.TriviaStart) : a.Start;
         return (Splice(src, from, a.End, Block(text, indent, newline, indentFirst: replaceTrivia)), null);
+    }
+
+    /// <summary>
+    /// The replacement with the declaration's existing <c>&lt;summary&gt;</c> put back in front of it, when the existing
+    /// doc comment has one and the replacement's has none. Null when there is nothing to keep.
+    /// </summary>
+    private static string? SummaryKept(string src, DeclarationAnchor a, string text, string newline)
+    {
+        var existing = SourceText.Of(src[LineStart(src, a.TriviaStart)..a.Start]).Lines.Select(l => l.TrimStart()).ToList();
+        var incoming = SourceText.BlockOf(text);
+        var leading  = incoming.TakeWhile(l => l.TrimStart().StartsWith("///", StringComparison.Ordinal)).ToList();
+
+        if (leading.Count == 0 || leading.Any(l => l.Contains("<summary>", StringComparison.Ordinal))) return null;
+
+        var open  = existing.FindIndex(l => l.StartsWith("///", StringComparison.Ordinal) && l.Contains("<summary>", StringComparison.Ordinal));
+        var close = open < 0 ? -1 : existing.FindIndex(open, l => l.Contains("</summary>", StringComparison.Ordinal));
+        if (open < 0 || close < 0) return null;
+
+        return string.Join(newline, [.. existing.Skip(open).Take(close - open + 1), .. incoming.Select(l => l.TrimStart()
+            is var trimmed && trimmed.StartsWith("///", StringComparison.Ordinal) ? trimmed : l)]);
     }
 
     /// <summary>Whether a block of replacement text begins with a comment in this language.</summary>

@@ -1453,4 +1453,22 @@ public class StructuralEditTests
         Assert.IsFalse(beside.Notes.Any(n => n.Contains("renumbers", StringComparison.Ordinal)), string.Join("\n", beside.Notes));
         Assert.IsTrue(another.Notes.Any(n => n.Contains("renumbers", StringComparison.Ordinal)), "a third Add does renumber them");
     }
+
+    /// <summary>
+    /// A replacement whose doc comment is only a &lt;param&gt; is adding to the summary that is there. Replacing the doc
+    /// whole deleted the summary each time — three times while writing the edit tools themselves — and nothing refused.
+    /// </summary>
+    [TestMethod]
+    public void Replace_WithADocCommentThatHasNoSummary_KeepsTheExistingSummary()
+    {
+        const string source =
+            "class C\n{\n    /// <summary>Adds two numbers.</summary>\n    public int Add(int a, int b) => a + b;\n}\n";
+
+        var result = StructuralEdit.Apply("c-sharp", source, "T:C/M:Add", "Add", StructuralEdit.Op.Replace,
+            "/// <param name=\"c\">A third.</param>\npublic int Add(int a, int b, int c) => a + b + c;");
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(result.NewText,
+            "    /// <summary>Adds two numbers.</summary>\n    /// <param name=\"c\">A third.</param>\n    public int Add(int a, int b, int c)");
+    }
 }

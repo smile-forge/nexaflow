@@ -17,10 +17,10 @@ public class GraphMentionsTests
 {
     private static readonly Dictionary<string, string> Files = new(StringComparer.Ordinal)
     {
-        ["src/A.cs"]    = "class A\n{\n    void Run() => Plan();\n    void Planner() { }\n}\n",
-        ["src/View.xaml"] = "<Button Click=\"Plan\" />\n",
-        ["src/B.cs"]    = "class B { }\n",
-        ["notes.md"]    = "Plan the Plan.\n",
+        ["src/A.cs"]      = "class A\n{\n    void Run() => Plan();\n    void Planner() { }\n}\n",
+        ["src/View.xaml"] = "<StackPanel>\n  <TextBlock Text=\"Plan\" />\n  <Button Click=\"Plan\" Content=\"Plan\" />\n</StackPanel>\n",
+        ["src/B.cs"]      = "class B { }\n",
+        ["notes.md"]      = "Plan the Plan.\n",
     };
 
     private static readonly KnowledgeGraph Graph = new()
@@ -39,9 +39,9 @@ public class GraphMentionsTests
     {
         var found = GraphMentions.Of(Graph, ["Plan"], Files.Keys, rel => Files.GetValueOrDefault(rel));
 
-        CollectionAssert.AreEqual(new[] { "src/A.cs:3", "src/View.xaml:1" },
+        CollectionAssert.AreEqual(new[] { "src/A.cs:3", "src/View.xaml:3" },
                                   found.Select(m => $"{m.RelativePath}:{m.Line}").ToArray(),
-                                  "Planner is another word, and a markdown file is not code");
+                                  "Planner is another word, a caption is not a use, and a markdown file is not code");
         Assert.AreEqual("code:src/A.cs#T:A/M:Run", found[0].Owner?.Id);
         Assert.IsNull(found[1].Owner, "the graph records nothing inside a view's line, and nothing is guessed");
     }
