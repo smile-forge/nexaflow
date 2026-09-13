@@ -87,7 +87,7 @@ public class TypesettingUnchangedTests
         // drawing, while the test that watched them was asking that same reader.
         // Moved when `\text{…}` stopped being padded with a thin space at each end. That padding was
         // meant for a stretch shown because it could not be read, and reached every text command by
-        // sharing the same builder — see TexFormulaBuilder.Letters.
+        // sharing the same builder — see LatexBuilder.LettersItem.
         ["text styles and fonts"] = "FCAB07860B836086",
         // These two moved 2026-08-29 because two things stopped being set as their own characters. `\ `
         // is drawn by the builder and was not in the table the reading asks whether anything can draw it,

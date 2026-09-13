@@ -29,7 +29,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// a score.
 /// </para>
 /// </summary>
-public sealed class LatexBuilder : ContentBuilder
+public sealed partial class LatexBuilder : ContentBuilder
 {
     private readonly double _scale;
     private readonly bool _inline;
@@ -93,7 +93,7 @@ public sealed class LatexBuilder : ContentBuilder
     /// a formula questions still needs no fonts and no desktop.
     /// </summary>
     internal static bool Draws(string name) =>
-        XamlMath.TexFormulaBuilder.Draws(name, WpfTeXFormulaParser.Instance);
+        Draws(name, WpfTeXFormulaParser.Instance);
 
 
     protected override Laid? Read()
@@ -124,7 +124,7 @@ public sealed class LatexBuilder : ContentBuilder
             scale: _scale,
             systemTextFontName: _systemFont);
 
-        var (formula, ignored) = XamlMath.TexFormulaBuilder.Formula(reading.Root, environment, knowledge);
+        var (formula, ignored) = Formula(reading.Root, environment, knowledge);
 
         if (formula is null)
         {
@@ -132,7 +132,7 @@ public sealed class LatexBuilder : ContentBuilder
             // answer this gives a stretch under the caret and a command nobody has heard of, reached
             // by the same road — and a great deal more use to whoever wrote it than a blank space.
             reading = ContentReading.Of(ContentNode.Branch(Kinds.Sequence, [ContentNode.Shown(Source)]));
-            (formula, ignored) = XamlMath.TexFormulaBuilder.Formula(reading.Root, environment, knowledge);
+            (formula, ignored) = Formula(reading.Root, environment, knowledge);
         }
 
         if (formula is null) return null;
@@ -160,7 +160,7 @@ public sealed class LatexBuilder : ContentBuilder
 
         // An equation's number, where one was written, set against the right edge of the block the formula is
         // displayed in — see Numbered.
-        var (tree, size) = XamlMath.TexFormulaBuilder.Number(reading.Root, environment) is { } number
+        var (tree, size) = Number(reading.Root, environment) is { } number
             ? Numbered(laid, capture, number, reading)
             : (laid, capture.Size);
 

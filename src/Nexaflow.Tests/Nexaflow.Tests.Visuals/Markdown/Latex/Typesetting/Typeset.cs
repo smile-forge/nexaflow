@@ -42,8 +42,8 @@ internal static class Typeset
     public static (ContentReading Reading, Set? Set, IReadOnlyList<ContentPart> Ignored) Read(
         string markup, TexStyle style = TexStyle.Display)
     {
-        var reading = ContentReading.Of(TexPipeline.Read(markup, name => TexFormulaBuilder.Draws(name, Knowledge)));
-        var (set, ignored) = TexFormulaBuilder.Formula(reading.Root, Environment(style), Knowledge);
+        var reading = ContentReading.Of(TexPipeline.Read(markup, name => LatexBuilder.Draws(name, Knowledge)));
+        var (set, ignored) = LatexBuilder.Formula(reading.Root, Environment(style), Knowledge);
         return (reading, set, ignored);
     }
 

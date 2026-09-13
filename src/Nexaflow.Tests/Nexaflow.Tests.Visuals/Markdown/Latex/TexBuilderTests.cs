@@ -283,7 +283,7 @@ public class TexBuilderTests
     {
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
 
-        return TexFormulaBuilder.Formula(ContentReading.Of(TexPipeline.Read(latex)).Root, _setting, WpfTeXFormulaParser.Instance).Set;
+        return LatexBuilder.Formula(ContentReading.Of(TexPipeline.Read(latex)).Root, _setting, WpfTeXFormulaParser.Instance).Set;
     }
 
     /// <summary>

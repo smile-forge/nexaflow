@@ -115,7 +115,7 @@ public class TexFormulaParser
     /// symbol.
     ///
     /// <para>
-    /// Asked by <see cref="TexFormulaBuilder"/> to tell two different things apart, both of which reach
+    /// Asked by <see cref="Nexaflow.Visuals.Text.Markdown.Latex.LatexBuilder"/> to tell two different things apart, both of which reach
     /// the same place in it. A command this knows but the builder has no drawing for — <c>\textrm</c>,
     /// <c>\bbox</c> — is a gap in the builder, and the reader should see their formula rather than a
     /// complaint about it. A command <em>nothing</em> knows is a mistake in what they typed, and saying so

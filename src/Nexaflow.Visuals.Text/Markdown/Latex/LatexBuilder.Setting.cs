@@ -5,49 +5,32 @@ using XamlMath.Exceptions;
 using XamlMath.Parsers;
 using XamlMath.Parsers.Matrices;
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Visuals.Text.Markdown.Latex;
+using XamlMath;
+using TexEnvironment = XamlMath.TexEnvironment;
+using XamlMath.Rendering.Transformations;
 
-namespace XamlMath;
+namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
 /// <summary>
-/// Builds a formula out of a reading that has already been done — the other way into this engine.
+/// The setting half: a formula's reading turned into measured pieces, each construct set the way TeX sets it.
 ///
 /// <para>
-/// <see cref="TexFormulaParser"/> reads LaTeX and decides what the reading should be set as, in one pass,
-/// and the reading it does is lossy by the time it reaches an atom: braces are gone, spacing is gone, and
-/// where a construct began is remembered only approximately. That is fine for drawing a formula once and
-/// no good at all for editing one. This takes the reading from <see cref="ContentReading"/> instead, which
-/// keeps all of it, and does only the second half of the job.
+/// Handed the reading and never the string, so nothing here can name a point in the source. What a piece came
+/// from is its part; where that part is written is the reading's to answer.
 /// </para>
 /// <para>
-/// Every atom carries the part it was built from, in <see cref="IFormulaNode.Origin"/>. That is the point
-/// of the exercise: a box then knows what it <em>is</em> without anything having to match spans back up
-/// afterwards.
+/// A construct is set as it is reached, in the environment its parent chose, and comes back a <see cref="Set"/>: the
+/// room it takes and a way to draw it once its parent has decided where. Anything nothing here has a drawing for is
+/// set as the characters it was written with, so a formula comes back whole whatever it holds.
 /// </para>
 /// <para>
-/// <b>This never touches the source, and the atoms it makes name no part of it.</b> Not a convention — it
-/// is handed a reading and never the string, so there is nothing here to take an offset from, and every
-/// atom's <c>Source</c> is left null. What a thing came from is its <see cref="IFormulaNode.Origin"/>, and
-/// where that is written is the reading's to say, worked out by a walk when someone asks. An offset stored
-/// beside a tree is a second copy of a fact the tree already holds, and the two go out of step the moment
-/// anything is edited — which is the whole reason the boxes are being built from a parse tree at all.
-/// </para>
-/// <para>
-/// <b>All or nothing.</b> A construct this does not know yet makes the whole formula come back null, and
-/// the caller falls back to the parser. Building half a formula each way would mix two readings of the
-/// same source, which is the thing being got rid of.
-/// </para>
-/// <para>
-/// <b>Space that was typed is not built; space that was asked for is.</b> TeX takes the gaps between
-/// symbols from what class each atom is, not from what was typed, so <c>a+b</c> and <c>a + b</c> are set
-/// identically: the spaces are in the parse tree because they are in the source, and they produce no
-/// atom. <c>\,</c>, <c>\;</c>, <c>\quad</c> and the rest are the writer overriding that, so they do —
-/// and they are not commands, which is why the symbol table has never heard of them. Most are
-/// macros, expanded while the formula is read; the handful that are a length in mu and have no
-/// LaTeX spelling are built beside the symbols by <see cref="StandardCommands.PrimitiveOf"/>.
+/// <b>Space that was typed is not built; space that was asked for is.</b> TeX takes the gaps between symbols from
+/// their classes, not from what was typed, so <c>a+b</c> and <c>a + b</c> are set identically. <c>\,</c>,
+/// <c>\quad</c> and the rest are the writer overriding that, so they are: most as macros expanded while the formula is
+/// read, and the handful that are a length in mu with no LaTeX spelling by <see cref="PrimitiveItem"/>.
 /// </para>
 /// </summary>
-public static class TexFormulaBuilder
+public sealed partial class LatexBuilder
 {
     /// <summary>
     /// Whether the handful of disagreements parked for review are declined — which is what parking one
@@ -1934,8 +1917,8 @@ public static class TexFormulaBuilder
             layer.Place(body, x, y);
             layer.PlaceTransformed(
                 delimiter,
-                [new Rendering.Transformations.Transformation.Translate(translateX, translateY),
-                 new Rendering.Transformations.Transformation.Rotate(90)],
+                [new Transformation.Translate(translateX, translateY),
+                 new Transformation.Rotate(90)],
                 -delimiter.Width / 2,
                 -delimiter.Depth + delimiter.Width / 2);
             if (script is not null) layer.Place(script, x, scriptY);
