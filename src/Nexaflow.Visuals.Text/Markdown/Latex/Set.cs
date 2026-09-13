@@ -58,7 +58,7 @@ internal sealed record Set
     /// Lays the piece's own marks and children, with the left end of its baseline at the point given. Handed the piece
     /// itself, so a measurement a parent overrides afterwards (TeX pins a stack's height that way) is the one drawn.
     /// </summary>
-    public Action<LatexCapture, Set, double, double>? Draw { get; init; }
+    public Action<LatexBuilder, Set, double, double>? Draw { get; init; }
 
     /// <summary>The font of the last glyph this draws, or none: what a space measured in x-heights is measured against.</summary>
     public int LastFontId { get; init; } = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexFontUtilities.NoFontId;
@@ -81,7 +81,7 @@ internal sealed record Set
             Italic = info.Metrics.Italic,
             Background = Wash(environment),
             LastFontId = info.FontId,
-            Draw = (layer, _, x, y) => layer.Glyph(info, x, y, foreground),
+            Draw = (layer, _, x, y) => layer.DrawGlyph(info, x, y, foreground),
         };
     }
 
@@ -97,7 +97,7 @@ internal sealed record Set
             Height = thickness,
             Shift = shift,
             Background = Wash(environment),
-            Draw = (layer, _, x, y) => layer.Rule(new Rectangle(x, y - thickness, width, thickness), foreground),
+            Draw = (layer, _, x, y) => layer.DrawRule(new Rectangle(x, y - thickness, width, thickness), foreground),
         };
     }
 
@@ -138,10 +138,10 @@ internal sealed record Set
             Draw = (layer, _, x, y) =>
             {
                 var top = y - size;
-                layer.Rule(new Rectangle(x, top, width, thickness), foreground);
-                layer.Rule(new Rectangle(x, y - thickness, width, thickness), foreground);
-                layer.Rule(new Rectangle(x, top, thickness, size), foreground);
-                layer.Rule(new Rectangle(x + width - thickness, top, thickness, size), foreground);
+                layer.DrawRule(new Rectangle(x, top, width, thickness), foreground);
+                layer.DrawRule(new Rectangle(x, y - thickness, width, thickness), foreground);
+                layer.DrawRule(new Rectangle(x, top, thickness, size), foreground);
+                layer.DrawRule(new Rectangle(x + width - thickness, top, thickness, size), foreground);
             },
         };
     }
@@ -156,10 +156,10 @@ internal sealed record Set
         Draw = (layer, _, x, y) =>
         {
             if (mode.HasFlag(StrokeMode.Normal))
-                layer.Line(new Point(x, y + depth), new Point(x + width, y - height), null);
+                layer.DrawLine(new Point(x, y + depth), new Point(x + width, y - height), null);
 
             if (mode.HasFlag(StrokeMode.Back))
-                layer.Line(new Point(x, y - height), new Point(x + width, y + depth), null);
+                layer.DrawLine(new Point(x, y - height), new Point(x + width, y + depth), null);
         },
     };
 
@@ -188,30 +188,30 @@ internal sealed record Set
 
                 if (decoration.HasFlag(ArrowDecoration.DoubleShaft))
                 {
-                    layer.Line(new Point(left, shaftY - thickness), new Point(right, shaftY - thickness), foreground);
-                    layer.Line(new Point(left, shaftY + thickness), new Point(right, shaftY + thickness), foreground);
+                    layer.DrawLine(new Point(left, shaftY - thickness), new Point(right, shaftY - thickness), foreground);
+                    layer.DrawLine(new Point(left, shaftY + thickness), new Point(right, shaftY + thickness), foreground);
                 }
                 else
                 {
-                    layer.Line(new Point(left, shaftY), new Point(right, shaftY), foreground);
+                    layer.DrawLine(new Point(left, shaftY), new Point(right, shaftY), foreground);
                 }
 
                 // Arrowheads: two short strokes converging on the pointing end.
                 var headLength = System.Math.Min(5.0 * thickness, width);
                 if (decoration.HasFlag(ArrowDecoration.HeadRight))
                 {
-                    layer.Line(new Point(right, shaftY), new Point(right - headLength, shaftY - headHalfHeight), foreground);
-                    layer.Line(new Point(right, shaftY), new Point(right - headLength, shaftY + headHalfHeight), foreground);
+                    layer.DrawLine(new Point(right, shaftY), new Point(right - headLength, shaftY - headHalfHeight), foreground);
+                    layer.DrawLine(new Point(right, shaftY), new Point(right - headLength, shaftY + headHalfHeight), foreground);
                 }
 
                 if (decoration.HasFlag(ArrowDecoration.HeadLeft))
                 {
-                    layer.Line(new Point(left, shaftY), new Point(left + headLength, shaftY - headHalfHeight), foreground);
-                    layer.Line(new Point(left, shaftY), new Point(left + headLength, shaftY + headHalfHeight), foreground);
+                    layer.DrawLine(new Point(left, shaftY), new Point(left + headLength, shaftY - headHalfHeight), foreground);
+                    layer.DrawLine(new Point(left, shaftY), new Point(left + headLength, shaftY + headHalfHeight), foreground);
                 }
 
                 if (decoration.HasFlag(ArrowDecoration.TailBarLeft))
-                    layer.Line(new Point(left, shaftY - headHalfHeight), new Point(left, shaftY + headHalfHeight), foreground);
+                    layer.DrawLine(new Point(left, shaftY - headHalfHeight), new Point(left, shaftY + headHalfHeight), foreground);
             },
         };
     }
@@ -233,10 +233,10 @@ internal sealed record Set
                 var top = y - height;
                 var total = height + depth;
 
-                layer.Rule(new Rectangle(x, top, width, thickness), foreground);
-                layer.Rule(new Rectangle(x, top + total - thickness, width, thickness), foreground);
-                layer.Rule(new Rectangle(x, top, thickness, total), foreground);
-                layer.Rule(new Rectangle(x + width - thickness, top, thickness, total), foreground);
+                layer.DrawRule(new Rectangle(x, top, width, thickness), foreground);
+                layer.DrawRule(new Rectangle(x, top + total - thickness, width, thickness), foreground);
+                layer.DrawRule(new Rectangle(x, top, thickness, total), foreground);
+                layer.DrawRule(new Rectangle(x + width - thickness, top, thickness, total), foreground);
             },
         };
     }
@@ -266,10 +266,10 @@ internal sealed record Set
                 var total = height + depth;
 
                 foreach (var offset in verticalAt)
-                    layer.Rule(new Rectangle(x + offset, top, thickness, total), foreground);
+                    layer.DrawRule(new Rectangle(x + offset, top, thickness, total), foreground);
 
                 foreach (var offset in horizontalAt)
-                    layer.Rule(new Rectangle(x, top + offset, width, thickness), foreground);
+                    layer.DrawRule(new Rectangle(x, top + offset, width, thickness), foreground);
             },
         };
     }

@@ -1,0 +1,36 @@
+{
+  "branch": "claude/latex-builder-sets-tex",
+  "nodes": {
+    "maths-typesetting": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/Tex/DefaultTexFont.cs",
+          "class": "DefaultTexFont"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/latex-parse-tree.md"
+        }
+      ]
+    },
+    "maths-typesetting-builder": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexBuilder.Setting.cs",
+          "class": "LatexBuilder"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "maths-typesetting",
+    "maths-typesetting-builder"
+  ]
+}

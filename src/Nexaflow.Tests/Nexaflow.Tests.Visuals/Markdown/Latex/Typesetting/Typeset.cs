@@ -45,9 +45,7 @@ internal static class Typeset
         var reading = ContentReading.Of(TexPipeline.Read(markup, name => LatexBuilder.Draws(name, Knowledge)));
         var set = LatexBuilder.Formula(reading.Root, Environment(style), Knowledge);
 
-        var capture = new LatexCapture(1.0, reading);
-        capture.Lay(set);
-        return (reading, set, capture.Undrawn);
+        return (reading, set, LatexBuilder.LayFormula(set, reading, 1.0).Undrawn);
     }
 
     /// <summary>The formula, set.</summary>
@@ -103,13 +101,11 @@ internal static class Typeset
     /// The formula laid into the layout tree at unit scale, which is settled onto its ink. A formula that draws nothing — a
     /// space, a phantom — lays no tree at all.
     /// </summary>
-    public static LatexCapture Laid(string markup)
+    public static LatexBuilder.Placed Laid(string markup)
     {
         var (reading, set, _) = Read(markup);
 
-        var capture = new LatexCapture(1.0, reading);
-        capture.Lay(set);
-        return capture;
+        return LatexBuilder.LayFormula(set, reading, 1.0);
     }
 
     /// <summary>Every mark the formula draws, with the x its piece lands at measured from the formula's left edge.</summary>

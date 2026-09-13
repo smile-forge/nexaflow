@@ -125,12 +125,11 @@ public sealed partial class LatexBuilder : ContentBuilder
 
         var formula = Formula(reading.Root, environment, knowledge);
 
-        var capture = new LatexCapture(_scale, reading);
         // Laying it also settles the tree onto the origin. A shifted or transformed box can land above or left
         // of where the pen started, and a tree with negative coordinates would put the caret outside the
         // control that draws it — one number now, because everything in it is relative to the root.
-        capture.Lay(formula);
-        if (capture.Tree is not { } laid) return null;
+        var placed = LayFormula(formula, reading);
+        if (placed.Tree is not { } laid) return null;
 
 
         // Asked of what was read and what was laid rather than collected on the way through either. A part
@@ -140,7 +139,7 @@ public sealed partial class LatexBuilder : ContentBuilder
         var trouble = reading.Root.SelfAndDescendants()
             .Where(part => part.Node.Trouble is not null)
             .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
-            .Concat(capture.Undrawn.Select(part => TexSourcePart.Trouble(
+            .Concat(placed.Undrawn.Select(part => TexSourcePart.Trouble(
                 part,
                 DiagnosticSeverity.Warning,
                 "This was read, and nothing here knows how to draw it.")))
@@ -149,8 +148,8 @@ public sealed partial class LatexBuilder : ContentBuilder
         // An equation's number, where one was written, set against the right edge of the block the formula is
         // displayed in — see Numbered.
         var (tree, size) = Number(reading.Root, environment) is { } number
-            ? Numbered(laid, capture, number, reading)
-            : (laid, capture.Size);
+            ? Numbered(placed, number, reading)
+            : (laid, placed.Size);
 
         var made = new Laid(tree, size, trouble);
 
@@ -171,26 +170,24 @@ public sealed partial class LatexBuilder : ContentBuilder
     /// Which side of the block a thing stands against is the layout's to say — see <see cref="Side"/>.
     /// </para>
     /// </summary>
-    private (LayoutTree Tree, System.Windows.Size Size) Numbered(LayoutTree formula, LatexCapture laid, Set number,
-                                                     ContentReading reading)
+    private (LayoutTree Tree, System.Windows.Size Size) Numbered(Placed formula, Set number, ContentReading reading)
     {
-        var capture = new LatexCapture(_scale, reading);
-        capture.Lay(number);
-        if (capture.Tree is not { } tag) return (formula, laid.Size);
+        var laid = LayFormula(number, reading);
+        if (laid.Tree is not { } tag) return (formula.Tree!, formula.Size);
 
         var build = new LayoutBuilder();
         build.Open("Block");
-        build.Graft(formula, default, Side.Centre);
+        build.Graft(formula.Tree!, default, Side.Centre);
 
         // On the formula's baseline, and a quad clear of it at the least, as LaTeX keeps an equation's number.
-        build.Graft(tag, new System.Windows.Point(0, laid.Baseline - capture.Baseline), Side.Right, clear: _scale);
+        build.Graft(tag, new System.Windows.Point(0, formula.Baseline - laid.Baseline), Side.Right, clear: _scale);
         build.Close();
 
         // Inline there is no block to stand against, and the number simply follows.
         var block = _inline ? 0 : _block;
         var tree = build.Seal(block);
 
-        var covers = LatexCapture.Extent(tree.Root);
+        var covers = Extent(tree.Root);
         tree.Settle(new Vector(block > 0 ? 0 : -covers.X, -covers.Y));
 
         return (tree, new System.Windows.Size(block > 0 ? System.Math.Max(block, covers.Right) : covers.Width, covers.Height));
