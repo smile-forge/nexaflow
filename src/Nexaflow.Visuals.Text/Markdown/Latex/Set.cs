@@ -51,6 +51,9 @@ internal sealed record Set
     /// <summary>A <c>\colorbox</c> washed under the piece.</summary>
     public Brush? Background { get; init; }
 
+    /// <summary>The part this sets as the characters it was written with, because nothing here has a drawing for it.</summary>
+    public ContentPart? Undrawn { get; init; }
+
     /// <summary>
     /// Lays the piece's own marks and children, with the left end of its baseline at the point given. Handed the piece
     /// itself, so a measurement a parent overrides afterwards (TeX pins a stack's height that way) is the one drawn.

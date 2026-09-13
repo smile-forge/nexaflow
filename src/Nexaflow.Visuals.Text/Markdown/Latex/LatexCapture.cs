@@ -99,6 +99,9 @@ internal sealed class LatexCapture
     /// <summary>The formula's whole layout, or null when nothing was drawn at all.</summary>
     public LayoutTree? Tree { get; private set; }
 
+    /// <summary>The parts laid as their characters because nothing draws them, in the order they were laid.</summary>
+    internal List<ContentPart> Undrawn { get; } = [];
+
     /// <summary>How big it came out.</summary>
     public Size Size { get; private set; }
 
@@ -126,6 +129,8 @@ internal sealed class LatexCapture
 
         var origin = new Point(raw.X + _offsetX, raw.Y + _offsetY);
         var parent = _open.Count > 0 ? _open.Peek().Origin : new Point(0, 0);
+
+        if (piece.Undrawn is { } undrawn) Undrawn.Add(undrawn);
 
         // Spacing is not a thing on the page. A strut and a piece of glue are room the typesetter reserved,
         // and the builder places what comes after them at the offset that room produces — so the gap is the

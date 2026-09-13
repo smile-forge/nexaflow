@@ -261,37 +261,25 @@ public class TexBuilderTests
     public void EverythingItClaimsToKnowItCanBuild() => UiThread.Run(() =>
     {
         foreach (var latex in Known)
-            Assert.IsNotNull(Formula(latex), latex);
+            Typesetting.Typeset.Renders(latex);
     });
 
     [TestMethod]
     public void AndEverythingElseItBuildsSomethingFor() => UiThread.Run(() =>
     {
-        // A command *nothing* knows has no better rendering to defer to, so this must answer for it rather than
-        // decline: it shows what was written and reports it, which is what a reader needs.
+        // A command *nothing* knows has no better rendering to defer to, so this must answer for it: it shows what was
+        // written and reports it, which is what a reader needs.
         foreach (var latex in new[] { @"\notacommand{x}",
                                       @"\alhpa + \beta",
                                       @"\bbox[red]{a}",      // nothing knows this one either
                                       @"\hline",           // nor this: it is a rule between rows
                                       @"x + \nosuchthing" })
-            Assert.IsNotNull(Formula(latex), latex);
+        {
+            Assert.IsNotNull(Typesetting.Typeset.Laid(latex).Tree, $"nothing was laid for {latex}");
+            Assert.IsTrue(Typesetting.Typeset.Undrawn(latex).Count + Typesetting.Typeset.Unreadable(latex).Count > 0,
+                          $"{latex} was shown as written and not reported");
+        }
     });
-
-    /// <summary>A formula set from its reading in display style, or null where nothing in it builds.</summary>
-    private static Nexaflow.Visuals.Text.Markdown.Latex.Set? Formula(string latex)
-    {
-        _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
-
-        return LatexBuilder.Formula(ContentReading.Of(TexPipeline.Read(latex)).Root, _setting, WpfTeXFormulaParser.Instance).Set;
-    }
-
-    /// <summary>
-    /// The fonts and style a formula is set in, made once per thread. Walking the installed font families to find
-    /// the one <c>\text</c> would use is slow and goes through WPF's process-wide font cache, and what it holds belongs
-    /// to the thread that made it.
-    /// </summary>
-    [ThreadStatic]
-    private static Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment? _setting;
 
     /// <summary>
     /// Every macro draws as something, rather than as its own name in plain letters.

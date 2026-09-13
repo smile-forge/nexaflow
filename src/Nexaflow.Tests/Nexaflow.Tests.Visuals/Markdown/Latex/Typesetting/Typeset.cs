@@ -38,18 +38,20 @@ internal static class Typeset
         return environment;
     }
 
-    /// <summary>The reading, what was set from it, and what in it had no drawing.</summary>
-    public static (ContentReading Reading, Set? Set, IReadOnlyList<ContentPart> Ignored) Read(
+    /// <summary>The reading, what was set from it, and what in it was laid as its characters because nothing draws it.</summary>
+    public static (ContentReading Reading, Set Set, IReadOnlyList<ContentPart> Undrawn) Read(
         string markup, TexStyle style = TexStyle.Display)
     {
         var reading = ContentReading.Of(TexPipeline.Read(markup, name => LatexBuilder.Draws(name, Knowledge)));
-        var (set, ignored) = LatexBuilder.Formula(reading.Root, Environment(style), Knowledge);
-        return (reading, set, ignored);
+        var set = LatexBuilder.Formula(reading.Root, Environment(style), Knowledge);
+
+        var capture = new LatexCapture(1.0, reading);
+        capture.Lay(set);
+        return (reading, set, capture.Undrawn);
     }
 
-    /// <summary>The formula, set. Fails only where nothing in it could be set as maths.</summary>
-    public static Set Formula(string markup, TexStyle style = TexStyle.Display) =>
-        Read(markup, style).Set ?? throw new AssertFailedException($"nothing in '{markup}' could be set as maths");
+    /// <summary>The formula, set.</summary>
+    public static Set Formula(string markup, TexStyle style = TexStyle.Display) => Read(markup, style).Set;
 
     public static double Width(string markup, TexStyle style = TexStyle.Display) => Formula(markup, style).Width;
 
@@ -72,9 +74,8 @@ internal static class Typeset
     /// </summary>
     public static void Renders(string markup)
     {
-        var (_, set, ignored) = Read(markup);
-        Assert.IsNotNull(set, $"nothing in '{markup}' could be set as maths");
-        Assert.AreEqual(0, ignored.Count, $"'{markup}' set as characters: {string.Join(", ", ignored.Select(part => part.Print()))}");
+        var undrawn = Read(markup).Undrawn;
+        Assert.AreEqual(0, undrawn.Count, $"'{markup}' set as characters: {string.Join(", ", undrawn.Select(part => part.Print()))}");
         CollectionAssert.AreEqual(Array.Empty<string>(), Unreadable(markup).ToList(), $"'{markup}' has stretches nothing could read");
     }
 
@@ -95,11 +96,8 @@ internal static class Typeset
             .ToList();
 
     /// <summary>The stretches that were read but have no drawing, and so are set as the characters written.</summary>
-    public static IReadOnlyList<string> Undrawn(string markup)
-    {
-        var (_, set, ignored) = Read(markup);
-        return set is null ? [markup] : ignored.Select(part => part.Print()).Distinct().ToList();
-    }
+    public static IReadOnlyList<string> Undrawn(string markup) =>
+        Read(markup).Undrawn.Select(part => part.Print()).Distinct().ToList();
 
     /// <summary>
     /// The formula laid into the layout tree at unit scale, which is settled onto its ink. A formula that draws nothing — a
@@ -108,7 +106,6 @@ internal static class Typeset
     public static LatexCapture Laid(string markup)
     {
         var (reading, set, _) = Read(markup);
-        Assert.IsNotNull(set, $"nothing in '{markup}' could be set as maths");
 
         var capture = new LatexCapture(1.0, reading);
         capture.Lay(set);

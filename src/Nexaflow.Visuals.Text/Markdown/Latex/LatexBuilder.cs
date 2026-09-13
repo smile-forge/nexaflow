@@ -123,18 +123,7 @@ public sealed partial class LatexBuilder : ContentBuilder
             scale: _scale,
             systemTextFontName: _systemFont);
 
-        var (formula, ignored) = Formula(reading.Root, environment, knowledge);
-
-        if (formula is null)
-        {
-            // Nothing here could set it as maths, so it is set as it was typed. Which is the same
-            // answer this gives a stretch under the caret and a command nobody has heard of, reached
-            // by the same road — and a great deal more use to whoever wrote it than a blank space.
-            reading = ContentReading.Of(ContentNode.Branch(Kinds.Sequence, [ContentNode.Shown(Source)]));
-            (formula, ignored) = Formula(reading.Root, environment, knowledge);
-        }
-
-        if (formula is null) return null;
+        var formula = Formula(reading.Root, environment, knowledge);
 
         var capture = new LatexCapture(_scale, reading);
         // Laying it also settles the tree onto the origin. A shifted or transformed box can land above or left
@@ -144,14 +133,14 @@ public sealed partial class LatexBuilder : ContentBuilder
         if (capture.Tree is not { } laid) return null;
 
 
-        // Asked of the tree rather than collected on the way through it. A piece that could not be
-        // read carries the reason it could not, so there is one place the answer lives and no second
-        // list to fall out of step with it — and a piece being typed carries nothing, which is how
-        // it draws without being complained about.
+        // Asked of what was read and what was laid rather than collected on the way through either. A part
+        // that could not be read carries the reason it could not, and a piece set as its characters because
+        // nothing draws it says so as it is laid — and a piece being typed carries nothing, which is how it
+        // draws without being complained about.
         var trouble = reading.Root.SelfAndDescendants()
             .Where(part => part.Node.Trouble is not null)
             .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
-            .Concat(ignored.Select(part => TexSourcePart.Trouble(
+            .Concat(capture.Undrawn.Select(part => TexSourcePart.Trouble(
                 part,
                 DiagnosticSeverity.Warning,
                 "This was read, and nothing here knows how to draw it.")))

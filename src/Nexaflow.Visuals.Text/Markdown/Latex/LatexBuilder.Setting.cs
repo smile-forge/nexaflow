@@ -49,19 +49,6 @@ public sealed partial class LatexBuilder
     internal static bool DeclineUnsettled = true;
 
     /// <summary>
-    /// Where <see cref="Words"/> puts what it drew nothing for, while a build is running.
-    ///
-    /// <para>
-    /// Held here rather than threaded through, because it would otherwise have to pass through every
-    /// method between the two — a parameter twenty signatures wide to carry something two of them use.
-    /// Per thread, because the corpus sweep builds on all of them at once, and restored rather than
-    /// cleared so that a build nested inside another gives its findings to its own formula.
-    /// </para>
-    /// </summary>
-    [System.ThreadStatic]
-    private static List<ContentPart>? _ignored;
-
-    /// <summary>
     /// An equation's number — the <c>\tag</c> written in the reading — as a formula of its own, or null where there is
     /// none.
     ///
@@ -89,33 +76,18 @@ public sealed partial class LatexBuilder
     // ── Setting ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A formula's reading set in the environment it is displayed in — measured, and ready to lay — with whatever in it
-    /// nothing could draw. Null where nothing in it builds at all.
+    /// A formula's reading set in the environment it is displayed in — measured, and ready to lay.
     /// <para>
-    /// The way in that replaces <see cref="Build"/>. That one makes atoms, and the atoms are boxed later in whatever
-    /// environment somebody hands them; this sets each construct as it is reached, in the environment its parent chose,
-    /// so the atoms stop being a tree of their own. Constructs move here a family at a time, and one that has not moved
-    /// yet is still built as an atom and boxed on the spot — which is why both ways in exist for now.
+    /// Always something, even where nothing in the reading draws — a lone <c>\label</c> — so the formula still has a place
+    /// for a caret. What was set as its characters because nothing here draws it says so on the piece, as
+    /// <see cref="Set.Undrawn"/>, so the complaint is asked of what was laid rather than kept beside it.
     /// </para>
     /// </summary>
-    internal static (Set? Set, IReadOnlyList<ContentPart> Ignored) Formula(
-        ContentPart root, TexEnvironment environment, TexFormulaParser knowledge)
+    internal static Set Formula(ContentPart root, TexEnvironment environment, TexFormulaParser knowledge)
     {
         System.ArgumentNullException.ThrowIfNull(root);
 
-        var ignored = new List<ContentPart>();
-        var was = _ignored;
-        _ignored = ignored;
-
-        try
-        {
-            var set = Sequence(root.Parts, root, null, knowledge)?.Make(environment, null);
-            return (set, ignored);
-        }
-        finally
-        {
-            _ignored = was;
-        }
+        return (Sequence(root.Parts, root, null, knowledge) ?? Sequenced([], root)).Make(environment, null);
     }
 
     /// <summary>
@@ -339,19 +311,31 @@ public sealed partial class LatexBuilder
     /// <summary>A piece nothing here can draw, set as its characters and reported, as <see cref="Unread"/>.</summary>
     private static Item UnreadItem(ContentPart part, string? style)
     {
-        if (!part.SelfAndDescendants().Any(piece => piece.Trouble is not null)) _ignored?.Add(Whole(part));
+        var letters = LettersItem(part.Node.Print(), style, spaced: true, part);
 
-        return LettersItem(part.Node.Print(), style, spaced: true, part);
+        // Where the reading already says what is wrong with it, that is the complaint.
+        return part.SelfAndDescendants().Any(piece => piece.Trouble is not null) ? letters : Undrawn(letters, Whole(part));
     }
+
+    /// <summary>
+    /// Letters standing in for something nothing here draws, saying so on the piece they lay. Never spliced into the row
+    /// around them, so the piece that says it is always there to be asked.
+    /// </summary>
+    private static Item Undrawn(Item letters, ContentPart part) =>
+        letters with
+        {
+            Make = (environment, previous) => letters.Make(environment, previous) with { Undrawn = part },
+            Elements = null,
+        };
 
     /// <summary>A command nothing anywhere knows, set as what was typed and reported, as <see cref="Words"/>.</summary>
     private static Item? WordsItem(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         if (part.Part(Roles.Name) is not { Text: { } name } named || knowledge.Knows(name[1..])) return null;
 
-        if (named.Trouble is null) _ignored?.Add(Whole(part));
+        var letters = LettersItem(part.Node.Print(), style, spaced: true, part);
 
-        return LettersItem(part.Node.Print(), style, spaced: true, part);
+        return named.Trouble is null ? Undrawn(letters, Whole(part)) : letters;
     }
 
     /// <summary>A symbol standing on its own, as <see cref="Symbol"/> — a big operator whatever its limits, or a primitive the tables draw.</summary>
