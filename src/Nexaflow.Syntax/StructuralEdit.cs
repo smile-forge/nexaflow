@@ -284,7 +284,7 @@ public static partial class StructuralEdit
             ? " A constructor is addressed by its type's own name — M:TypeName, not M:.ctor."
             : "";
 
-    private static string? NameInPath(string astPath)
+    public static string? NameInPath(string astPath)
     {
         if (string.IsNullOrEmpty(astPath)) return null;
 
@@ -319,40 +319,14 @@ public static partial class StructuralEdit
 
         var notes     = new List<string>();
         var extractor = new CodeStructureExtractor();
-        var resolved  = extractor.ResolveSpan(grammarId, source, astPath);
-
-        if (resolved is null)
-        {
-            // The recorded path is stale — the declaration moved between types, or its container was
-            // renamed. Treat that as ordinary rather than as a failure: the record this came from was built
-            // from a checkout that is not this working tree, and refreshing it takes a minute and a half.
-            // The NAME is the durable half of the record, so re-find by that and carry on. What is never
-            // guessed is which of several same-named declarations was meant.
-            var candidates = Declarations(grammarId, source).Where(d => d.Name == expectedName).ToList();
-
-            if (candidates.Count == 0)
-                return Result.Fail(
-                    $"Nothing named '{expectedName}' is declared in this file.{ConstructorHint(expectedName)} "
-                  + "It has been renamed or "
-                  + "removed. List the declarations to see what is there now.");
-
-            if (candidates.Count > 1)
-                return Result.Fail(
-                    $"'{astPath}' no longer resolves and '{expectedName}' is declared {candidates.Count} "
-                  + $"times here ({string.Join(", ", candidates.Select(d => d.AstPath))}) — name one of those.");
-
-            notes.Add($"'{astPath}' had moved; '{expectedName}' was re-found at '{candidates[0].AstPath}' "
-                    + "and edited there.");
-            astPath  = candidates[0].AstPath;
-            resolved = (candidates[0].Line, candidates[0].EndLine);
-        }
+        if (Resolve(grammarId, source, ref astPath, expectedName, extractor, notes, out var span) is { } unresolved)
+            return Result.Fail(unresolved);
 
         // An XML element's identity is an attribute's value, not a name the grammar marks, so it is found by the
         // walk that gave out its id rather than by the name field every other language is found by.
         if (TreeSitterLanguages.IsXml(grammarId))
             return ApplyXml(grammarId, source, astPath, expectedName, op, text, o, renameTo, notes);
 
-        var span    = resolved.Value;
         var anchors = new DeclarationAnchors();
         var anchor  = anchors.Find(grammarId, source, expectedName, span.Line, span.EndLine);
         if (anchor is null)
@@ -410,6 +384,43 @@ public static partial class StructuralEdit
 
         return new Result(true, $"{Describe(op)} {expectedName}", updated, HunkOf(source, updated), notes,
                           ChangeOf(source, updated));
+    }
+
+    /// <summary>
+    /// Where the declaration <paramref name="astPath"/> names sits in <paramref name="source"/>: its line span, and the
+    /// path it was actually found at. Returns why it could not be found, or null.
+    /// <para>
+    /// A recorded path that no longer resolves is ordinary rather than a failure — the declaration moved between types,
+    /// or its container was renamed, and the record came from a checkout that is not this text. The NAME is the durable
+    /// half of the record, so it is re-found by that, and the path updated and noted. What is never guessed is which of
+    /// several same-named declarations was meant.
+    /// </para>
+    /// </summary>
+    private static string? Resolve(string grammarId, string source, ref string astPath, string expectedName,
+                                   CodeStructureExtractor extractor, List<string> notes, out (int Line, int EndLine) span)
+    {
+        span = default;
+        if (extractor.ResolveSpan(grammarId, source, astPath) is { } resolved)
+        {
+            span = resolved;
+            return null;
+        }
+
+        var candidates = Declarations(grammarId, source).Where(d => d.Name == expectedName).ToList();
+
+        if (candidates.Count == 0)
+            return $"Nothing named '{expectedName}' is declared in this file.{ConstructorHint(expectedName)} "
+                 + "It has been renamed or removed. List the declarations to see what is there now.";
+
+        if (candidates.Count > 1)
+            return $"'{astPath}' no longer resolves and '{expectedName}' is declared {candidates.Count} "
+                 + $"times here ({string.Join(", ", candidates.Select(d => d.AstPath))}) — name one of those.";
+
+        notes.Add($"'{astPath}' had moved; '{expectedName}' was re-found at '{candidates[0].AstPath}' "
+                + "and edited there.");
+        astPath = candidates[0].AstPath;
+        span    = (candidates[0].Line, candidates[0].EndLine);
+        return null;
     }
 
     /// <summary>
@@ -1359,7 +1370,7 @@ public static partial class StructuralEdit
 
     /// <summary>The changed region, found by trimming the common head and tail. The edit's own offsets would
     /// be cheaper, but a hunk derived from the two texts cannot disagree with what will be written.</summary>
-    private static Hunk HunkOf(string before, string after)
+    public static Hunk HunkOf(string before, string after)
     {
         var a = SourceText.Of(before).Lines;
         var b = SourceText.Of(after).Lines;

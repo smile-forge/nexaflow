@@ -145,6 +145,26 @@ public sealed class DeclarationAnchors
         catch { return (null, null); }
     }
 
+    /// <summary>
+    /// The file's import statements as written, in order — what a declaration moved to another file needs to bring
+    /// with it.
+    /// </summary>
+    public IReadOnlyList<string> Imports(string grammarId, string text)
+    {
+        if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(text)) return [];
+
+        using var highlighter = CodeHighlighter.TryCreate(grammarId);
+        if (highlighter is null) return [];
+
+        try
+        {
+            return highlighter.WithParseTree(text, root =>
+                (IReadOnlyList<string>)[.. root.NamedChildren.Where(child => IsImport(child.Type))
+                                                            .Select(child => text[child.StartIndex..child.EndIndex].Trim())]);
+        }
+        catch { return []; }
+    }
+
     private static bool IsImport(string nodeType) =>
         nodeType.Contains("import", StringComparison.Ordinal)
      || nodeType.Contains("using", StringComparison.Ordinal)
