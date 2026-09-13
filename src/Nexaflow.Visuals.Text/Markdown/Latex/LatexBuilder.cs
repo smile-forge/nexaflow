@@ -116,8 +116,7 @@ public sealed class LatexBuilder : ContentBuilder
         // Asked of the builder, because the builder is what draws. It was asked of the tables, which
         // describe what the engine's own parser could read — and being a different question, it came back
         // a different answer: a `\ ` the builder sets directly was shown as its own characters in red.
-        var read = TexPipeline.Read(
-            Source, name => XamlMath.TexFormulaBuilder.Draws(name, knowledge), editing, _placeholders);
+        var read = TexPipeline.Read(Source, Draws, editing, _placeholders);
         var reading = ContentReading.Of(read);
         var formula = XamlMath.TexFormulaBuilder.Build(reading.Root, knowledge);
 
