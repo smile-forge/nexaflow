@@ -93,7 +93,7 @@ public sealed class InitiativesHost : IDisposable
     /// </summary>
     public GraphWorkspace Workspace(string? codeRoot, ProductStore? store = null)
     {
-        var key = codeRoot is { Length: > 0 } ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)) : "";
+        var key = WorkspaceKey(codeRoot);
 
         lock (_gate)
         {
@@ -115,6 +115,26 @@ public sealed class InitiativesHost : IDisposable
         foreach (var workspace in workspaces)
             try { workspace.Flush(); } catch (IOException) { /* a tree that cannot be written is not worth failing shutdown over */ }
     }
+
+    /// <summary>
+    /// Writes the one working tree's workspace, if this host holds one — what a single command changed.
+    /// <para>
+    /// A command used to flush every workspace on its way out, and flushing one takes that workspace's lock. So
+    /// an answer on one tree waited behind whatever another tree was doing — a refresh, a rebuild after a tree
+    /// edit — and a command stuck on another tree held every other tree's answers with it. Each tree is
+    /// written by its own commands, and all of them together on the way out of the process.
+    /// </para>
+    /// </summary>
+    public void Flush(string? codeRoot)
+    {
+        GraphWorkspace? workspace;
+        lock (_gate) _workspaces.TryGetValue(WorkspaceKey(codeRoot), out workspace);
+
+        try { workspace?.Flush(); } catch (IOException) { /* the next flush, or shutdown's, tries again */ }
+    }
+
+    private static string WorkspaceKey(string? codeRoot) =>
+        codeRoot is { Length: > 0 } ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)) : "";
 
     /// <summary>
     /// Records a tree written by this process: updates the copy held here, folds the change into every graph,

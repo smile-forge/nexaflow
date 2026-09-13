@@ -640,6 +640,11 @@ internal static class Program
                 Incremental = incremental,
                 CodeRoot = codeRoot,
                 GeneratedAt = DateTime.Now.ToString("o"),
+
+                // A build is a minute and a half of holding this tree's lock. When the caller has gone - a
+                // harness timeout, a Ctrl+C - nobody will read the result, and every command on the tree queues
+                // behind it until it ends. So it ends, at the next file.
+                Cancellation = RequestScope.Cancellation,
             };
             var cache = incremental ? store.LoadGraphCache() : null;   // reuse unchanged files' extraction
             var built = GraphBuilder.BuildWithCache(state, root, options, cache);
@@ -1150,10 +1155,21 @@ internal static class Program
 
     /// <summary>
     /// The freshness check for this invocation, started before the graph is even loaded so its ~0.7s runs
-    /// against the query's own work rather than after it. A CLI process answers one question, so a single
-    /// static is the whole lifetime.
+    /// against the query's own work rather than after it.
+    /// <para>
+    /// Per request, not per process. This was a static from when a process answered one question, and the
+    /// resident process answers several at once: a query on one tree picked up the report another tree's query
+    /// had just started, refreshed its graph from the wrong list of stale files, and printed the other tree's
+    /// verdict as its own.
+    /// </para>
     /// </summary>
-    private static Task<GraphFreshness.Report>? _freshness;
+    private static readonly AsyncLocal<Task<GraphFreshness.Report>?> Freshness = new();
+
+    private static Task<GraphFreshness.Report>? FreshnessCheck
+    {
+        get => Freshness.Value;
+        set => Freshness.Value = value;
+    }
 
     /// <summary>
     /// Kicks the check off against the graph the verb has already loaded, so it costs a stat per known file
@@ -1167,7 +1183,7 @@ internal static class Program
         var known     = KnownFiles(graph);
         var graphFile = GraphStore(root, main).GraphFilePath;
 
-        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
+        FreshnessCheck = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
     }
 
     /// <summary>
@@ -1211,10 +1227,10 @@ internal static class Program
     /// </summary>
     private static void EndFreshness()
     {
-        if (_freshness is null) return;
+        if (FreshnessCheck is null) return;
         try
         {
-            var report = _freshness.Result;
+            var report = FreshnessCheck.Result;
             if (report.Available) Console.Error.WriteLine(report.Summary());
         }
         catch { }   // a freshness check that fails must never fail the query it was describing
@@ -1244,10 +1260,10 @@ internal static class Program
     /// </summary>
     private static void RefreshStaleFiles(string root, bool main, KnowledgeGraph graph, bool forced = true)
     {
-        if (_freshness is null) return;
+        if (FreshnessCheck is null) return;
 
         GraphFreshness.Report report;
-        try { report = _freshness.Result; } catch { return; }
+        try { report = FreshnessCheck.Result; } catch { return; }
         if (!report.Available || report.IsCurrent) return;
         if (!forced && report.Stale.Count > AutoRefreshLimit) return;
 
@@ -1261,7 +1277,10 @@ internal static class Program
         var dirty = report.Stale.Count > 0;
 
         foreach (var rel in report.Stale)
+        {
+            RequestScope.Cancellation.ThrowIfCancellationRequested();   // nobody is waiting for the answer
             GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
+        }
 
         // Files the graph names that this tree does not have. Dropping them is only safe because the graph
         // being updated is this tree's own — from a shared one they could as easily be a parallel branch's
@@ -1277,7 +1296,7 @@ internal static class Program
         Console.Error.WriteLine(
             $"graph: refreshed {report.Stale.Count} file(s)"
           + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
-        _freshness = null;                       // the report it would print is now out of date itself
+        FreshnessCheck = null;                       // the report it would print is now out of date itself
     }
 
     /// <summary>
@@ -2327,10 +2346,18 @@ internal static class Program
 
             using var p = System.Diagnostics.Process.Start(psi);
             if (p is null) return null;
-            var stdout = p.StandardOutput.ReadToEnd();
-            p.StandardError.ReadToEnd();
-            p.WaitForExit();
-            return p.ExitCode == 0 ? [.. stdout.Split('\n').Select(l => l.TrimEnd('\r'))] : null;
+            // Both streams at once, and within a bound. Reading stdout to its end first let git block on a full
+            // stderr pipe that nothing was reading - and inside the resident process a git that never returns
+            // holds its tree's lock for every command after it.
+            var stdout = p.StandardOutput.ReadToEndAsync();
+            var stderr = p.StandardError.ReadToEndAsync();
+            if (!p.WaitForExit(TimeSpan.FromMinutes(2)))
+            {
+                try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                return null;
+            }
+            Task.WaitAll(stdout, stderr);
+            return p.ExitCode == 0 ? [.. stdout.Result.Split('\n').Select(l => l.TrimEnd('\r'))] : null;
         }
         catch { return null; }   // git absent, or not a repo
     }

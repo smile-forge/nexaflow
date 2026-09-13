@@ -65,6 +65,9 @@ one do, which is the consistency), and keys itself to the binary's build time so
 never reach a daemon running older code. **There is no verb to start, stop or inspect it, and you should
 not look for one** — it cannot be launched by hand on purpose. Call `nfi` exactly as you would have
 before; if it ever cannot start its process it says so and fails rather than quietly running slow.
+A call you kill (a timeout, Ctrl+C) takes its command with it: queued, it never starts; running, it stops at
+its next file, so the tree is free for the next call. One that keeps running a minute after its caller left
+is stuck, and the process restarts itself past it — the next call just starts a fresh one.
 
 **`nfi.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
 the gitignored tree lives) — so run it from any checkout or worktree with NO root arg.** Build it once, then call the

@@ -58,5 +58,12 @@ public sealed class GraphBuildOptions
     /// </summary>
     public Action<int, int>? Progress { get; set; }
 
+    /// <summary>
+    /// Checked between phases and between the files and nodes each one walks, so a build nobody is waiting for
+    /// any more stops within moments rather than at the end of a minute and a half — during which, in the
+    /// resident process, it holds the lock every other command on the tree is queued behind.
+    /// </summary>
+    public CancellationToken Cancellation { get; set; }
+
     public CommunityAlgorithm CommunityAlgorithm { get; set; } = CommunityAlgorithm.Louvain;
 }
