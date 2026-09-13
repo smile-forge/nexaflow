@@ -322,6 +322,28 @@ internal sealed class LatexCapture
         _offsetY -= dy;
     }
 
+    /// <summary>A measured piece placed through transformations — moved into its anchor, turned on the piece.</summary>
+    internal void PlaceTransformed(Set piece, IEnumerable<Transformation> transforms, double x, double y)
+    {
+        var scaled = transforms.Select(t => t.Scale(_scale)).ToList();
+
+        double dx = 0, dy = 0;
+        foreach (var transform in scaled)
+            if (transform is Transformation.Translate translate)
+            {
+                dx += translate.X;
+                dy += translate.Y;
+            }
+
+        _pending = scaled;
+
+        _offsetX += dx;
+        _offsetY += dy;
+        Place(piece, x, y);
+        _offsetX -= dx;
+        _offsetY -= dy;
+    }
+
     internal void Glyph(CharInfo info, double x, double y, IBrush? foreground)
     {
         var raw = _open.Peek().Raw;
