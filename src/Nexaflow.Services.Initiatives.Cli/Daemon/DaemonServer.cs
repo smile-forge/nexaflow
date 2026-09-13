@@ -124,6 +124,9 @@ internal static class DaemonServer
             DaemonLog.Open(pipe);
             DaemonLog.Say("-", "daemon", $"up for {root}");
 
+            // One resident per tree: the processes older builds started for it are asked to finish and go.
+            Succession.Claim(root, pipe);
+
             // The one line that tells a crash from a hang afterwards. Without it both look like a start and then
             // nothing, and the only way to tell them apart was to guess.
             AppDomain.CurrentDomain.UnhandledException += (_, e) =>
@@ -138,7 +141,11 @@ internal static class DaemonServer
             Serve(pipe, host);
             return 0;
         }
-        finally { try { only.ReleaseMutex(); } catch (ApplicationException) { } }
+        finally
+        {
+            Succession.Leave(root, pipe);
+            try { only.ReleaseMutex(); } catch (ApplicationException) { }
+        }
     }
 
     /// <summary>The accept loop, until idle, told to stop, or restarting past a wedged command.</summary>

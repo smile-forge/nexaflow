@@ -30,6 +30,9 @@ public static class EditPlan
     /// <summary>A declaration moved into a type (<c>code:</c>) or to a file (<c>file:</c>, created if absent).</summary>
     public sealed record Move(string Label, string NodeId, string Destination) : Step(Label);
 
+    /// <summary>A file's text replaced whole by a caller that worked it out — see <see cref="GraphEdit.Rewrite"/>.</summary>
+    public sealed record Rewrite(string Label, string RelativePath, string Before, string After, string Description) : Step(Label);
+
     /// <summary>What one step did, against the text the steps before it had left.</summary>
     public sealed record Planned(Step Step, string Message, IReadOnlyList<GraphEdit.FileChange> Changes,
                                  IReadOnlyList<string> Notes);
@@ -55,6 +58,7 @@ public static class EditPlan
                 Edit e   => GraphEdit.Plan(graph, e.NodeId, e.Op, e.Text, Read, e.Options, e.RenameTo),
                 Create c => GraphEdit.Create(c.RelativePath, c.Text, Read, newlineFor),
                 Move m   => GraphEdit.Move(graph, m.NodeId, m.Destination, Read, newlineFor),
+                Rewrite r => GraphEdit.Rewrite(r.RelativePath, r.Before, r.After, r.Description, Read),
                 _        => GraphEdit.Result.Fail($"{step.GetType().Name} is not a step this can plan."),
             };
 

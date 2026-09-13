@@ -187,4 +187,27 @@ public class EditPlanTests
         Assert.IsFalse(outcome.Ok);
         StringAssert.Contains(outcome.Message, "into itself");
     }
+
+    [TestMethod]
+    [CoversNode("graph-edit-plan")]
+    public void ARewrite_IsRefusedWhenAnEarlierStepChangedItsFile()
+    {
+        var renamed = Calculator.Replace("Add(", "Plus(");
+        var outcome = Run(Files(),
+            new EditPlan.Edit("first", "code:src/Calculator.cs#T:Calculator/M:Sub", StructuralEdit.Op.Rename, null, RenameTo: "Minus"),
+            new EditPlan.Rewrite("second", "src/Calculator.cs", Calculator, renamed, "rename Add to Plus"));
+
+        Assert.IsFalse(outcome.Ok, "worked out against text an earlier step has since changed");
+        StringAssert.Contains(outcome.Message, "Put this step first");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-edit-plan")]
+    public void ARewrite_ThatWouldNotParse_IsRefused()
+    {
+        var outcome = Run(Files(), new EditPlan.Rewrite("rewrite", "src/Store.cs", Store, Store.Replace("{ }", "{"), "break it"));
+
+        Assert.IsFalse(outcome.Ok);
+        StringAssert.Contains(outcome.Message, "unparseable");
+    }
 }

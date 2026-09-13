@@ -403,4 +403,36 @@ public static class GraphEdit
         /// <summary>The file is removed.</summary>
         Deleted,
     }
+
+    /// <summary>
+    /// The file, AST path and name a <c>code:</c> id names — what a caller needs to ask anything else about the
+    /// declaration, such as where a compiler would find its symbol.
+    /// </summary>
+    public static (string RelativePath, string AstPath, string Name)? Address(KnowledgeGraph graph, string nodeId, ReadText read,
+                                                                           out string error)
+    {
+        return TryAddress(graph, nodeId, read, out var rel, out var astPath, out var name, out error)
+            ? (rel, astPath, name)
+            : null;
+    }
+
+    /// <summary>
+    /// A file's whole text replaced by a caller that worked the new text out itself — a rename carried to every reference a
+    /// compiler found. Refused unless the file is still exactly the text the caller worked from, and, for a file a grammar
+    /// covers, unless the result still parses.
+    /// </summary>
+    public static Result Rewrite(string rel, string before, string after, string description, ReadText read)
+    {
+        if (read(rel) is not { } current) return Result.Fail($"Could not read {rel}.");
+        if (!string.Equals(current, before, StringComparison.Ordinal))
+            return Result.Fail($"{rel} is not the text this change was worked out from — an earlier step changed it. Put this "
+                             + "step first.");
+
+        var anchors = new DeclarationAnchors();
+        if (TreeSitterLanguages.ForEdit(rel) is { Length: > 0 } grammar
+            && anchors.ParsesCleanly(grammar, before) && !anchors.ParsesCleanly(grammar, after))
+            return Result.Fail($"{description} would leave {rel} unparseable, so it was not applied.");
+
+        return new Result(true, $"{description} in {rel}", [new FileChange(rel, before, after, StructuralEdit.HunkOf(before, after))], []);
+    }
 }

@@ -31,6 +31,12 @@ public sealed class GraphWorkspace
     private GraphSnapshot? _snapshot;
     private bool _dirty;
 
+    /// <summary>The files this process has refreshed and dropped since it read the archive — what it would have to do again
+    /// to a newer archive another process saved meanwhile. Null once a change arrives that is not described by files, such
+    /// as a rebuild, whose save is meant to replace whatever is there.</summary>
+    private HashSet<string>? _refreshed = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string>? _forgotten = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// The archive as it was when the held snapshot was read from it, so that a rebuild performed by anyone
     /// else is noticed rather than ignored forever.
@@ -100,8 +106,10 @@ private readonly Func<ProductState>? _tree;
     /// </summary>
     private void Load()
     {
-        _snapshot = GraphArchive.Read(Store.GraphFilePath);
-        _dirty    = false;
+        _snapshot  = GraphArchive.Read(Store.GraphFilePath);
+        _dirty     = false;
+        _refreshed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _forgotten = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         StampArchive();
     }
 
@@ -171,9 +179,23 @@ private readonly Func<ProductState>? _tree;
         {
             if (!_dirty || _snapshot is null) return;
 
+            // Another process saved since this one read the archive — the app beside the resident process, say. Writing
+            // this snapshot over it would drop whatever that process added, so when this one's changes are described by
+            // the files it touched, they are made again on the newer archive and that is what is saved.
+            if (_refreshed is { } refreshed && _forgotten is { } forgotten && _archive.IsKnown
+                && Info(Store.GraphFilePath) is { } info && !_archive.Matches(info.Length, info.LastWriteTimeUtc)
+                && GraphArchive.Read(Store.GraphFilePath) is { } newer)
+            {
+                foreach (var rel in refreshed) GraphBuilder.RefreshFile(newer.Graph, newer.Cache, ProductRoot, rel, CodeRoot);
+                foreach (var rel in forgotten) GraphBuilder.ForgetFile(newer.Graph, newer.Cache, rel);
+                _snapshot = newer;
+            }
+
             _snapshot.Files = Stamps(_snapshot.Cache);
             Store.SaveSnapshot(_snapshot);
-            _dirty = false;
+            _dirty     = false;
+            _refreshed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _forgotten = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // What we just wrote is now what the held snapshot corresponds to. Without this the next read
             // would see an archive it had never stamped, and re-load the file it had itself just produced.
@@ -325,6 +347,25 @@ private readonly Func<ProductState>? _tree;
     /// file disagreeing for as long as the process lives.</summary>
     public void MarkChanged()
     {
-        lock (_gate) _dirty = true;
+        lock (_gate)
+        {
+            _dirty     = true;
+            _refreshed = _forgotten = null;
+        }
+    }
+
+    /// <summary>
+    /// The held graph changed by refreshing <paramref name="refreshed"/> and dropping <paramref name="forgotten"/> — which is
+    /// what lets a save that finds another process got there first make those changes again on its archive, rather than
+    /// write over it.
+    /// </summary>
+    public void MarkChanged(IEnumerable<string> refreshed, IEnumerable<string>? forgotten = null)
+    {
+        lock (_gate)
+        {
+            _dirty = true;
+            _refreshed?.UnionWith(refreshed);
+            _forgotten?.UnionWith(forgotten ?? []);
+        }
     }
 }

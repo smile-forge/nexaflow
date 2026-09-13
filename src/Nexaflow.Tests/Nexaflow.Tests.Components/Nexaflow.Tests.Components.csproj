@@ -32,6 +32,7 @@
          no Features, no Visuals. -->
     <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Syntax.Compiler\Nexaflow.Syntax.Compiler.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Elevation\Nexaflow.Elevation.Contracts\Nexaflow.Elevation.Contracts.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
 

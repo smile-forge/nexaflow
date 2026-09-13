@@ -99,11 +99,12 @@ internal static class Program
     /// happens here. Writing directly in both cases would leave the warm copy describing the file it had
     /// before, which is the one way a resident process can be worse than no process at all.
     /// </summary>
-    private static void SaveGraphChange(string root, bool main, ProductStore store,
-                                        KnowledgeGraph graph, GraphCache cache)
+    private static void SaveGraphChange(string root, bool main, ProductStore store, KnowledgeGraph graph, GraphCache cache,
+                                        IEnumerable<string>? refreshed = null, IEnumerable<string>? forgotten = null)
     {
-        if (Workspace(root, main, store) is { } workspace) workspace.MarkChanged();
-        else store.SaveSnapshot(graph, cache);
+        if (Workspace(root, main, store) is not { } workspace) store.SaveSnapshot(graph, cache);
+        else if (refreshed is null) workspace.MarkChanged();
+        else workspace.MarkChanged(refreshed, forgotten);
     }
 
     /// <summary>
@@ -1051,8 +1052,7 @@ internal static class Program
 
         if (!TryStep(a, $"{a[0]} {a[1]}", out var step, out var stepError)) return VerbUsage(stepError);
 
-        return RunEditPlan([step], root, new EditRun(a.Has("--main"), a.Has("--dry-run"), a.Has("--quiet"),
-                                                     !a.Has("--no-refresh"), a.Has("--show")));
+        return RunEditPlan([step], root, EditRun.From(a, show: a.Has("--show")));
     }
 
     /// <summary>
@@ -1076,7 +1076,8 @@ internal static class Program
         }
 
         // What belongs to the run rather than to one of its commands: one dry run, one refresh, one place to read input.
-        string[] runWide = ["--dry-run", "--main", "--no-refresh", "--show", "--quiet", "--stdin", "--find-stdin"];
+        string[] runWide = ["--dry-run", "--main", "--no-refresh", "--show", "--quiet", "--stdin", "--find-stdin", "--no-check",
+                            "--must-compile"];
 
         var steps = new List<EditPlan.Step>();
         foreach (var command in commands)
@@ -1100,12 +1101,16 @@ internal static class Program
             steps.Add(step);
         }
 
-        return RunEditPlan(steps, root, new EditRun(a.Has("--main"), a.Has("--dry-run"), a.Has("--quiet"),
-                                                    !a.Has("--no-refresh"), Show: false));
+        return RunEditPlan(steps, root, EditRun.From(a, show: false));
     }
 
-    /// <summary>How a plan is run: which source it edits, and what the caller asked to see.</summary>
-    private sealed record EditRun(bool Main, bool DryRun, bool Quiet, bool Refresh, bool Show);
+    /// <summary>How a plan is run: which source it edits, what the caller asked to see, and what the compiler is asked.</summary>
+    private sealed record EditRun(bool Main, bool DryRun, bool Quiet, bool Refresh, bool Show, bool Check, bool MustCompile)
+    {
+        public static EditRun From(VerbArgs a, bool show) =>
+            new(a.Has("--main"), a.Has("--dry-run"), a.Has("--quiet"), !a.Has("--no-refresh"), show,
+                Check: !a.Has("--no-check"), MustCompile: a.Has("--must-compile"));
+    }
 
     /// <summary>
     /// One <c>graph edit</c> command as a step of a plan. The command line and a script line both come through here, so
@@ -1149,6 +1154,23 @@ internal static class Program
                 step = new EditPlan.Move(label, a[1], to);
                 return true;
             }
+        }
+
+        if (a.Has("--references"))
+        {
+            if (a[0] != "rename")
+            {
+                error = "--references goes with rename, which it carries to every use the compiler finds";
+                return false;
+            }
+            if (a.Value("--to") is not { } newName || !Regex.IsMatch(newName, @"^@?[\p{L}_][\p{L}\p{Nd}_]*$"))
+            {
+                error = "rename --references needs the new name, an identifier: --to <name>";
+                return false;
+            }
+
+            step = new RenameEverywhere(label, a[1], newName.TrimStart('@'));
+            return true;
         }
 
         var op = a[0] switch
@@ -1228,34 +1250,62 @@ internal static class Program
         var store = createOnly ? null : GraphStore(root, run.Main);
         var cache = store is null ? null : EditCache(root, run.Main, store);
         var dirty = false;
+        var refreshed = new List<string>();
+
+        int Refused(string message)
+        {
+            // A refresh may have learned something real — a file changed — and that is worth keeping even though the
+            // edit itself is not going ahead.
+            if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!, refreshed);
+            Console.Error.WriteLine($"error: {message}");
+            return Error;
+        }
 
         // Bring the graph's record of each target file up to date BEFORE looking anything up. One file's parse costs
         // milliseconds against the ninety seconds a whole-repo walk takes, and it is the difference between "the graph
         // might be stale" being something the caller has to reason about and it not being one.
         if (run.Refresh && cache is not null)
             foreach (var target in steps.SelectMany(TargetFiles).Distinct(StringComparer.Ordinal))
-                dirty |= GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, run.Main));
+                if (GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, run.Main)))
+                {
+                    refreshed.Add(target);
+                    dirty = true;
+                }
 
         var codeRoot = CodeRootFor(root, run.Main);
-        var outcome  = EditPlan.Run(graph, steps, rel => ReadRaw(root, rel, run.Main)?.Text,
-                                    rel => SourceFile.NewlineFor(Path.Combine(codeRoot, rel.Replace('/', Path.DirectorySeparatorChar)),
-                                                                 codeRoot));
+        string? Read(string rel) => ReadRaw(root, rel, run.Main)?.Text;
 
-        if (!outcome.Ok)
+        var notes   = new List<string>();
+        var planned = new List<EditPlan.Step>();
+        foreach (var step in steps)
         {
-            // The refresh above may have learned something real — a file changed — and that is worth keeping even though
-            // the edit itself is not going ahead.
-            if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!);
-            Console.Error.WriteLine($"error: {outcome.Message}");
-            return Error;
+            if (step is not RenameEverywhere everywhere) planned.Add(step);
+            else if (!TryExpandRename(everywhere, graph, codeRoot, Read, planned, notes, out var why)) return Refused(why);
         }
+
+        var outcome = EditPlan.Run(graph, planned, Read,
+                                   rel => SourceFile.NewlineFor(EditCheck.Full(codeRoot, rel), codeRoot));
+        if (!outcome.Ok) return Refused(outcome.Message);
 
         // --quiet keeps the confirmation and drops the diff, for a caller that wants the outcome and not the change;
         // --show is the opposite trade and they compose.
         if (!run.Quiet)
-            foreach (var planned in outcome.Steps)
-                foreach (var change in planned.Changes) PrintHunk(change, brief: planned.Step is EditPlan.Move);
-        foreach (var note in outcome.Steps.SelectMany(s => s.Notes)) Console.Error.WriteLine($"note: {note}");
+            foreach (var step in outcome.Steps)
+                foreach (var change in step.Changes)
+                    PrintHunk(change, brief: step.Step is EditPlan.Move or EditPlan.Rewrite);
+        foreach (var note in outcome.Steps.SelectMany(s => s.Notes).Concat(notes)) Console.Error.WriteLine($"note: {note}");
+
+        // What the change does beyond its own lines, worked out on the planned text: the same answer for a dry run as for
+        // the edit, and in time for --must-compile to refuse before anything is written.
+        if (run.Check)
+        {
+            var findings = EditCheck.Of(graph, outcome.Files, codeRoot,
+                                        rel => CodeFilePath(root, rel, run.Main) is { } full ? File.ReadAllText(full) : null);
+            EditCheck.Print(findings, codeRoot);
+
+            if (run.MustCompile && findings.Compile is { Introduced.Count: > 0 })
+                return Refused("--must-compile was given and the edit introduces compile errors, so nothing was written.");
+        }
 
         if (run.DryRun)
         {
@@ -1263,12 +1313,7 @@ internal static class Program
             return Clean;
         }
 
-        if (WriteAll(root, run.Main, outcome.Files) is { } refused)
-        {
-            if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!);
-            Console.Error.WriteLine($"error: {refused}");
-            return Error;
-        }
+        if (WriteAll(root, run.Main, outcome.Files) is { } refused) return Refused(refused);
 
         // …and again afterwards, so the graph describes what was just written. Both refreshes share one save, and neither
         // costs more than parsing the files that changed. Deliberately no "now rebuild the graph": the files just edited
@@ -1276,8 +1321,12 @@ internal static class Program
         // builds. A full `graph build` is for the cross-file passes, not for editing.
         if (run.Refresh && cache is not null)
             foreach (var file in outcome.Files)
-                dirty |= GraphBuilder.RefreshFile(graph, cache, root, file.RelativePath, CodeRootOrNull(root, run.Main));
-        if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!);
+                if (GraphBuilder.RefreshFile(graph, cache, root, file.RelativePath, CodeRootOrNull(root, run.Main)))
+                {
+                    refreshed.Add(file.RelativePath);
+                    dirty = true;
+                }
+        if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!, refreshed);
 
         // The declaration as it now stands, so that checking an edit is part of making it rather than the next command.
         // Not for a delete or a rename — there is nothing at that id any more — and not for a file-level target, where
@@ -1296,11 +1345,93 @@ internal static class Program
         return Clean;
     }
 
+    /// <summary><c>rename --references</c>: a rename carried to every use of the declaration, resolved by the compiler.</summary>
+    private sealed record RenameEverywhere(string Label, string NodeId, string NewName) : EditPlan.Step(Label);
+
+    /// <summary>
+    /// Turns a <see cref="RenameEverywhere"/> into one rewrite per file: the declaration and every reference, override and
+    /// implementation the compiler binds to it, in its own project and in each project that compiles against it. Found by
+    /// binding rather than spelling, so a different member that happens to share the name is left alone; and planned like
+    /// any other step, so the files are written together or not at all.
+    /// </summary>
+    private static bool TryExpandRename(RenameEverywhere step, KnowledgeGraph graph, string codeRoot, GraphEdit.ReadText read,
+                                        List<EditPlan.Step> into, List<string> notes, out string error)
+    {
+        error = "";
+        if (GraphEdit.Address(graph, step.NodeId, read, out var why) is not { } address)
+        {
+            error = why;
+            return false;
+        }
+
+        var (rel, astPath, name) = address;
+        if (TreeSitterLanguages.ForEdit(rel) != "c-sharp")
+        {
+            error = $"--references asks the C# compiler where {name} is used, and {rel} is not C#. Rename it without --references.";
+            return false;
+        }
+        if (read(rel) is not { } source || StructuralEdit.NameStartOf("c-sharp", source, astPath, name) is not { } position)
+        {
+            error = $"'{name}' could not be found in {rel}.";
+            return false;
+        }
+
+        var mentions   = GraphMentions.Of(graph, [name], EditCheck.SourceFiles(codeRoot), r => read(r));
+        var candidates = mentions.Where(m => m.RelativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                                 .Select(m => EditCheck.Full(codeRoot, m.RelativePath))
+                                 .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        var found = EditCheck.HostFor(codeRoot).FindReferences(EditCheck.Full(codeRoot, rel), position, candidates,
+                                                               EditCheck.LoadBudget, RequestScope.Cancellation);
+        if (found.Error is { } unresolved)
+        {
+            error = $"the compiler could not resolve '{name}' in {rel}: {unresolved}";
+            return false;
+        }
+
+        foreach (var file in found.Locations.GroupBy(l => EditCheck.Relative(codeRoot, l.FullPath), StringComparer.OrdinalIgnoreCase))
+        {
+            if (read(file.Key) is not { } before)
+            {
+                error = $"{file.Key} could not be read.";
+                return false;
+            }
+
+            var after = before;
+            foreach (var at in file.OrderByDescending(l => l.Start))
+            {
+                if (at.Start + at.Length > after.Length || string.CompareOrdinal(after, at.Start, name, 0, name.Length) != 0)
+                {
+                    error = $"{file.Key} changed while the compiler was reading it — run the rename again.";
+                    return false;
+                }
+                after = after[..at.Start] + step.NewName + after[(at.Start + at.Length)..];
+            }
+
+            into.Add(new EditPlan.Rewrite($"{step.Label} ({file.Key})", file.Key, before, after,
+                                          $"rename {name} to {step.NewName} ({file.Count()} place(s))"));
+        }
+
+        if (into.OfType<EditPlan.Rewrite>().All(r => !string.Equals(r.RelativePath, rel, StringComparison.OrdinalIgnoreCase)))
+        {
+            error = $"the compiler found no declaration of '{name}' at {rel}, so nothing was renamed.";
+            return false;
+        }
+
+        if (mentions.Where(m => m.RelativePath.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)).ToList() is { Count: > 0 } views)
+            notes.Add($"{views.Count} XAML line(s) name '{name}' and were left alone — a binding or handler names it as text, "
+                    + "which the compiler does not resolve: " + string.Join(", ", views.Take(5).Select(v => $"{v.RelativePath}:{v.Line}")));
+        foreach (var reason in found.NotChecked)
+            notes.Add($"uses of '{name}' there were not searched for: {reason}");
+        return true;
+    }
+
     /// <summary>The files a step reads before it can plan — the ones whose graph record is worth refreshing first.</summary>
     private static IEnumerable<string> TargetFiles(EditPlan.Step step) => step switch
     {
         EditPlan.Edit e => FileOfNodeId(e.NodeId) is { } file ? [file] : [],
         EditPlan.Move m => new[] { FileOfNodeId(m.NodeId), FileOfNodeId(m.Destination) }.OfType<string>(),
+        RenameEverywhere r => FileOfNodeId(r.NodeId) is { } renamed ? [renamed] : [],
         _               => [],
     };
 
@@ -1488,14 +1619,15 @@ internal static class Program
         // Files the graph names that this tree does not have. Dropping them is only safe because the graph
         // being updated is this tree's own — from a shared one they could as easily be a parallel branch's
         // work in progress, and pruning would delete it.
-        var pruned = 0;
+        var forgotten = new List<string>();
         if (GraphIsLocal(root, main))
             foreach (var rel in report.Absent)
-                if (GraphBuilder.ForgetFile(graph, cache, rel)) { pruned++; dirty = true; }
+                if (GraphBuilder.ForgetFile(graph, cache, rel)) { forgotten.Add(rel); dirty = true; }
+        var pruned = forgotten.Count;
 
         if (!dirty) return;
 
-        SaveGraphChange(root, main, store, graph, cache);
+        SaveGraphChange(root, main, store, graph, cache, report.Stale, forgotten);
         Console.Error.WriteLine(
             $"graph: refreshed {report.Stale.Count} file(s)"
           + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
@@ -1525,7 +1657,7 @@ internal static class Program
         var cache = EditCache(root, main, store);
         if (!GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main))) return;
 
-        SaveGraphChange(root, main, store, graph, cache);
+        SaveGraphChange(root, main, store, graph, cache, [rel]);
         Console.Error.WriteLine($"graph: {rel} was not in the graph — added it, so queries can find it too.");
     }
 
@@ -2874,14 +3006,14 @@ internal static class Program
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file",
              "--at", "--name"],
             ["--stdin", "--find-stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh",
-             "--show", "--quiet"],
+             "--show", "--quiet", "--no-check", "--must-compile", "--references"],
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
           + "[--to NAME] [--find S | --find-escaped S | --find-file F | --find-stdin] [--regex] [--all] "
           + "[--at XPATH] [--name ATTR] [--expect S] [--with-trivia] "
           + "[--dry-run] [--main] [--show] [--quiet]");
 
         public static readonly VerbSpec GraphEditScript = new("graph edit script", 0, ["--file"],
-            ["--stdin", "--dry-run", "--main", "--no-refresh", "--quiet"],
+            ["--stdin", "--dry-run", "--main", "--no-refresh", "--quiet", "--no-check", "--must-compile"],
             "graph edit script [<root>] (--file F | --stdin) [--dry-run] [--quiet] [--main] [--no-refresh]");
     }
 
