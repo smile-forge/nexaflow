@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Pipes;
-
 using XamlMath.Boxes;
 using XamlMath.Exceptions;
 using XamlMath.Parsers.Matrices;

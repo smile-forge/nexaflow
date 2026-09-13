@@ -22,8 +22,6 @@
     <!-- The engraver's internals (stem and beam rules, staff geometry) are asserted directly by the tests —
          those are the parts a rendered bitmap can't tell you are right. -->
     <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
-    <!-- Until its box and parser approvals go with the box model they approve. -->
-    <InternalsVisibleTo Include="Nexaflow.Tests.Typesetting" />
   </ItemGroup>
 
   <ItemGroup>
@@ -59,7 +57,6 @@
            ask for, and the faces are WPF resources under Tex\Fonts\, the path the font provider asks for. -->
       <EmbeddedResource Include="Markdown\Latex\Tex\Data\DefaultTexFont.xml" LogicalName="XamlMath.Data.DefaultTexFont.xml" />
       <EmbeddedResource Include="Markdown\Latex\Tex\Data\GlueSettings.xml" LogicalName="XamlMath.Data.GlueSettings.xml" />
-      <EmbeddedResource Include="Markdown\Latex\Tex\Data\PredefinedColors.xml" LogicalName="XamlMath.Data.PredefinedColors.xml" />
       <EmbeddedResource Include="Markdown\Latex\Tex\Data\TexFormulaSettings.xml" LogicalName="XamlMath.Data.TexFormulaSettings.xml" />
       <EmbeddedResource Include="Markdown\Latex\Tex\Data\TexSymbols.xml" LogicalName="XamlMath.Data.TexSymbols.xml" />
       <Resource Include="Markdown\Latex\Tex\Fonts\*.ttf" />

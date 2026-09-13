@@ -456,9 +456,6 @@ internal sealed class LatexCapture
         return union.IsEmpty ? new Rect(0, 0, 0, 0) : union;
     }
 
-    /// <summary>What the typesetter calls the hollow box it stands in an argument nobody has written yet.</summary>
-    private const string HoleKind = "PlaceholderBox";
-
     /// <summary>
     /// Whether a role names a place content goes, as against the punctuation that holds it. A brace, a
     /// command name and a row separator are how the writer said what they meant; none of them is a thing

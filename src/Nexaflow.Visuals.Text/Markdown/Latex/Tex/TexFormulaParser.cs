@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using XamlMath.Colors;
 using XamlMath.Exceptions;
 using XamlMath.Parsers;
 using XamlMath.Rendering;
@@ -14,21 +13,10 @@ namespace XamlMath;
 // TODO: Use TextReader for lexing.
 public class TexFormulaParser
 {
-    // Special characters for parsing
-    private const char escapeChar = '\\';
-
     internal const char leftGroupChar = '{';
     internal const char rightGroupChar = '}';
 
-    private const char leftBracketChar = '[';
-    private const char rightBracketChar = ']';
-
-    private const char subScriptChar = '_';
-    private const char superScriptChar = '^';
-    private const char primeChar = '\'';
-    private const char tieChar = '~';
-
-    /// <summary>
+        /// <summary>
     /// A set of names of the commands that are embedded in the parser itself, <see cref="ProcessCommand"/>.
     /// These're not the additional commands that may be supplied via <see cref="_commandRegistry"/>.
     /// </summary>
@@ -121,35 +109,6 @@ public class TexFormulaParser
         character < delimeters.Count ? delimeters[character] : null;
 
     private static bool IsSymbol(char c) => !char.IsLetterOrDigit(c);
-
-    private static bool IsWhiteSpace(char ch)
-        => ch is ' ' or '\t' or '\n' or '\r';
-
-    private static bool ShouldSkipWhiteSpace(string? style) => style == null || !rawTextStyles.Contains(style);
-
-    /// <summary>A registry for additional commands.</summary>
-    private readonly IReadOnlyDictionary<string, IColorParser> _colorModelParsers;
-
-    /// <summary>A color parser for cases when the color model isn't specified.</summary>
-    private readonly IColorParser _defaultColorParser;
-
-    private readonly IBrushFactory _brushFactory;
-
-    internal TexFormulaParser(
-        IReadOnlyDictionary<string, IColorParser> colorModelParsers,
-        IColorParser defaultColorParser,
-        IBrushFactory brushFactory)
-    {
-        _colorModelParsers = colorModelParsers;
-        _defaultColorParser = defaultColorParser;
-        _brushFactory = brushFactory;
-    }
-
-    public TexFormulaParser(IBrushFactory brushFactory) : this(
-        StandardColorParsers.Dictionary,
-        PredefinedColorParser.Instance,
-        brushFactory)
-    { }
 
     /// <summary>
     /// Whether anything here has a reading for a command at all — a command parser, a macro, a style or a

@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Markdown.Latex;
-
 using XamlMath.Exceptions;
 using XamlMath.Parsers;
 using XamlMath.Parsers.Matrices;

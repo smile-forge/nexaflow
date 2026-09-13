@@ -1,6 +1,5 @@
 using Nexaflow.Markdown.Ast;
 using XamlMath;
-
 using XamlMath.Boxes;
 using XamlMath.Fonts;
 using XamlMath.Utils;

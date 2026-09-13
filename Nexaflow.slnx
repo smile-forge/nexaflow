@@ -219,11 +219,6 @@
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Nexaflow.Tests.Markdown.csproj">
       <Platform Project="x64" />
     </Project>
-    <!-- The typesetting engine's own suite, ingested with it. F#/xunit, and run from its own directory
-         because of the test runner — see the global.json beside it. -->
-    <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Typesetting/Nexaflow.Tests.Typesetting.fsproj">
-      <Platform Project="x64" />
-    </Project>
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Nexaflow.Tests.UIJourneys.csproj">
       <Platform Project="x64" />
     </Project>

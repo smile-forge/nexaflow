@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-
 using XamlMath.Exceptions;
 using Nexaflow.Markdown.Ast;
 

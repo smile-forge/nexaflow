@@ -137,18 +137,23 @@ invented to get around the boundary, or a two-repo edit and a pin bump for every
 changes in, with upstream dormant — no non-bot commit we lacked — the boundary had stopped protecting
 anything.
 
-So XAML-Math is no longer a dependency. Its source is here: `Nexaflow.Maths.Typesetting` (the engine),
-`Nexaflow.Visuals.Maths` (the WPF fonts and renderer), and its own 762 tests as
-`Nexaflow.Tests.Typesetting`. Verbatim, one edit aside — the font resource asks for its own assembly by
-name now rather than the literal `WpfMath` — and the approvals prove it: the only difference in any of the
-148 recorded formulas was that URI. Every geometry number identical.
+So XAML-Math is no longer a dependency. It was ingested verbatim, one edit aside — the font resource asks
+for its own assembly by name rather than the literal `WpfMath` — and its approvals proved it: the only
+difference in any of the 148 recorded formulas was that URI.
 
-**What we kept is why this was ingested rather than rewritten.** `Atoms/` and `Boxes/` are TeX's box model
-— script positioning, fraction shifts, radical construction, delimiter growth, and the spacing that comes
-from atom classes — and `Data/DefaultTexFont.xml` is ~198KB of Computer Modern metrics transcribed from
-TeX. What we are removing is the *front* (its LaTeX parser); we had already replaced the *back* (its
-renderer, with a capture that records where every box landed). What is left is the middle, which is the
-part worth having.
+**What we kept is why this was ingested rather than rewritten**: TeX's box model — script positioning,
+fraction shifts, radical construction, delimiter growth, and the spacing that comes from classes — and
+`Data/DefaultTexFont.xml`, ~198KB of Computer Modern metrics transcribed from TeX. The *front* (its LaTeX
+parser) went first, and the *back* (its renderer) was replaced by a capture that records where every box
+landed.
+
+**And then the middle went too.** Its atoms were a second tree between the parse tree and the layout: the
+builder turned the reading into atoms, and the atoms made boxes. The builder now sets each construct
+itself, straight from the reading — the rules the atoms carried moved into it, and what was left of them
+(the symbol table, a matrix's spacing) moved to the glyph and the command table that name them. The engine
+now lives beside the builder that draws with it, under `src/Nexaflow.Visuals.Text/Markdown/Latex/Tex/`.
+Its F# approval suite recorded atom and box trees that no longer exist; the TeX rules it pinned are
+measured on what the builder sets, in `Nexaflow.Tests.Visuals` under `Markdown/Latex/Typesetting/`.
 
 ## The rule: layout never names a point in the source
 
