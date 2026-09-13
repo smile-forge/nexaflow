@@ -159,6 +159,10 @@ rather than by which lines it currently occupies:
 & $nfi graph edit import     <file-or-node-id> --text 'using System.Linq;'   # where the file keeps its imports
 & $nfi graph edit create     <relpath> --file new-class.cs         # a new file (refuses to overwrite; must parse)
 & $nfi graph edit substitute file:<relpath> --find 'namespace A;' --text 'namespace B;'   # what is in NO declaration
+& $nfi graph edit replace    'code:src/X/View.xaml#K:BoolToVis' --file converter.xml   # a XAML id (T:/N:/K:/A:) takes every op
+& $nfi graph edit set-attribute file:src/X/X.csproj --at "//PackageReference[@Include='NAudio']" --name Version --text 3.0.0
+& $nfi graph edit remove-attribute 'code:src/X/View.xaml#N:Save' --name Click   # XML: one attribute, placed and escaped for you
+& $nfi graph edit append     file:src/X/X.csproj --at "//ItemGroup[PackageReference]" --text '<PackageReference Include="Y" />'
 ```
 
 **You never have to think about the graph being stale.** Three things make it a non-issue, so don't reach for

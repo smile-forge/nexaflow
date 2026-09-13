@@ -22,7 +22,7 @@ namespace Nexaflow.Syntax;
 /// headless CLI addressing a node id, and the assistant doing either.
 /// </para>
 /// </summary>
-public static class StructuralEdit
+public static partial class StructuralEdit
 {
     public enum Op
     {
@@ -49,6 +49,10 @@ public static class StructuralEdit
         /// <summary>Add an import to the file. File-level: see <see cref="AddImport"/>, which is what
         /// implements it — this member exists so a caller with one <c>op</c> parameter can ask for it.</summary>
         Import,
+        /// <summary>Set an attribute of an XML element (<see cref="Options.Attribute"/>), adding it if absent.</summary>
+        SetAttribute,
+        /// <summary>Remove an attribute of an XML element (<see cref="Options.Attribute"/>).</summary>
+        RemoveAttribute,
     }
 
     /// <param name="WithTrivia">For <see cref="Op.Replace"/>, also replace the attached doc comments and
@@ -61,8 +65,13 @@ public static class StructuralEdit
     /// <c>(</c> in that fragment silently matching something else is the whole hazard of doing this with sed.</param>
     /// <param name="AllOccurrences">Allow more than one match. Off by default, so an ambiguous substitution
     /// is an error rather than a silent multi-edit.</param>
+    /// <param name="At">An element path (<see cref="XmlPath"/>) naming the element of an XML file to edit — see
+    /// <see cref="ApplyAt"/>.</param>
+    /// <param name="Attribute">For <see cref="Op.SetAttribute"/> and <see cref="Op.RemoveAttribute"/>, the
+    /// attribute's name.</param>
     public sealed record Options(bool WithTrivia = false, string? Expect = null, string? Find = null,
-                                 bool FindIsRegex = false, bool AllOccurrences = false);
+                                 bool FindIsRegex = false, bool AllOccurrences = false, string? At = null,
+                                 string? Attribute = null);
 
     /// <summary>The changed region, for display.</summary>
     public sealed record Hunk(int Line, IReadOnlyList<string> Removed, IReadOnlyList<string> Added);
@@ -302,6 +311,12 @@ public static class StructuralEdit
         if (string.IsNullOrEmpty(grammarId))
             return Result.Fail("No tree-sitter grammar covers this file, so an edit cannot be verified.");
 
+        if (op is Op.SetAttribute or Op.RemoveAttribute && !TreeSitterLanguages.IsXml(grammarId))
+            return Result.Fail($"Attributes belong to XML elements, and this file parses as {grammarId}.");
+        if (o.At is { Length: > 0 })
+            return Result.Fail("An element path (--at) finds the element itself, so it goes with a file: id - this id "
+                             + "already names a declaration.");
+
         var notes     = new List<string>();
         var extractor = new CodeStructureExtractor();
         var resolved  = extractor.ResolveSpan(grammarId, source, astPath);
@@ -331,6 +346,11 @@ public static class StructuralEdit
             astPath  = candidates[0].AstPath;
             resolved = (candidates[0].Line, candidates[0].EndLine);
         }
+
+        // An XML element's identity is an attribute's value, not a name the grammar marks, so it is found by the
+        // walk that gave out its id rather than by the name field every other language is found by.
+        if (TreeSitterLanguages.IsXml(grammarId))
+            return ApplyXml(grammarId, source, astPath, expectedName, op, text, o, renameTo, notes);
 
         var span    = resolved.Value;
         var anchors = new DeclarationAnchors();
@@ -782,6 +802,10 @@ public static class StructuralEdit
     /// </summary>
     private static void NoteIfInsideString(string grammarId, string source, int at, List<string> notes)
     {
+        // XML colours every attribute value as a string, and an attribute value is not a literal whose indentation
+        // means something different from the file's - the note would be on every edit and true of none.
+        if (TreeSitterLanguages.IsXml(grammarId)) return;
+
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
         if (highlighter is null) return;
 
@@ -1327,7 +1351,8 @@ public static class StructuralEdit
         Op.Replace => "replace",   Op.Delete       => "delete",        Op.Signature  => "re-sign",
         Op.Body    => "re-body",   Op.Rename       => "rename",        Op.Doc        => "document",
         Op.Append  => "append to", Op.InsertBefore => "insert before", Op.Substitute => "substitute in",
-        Op.Import  => "import",    _               => "insert after",
+        Op.Import  => "import",    Op.SetAttribute => "set attribute on", Op.RemoveAttribute => "remove attribute from",
+        _          => "insert after",
     };
 
     // ── Diff ────────────────────────────────────────────────────────────────

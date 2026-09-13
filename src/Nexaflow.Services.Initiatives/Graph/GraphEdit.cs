@@ -46,6 +46,14 @@ public static class GraphEdit
         // an id. It is not what makes one valid, and a rebuild takes long enough that requiring one here
         // would make the tool feel untrustworthy for no gain: the file is re-parsed and re-verified either
         // way.
+        // An element path finds the element inside a file, so it pairs with the id that names only the file. With
+        // a declaration's id it would be a second answer to "which one", and the two could disagree.
+        if (options?.At is { Length: > 0 })
+            return nodeId.StartsWith("file:", StringComparison.Ordinal)
+                ? AtScoped(nodeId["file:".Length..], op, text, options, renameTo, read)
+                : Result.Fail($"An element path (--at) finds the element itself, so it goes with a file: id - "
+                            + $"'{nodeId}' already names a declaration. Drop --at, or use file:<path> --at <path>.");
+
         if (!GraphQuery.Index(graph).TryGetValue(nodeId, out var node)) return FromId(nodeId, op, text, read, options, renameTo);
         if (node.FilePath is not { Length: > 0 } rel)
             return Result.Fail($"'{nodeId}' is not a code node — it has no file.");
@@ -63,7 +71,8 @@ public static class GraphEdit
 
             return Result.Fail(
                 $"'{nodeId}' names a file rather than a declaration in one. Use a code: node for {op}, or "
-              + "graph search to find the declaration you mean. (substitute and import work on a file: node.)");
+              + "graph search to find the declaration you mean. (substitute and import work on a file: node, and "
+              + "in an XML file --at <path> names an element.)");
         }
         if (node.Label is not { Length: > 0 } name)
             return Result.Fail($"'{nodeId}' has no label, so there is nothing to verify the declaration against.");
@@ -99,7 +108,7 @@ public static class GraphEdit
                 StructuralEdit.Op.Import     => Import(path, text, read),
                 StructuralEdit.Op.Substitute => FileScoped(path, text, options, read),
                 _ => Result.Fail($"'{nodeId}' names a file rather than a declaration in one. Use a code: id "
-                               + $"for {op}. (substitute and import work on a file: id.)"),
+                               + $"for {op}. (substitute and import work on a file: id, and in an XML file --at <path> names an element.)"),
             };
         }
 
@@ -150,6 +159,27 @@ public static class GraphEdit
             return Result.Fail($"{result.Message} ({rel})");
 
         return new Result(true, $"{result.Message} {rel}",
+                          [new FileChange(rel, original, result.NewText, result.Hunk)], result.Notes);
+    }
+
+    /// <summary>
+    /// An edit to the element an XPath names (<see cref="StructuralEdit.Options.At"/>) in an XML-family file —
+    /// a view, a project, a props file. The file's own id is the address; the path picks the element in it.
+    /// </summary>
+    private static Result AtScoped(string rel, StructuralEdit.Op op, string? text, StructuralEdit.Options options,
+                                   string? renameTo, ReadText read)
+    {
+        var grammar = TreeSitterLanguages.ForEdit(rel);
+        if (!TreeSitterLanguages.IsXml(grammar))
+            return Result.Fail($"An element path (--at) needs an XML-family file, and {rel} "
+                             + (grammar is null ? "has no grammar." : $"parses as {grammar}."));
+        if (read(rel) is not { } original) return Result.Fail($"Could not read {rel}.");
+
+        var result = StructuralEdit.ApplyAt(grammar!, original, op, text, options, renameTo);
+        if (!result.Ok || result.NewText is null || result.Hunk is null)
+            return Result.Fail($"{result.Message} ({rel})");
+
+        return new Result(true, $"{result.Message} in {rel}",
                           [new FileChange(rel, original, result.NewText, result.Hunk)], result.Notes);
     }
 

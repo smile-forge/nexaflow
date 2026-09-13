@@ -720,6 +720,10 @@ internal static class Program
                   --dry-run prints the hunk and writes nothing. --expect S refuses unless the block still
                   contains S, for a caller pinning an edit to what it read.
 
+            xml:  a XAML id (T:View, N:Save, K:Style, A:Main_Save) takes every op above, on its element. Any XML-family
+                  file (.xaml .xml .props .targets .csproj …) takes file:<path> --at "<xpath>" to name one element:
+                  /a/b, //b, [n], [@attr], [@attr='v'], [child]. set-attribute --name N --text V | remove-attribute --name N
+                  change one attribute; --all applies delete / set-attribute / remove-attribute to every match.
             chaining:   `nfi ask '<stage> | <stage>'` asks several of these at once and prints one answer -
                   `search X | source` is search and code without the second call, `grep X | files` or
                   `| count` answers "does anything still do this" without printing every hit, and
@@ -1054,15 +1058,35 @@ internal static class Program
             "doc"           => StructuralEdit.Op.Doc,
             "substitute" or "sub"  => StructuralEdit.Op.Substitute,
             "import" or "using"    => StructuralEdit.Op.Import,
+            "set-attribute" or "set-attr"       => StructuralEdit.Op.SetAttribute,
+            "remove-attribute" or "remove-attr" => StructuralEdit.Op.RemoveAttribute,
             _               => (StructuralEdit.Op?)null,
         };
         if (op is null)
             return VerbUsage($"unknown edit op '{a[0]}' — expected replace | delete | signature | body | "
-                           + "rename | insert-before | insert-after | append | doc | substitute | import");
+                           + "rename | insert-before | insert-after | append | doc | substitute | import | set-attribute | "
+                           + "remove-attribute");
 
         if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
 
         if (!TryEditFind(a, out var find, out var findError)) return VerbUsage(findError!);
+
+        // An attribute op names its attribute, and nothing else takes one - a --name on a replace would be ignored.
+        if (op is StructuralEdit.Op.SetAttribute or StructuralEdit.Op.RemoveAttribute)
+        {
+            if (a.Value("--name") is not { Length: > 0 }) return VerbUsage($"{a[0]} needs the attribute: --name <attr>");
+            if (op is StructuralEdit.Op.SetAttribute && text is null)
+                return VerbUsage("set-attribute needs the value: --text <value> (an empty one is allowed)");
+            if (op is StructuralEdit.Op.RemoveAttribute && text is not null)
+                return VerbUsage("remove-attribute takes no value - drop --text / --file");
+        }
+        else if (a.Value("--name") is not null)
+            return VerbUsage("--name is the attribute for set-attribute / remove-attribute; use --to to rename");
+
+        // A Git Bash shell rewrites a leading / into a Windows path, so an XPath arrives as C:/Program Files/Git/Project.
+        if (a.Value("--at") is { } at && CallerPath.IsMsysCaller && Regex.IsMatch(at, "^[A-Za-z]:/"))
+            return VerbUsage($"--at arrived as '{at}' - Git Bash rewrote the leading / into a Windows path. Export "
+                           + "MSYS2_ARG_CONV_EXCL='*' and run it again.");
 
         
         var main  = a.Has("--main");
@@ -1081,7 +1105,8 @@ internal static class Program
 
 
         var options = new StructuralEdit.Options(a.Has("--with-trivia"), a.Value("--expect"),
-                                                 find, a.Has("--regex"), a.Has("--all"));
+                                   find, a.Has("--regex"), a.Has("--all"),
+                                   At: a.Value("--at"), Attribute: a.Value("--name"));
         var result  = GraphEdit.Plan(graph, a[1], op.Value, text, rel => ReadRaw(root, rel, main)?.Text,
                                      options, a.Value("--to"));
 
@@ -2705,12 +2730,13 @@ internal static class Program
         public static readonly VerbSpec Ask = new("ask", 1, None, ["--main", "--refresh"],
             "ask '<stage> | <stage> ...' [<root>] [--main] [--refresh]");
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
-            ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file"],
+            ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file",
+             "--at", "--name"],
             ["--stdin", "--find-stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh",
              "--show", "--quiet"],
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
           + "[--to NAME] [--find S | --find-escaped S | --find-file F | --find-stdin] [--regex] [--all] "
-          + "[--expect S] [--with-trivia] "
+          + "[--at XPATH] [--name ATTR] [--expect S] [--with-trivia] "
           + "[--dry-run] [--main] [--show] [--quiet]");
     }
 

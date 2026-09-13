@@ -142,13 +142,20 @@ public static class GraphTools
                 + "endings. Use dry_run first to see the hunk.",
                 [new ClientToolParameter("node_id", "The code node to edit (see graph_search / graph_context)."),
                  new ClientToolParameter("op",
-                     "replace | delete | signature | body | rename | insert_before | insert_after | append | doc. "
+                     "replace | delete | signature | body | rename | insert_before | insert_after | append | doc | "
+                     + "set_attribute | remove_attribute. The attribute ops change one attribute of an XML element (its "
+                     + "name in 'name'); a XAML code: id (T:/N:/K:/A:) takes every op on its element. "
                    + "'append' targets a type and adds a member at the end of its body; 'signature' and 'body' "
                    + "each leave the other half byte-for-byte unchanged."),
                  new ClientToolParameter("text",
                      "The new code — or, for 'substitute', what to replace 'find' with. Not needed for 'delete'.",
                      Required: false),
                  new ClientToolParameter("to", "The new name, for 'rename'.", Required: false),
+                 new ClientToolParameter("at",
+                     "With a file: node_id of an XML-family file (.xaml .xml .props .csproj …): an XPath naming the one "
+                   + "element to edit - /a/b, //b, [n], [@attr], [@attr='v'], [child]. Exactly one must match unless "
+                   + "all_occurrences, which delete, set_attribute and remove_attribute accept.", Required: false),
+                 new ClientToolParameter("name", "The attribute, for 'set_attribute' and 'remove_attribute'.", Required: false),
                  new ClientToolParameter("find",
                      "For 'substitute': the text to find, searched only INSIDE this declaration so it cannot "
                    + "run away across the file. Literal unless find_is_regex, and refused unless it matches "
@@ -332,16 +339,19 @@ public static class GraphTools
             "doc"           => StructuralEdit.Op.Doc,
             "substitute" or "sub" => StructuralEdit.Op.Substitute,
             "import" or "using"   => StructuralEdit.Op.Import,
+            "set_attribute" or "set_attr"       => StructuralEdit.Op.SetAttribute,
+            "remove_attribute" or "remove_attr" => StructuralEdit.Op.RemoveAttribute,
             _               => (StructuralEdit.Op?)null,
         };
         if (op is null)
             return ToolResult.Error(
                 $"Unknown 'op' '{Str(a, "op")}'. Expected replace, delete, signature, body, rename, "
-              + "insert_before, insert_after, append, doc or substitute.");
+              + "insert_before, insert_after, append, doc, substitute, import, set_attribute or remove_attribute.");
 
         var options = new StructuralEdit.Options(
             Bool(a, "with_trivia"), Blank(Str(a, "expect")),
-            Blank(Str(a, "find")), Bool(a, "find_is_regex"), Bool(a, "all_occurrences"));
+            Blank(Str(a, "find")), Bool(a, "find_is_regex"), Bool(a, "all_occurrences"),
+            At: Blank(Str(a, "at")), Attribute: Blank(Str(a, "name")));
         var result  = GraphEdit.Plan(g, id!, op.Value, Str(a, "text"), RawReader(root), options, Blank(Str(a, "to")));
 
         if (!result.Ok) return ToolResult.Error(result.Message);

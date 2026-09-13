@@ -76,6 +76,10 @@ public static class TreeSitterLanguages
     public static string? ForEdit(string fileName) =>
         ForFile(fileName) ?? (EditedAsXml.Contains(Path.GetExtension(fileName)) ? "xml" : null);
 
+    /// <summary>Whether a grammar id parses XML — the plain grammar or XAML, which is the same grammar read for WPF
+    /// meaning. One test, so every layer that treats XML differently asks the same question.</summary>
+    public static bool IsXml(string? grammarId) => grammarId is "xml" or "xaml";
+
     /// <summary>Project and solution files: XML, read by the graph's structured layer rather than as code.</summary>
     private static readonly HashSet<string> EditedAsXml = new(StringComparer.OrdinalIgnoreCase)
     {

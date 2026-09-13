@@ -465,6 +465,10 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                   + "'import' adds a using/import where the file already keeps them (pass it in 'text')."),
                 new ClientToolParameter("text", "The new code — or, for 'substitute', the replacement. Not needed for 'delete'.", Required: false),
                 new ClientToolParameter("to", "The new name, for 'rename'.", Required: false),
+                new ClientToolParameter("at",
+                    "For an XML-family file (.xaml .xml .props .csproj …), instead of ast_path: an XPath naming the one "
+                  + "element to edit - /a/b, //b, [n], [@attr], [@attr='v'], [child].", Required: false),
+                new ClientToolParameter("name", "The attribute, for 'set_attribute' and 'remove_attribute'.", Required: false),
                 new ClientToolParameter("find",
                     "For 'substitute': the text to find, searched only INSIDE this declaration. Literal "
                   + "unless find_is_regex, and refused unless it matches exactly once — use it to change one "
@@ -491,12 +495,16 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                 if (ParseEditOp(ToolArgs.Str(args, "op", "operation")) is not { } op)
                     return Task.FromResult(ToolResult.Error(
                         $"Unknown 'op' '{ToolArgs.Str(args, "op", "operation")}'. Expected replace, delete, "
-                      + "signature, body, rename, insert_before, insert_after, append, doc, substitute or import."));
+                      + "signature, body, rename, insert_before, insert_after, append, doc, substitute, import, set_attribute or "
+                      + "remove_attribute."));
 
                 // 'import' is the one op that belongs to the file rather than to a declaration, so it is the
                 // one that needs no ast_path.
                 var path = ToolArgs.Str(args, "ast_path", "path", "declaration");
-                if (op is not Nexaflow.Syntax.StructuralEdit.Op.Import && string.IsNullOrEmpty(path))
+                var at   = ToolArgs.Str(args, "at");
+                if (!string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(at))
+                    return Task.FromResult(ToolResult.Error("Give 'ast_path' or 'at', not both - each names the element on its own."));
+                if (op is not Nexaflow.Syntax.StructuralEdit.Op.Import && string.IsNullOrEmpty(path) && string.IsNullOrEmpty(at))
                     return Task.FromResult(ToolResult.Error("No 'ast_path' provided — call list_declarations first."));
 
                 var options = new Nexaflow.Syntax.StructuralEdit.Options(
@@ -504,15 +512,19 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
                     ToolArgs.Str(args, "expect"),
                     ToolArgs.Raw(args, "find"),
                     ToolArgs.Bool(args, "find_is_regex"),
-                    ToolArgs.Bool(args, "all_occurrences"));
+                    ToolArgs.Bool(args, "all_occurrences"),
+                    At: at,
+                    Attribute: ToolArgs.Str(args, "name", "attribute"));
 
                 // Raw, not Str: replacement code is whitespace-significant, and trimming it would silently
                 // reflow whatever the caller wrote.
                 var text   = ToolArgs.Raw(args, "text", "content", "new_text");
                 var result = op is Nexaflow.Syntax.StructuralEdit.Op.Import
                     ? Nexaflow.Syntax.StructuralEdit.AddImport(grammar, Document.Text, text ?? "")
-                    : Nexaflow.Syntax.StructuralEdit.Apply(grammar, Document.Text, path!, op, text,
-                                                           options, ToolArgs.Str(args, "to"));
+                    : !string.IsNullOrEmpty(at)
+                        ? Nexaflow.Syntax.StructuralEdit.ApplyAt(grammar, Document.Text, op, text, options, ToolArgs.Str(args, "to"))
+                        : Nexaflow.Syntax.StructuralEdit.Apply(grammar, Document.Text, path!, op, text,
+                                                               options, ToolArgs.Str(args, "to"));
 
                 if (!result.Ok || result.Change is not { } change)
                     return Task.FromResult(ToolResult.Error(result.Message));
@@ -593,7 +605,10 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
     {
         get
         {
-            var grammar = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage;
+            // The highlighting grammar first; a project or solution file has none, but it is XML to an edit, so an
+            // element path and the attribute ops still reach it.
+            var grammar = HighlightingRegistry.Resolve(FileName).TreeSitterLanguage
+                       ?? Nexaflow.Syntax.TreeSitterLanguages.ForEdit(FileName);
             return string.IsNullOrEmpty(grammar) ? null : grammar;
         }
     }
@@ -612,6 +627,8 @@ public partial class FileTextEditorViewModel : ObservableObject, IPageViewModel,
             "doc"           => Nexaflow.Syntax.StructuralEdit.Op.Doc,
             "substitute" or "sub" => Nexaflow.Syntax.StructuralEdit.Op.Substitute,
             "import" or "using"   => Nexaflow.Syntax.StructuralEdit.Op.Import,
+            "set_attribute" or "set_attr"       => Nexaflow.Syntax.StructuralEdit.Op.SetAttribute,
+            "remove_attribute" or "remove_attr" => Nexaflow.Syntax.StructuralEdit.Op.RemoveAttribute,
             _               => null,
         };
 
