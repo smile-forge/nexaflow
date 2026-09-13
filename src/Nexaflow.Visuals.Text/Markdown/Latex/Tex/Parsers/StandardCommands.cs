@@ -145,6 +145,27 @@ internal static class StandardCommands
         }
     }
 
+    /// <summary>A length as written — <c>-3mu</c>, <c>2em</c> — as the unit and the value, or null where it is not one.</summary>
+    internal static (TexUnit Unit, double Value)? LengthOf(string command, string written)
+    {
+        try
+        {
+            ParseLength(written, command, out var unit, out var value);
+            return (unit, value);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The size and class of a <c>\big</c>-family delimiter, or null where the command is not one.</summary>
+    internal static (double MinHeight, TexAtomType Type)? SizedDelimiterOf(string command) =>
+        Dictionary.TryGetValue(command, out var parser) && parser is BigDelimiterCommand big ? (big.MinHeight, big.Type) : null;
+
+    /// <summary>A strut written down by name — <c>\quad</c>, <c>\thinspace</c> — in mu, or null.</summary>
+    internal static double? StrutOf(string name) => Struts.TryGetValue(name, out var mu) ? mu : null;
+
     // \dfrac and \tfrac: \frac forced into display or text style respectively.
     internal sealed class FracStyleCommand : IAssembleCommand
     {
@@ -876,6 +897,9 @@ internal static class StandardCommands
             {
                 Origin = origin,
             };
+
+        internal double MinHeight => SmallestHeight + HeightStep * _size;
+        internal TexAtomType Type => _type;
     }
 
     // \hdotsfor[spacing]{n}: a run of dots across n columns of a matrix, standing in for a row of

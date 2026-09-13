@@ -171,28 +171,28 @@ public static class TexFormulaBuilder
     /// <para>
     /// The class is known before anything is measured, which is what lets a run decide its spacing: TeX turns a binary
     /// operator into an ordinary atom by looking at its neighbours, and the gaps between atoms come from their classes.
-    /// <see cref="Atom"/> is the typesetter's atom for a construct that has not moved into the builder yet — a run
-    /// still asks it about its glyph, to kern two letters or join them into a ligature.
+    /// <see cref="Glyph"/> is the character a piece is, where it is one — a run asks it whether two letters kern or join
+    /// into a ligature, and a script how far to tuck under its lean.
     /// </para>
     /// </summary>
-    private sealed record Item(TexAtomType Left, TexAtomType Right, Atom? Atom, System.Func<TexEnvironment, Previous?, Set> Make)
+    private sealed record Item(TexAtomType Left, TexAtomType Right, Glyph? Glyph, System.Func<TexEnvironment, Previous?, Set> Make)
     {
         /// <summary>Whether this is a kern: room that takes no part in the spacing rules around it.</summary>
-        public bool IsKern => Atom is SpaceAtom;
+        public bool IsKern { get; init; }
 
         /// <summary>
         /// The letter an accent over this would lean with — the character at the bottom of any accents already on it.
         /// </summary>
-        public CharSymbol? Nucleus { get; init; }
+        public Glyph? Nucleus { get; init; }
 
         /// <summary>
         /// Whether what this lays is another piece's drawing rather than its own, as a group's is its contents'. Such a
         /// piece keeps naming what that drawing named when something else claims it.
         /// </summary>
-    public bool PassesThrough { get; init; }
+        public bool PassesThrough { get; init; }
 
-        /// <summary>What a row of the typesetter's would take in place of this piece, where it is itself a row.</summary>
-    public IReadOnlyList<Item>? Elements { get; init; }
+        /// <summary>What a row would take in place of this piece, where it is itself a row.</summary>
+        public IReadOnlyList<Item>? Elements { get; init; }
 
         /// <summary>
         /// Whether this is a piece retyped as a class of its own — a group, <c>\mathop</c> and its family. Claimed by
@@ -206,29 +206,6 @@ public static class TexFormulaBuilder
         /// the operator again round the same sign rather than nesting an operator inside one.
         /// </summary>
         public (Item? Sign, bool? Vertical)? Operator { get; init; }
-
-        /// <summary>A construct still built as an atom, boxed where it is set.</summary>
-        public static Item From(Atom atom) => new(
-            atom.GetLeftType(),
-            atom.GetRightType(),
-            atom,
-            (environment, previous) =>
-                Set.Of((atom is IRow row ? row.WithPreviousAtom(Dummy(previous)) : atom).CreateBox(environment)))
-        {
-            Nucleus = NucleusOf(atom),
-        };
-
-        private static CharSymbol? NucleusOf(Atom atom)
-        {
-            while (atom is AccentedAtom { BaseAtom: { } inner }) atom = inner;
-            return atom as CharSymbol;
-        }
-
-        /// <summary>The atom a row of the typesetter's takes as what stood before it.</summary>
-        private static DummyAtom? Dummy(Previous? previous) =>
-            previous is { } before
-                ? new DummyAtom(before.Right, before.IsKern ? new SpaceAtom() : new NullAtom(), false)
-                : null;
     }
 
     /// <summary>What stood before a piece of a run: its class on the side facing it, and whether it was a kern.</summary>
@@ -258,7 +235,7 @@ public static class TexFormulaBuilder
 
                 var scope = after.Count switch
                 {
-                    0 => Item.From(Tag(new NullAtom(), run[at])),
+                    0 => NullItem(),
                     1 => after[0],
                     _ => Sequenced(after, run[at]),
                 };
@@ -270,7 +247,7 @@ public static class TexFormulaBuilder
             if (IsTag(run[at])) continue;
             if (Discarded(run[at])) continue;
 
-            built.Add(Piece(run[at], style, knowledge) ?? Item.From(Unread(run[at], style)));
+            built.Add(Piece(run[at], style, knowledge) ?? UnreadItem(run[at], style));
         }
 
         return built;
@@ -281,14 +258,17 @@ public static class TexFormulaBuilder
         part.Kind switch
         {
             Kinds.Sequence => Sequence(part.Parts, part, style, knowledge),
-            TexKinds.Group when !part.Parts.Any() => Item.From(Empty(part)),
+            TexKinds.Group when !part.Parts.Any() => NullItem(),
             TexKinds.Group when Written(part) => Grouped(part, style, knowledge),
             TexKinds.Group => Sequence(part.Parts, part, style, knowledge),
             TexKinds.Script => Scripted(part, style, knowledge),
             TexKinds.Command => Commanded(part, style, knowledge),
             TexKinds.Fence => Fenced(part, style, knowledge),
             TexKinds.Environment => Environmented(part, style, knowledge),
-            _ => Of(part, style, knowledge) is { } atom ? Item.From(atom) : null,
+            Kinds.Char => CharacterItem(part, style),
+            Kinds.Verbatim => LettersItem(part.Text, style, spaced: true, part),
+            Kinds.Hole => HoleItem(part),
+            _ => null,
         };
 
     /// <summary>
@@ -323,10 +303,183 @@ public static class TexFormulaBuilder
 
     /// <summary>Pieces standing in a row, as one piece: its class is its first piece's on the left and its last piece's on the right.</summary>
     private static Item Sequenced(List<Item> items, ContentPart? whole) =>
-        new(items[0].Left, items[^1].Right, null, (environment, previous) => Row(items, whole, environment, previous))
+        new(items.Count == 0 ? TexAtomType.Ordinary : items[0].Left, items.Count == 0 ? TexAtomType.Ordinary : items[^1].Right, null, (environment, previous) => Row(items, whole, environment, previous))
         {
             Elements = items,
         };
+
+    // ── Leaves ──────────────────────────────────────────────────────────────
+
+    /// <summary>A glyph standing as a piece of a run.</summary>
+    private static Item GlyphItem(Glyph glyph) =>
+        new(glyph.Type, glyph.Type, glyph, (environment, _) => glyph.Set(environment))
+        {
+            Nucleus = glyph,
+        };
+
+    /// <summary>
+    /// Room of a width and height measured in a unit — or, with no unit, an inter-word space in the current font. A kern:
+    /// it takes no part in the spacing rules around it.
+    /// </summary>
+    private static Item SpaceItem(TexUnit? unit, double width, double height = 0, double depth = 0) =>
+        new(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) => Room(unit, width, height, depth, environment))
+        {
+            IsKern = true,
+        };
+
+    private static Set Room(TexUnit? unit, double width, double height, double depth, TexEnvironment environment) =>
+        unit is { } measured
+            ? Strut(width * Conversion(measured, environment), height * Conversion(measured, environment),
+                    depth * Conversion(measured, environment))
+            : Strut(environment.MathFont.GetSpace(environment.Style), 0, 0);
+
+    /// <summary>How long one of a unit is in the environment given: an em and an ex are an x-height here, a mu an eighteenth of a quad.</summary>
+    private static double Conversion(TexUnit unit, TexEnvironment environment) => unit switch
+    {
+        TexUnit.Em or TexUnit.Ex => environment.MathFont.GetXHeight(environment.Style, environment.LastFontId),
+        TexUnit.Pixel => 1.0 / environment.MathFont.Size,
+        TexUnit.Point => TexFontUtilities.PixelsPerPoint / environment.MathFont.Size,
+        TexUnit.Pica => 12 * TexFontUtilities.PixelsPerPoint / environment.MathFont.Size,
+        _ => environment.MathFont.GetQuad(environment.MathFont.GetMuFontId(), environment.Style) / 18,
+    };
+
+    /// <summary>Nothing, of no size, still an ordinary piece of its run — an empty group, a cell nobody wrote.</summary>
+    private static Item NullItem() =>
+        new(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (_, _) => Strut(0, 0, 0));
+
+    /// <summary>The hollow box standing where an argument has still to be written.</summary>
+    private static Item HoleItem(ContentPart part) =>
+        new(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+            Set.Of(new Boxes.PlaceholderBox(environment)) with { Part = part });
+
+    /// <summary>One character of the reading, as <see cref="Character"/>: a symbol by the table, a letter, or a tie.</summary>
+    private static Item? CharacterItem(ContentPart part, string? style)
+    {
+        if (part.Text.Length != 1) return null;
+
+        var character = part.Text[0];
+        if (character == '\'') return null;
+        if (character == '~') return SpaceItem(null, 0);
+
+        return GlyphItem(TexFormulaParser.GlyphOf(character, style) with { Origin = part });
+    }
+
+    /// <summary>A stretch set as the characters it is written with, as <see cref="Letters"/>, standing for <paramref name="origin"/>.</summary>
+    private static Item LettersItem(string text, string? style, bool spaced, ContentPart? origin)
+    {
+        style ??= TexUtilities.TextStyleName;
+
+        if (!spaced && text.Length == 1 && !char.IsWhiteSpace(text[0]))
+            return GlyphItem(Glyph.Letter(text[0], style) with { Origin = origin });
+
+        var letters = new List<Item>();
+        if (spaced) letters.Add(SpaceItem(TexUnit.Mu, 3));
+
+        foreach (var letter in text)
+            letters.Add(char.IsWhiteSpace(letter) ? SpaceItem(null, 0) : GlyphItem(Glyph.Letter(letter, style)));
+
+        if (spaced) letters.Add(SpaceItem(TexUnit.Mu, 3));
+
+        return Sequenced(letters, origin);
+    }
+
+    /// <summary>A piece nothing here can draw, set as its characters and reported, as <see cref="Unread"/>.</summary>
+    private static Item UnreadItem(ContentPart part, string? style)
+    {
+        if (!part.SelfAndDescendants().Any(piece => piece.Trouble is not null)) _ignored?.Add(Whole(part));
+
+        return LettersItem(part.Node.Print(), style, spaced: true, part);
+    }
+
+    /// <summary>A command nothing anywhere knows, set as what was typed and reported, as <see cref="Words"/>.</summary>
+    private static Item? WordsItem(ContentPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (part.Part(Roles.Name) is not { Text: { } name } named || knowledge.Knows(name[1..])) return null;
+
+        if (named.Trouble is null) _ignored?.Add(Whole(part));
+
+        return LettersItem(part.Node.Print(), style, spaced: true, part);
+    }
+
+    /// <summary>A symbol standing on its own, as <see cref="Symbol"/> — a big operator whatever its limits, or a primitive the tables draw.</summary>
+    private static Item? SymbolItem(string name, ContentPart part)
+    {
+        if (Glyph.Symbol(name) is not { } glyph) return PrimitiveItem(name, part);
+
+        glyph = glyph with { Origin = part };
+
+        return glyph.Type == TexAtomType.BigOperator
+            ? Operator(GlyphItem(glyph), null, null, TexFormulaParser.SetsLimitsBeside(name) ? false : null, part)
+            : GlyphItem(glyph);
+    }
+
+    /// <summary>What a name draws that LaTeX has no spelling for, as <see cref="StandardCommands.PrimitiveOf"/>.</summary>
+    private static Item? PrimitiveItem(string name, ContentPart? part)
+    {
+        if (StandardCommands.StrutOf(name) is { } mu) return SpaceItem(TexUnit.Mu, mu);
+
+        return name switch
+        {
+            // A radical sign with nothing under it, lifted so it sits about the axis.
+            "surd" => Made(TexAtomType.Ordinary, part, environment =>
+            {
+                var sign = Glyph.Symbol("surdsign")!.Set(environment);
+                sign = sign with
+                {
+                    Shift = -((sign.Height + sign.Depth) / 2) - environment.MathFont.GetAxisHeight(environment.Style),
+                };
+                return Horizontal([sign], null, null);
+            }),
+
+            // A dot or a tilde set over an equals sign at a fixed height, and a relation either side.
+            "doteq" => Pile("equals", "ldotp", 2, part),
+            "cong" => Pile("equals", "sim", 1, part),
+
+            _ => null,
+        };
+    }
+
+    private static Item Pile(string under, string over, double mu, ContentPart? part) =>
+        Typed(UnderOver(GlyphItem(Glyph.Symbol(under)!), GlyphItem(Glyph.Symbol(over)!), TexUnit.Mu, mu,
+                        smaller: false, over: true, part),
+              TexAtomType.Relation, part);
+
+    /// <summary>A delimiter at one of the four set sizes of <c>\big</c> … <c>\Bigg</c>, centred on the axis.</summary>
+    private static Item SizedDelimiter(Glyph delimiter, double minHeight, TexAtomType type, ContentPart part) =>
+        new(type, type, null, (environment, _) =>
+        {
+            var set = Set.Of(DelimiterFactory.CreateBox(delimiter.SymbolName!, minHeight, environment));
+            set = set with
+            {
+                Shift = -((set.Height + set.Depth) / 2 - set.Height) - environment.MathFont.GetAxisHeight(environment.Style),
+            };
+            return Horizontal([set], null, null) with { Part = part };
+        });
+
+    /// <summary>A drawn rule sized in a unit — <c>\_</c>, which the text encoding has no glyph for.</summary>
+    private static Item RuleItem(TexUnit unit, double width, double thickness, double shift, ContentPart part) =>
+        new(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+            Set.Of(new Boxes.HorizontalRule(
+                environment,
+                thickness * Conversion(unit, environment),
+                width * Conversion(unit, environment),
+                shift * Conversion(unit, environment))) with { Part = part });
+
+    /// <summary>The delimiter a <c>\left</c> or <c>\right</c> was written with, as <see cref="Delimiter"/>, naming the whole of it.</summary>
+    private static Glyph? DelimiterGlyph(ContentPart fence)
+    {
+        if (fence.Part(TexRole.Argument) is not { } written) return null;
+
+        var text = written.Node.Print();
+        var symbol = text switch
+        {
+            @"\|" => TexFormulaParser.DelimiterOf("Vert"),
+            { Length: 1 } => TexFormulaParser.DelimiterOf(text[0]),
+            _ => TexFormulaParser.DelimiterOf(text.TrimStart('\\')),
+        };
+
+        return symbol is null ? null : Glyph.Named(symbol.Name, symbol.Type, symbol.IsDelimeter) with { Origin = fence };
+    }
 
     /// <summary>Classes that make a binary operator after them an ordinary atom.</summary>
     private static readonly HashSet<TexAtomType> OperandsNot =
@@ -367,19 +520,19 @@ public static class TexFormulaBuilder
 
             var kern = 0d;
             if (next is not null && right == TexAtomType.Ordinary
-                && current.Atom is CharSymbol letter && next.Atom is CharSymbol following && Kernable.Contains(next.Left))
+                && current.Glyph is { } letter && next.Glyph is { } following && Kernable.Contains(next.Left))
             {
-                var font = following.GetStyledFont(environment);
+                var font = following.FontFor(environment);
                 var style = environment.Style;
 
                 if (font.SupportsMetrics && letter.IsSupportedByFont(font, style))
                 {
-                    var leftChar = letter.GetCharFont(font).Value;
-                    var rightChar = following.GetCharFont(font).Value;
+                    var leftChar = letter.FontOf(font).Value;
+                    var rightChar = following.FontOf(font).Value;
 
                     if (font.GetLigature(leftChar, rightChar) is { } ligature)
                     {
-                        current = Item.From(new FixedCharAtom(ligature));
+                        current = GlyphItem(Glyph.Slot(ligature));
                         left = right = current.Left;
                         i++;
                     }
@@ -549,7 +702,7 @@ public static class TexFormulaBuilder
     private static Item? Scripted(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         if (part.Part(TexRole.Base) is null)
-            return ScriptedOn(part, Item.From(Tag(new NullAtom(), part)), style, knowledge);
+            return ScriptedOn(part, NullItem(), style, knowledge);
 
         if (Braced(part, style, knowledge) is { } braced) return braced;
 
@@ -573,7 +726,7 @@ public static class TexFormulaBuilder
         // A prefix: an empty box wearing the scripts, followed by the base.
         if (Order(part, Roles.Name) is var name and >= 0 && Order(part, TexRole.Base) > name)
         {
-            var carried = ScriptsOn(part, Item.From(Tag(new NullAtom(), part)), style, knowledge);
+            var carried = ScriptsOn(part, NullItem(), style, knowledge);
             if (carried is null) return null;
 
             return Sequenced([carried, on], part);
@@ -585,7 +738,7 @@ public static class TexFormulaBuilder
 
         if (marks.Count > 0)
         {
-            var primes = marks.Select(mark => Item.From(Tag(SymbolAtom.GetAtom("prime"), mark))).ToList();
+            var primes = marks.Select(mark => GlyphItem(Glyph.Symbol("prime")! with { Origin = mark })).ToList();
             on = Scripts(on, null, Sequenced(primes, part), part);
         }
 
@@ -609,9 +762,7 @@ public static class TexFormulaBuilder
 
         // Scripts on a big operator are its limits — over and under it, or beside it as scripts, by style and by what
         // was asked for — and so are scripts on anything typed as one.
-        if (on.Atom is BigOperatorAtom big)
-            return Operator(big.BaseAtom is { } sign ? Item.From(sign) : null, subscript, superscript,
-                            asked ?? big.UseVerticalLimits, part);
+
 
         if (on.Operator is { } made)
             return Operator(made.Sign, subscript, superscript, asked ?? made.Vertical, part);
@@ -675,9 +826,9 @@ public static class TexFormulaBuilder
         var delta = 0d;
         double shiftUp, shiftDown;
 
-        if (on?.Atom is SymbolAtom { Type: TexAtomType.BigOperator } symbol)
+        if (on?.Glyph is { SymbolName: { } symbolName, Type: TexAtomType.BigOperator })
         {
-            var charInfo = texFont.GetCharInfo(symbol.Name, style).Value;
+            var charInfo = texFont.GetCharInfo(symbolName, style).Value;
             if (style < TexStyle.Text && texFont.HasNextLarger(charInfo))
                 charInfo = texFont.GetNextLargerCharInfo(charInfo, style);
 
@@ -693,10 +844,10 @@ public static class TexFormulaBuilder
             shiftUp = measured.Height - texFont.GetSupDrop(superscriptStyle.Style);
             shiftDown = measured.Depth + texFont.GetSubDrop(subscriptStyle.Style);
         }
-        else if (on?.Atom is CharSymbol letter && letter.IsSupportedByFont(texFont, style))
+        else if (on?.Glyph is { } letter && letter.IsSupportedByFont(texFont, style))
         {
-            var charFont = letter.GetCharFont(texFont).Value;
-            if (!letter.IsTextSymbol || !texFont.HasSpace(charFont.FontId))
+            var charFont = letter.FontOf(texFont).Value;
+            // A glyph here is never a text symbol, which is the case that could have skipped this.
                 delta = texFont.GetCharInfo(charFont, style).Value.Metrics.Italic;
 
             if (delta > TexUtilities.FloatPrecision && subscript is null)
@@ -857,12 +1008,12 @@ public static class TexFormulaBuilder
     /// <summary>A big operator's sign at the size its style asks for, centred on the axis, and how far it leans.</summary>
     private static (Set Set, double Delta) OperatorSign(Item? sign, TexEnvironment environment)
     {
-        if (sign?.Atom is SymbolAtom { Type: TexAtomType.BigOperator } symbol)
+        if (sign?.Glyph is { SymbolName: { } name, Type: TexAtomType.BigOperator } symbol)
         {
             var texFont = environment.MathFont;
             var style = environment.Style;
 
-            var character = texFont.GetCharInfo(symbol.Name, style).Value;
+            var character = texFont.GetCharInfo(name, style).Value;
             if (style < TexStyle.Text && texFont.HasNextLarger(character))
                 character = texFont.GetNextLargerCharInfo(character, style);
 
@@ -886,7 +1037,7 @@ public static class TexFormulaBuilder
     /// </summary>
     private static Item Retagged(Item item, ContentPart part)
     {
-        if (item.Atom is { } atom) return Item.From(Tag(atom, part));
+        if (item.Glyph is { } glyph && item.Operator is null) return GlyphItem(glyph with { Origin = part });
 
         return item with
         {
@@ -945,7 +1096,7 @@ public static class TexFormulaBuilder
         var small = degree.Make(environment.GetRootStyle(), null);
         small = small with { Shift = root.Depth - small.Depth - 0.55 * (root.Height + root.Depth) };
 
-        var back = Set.Of(new SpaceAtom(TexUnit.Mu, -10, 0, 0).CreateBox(environment));
+        var back = Strut(-10 * Conversion(TexUnit.Mu, environment), 0, 0);
         var reach = small.Width + back.Width;
 
         var row = new List<Set>();
@@ -961,15 +1112,15 @@ public static class TexFormulaBuilder
     /// An accent over a piece: the largest size of the accent no wider than the piece, centred over it and skewed as the
     /// letter underneath asks.
     /// </summary>
-    private static Set Accented(Item inner, SymbolAtom accent, TexEnvironment environment)
+    private static Set Accented(Item inner, Glyph accent, TexEnvironment environment)
     {
         var texFont = environment.MathFont;
         var style = environment.Style;
 
         var body = inner.Make(environment.GetCrampedStyle(), null);
-        var skew = inner.Nucleus?.GetCharFont(texFont).Value is { } letter ? texFont.GetSkew(letter, style) : 0.0;
+        var skew = inner.Nucleus?.FontOf(texFont).Value is { } letter ? texFont.GetSkew(letter, style) : 0.0;
 
-        var character = texFont.GetCharInfo(accent.Name, style).Value;
+        var character = texFont.GetCharInfo(accent.SymbolName!, style).Value;
         while (texFont.HasNextLarger(character))
         {
             var larger = texFont.GetNextLargerCharInfo(character, style);
@@ -1062,10 +1213,10 @@ public static class TexFormulaBuilder
             {
                 if (part.Part(TexRole.Base) is null) return null;
                 if (DeclineUnsettled && part.Parent is { Kind: TexKinds.Script } && part.Role == TexRole.Base) return null;
-                if (Symbol("not", part, style) is not { } slash) return null;
+                if (SymbolItem("not", part) is not { } slash) return null;
 
                 // The slash, then everything written after the name in the order it was written: one sign.
-                var sign = new List<Item> { Item.From(slash) };
+                var sign = new List<Item> { slash };
                 foreach (var written in part.Children)
                 {
                     if (written.Role is not (Roles.Element or TexRole.Base)) continue;
@@ -1085,18 +1236,17 @@ public static class TexFormulaBuilder
             {
                 if (part.Part(TexRole.Argument) is not { } amount) return null;
 
-                return StandardCommands.SpaceOf(name, Inside(amount)) is { } room ? Item.From(Tag(room, part)) : null;
+                return StandardCommands.LengthOf(name, Inside(amount)) is { } length ? SpaceItem(length.Unit, length.Value) : null;
             }
 
             case @"\ ":
             case @"\nbsp":
-                return part.Parts.Any() ? null : Item.From(Tag(new SpaceAtom(), part));
+                return part.Parts.Any() ? null : SpaceItem(null, 0);
         }
 
         // A sized delimiter: one bracket at a chosen size, standing on its own.
-        if (Delimiter(part) is { } sized
-            && StandardCommands.BigDelimiterOf(name[1..], sized.Name, Whole(part)) is { } big)
-            return Item.From(big);
+        if (DelimiterGlyph(part) is { } sized && StandardCommands.SizedDelimiterOf(name[1..]) is { } big)
+            return SizedDelimiter(sized, big.MinHeight, big.Type, part);
 
         // Something set above or below something else — \stackrel, \overset, \underset.
         if (part.Part(TexRole.Over) is not null || part.Part(TexRole.Under) is not null)
@@ -1122,7 +1272,7 @@ public static class TexFormulaBuilder
                 if (part.Part(TexRole.Base) is not { } worded) return null;
 
                 var face = name[1..] == "mbox" ? TexUtilities.TextStyleName : restyled;
-                return Item.From(Tag(Letters(Inside(worded), face), part));
+                return LettersItem(Inside(worded), face, spaced: false, part);
             }
 
             if (part.Part(TexRole.Base) is not { } styled) return null;
@@ -1132,7 +1282,7 @@ public static class TexFormulaBuilder
         }
 
         // Every accent at once.
-        if (part.Part(TexRole.Base) is { } accented && Accent(name) is { } accent)
+        if (part.Part(TexRole.Base) is { } accented && Glyph.Symbol(name.TrimStart('\\')) is { Type: TexAtomType.Accent } accent)
         {
             if (Piece(accented, style, knowledge) is not { } inner) return null;
 
@@ -1164,9 +1314,9 @@ public static class TexFormulaBuilder
         if (PartPiece(part, Roles.Derived, style, knowledge) is { } shorthand) return Retagged(shorthand, part);
 
         // A symbol standing on its own, if it is one.
-        if (!part.Parts.Any() && Symbol(name[1..], part, style) is { } symbol) return Item.From(symbol);
+        if (!part.Parts.Any() && SymbolItem(name[1..], part) is { } symbol) return symbol;
 
-        return Words(part, style, knowledge) is { } words ? Item.From(words) : null;
+        return WordsItem(part, style, knowledge);
     }
 
     /// <summary>
@@ -1214,8 +1364,8 @@ public static class TexFormulaBuilder
             case StandardCommands.GenFracCommand when arguments.Count == 6:
             {
                 // Written as `{}` where there is to be none: an argument that is not a delimiter is a side left open.
-                var left = arguments[0].Atom as SymbolAtom;
-                var right = arguments[1].Atom as SymbolAtom;
+                var left = arguments[0].Glyph is { SymbolName: not null } l ? l : null;
+                var right = arguments[1].Glyph is { SymbolName: not null } r ? r : null;
                 var (numerator, denominator) = (arguments[4], arguments[5]);
 
                 var fraction = Made(TexAtomType.Inner, origin, environment => Fraction(numerator, denominator, environment));
@@ -1272,15 +1422,15 @@ public static class TexFormulaBuilder
                     Fraction(numerator, denominator, environment, line: 0, forced: binom.Style, bare: true));
 
                 return Fenced(fraction,
-                              new SymbolAtom("(", TexAtomType.Opening, true) { Origin = origin },
-                              new SymbolAtom(")", TexAtomType.Closing, true) { Origin = origin },
+                              Glyph.Named("(", TexAtomType.Opening, true) with { Origin = origin },
+                              Glyph.Named(")", TexAtomType.Closing, true) with { Origin = origin },
                               origin);
             }
 
             case StandardCommands.BraketCommand braket when arguments.Count == 1:
                 return Fenced(arguments[0],
-                              new SymbolAtom(braket.Open, TexAtomType.Opening, true) { Origin = origin },
-                              new SymbolAtom(braket.Close, TexAtomType.Closing, true) { Origin = origin },
+                              Glyph.Named(braket.Open, TexAtomType.Opening, true) with { Origin = origin },
+                              Glyph.Named(braket.Close, TexAtomType.Closing, true) with { Origin = origin },
                               origin);
 
             case StandardCommands.CancelCommand cancel when arguments.Count == 1:
@@ -1298,7 +1448,7 @@ public static class TexFormulaBuilder
                 return Typed(arguments[0], typed.Type, origin);
 
             case StandardCommands.UnderscoreCommand when arguments.Count == 0:
-                return Item.From(new RuleAtom(TexUnit.Ex, Width: 0.7, Thickness: 0.1, Shift: 0.3) { Origin = origin });
+                return RuleItem(TexUnit.Ex, width: 0.7, thickness: 0.1, shift: 0.3, origin);
 
             case StandardCommands.TransparentCommand when arguments.Count == 1:
                 return arguments[0];
@@ -1329,7 +1479,7 @@ public static class TexFormulaBuilder
             };
 
     /// <summary>Something between two named delimiters, as a fence built by a command rather than by <c>\left</c>.</summary>
-    private static Item Fenced(Item inside, SymbolAtom? left, SymbolAtom? right, ContentPart? origin) =>
+    private static Item Fenced(Item inside, Glyph? left, Glyph? right, ContentPart? origin) =>
         new(TexAtomType.Opening, TexAtomType.Closing, null, (environment, _) =>
         {
             var set = Fence(inside, left, right, environment);
@@ -1404,7 +1554,7 @@ public static class TexFormulaBuilder
         var font = environment.MathFont;
         var style = environment.Style;
 
-        Set Dot() => Set.Of(SymbolAtom.GetAtom("ldotp").CreateBox(environment));
+        Set Dot() => Glyph.Symbol("ldotp")!.Set(environment);
 
         var first = Dot();
         var quad = font.GetQuad(first.LastFontId, style);
@@ -1524,7 +1674,7 @@ public static class TexFormulaBuilder
         var script = environment.GetSubscriptStyle();
         var top = numerator.Make(script, null);
         var bottom = denominator.Make(script, null);
-        var slash = Set.Of(SymbolAtom.GetAtom("slash").CreateBox(environment));
+        var slash = Glyph.Symbol("slash")!.Set(environment);
 
         var xHeight = environment.MathFont.GetXHeight(environment.Style, environment.LastFontId);
         top = top with { Shift = -(0.6 * xHeight + top.Depth) };
@@ -1540,8 +1690,8 @@ public static class TexFormulaBuilder
         var inside = new List<Item>();
         if (withMod)
         {
-            foreach (var letter in "mod") inside.Add(Item.From(new CharAtom(letter, "mathrm")));
-            if (StandardCommands.PrimitiveOf("thickspace") is { } thin) inside.Add(Item.From(thin));
+            foreach (var letter in "mod") inside.Add(GlyphItem(Glyph.Letter(letter, "mathrm")));
+            if (PrimitiveItem("thickspace", null) is { } thin) inside.Add(thin);
         }
         inside.Add(argument);
 
@@ -1550,25 +1700,25 @@ public static class TexFormulaBuilder
         if (!fenced)
         {
             var bare = new List<Item>();
-            if (StandardCommands.PrimitiveOf("quad") is { } lead) bare.Add(Item.From(lead));
+            if (PrimitiveItem("quad", null) is { } lead) bare.Add(lead);
             bare.Add(word);
             return Sequenced(bare, origin);
         }
 
         var brackets = Fenced(word,
-                              new SymbolAtom("(", TexAtomType.Opening, true) { Origin = origin },
-                              new SymbolAtom(")", TexAtomType.Closing, true) { Origin = origin },
+                              Glyph.Named("(", TexAtomType.Opening, true) with { Origin = origin },
+                              Glyph.Named(")", TexAtomType.Closing, true) with { Origin = origin },
                               origin);
 
         var whole = new List<Item>();
-        if (StandardCommands.PrimitiveOf("quad") is { } gap) whole.Add(Item.From(gap));
+        if (PrimitiveItem("quad", null) is { } gap) whole.Add(gap);
         whole.Add(brackets);
         return Sequenced(whole, origin);
     }
 
     /// <summary>What a row of the typesetter's would hold if handed this piece: its elements when it is a row, and itself otherwise.</summary>
     private static List<Item> Elements(Item item) =>
-        item.Atom is RowAtom row ? [.. row.Elements.Select(Item.From)] : item.Elements is { } elements ? [.. elements] : [item];
+        item.Elements is { } elements ? [.. elements] : [item];
 
     /// <summary>A piece measured and not drawn — <c>\phantom</c> and its one-dimensional variants.</summary>
     private static Item Phantom(Item inner, bool useWidth, bool useHeight, bool useDepth)
@@ -1676,7 +1826,7 @@ public static class TexFormulaBuilder
 
             environment.LastFontId = body.LastFontId;
 
-            var gap = Set.Of(new SpaceAtom(unit, 0, space, 0).CreateBox(environment));
+            var gap = Strut(0, space * Conversion(unit, environment), 0);
             var stack = new List<Set>();
 
             if (over)
@@ -1703,11 +1853,11 @@ public static class TexFormulaBuilder
     private static Item Brace(Item on, Item? label, bool over, ContentPart origin) =>
         Made(TexAtomType.Ordinary, origin, environment =>
         {
-            var symbol = SymbolAtom.GetAtom(
+            var symbol = Glyph.Symbol(
                 TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][(int)(over ? TexDelimeterType.Over : TexDelimeterType.Under)]);
 
             var body = on.Make(environment, null);
-            var brace = Set.Of(DelimiterFactory.CreateBox(symbol.Name, body.Width, environment));
+            var brace = Set.Of(DelimiterFactory.CreateBox(symbol!.SymbolName!, body.Width, environment));
             var script = label?.Make(over ? environment.GetSuperscriptStyle() : environment.GetSubscriptStyle(), null);
 
             var width = System.Math.Max(body.Width, brace.Height + brace.Depth);
@@ -1729,7 +1879,7 @@ public static class TexFormulaBuilder
             if (script is not null && System.Math.Abs(width - script.Width) > TexUtilities.FloatPrecision)
                 script = Centred(script, width);
 
-            var kern = Set.Of(new SpaceAtom(TexUnit.Ex, 0, StandardCommands.BraceCommand.LabelKern, 0).CreateBox(environment)).Height;
+            var kern = StandardCommands.BraceCommand.LabelKern * Conversion(TexUnit.Ex, environment);
 
             return OverUnderSet(body, brace, script, kern, over);
         });
@@ -1844,7 +1994,7 @@ public static class TexFormulaBuilder
 
                 cells.Add(built.Count switch
                 {
-                    0 => Item.From(Tag(new NullAtom(), cell)),
+                    0 => NullItem(),
                     1 => built[0],
                     _ => Sequenced(built, cell),
                 });
@@ -1859,7 +2009,7 @@ public static class TexFormulaBuilder
         if (columns == 0) return null;
 
         foreach (var row in rows)
-            while (row.Count < columns) row.Add(Item.From(new NullAtom()));
+            while (row.Count < columns) row.Add(NullItem());
 
         return rows;
     }
@@ -1873,11 +2023,12 @@ public static class TexFormulaBuilder
             rowStrutHeight: arrangement.RowStrut ? MatrixAtom.DefaultRowStrutHeight : 0,
             rowStrutDepth: arrangement.RowStrut ? MatrixAtom.DefaultRowStrutDepth : 0));
 
-        SymbolAtom? Delimiter(string? name) =>
+        Glyph? Delimiter(string? name) =>
             name == null
                 ? null
-                : TexFormulaParser.GetDelimiterSymbol(name) ??
-                  throw new TexParseException($"The delimiter {name} could not be found");
+                : TexFormulaParser.GetDelimiterSymbol(name) is { } symbol
+                    ? Glyph.Named(symbol.Name, symbol.Type, symbol.IsDelimeter)
+                    : throw new TexParseException($"The delimiter {name} could not be found");
 
         var left = Delimiter(arrangement.LeftDelimiter);
         var right = Delimiter(arrangement.RightDelimiter);
@@ -2081,14 +2232,14 @@ public static class TexFormulaBuilder
         if (part.Part(Roles.Open) is not { } open) return null;
         if (part.Part(Roles.Close) is not { } close) return null;
 
-        var left = Delimiter(open);
-        var right = Delimiter(close);
+        var left = DelimiterGlyph(open);
+        var right = DelimiterGlyph(close);
 
         return new Item(TexAtomType.Opening, TexAtomType.Closing, null, (environment, _) =>
             Fence(inside, left, right, environment) with { Part = part });
     }
 
-    private static Set Fence(Item inside, SymbolAtom? left, SymbolAtom? right, TexEnvironment environment)
+    private static Set Fence(Item inside, Glyph? left, Glyph? right, TexEnvironment environment)
     {
         var texFont = environment.MathFont;
         var style = environment.Style;
@@ -2099,21 +2250,20 @@ public static class TexFormulaBuilder
         var delta = System.Math.Max(body.Height - axis, body.Depth + axis);
         var minHeight = System.Math.Max(delta / 500 * 901, 2 * delta - 0.5);
 
-        Set Delimited(SymbolAtom symbol)
+        Set Delimited(Glyph symbol)
         {
-            var box = DelimiterFactory.CreateBox(symbol.Name, minHeight, environment);
-            box.Node ??= symbol;
-            var set = Set.Of(box);
+            // Which part drew it: a delimiter is built from a name and a height, so it has to be said.
+            var set = Set.Of(DelimiterFactory.CreateBox(symbol.SymbolName!, minHeight, environment)) with { Part = symbol.Origin };
             return set with { Shift = -((set.Height + set.Depth) / 2 - set.Height) - axis };
         }
 
         var row = new List<Set>();
 
-        if (left is not null && left.Name != SymbolAtom.EmptyDelimiterName) row.Add(Delimited(left));
+        if (left is not null && left.SymbolName != SymbolAtom.EmptyDelimiterName) row.Add(Delimited(left));
         if (!inside.IsKern) row.Add(Set.Of(Glue.CreateBox(TexAtomType.Opening, inside.Left, environment)));
         row.Add(body);
         if (!inside.IsKern) row.Add(Set.Of(Glue.CreateBox(inside.Right, TexAtomType.Closing, environment)));
-        if (right is not null && right.Name != SymbolAtom.EmptyDelimiterName) row.Add(Delimited(right));
+        if (right is not null && right.SymbolName != SymbolAtom.EmptyDelimiterName) row.Add(Delimited(right));
 
         return Horizontal(row, null, null);
     }

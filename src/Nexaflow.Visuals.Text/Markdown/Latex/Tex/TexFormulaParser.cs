@@ -6,6 +6,7 @@ using XamlMath.Colors;
 using XamlMath.Exceptions;
 using XamlMath.Parsers;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath;
 
@@ -240,4 +241,18 @@ public class TexFormulaParser
             ? new CharAtom(character, textStyle)
             : SymbolAtom.GetAtom(symbolName);
     }
+
+    /// <summary>One character, as the glyph it is set as — a symbol by the table, or a letter.</summary>
+    internal static Glyph GlyphOf(char character, string? textStyle = null)
+    {
+        if (!IsSymbol(character) || textStyle == TexUtilities.TextStyleName)
+            return Glyph.Letter(character, textStyle);
+
+        var symbolName = symbols.ElementAtOrDefault(character);
+
+        return string.IsNullOrEmpty(symbolName) ? Glyph.Letter(character, textStyle) : Glyph.Symbol(symbolName)!;
+    }
+
+    /// <summary>Whether an operator sets its limits beside it in every style — the integrals.</summary>
+    internal static bool SetsLimitsBeside(string name) => sideLimitOperators.Contains(name);
 }
