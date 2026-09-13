@@ -160,8 +160,8 @@ public sealed class LatexBuilder : ContentBuilder
 
         // An equation's number, where one was written, set against the right edge of the block the formula is
         // displayed in — see Numbered.
-        var (tree, size) = XamlMath.TexFormulaBuilder.Number(reading.Root) is { } number
-            ? Numbered(laid, capture, number, environment, reading)
+        var (tree, size) = XamlMath.TexFormulaBuilder.Number(reading.Root, environment) is { } number
+            ? Numbered(laid, capture, number, reading)
             : (laid, capture.Size);
 
         var made = new Laid(tree, size, trouble);
@@ -183,11 +183,11 @@ public sealed class LatexBuilder : ContentBuilder
     /// Which side of the block a thing stands against is the layout's to say — see <see cref="Side"/>.
     /// </para>
     /// </summary>
-    private (LayoutTree Tree, System.Windows.Size Size) Numbered(LayoutTree formula, LatexCapture laid, TexFormula number,
-                                                 XamlMath.TexEnvironment environment, ContentReading reading)
+    private (LayoutTree Tree, System.Windows.Size Size) Numbered(LayoutTree formula, LatexCapture laid, Set number,
+                                                     ContentReading reading)
     {
         var capture = new LatexCapture(_scale, reading);
-        capture.Lay(number, environment);
+        capture.Lay(number);
         if (capture.Tree is not { } tag) return (formula, laid.Size);
 
         var build = new LayoutBuilder();

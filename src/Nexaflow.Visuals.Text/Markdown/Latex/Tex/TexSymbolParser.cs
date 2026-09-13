@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Xml.Linq;
-using XamlMath.Atoms;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 using XamlMath.Data;
 using XamlMath.Utils;
 
@@ -36,19 +36,20 @@ internal sealed class TexSymbolParser
         this.rootElement = typeof(XamlMathResourceMarker).Assembly.ReadResourceRoot(resourceName);
     }
 
-    public IReadOnlyDictionary<string, Func<SymbolAtom>> GetSymbols()
+    public IReadOnlyDictionary<string, Glyph> GetSymbols()
     {
-        var result = new Dictionary<string, Func<SymbolAtom>>();
+        var result = new Dictionary<string, Glyph>();
 
         foreach (var symbolElement in rootElement.Elements("Symbol"))
         {
             var symbolName = symbolElement.AttributeValue("name");
-            var symbolType = symbolElement.AttributeValue("type");
-            var symbolIsDelimeter = symbolElement.AttributeBooleanValue("del", false);
 
-            result.Add(
-                symbolName,
-                () => new SymbolAtom(symbolName, typeMappings[symbolType], symbolIsDelimeter));
+            result.Add(symbolName, new Glyph
+            {
+                SymbolName = symbolName,
+                Type = typeMappings[symbolElement.AttributeValue("type")],
+                IsDelimiter = symbolElement.AttributeBooleanValue("del", false),
+            });
         }
 
         return result;

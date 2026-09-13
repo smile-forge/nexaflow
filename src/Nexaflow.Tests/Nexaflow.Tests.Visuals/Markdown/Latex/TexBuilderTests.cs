@@ -17,27 +17,15 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>
-/// The formula built from our own reading, held against the one the typesetter's parser builds.
+/// What <see cref="TexFormulaBuilder"/> can set from a reading.
 ///
 /// <para>
-/// This is the point of ingesting the engine. Its parser reads LaTeX and decides what the reading should
-/// be set as in one pass, and by the time an atom exists the braces and the spacing are gone — fine for
-/// drawing a formula once, no good for editing one. <see cref="TexFormulaBuilder"/> does only the second
-/// half, from a reading that kept all of it, and hangs the parse-tree part on every atom it makes.
-/// </para>
-/// <para>
-/// So the boxes will know what they are without anything matching spans afterwards. But only if the two
-/// build the <em>same formula</em> — otherwise what renders stops being what the editor thinks it is
-/// looking at, which is the disagreement this whole exercise is removing. These say they do.
-/// </para>
-/// <para>
-/// It is deliberately all-or-nothing per formula: a construct the builder does not know yet makes it
-/// return nothing and the parser is used for that formula instead. So the corpus reports two numbers —
-/// how much it can build, and whether everything it built agrees. The first grows; the second must
-/// stay at all of it.
+/// A construct the builder has no drawing for is set as the characters it was written with and reported, so a
+/// formula only comes back empty when nothing in it builds at all. These say that everything the builder claims
+/// to know builds, and that what nothing knows still comes back as something to show.
 /// </para>
 ///
-/// Needs an STA thread for the parser's brushes. It opens no window and takes no focus.
+/// Needs an STA thread for the fonts. It opens no window and takes no focus.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -274,343 +262,37 @@ public class TexBuilderTests
     public void EverythingItClaimsToKnowItCanBuild() => UiThread.Run(() =>
     {
         foreach (var latex in Known)
-            Assert.IsNotNull(TexFormulaBuilder.Build(ContentReading.Of(TexPipeline.Read(latex)).Root, WpfTeXFormulaParser.Instance), latex);
-    });
-
-    [TestMethod]
-    public void EveryAtomKnowsWhichPartOfTheSourceItWasBuiltFrom() => UiThread.Run(() =>
-    {
-        // What none of this is possible without, and what the parser can never provide: an atom that
-        // came from a reading which still knows where every brace was.
-        var reading = ContentReading.Of(TexPipeline.Read(@"\frac{a}{b}"));
-        var formula = TexFormulaBuilder.Build(reading.Root, WpfTeXFormulaParser.Instance);
-        Assert.IsNotNull(formula);
-
-        // The numerator's atom is the `a` itself — a group holding one thing is that thing, here as in
-        // the parser, because a row of one would put every box inside a box. So the part it names is the
-        // letter, and the group that makes it a numerator is what holds that letter.
-        var numerator = formula.Root!.Slots[0].Node.Origin!;
-
-        Assert.AreEqual("a", numerator.Node.Print());
-        Assert.AreEqual(TexRole.Numerator, numerator.Parent!.Role,
-            "and what holds it is what the writer braced");
+            Assert.IsNotNull(Formula(latex), latex);
     });
 
     [TestMethod]
     public void AndEverythingElseItBuildsSomethingFor() => UiThread.Run(() =>
     {
-        // The other half of the rule above. A command *nothing* knows has no better rendering to defer
-        // to, so this must answer for it rather than decline: it shows what was written and reports it,
-        // which is what a reader needs. A command the typesetter knows and this does not is the other
-        // case entirely, and is in the list above — that one still falls back and still renders properly.
+        // A command *nothing* knows has no better rendering to defer to, so this must answer for it rather than
+        // decline: it shows what was written and reports it, which is what a reader needs.
         foreach (var latex in new[] { @"\notacommand{x}",
                                       @"\alhpa + \beta",
                                       @"\bbox[red]{a}",      // nothing knows this one either
                                       @"\hline",           // nor this: it is a rule between rows
                                       @"x + \nosuchthing" })
-            Assert.IsNotNull(
-                TexFormulaBuilder.Build(ContentReading.Of(TexPipeline.Read(latex)).Root, WpfTeXFormulaParser.Instance), latex);
+            Assert.IsNotNull(Formula(latex), latex);
     });
 
-    /// <summary>
-    /// The declines the list above does not account for: formulas naming no command the builder has
-    /// failed on every time, so something other than an unlearnt command turned them away.
-    ///
-    /// <para>
-    /// The check that stops the ranking being read as the whole story. A tally of commands can only find
-    /// what has a name — an empty group, a preamble it cannot read, a script it will not place have
-    /// none, and would be invisible in a file that looks complete. Shortest first, because the shortest
-    /// example of a shape is the one worth reading.
-    /// </para>
-    /// </summary>
-    private static string Residue(
-        List<(string Latex, HashSet<string> Names)> declined,
-        Dictionary<string, (int Built, int Declined)> named)
+    /// <summary>A formula set from its reading in display style, or null where nothing in it builds.</summary>
+    private static Nexaflow.Visuals.Text.Markdown.Latex.Set? Formula(string latex)
     {
-        var unlearnt = named.Where(n => n.Value.Built == 0).Select(n => n.Key).ToHashSet(StringComparer.Ordinal);
-        var rest = declined.Where(d => !d.Names.Overlaps(unlearnt))
-                           .OrderBy(d => d.Latex.Length)
-                           .ToList();
-
-        return $"\n\n{rest.Count:N0} of the declines name no command from that list, so something else "
-             + "turned them\naway. The forty shortest —\n\n"
-             + string.Join("\n", rest.Take(40).Select(d => $"  {d.Latex}"));
-    }
-
-    /// <summary>Every command a reading names, once each.</summary>
-    private static HashSet<string> Commands(ContentNode node, HashSet<string> into)
-    {
-        if (node.Role == Roles.Name && node.Text.StartsWith('\\')) into.Add(node.Text);
-        foreach (var child in node.Children) Commands(child, into);
-        return into;
-    }
-
-    /// <summary>
-    /// What the reader actually sees: every box that draws something, and where. Containers left out.
-    /// <para>
-    /// This is the line every ruling so far has fallen on. A difference in the <em>box tree</em> — the
-    /// parser collapsing a group ours keeps, splicing a row ours nests — moves no ink at all, and three
-    /// times running the answer has been that ours is the one to keep, because a tree is what selection
-    /// and substitution work on. A difference in <em>this</em> is a different thing entirely: it is a
-    /// formula that would look wrong to somebody reading it.
-    /// </para>
-    /// <para>
-    /// So the gate asks both. Same ink and a different tree is a structural choice, counted and named.
-    /// Different ink is a disagreement about the picture, and fails until somebody looks at it.
-    /// </para>
-    /// </summary>
-    private static string Drawn(TexFormula formula, ContentReading reading)
-    {
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
         _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
-        capture.Lay(formula, _setting);
-        var text = new StringBuilder();
 
-        // A leaf with no area marks nothing. Ours emits those where the parser emits none — the empty box
-        // a prefix script sits on, the place an empty group keeps — and counting them called a difference
-        // in the *picture* what is a difference in the tree, which is the one distinction this exists to
-        // draw. A reader cannot see a box of no width; nor should this.
-        foreach (var node in ((capture.Tree?.Root ?? default)).SelfAndDescendants())
-            if (node.Children.Count == 0 && node.Bounds.Width > 0 && node.Bounds.Height > 0)
-                text.Append(node.Kind).Append(' ')
-                    .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
-                    .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))
-                    .Append('\n');
-
-        return text.ToString();
+        return TexFormulaBuilder.Formula(ContentReading.Of(TexPipeline.Read(latex)).Root, _setting, WpfTeXFormulaParser.Instance).Set;
     }
 
     /// <summary>
-    /// Why this formula is allowed to be drawn differently, or null if it is not.
-    ///
-    /// <para>
-    /// The list is what has been <em>looked at</em>. Each entry is a shape somebody compared — the parse
-    /// tree, both box trees, both renderings and the picture the published paper shipped — and decided
-    /// ours was the one to keep. Until that happens a difference is a failure, because a difference
-    /// nobody has examined is indistinguishable from a defect.
-    /// </para>
-    /// <para>
-    /// Matched on the reading rather than on the text. "Contains two <c>\left</c>" is a search; "a fence
-    /// whose body holds a fence" is the shape that was ruled on, and it is a question the parse tree
-    /// answers exactly.
-    /// </para>
-    /// </summary>
-    private static string? Decided(ContentReading reading, TexFormula ours)
-    {
-        // A macro whose expansion is several atoms — `\cdots` is three dots, `\hbar` an h with a bar laid
-        // over it. The reader wrote one token, so one thing is what it is here: ours keeps the assembly
-        // under a node of its own, where the parser splices the pieces into the row around them and loses
-        // that the token was ever one. Which matters beyond drawing — a calculation reading `\hbar` wants
-        // the constant, not three boxes, and a selection wants the whole of it or none.
-        if (Parts(ours.RootAtom!).Any(atom => atom.Slots.Count > 0
-                                              && atom.Origin is { Kind: TexKinds.Command } part
-                                              && part.Children.All(child => child.Role == Roles.Name)))
-            return "a macro's expansion — ours keeps the one token the reader wrote as one thing";
-
-        // Reviewed 2026-08-27. Identical renderings; the parser splices a row written first into the row
-        // it is starting, but only there — put anything before it and it nests, as ours always does.
-        // Ours respects the grouping that was written; the parser's depends on where the group sits.
-        //
-        // Asked of what was built rather than of the reading, because that is where the shape is. "The
-        // first thing in this run came out a row" is not a question about what was typed: `\mathrm{Tr}`
-        // and `{\frac{a}{b}}` are written nothing alike and are the same case here.
-        if (ours.RootAtom is XamlMath.Atoms.RowAtom { Elements: { Count: > 1 } elements }
-            && elements[0] is XamlMath.Atoms.RowAtom)
-            return "a row written first in a row — ours respects the grouping either way";
-
-        return Decided(reading);
-    }
-
-    /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
-    private static int Order(ContentPart whole, string role)
-    {
-        for (var at = 0; at < whole.Children.Count; at++)
-            if (whole.Children[at].Role == role) return at;
-
-        return -1;
-    }
-
-    private static string? Decided(ContentReading reading)
-    {
-        // The same ruling, wherever the delimiter is written. `\|` is TeX's spelling of `\Vert` whether it
-        // follows a `\left`, a `\biggl` or nothing at all, so the shape that was ruled on is the token and
-        // not the construct around it — matching only inside a fence would leave `\biggl\|` looking like a
-        // finding nobody had seen before, when it is this one again.
-        foreach (var part in reading.Root.SelfAndDescendants())
-            if (part.Role == TexRole.Argument && part.Print() == @"\|")
-                return @"\| — ours draws the double bar it names; the parser draws otherwise";
-
-        // A prefix — a script written before the thing it is on, because what came before it could not
-        // carry one. Ruled 2026-08-28: where it cannot be resolved further it is a standalone script and
-        // then its base, which is the pair of atoms ours builds. Resolving it any further needs to know
-        // what the mathematics means, and that is a later stage's job; this one renders it.
-        foreach (var part in reading.Root.SelfAndDescendants())
-            if (part.Kind == TexKinds.Script && Order(part, Roles.Name) is var wrote and >= 0
-                                            && Order(part, TexRole.Base) > wrote)
-                return "a prefix script — ours sets it in front, as a script and then its base";
-
-        // A script written with nothing before it stands alone, and the box it stands on has no width.
-        // Reviewed 2026-08-28: `^{(4)}R_{\mu}` is a superscript, then an R, then a subscript, because
-        // whether the script was meant for what follows cannot be told from the writing at all — only
-        // from knowing what the mathematics means, which is not this reading's to know.
-        //
-        // The parser gives that empty base a box 2.22 wide and ours gives it none, which is the whole of
-        // the difference and the only thing left in these. An empty box has no width is now one rule
-        // across all three places an empty box appears — the empty group, the baseless script, and the
-        // box a prefix's scripts ride on — and having it be one rule is worth more than matching a
-        // number the typesetter's parser only reaches by way of a case it calls an error.
-        foreach (var part in reading.Root.SelfAndDescendants())
-            if (part.Kind == TexKinds.Script && part.Part(TexRole.Base) is null)
-                return "a script with nothing before it — ours stands it on a box of no width";
-
-        // An empty group is a place and not an absence. The parser drops `{}` and leaves nothing behind;
-        // ours keeps a box of no width, because the reader wrote it, a caret has to be able to sit in it,
-        // and it is what a prefix script attaches to. Nothing on the page differs — both draw nothing —
-        // but only one of the two can be pointed at.
-        foreach (var part in reading.Root.SelfAndDescendants())
-            if (part.Kind == TexKinds.Group && !part.Parts.Any())
-                return "an empty group — ours keeps the place the reader wrote, where the parser keeps nothing";
-
-        foreach (var part in reading.Root.SelfAndDescendants())
-        {
-            if (part.Kind != TexKinds.Fence || part.Part(Roles.Body) is not { } body) continue;
-
-            // Reviewed 2026-08-27. Identical renderings; the parser collapses a script inside the inner
-            // fence into one atom where ours keeps the group it was written as, which is what a
-            // substitution has to be able to reach.
-            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKinds.Fence))
-                return "a fence inside a fence — ours keeps the groups the parser collapses";
-
-            // Reviewed 2026-08-27. Identical renderings; the parser follows TeX's rule that what comes
-            // after modifies what came before and flattens the two, which is right for setting type and
-            // wrong for selecting — the thing scripted and the script are separate things to point at.
-            if (body.SelfAndDescendants().Any(inner => inner.Kind == TexKinds.Script
-                                                       && inner.Part(TexRole.Base) is { Kind: TexKinds.Command } built
-                                                       && built.Parts.Any()))
-                return "a script on a construct, inside a fence — ours keeps the two apart";
-        }
-
-        return null;
-    }
-
-    /// <summary>What a fence's <c>\left</c> or <c>\right</c> was written with, as written.</summary>
-    private static string Names(ContentPart fence, string role) =>
-        fence.Part(role)?.Part(TexRole.Argument)?.Node.Print() ?? string.Empty;
-
-    /// <summary>
-    /// Where a formula's every piece ends up on the page — what both readings have to agree about.
-    /// <para>
-    /// Typeset and captured, exactly as the editor does it, then written out as what each piece was
-    /// drawn from and the rectangle it occupies. Geometry rather than pixels: the numbers are arithmetic
-    /// over font metrics, so they are the same on any machine, where rasterising is not.
-    /// </para>
-    /// </summary>
-    /// <summary>
-    /// The fonts and style a formula is set in, made once per thread.
-    /// <para>
-    /// <see cref="WpfTeXEnvironment.Create"/> walks every font family installed on the machine to find
-    /// the one <c>\text</c> would use, and builds the Computer Modern metrics beside it. Doing that per
-    /// formula put a quarter of a million trips through WPF's process-wide font cache, which is locked —
-    /// so measuring the corpus on thirty-two threads used four of them and took longer than one did.
-    /// </para>
-    /// <para>
-    /// Per thread rather than shared, because what it holds is WPF's and belongs to the thread that made
-    /// it.
-    /// </para>
+    /// The fonts and style a formula is set in, made once per thread. Walking the installed font families to find
+    /// the one <c>\text</c> would use is slow and goes through WPF's process-wide font cache, and what it holds belongs
+    /// to the thread that made it.
     /// </summary>
     [ThreadStatic]
     private static XamlMath.TexEnvironment? _setting;
-
-    /// <summary>
-    /// Where every piece of a formula lands, laid out once and reduced to two numbers: the whole tree, and
-    /// only the boxes that draw something.
-    ///
-    /// <para>
-    /// Numbers rather than the strings this used to compare, because the strings were most of the cost of
-    /// the sweep. Every box carries four coordinates, a formula has some tens of boxes, both readings are
-    /// measured and there are a quarter of a million formulas — which came to something like fifty million
-    /// calls to <c>ToString("F2")</c> and a few hundred megabytes of transient text, to answer a question
-    /// whose answer is yes or no. The rounding is the same rounding; only the comparison changed.
-    /// </para>
-    /// <para>
-    /// And laid out once for both answers, where it used to be laid out again for the second. The ink is a
-    /// subset of the tree, so nothing about it needs a second rendering.
-    /// </para>
-    /// </summary>
-    private static (ulong Tree, ulong Ink) Landed(TexFormula formula, ContentReading reading)
-    {
-        _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
-
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
-        capture.Lay(formula, _setting);
-        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Source}");
-
-        var tree = 14695981039346656037UL;
-        var ink = 14695981039346656037UL;
-
-        foreach (var node in (capture.Tree?.Root ?? default).SelfAndDescendants())
-        {
-            tree = Mixed(tree, node);
-
-            if (node.Children.Count == 0 && node.Bounds.Width > 0 && node.Bounds.Height > 0)
-                ink = Mixed(ink, node);
-        }
-
-        return (tree, ink);
-    }
-
-    /// <summary>One box folded into a running fingerprint, rounded exactly as the text was.</summary>
-    private static ulong Mixed(ulong so, Piece node)
-    {
-        so = Fold(so, (ulong)node.Kind.GetHashCode());
-        so = Fold(so, (ulong)(long)Math.Round(node.Bounds.X * 100));
-        so = Fold(so, (ulong)(long)Math.Round(node.Bounds.Y * 100));
-        so = Fold(so, (ulong)(long)Math.Round(node.Bounds.Width * 100));
-
-        return Fold(so, (ulong)(long)Math.Round(node.Bounds.Height * 100));
-    }
-
-    private static ulong Fold(ulong so, ulong next) => (so ^ next) * 1099511628211UL;
-
-    private static string Settled(TexFormula formula, ContentReading reading)
-    {
-        _setting ??= WpfTeXEnvironment.Create(style: TexStyle.Display, scale: Scale);
-
-        var capture = new Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(Scale, reading);
-        capture.Lay(formula, _setting);
-        Assert.IsNotNull((capture.Tree?.Root ?? default), $"nothing was drawn for {reading.Source}");
-
-        var text = new StringBuilder();
-
-        foreach (var node in (capture.Tree?.Root ?? default).SelfAndDescendants())
-            text.Append(node.Kind).Append(' ')
-                .Append(Number(node.Bounds.X)).Append(',').Append(Number(node.Bounds.Y)).Append(' ')
-                .Append(Number(node.Bounds.Width)).Append('x').Append(Number(node.Bounds.Height))
-                .Append('\n');
-
-        return text.ToString();
-    }
-
-    private static string Number(double value) =>
-        value.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
-
-    /// <summary>Everything a formula lays out, box by box.</summary>
-    private static IEnumerable<XamlMath.Boxes.Box> Boxes(XamlMath.Boxes.Box box)
-    {
-        yield return box;
-
-        foreach (var child in box.Children)
-            foreach (var under in Boxes(child)) yield return under;
-    }
-
-    private static IEnumerable<IFormulaNode> Parts(IFormulaNode node)
-    {
-        yield return node;
-
-        foreach (var slot in node.Slots)
-            foreach (var inner in Parts(slot.Node))
-                yield return inner;
-    }
 
     /// <summary>
     /// Every macro draws as something, rather than as its own name in plain letters.

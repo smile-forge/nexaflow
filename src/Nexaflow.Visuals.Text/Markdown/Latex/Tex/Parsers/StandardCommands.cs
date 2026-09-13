@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Pipes;
-using XamlMath.Atoms;
+
 using XamlMath.Boxes;
 using XamlMath.Exceptions;
 using XamlMath.Parsers.Matrices;
@@ -17,7 +17,7 @@ internal static class StandardCommands
     }
 
     // The stretchy arrow accents: an arrow drawn to the width of its argument, above or below it.
-    internal sealed class OverArrowCommand : IAssembleCommand
+    internal sealed class OverArrowCommand
     {
         public static OverArrowCommand Right { get; } = new(ArrowDecoration.HeadRight, over: true);
         public static OverArrowCommand Left { get; } = new(ArrowDecoration.HeadLeft, over: true);
@@ -37,32 +37,30 @@ internal static class StandardCommands
             _over = over;
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1
-                ? new OverArrowAtom(arguments[0], _decoration, _over) { Origin = origin }
-                : null;
-
         internal ArrowDecoration Decoration => _decoration;
         internal bool Over => _over;
     }
 
     // \vdots and \ddots take no argument; they just emit a fixed run of dots.
-    internal sealed class DotsCommand : IAssembleCommand
+    internal sealed class DotsCommand
     {
-        public static DotsCommand Vertical { get; } = new(DotsAtom.DotsShape.Vertical);
-        public static DotsCommand Diagonal { get; } = new(DotsAtom.DotsShape.Diagonal);
+        public static DotsCommand Vertical { get; } = new(DotsShape.Vertical);
+        public static DotsCommand Diagonal { get; } = new(DotsShape.Diagonal);
 
-        private readonly DotsAtom.DotsShape _shape;
+        private readonly DotsShape _shape;
 
-        private DotsCommand(DotsAtom.DotsShape shape)
+        private DotsCommand(DotsShape shape)
         {
             _shape = shape;
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 0 ? new DotsAtom(_shape) { Origin = origin } : null;
+        internal DotsShape Shape => _shape;
 
-        internal DotsAtom.DotsShape Shape => _shape;
+        internal enum DotsShape
+        {
+            Vertical,
+            Diagonal,
+        }
     }
 
     // \hspace{<length>} inserts horizontal space of an explicit length, e.g. \hspace{2em} or \hspace{-3pt}.
@@ -117,34 +115,6 @@ internal static class StandardCommands
         }
     }
 
-    /// <summary>
-    /// The space a length-taking command asks for — <c>\mspace{-3mu}</c>, <c>\hspace{2em}</c> — read
-    /// from the argument as it was written.
-    ///
-    /// <para>
-    /// A length is text and only text: <c>-3mu</c> is not something that survives being built into
-    /// atoms, so this is the one thing that cannot come through <see cref="IAssembleCommand"/> like the
-    /// rest of them. It does not need to. Whoever is building holds the parse tree, the tree holds the
-    /// argument, and the argument holds its own characters — so it is asked for them directly.
-    /// </para>
-    /// <para>
-    /// Null where the text is not a length at all, which is a formula saying something nobody can act
-    /// on rather than a reason to stop.
-    /// </para>
-    /// </summary>
-    internal static Atom? SpaceOf(string command, string written)
-    {
-        try
-        {
-            ParseLength(written, command, out var unit, out var value);
-            return new SpaceAtom(unit, value, 0, 0);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     /// <summary>A length as written — <c>-3mu</c>, <c>2em</c> — as the unit and the value, or null where it is not one.</summary>
     internal static (TexUnit Unit, double Value)? LengthOf(string command, string written)
     {
@@ -167,7 +137,7 @@ internal static class StandardCommands
     internal static double? StrutOf(string name) => Struts.TryGetValue(name, out var mu) ? mu : null;
 
     // \dfrac and \tfrac: \frac forced into display or text style respectively.
-    internal sealed class FracStyleCommand : IAssembleCommand
+    internal sealed class FracStyleCommand
     {
         public static FracStyleCommand Dfrac { get; } = new(TexStyle.Display);
         public static FracStyleCommand Tfrac { get; } = new(TexStyle.Text);
@@ -179,34 +149,13 @@ internal static class StandardCommands
             _style = style;
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 2
-                ? new FractionAtom(arguments[0], arguments[1], true) { OverrideStyle = _style, Origin = origin }
-                : null;
-
         internal TexStyle Style => _style;
     }
 
     // \cfrac[l|c|r]{a}{b}: a continued-fraction fraction — display style throughout (nested \cfrac stays
     // full size) with an optional numerator alignment.
-    internal sealed class CfracCommand : IAssembleCommand
+    internal sealed class CfracCommand
     {
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin)
-        {
-            // Written before the two halves, so with an alignment the reading hands over three things
-            // rather than two. Taking only two meant `\cfrac[l]{a}{b}` built nothing at all and was shown
-            // as the characters it was written with — a whole continued fraction lost to an option.
-            if (arguments.Count is not (2 or 3)) return null;
-            var half = arguments.Count == 3 ? 1 : 0;   // the alignment, where written, comes first
-
-            return new FractionAtom(arguments[half], arguments[half + 1], true, Leaning(origin), TexAlignment.Center)
-            {
-                OverrideStyle = TexStyle.Display,
-                KeepContentStyle = true,
-                Origin = origin,
-            };
-        }
-
         /// <summary>
         /// Which way <c>[l]</c>, <c>[c]</c> or <c>[r]</c> says the numerator leans; centred where nothing
         /// says. Read off the part it was written as rather than off the atom built from it: the letter
@@ -222,16 +171,12 @@ internal static class StandardCommands
     }
 
     // \nicefrac{a}{b} and \sfrac{a}{b}: an inline "slash" fraction (raised numerator / lowered denominator).
-    internal sealed class SlashFractionCommand : IAssembleCommand
+    internal sealed class SlashFractionCommand
     {
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 2
-                ? new SlashFractionAtom(arguments[0], arguments[1]) { Origin = origin }
-                : null;
     }
 
     // \pmod{n} -> "(mod n)" after a wide space; \pod{n} -> "(n)". Used as e.g. a \equiv b \pmod{n}.
-    internal sealed class ParenModCommand : IAssembleCommand
+    internal sealed class ParenModCommand
     {
         public static ParenModCommand Pmod { get; } = new(withMod: true);
         public static ParenModCommand Pod { get; } = new(withMod: false);
@@ -248,58 +193,6 @@ internal static class StandardCommands
         {
             _withMod = withMod;
             _fenced = fenced;
-        }
-
-        /// <summary>
-        /// <c>(mod n)</c>, built round an argument already read.
-        /// <para>
-        /// The parentheses and the word are this command's, not the reader's — they are why <c>\pmod{n}</c>
-        /// is one thing to point at and not just an n. Assembled here rather than by re-reading a string
-        /// of LaTeX, because a formula built from a parse tree should not have to write LaTeX to get one.
-        /// </para>
-        /// </summary>
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin)
-        {
-            if (arguments.Count != 1) return null;
-
-            var inside = new RowAtom();
-
-            // The same pieces the written-out form would have produced, asked for by name rather than
-            // guessed at. `\quad` and `\;` are macros with definitions; inventing two space atoms of
-            // roughly the right size instead moved every \pmod in the corpus a fraction of an em.
-            if (_withMod)
-            {
-                foreach (var letter in "mod") inside = inside.Add(new CharAtom(letter, "mathrm"));
-
-                if (PrimitiveOf("thickspace") is { } thin) inside = inside.Add(thin);
-            }
-
-            inside = inside.Add(arguments[0]);
-
-            // Without the parentheses, the word and its argument are the whole of it.
-            if (!_fenced)
-            {
-                var bare = new RowAtom();
-                if (PrimitiveOf("quad") is { } lead) bare = bare.Add(lead);
-                bare = bare.Add(inside);
-                bare.Origin = origin;
-                return bare;
-            }
-
-            var fenced = new FencedAtom(
-                inside,
-                new SymbolAtom("(", TexAtomType.Opening, true) { Origin = origin },
-                new SymbolAtom(")", TexAtomType.Closing, true) { Origin = origin })
-            {
-                Origin = origin,
-            };
-
-            var whole = new RowAtom();
-            if (PrimitiveOf("quad") is { } gap) whole = whole.Add(gap);
-            whole = whole.Add(fenced);
-
-            whole.Origin = origin;
-            return whole;
         }
 
         internal bool WithMod => _withMod;
@@ -321,27 +214,9 @@ internal static class StandardCommands
     /// rule — which is the one place a fraction's bar is written as a length rather than implied.
     /// </para>
     /// </summary>
-    internal sealed class GenFracCommand : IAssembleCommand
+    internal sealed class GenFracCommand
     {
         public static GenFracCommand Instance { get; } = new();
-
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin)
-        {
-            if (arguments.Count != 6) return null;
-
-            // Written as `{}` where there is to be none, so an argument that drew nothing is not a
-            // delimiter that failed to build — it is a side the writer asked to leave open.
-            SymbolAtom? Delimiter(Atom written) =>
-                written is SymbolAtom symbol ? symbol : null;
-
-            var fraction = new FractionAtom(arguments[4], arguments[5], true) { Origin = origin };
-
-            var left = Delimiter(arguments[0]);
-            var right = Delimiter(arguments[1]);
-            if (left is null && right is null) return fraction;
-
-            return new FencedAtom(fraction, left, right) { Origin = origin };
-        }
     }
 
     // \displaystyle, \textstyle, \scriptstyle and \scriptscriptstyle are switches, not one-argument commands:
@@ -393,34 +268,13 @@ internal static class StandardCommands
             _asRelation = asRelation;
         }
 
-        /// <summary>
-        /// The atom this command makes of an annotation and a base already built.
-        /// <para>
-        /// Which of the two goes on top, and whether the whole reads as a relation, are this table's
-        /// answers — <c>\stackrel</c> relates where <c>\overset</c> merely decorates — so a second reading
-        /// asks rather than copies.
-        /// </para>
-        /// </summary>
-        internal Atom Assemble(
-            Atom annotation, Atom on, Nexaflow.Markdown.Ast.ContentPart? origin)
-        {
-            Atom atom = new UnderOverAtom(on, annotation, TexUnit.Mu, AnnotationSpace, true, _over)
-            {
-                Origin = origin,
-            };
-
-            return _asRelation
-                ? new TypedAtom(atom, TexAtomType.Relation, TexAtomType.Relation) { Origin = origin }
-                : atom;
-        }
-
         internal bool Over => _over;
         internal bool AsRelation => _asRelation;
     }
 
     // \phantom{x} and its one-dimensional variants: the content is measured and then not drawn, so it reserves
     // space without printing anything.
-    internal sealed class PhantomCommand : IAssembleCommand
+    internal sealed class PhantomCommand
     {
         public static PhantomCommand Both { get; } = new(useWidth: true, useHeight: true);
         public static PhantomCommand Horizontal { get; } = new(useWidth: true, useHeight: false);
@@ -435,18 +289,13 @@ internal static class StandardCommands
             _useHeight = useHeight;
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1
-                ? new PhantomAtom(arguments[0], _useWidth, _useHeight, _useHeight) { Origin = origin }
-                : null;
-
         internal bool UseWidth => _useWidth;
         internal bool UseHeight => _useHeight;
     }
 
     // \smash{x} draws the content and reports no height, \math?lap{x} draws it and reports no width. Both are the
     // inverse of \phantom: ink without extent rather than extent without ink.
-    internal sealed class SmashCommand : IAssembleCommand
+    internal sealed class SmashCommand
     {
         public static SmashCommand Smash { get; } = new(null);
         public static SmashCommand Llap { get; } = new(TexAlignment.Left);
@@ -460,26 +309,17 @@ internal static class StandardCommands
             _lapAlignment = lapAlignment;
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count != 1
-                ? null
-                : _lapAlignment is { } alignment
-                    ? new LapAtom(arguments[0], alignment) { Origin = origin }
-                    : new SmashAtom(arguments[0]) { Origin = origin };
-
         internal TexAlignment? LapAlignment => _lapAlignment;
     }
 
     // \boxed{x} and \fbox{x}: the content inside a rectangular frame.
-    internal sealed class BoxedCommand : IAssembleCommand
+    internal sealed class BoxedCommand
     {
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1 ? new BoxedAtom(arguments[0]) { Origin = origin } : null;
     }
 
     // \xrightarrow[under]{over} and friends: an arrow stretched to fit the labels written over (and optionally
     // under) it. The under label is the optional argument, as in LaTeX.
-    internal sealed class ExtensibleArrowCommand : IAssembleCommand
+    internal sealed class ExtensibleArrowCommand
     {
         public static ExtensibleArrowCommand Right { get; } = new(ArrowDecoration.HeadRight);
         public static ExtensibleArrowCommand Left { get; } = new(ArrowDecoration.HeadLeft);
@@ -501,18 +341,6 @@ internal static class StandardCommands
             _decoration = decoration;
         }
 
-        /// <summary>The arrow, its label over it and — where one was written — its label under it.</summary>
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count is 1 or 2
-                ? new ExtensibleArrowAtom(
-                    arguments[^1],
-                    arguments.Count == 2 ? arguments[0] : null,
-                    _decoration)
-                {
-                    Origin = origin,
-                }
-                : null;
-
         internal ArrowDecoration Decoration => _decoration;
     }
 
@@ -520,7 +348,7 @@ internal static class StandardCommands
     // body, with an optional label beyond it. LaTeX makes these operators, so a script written after
     // one belongs above (or below) the brace rather than beside it — which means reading it here,
     // before the parser attaches it as an ordinary script.
-    internal sealed class BraceCommand : IAssembleCommand
+    internal sealed class BraceCommand
     {
         public static BraceCommand Over { get; } = new(over: true);
         public static BraceCommand Under { get; } = new(over: false);
@@ -534,42 +362,8 @@ internal static class StandardCommands
             _over = over;
         }
 
-        /// <summary>
-        /// The brace over or under one thing, and the label written on it.
-        ///
-        /// <para>
-        /// The <c>_{n}</c> of <c>\underbrace{a+b}_{n}</c> is the brace's label and not a subscript on it:
-        /// it sits centred under the brace rather than beside what the brace covers. Which is why this
-        /// takes a label at all — a reading that nests the script around the whole command has the two
-        /// apart, and handing them over separately is what puts them back together.
-        /// </para>
-        /// <para>
-        /// Which side counts is this command's own: <c>\overbrace</c> takes a <c>^</c> and
-        /// <c>\underbrace</c> a <c>_</c>, so a script written on the other side is an ordinary script and
-        /// is none of its business.
-        /// </para>
-        /// </summary>
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            Labelled(arguments.Count == 1 ? arguments[0] : null, null, origin);
-
         /// <summary>Whether a label on this side belongs to the brace: <c>^</c> over, <c>_</c> under.</summary>
         public bool Labels(bool over) => over == _over;
-
-        public Atom? Labelled(Atom? on, Atom? label, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            on is null
-                ? null
-                : new OverUnderDelimiter(
-                    on,
-                    label,
-                    SymbolAtom.GetAtom(
-                        TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][
-                            (int)(_over ? TexDelimeterType.Over : TexDelimeterType.Under)]),
-                    TexUnit.Ex,
-                    LabelKern,
-                    _over)
-                {
-                    Origin = origin,
-                };
 
         internal bool IsOver => _over;
     }
@@ -577,16 +371,14 @@ internal static class StandardCommands
     // \boldsymbol{…} (also spelled \bm): every character underneath comes from the bold companion of
     // the font it would otherwise use, which is what makes it work on Greek letters and symbols
     // rather than only on the Latin ones a text style could reach.
-    internal sealed class BoldSymbolCommand : IAssembleCommand
+    internal sealed class BoldSymbolCommand
     {
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1 ? new BoldAtom(arguments[0]) { Origin = origin } : null;
     }
 
     // \operatorname{name} sets a function name upright and, more importantly, types it as an
     // operator: that is what gives it operator spacing and lets a following script become a limit.
     // The starred form takes its limits above and below in display style, as \sum does.
-    internal sealed class OperatorNameCommand : IAssembleCommand
+    internal sealed class OperatorNameCommand
     {
         /// <param name="starred">
         /// Whether this is the <c>*</c> form, whose limits go wherever the style puts them rather than
@@ -598,17 +390,12 @@ internal static class StandardCommands
 
         private readonly bool _starred;
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1
-                ? new BigOperatorAtom(arguments[0], null, null, this._starred ? null : (bool?)false) { Origin = origin }
-                : null;
-
         internal bool Starred => _starred;
     }
 
     // inom{n}{k}, and \dbinom / 	binom which force display or text style. amsmath spells all
     // three as \genfrac{(}{)}{0pt}{}: a fraction with no rule drawn, inside parentheses.
-    internal sealed class BinomCommand : IAssembleCommand
+    internal sealed class BinomCommand
     {
         public static BinomCommand Plain { get; } = new(null);
         public static BinomCommand Display { get; } = new(TexStyle.Display);
@@ -619,31 +406,6 @@ internal static class StandardCommands
         private BinomCommand(TexStyle? style)
         {
             _style = style;
-        }
-
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin)
-        {
-            if (arguments.Count != 2) return null;
-
-            var fraction = new FractionAtom(arguments[0], arguments[1], TexUnit.Point, 0)
-            {
-                SuppressNullDelimiterSpace = true,
-            };
-
-            if (_style is { } style) fraction = fraction with { OverrideStyle = style };
-
-            // Every piece carries the part, as a bracketed matrix's do: a binomial is one construct drawn
-            // in several atoms — the brackets, the stack, the space they leave — and all of them came
-            // from this one \binom. Tagging only the outermost would leave the stack knowing nothing.
-            fraction.Origin = origin;
-
-            return new FencedAtom(
-                fraction,
-                new SymbolAtom("(", TexAtomType.Opening, true) { Origin = origin },
-                new SymbolAtom(")", TexAtomType.Closing, true) { Origin = origin })
-            {
-                Origin = origin,
-            };
         }
 
         internal TexStyle? Style => _style;
@@ -665,7 +427,7 @@ internal static class StandardCommands
     /// separator and sometimes an ordinary bar is worth getting right on purpose rather than in passing.
     /// </para>
     /// </summary>
-    internal sealed class BraketCommand : IAssembleCommand
+    internal sealed class BraketCommand
     {
         public static BraketCommand Bra { get; } = new("langle", "vert");
         public static BraketCommand Ket { get; } = new("vert", "rangle");
@@ -680,22 +442,11 @@ internal static class StandardCommands
             _close = close;
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1
-                ? new FencedAtom(
-                    arguments[0],
-                    new SymbolAtom(_open, TexAtomType.Opening, true) { Origin = origin },
-                    new SymbolAtom(_close, TexAtomType.Closing, true) { Origin = origin })
-                {
-                    Origin = origin,
-                }
-                : null;
-
         internal string Open => _open;
         internal string Close => _close;
     }
 
-    internal sealed class CancelCommand : IAssembleCommand
+    internal sealed class CancelCommand
     {
         public static CancelCommand BCancel { get; } = new(StrokeBoxMode.Back);
         public static CancelCommand Cancel { get; } = new(StrokeBoxMode.Normal);
@@ -707,11 +458,6 @@ internal static class StandardCommands
         }
 
         private readonly StrokeBoxMode _strokeBoxMode;
-
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1
-                ? new CancelAtom(arguments[0], _strokeBoxMode) { Origin = origin }
-                : null;
 
         internal StrokeBoxMode Mode => _strokeBoxMode;
     }
@@ -727,7 +473,7 @@ internal static class StandardCommands
     // \mathop{…} and its family: the argument keeps its shape and changes its kind, which is what
     // decides the space around it. A paper reaches for \mathop where a name should behave as an
     // operator and for \mathrel where a symbol should behave as a relation.
-    internal sealed class AtomTypeCommand : IAssembleCommand
+    internal sealed class AtomTypeCommand
     {
         public static AtomTypeCommand Ordinary { get; } = new(TexAtomType.Ordinary);
         public static AtomTypeCommand Operator { get; } = new(TexAtomType.BigOperator);
@@ -745,11 +491,6 @@ internal static class StandardCommands
             _type = type;
         }
 
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1
-                ? new TypedAtom(arguments[0], _type, _type) { Origin = origin }
-                : null;
-
         internal TexAtomType Type => _type;
     }
 
@@ -760,20 +501,9 @@ internal static class StandardCommands
     // It was left an empty marker when the old reader went, and an empty marker in this table is worse
     // than no entry at all: the reading asks the table whether a name can be drawn and is told yes, so
     // `\_` came through unmarked as a name nobody knows and was quietly shown as its own two characters.
-    internal sealed class UnderscoreCommand : IAssembleCommand
+    internal sealed class UnderscoreCommand
     {
         public static UnderscoreCommand Instance { get; } = new();
-
-        /// <remarks>
-        /// Measured in ex rather than the em LaTeX says, because <see cref="TexUnit.Em"/> in this engine
-        /// converts to an x-height — the same as <see cref="TexUnit.Ex"/>, its neighbour in the table —
-        /// so asking for 0.3em would quietly get 0.3ex and draw a third of an underscore. Written in the
-        /// unit the conversion actually is, so the numbers here mean what they say.
-        /// </remarks>
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 0
-                ? new RuleAtom(TexUnit.Ex, Width: 0.7, Thickness: 0.1, Shift: 0.3) { Origin = origin }
-                : null;
     }
 
     // The plain-TeX font switches: \cal, \bf, \it, \rm, \sf, \tt, \frak. Unlike \mathcal{…} they
@@ -817,58 +547,6 @@ internal static class StandardCommands
     internal static bool IsDiscarded(string command) =>
         Dictionary.TryGetValue(command, out var parser) && parser is DiscardedCommand;
 
-    /// <summary>
-    /// A brace with its label, where this command is one that takes one on that side — <c>\overbrace</c>
-    /// on a <c>^</c>, <c>\underbrace</c> on a <c>_</c>. Null for anything else, including a brace scripted
-    /// on the side it does not label, which is then an ordinary script like any other.
-    /// </summary>
-    internal static Atom? LabelledBraceOf(
-        string command, bool over, Atom on, Atom label, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-        Dictionary.TryGetValue(command, out var parser) && parser is BraceCommand brace && brace.Labels(over)
-            ? brace.Labelled(on, label, origin)
-            : null;
-
-    /// <summary>Whether this command can be built from arguments somebody else has already read.</summary>
-    internal static bool CanAssemble(string command) =>
-        Dictionary.TryGetValue(command, out var parser) && parser is IAssembleCommand;
-
-    /// <summary>
-    /// What this command makes of arguments already built, in the order it reads them — or null where it
-    /// is not one that can be asked.
-    /// </summary>
-    internal static Atom? AssembledOf(
-        string command,
-        IReadOnlyList<Atom> arguments,
-        TexFormulaParser knowledge,
-        Nexaflow.Markdown.Ast.ContentPart? origin) =>
-        Dictionary.TryGetValue(command, out var parser) && parser is IAssembleCommand assembler
-            ? assembler.Assemble(arguments, knowledge, origin)
-            : null;
-
-    /// <summary>
-    /// The stacked annotation this command stands for, given both parts already built — or null where the
-    /// command sets nothing above or below anything.
-    /// </summary>
-    internal static Atom? StackedOf(
-        string command, Atom annotation, Atom on, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-        Dictionary.TryGetValue(command, out var parser) && parser is StackedAnnotationCommand stacked
-            ? stacked.Assemble(annotation, on, origin)
-            : null;
-
-    /// <summary>
-    /// The sized delimiter this command stands for, given the delimiter already read — or null where the
-    /// command is not one of the <c>\big</c> family at all.
-    /// <para>
-    /// The question asked from outside, so that which commands those are, how big each one is and whether
-    /// it opens, closes or relates stay answers this table gives rather than facts copied out of it.
-    /// </para>
-    /// </summary>
-    internal static Atom? BigDelimiterOf(
-        string command, string delimiter, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-        Dictionary.TryGetValue(command, out var parser) && parser is BigDelimiterCommand big
-            ? big.Assemble(delimiter, origin)
-            : null;
-
     internal sealed class BigDelimiterCommand
     {
         private const double SmallestHeight = 1.15;
@@ -882,21 +560,6 @@ internal static class StandardCommands
             _size = size;
             _type = type;
         }
-
-        /// <summary>
-        /// The atom this command makes of a delimiter that has already been read.
-        ///
-        /// <para>
-        /// Split out so that a reading done elsewhere gets the same size and the same class from the same
-        /// place. How big a <c>\Bigg</c> is and whether a <c>\bigl</c> opens or closes are this table's
-        /// answers, and a second copy of them would be two tables to keep in step.
-        /// </para>
-        /// </summary>
-        internal Atom Assemble(string delimiter, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            new BigDelimiterAtom(delimiter, SmallestHeight + HeightStep * _size, _type)
-            {
-                Origin = origin,
-            };
 
         internal double MinHeight => SmallestHeight + HeightStep * _size;
         internal TexAtomType Type => _type;
@@ -937,13 +600,9 @@ internal static class StandardCommands
     /// A command whose LaTeX-level effect is page layout but whose argument is real maths -
     /// <c>\shoveleft</c> and <c>\shoveright</c>. The layout goes; the contents stay.
     /// </summary>
-    internal sealed class TransparentCommand : IAssembleCommand
+    internal sealed class TransparentCommand
     {
         public static TransparentCommand Instance { get; } = new();
-
-        /// <summary>What was inside it, and nothing of its own: the layout goes, the contents stay.</summary>
-        public Atom? Assemble(IReadOnlyList<Atom> arguments, TexFormulaParser knowledge, Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            arguments.Count == 1 ? arguments[0] : null;
     }
 
     /// <summary>
@@ -1204,48 +863,4 @@ internal static class StandardCommands
         ["quad"] = 18,
         ["qquad"] = 36,
     };
-
-    /// <summary>
-    /// What this name draws, where the typesetter draws it itself rather than reading it out of
-    /// anything — or null where the name means nothing to it.
-    ///
-    /// <para>
-    /// Everything here reaches for something LaTeX cannot say: a length in mu, a sign lifted onto the
-    /// axis, one glyph set over another at a fixed height without being shrunk. A name that <em>can</em>
-    /// be said in LaTeX is a macro and belongs to the reader, in <c>TexMacros</c>; these are the
-    /// residue, and they are the same kind of thing as a symbol.
-    /// </para>
-    /// </summary>
-    internal static Atom? PrimitiveOf(string name)
-    {
-        if (Struts.TryGetValue(name, out var mu)) return new SpaceAtom(TexUnit.Mu, mu, 0, 0);
-
-        return name switch
-        {
-            // A radical sign with nothing under it, lifted so it sits about the axis.
-            "surd" => new VerticalCenteredAtom(SymbolAtom.GetAtom("surdsign")),
-
-            // A dot and a tilde set over an equals sign. TeX builds both the same way — `\doteq` is
-            // `\buildrel\textstyle.\over=` — and the height is fixed rather than scaled, which is what
-            // tells them apart from anything `\overset` could write.
-            "doteq" => Over("equals", "ldotp", 2),
-            "cong" => Over("equals", "sim", 1),
-
-            // The \iint family is deliberately not here. It is several integral signs squeezed together
-            // and typed as one big operator, and an integral sign is not a plain symbol — it is promoted
-            // to a big operator on the way past, so reproducing the pile exactly means reproducing that
-            // too. Tried, and it moved the typesetting. It is a macro instead: \mathop{\int\!\!\!\int} says
-            // the same thing in LaTeX, so it belongs to the reader rather than here.
-            _ => null,
-        };
-    }
-
-    /// <summary>One glyph over another, at a fixed height and full size, and a relation either side.</summary>
-    /// <summary>One glyph over another, at a fixed height and full size, and a relation either side.</summary>
-    private static Atom Over(string under, string over, double mu) =>
-        new TypedAtom(
-            new UnderOverAtom(SymbolAtom.GetAtom(under), SymbolAtom.GetAtom(over),
-                              TexUnit.Mu, mu, false, true),
-            TexAtomType.Relation,
-            TexAtomType.Relation);
 }

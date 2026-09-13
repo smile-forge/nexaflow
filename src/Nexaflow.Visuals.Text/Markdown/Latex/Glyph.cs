@@ -1,6 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using XamlMath;
-using XamlMath.Atoms;
+
 using XamlMath.Boxes;
 using XamlMath.Fonts;
 using XamlMath.Utils;
@@ -18,6 +18,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// </summary>
 internal sealed record Glyph
 {
+    /// <summary>The name a fence is given for a side written open — <c>\left.</c> — which draws nothing.</summary>
+    internal const string EmptyDelimiterName = "_emptyDelimiter";
+
+    /// <summary>Every symbol the tables name, as the glyph it is.</summary>
+    private static readonly System.Collections.Generic.IReadOnlyDictionary<string, Glyph> Symbols = new TexSymbolParser().GetSymbols();
+
     public char Character { get; init; }
 
     /// <summary>The face a letter is drawn from — <c>mathrm</c>, <c>text</c> — or null for the maths italic default.</summary>
@@ -42,10 +48,18 @@ internal sealed record Glyph
         new() { Character = character, TextStyle = textStyle };
 
     /// <summary>The symbol the tables call this, or null where they call nothing that.</summary>
-    public static Glyph? Symbol(string name) =>
-        SymbolAtom.TryGetAtom(name, out var symbol)
-            ? new() { SymbolName = symbol.Name, Type = symbol.Type, IsDelimiter = symbol.IsDelimeter }
-            : null;
+    public static Glyph? Symbol(string name) => Symbols.TryGetValue(name, out var symbol) ? symbol : null;
+
+    /// <summary>The delimiter this name stands for, or null where it names none or what it names cannot grow.</summary>
+    public static Glyph? Delimiter(string? name) =>
+        name is not null && Symbol(name) is { IsDelimiter: true } symbol ? symbol : null;
+
+    /// <summary>
+    /// The delimiter a character stands for, or null. <c>.</c> is how a fence is written with one end left open —
+    /// <c>\left. \right)</c> — so no delimiter is the right answer rather than a failure.
+    /// </summary>
+    public static Glyph? Delimiter(char character) =>
+        character == '.' ? null : Delimiter(TexFormulaParser.DelimiterMapping(character));
 
     /// <summary>A symbol given its class outright — a bracket a command draws, whatever the table calls it.</summary>
     public static Glyph Named(string name, TexAtomType type, bool isDelimiter) =>

@@ -416,18 +416,6 @@ internal sealed class LatexCapture
     }
 
     /// <summary>
-    /// Lays a whole formula: builds its box in <paramref name="environment"/> and places it with its top at
-    /// the origin, then seals the tree. The one way in, for the builder and for the tests that look at what
-    /// a formula laid out as.
-    /// </summary>
-    internal void Lay(TexFormula formula, XamlMath.TexEnvironment environment)
-    {
-        var box = formula.CreateBox(environment);
-        Place(box, 0, box.Height);
-        FinishRendering();
-    }
-
-    /// <summary>
     /// Seals the tree and settles it onto the origin, so nothing sits at a negative coordinate — which is
     /// one number now rather than a rewrite of every rectangle. A box laid out above or left of where the
     /// pen started would otherwise put the caret outside the control that draws it.

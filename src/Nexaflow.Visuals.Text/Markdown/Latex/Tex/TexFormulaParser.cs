@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using XamlMath.Atoms;
+
 using XamlMath.Colors;
 using XamlMath.Exceptions;
 using XamlMath.Parsers;
@@ -120,13 +120,6 @@ public class TexFormulaParser
     internal static string? DelimiterMapping(char character) =>
         character < delimeters.Count ? delimeters[character] : null;
 
-    /// <summary>
-    /// The delimiter this name stands for, or null when it names none — either because nothing is called
-    /// that, or because what is is not a delimiter.
-    /// </summary>
-    internal static SymbolAtom? GetDelimiterSymbol(string? name) =>
-        name is not null && SymbolAtom.TryGetAtom(name, out var symbol) && symbol.IsDelimeter ? symbol : null;
-
     private static bool IsSymbol(char c) => !char.IsLetterOrDigit(c);
 
     private static bool IsWhiteSpace(char ch)
@@ -159,27 +152,6 @@ public class TexFormulaParser
     { }
 
     /// <summary>
-    /// A big operator, set the way this operator is set: <c>\sum</c> and <c>\prod</c> stack their limits
-    /// in display style, an integral never does whatever the style, and that is why <c>\int_0^\infty</c>
-    /// reads the way it does in every published paper.
-    /// <para>
-    /// Which operators are which is a fact about TeX, and it lives here. <see cref="TexFormulaBuilder"/>
-    /// asks rather than deciding, for the same reason it asks about a character's class.
-    /// </para>
-    /// </summary>
-    internal static BigOperatorAtom BigOperatorOf(SymbolAtom symbol) =>
-        new(symbol, null, null, sideLimitOperators.Contains(symbol.Name) ? false : (bool?)null);
-
-    /// <summary>The delimiter this character stands for, or null when it stands for none.</summary>
-    internal static SymbolAtom? DelimiterOf(char character) =>
-        // `.` is how a fence is written with one end left open — \left. \right) — so no delimiter is the
-        // right answer rather than a failure.
-        character == '.' ? null : GetDelimiterSymbol(DelimiterMapping(character));
-
-    /// <summary>The delimiter this command names, or null when it names none.</summary>
-    internal static SymbolAtom? DelimiterOf(string name) => GetDelimiterSymbol(name);
-
-    /// <summary>
     /// Whether anything here has a reading for a command at all — a command parser, a macro, a style or a
     /// symbol.
     ///
@@ -195,7 +167,7 @@ public class TexFormulaParser
         StandardCommands.Dictionary.ContainsKey(command)
         || textStyles.Contains(command)
         || embeddedCommands.Contains(command)
-        || SymbolAtom.TryGetAtom(command, out _);
+        || Glyph.Symbol(command) is not null;
 
     /// <summary>
     /// Whether there is a drawing for this command, given its name as it was written, backslash and
@@ -219,28 +191,6 @@ public class TexFormulaParser
     /// is not a formula and is not parsed as one.
     /// </summary>
     internal static bool IsRawTextStyle(string command) => rawTextStyles.Contains(command);
-
-    /// <summary>
-    /// One character, as the atom it is set as — which decides how much room is left around it.
-    /// <para>
-    /// The classification is the whole reason <see cref="TexFormulaBuilder"/> asks rather than deciding:
-    /// TeX's spacing comes from what <em>class</em> an atom is, not from the space in the source, and the
-    /// table saying a <c>+</c> is a binary operator and an <c>=</c> is a relation is here. Something
-    /// building a formula out of its own reading knows which characters the writer wrote, and has no
-    /// business knowing how they should be set.
-    /// </para>
-    /// </summary>
-    internal static Atom CharacterOf(char character, string? textStyle = null)
-    {
-        if (!IsSymbol(character) || textStyle == TexUtilities.TextStyleName)
-            return new CharAtom(character, textStyle);
-
-        var symbolName = symbols.ElementAtOrDefault(character);
-
-        return string.IsNullOrEmpty(symbolName)
-            ? new CharAtom(character, textStyle)
-            : SymbolAtom.GetAtom(symbolName);
-    }
 
     /// <summary>One character, as the glyph it is set as — a symbol by the table, or a letter.</summary>
     internal static Glyph GlyphOf(char character, string? textStyle = null)
