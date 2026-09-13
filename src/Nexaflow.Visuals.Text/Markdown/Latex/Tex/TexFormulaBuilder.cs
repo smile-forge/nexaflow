@@ -180,13 +180,33 @@ public static class TexFormulaBuilder
         /// <summary>Whether this is a kern: room that takes no part in the spacing rules around it.</summary>
         public bool IsKern => Atom is SpaceAtom;
 
+        /// <summary>
+        /// The letter an accent over this would lean with — the character at the bottom of any accents already on it.
+        /// </summary>
+        public CharSymbol? Nucleus { get; init; }
+
+        /// <summary>
+        /// Whether what this lays is another piece's drawing rather than its own, as a group's is its contents'. Such a
+        /// piece keeps naming what that drawing named when something else claims it.
+        /// </summary>
+        public bool PassesThrough { get; init; }
+
         /// <summary>A construct still built as an atom, boxed where it is set.</summary>
         public static Item From(Atom atom) => new(
             atom.GetLeftType(),
             atom.GetRightType(),
             atom,
             (environment, previous) =>
-                Set.Of((atom is IRow row ? row.WithPreviousAtom(Dummy(previous)) : atom).CreateBox(environment)));
+                Set.Of((atom is IRow row ? row.WithPreviousAtom(Dummy(previous)) : atom).CreateBox(environment)))
+        {
+            Nucleus = NucleusOf(atom),
+        };
+
+        private static CharSymbol? NucleusOf(Atom atom)
+        {
+            while (atom is AccentedAtom { BaseAtom: { } inner }) atom = inner;
+            return atom as CharSymbol;
+        }
 
         /// <summary>The atom a row of the typesetter's takes as what stood before it.</summary>
         private static DummyAtom? Dummy(Previous? previous) =>
@@ -249,6 +269,8 @@ public static class TexFormulaBuilder
             TexKinds.Group when Written(part) => Grouped(part, style, knowledge),
             TexKinds.Group => Sequence(part.Parts, part, style, knowledge),
             TexKinds.Script => Scripted(part, style, knowledge),
+            TexKinds.Command => Commanded(part, style, knowledge),
+            TexKinds.Fence => Fenced(part, style, knowledge),
             _ => Of(part, style, knowledge) is { } atom ? Item.From(atom) : null,
         };
 
@@ -263,8 +285,11 @@ public static class TexFormulaBuilder
         return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
         {
             var set = inner.Make(environment, null);
-            return set.Part is null or { Length: 0 } ? set with { Part = part } : set;
-        });
+                return set.Part is null or { Length: 0 } ? set with { Part = part } : set;
+            })
+            {
+                PassesThrough = true,
+            };
     }
 
     /// <summary>A scope set in a style of its own — <c>\displaystyle</c> and its family — as the rest of its group.</summary>
@@ -272,8 +297,11 @@ public static class TexFormulaBuilder
         new(scope.Left, scope.Right, null, (environment, _) =>
         {
             var set = scope.Make(environment with { Style = size }, null);
-            return set.Part is null ? set with { Part = part } : set;
-        });
+                return set.Part is null ? set with { Part = part } : set;
+            })
+            {
+                PassesThrough = true,
+            };
 
     /// <summary>Pieces standing in a row, as one piece: its class is its first piece's on the left and its last piece's on the right.</summary>
     private static Item Sequenced(List<Item> items, ContentPart whole) =>
@@ -391,7 +419,7 @@ public static class TexFormulaBuilder
             Part = part,
             Background = background,
             LastFontId = lastFont,
-            Draw = (layer, x, y) =>
+            Draw = (layer, _, x, y) =>
             {
                 var at = x;
                 foreach (var child in children)
@@ -419,7 +447,9 @@ public static class TexFormulaBuilder
     /// deepens by each piece after it; a caller that knows better states its height and depth outright, which is how
     /// TeX pins a stack's baseline.
     /// </summary>
-    private static Set Vertical(List<Set> children, double? height = null, double? depth = null)
+    private static Set Vertical(
+        List<Set> children, double? height = null, double? depth = null, string kind = "VerticalBox",
+        IReadOnlyList<double>? measuredShifts = null)
     {
         double tall = 0, deep = 0;
         double leftMost = double.MaxValue, rightMost = double.MinValue;
@@ -440,8 +470,11 @@ public static class TexFormulaBuilder
                 deep += child.Height + child.Depth;
             }
 
-            leftMost = System.Math.Min(leftMost, child.Shift);
-            rightMost = System.Math.Max(rightMost, child.Shift + (child.Width > 0 ? child.Width : 0));
+            // Where the stack's width is measured from, which is where each piece stood when it was added. A caller
+            // that moves a piece after measuring says where it stood then.
+            var shift = measuredShifts?[at] ?? child.Shift;
+            leftMost = System.Math.Min(leftMost, shift);
+            rightMost = System.Math.Max(rightMost, shift + (child.Width > 0 ? child.Width : 0));
 
             if (counting)
             {
@@ -450,19 +483,18 @@ public static class TexFormulaBuilder
             }
         }
 
-        var top = height ?? tall;
         var left = leftMost;
 
         return new Set
         {
-            Kind = "VerticalBox",
+            Kind = kind,
             Width = rightMost - leftMost,
-            Height = top,
+            Height = height ?? tall,
             Depth = depth ?? deep,
             LastFontId = lastFont,
-            Draw = (layer, x, y) =>
+            Draw = (layer, self, x, y) =>
             {
-                var at = y - top;
+                var at = y - self.Height;
                 foreach (var child in children)
                 {
                     at += child.Height;
@@ -478,6 +510,13 @@ public static class TexFormulaBuilder
     {
         if (System.Math.Abs(width - set.Width) <= TexUtilities.FloatPrecision) return set;
 
+        var half = Strut((width - set.Width) / 2, 0, 0);
+        return Horizontal([half, set, half], null, null);
+    }
+
+    /// <summary>A piece centred in a row of its own of the given width — wrapped even where that adds no room.</summary>
+    private static Set Centred(Set set, double width)
+    {
         var half = Strut((width - set.Width) / 2, 0, 0);
         return Horizontal([half, set, half], null, null);
     }
@@ -812,6 +851,339 @@ public static class TexFormulaBuilder
         }
 
         return (Horizontal([sign is null ? Strut(0, 0, 0) : sign.Make(environment, null)], null, null), 0);
+    }
+
+    /// <summary>
+    /// A piece that says it stands for <paramref name="part"/>, as <see cref="Tag"/> says it of an atom: outright, unless
+    /// what it lays is another piece's drawing, which keeps naming what it named.
+    /// </summary>
+    private static Item Retagged(Item item, ContentPart part)
+    {
+        if (item.Atom is { } atom) return Item.From(Tag(atom, part));
+
+        return item with
+        {
+            Make = (environment, previous) =>
+            {
+                var set = item.Make(environment, previous);
+                return item.PassesThrough ? (set.Part is null ? set with { Part = part } : set) : set with { Part = part };
+            },
+        };
+    }
+
+    /// <summary>A command, where the builder sets it — and otherwise the atom the typesetter still builds for it.</summary>
+    private static Item? Commanded(ContentPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (part.Part(Roles.Name)?.Text is not { } name) return null;
+
+        switch (name)
+        {
+            case @"\frac":
+            {
+                if (PartPiece(part, TexRole.Numerator, style, knowledge) is not { } numerator) return null;
+                if (PartPiece(part, TexRole.Denominator, style, knowledge) is not { } denominator) return null;
+
+                return new Item(TexAtomType.Inner, TexAtomType.Inner, null, (environment, _) =>
+                    Fraction(numerator, denominator, environment) with { Part = part });
+            }
+
+            case @"\sqrt":
+            {
+                if (PartPiece(part, TexRole.Radicand, style, knowledge) is not { } radicand) return null;
+
+                var asked = part.Part(TexRole.Degree);
+                var degree = asked is null ? null : PartPiece(part, TexRole.Degree, style, knowledge);
+                if (asked is not null && degree is null) return null;
+
+                return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+                    Root(radicand, degree, environment) with { Part = part });
+            }
+
+            case @"\overline":
+            {
+                if (PartPiece(part, TexRole.Base, style, knowledge) is not { } inner) return null;
+
+                return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+                {
+                    var set = inner.Make(environment.GetCrampedStyle(), null);
+                    var rule = environment.MathFont.GetDefaultLineThickness(environment.Style);
+                    return Overbar(set, 3 * rule, rule, environment) with
+                    {
+                        Height = set.Height + 5 * rule,
+                        Depth = set.Depth,
+                        Part = part,
+                    };
+                });
+            }
+
+            case @"\underline":
+            {
+                if (PartPiece(part, TexRole.Base, style, knowledge) is not { } inner) return null;
+
+                return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+                {
+                    var rule = environment.MathFont.GetDefaultLineThickness(environment.Style);
+                    var set = inner.Make(environment, null);
+                    return Vertical(
+                        [set, Strut(0, 3 * rule, 0), Set.Of(new Boxes.HorizontalRule(environment, rule, set.Width, 0))],
+                        height: set.Height,
+                        depth: set.Depth + 5 * rule) with { Part = part };
+                });
+            }
+
+            case @"\not":
+            {
+                if (part.Part(TexRole.Base) is null) return null;
+                if (DeclineUnsettled && part.Parent is { Kind: TexKinds.Script } && part.Role == TexRole.Base) return null;
+                if (Symbol("not", part, style) is not { } slash) return null;
+
+                // The slash, then everything written after the name in the order it was written: one sign.
+                var sign = new List<Item> { Item.From(slash) };
+                foreach (var written in part.Children)
+                {
+                    if (written.Role is not (Roles.Element or TexRole.Base)) continue;
+
+                    if (Piece(written, style, knowledge) is { } built) sign.Add(Retagged(built, part));
+                    else if (written.Role == TexRole.Base) return null;
+                }
+
+                return Sequenced(sign, part);
+            }
+        }
+
+        // Accents, once nothing ahead of them in the typesetter's reading of a command would have claimed it first.
+        if (part.Part(TexRole.Base) is { } accented && Accent(name) is { } accent
+            && TexFormulaParser.TextStyleOf(name[1..]) is null
+            && part.Part(TexRole.Over) is null && part.Part(TexRole.Under) is null
+            && !(Delimiter(part) is { } sized && StandardCommands.BigDelimiterOf(name[1..], sized.Name, Whole(part)) is not null))
+        {
+            if (Piece(accented, style, knowledge) is not { } inner) return null;
+
+            return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+                Accented(inner, accent, environment) with { Part = part })
+            {
+                Nucleus = inner.Nucleus,
+            };
+        }
+
+        return Of(part, style, knowledge) is { } atom ? Item.From(atom) : null;
+    }
+
+    /// <summary>TeX's <c>\nulldelimiterspace</c>, 1.2pt: the room a fraction keeps either side in place of the delimiters it has not got.</summary>
+    private const double NullDelimiterSpace = 0.12;
+
+    /// <summary>A fraction with its bar at the default thickness, centred halves, and the null delimiter space either side.</summary>
+    private static Set Fraction(Item numerator, Item denominator, TexEnvironment environment)
+    {
+        var texFont = environment.MathFont;
+        var style = environment.Style;
+
+        var rule = texFont.GetDefaultLineThickness(style);
+        var line = rule;
+
+        var top = numerator.Make(environment.GetNumeratorStyle(), null);
+        var bottom = denominator.Make(environment.GetDenominatorStyle(), null);
+
+        if (top.Width < bottom.Width) top = Centred(top, bottom.Width);
+        else bottom = Centred(bottom, top.Width);
+
+        double shiftUp, shiftDown;
+        if (style < TexStyle.Text)
+        {
+            shiftUp = texFont.GetNum1(style);
+            shiftDown = texFont.GetDenom1(style);
+        }
+        else
+        {
+            shiftDown = texFont.GetDenom2(style);
+            shiftUp = line > 0 ? texFont.GetNum2(style) : texFont.GetNum3(style);
+        }
+
+        var stack = new List<Set> { top };
+        var axis = texFont.GetAxisHeight(style);
+
+        if (line > 0)
+        {
+            var clearance = style < TexStyle.Text ? 3 * line : line;
+
+            var half = line / 2;
+            var kern1 = shiftUp - top.Depth - (axis + half);
+            var kern2 = axis - half - (bottom.Height - shiftDown);
+            var delta1 = clearance - kern1;
+            var delta2 = clearance - kern2;
+            if (delta1 > 0)
+            {
+                shiftUp += delta1;
+                kern1 += delta1;
+            }
+            if (delta2 > 0)
+            {
+                shiftDown += delta2;
+                kern2 += delta2;
+            }
+
+            stack.Add(Strut(0, kern1, 0));
+            stack.Add(Set.Of(new Boxes.HorizontalRule(environment, line, top.Width, 0)));
+            stack.Add(Strut(0, kern2, 0));
+        }
+        else
+        {
+            var clearance = style < TexStyle.Text ? 7 * rule : 3 * rule;
+
+            var kern = shiftUp - top.Depth - (bottom.Height - shiftDown);
+            var delta = (clearance - kern) / 2;
+            if (delta > 0)
+            {
+                shiftUp += delta;
+                shiftDown += delta;
+                kern += 2 * delta;
+            }
+
+            stack.Add(Strut(0, kern, 0));
+        }
+
+        stack.Add(bottom);
+
+        var fraction = Vertical(stack, shiftUp + top.Height, shiftDown + bottom.Depth);
+        return Horizontal([Strut(NullDelimiterSpace, 0, 0), fraction, Strut(NullDelimiterSpace, 0, 0)], null, null);
+    }
+
+    /// <summary>A piece with a rule over it: room above the rule, the rule, the gap beneath it, and the piece.</summary>
+    private static Set Overbar(Set set, double kern, double thickness, TexEnvironment environment) =>
+        Vertical(
+            [
+                Strut(0, thickness, 0),
+                Set.Of(new Boxes.HorizontalRule(environment, thickness, set.Width, 0)),
+                Strut(0, kern, 0),
+                set,
+            ],
+            kind: "OverBar");
+
+    /// <summary>A square root — or an nth root, with its degree tucked small over the sign.</summary>
+    private static Set Root(Item radicand, Item? degree, TexEnvironment environment)
+    {
+        const string sqrt = "sqrt";
+
+        var texFont = environment.MathFont;
+        var style = environment.Style;
+
+        var rule = texFont.GetDefaultLineThickness(style);
+        var clearance = style < TexStyle.Text
+            ? texFont.GetXHeight(style, texFont.GetCharInfo(sqrt, style).Value.FontId)
+            : rule;
+        clearance = rule + System.Math.Abs(clearance) / 4;
+
+        var inside = radicand.Make(environment.GetCrampedStyle(), null);
+
+        var total = inside.Height + inside.Depth;
+        var sign = Set.Of(DelimiterFactory.CreateBox(sqrt, total + clearance + rule, environment));
+
+        // Half of whatever the sign has to spare goes into the clearance.
+        clearance += (sign.Depth - (total + clearance)) / 2;
+
+        sign = sign with { Shift = -(inside.Height + clearance) };
+        var bar = Overbar(inside, clearance, sign.Height, environment) with { Shift = -(inside.Height + clearance + rule) };
+        var root = Horizontal([sign, bar], null, null);
+
+        if (degree is null) return root;
+
+        var small = degree.Make(environment.GetRootStyle(), null);
+        small = small with { Shift = root.Depth - small.Depth - 0.55 * (root.Height + root.Depth) };
+
+        var back = Set.Of(new SpaceAtom(TexUnit.Mu, -10, 0, 0).CreateBox(environment));
+        var reach = small.Width + back.Width;
+
+        var row = new List<Set>();
+        if (reach < 0) row.Add(Strut(-reach, 0, 0));
+        row.Add(small);
+        row.Add(back);
+        row.Add(root);
+
+        return Horizontal(row, null, null);
+    }
+
+    /// <summary>
+    /// An accent over a piece: the largest size of the accent no wider than the piece, centred over it and skewed as the
+    /// letter underneath asks.
+    /// </summary>
+    private static Set Accented(Item inner, SymbolAtom accent, TexEnvironment environment)
+    {
+        var texFont = environment.MathFont;
+        var style = environment.Style;
+
+        var body = inner.Make(environment.GetCrampedStyle(), null);
+        var skew = inner.Nucleus?.GetCharFont(texFont).Value is { } letter ? texFont.GetSkew(letter, style) : 0.0;
+
+        var character = texFont.GetCharInfo(accent.Name, style).Value;
+        while (texFont.HasNextLarger(character))
+        {
+            var larger = texFont.GetNextLargerCharInfo(character, style);
+            if (larger.Metrics.Width > body.Width) break;
+            character = larger;
+        }
+
+        var mark = Set.Of(new Boxes.CharBox(environment, character));
+        var lean = character.Metrics.Italic;
+        if (lean > TexUtilities.FloatPrecision) mark = Horizontal([mark, Strut(lean, 0, 0)], null, null);
+
+        var delta = System.Math.Min(body.Height, texFont.GetXHeight(style, character.FontId));
+
+        var difference = (body.Width - mark.Width) / 2;
+        var shifted = mark with { Shift = skew + System.Math.Max(difference, 0) };
+        if (difference < 0) body = Centred(body, mark.Width);
+
+        // The accent is measured into the stack before it is moved over the centre, as TeX's own port of this did.
+        List<Set> stack = [shifted, Strut(0, -delta, 0), body];
+        var measured = Vertical(stack, measuredShifts: [0, 0, body.Shift]);
+        var height = measured.Height + measured.Depth - body.Depth;
+
+        return Vertical(stack, height, body.Depth, measuredShifts: [0, 0, body.Shift]);
+    }
+
+    /// <summary>Something between delimiters that grow to hold it, as <see cref="Fence"/>.</summary>
+    private static Item? Fenced(ContentPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (part.Part(Roles.Body) is not { } body) return null;
+        if (Piece(body, style, knowledge) is not { } inside) return null;
+
+        if (part.Part(Roles.Open) is not { } open) return null;
+        if (part.Part(Roles.Close) is not { } close) return null;
+
+        var left = Delimiter(open);
+        var right = Delimiter(close);
+
+        return new Item(TexAtomType.Opening, TexAtomType.Closing, null, (environment, _) =>
+            Fence(inside, left, right, environment) with { Part = part });
+    }
+
+    private static Set Fence(Item inside, SymbolAtom? left, SymbolAtom? right, TexEnvironment environment)
+    {
+        var texFont = environment.MathFont;
+        var style = environment.Style;
+
+        var body = inside.Make(environment, null);
+
+        var axis = texFont.GetAxisHeight(style);
+        var delta = System.Math.Max(body.Height - axis, body.Depth + axis);
+        var minHeight = System.Math.Max(delta / 500 * 901, 2 * delta - 0.5);
+
+        Set Delimited(SymbolAtom symbol)
+        {
+            var box = DelimiterFactory.CreateBox(symbol.Name, minHeight, environment);
+            box.Node ??= symbol;
+            var set = Set.Of(box);
+            return set with { Shift = -((set.Height + set.Depth) / 2 - set.Height) - axis };
+        }
+
+        var row = new List<Set>();
+
+        if (left is not null && left.Name != SymbolAtom.EmptyDelimiterName) row.Add(Delimited(left));
+        if (!inside.IsKern) row.Add(Set.Of(Glue.CreateBox(TexAtomType.Opening, inside.Left, environment)));
+        row.Add(body);
+        if (!inside.IsKern) row.Add(Set.Of(Glue.CreateBox(inside.Right, TexAtomType.Closing, environment)));
+        if (right is not null && right.Name != SymbolAtom.EmptyDelimiterName) row.Add(Delimited(right));
+
+        return Horizontal(row, null, null);
     }
 
     // ── One part ────────────────────────────────────────────────────────────

@@ -192,7 +192,7 @@ internal sealed class LatexCapture
         _open.Push((origin, raw));
 
 
-        piece.Draw?.Invoke(this, x, y);   // the recursion - children place themselves through Place
+        piece.Draw?.Invoke(this, piece, x, y);   // the recursion - children place themselves through Place
 
 
 

@@ -50,8 +50,11 @@ internal sealed record Set
     /// <summary>A <c>\colorbox</c> washed under the piece.</summary>
     public Brush? Background { get; init; }
 
-    /// <summary>Lays the piece's own marks and children, with the left end of its baseline at the point given.</summary>
-    public Action<LatexCapture, double, double>? Draw { get; init; }
+    /// <summary>
+    /// Lays the piece's own marks and children, with the left end of its baseline at the point given. Handed the piece
+    /// itself, so a measurement a parent overrides afterwards (TeX pins a stack's height that way) is the one drawn.
+    /// </summary>
+    public Action<LatexCapture, Set, double, double>? Draw { get; init; }
 
     /// <summary>The font of the last glyph this draws, or none: what a space measured in x-heights is measured against.</summary>
     public int LastFontId { get; init; } = XamlMath.TexFontUtilities.NoFontId;
@@ -75,7 +78,7 @@ internal sealed record Set
         Part = box.Node?.Origin,
         Spacing = box is StrutBox or GlueBox,
         Background = (box.Background as WpfBrush)?.Value,
-        Draw = box.Lay,
+        Draw = (layer, _, x, y) => box.Lay(layer, x, y),
         LastFontId = box.GetLastFontId(),
     };
 }
