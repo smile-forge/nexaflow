@@ -56,6 +56,11 @@ internal static class Program
             // Answered by the client rather than sent to the daemon: it is a question about that process, and
             // it has to be answerable when the process is busy, wedged, or not there at all.
             if (args[0] == "daemon") return DaemonClient.Report(productRoot, stop: args.Contains("stop"));
+
+            // Built and run here, not in the resident process: minutes of test run must not hold the tree's lock, and a Ctrl+C
+            // has to reach the run. Only the choosing of tests is asked of the resident process.
+            if (args[0] == "test" && !args.Contains("--list") && !args.Contains("--plan"))
+                return TestRunner.Run(args, productRoot, CallerWorkingTree(productRoot));
             return DaemonClient.Run(args, productRoot, CallerWorkingTree(productRoot));
         }
         catch (DaemonUnavailableException ex)
@@ -187,6 +192,7 @@ internal static class Program
             "pending"     => Pending(args[1..]),
             "promote"     => Promote(args[1..]),
             "ask"         => Answered(Ask(args[1..])),
+            "test"        => TestVerb(args[1..]),
             "graph"       => Graph(args[1..]),
             _ => Usage($"unknown command '{args[0]}'")
         };
@@ -971,7 +977,21 @@ internal static class Program
             // than silently falling back to whatever declaration happens to surround the graph's stale line.
             if (spans.Resolve(rel, lines, ast) is null)
             { Console.Error.WriteLine($"error: ast path '{ast}' not found in {rel} (regenerate the graph?)."); return Error; }
-            (s0, e0) = spans.Block(rel, lines, ast, 0, GraphQuery.BlockScanLines);
+        (s0, e0) = spans.Block(rel, lines, ast, 0, GraphQuery.BlockScanLines);
+
+        // --lines narrows the block, in the file's own line numbers — the ones the listing prints. It used to be ignored
+        // here, so asking for twenty lines of a large type printed all of it.
+        if (a.Value("--lines") is { } within)
+        {
+            if (!TryRange(within, out var from, out var to))
+                return VerbUsage($"--lines must be N or A-B (got '{within}')");
+            if (to - 1 < s0 || from - 1 > e0)
+            {
+                Console.Error.WriteLine($"error: lines {within} are outside {id}, which is lines {s0 + 1}-{e0 + 1}.");
+                return Error;
+            }
+            (s0, e0) = (Math.Max(s0, from - 1), Math.Min(e0, to - 1));
+        }
         }
         else if (a.Value("--lines") is { } range)   // a slice of a file
         {
@@ -1034,6 +1054,108 @@ internal static class Program
         var answer = GraphAsk.Run(g, a[0], rel => TryReadLines(root, rel, main));
         Console.WriteLine(answer.Text);
         return answer.Ok ? Clean : Error;
+    }
+
+    /// <summary>
+    /// <c>test &lt;id&gt; --list | --plan</c>: which tests exercise a node. Running them is <see cref="TestRunner"/>'s, in the
+    /// caller's process; this only chooses — <c>--plan</c> as JSON for that runner, <c>--list</c> for a person.
+    /// </summary>
+    private static int TestVerb(string[] args)
+    {
+        if (!TryRead(Specs.Test, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (a.Has("--failed"))
+            return VerbUsage("test --failed runs what failed last time, which nfi answers itself — run it as `nfi test --failed`");
+        if (a[0] is not { Length: > 0 } id) return VerbUsage("test needs the node whose tests to run: nfi test <node-id>");
+        if (!TryLoadGraph(root, out var graph, out var loadCode)) return loadCode;
+
+        var codeRoot = CodeRootFor(root, main: false);
+        var host     = EditCheck.HostFor(codeRoot);
+        var files    = EditCheck.SourceFiles(codeRoot).ToList();
+        var kinds    = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string? Read(string rel) => CodeFilePath(root, rel, main: false) is { } full ? File.ReadAllText(full) : null;
+        string Kind(string csproj) => kinds.TryGetValue(csproj, out var kind) ? kind : kinds[csproj] = TestKind(EditCheck.Full(codeRoot, csproj));
+
+        // A use is what the compiler binds to the declaration, where it can be asked; spelling is the fallback, and chose
+        // every suite in the repository the first time for a helper whose name was an ordinary word.
+        IReadOnlyList<TestSelection.Use>? UsesOf(TestSelection.Target target, IReadOnlyList<string> candidates)
+        {
+            if (TreeSitterLanguages.ForEdit(target.RelativePath) != "c-sharp" || Read(target.RelativePath) is not { } text
+                || StructuralEdit.NameStartOf("c-sharp", text, target.AstPath, target.Name) is not { } position)
+                return null;
+
+            // Longer than an edit's budget: a test run takes minutes, and a suite missing because its project loaded late is a
+            // test that silently did not run.
+            var found = host.FindReferences(EditCheck.Full(codeRoot, target.RelativePath), position,
+                                            [.. candidates.Where(c => c.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                                                          .Select(c => EditCheck.Full(codeRoot, c))],
+                                            TimeSpan.FromMinutes(3), RequestScope.Cancellation);
+            if (found.Error is not null) return null;
+
+            var uses = found.Locations.Select(l => (Rel: EditCheck.Relative(codeRoot, l.FullPath), l.Start))
+                            .Where(l => !(string.Equals(l.Rel, target.RelativePath, StringComparison.OrdinalIgnoreCase) && l.Start == position))
+                            .Select(l => new TestSelection.Use(l.Rel, Read(l.Rel) is { } t ? t.AsSpan(0, Math.Min(l.Start, t.Length)).Count('\n') + 1 : 0))
+                            .ToList();
+
+            // Where a project could not be searched, the spelling stands in: a test too many beats one missed.
+            foreach (var file in (found.Unsearched ?? []).Select(f => EditCheck.Relative(codeRoot, f)))
+                if (Read(file) is { } text2)
+                    uses.AddRange(text2.Split('\n').Select((line, i) => (line, i))
+                                       .Where(l => Regex.IsMatch(l.line, $@"(?<![\w@]){Regex.Escape(target.Name)}(?!\w)"))
+                                       .Select(l => new TestSelection.Use(file, l.i + 1)));
+            return uses;
+        }
+
+        var selection = TestSelection.For(graph, id, new TestSelection.Sources(
+            Read, files,
+            rel => host.ProjectOf(EditCheck.Full(codeRoot, rel)) is { } csproj ? EditCheck.Relative(codeRoot, csproj) : null,
+            csproj => Kind(csproj) != "",
+            csproj => Kind(csproj) == "journeys",
+            UsesOf,
+            new ProductStore(root).LoadTestCoverage()));
+
+        if (a.Has("--plan"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(selection));
+            return Clean;
+        }
+
+        if (selection.Suites.Count == 0)
+            Console.WriteLine("tests: none — nothing uses it from a test, and no test declares it covers its feature.");
+        foreach (var suite in selection.Suites)
+        {
+            Console.WriteLine($"{suite.Project}   {suite.Filters.Count} filter(s)");
+            foreach (var reason in suite.Reasons) Console.WriteLine($"  why:  {reason}");
+            foreach (var filter in suite.Filters.Take(30)) Console.WriteLine($"  run:  {filter}");
+            if (suite.Filters.Count > 30) Console.WriteLine($"  … and {suite.Filters.Count - 30} more");
+        }
+        PrintJourneys(selection);
+        foreach (var note in selection.Notes) Console.Error.WriteLine($"note: {note}");
+        if (selection.Suites.Count > 0) Console.WriteLine($"nfi test {id} builds these and runs them.");
+        return Clean;
+    }
+
+    /// <summary>Suites that use it but drive the real desktop: named with the filter to run them, never run for anyone.</summary>
+    internal static void PrintJourneys(TestSelection.Selection selection)
+    {
+        foreach (var journey in selection.Journeys)
+            Console.WriteLine($"journeys: {journey.Project} has {journey.Filters.Count} test(s) that use it. They take over the "
+                            + "mouse and keyboard, so they are yours to run, on a machine nobody is using: --filter \""
+                            + string.Join("|", journey.Filters.Select(f => $"FullyQualifiedName~{f}")) + "\"");
+    }
+
+    /// <summary>What kind of test project a project is: "" for none, "journeys" for one that drives the real desktop
+    /// (it references a UI automation library), "tests" otherwise.</summary>
+    private static string TestKind(string csproj)
+    {
+        try
+        {
+            var text = File.ReadAllText(csproj);
+            if (!Regex.IsMatch(text, @"MSTest|Microsoft\.NET\.Test\.Sdk|xunit|NUnit|EnableMSTestRunner", RegexOptions.IgnoreCase)) return "";
+            return Regex.IsMatch(text, @"FlaUI|Appium|WinAppDriver|Playwright", RegexOptions.IgnoreCase)
+                || Path.GetFileNameWithoutExtension(csproj).Contains("Journey", StringComparison.OrdinalIgnoreCase)
+                ? "journeys" : "tests";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return ""; }
     }
 
     /// <summary>
@@ -3015,6 +3137,9 @@ internal static class Program
         public static readonly VerbSpec GraphEditScript = new("graph edit script", 0, ["--file"],
             ["--stdin", "--dry-run", "--main", "--no-refresh", "--quiet", "--no-check", "--must-compile"],
             "graph edit script [<root>] (--file F | --stdin) [--dry-run] [--quiet] [--main] [--no-refresh]");
+
+        public static readonly VerbSpec Test = new("test", 1, None, ["--list", "--plan", "--failed", "--no-build"],
+            "test <node-id> [<root>] [--list] [--no-build] | test --failed [--no-build]", MinPositionals: 0);
     }
 
     /// <summary>

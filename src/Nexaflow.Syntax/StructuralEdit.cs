@@ -372,8 +372,11 @@ public static partial class StructuralEdit
         // would then aim `#1` at what used to be `#2` — the one way a sequence of edits to one file can go
         // wrong without anything refusing, since the name check still passes. Say so rather than assume the
         // caller knows the path format.
+        // Counted rather than assumed from the op: an insert beside an overload that is not itself one renumbers nothing,
+        // and saying it did taught the note to be ignored.
         if (astPath.Contains('#', StringComparison.Ordinal)
-            && op is Op.Delete or Op.InsertBefore or Op.InsertAfter or Op.Replace)
+            && Declarations(grammarId, source).Count(d => d.Name == expectedName)
+               != Declarations(grammarId, updated).Count(d => d.Name == expectedName))
             notes.Add($"'{expectedName}' is overloaded, and the #N in an ast path is its position among the "
                     + "overloads — this edit renumbers the others. List the declarations again before making "
                     + "further edits to this file.");
@@ -593,17 +596,40 @@ public static partial class StructuralEdit
     /// <param name="astPath">The declaration being edited, so a "not found" message can rule it out when
     /// suggesting where the text does live. Empty for a whole-file substitution.</param>
     private static (string? Text, string? Error) Substitute(string grammarId, string src, DeclarationAnchor a,
-                                                            string? replacement, Options o, string newline,
-                                                            string astPath, List<string> notes)
+                                                             string? replacement, Options o, string newline,
+                                                             string astPath, List<string> notes)
     {
         if (o.Find is not { Length: > 0 } rawFind) return (null, "Text to find is required for a substitution.");
         if (replacement is null) return (null, "Replacement text is required (use an empty string to delete).");
 
+        var attempt = SubstituteFrom(grammarId, src, a, a.Start, rawFind, replacement, o, newline, notes);
+
+        // The doc comment and attributes above a declaration are part of it — a parameter renamed in the signature is
+        // renamed in its <param> as well — and they were out of reach. Searched only when the declaration itself does not
+        // have the text, so nothing that matched exactly once before can now match twice.
+        if (attempt.Missing && a.TriviaStart < a.Start
+            && SubstituteFrom(grammarId, src, a, a.TriviaStart, rawFind, replacement, o, newline, notes) is { Missing: false } wider)
+        {
+            notes.Add("found in the doc comment or attributes above the declaration");
+            return (wider.Text, wider.Error);
+        }
+
+        return attempt.Missing
+            ? (null, NotFound(grammarId, src, a, o.FindIsRegex ? rawFind : rawFind.Replace("\r\n", "\n"), astPath))
+            : (attempt.Text, attempt.Error);
+    }
+
+    /// <summary>The substitution over the declaration from <paramref name="from"/> to its end — its start, or the start of
+    /// the doc comment above it. <c>Missing</c> when the text is not there, which the caller may try wider.</summary>
+    private static (string? Text, string? Error, bool Missing) SubstituteFrom(string grammarId, string src, DeclarationAnchor a,
+                                                                              int from, string rawFind, string replacement,
+                                                                              Options o, string newline, List<string> notes)
+    {
         // Matched with every line break read as LF, whatever the file keeps, and spliced back into the text as
         // it is. A search typed on a command line arrives LF, and this checkout keeps CRLF: matched raw, no
         // fragment spanning two lines could ever be found, and the refusal blamed the fragment. Everything
         // below works in LF and the splice gives the replacement the file's own endings.
-        var view  = LineBreakView.Of(src[a.Start..a.End]);
+        var view  = LineBreakView.Of(src[from..a.End]);
         var body  = view.Text;
         var edits = new List<(int Start, int End, string Text)>();
 
@@ -611,18 +637,18 @@ public static partial class StructuralEdit
         {
             Regex regex;
             try { regex = new Regex(rawFind, RegexOptions.None, TimeSpan.FromSeconds(2)); }
-            catch (ArgumentException ex) { return (null, $"'{rawFind}' is not a valid regular expression: {ex.Message}"); }
+            catch (ArgumentException ex) { return (null, $"'{rawFind}' is not a valid regular expression: {ex.Message}", false); }
 
             var matches = regex.Matches(body);
-            if (matches.Count == 0) return (null, NotFound(grammarId, src, a, rawFind, astPath));
-            if (matches.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(rawFind, matches.Count));
+            if (matches.Count == 0) return (null, null, true);
+            if (matches.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(rawFind, matches.Count), false);
             if (matches.Count > 1) notes.Add($"replaced {matches.Count} occurrences");
 
-            NoteIfInsideString(grammarId, src, a.Start + view.ToOriginal(matches[0].Index), notes);
+            NoteIfInsideString(grammarId, src, from + view.ToOriginal(matches[0].Index), notes);
 
             foreach (Match m in matches)
                 edits.Add((m.Index, m.Index + m.Length, Expanded(body, m, replacement)));
-            return (src[..a.Start] + view.Splice(edits, newline) + src[a.End..], null);
+            return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
         }
 
         var find = rawFind.Replace("\r\n", "\n");
@@ -630,15 +656,15 @@ public static partial class StructuralEdit
         // Exact first, so a caller who reproduced the text byte-for-byte gets the match it asked for, at
         // character granularity.
         var exact = Positions(body, find);
-        if (exact.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact.Count));
+        if (exact.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact.Count), false);
         if (exact.Count > 0)
         {
             if (exact.Count > 1) notes.Add($"replaced {exact.Count} occurrences");
-            NoteIfInsideString(grammarId, src, a.Start + view.ToOriginal(exact[0]), notes);
+            NoteIfInsideString(grammarId, src, from + view.ToOriginal(exact[0]), notes);
 
             foreach (var at in exact)
                 edits.Add((at, at + find.Length, Placed(body, at, at + find.Length, find, replacement)));
-            return (src[..a.Start] + view.Splice(edits, newline) + src[a.End..], null);
+            return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
         }
 
         // Then ignoring indentation. Everywhere else this tool promises the caller does not handle
@@ -646,18 +672,18 @@ public static partial class StructuralEdit
         // A fragment copied out of a listing has whatever indentation it had there, or none, and failing on
         // that is a papercut with no upside. Exact still wins, so nothing that used to work changes.
         var loose = LooseMatches(body, find);
-        if (loose.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, loose.Count));
-        if (loose.Count == 0) return (null, NotFound(grammarId, src, a, find, astPath));
+        if (loose.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, loose.Count), false);
+        if (loose.Count == 0) return (null, null, true);
 
         notes.Add(loose.Count == 1
             ? "matched ignoring indentation"
             : $"replaced {loose.Count} occurrences, matched ignoring indentation");
 
-        NoteIfInsideString(grammarId, src, a.Start + view.ToOriginal(loose[0].Start), notes);
+        NoteIfInsideString(grammarId, src, from + view.ToOriginal(loose[0].Start), notes);
 
         foreach (var (start, end) in loose)
             edits.Add((start, end, Placed(body, start, end, find, replacement)));
-        return (src[..a.Start] + view.Splice(edits, newline) + src[a.End..], null);
+        return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
     }
 
     /// <summary>

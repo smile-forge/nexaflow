@@ -1407,4 +1407,50 @@ public class StructuralEditTests
         StringAssert.Contains(text, "class C");
         Assert.IsFalse(text.Contains("_only"));
     }
+
+    /// <summary>
+    /// A doc comment belongs to its declaration, and a substitution could not reach it: renaming a parameter left its
+    /// &lt;param&gt; behind, and the refusal said the text was not in the declaration while pointing at the line above it.
+    /// </summary>
+    [TestMethod]
+    public void Substitute_ReachesTheDocCommentAboveTheDeclaration()
+    {
+        const string source =
+            "class C\n{\n    /// <summary>Adds.</summary>\n    /// <param name=\"left\">The first.</param>\n    public int Add(int left, int b) => left + b;\n}\n";
+
+        var result = StructuralEdit.Apply("c-sharp", source, "T:C/M:Add", "Add", StructuralEdit.Op.Substitute, "<param name=\"a\">",
+                                          new StructuralEdit.Options(Find: "<param name=\"left\">"));
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(result.NewText, "    /// <param name=\"a\">The first.</param>\n    public int Add(int left, int b)");
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("doc comment", StringComparison.Ordinal)), string.Join("\n", result.Notes));
+    }
+
+    /// <summary>The declaration is searched first, so text it has once still matches once, however often its doc repeats it.</summary>
+    [TestMethod]
+    public void Substitute_PrefersTheDeclaration_SoADocMentionDoesNotMakeItAmbiguous()
+    {
+        const string source =
+            "class C\n{\n    /// <summary>Returns left.</summary>\n    public int Get(int left) => left;\n}\n";
+
+        var result = StructuralEdit.Apply("c-sharp", source, "T:C/M:Get", "Get", StructuralEdit.Op.Substitute, "=> 0;",
+                                          new StructuralEdit.Options(Find: "=> left;"));
+
+        Assert.IsTrue(result.Ok, result.Message);
+        StringAssert.Contains(result.NewText, "/// <summary>Returns left.</summary>");
+    }
+
+    /// <summary>The renumbering note is for an edit that changes how many overloads there are, not for any edit beside one.</summary>
+    [TestMethod]
+    public void InsertingBesideAnOverload_WithoutAddingOne_SaysNothingOfRenumbering()
+    {
+        const string source = "class C\n{\n    void Add(int a) { }\n\n    void Add(string s) { }\n}\n";
+
+        var beside = StructuralEdit.Apply("c-sharp", source, "T:C/M:Add#1", "Add", StructuralEdit.Op.InsertAfter, "void Sub() { }");
+        var another = StructuralEdit.Apply("c-sharp", source, "T:C/M:Add#1", "Add", StructuralEdit.Op.InsertAfter, "void Add(long l) { }");
+
+        Assert.IsTrue(beside.Ok && another.Ok, beside.Message + another.Message);
+        Assert.IsFalse(beside.Notes.Any(n => n.Contains("renumbers", StringComparison.Ordinal)), string.Join("\n", beside.Notes));
+        Assert.IsTrue(another.Notes.Any(n => n.Contains("renumbers", StringComparison.Ordinal)), "a third Add does renumber them");
+    }
 }

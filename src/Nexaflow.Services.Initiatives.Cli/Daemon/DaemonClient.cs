@@ -60,6 +60,16 @@ internal static class DaemonClient
         return reply.ExitCode;
     }
 
+    /// <summary>Runs <paramref name="args"/> on the daemon and hands back its answer instead of printing it — for a verb
+    /// that asks the resident process one question and then does its own work with the answer.</summary>
+    internal static DaemonResponse Capture(string[] args, string productRoot, string? codeRoot)
+    {
+        var request = DaemonRequest.Command(DaemonRequest.NewTicket(), args, codeRoot, Directory.GetCurrentDirectory(), null,
+                                            CallerShell());
+        var pipe    = DaemonProtocol.PipeName(productRoot, DaemonProtocol.BuildStamp());
+        return Send(pipe, request, connectMs: 200) ?? StartThenSend(pipe, productRoot, request);
+    }
+
     /// <summary>This shell's values for the variables the daemon has to judge by the caller's environment
     /// rather than its own — see <see cref="RequestScope.ShellVariables"/>.</summary>
     private static Dictionary<string, string> CallerShell()

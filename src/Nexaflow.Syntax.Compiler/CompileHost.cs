@@ -26,8 +26,10 @@ public sealed record SymbolLocation(string FullPath, int Start, int Length);
 
 /// <param name="Symbol">The symbol found at the position asked about, as the compiler names it — null when there
 /// was none, with <paramref name="Error"/> saying why.</param>
+/// <param name="Unsearched">Candidate files whose project could not be searched, so a caller that must not miss a use
+/// can fall back to something coarser for those.</param>
 public sealed record ReferenceReport(string? Symbol, IReadOnlyList<SymbolLocation> Locations, IReadOnlyList<string> NotChecked,
-                                     string? Error);
+                                     string? Error, IReadOnlyList<string>? Unsearched = null);
 
 /// <summary>
 /// Asks the compiler what an edit did. Projects are loaded on first use and kept, so the host is meant to live as
@@ -124,7 +126,7 @@ public sealed class CompileHost
                 checkedOn.Add(consumer.Name);
             }
 
-            return new CompileReport(checkedOn, introduced, fixedOnes, notChecked, clock.Elapsed);
+            return new CompileReport(checkedOn, introduced, fixedOnes, Summarised(notChecked), clock.Elapsed);
         }
     }
 
@@ -158,10 +160,15 @@ public sealed class CompileHost
             var locations = new List<SymbolLocation>();
             Scan(compilation, project.SourcePaths, symbol, locations, cancellation);
 
+            var unsearched = new List<string>();
             foreach (var group in candidateFiles.GroupBy(f => ProjectOf(f) ?? "", StringComparer.OrdinalIgnoreCase))
             {
                 if (group.Key.Length == 0 || string.Equals(group.Key, csproj, StringComparison.OrdinalIgnoreCase)) continue;
-                if (Get(group.Key, clock, budget, notChecked, cancellation) is not { } consumer) continue;
+                if (Get(group.Key, clock, budget, notChecked, cancellation) is not { } consumer)
+                {
+                    unsearched.AddRange(group);
+                    continue;
+                }
 
                 var swaps = consumer.ReferencesTo(project)
                                     .ToDictionary(o => o, _ => (MetadataReference)compilation.ToMetadataReference(),
@@ -171,7 +178,7 @@ public sealed class CompileHost
                 Scan(consumer.With(none, cancellation, swaps), group, symbol, locations, cancellation);
             }
 
-            return new ReferenceReport(symbol.ToDisplayString(), [.. locations.Distinct()], notChecked, null);
+            return new ReferenceReport(symbol.ToDisplayString(), [.. locations.Distinct()], Summarised(notChecked), null, unsearched);
         }
     }
 
@@ -223,7 +230,8 @@ public sealed class CompileHost
 
         if (clock.Elapsed > budget)
         {
-            notChecked.Add($"{name}: not loaded, and the check was past its {budget.TotalSeconds:F0}s budget");
+            notChecked.Add(OverBudget + name);
+            Warm(csproj);
             return null;
         }
 
@@ -234,6 +242,33 @@ public sealed class CompileHost
             return null;
         }
         return _projects[csproj] = project;
+    }
+
+    /// <summary>How a project the loading budget ran out on is marked, until <see cref="Summarised"/> folds them into one line.</summary>
+    private const string OverBudget = "past budget: ";
+
+    /// <summary>
+    /// Loads a project the check ran out of budget for, after the check has answered — so the next one includes it rather
+    /// than running out of budget at the same place again. Queued behind the lock, like any other use of the host.
+    /// </summary>
+    private void Warm(string csproj) => Task.Run(() =>
+    {
+        lock (_gate)
+        {
+            if (_projects.ContainsKey(csproj)) return;
+            if (CompiledProject.Load(csproj, _loader, CancellationToken.None).Project is { } project) _projects[csproj] = project;
+        }
+    });
+
+    /// <summary>What could not be checked, with the projects the budget ran out on said once rather than a line each.</summary>
+    private static IReadOnlyList<string> Summarised(List<string> notChecked)
+    {
+        var late = notChecked.Where(n => n.StartsWith(OverBudget, StringComparison.Ordinal)).Select(n => n[OverBudget.Length..]).ToList();
+        if (late.Count == 0) return notChecked;
+
+        return [.. notChecked.Where(n => !n.StartsWith(OverBudget, StringComparison.Ordinal)),
+                $"{late.Count} project(s) past the loading budget — {string.Join(", ", late)}. They are loading now, so the next "
+              + "check includes them"];
     }
 
     /// <summary>
