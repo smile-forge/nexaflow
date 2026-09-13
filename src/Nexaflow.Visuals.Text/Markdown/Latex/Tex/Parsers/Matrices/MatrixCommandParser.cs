@@ -126,4 +126,12 @@ internal sealed class MatrixCommandParser
             while (row.Count < maxRowLength)
                 row.Add(new NullAtom());
     }
+
+    internal string? LeftDelimiter => _leftDelimiterSymbolName;
+    internal string? RightDelimiter => _rightDelimiterSymbolName;
+    internal MatrixCellAlignment CellAlignment => _cellAlignment;
+    internal TexStyle? Style => _style;
+    internal double VerticalPadding => _verticalPadding;
+    internal double HorizontalPadding => _horizontalPadding;
+    internal bool RowStrut => _rowStrut;
 }

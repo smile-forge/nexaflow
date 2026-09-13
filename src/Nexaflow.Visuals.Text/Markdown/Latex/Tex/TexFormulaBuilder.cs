@@ -287,6 +287,7 @@ public static class TexFormulaBuilder
             TexKinds.Script => Scripted(part, style, knowledge),
             TexKinds.Command => Commanded(part, style, knowledge),
             TexKinds.Fence => Fenced(part, style, knowledge),
+            TexKinds.Environment => Environmented(part, style, knowledge),
             _ => Of(part, style, knowledge) is { } atom ? Item.From(atom) : null,
         };
 
@@ -1023,8 +1024,7 @@ public static class TexFormulaBuilder
             }
 
             case @"\substack":
-                // A grid, and grids are still the typesetter's.
-                return Of(part, style, knowledge) is { } stack ? Item.From(stack) : null;
+                return Substacked(part, style, knowledge);
 
             case @"\overline":
             {
@@ -1146,9 +1146,7 @@ public static class TexFormulaBuilder
         // Any other command the table makes from arguments already built.
         if (StandardCommands.CanAssemble(name[1..]))
         {
-            // Grids are still the typesetter's, and build their arguments its way.
-            if (StandardCommands.Dictionary[name[1..]] is MatrixCommandParser)
-                return Of(part, style, knowledge) is { } grid ? Item.From(grid) : null;
+
 
             var arguments = new List<Item>();
 
@@ -1791,6 +1789,287 @@ public static class TexFormulaBuilder
                && entry is StandardCommands.BraceCommand brace && brace.IsOver == over
             ? Brace(on, label, over, part)
             : null;
+    }
+
+    /// <summary>A block between <c>\begin</c> and <c>\end</c>, as <see cref="Environment"/>: a grid, an array, or a display environment that is its contents.</summary>
+    private static Item? Environmented(ContentPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (part.Part(TexRole.Begin) is not { } begin) return null;
+        if (part.Part(TexRole.End) is null) return null;
+
+        if (!StandardCommands.Environments.TryGetValue(TexParser.NameOf(begin), out var arrangement))
+            return null;
+
+        if (arrangement is StandardCommands.TransparentEnvironment)
+        {
+            var body = part.Parts.Where(child => child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option));
+            return Pieces(body, style, knowledge) is { Count: > 0 } built ? Sequenced(built, part) : null;
+        }
+
+        foreach (var child in part.Parts)
+            if (child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option or Roles.Row))
+                return null;
+
+        if (Grid(part, style, knowledge) is not { } cells) return null;
+
+        return arrangement switch
+        {
+            MatrixCommandParser matrix => Arranged(matrix, cells, part),
+            ArrayCommandParser => Arrayed(part, cells),
+            _ => null,
+        };
+    }
+
+    /// <summary>The grid, row by row and squared off, as <see cref="Cells"/>.</summary>
+    private static List<List<Item>>? Grid(ContentPart environment, string? style, TexFormulaParser knowledge)
+    {
+        var rows = new List<List<Item>>();
+
+        foreach (var row in environment.Children)
+        {
+            if (row.Role != Roles.Row) continue;
+
+            if (row.Children.Where(child => child.Role == Roles.Cell)
+                   .All(cell => cell.Parts.All(piece => IsRule(piece) || piece.Kind == Kinds.Space)))
+                continue;
+
+            var cells = new List<Item>();
+
+            foreach (var cell in row.Children)
+            {
+                if (cell.Role != Roles.Cell) continue;
+
+                var built = Pieces(cell.Parts.Where(piece => !IsRule(piece)), style, knowledge);
+                if (built is null) return null;
+
+                cells.Add(built.Count switch
+                {
+                    0 => Item.From(Tag(new NullAtom(), cell)),
+                    1 => built[0],
+                    _ => Sequenced(built, cell),
+                });
+            }
+
+            rows.Add(cells);
+        }
+
+        if (rows.Count == 0) return null;
+
+        var columns = rows.Max(row => row.Count);
+        if (columns == 0) return null;
+
+        foreach (var row in rows)
+            while (row.Count < columns) row.Add(Item.From(new NullAtom()));
+
+        return rows;
+    }
+
+    /// <summary>A grid arranged as its environment arranges one — padded, aligned, bracketed and sized — as <see cref="MatrixCommandParser.Assemble"/>.</summary>
+    private static Item Arranged(MatrixCommandParser arrangement, List<List<Item>> cells, ContentPart origin)
+    {
+        var grid = Made(TexAtomType.Ordinary, origin, environment => Matrix(
+            cells, environment, arrangement.CellAlignment, arrangement.VerticalPadding, arrangement.HorizontalPadding,
+            suppressOuterPadding: arrangement.CellAlignment != MatrixCellAlignment.Aligned,
+            rowStrutHeight: arrangement.RowStrut ? MatrixAtom.DefaultRowStrutHeight : 0,
+            rowStrutDepth: arrangement.RowStrut ? MatrixAtom.DefaultRowStrutDepth : 0));
+
+        SymbolAtom? Delimiter(string? name) =>
+            name == null
+                ? null
+                : TexFormulaParser.GetDelimiterSymbol(name) ??
+                  throw new TexParseException($"The delimiter {name} could not be found");
+
+        var left = Delimiter(arrangement.LeftDelimiter);
+        var right = Delimiter(arrangement.RightDelimiter);
+
+        var item = left is null && right is null ? grid : Fenced(grid, left, right, origin);
+
+        return arrangement.Style is { } style ? Styled(item, style, origin) : item;
+    }
+
+    /// <summary><c>\begin{array}</c>, its preamble read as text, as <see cref="Array"/>.</summary>
+    private static Item? Arrayed(ContentPart part, List<List<Item>> cells)
+    {
+        if (part.Part(TexRole.Option) is not { } option) return null;
+
+        var preamble = option.Node.Print();
+        if (preamble.Length < 2 || preamble[0] != '{' || preamble[^1] != '}') return null;
+
+        var written = preamble[1..^1];
+        var columns = cells.Count == 0 ? 0 : cells.Max(row => row.Count);
+        if (columns == 0) return null;
+
+        ArrayColumnSpec spec;
+        if (!written.Any(c => c is 'l' or 'c' or 'r'))
+        {
+            spec = ArrayColumnSpec.Centred(columns);
+        }
+        else
+        {
+            try
+            {
+                spec = ArrayColumnSpec.Parse(written);
+            }
+            catch (TexParseException)
+            {
+                return null;
+            }
+        }
+
+        var rules = Ruled(part);
+
+        return Made(TexAtomType.Ordinary, part, environment => Matrix(
+            cells, environment, MatrixCellAlignment.Center,
+            verticalPadding: 0,
+            horizontalPadding: MatrixAtom.DefaultColumnGap,
+            suppressOuterPadding: true,
+            columnSpec: spec,
+            horizontalRules: rules,
+            rowStrutHeight: MatrixAtom.DefaultRowStrutHeight,
+            rowStrutDepth: MatrixAtom.DefaultRowStrutDepth));
+    }
+
+    /// <summary><c>\substack</c>: the lines of a limit, as a small grid set solid.</summary>
+    private static Item? Substacked(ContentPart part, string? style, TexFormulaParser knowledge)
+    {
+        if (part.Part(TexRole.Base) is not { } lines) return null;
+        if (Grid(lines, style, knowledge) is not { } stack) return null;
+
+        return Arranged(MatrixCommandParser.SubStack, stack, part);
+    }
+
+    /// <summary>
+    /// A grid: columns as wide as their widest cell, rows on a common baseline with a line's room between them, the whole
+    /// centred on the axis, and an array's rules over it.
+    /// </summary>
+    private static Set Matrix(
+        List<List<Item>> rows, TexEnvironment environment, MatrixCellAlignment alignment,
+        double verticalPadding, double horizontalPadding, bool suppressOuterPadding = false,
+        ArrayColumnSpec? columnSpec = null, IReadOnlyCollection<int>? horizontalRules = null,
+        double rowStrutHeight = 0, double rowStrutDepth = 0)
+    {
+        const double lineSkip = 0.1;
+        const double alignGroupLeftPadding = 4;
+
+        var cells = rows.Select(row => row.Select(cell => cell.Make(environment, null)).ToArray()).ToArray();
+        var columnCount = cells.Length == 0 ? 0 : cells.Max(row => row.Length);
+
+        var columnWidths = new double[columnCount];
+        foreach (var row in cells)
+            for (var j = 0; j < row.Length; j++)
+                columnWidths[j] = System.Math.Max(columnWidths[j], row[j].TotalWidth);
+
+        (double Left, double Right) Gaps(double free, int column)
+        {
+            var half = horizontalPadding / 2;
+
+            if (columnSpec is not null)
+                return columnSpec.AlignmentOf(column) switch
+                {
+                    TexAlignment.Left => (half, half + free),
+                    TexAlignment.Right => (half + free, half),
+                    _ => (half + free / 2, half + free / 2),
+                };
+
+            return alignment switch
+            {
+                MatrixCellAlignment.Aligned => (column % 2) switch
+                {
+                    0 when column != 0 => (alignGroupLeftPadding + half + free, half),
+                    0 => (half + free, half),
+                    _ => (half, half + free),
+                },
+                MatrixCellAlignment.Left => (half, half + free),
+                _ => (half + free / 2, half + free / 2),
+            };
+        }
+
+        (double Left, double Right) Outer(int column)
+        {
+            if (!suppressOuterPadding) return (0, 0);
+
+            var half = horizontalPadding / 2;
+            return (column == 0 ? -half : 0, column == columnCount - 1 ? -half : 0);
+        }
+
+        var columnEdges = new List<double>();
+        var rowHeights = new List<double>();
+        var rowSets = new List<Set>();
+
+        for (var r = 0; r < cells.Length; r++)
+        {
+            var placed = new List<(Set Cell, double Left, double Right)>();
+            for (var column = 0; column < columnCount; column++)
+            {
+                var cell = column < cells[r].Length ? cells[r][column] : Strut(0, 0, 0);
+                var (left, right) = Gaps(columnWidths[column] - cell.TotalWidth, column);
+                var (outerLeft, outerRight) = Outer(column);
+                placed.Add((cell, left + outerLeft, right + outerRight));
+            }
+
+            // Every cell on the row's baseline; a line's room between rows, but none above the first or below the last.
+            var ascent = placed.Count > 0 ? placed.Max(p => p.Cell.Height) : 0.0;
+            var descent = placed.Count > 0 ? placed.Max(p => p.Cell.Depth) : 0.0;
+            var rowAscent = r == 0 ? ascent : System.Math.Max(ascent + lineSkip, rowStrutHeight);
+            var rowDescent = r == cells.Length - 1 ? descent : System.Math.Max(descent, rowStrutDepth);
+            var halfPadding = verticalPadding / 2;
+
+            var edgesFromThisRow = columnEdges.Count == 0 && placed.Count == columnCount;
+            var edge = 0.0;
+
+            var row = new List<Set>();
+            foreach (var (cell, left, right) in placed)
+            {
+                var top = rowAscent - cell.Height + halfPadding;
+                var bottom = rowDescent - cell.Depth + halfPadding;
+                var stack = Vertical([Strut(0, top, 0), cell, Strut(0, bottom, 0)]);
+
+                row.Add(Strut(left, 0, 0));
+                row.Add(stack with { Height = stack.TotalHeight, Depth = 0 });
+                row.Add(Strut(right, 0, 0));
+
+                if (edgesFromThisRow) columnEdges.Add(edge);
+                edge += left + cell.TotalWidth + right;
+            }
+
+            var rowSet = Horizontal(row, null, null);
+            rowHeights.Add(rowSet.TotalHeight);
+            rowSets.Add(rowSet);
+        }
+
+        var axis = environment.MathFont.GetAxisHeight(environment.Style);
+        var measured = Vertical(rowSets);
+        var total = measured.TotalHeight;
+        var grid = Vertical(rowSets, height: total / 2 + axis, depth: total / 2 - axis);
+
+        var wantsVertical = columnSpec?.VerticalRules.Count > 0;
+        var wantsHorizontal = horizontalRules?.Count > 0;
+        if (!wantsVertical && !wantsHorizontal) return grid;
+
+        var thickness = environment.MathFont.GetDefaultLineThickness(environment.Style);
+
+        var verticalAt = new List<double>();
+        if (columnSpec is not null)
+            foreach (var boundary in columnSpec.VerticalRules)
+                verticalAt.Add(boundary < columnEdges.Count ? columnEdges[boundary] : grid.Width - thickness);
+
+        var horizontalAt = new List<double>();
+        if (horizontalRules is not null)
+            foreach (var boundary in horizontalRules)
+            {
+                var y = 0.0;
+                for (var i = 0; i < boundary && i < rowHeights.Count; i++) y += rowHeights[i];
+                horizontalAt.Add(boundary >= rowHeights.Count ? y - thickness : y);
+            }
+
+        var rules = Set.Of(new Boxes.GridRulesBox(environment, verticalAt, horizontalAt, thickness)
+        {
+            Width = grid.Width,
+            Height = grid.Height,
+            Depth = grid.Depth,
+        });
+
+        return Layered([grid, rules]) with { Height = grid.Height, Depth = grid.Depth, Width = grid.Width };
     }
 
     /// <summary>Something between delimiters that grow to hold it, as <see cref="Fence"/>.</summary>
