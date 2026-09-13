@@ -1,4 +1,5 @@
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -14,10 +15,10 @@ internal sealed class HorizontalRule : Box
         this.Background = environment.Background;	//Not strictly necessary
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         var rectangle = new Rectangle(x, y - this.Height, this.Width, this.Height);
-        renderer.RenderRectangle(rectangle, Foreground);
+        layer.Rule(rectangle, Foreground);
     }
 
     public override int GetLastFontId()

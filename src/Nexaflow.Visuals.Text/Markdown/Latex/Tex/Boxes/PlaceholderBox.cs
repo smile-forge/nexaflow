@@ -1,4 +1,5 @@
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -40,16 +41,16 @@ internal sealed class PlaceholderBox : Box
         Background = environment.Background;
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         var top = y - Height;
 
         // Four sides. The renderer draws filled rectangles, so an outline is four thin ones — which
         // also means every consumer that already understands a rule understands this.
-        renderer.RenderRectangle(new Rectangle(x, top, Width, _thickness), Foreground);
-        renderer.RenderRectangle(new Rectangle(x, y - _thickness, Width, _thickness), Foreground);
-        renderer.RenderRectangle(new Rectangle(x, top, _thickness, Height), Foreground);
-        renderer.RenderRectangle(new Rectangle(x + Width - _thickness, top, _thickness, Height), Foreground);
+        layer.Rule(new Rectangle(x, top, Width, _thickness), Foreground);
+        layer.Rule(new Rectangle(x, y - _thickness, Width, _thickness), Foreground);
+        layer.Rule(new Rectangle(x, top, _thickness, Height), Foreground);
+        layer.Rule(new Rectangle(x + Width - _thickness, top, _thickness, Height), Foreground);
     }
 
     public override int GetLastFontId() => TexFontUtilities.NoFontId;

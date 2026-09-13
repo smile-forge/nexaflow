@@ -1,5 +1,6 @@
 using System;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -46,7 +47,7 @@ internal sealed class ArrowBox : Box
         this.Background = environment.Background;
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         // The shaft runs along the vertical middle of the box; y is the box baseline (its lower edge).
         var shaftY = y - this.Height / 2;
@@ -56,35 +57,35 @@ internal sealed class ArrowBox : Box
         if (_decoration.HasFlag(ArrowDecoration.DoubleShaft))
         {
             var offset = _thickness;
-            renderer.RenderLine(new Point(left, shaftY - offset), new Point(right, shaftY - offset), this.Foreground);
-            renderer.RenderLine(new Point(left, shaftY + offset), new Point(right, shaftY + offset), this.Foreground);
+            layer.Line(new Point(left, shaftY - offset), new Point(right, shaftY - offset), this.Foreground);
+            layer.Line(new Point(left, shaftY + offset), new Point(right, shaftY + offset), this.Foreground);
         }
         else
         {
-            renderer.RenderLine(new Point(left, shaftY), new Point(right, shaftY), this.Foreground);
+            layer.Line(new Point(left, shaftY), new Point(right, shaftY), this.Foreground);
         }
 
         // Arrowheads: two short strokes converging on the pointing end.
         var headLength = Math.Min(_headLength, this.Width);
         if (_decoration.HasFlag(ArrowDecoration.HeadRight))
         {
-            renderer.RenderLine(
+            layer.Line(
                 new Point(right, shaftY), new Point(right - headLength, shaftY - _headHalfHeight), this.Foreground);
-            renderer.RenderLine(
+            layer.Line(
                 new Point(right, shaftY), new Point(right - headLength, shaftY + _headHalfHeight), this.Foreground);
         }
 
         if (_decoration.HasFlag(ArrowDecoration.HeadLeft))
         {
-            renderer.RenderLine(
+            layer.Line(
                 new Point(left, shaftY), new Point(left + headLength, shaftY - _headHalfHeight), this.Foreground);
-            renderer.RenderLine(
+            layer.Line(
                 new Point(left, shaftY), new Point(left + headLength, shaftY + _headHalfHeight), this.Foreground);
         }
 
         if (_decoration.HasFlag(ArrowDecoration.TailBarLeft))
         {
-            renderer.RenderLine(
+            layer.Line(
                 new Point(left, shaftY - _headHalfHeight),
                 new Point(left, shaftY + _headHalfHeight),
                 this.Foreground);

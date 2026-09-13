@@ -27,12 +27,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// Walks a typeset formula and builds it into a <see cref="LayoutTree"/>: what was drawn, where, and
 /// which slice of the LaTeX produced it.
 /// <para>
-/// This needs no cooperation from WpfMath beyond what is already public.
-/// <see cref="IElementRenderer.RenderElement"/> is called for every box of the formula, parents before
-/// children, and each <see cref="Box"/> carries the part of the parse tree it was built from.
-/// Rendering with a renderer that draws nothing and only remembers therefore yields the whole
-/// structure — the recursion in <see cref="RenderElement"/> <em>is</em> the tree, so parentage is kept
-/// rather than inferred afterwards from rectangles.
+/// Each box lays itself here: <see cref="Place"/> is called for every box of the formula, parents before
+/// children, and each <see cref="Box"/> carries the part of the parse tree it was built from. The
+/// recursion in <see cref="Place"/> <em>is</em> the tree, so parentage is kept rather than inferred
+/// afterwards from rectangles. It used to arrive as a renderer that drew nothing and only remembered —
+/// an interface with two real drawing implementations beside it that nothing called.
 /// </para>
 /// <para>
 /// Every box becomes a piece, spacing included. Dropping the ones that are not interesting would break
@@ -52,7 +51,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// scaled here so the tree is in the same pixels the element is painted in.
 /// </para>
 /// </summary>
-internal sealed class LatexCapture : IElementRenderer
+internal sealed class LatexCapture
 {
     private readonly LayoutBuilder _build = new();
     private readonly double _scale;
@@ -76,7 +75,7 @@ internal sealed class LatexCapture : IElementRenderer
     private readonly List<Nexaflow.Markdown.Ast.ContentPart> _above = [];
 
     /// <summary>Whether anything inside the piece being built stands for a part of its own.</summary>
-    // OverUnderBox (\overrightarrow and friends) draws through RenderTransformed, so a box can be shifted
+    // OverUnderBox (\overrightarrow and friends) places through PlaceTransformed, so a box can be shifted
     // away from the coordinates it is handed. Translations are accumulated into where the piece sits; a
     // rotation is deliberately not, because an axis-aligned bounding box is what a hit test wants either
     // way — so it stays on the piece as a turn instead.
@@ -110,7 +109,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// </summary>
     public double Baseline { get; private set; }
 
-    public void RenderElement(Box box, double x, double y)
+    internal void Place(Box box, double x, double y)
     {
         var turns = _pending;
         _pending = [];
@@ -190,7 +189,7 @@ internal sealed class LatexCapture : IElementRenderer
         _open.Push((origin, raw));
 
 
-        box.RenderTo(this, x, y);   // the recursion - children report themselves through RenderElement
+        box.Lay(this, x, y);   // the recursion - children place themselves through Place
 
 
 
@@ -296,7 +295,7 @@ internal sealed class LatexCapture : IElementRenderer
         return first.Start <= whole.Start && last.Start + last.Length >= whole.Start + whole.Length;
     }
 
-    public void RenderTransformed(Box box, IEnumerable<Transformation> transforms, double x, double y)
+    internal void PlaceTransformed(Box box, IEnumerable<Transformation> transforms, double x, double y)
     {
         var scaled = transforms.Select(t => t.Scale(_scale)).ToList();
 
@@ -315,12 +314,12 @@ internal sealed class LatexCapture : IElementRenderer
 
         _offsetX += dx;
         _offsetY += dy;
-        RenderElement(box, x, y);
+        Place(box, x, y);
         _offsetX -= dx;
         _offsetY -= dy;
     }
 
-    public void RenderCharacter(CharInfo info, double x, double y, IBrush? foreground)
+    internal void Glyph(CharInfo info, double x, double y, IBrush? foreground)
     {
         var raw = _open.Peek().Raw;
 
@@ -331,11 +330,11 @@ internal sealed class LatexCapture : IElementRenderer
             (foreground as WpfBrush)?.Value));
     }
 
-    public void RenderLine(XamlMath.Rendering.Point point0, XamlMath.Rendering.Point point1, IBrush? foreground) =>
+    internal void Line(XamlMath.Rendering.Point point0, XamlMath.Rendering.Point point1, IBrush? foreground) =>
         _build.Draw(new LineMark(Local(point0.X, point0.Y), Local(point1.X, point1.Y),
                                  (foreground as WpfBrush)?.Value));
 
-    public void RenderRectangle(Rectangle rectangle, IBrush? foreground)
+    internal void Rule(Rectangle rectangle, IBrush? foreground)
     {
         var at = Local(rectangle.X, rectangle.Y);
         _build.Draw(new RuleMark(
@@ -385,6 +384,18 @@ internal sealed class LatexCapture : IElementRenderer
     }
 
     /// <summary>
+    /// Lays a whole formula: builds its box in <paramref name="environment"/> and places it with its top at
+    /// the origin, then seals the tree. The one way in, for the builder and for the tests that look at what
+    /// a formula laid out as.
+    /// </summary>
+    internal void Lay(TexFormula formula, XamlMath.TexEnvironment environment)
+    {
+        var box = formula.CreateBox(environment);
+        Place(box, 0, box.Height);
+        FinishRendering();
+    }
+
+    /// <summary>
     /// Seals the tree and settles it onto the origin, so nothing sits at a negative coordinate — which is
     /// one number now rather than a rewrite of every rectangle. A box laid out above or left of where the
     /// pen started would otherwise put the caret outside the control that draws it.
@@ -396,7 +407,7 @@ internal sealed class LatexCapture : IElementRenderer
     /// what a piece turned out to be rather than about the order the boxes arrived in.
     /// </para>
     /// </summary>
-    public void FinishRendering()
+    private void FinishRendering()
     {
         if (!_built) return;
 

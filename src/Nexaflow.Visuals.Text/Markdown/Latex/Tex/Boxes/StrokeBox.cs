@@ -1,5 +1,6 @@
 using System;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -12,13 +13,13 @@ internal sealed class StrokeBox : Box
         _mode = mode;
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         if (_mode.HasFlag(StrokeBoxMode.Normal))
-            renderer.RenderLine(new Point(x, y + Depth), new Point(x + Width, y - Height), Foreground);
+            layer.Line(new Point(x, y + Depth), new Point(x + Width, y - Height), Foreground);
 
         if (_mode.HasFlag(StrokeBoxMode.Back))
-            renderer.RenderLine(new Point(x, y - Height), new Point(x + Width, y + Depth), Foreground);
+            layer.Line(new Point(x, y - Height), new Point(x + Width, y + Depth), Foreground);
     }
 
     public override int GetLastFontId()

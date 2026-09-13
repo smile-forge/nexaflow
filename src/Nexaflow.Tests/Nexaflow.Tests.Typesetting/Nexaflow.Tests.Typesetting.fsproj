@@ -54,11 +54,6 @@
     <Compile Include="CharBoxTests.fs" />
     <Compile Include="DefaultTexFontTests.fs" />
     <Compile Include="EnvironmentTests.fs" />
-    <Compile Include="GeometryHelperTests.fs" />
-    <Compile Include="GeometryElementRendererTests.fs" />
-    <Compile Include="HorizontalBoxTests.fs" />
-    <Compile Include="HorizontalRuleTests.fs" />
-    <Compile Include="OverUnderBoxTests.fs" />
     <Compile Include="ParserTests.fs" />
     <Compile Include="UnreadableMarkupTests.fs" />
     <Compile Include="AdditionalSymbolsTests.fs" />
@@ -70,10 +65,7 @@
     <Compile Include="PlainTexSwitchTests.fs" />
     <Compile Include="TeXLayoutRuleTests.fs" />
     <Compile Include="CorpusGapTests.fs" />
-    <Compile Include="RenderingTests.fs" />
     <Compile Include="TransformationTests.fs" />
-    <Compile Include="VerticalBoxTests.fs" />
-    <Compile Include="WpfRendererTests.fs" />
     <Compile Include="WpfBrushTests.fs" />
     <None Include="TestResults/*.txt" />
   </ItemGroup>

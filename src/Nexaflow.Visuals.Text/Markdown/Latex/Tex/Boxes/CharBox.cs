@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -18,9 +19,9 @@ internal sealed class CharBox : Box
 
     public CharInfo Character { get; }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
-        renderer.RenderCharacter(Character, x, y, this.Foreground);
+        layer.Glyph(Character, x, y, this.Foreground);
     }
 
     public override int GetLastFontId()

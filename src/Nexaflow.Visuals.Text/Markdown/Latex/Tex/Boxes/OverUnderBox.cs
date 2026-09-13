@@ -1,5 +1,6 @@
 using XamlMath.Rendering;
 using XamlMath.Rendering.Transformations;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -76,11 +77,11 @@ internal sealed class OverUnderBox : Box
         }
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         var renderChoices = CreateRenderChoices(x, y);
 
-        renderer.RenderElement(this.BaseBox, x, y);
+        layer.Place(this.BaseBox, x, y);
 
         RenderDelimiter(renderChoices.TranslationX, renderChoices.TranslationY);
         RenderScriptBox(renderChoices.YPosition);
@@ -93,7 +94,7 @@ internal sealed class OverUnderBox : Box
                 new Transformation.Rotate(90)
             };
 
-            renderer.RenderTransformed(
+            layer.PlaceTransformed(
                 this.DelimiterBox,
                 transformations,
                 -this.DelimiterBox.Width / 2,
@@ -104,7 +105,7 @@ internal sealed class OverUnderBox : Box
         {
             if (this.ScriptBox != null)
             {
-                renderer.RenderElement(this.ScriptBox, x, yPosition);
+                layer.Place(this.ScriptBox, x, yPosition);
             }
         }
     }

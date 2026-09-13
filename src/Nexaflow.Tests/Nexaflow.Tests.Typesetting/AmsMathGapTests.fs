@@ -25,11 +25,15 @@ type AmsMathGapTests() =
 
     /// Where the topmost ink of a formula lands - the only thing separating two shapes
     /// that share a width.
+    /// Laid into the builder's layout tree, which is settled onto the ink: the formula's box is placed
+    /// with its top at the origin, so how far the settle moved it down is how far above that top the
+    /// ink reaches — and the baseline is a box height below the top.
     static let inkTop (markup: string) =
-        let geometry = System.Windows.Media.GeometryGroup()
-        let renderer = GeometryElementRenderer(geometry, 1.0) :> IElementRenderer
-        renderer.RenderElement((parse markup).RootAtom.CreateBox(environment), 0.0, 0.0)
-        geometry.Bounds.Top
+        let box = (parse markup).RootAtom.CreateBox(environment)
+        let reading = Nexaflow.Markdown.Ast.ContentReading.Of(Nexaflow.Markdown.Latex.TexParser.Parse markup)
+        let capture = Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(1.0, reading)
+        capture.Lay(parse markup, environment)
+        -capture.Tree.AnchorOf(0).Y - box.Height
 
     // ── italic capital Greek ─────────────────────────────────────────────────────
 

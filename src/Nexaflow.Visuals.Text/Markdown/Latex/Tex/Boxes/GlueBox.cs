@@ -1,4 +1,5 @@
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -16,7 +17,7 @@ internal sealed class GlueBox : Box
 
     public double Shrink { get; }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
     }
 

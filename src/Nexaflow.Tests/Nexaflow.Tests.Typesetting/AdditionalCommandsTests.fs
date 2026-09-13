@@ -23,12 +23,18 @@ type AdditionalCommandsTests() =
 
     static let environment = WpfTeXEnvironment.Create()
 
+    /// The box, and where its ink runs from and to measured from the box's own left edge, with how many
+    /// marks it drew. Laid into the layout tree the builder uses, which is settled onto the ink: the
+    /// outermost piece therefore sits exactly as far right of the origin as the ink reaches left of it.
     static let renderBounds (markup: string) =
         let box = (parseRoot markup).CreateBox(environment)
-        let geometry = System.Windows.Media.GeometryGroup()
-        let renderer = GeometryElementRenderer(geometry, 1.0) :> IElementRenderer
-        renderer.RenderElement(box, 0.0, 0.0)
-        box, geometry
+        let reading = Nexaflow.Markdown.Ast.ContentReading.Of(Nexaflow.Markdown.Latex.TexParser.Parse markup)
+        let capture = Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(1.0, reading)
+        capture.Lay(parse markup, environment)
+        let tree = capture.Tree
+        let left = -tree.AnchorOf(0).X
+        let marks = Seq.sum (seq { for i in 0 .. tree.Count - 1 -> tree.MarksOf(i).Length })
+        box, (left, left + capture.Size.Width, marks)
 
     [<Theory>]
     [<InlineData(@"\displaystyle x")>]
@@ -130,8 +136,8 @@ type AdditionalCommandsTests() =
     [<Fact>]
     member _.``a brace with no label renders``() =
         // The delimiter can stand alone, and the script box it does not have must not be reached for.
-        let _, geometry = renderBounds @"\overbrace{a+b}"
-        Assert.NotEmpty(geometry.Children)
+        let _, (_, _, marks) = renderBounds @"\overbrace{a+b}"
+        Assert.True(marks > 0)
 
     [<Theory>]
     [<InlineData(@"\overbrace{a+b+c}^{\text{three terms}}")>]
@@ -141,14 +147,14 @@ type AdditionalCommandsTests() =
         // A label wider than the base widens the whole atom, and the brace is centred in it. The
         // delimiter is padded to reach that width — with the leftover, not with the width itself,
         // which would push the brace half a width to the right and out of its own box.
-        let box, geometry = renderBounds markup
+        let box, (inkLeft, inkRight, _) = renderBounds markup
         // A brace overhangs its span a little by design, so the bound is loose; the bug it guards
         // against slid the brace by half a width, which is nowhere near this.
         let tolerance = box.Width * 0.25
-        Assert.True(geometry.Bounds.Left > -tolerance,
-                    $"ink starts at {geometry.Bounds.Left}, left of the box (width {box.Width})")
-        Assert.True(geometry.Bounds.Right < box.Width + tolerance,
-                    $"ink reaches {geometry.Bounds.Right}, past the box width {box.Width}")
+        Assert.True(inkLeft > -tolerance,
+                    $"ink starts at {inkLeft}, left of the box (width {box.Width})")
+        Assert.True(inkRight < box.Width + tolerance,
+                    $"ink reaches {inkRight}, past the box width {box.Width}")
 
     [<Theory>]
     [<InlineData(@"\substack{a \\ b}")>]

@@ -1,5 +1,6 @@
 using System;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -58,12 +59,12 @@ internal sealed class HorizontalBox : Box
         Italic = Math.Max(Italic, box.Italic);
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         var curX = x;
         foreach (var box in this.Children)
         {
-            renderer.RenderElement(box, curX, y + box.Shift);
+            layer.Place(box, curX, y + box.Shift);
             curX += box.Width;
         }
     }

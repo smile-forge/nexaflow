@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -27,16 +28,16 @@ internal sealed class GridRulesBox : Box
         this.Background = environment.Background;
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         var top = y - this.Height;
         var total = this.Height + this.Depth;
 
         foreach (var offset in _verticalAt)
-            renderer.RenderRectangle(new Rectangle(x + offset, top, _thickness, total), this.Foreground);
+            layer.Rule(new Rectangle(x + offset, top, _thickness, total), this.Foreground);
 
         foreach (var offset in _horizontalAt)
-            renderer.RenderRectangle(new Rectangle(x, top + offset, this.Width, _thickness), this.Foreground);
+            layer.Rule(new Rectangle(x, top + offset, this.Width, _thickness), this.Foreground);
     }
 
     public override int GetLastFontId()

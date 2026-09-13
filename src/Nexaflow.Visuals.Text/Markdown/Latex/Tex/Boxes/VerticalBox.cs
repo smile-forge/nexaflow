@@ -1,5 +1,6 @@
 using System;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -77,13 +78,13 @@ internal class VerticalBox : Box
         this.Width = this.rightMostPos - this.leftMostPos;
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         var curY = y - this.Height;
         foreach (var child in this.Children)
         {
             curY += child.Height;
-            renderer.RenderElement(child, x + child.Shift - this.leftMostPos, curY);
+            layer.Place(child, x + child.Shift - this.leftMostPos, curY);
             curY += child.Depth;
         }
     }

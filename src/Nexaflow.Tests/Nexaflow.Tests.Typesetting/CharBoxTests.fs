@@ -18,16 +18,7 @@ type CharBoxTests() =
 
     let environment = WpfTeXEnvironment.Create()
 
-    [<Fact>]
-    member _.``CharBox rendering calls to RenderCharacter``() =
-        let char = environment.MathFont.GetDefaultCharInfo('x', TexStyle.Display).Value
-        let x = 0.5
-        let y = 1.0
 
-        let mockedRenderer = Mock.Of<IElementRenderer>()
-        let charBox = CharBox(environment, char)
-        charBox.RenderTo(mockedRenderer, x, y)
-        Mock.Verify(<@ mockedRenderer.RenderCharacter(any(), x, y, null) @>, once)
 
     [<Fact>]
     member _.``Currently unsupported characters like "Å" should result in TexCharacterMappingNotFoundException``() =

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -79,7 +80,7 @@ public abstract class Box
     /// </summary>
     public double Shift { get; set; }
 
-    public abstract void RenderTo(IElementRenderer renderer, double x, double y);
+    internal abstract void Lay(LatexCapture layer, double x, double y);
 
     public virtual void Add(Box box)
     {

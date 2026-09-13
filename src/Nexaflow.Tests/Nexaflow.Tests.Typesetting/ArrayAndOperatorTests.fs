@@ -26,16 +26,25 @@ type ArrayAndOperatorTests() =
     static let widthOf (markup: string) = (parse markup).RootAtom.CreateBox(environment).Width
 
     /// The x offset of every rule an array draws: the rules are the only rectangles in one.
+    static let laid (markup: string) =
+        let reading = Nexaflow.Markdown.Ast.ContentReading.Of(Nexaflow.Markdown.Latex.TexParser.Parse markup)
+        let capture = Nexaflow.Visuals.Text.Markdown.Latex.LatexCapture(1.0, reading)
+        capture.Lay(parse markup, environment)
+        capture.Tree
+
+    /// Every mark the formula draws, each with the x it lands at measured from its box's left edge.
+    static let marks (markup: string) =
+        let tree = laid markup
+        let box = tree.AnchorOf(0).X
+        [ for i in 0 .. tree.Count - 1 do
+            for mark in tree.MarksOf(i).ToArray() -> mark, tree.AnchorOf(i).X - box ]
+
     static let ruleOffsets (markup: string) =
-        let geometry = System.Windows.Media.GeometryGroup()
-        let renderer = GeometryElementRenderer(geometry, 1.0) :> IElementRenderer
-        renderer.RenderElement((parse markup).RootAtom.CreateBox(environment), 0.0, 0.0)
-        geometry.Children
-        |> Seq.choose (fun g ->
-            match g with
-            | :? System.Windows.Media.RectangleGeometry as r -> Some r.Rect.Left
+        marks markup
+        |> List.choose (fun (mark, x) ->
+            match mark with
+            | :? Nexaflow.Visuals.Text.Editing.RuleMark as r -> Some (x + r.Bounds.Left)
             | _ -> None)
-        |> List.ofSeq
 
     // ── array ────────────────────────────────────────────────────────────────────
 
@@ -78,11 +87,7 @@ type ArrayAndOperatorTests() =
 
     [<Fact>]
     member _.``a rule in the preamble is drawn``() =
-        let inkCount (markup: string) =
-            let geometry = System.Windows.Media.GeometryGroup()
-            let renderer = GeometryElementRenderer(geometry, 1.0) :> IElementRenderer
-            renderer.RenderElement((parse markup).RootAtom.CreateBox(environment), 0.0, 0.0)
-            geometry.Children.Count
+        let inkCount (markup: string) = (marks markup).Length
 
         let plain = inkCount @"\begin{array}{cc} a & b \end{array}"
         let ruled = inkCount @"\begin{array}{c|c} a & b \end{array}"

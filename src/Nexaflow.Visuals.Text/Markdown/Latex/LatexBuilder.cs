@@ -137,14 +137,11 @@ public sealed class LatexBuilder : ContentBuilder
             systemTextFontName: _systemFont);
 
         var capture = new LatexCapture(_scale, reading);
-        formula.RenderTo(capture, environment, 0, 0);
-
-        // …which also settles the tree onto the origin. A shifted or transformed box can land above or
-        // left of where the pen started, and a tree with negative coordinates would put the caret outside
-        // the control that draws it — one number now, because everything in it is relative to the root.
-        capture.FinishRendering();
+        // Laying it also settles the tree onto the origin. A shifted or transformed box can land above or left
+        // of where the pen started, and a tree with negative coordinates would put the caret outside the
+        // control that draws it — one number now, because everything in it is relative to the root.
+        capture.Lay(formula, environment);
         if (capture.Tree is not { } laid) return null;
-
 
 
         // Asked of the tree rather than collected on the way through it. A piece that could not be
@@ -189,8 +186,7 @@ public sealed class LatexBuilder : ContentBuilder
                                                  XamlMath.TexEnvironment environment, ContentReading reading)
     {
         var capture = new LatexCapture(_scale, reading);
-        number.RenderTo(capture, environment, 0, 0);
-        capture.FinishRendering();
+        capture.Lay(number, environment);
         if (capture.Tree is not { } tag) return (formula, laid.Size);
 
         var build = new LayoutBuilder();

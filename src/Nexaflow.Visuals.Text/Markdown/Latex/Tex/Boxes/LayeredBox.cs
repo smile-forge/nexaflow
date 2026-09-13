@@ -1,5 +1,6 @@
 using System;
 using XamlMath.Rendering;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace XamlMath.Boxes;
 
@@ -25,11 +26,11 @@ internal sealed class LayeredBox : Box
         }
     }
 
-    public override void RenderTo(IElementRenderer renderer, double x, double y)
+    internal override void Lay(LatexCapture layer, double x, double y)
     {
         foreach (var box in Children)
         {
-            renderer.RenderElement(box, x, y + box.Shift);
+            layer.Place(box, x, y + box.Shift);
         }
     }
 
