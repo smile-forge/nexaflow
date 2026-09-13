@@ -1,0 +1,229 @@
+{
+  "branch": "claude/nfi-agent-issues-06f0d9",
+  "nodes": {
+    "syntax-xml-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/StructuralEdit.Xml.cs",
+          "class": "StructuralEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/XmlPath.cs",
+          "class": "XmlPath"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/XmlAnchors.cs"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/XmlStructuralEditTests.cs",
+            "class": "XmlStructuralEditTests"
+          }
+        ]
+      }
+    },
+    "graph-ask": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphAsk.cs",
+          "class": "GraphAsk"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/AnswerHistory.cs",
+          "class": "AnswerHistory"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphAskTests.cs",
+            "class": "GraphAskTests"
+          }
+        ]
+      }
+    },
+    "graph-edit-plan": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/EditPlan.cs",
+          "class": "EditPlan"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/EditScript.cs",
+          "class": "EditScript"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/EditPlanTests.cs",
+            "class": "EditPlanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Cli/EditScriptTests.cs",
+            "class": "EditScriptTests"
+          }
+        ]
+      }
+    },
+    "graph-edit-move": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/StructuralEdit.Move.cs",
+          "class": "StructuralEdit",
+          "method": "Take"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphEdit.cs",
+          "class": "GraphEdit",
+          "method": "Move"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/EditPlanTests.cs",
+            "class": "EditPlanTests",
+            "method": "MovingATypeToANewFile_CarriesItsImportsAndNamespace"
+          }
+        ]
+      }
+    },
+    "graph-edit-impact": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/EditCheck.cs",
+          "class": "EditCheck"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/GraphMentions.cs",
+          "class": "GraphMentions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/StructuralEdit.Contracts.cs",
+          "class": "StructuralEdit",
+          "method": "ChangedDeclarations"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/GraphMentionsTests.cs",
+            "class": "GraphMentionsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Syntax/ChangedDeclarationsTests.cs",
+            "class": "ChangedDeclarationsTests"
+          }
+        ]
+      }
+    },
+    "syntax-compile-check": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax.Compiler/CompileHost.cs",
+          "class": "CompileHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax.Compiler/DesignTimeBuild.cs",
+          "class": "DesignTimeBuild"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Components/Compiler/CompileHostTests.cs",
+            "class": "CompileHostTests"
+          }
+        ]
+      }
+    },
+    "nfi-test": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Graph/TestSelection.cs",
+          "class": "TestSelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/TestRunner.cs",
+          "class": "TestRunner"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Graph/TestSelectionTests.cs",
+            "class": "TestSelectionTests"
+          }
+        ]
+      }
+    },
+    "initiatives-daemon": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives/Hosting/InitiativesHost.cs",
+          "class": "InitiativesHost"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Services.Initiatives.Cli/Daemon/Succession.cs",
+          "class": "Succession"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/InitiativesHostsTests.cs",
+            "class": "InitiativesHostsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Initiatives/Hosting/SuccessionTests.cs",
+            "class": "SuccessionTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 16,
+  "touched_nodes": [
+    "graph-ask",
+    "graph-edit-impact",
+    "graph-edit-move",
+    "graph-edit-plan",
+    "initiatives-daemon",
+    "nfi-test",
+    "syntax-compile-check",
+    "syntax-xml-edit"
+  ]
+}

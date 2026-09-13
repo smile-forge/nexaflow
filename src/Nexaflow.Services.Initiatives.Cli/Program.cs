@@ -231,6 +231,8 @@ internal static class Program
               nfi lint       [<root>] [--under <id>] [--json]
               nfi doctor     [<root>] [--fix]
               nfi ask        '<stage> | <stage> ...' [<root>]   several graph questions, one answer
+              nfi test       <node-id> [<root>] [--list] [--no-build]   build and run the tests that exercise a node
+              nfi test       --failed [--no-build]                      run again exactly what failed last time
               nfi graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
 
             validate   Checks every snaplink still points at a real target (file exists, md heading resolves,
@@ -327,6 +329,12 @@ internal static class Program
                          ask 'search GraphGrep | source'      find it and read it, without the second call
                          ask 'grep "\.StartsWith" | files'    does anything still do this, and where
                          ask 'node <id> | callers | source'   who uses it, and what their code looks like
+                         ask '@3 | like Tests | files'        continue answer @3 - every answer ends with its handle; @ is the last
+            test       Builds and runs the tests that exercise a node: the tests that use it, the tests of what uses it
+                       (three steps out, by the compiler's binding), and the tests declaring coverage of its feature.
+                       --list shows the choice and why, without building. The choosing is the resident process's; the build
+                       and run happen here, so a long run holds no lock and Ctrl+C stops it. UI journey suites are named with
+                       the filter to run them and never run for you - they take over the machine. exit: 1 if any failed.
             graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.bin,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
@@ -712,11 +720,12 @@ internal static class Program
               graph code   <id> [<root>] [--lines A-B]                          code:<file>#<ast> → its block; file:<relpath> → the file
               graph edit <op> <id> [<root>] [--text T | --text-escaped T | --file F | --stdin] [--to NAME | --to ID]
                          [--find S | --find-file F …] [--at XPATH] [--name ATTR] [--expect S] [--with-trivia]
-                         [--dry-run] [--show] [--quiet]                          structural edit, verified against the parse
+                         [--dry-run] [--show] [--quiet] [--no-check] [--must-compile]    structural edit, verified against the parse
               graph edit script [<root>] (--file F | --stdin) [--dry-run]       several edits, planned together, written together
 
             edit ops: replace | delete | signature | body | rename --to <name> | insert-before | insert-after
                       | append (into a type's body) | doc | import (where the file keeps them) | create <relpath>
+                      | rename --to <name> --references (every use the compiler binds, overrides and implementations too)
                       | move --to code:<file>#<type> | --to file:<path> (brings the imports it needs; a new file gets the
                       namespace too, and a C# file left empty is removed)
                       | substitute --find S (a find/replace that CANNOT leave the declaration — literal unless --regex,
@@ -724,6 +733,10 @@ internal static class Program
             script:   a command per line, written as it would follow `graph edit`, with its text in a block beneath:
                       `<<< find` or `<<< text`, closed by `>>>` (or `<<< text END` … `END`). Each command sees what the
                       ones before it did, and nothing is written unless every one of them plans cleanly.
+            check:    a C# edit is compiled in memory before it is written, from the project's own build command line and
+                      warm in the resident process. `compile:` lists the errors it introduces and fixes, in its project and in
+                      the projects that compile against it; `impact:` names what uses a declaration whose outside changed.
+                      --must-compile refuses a write that introduces errors; --no-check skips both.
             editing: the graph names the declaration; the parse of the file IN HAND says where it is. The edit
                   is refused unless the AST path still resolves AND the parser agrees the declaration there is
                   still the one the graph labelled — so a stale graph cannot overwrite whatever now occupies
@@ -3142,7 +3155,7 @@ internal static class Program
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
           + "[--to NAME] [--find S | --find-escaped S | --find-file F | --find-stdin] [--regex] [--all] "
           + "[--at XPATH] [--name ATTR] [--expect S] [--with-trivia] "
-          + "[--dry-run] [--main] [--show] [--quiet]");
+          + "[--dry-run] [--main] [--show] [--quiet] [--no-check] [--must-compile] [--references]");
 
         public static readonly VerbSpec GraphEditScript = new("graph edit script", 0, ["--file"],
             ["--stdin", "--dry-run", "--main", "--no-refresh", "--quiet", "--no-check", "--must-compile"],

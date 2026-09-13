@@ -57,291 +57,154 @@ inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` /
 **product tree**. **To locate a feature's code/tests/docs, query the tree first** (it beats grepping — every
 node carries snaplinks to its source):
 
-**`nfi` keeps a resident process, and there is nothing for you to do about it.** The first call for a
-checkout starts one, holds that tree's graph in memory, and every later call answers from it — a query
-drops from ~1.1s to ~0.2s, an edit from ~2.2s to ~0.4s. It shuts itself down after twenty minutes idle,
-serves each working tree independently (two agents on different worktrees do not queue; two on the same
-one do, which is the consistency), and keys itself to the binary's build time so a rebuilt `nfi` can
-never reach a daemon running older code. **There is no verb to start, stop or inspect it, and you should
-not look for one** — it cannot be launched by hand on purpose. Call `nfi` exactly as you would have
-before; if it ever cannot start its process it says so and fails rather than quietly running slow.
-A call you kill (a timeout, Ctrl+C) takes its command with it: queued, it never starts; running, it stops at
-its next file, so the tree is free for the next call. One that keeps running a minute after its caller left
-is stuck, and the process restarts itself past it — the next call just starts a fresh one.
-
-**`nfi.exe` self-locates the `.product` tree — it follows a git worktree to its main checkout (where
-the gitignored tree lives) — so run it from any checkout or worktree with NO root arg.** Build it once, then call the
-exe directly (fast; no per-call rebuild). In the main checkout a prebuilt copy also sits at `tools/graph-cli/`
-(`tools/publish-graph-cli.ps1` refreshes it — **run it from the main checkout**; `graph-cli/` is gitignored,
-so from a worktree it would publish into that worktree and leave the shared exe untouched, which is why the
-script refuses rather than let that read as success). `$nfi` below is that exe. (The installer also ships it as an
-opt-in **Command-line tools** feature — `[InstallFolder]\tools` added to the system PATH — so on an installed
-box `nfi` is just on PATH. Off by default; `nexaflowBundle.exe /quiet InstallTools=1` for unattended.)
-
 ```powershell
-dotnet build src/Nexaflow.Services.Initiatives.Cli    # once
-$nfi = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe"   # or tools/graph-cli/nfi.exe
 & $nfi find <term>                # nodes matching id/title/description
 & $nfi describe <node-id>         # path, concerns, code/test/doc snaplinks
 & $nfi describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
-& $nfi tree [<node-id>] [--full]  # the WHOLE subtree as an outline — "show me this entire feature" (no id = every root; --full = +snaplinks/about)
+& $nfi tree [<node-id>] [--full]  # the WHOLE subtree as an outline — "show me this entire feature"
 & $nfi lint --under <node-id>     # does this feature follow the modelling rules? (advisory; see docs/feature-tree-and-tests.md)
-& $nfi diff                       # what changed in the tree since the last release snapshot (nodes added/removed, status, concerns)
+& $nfi diff                       # what changed in the tree since the last release snapshot
 ```
 
-**Code discovery is graph-first, always — there is no case in this repo where discovery starts with
-Read/Grep/Glob.** Query the graph FIRST; then Read only the specific block it names. Same before spawning an
-Explore/Plan agent — and require any sub-agent you do spawn to use it too. The `graph` command builds
-`.product/graph.bin` — the product tree ⊕ whole-repo AST ⊕ their snaplinks — and queries it headlessly. It's more
-token-efficient than reading files and surfaces relationships grep can't (who calls/instantiates a type, a project's
-`depends_on`, a view's `view_of` code-behind, the file a member `mentions`, the product feature that owns a code
-node). Regenerate with `graph build` (incremental) after code changes, then explore (`graph help` lists the full set):
+**`nfi` is how this repository is read and changed.** Find with the graph, change with `graph edit`, prove with
+`nfi test`: each answer carries what the next step needs — the ids an edit takes, the errors an edit introduced and
+what uses what it changed, the tests that cover it. The Hard Rules make it mandatory; this section is what it does.
+
+### Setup
+
+`nfi.exe` self-locates the `.product` tree from wherever it is run — a worktree follows its pointer back to the
+main checkout — so it takes **no root argument**. A prebuilt copy sits at `tools/graph-cli/` in the main checkout
+(`tools/publish-graph-cli.ps1` refreshes it — run that from the main checkout, it refuses anywhere else); the
+installer ships it on PATH as the opt-in **Command-line tools** feature. `$nfi` below is that exe.
 
 ```powershell
-& $nfi graph search <term>     # find nodes (product/type/member/file) by id/label
-& $nfi graph node <id>         # a node + ALL its edges (both directions) + hyperedges
-& $nfi graph context <id>      # ONE-SHOT: node + its source + neighbours + owning feature
-& $nfi graph walk <id> --hops 2                                # its N-hop neighbourhood
-& $nfi graph grep <regex> --from <id> --hops 2 --mode content        # grep source NEAR a code node
-& $nfi graph grep <regex> --from product:<slug> --scope owned --mode content   # grep a whole FEATURE
-& $nfi graph grep <regex> --mode content                             # grep EVERY code node (~3s, 64k nodes)
-& $nfi graph code <code-id>    # a code node's source block; `graph cat file:<path>` = whole file, --lines A-B = a slice
-& $nfi graph build             # regenerate .product/graph.bin after code changes (incremental)
+dotnet build src/Nexaflow.Services.Initiatives.Cli    # once, for a build of your own
+$nfi = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe"   # or tools/graph-cli/nfi.exe
 ```
 
-**One call, one answer — `nfi ask '<stage> | <stage>'`.** Every verb above answers exactly one thing, so the
-questions actually worth asking cost three or four calls, each re-printing its headers — and *that* is what
-makes a graph query lose to a blanket grep, not the graph's answers. `ask` chains them: stages separated by
-`|`, the set of nodes flowing left to right, and **only the last stage prints**.
+**There is nothing to manage.** The first call for a tree starts a resident process that holds the graph, and later
+calls answer from it (~0.2s a query); it stops after twenty minutes idle, serves each working tree independently, and
+is keyed to the binary's build — a rebuilt `nfi` starts its own and asks the older one to finish and stop. A call you
+kill takes its command with it, and one stuck past its caller restarts the process. `nfi daemon` says what it is
+doing; nothing else needs it.
 
-```powershell
-& $nfi ask 'search GraphGrep | source'           # find it AND read it — the two-call pattern, in one call
-& $nfi ask 'grep "\.StartsWith" | files'         # does anything still do this, and WHERE (no hit list)
-& $nfi ask 'grep SupportsMultipleFiles | count'  # just the number — the cheapest possible sweep
-& $nfi ask 'node <id> | callers | source'        # who uses it, and what their code actually looks like
-& $nfi ask 'node file:src/Foo.cs | source'       # what a file holds: its outline, not its text
-& $nfi ask 'search Reader | grep Dispose | ids'  # a grep scoped to whatever the stage before it found
-& $nfi ask 'node product:<slug> | owned | grep X | files'   # grep a whole FEATURE (= graph grep --scope owned)
-& $nfi ask 'grep X --from product:<slug> --scope owned | count'   # the same, with graph grep's own flags
-& $nfi ask 'search NXUI001 | files'              # nothing is NAMED that? then it is searched for in source
-```
+**In Git Bash, `export MSYS2_ARG_CONV_EXCL='*'` first.** MSYS rewrites anything that looks like a POSIX path — a
+`// comment` passed as `--text` arrives as `/ comment` — and nfi warns when it sees the shell without it. With it set,
+nfi converts `/c/…` paths in `--file` and friends itself; `/tmp/…` has no Windows answer and is refused with the
+`cygpath -w` to use. Payloads through `--file`, `--stdin` or a script never touch a shell at all.
 
-**start** with `search <term>` / `grep <regex> [--from <id>] [--scope owned|hops] [--hops <n>]` / `node <id>[,<id>…]`
-· **narrow** with `callers` / `callees` / `members` / `owned` / `near <n>` / `grep <regex>` / `like <regex>` /
-`limit <n>` · **print** with `ids [n]` / `source [n]` / `files` / `count` — `ids` when the question says nothing.
-**One question per line**, so several unrelated ones are still one call. A regex holding a `|` has to be quoted
-or it reads as a stage break; the refusal says so, and every refusal prints the whole vocabulary, which is
-shorter than an explanation of which half was wrong. Stage words are strict: any other `--flag` inside a stage is
-refused with the stage that does its job (quote it if it really is part of a pattern), a `node` with an id the
-graph lacks is refused rather than dropped, and a zero answer names the stage that left nothing.
+### Find
 
-`grep` covers the whole graph with nothing before it and only the previous stage's nodes after one. `owned` turns
-what it is given into every node in the files it owns (a feature's snaplinks, followed to whole files) and
-`near <n>` into its N-hop neighbourhood; `grep`'s flags are those stages spelled the way `graph grep` spells them,
-so the two cannot disagree. Grepping a feature node directly is refused and points at `| owned |` — a feature has
-no source of its own. **`search` falls back to source**: when nothing is *named* the term (a diagnostic id, a
-message, a setting key) it returns the nodes whose text contains it, and says so. Grep reads documents too
-(a file node is its whole file) and credits each matching line once, to the innermost node holding it. Reach for
-`ask` first and the single verbs when one answer really is the whole question.
-
-**The graph edits too, and structurally — `graph edit <op> <node-id>`.** Addressing a change by *what it is*
-rather than by which lines it currently occupies:
-
-```powershell
-& $nfi graph edit replace    <node-id> --file new-method.cs        # whole declaration (keeps its doc comment)
-& $nfi graph edit signature  <node-id> --text 'public long Add(int a, int b)'   # body stays byte-for-byte
-& $nfi graph edit body       <node-id> --stdin                     # signature stays byte-for-byte
-& $nfi graph edit rename     <node-id> --to NewName
-& $nfi graph edit delete     <node-id>                             # takes its doc/attributes with it
-& $nfi graph edit append     <type-id> --text-escaped 'public int Zero() => 0;'   # into a type's body
-& $nfi graph edit insert-before|insert-after|doc <node-id> --file …
-& $nfi graph edit substitute <node-id> --find 'old();' --text 'new();'   # find/replace INSIDE one declaration
-& $nfi graph edit import     <file-or-node-id> --text 'using System.Linq;'   # where the file keeps its imports
-& $nfi graph edit create     <relpath> --file new-class.cs         # a new file (refuses to overwrite; must parse)
-& $nfi graph edit substitute file:<relpath> --find 'namespace A;' --text 'namespace B;'   # what is in NO declaration
-& $nfi graph edit replace    'code:src/X/View.xaml#K:BoolToVis' --file converter.xml   # a XAML id (T:/N:/K:/A:) takes every op
-& $nfi graph edit set-attribute file:src/X/X.csproj --at "//PackageReference[@Include='NAudio']" --name Version --text 3.0.0
-& $nfi graph edit remove-attribute 'code:src/X/View.xaml#N:Save' --name Click   # XML: one attribute, placed and escaped for you
-& $nfi graph edit append     file:src/X/X.csproj --at "//ItemGroup[PackageReference]" --text '<PackageReference Include="Y" />'
-```
-
-**You never have to think about the graph being stale.** Three things make it a non-issue, so don't reach for
-`graph build` before editing:
-
-- **The target file is re-read and merged into the graph on every edit** (`GraphBuilder.RefreshFile`) — one
-  file's parse, not the ~90s whole-repo walk. A file you *just created* is in the graph after the first edit
-  to it, and a file you deleted is pruned from it. `--no-refresh` skips this for a batch.
-- **A moved declaration is re-found by name.** If the recorded AST path no longer resolves but the name is
-  declared once in that file, the edit goes ahead and says so. It refuses only when the name is gone, or when
-  several declarations share it — it will not pick one for you.
-- **A node the graph has never seen is still editable.** `code:<relpath>#<astpath>` and `file:<relpath>` name
-  everything an edit needs, so the id works whether or not the graph holds it. The graph is how you *find* an
-  id; it is not what makes one valid.
-
-`graph build` is for the cross-file passes — call/inheritance resolution, communities — not for editing.
-
-**Every graph query tells you whether its answer is current**, so you never have to guess. It compares
-the archive's own write time against the files the graph recorded (a stat each — no re-reading, which is the
-90s) and the directories the solution's projects live in (4,009 files, not the 17,038 the whole repo holds,
-because 14,849 of those are pinned submodule corpora). Roughly 0.2s, and it always says one of:
-
-```
-graph: current — 6,204 files, none changed since it was built.
-graph: 2 changed, 5 added vs this working tree — this answer may be out of date. Re-run with --refresh …
-```
-
-`--refresh` (on `search`/`list`/`node`/`walk`/`context`/`grep`/`code`) folds those files in *before* answering.
-
-**Each working tree has its own graph.** A graph is a function of source, and source differs per branch, so a
-worktree gets `.product/worktrees/<name>/graph.bin`, cloned from the main checkout's on first use and
-brought onto your branch by one `--refresh` (~10s, then queries are current). The **authored tree**
-(`tree.json` — nodes, concerns, snaplinks) is unchanged by this and stays shared: it is written rather than
-derived, and it is deliberately forward-looking. Nothing a worktree does writes to the shared graph,
-so a parallel session's view of the code is never overwritten by yours — which is also what makes it safe for
-a refresh to *drop* files that aren't in your tree, since they can only be your branch's.
-
-**Prefer this over hand-editing a file, and over `sed` in particular.** Each edit re-resolves the declaration
-in the file *in hand*, refuses unless the parser agrees it is still the one the graph labelled (so a stale
-graph can never overwrite whatever now occupies those lines), and re-parses the result — an edit that would
-break the file is refused, not written. `signature` and `body` each prove the other half is unchanged
-afterwards rather than assuming it. `substitute` is the safe form of a stream edit: literal unless `--regex`,
-bounded to the one declaration so a common identifier can't be rewritten across the file, and refused unless
-it matches exactly once (`--all` to override, and it reports how many it touched). **`--find` does not need
-matching indentation** — an exact match wins, and failing that the fragment is matched line-by-line ignoring
-leading whitespace, so a snippet pasted as you read it or written flush-left is found either way — and a
-multi-line one may begin and end part-way along a line. **Line endings are ignored too**: a `\n` search (or a
-`--regex` `\n`) matches a CRLF file, and the replacement leaves with the file's own endings. The replacement
-lines up with the lines it replaces, so an attribute or continuation aligned under the first stays aligned; with
-`--regex`, what a `$1` captured is inserted exactly as the file had it. When it isn't there at all, the refusal
-names the declaration that *does* contain it, with its node id — or, for a multi-line search, the closest line
-and the first line of the search that differs from the file.
-
-**A file no grammar covers is edited as text.** Markdown, a config file, a list: `substitute file:<relpath>`
-and `create` work on any text file, with the same matching rules — literal, exactly once unless `--all`,
-indentation set aside — and no parse, because text has no shape an edit could break. Project and solution
-files (`.csproj`, `.slnx`, …) are parse-checked as XML for an edit without becoming code to the graph, which
-reads them through its own structured layer. A file that is not text (it holds a NUL) is refused, and the
-declaration ops still need a grammar.
-
-There is deliberately **no line-addressed edit inside a body**: line numbers are the failure mode this design
-removes, and a `substitute` whose search text you extend by a line either side is both unambiguous and
-self-verifying.
-
-**Several edits to one file in a row** are safe — each re-resolves against the file as it then is, so line
-drift is a non-issue, and a path invalidated by an earlier edit (a rename, a delete) is *refused*, not
-guessed at. The one exception is **overloads**: the `#N` in `T:C/M:Add#1` is that overload's *position* among
-its same-named siblings, so deleting or inserting one renumbers the rest, and a later edit reusing an earlier
-listing would aim at a different method while the name check still passes. Such an edit says so in its notes
-(`… renumbers the others`). After one, either re-list, or pin the next edit with `--expect` — that is the only
-guard that still refuses when the path itself has come to mean something else.
-
-You do not have to think about **line endings, indentation, BOMs or escaping**: write the replacement
-flush-left with `\n` and it lands correctly indented with the file's own endings and encoding — that holds
-for **every** verb including `substitute`, whose replacement is indented for the line it lands on. The
-converse holds too, and it is the escape hatch for the one shape auto-indent gets wrong: **a single line
-written WITH leading whitespace is placed exactly as you wrote it.** With no second line, indentation
-cannot be describing a shape, so the only thing it can mean is "put it here" — which is how you write a
-continuation aligned under the `=` it belongs to (`+ "…"`), or anything else that deliberately sits deeper
-than its own statement. A **multi-line** block keeps the flush-left rule even when its lines are indented:
-there the common indent is an artefact of wherever it was lifted from, and the shape *between* the lines,
-which survives either way, is what carries the meaning. A new
-file has no endings of its own, so `create` takes the ones its neighbours already use — the directory it
-lands in, then upward — rather than the machine's, which put CRLF into an LF repo on Windows. `replace`
-keeps the declaration's existing doc comment, *unless* your replacement opens with one, in which case yours
-replaces it rather than being stacked on top. Text comes from
-`--text` (literal), `--text-escaped` (decodes `\n`/`\t`/`\uXXXX`, leaving anything else — a regex, a Windows
-path — alone), `--file`, or `--stdin`; `--find` mirrors all four — `--find-escaped`, `--find-file`,
-`--find-stdin` — so a fragment carrying apostrophes never has to be squeezed through a POSIX shell.
-`--dry-run` prints the hunk and writes nothing; `--expect S` refuses unless the block still contains `S`,
-pinning the edit to what you read. Rebuild the graph afterwards so its record matches.
-
-**`--show` prints the declaration as it now stands, so checking an edit is part of making it rather than the
-next command** (`--quiet` is the opposite trade — the confirmation without the diff, and they compose). Reach
-for `--show` instead of following an edit with `graph code`.
-
-Three things it refuses or warns about, each because they cost real time before:
-
-- **A whole file handed to a declaration op.** `replace` with the contents of a file nests its imports and
-  namespace *inside* the declaration, which tree-sitter parses happily — error tolerance is the point of it —
-  so "does it still parse" says yes and the compiler is the first to object. The payload is parsed on its own
-  and refused if it declares imports, naming `graph edit create` instead.
-- **A control character that was not already in the file.** A raw NUL where a space belonged once shipped in
-  a commit: inside a string literal it is valid C#, so it compiled and was invisible until `grep` called the
-  file binary. A control character written on purpose is an escape sequence, which is ordinary text — so a
-  raw one arriving in a payload is a shell mangling it, and the write is refused.
-- **A substitution landing inside a string literal.** The indentation promise still holds there, but what is
-  indented is the string's *value* rather than the file's text, so a payload copied out of the file arrives
-  with the literal's own baseline applied twice. Asked of the parser (which already knows what a string is,
-  since it colours them), so it covers plain, verbatim, raw and interpolated forms in every grammar.
-
-And when `--find` misses, the refusal says where the text actually is — the declaration that has it, or
-failing that the line — rather than only that it is not here.
-
-**In Git Bash, `export MSYS2_ARG_CONV_EXCL='*'` before you use this at all.** MSYS rewrites arguments it
-reads as POSIX paths, and the damaging half is silent: a leading `//` collapses to `/`, so `--text '// x'`
-arrives as `/ x` and lands a syntax error, and `--text-escaped '/// <x/>\nfoo'` arrives with its backslash
-turned round and writes a literal `/n` into the file while reporting success. `nfi` warns when it sees an
-MSYS shell without the exclusion, and refuses an escaped payload carrying `/n` where its escapes should be,
-but the environment variable is the fix — or pass payloads through `--file` / `--find-file` / `--stdin`,
-which no shell touches. With `'*'` set nothing is converted at all — so `nfi` converts a drive path itself:
-`/c/dir/x.cs` (and `/cygdrive/c/…`, `/mnt/c/…`) reaches `--file`, `--find-file` and every other path option as
-`C:\dir\x.cs`. A path rooted elsewhere in the MSYS tree (`/tmp/…`) has no Windows answer without the shell, and
-is refused with the `$(cygpath -w …)` to use instead. The shell checks read the *caller's* environment, carried
-with the request, not the resident process's.
-
-Two behaviours that read as bugs and are not: `--with-trivia` stops at a blank line, so deleting the last
-member under a `// ── section ──` header leaves the header (it belongs to the section, not the member);
-and `$1` in a replacement is a backreference **only** with `--regex`, literal otherwise.
-
-`import` is file-level (it takes a `file:` id, or any code node in that file) and lands where the file already
-keeps its imports — under the last one, or below a licence header when there are none. Reaching that through
-`insert-before` on the first declaration was possible and wrong: with a file-scoped namespace it put the
-`using` *underneath* the `namespace`, which compiles and reads as a mistake.
-
-The engine is `StructuralEdit` in **`Nexaflow.Syntax`** — source text in, source text out, no graph and no
-file IO. `GraphEdit` (in `Services.Initiatives`) is only the adapter that turns a node id into a file, an AST
-path and the name to verify against. Three surfaces drive it:
-
-| Surface | How a declaration is addressed |
+| You want | Run |
 |---|---|
-| `nfi graph edit` | a graph node id |
-| `graph_edit` client tool (assistant) | a graph node id |
-| `list_declarations` + `edit_declaration` (any editor tab) | an `ast_path` from the open buffer — no graph needed |
+| where something is, what it is | `ask 'search <term>'` — falls back to a source search when nothing is *named* that |
+| it, and its code | `ask 'search <term> \| source'` |
+| everything about one node | `graph context <id>` — its source, neighbours, owning feature, and the grep for that feature |
+| who uses it, and how | `ask 'node <id> \| callers \| source'` |
+| does anything still do X, and where | `ask 'grep <regex> \| files'` · just the number: `\| count` |
+| a pattern inside one feature | `ask 'node product:<slug> \| owned \| grep <regex>'` |
+| near this code | `ask 'node <id> \| near 2 \| grep <regex>'` |
+| to narrow what you just found | `ask '@ \| like <regex> \| files'` — every answer ends with its handle; `@3` is the third |
+| a block's text | `graph code <id> [--lines A-B]` · a file: `graph cat file:<relpath>` (past 400 lines, its outline) |
+| a whole feature from the tree | `tree <node-id> --full` · one node: `describe <node-id> --code` |
 
-The editor tools live on `FileTextEditorViewModel`, so every tab built on the shared editor base (Code,
-Notebook, …) gets them. They apply the edit as a **minimal splice** rather than reassigning the document, so
-it is one undo step and the caret and scroll position survive. Prefer `edit_declaration` over the older
-`set_editor_text` / `replace_all`, which respectively restate the whole file and match across all of it.
+`ask` chains stages with `|`, the set of nodes flowing left to right, and **only the last stage prints**: start with
+`search` / `grep [--from <id>] [--scope owned|hops] [--hops <n>]` / `node <id>[,<id>…]` / `@` / `@<n>`; narrow with
+`callers` / `callees` / `members` / `owned` / `near <n>` / `grep` / `like` / `limit <n>`; print with `ids [n]` /
+`source [n]` / `files` / `count`. One question per line, so several unrelated ones are still one call. Quote a regex
+holding a `|`. Stages are strict — an unknown flag or an id the graph lacks is refused, and a zero names the stage that
+emptied the set. An `@` answer is reused while nothing it came from has changed, and asked again when something has.
 
-**Searching for a code *pattern* is a graph query too** — not just "where is X". A defect signature ("a path
-compared with a bare `StartsWith`"), an idiom sweep, a "does anything still do Y" — all of it is
-`graph grep … --mode content`, which reports each hit as file:line **plus the owning type/member and feature**.
-Reach for it exactly where you would otherwise type `grep -rn`; a blanket text search is never the better tool
-here, and with no `--from` it covers the whole repo in a few seconds. **`--limit` trims the printed list, never
-the search** — the total on the summary line is the real total, and a trimmed run says `showing N, raise --limit
-for the rest`. Only an explicit `--scan-cap` can cut the search short, and that prints a loud `INCOMPLETE`. So a
-count with neither notice is a count you can reason about, including a zero.
+A search for a code *pattern* is `grep` too, never `grep -rn`: every hit comes back with the member and feature that
+owns it. With nothing before it `grep` covers the whole repository in a few seconds, and grep reads documents as well
+as code. `graph grep --limit` trims the printed list, never the search — the total is the real total, and only an
+explicit `--scan-cap` cuts a search short, loudly.
 
-Pick the scope by what you mean, not by tuning a number:
+**Every answer says whether it is current** (`graph: current — 6,204 files…` or `2 changed…`), from a stat of each
+file rather than a re-read; `--refresh` folds changed files in before answering. Each worktree has its own graph,
+cloned from the main checkout's on first use. `graph build` is for the cross-file passes — call resolution,
+communities — and never needed before an edit. Node ids: `product:<slug>` · `code:<relpath>#<astpath>` ·
+`file:<relpath>` · `external:<name>`. The **`nexaflow-explorer`** sub-agent drives the same exe.
 
-| You mean | Use |
+### Change
+
+What `nfi graph edit` guarantees, and why it is the only way files here are changed:
+
+- **Addressed by what it is, not where it was.** A declaration is found in the file as it is *now*; one that moved
+  is re-found by name, and an edit is refused rather than guessed when the name is gone or several share it.
+- **Nothing broken is written.** The result is re-parsed; `signature` proves the body unchanged and `body` the
+  signature; a raw control character, a whole file handed to a declaration op and a find that matches twice are
+  refused.
+- **Compiled before it is written.** A C# edit is compiled in memory against the project's own build command line,
+  and the answer lists the errors it **introduced and fixed** — in its project and in every project that compiles
+  against it. Errors already there cancel out. `--must-compile` refuses the write; `--no-check` skips it.
+- **What it affects is in the answer.** A declaration whose outside changed (removed, renamed, re-signed) is
+  followed to what uses it, by the compiler's binding: `impact:` names each user, and XAML that names it as text.
+- **Several edits are one change.** `graph edit script` plans every command against what the ones before it left and
+  writes all the files or none.
+- **Whitespace, endings, encoding and escaping are the tool's problem.** Write flush-left with `\n`; it lands indented
+  for its destination with the file's endings and BOM. A single line written *with* leading whitespace is placed as
+  written — that is how an aligned continuation is done.
+- **The graph keeps up.** The files an edit touches are re-read into the graph as part of it; a file just created is
+  editable by `code:<relpath>#<astpath>` at once.
+
+| To | Run |
 |---|---|
-| near THIS code (callers, collaborators) | `--from <code-id> --hops 1..2` |
-| inside THIS feature | `--from product:<slug> --scope owned` |
-| anywhere in the repo | no `--from` |
+| replace, re-sign, re-body or delete a declaration | `replace` / `signature` / `body` / `delete <id>` (`replace` keeps the doc comment unless yours has a `<summary>`) |
+| add beside one, or into a type | `insert-before` / `insert-after` / `append <id>` |
+| change a few lines inside one member | `substitute <id> --find … --text …` — its doc comment too; literal unless `--regex`, once unless `--all` |
+| rename it | `rename <id> --to N` — **`--references`** carries it to every use, override and implementation the compiler binds |
+| move it | `move <id> --to code:<file>#<type>` · to its own file: `--to file:<path>` (imports and namespace come along) |
+| a new file | `create <relpath> --file …` |
+| a using | `import <file-or-id> --text 'using X;'` |
+| something in no declaration, or a text file | `substitute file:<relpath> --find …` |
+| a XAML element, a project file | a XAML id (`T:`/`N:`/`K:`/`A:`) takes every op; `file:<path> --at "<xpath>"` any element; `set-attribute` / `remove-attribute --name` |
+| several of the above | `graph edit script --file plan.edits` |
+| see it first | `--dry-run` (planned, checked and compiled; nothing written) · `--show` prints the result |
 
-`--scope owned` searches every file the feature's snaplinks land in, so it covers members no link names while
-still stopping at the feature boundary — widening `--hops` until a feature is covered also drags in whatever
-else happens to be that far away. `graph context <id>` prints the owned-file list **and the exact grep command
-for it**, so the anchor never has to be guessed. The two are mutually exclusive by design: passing both
-`--hops` and `--scope owned` is a hard error rather than a silently ignored option.
+Text comes from `--text` (literal), `--text-escaped` (`\n`, `\t`, `\uXXXX`), `--file` or `--stdin`, and `--find` has the
+same four. A script is one command per line, as it would follow `graph edit`, with multi-line text in blocks beneath:
 
-Node ids: `product:<slug>` · `code:<relpath>#<astpath>` · `file:<relpath>` · `external:<name>`. **`graph` is
-worktree-aware**: run from a linked worktree and both `graph build` and the source-dumping queries (`code`/`context`/
-`grep --mode content`) use THAT branch's code — the build re-parses only the files that differ from the main checkout
-(the cache is content-addressed), so it's cheap. The product tree + the graph archive still live in the main checkout.
-`--main` forces the main-checkout source; `graph --code-root <dir>` points it anywhere. (`describe --code` is likewise
-working-tree-first.) For repo discovery you can also spawn the **`nexaflow-explorer`** sub-agent, which drives this exe.
+```
+substitute code:src/A.cs#T:A/M:Run
+<<< find
+Old(x);
+>>>
+<<< text
+New(x, y);
+>>>
+move code:src/A.cs#T:Parser --to file:src/Parsing/Parser.cs
+rename code:src/A.cs#T:A/M:Helper --to Assist --references
+```
+
+A find matches ignoring indentation and line endings, may start and end part-way along a line, and when it is not
+there the refusal names where it is. `$1` is a backreference only with `--regex`. The `#N` in `T:C/M:Add#1` is that
+overload's position, so an edit that adds or removes an overload says so and later edits should re-list or pin with
+`--expect`. `--with-trivia` stops at a blank line, so a section comment above a deleted member stays.
+
+The engine is `StructuralEdit` in **`Nexaflow.Syntax`** (text in, text out); the compiler behind the check is
+**`Nexaflow.Syntax.Compiler`**. `GraphEdit`/`EditPlan` in `Services.Initiatives` turn ids into files and steps into
+one plan. Three surfaces drive them:
+
+| Surface | Addressed by |
+|---|---|
+| `nfi graph edit` / `graph edit script` | a graph node id — with the compiler check and impact |
+| `graph_edit` client tool (assistant) | a graph node id — `move`, `create`, and an `edits` array planned as one |
+| `list_declarations` + `edit_declaration` (any editor tab) | an `ast_path` in the open buffer, applied as one undo step |
+
+### Prove
+
+```powershell
+& $nfi test <node-id>          # build and run the tests that exercise it
+& $nfi test <node-id> --list   # which tests, and why, without building
+& $nfi test --failed           # exactly what failed last time
+```
+
+It chooses the tests that use the node, the tests of what uses it — three steps out, by the compiler's binding, so a
+helper's tests are found through the API that calls it — and the tests that declare `[CoversNode]` of its feature. The
+choosing is asked of the resident process; building and running happen in your own, so a long run holds no lock and
+Ctrl+C stops it. **UI journey suites are never run for you** — they take over the mouse and keyboard — and are named
+with the filter to run them yourself.
 
 The product-folder skill has fast-query recipes for deeper questions; the per-release export
 [docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
@@ -349,7 +212,6 @@ The product-folder skill has fast-query recipes for deeper questions; the per-re
 — the UI/Functionality/AI backbone, concern-by-role rules, the one-journey-plus-per-leaf-unit-test model, and
 the roadmap of analyzers/validators to lock it down — is in
 [docs/feature-tree-and-tests.md](docs/feature-tree-and-tests.md) (the Text Viewer is the worked reference).
-
 **Every git-reading verb runs git where *you* stand, not where the tree lives.** `remap --from-git` resolves its repository from the caller's working tree — from a linked worktree the product root is the MAIN checkout, whose `HEAD` has never seen your commits, so a range ending at `HEAD` came back empty and the verb rewrote nothing while reporting success. Note the blind spot that hid it: `validate` falls back to the product root when your working tree lacks a file (deliberately — it is what stops a worktree flagging every not-yet-merged path), so a file you have **moved away** still resolves in the main checkout and the tree reads clean while its links are stale. After a rename or move, run `remap --from-git <base>..HEAD --dry-run` — do not infer from a clean `validate` that nothing needs remapping.
 
 Every verb's arguments are **strict** — an unknown option, a missing option value or a surplus positional is a
@@ -474,7 +336,8 @@ Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (I
   - **This covers searching for a code *pattern*, not just a named thing.** "Which code looks like Y" feels like a different job from "where is X" and is the same verb: `graph grep <regex> --mode content` (scope it per the table above). That split is how the rule gets abandoned in practice — the entity lookup goes through the graph, then the pattern hunt falls back to `grep -rn`. It shouldn't: the graph answers it, faster, and names the owning member and feature of every hit instead of just a line.
   - **Read a block with `graph code <id>`, a whole file with `graph cat file:<relpath>`** — never `sed -n A,Bp` on line numbers guessed from a search hit. Both take `--lines A-B` for a slice, and both are worktree-aware; hand-sliced ranges are neither. **Past 400 lines `cat file:` answers with the file's outline** — every declaration, with its id — because reading a whole file to reach one block is the habit the graph exists to replace; `graph code <id>` then takes one of them, and `--all` prints the file when that is genuinely what you want.
   - **Chain the question instead of asking it in instalments.** "Find it and read it", "who calls this and what do their call sites look like", "does anything still do X and where" are one `nfi ask '<stage> | <stage>'` each (see above), not three calls. A sweep whose answer is a number or a file list is `| count` / `| files` — never a hit list you then have to read.
-- **Before calling a change complete, ask the graph who else depends on what you touched.** Discovery-first finds the thing; this finds the *rest* of it. A package bump is `graph node external:<Name>` (its `depends_on` edges list every consuming project); a type or member is `graph node <id>` / `graph walk <id> --hops 2` for the incoming callers. Do this before you say a fix is done — grep answers "where is this token", the graph answers "what else breaks", and only the second one closes a change.
+- **Every change to a file in this repository goes through `nfi graph edit` — never Edit/Write, `sed -i`, a heredoc or a redirect.** Source, tests, docs, project files, this file: `replace`/`substitute`/`create`/`move`, or a `graph edit script` for several at once. A hand edit gets none of what the tool promises — no parse, no compile check, no impact, no all-or-nothing — and writing one is the habit this rule exists to break. Scratch files outside the repo (payloads, scripts) are the only thing written by other means.
+- **Before calling a change complete, ask the graph who else depends on what you touched.** Discovery-first finds the thing; this finds the *rest* of it. For code the edit answers it: its `impact:` lines name what uses what changed and its `compile:` lines what that broke, in every project that compiles against it — then `nfi test <id>` runs the tests that exercise it. A package bump is `graph node external:<Name>` (its `depends_on` edges list every consuming project). Do this before you say a fix is done — grep answers "where is this token", the graph answers "what else breaks", and only the second one closes a change.
   > Worked example: the NAudio 3.0 bump renamed `WaveOutEvent`→`WaveOut` and `WaveInEvent`→`WaveIn`. Fixing the Audio feature's playback looked complete and wasn't — Core's `VoiceManager` captures audio and broke the same way. `graph node external:NAudio` names both `Nexaflow.Core.csproj` and `Nexaflow.Features.Audio.csproj` in one query; a grep of the feature you happen to be in names neither.
 - Features depend only on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) — never on Core, rarely on each other
 - Providers depend only on 'Providers.Common' - never on Core, never on each other.
