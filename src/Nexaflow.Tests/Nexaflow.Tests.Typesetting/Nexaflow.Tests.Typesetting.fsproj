@@ -42,8 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Nexaflow.Visuals.Maths\Nexaflow.Visuals.Maths.csproj" />
-    <ProjectReference Include="..\..\Nexaflow.Maths.Typesetting\Nexaflow.Maths.Typesetting.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
   </ItemGroup>
 
   <ItemGroup>

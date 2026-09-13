@@ -638,7 +638,7 @@
           "Background": null,
           "Character": {
             "Character": "2",
-            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Text;component/Markdown/Latex/Tex/Fonts/cmr10.ttf",
             "FontId": 1,
             "Metrics": {
               "Depth": 0.0,
@@ -868,7 +868,7 @@
           "Background": null,
           "Character": {
             "Character": "2",
-            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Text;component/Markdown/Latex/Tex/Fonts/cmr10.ttf",
             "FontId": 1,
             "Metrics": {
               "Depth": 0.0,
@@ -1166,7 +1166,7 @@
           "Background": null,
           "Character": {
             "Character": "2",
-            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Text;component/Markdown/Latex/Tex/Fonts/cmr10.ttf",
             "FontId": 1,
             "Metrics": {
               "Depth": 0.0,
@@ -1396,7 +1396,7 @@
           "Background": null,
           "Character": {
             "Character": "2",
-            "Font": "pack://application:,,,/Nexaflow.Visuals.Maths;component/Fonts/cmr10.ttf",
+            "Font": "pack://application:,,,/Nexaflow.Visuals.Text;component/Markdown/Latex/Tex/Fonts/cmr10.ttf",
             "FontId": 1,
             "Metrics": {
               "Depth": 0.0,

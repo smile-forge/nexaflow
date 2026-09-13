@@ -25,7 +25,7 @@ internal sealed class WpfMathFontProvider : IFontProvider
         }
     }
 
-    private const string FontsDirectory = "Fonts/";
+    private const string FontsDirectory = "Markdown/Latex/Tex/Fonts/";
 
     /// <summary>
     /// The assembly the faces are resources of, asked for rather than written down. It was the literal
@@ -34,7 +34,7 @@ internal sealed class WpfMathFontProvider : IFontProvider
     /// reports it is a catch-all that cannot tell a missing font from a formula it cannot read.
     /// </summary>
     private static readonly string ResourceAssembly =
-        typeof(WpfMathFontProvider).Assembly.GetName().Name ?? "Nexaflow.Visuals.Maths";
+        typeof(WpfMathFontProvider).Assembly.GetName().Name ?? "Nexaflow.Visuals.Text";
 
     public IFontTypeface ReadFontFile(string fontFileName)
     {

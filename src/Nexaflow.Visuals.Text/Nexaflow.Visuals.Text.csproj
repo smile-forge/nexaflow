@@ -22,6 +22,8 @@
     <!-- The engraver's internals (stem and beam rules, staff geometry) are asserted directly by the tests —
          those are the parts a rendered bitmap can't tell you are right. -->
     <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
+    <!-- Until its box and parser approvals go with the box model they approve. -->
+    <InternalsVisibleTo Include="Nexaflow.Tests.Typesetting" />
   </ItemGroup>
 
   <ItemGroup>
@@ -44,11 +46,24 @@
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
 
-    <!-- TeX's typesetting engine, ingested from XAML-Math and now ours: Visuals.Maths for the fonts and
-         the renderer interfaces, Maths.Typesetting for the atoms and the box model beneath it. Ingested
-         rather than referenced because we build the atoms ourselves now, from our own parse tree, and
-         they are internal. See docs/externals.md for the exception that makes to the submodule rule. -->
-    <ProjectReference Include="..\Nexaflow.Visuals.Maths\Nexaflow.Visuals.Maths.csproj" />
-  </ItemGroup>
+    </ItemGroup>
+
+    <ItemGroup>
+      <!-- TeX's typesetting engine, ingested from XAML-Math (MIT; see Core's ThirdPartyNotices) and moved
+           here from the two projects it arrived as, beside the builder that is replacing it. The boundary
+           had stopped protecting anything: the builder built its atoms, reached its boxes and captured its
+           drawing, and a box could not lay itself into the layout tree across it.
+
+           The data is TeX's knowledge of how to set maths, not of what maths means, which is why it lives
+           beside the builder and not in Nexaflow.Maths. Its manifest names are pinned to what the readers
+           ask for, and the faces are WPF resources under Tex\Fonts\, the path the font provider asks for. -->
+      <EmbeddedResource Include="Markdown\Latex\Tex\Data\DefaultTexFont.xml" LogicalName="XamlMath.Data.DefaultTexFont.xml" />
+      <EmbeddedResource Include="Markdown\Latex\Tex\Data\GlueSettings.xml" LogicalName="XamlMath.Data.GlueSettings.xml" />
+      <EmbeddedResource Include="Markdown\Latex\Tex\Data\PredefinedColors.xml" LogicalName="XamlMath.Data.PredefinedColors.xml" />
+      <EmbeddedResource Include="Markdown\Latex\Tex\Data\TexFormulaSettings.xml" LogicalName="XamlMath.Data.TexFormulaSettings.xml" />
+      <EmbeddedResource Include="Markdown\Latex\Tex\Data\TexSymbols.xml" LogicalName="XamlMath.Data.TexSymbols.xml" />
+      <Resource Include="Markdown\Latex\Tex\Fonts\*.ttf" />
+      <None Include="Markdown\Latex\Tex\Fonts\LICENSES.md" />
+    </ItemGroup>
 
 </Project>

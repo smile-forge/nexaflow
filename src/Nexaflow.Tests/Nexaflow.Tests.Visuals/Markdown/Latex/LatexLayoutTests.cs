@@ -469,7 +469,7 @@ public class LatexLayoutTests
         Assert.IsNotNull(here, "the repository root was not found from " + System.AppContext.BaseDirectory);
 
         var source = System.IO.File.ReadAllText(System.IO.Path.Combine(
-            here.FullName, "src", "Nexaflow.Maths.Typesetting", "TexFormulaBuilder.cs"));
+            here.FullName, "src", "Nexaflow.Visuals.Text", "Markdown", "Latex", "Tex", "TexFormulaBuilder.cs"));
 
         var cased = System.Text.RegularExpressions.Regex
             .Matches(source, "^\\s*case @\"(?<name>\\\\[^\"]*)\":",
