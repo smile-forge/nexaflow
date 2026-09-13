@@ -339,23 +339,34 @@ internal static class DaemonClient
         if (exe is not { Length: > 0 })
             Fail("nfi cannot locate its own executable, so it cannot start its resident process.");
 
-        Process? spawned = null;
-        var      said    = new StringBuilder();
+        return StartThenSend(pipe, request, () => DaemonServer.StartDetached(DaemonServer.SpawnInfo(exe!, pipe, productRoot)));
+    }
 
-        try
+    /// <summary>
+    /// Starts a process and keeps offering it the request until one answers. How a process is started is handed in,
+    /// so the race this has to survive — a start that finds another already holds the pipe and leaves — can be staged
+    /// without starting a real one.
+    /// </summary>
+    internal static DaemonResponse StartThenSend(string pipe, DaemonRequest request, Func<Process?> start)
+    {
+        var said = new StringBuilder();
+
+        Process? Launch()
         {
-            spawned = DaemonServer.StartDetached(DaemonServer.SpawnInfo(exe!, pipe, productRoot));
+            var process = start();
+            if (process is null) return null;
 
             // Drain both streams, or a child that prints anything blocks on a full pipe buffer and stops
             // answering with nothing to show for it. Kept only so a death can be explained.
-            if (spawned is not null)
-            {
-                spawned.OutputDataReceived += (_, e) => Keep(said, e.Data);
-                spawned.ErrorDataReceived  += (_, e) => Keep(said, e.Data);
-                spawned.BeginOutputReadLine();
-                spawned.BeginErrorReadLine();
-            }
+            process.OutputDataReceived += (_, e) => Keep(said, e.Data);
+            process.ErrorDataReceived  += (_, e) => Keep(said, e.Data);
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            return process;
         }
+
+        Process? spawned = null;
+        try { spawned = Launch(); }
         catch (Exception ex)
         {
             Fail($"nfi could not start its resident process ({ex.GetType().Name}: {ex.Message}).");
@@ -374,12 +385,7 @@ internal static class DaemonClient
             {
                 if (DateTime.UtcNow - spawnedAt > TimeSpan.FromSeconds(2))
                 {
-                    try
-                    {
-                        spawned = DaemonServer.StartDetached(DaemonServer.SpawnInfo(exe!, pipe, productRoot));
-                        spawned?.BeginOutputReadLine();
-                        spawned?.BeginErrorReadLine();
-                    }
+                    try { spawned = Launch(); }
                     catch (Exception) { /* the next pass tries again, or the deadline says why not */ }
                     spawnedAt = DateTime.UtcNow;
                 }
