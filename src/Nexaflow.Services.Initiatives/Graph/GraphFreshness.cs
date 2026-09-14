@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace Nexaflow.Services.Initiatives.Graph;
 
@@ -175,6 +176,7 @@ public static class GraphFreshness
     {
         var dirs = known
             .Where(p => p.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .Concat(SolutionProjects(codeRoot))
             .Select(p => Path.GetDirectoryName(p)?.Replace('\\', '/'))
             .Where(d => !string.IsNullOrEmpty(d))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -189,4 +191,26 @@ public static class GraphFreshness
             .Select(d => Path.Combine(codeRoot, d!.Replace('/', Path.DirectorySeparatorChar)))
             .Where(Directory.Exists)];
     }
+
+    /// <summary>
+    /// The projects a solution file at the root of the tree names. The graph's own list holds only the projects it has read,
+    /// so a project added since was never walked: a file in it that no edit had touched stayed invisible to every query,
+    /// while the check reported the graph current.
+    /// </summary>
+    private static List<string> SolutionProjects(string codeRoot)
+    {
+        var found = new List<string>();
+        try
+        {
+            foreach (var solution in Directory.EnumerateFiles(codeRoot, "*.sln*")
+                                              .Where(f => f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+                                                       || f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase)))
+                foreach (Match match in ProjectInSolution.Matches(File.ReadAllText(solution)))
+                    found.Add(match.Groups[1].Value.Replace('\\', '/'));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        return found;
+    }
+
+    private static readonly Regex ProjectInSolution = new(@"[""']([^""'\r\n]+?\.csproj)[""']", RegexOptions.IgnoreCase);
 }

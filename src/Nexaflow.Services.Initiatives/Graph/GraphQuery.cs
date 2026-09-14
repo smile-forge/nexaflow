@@ -44,7 +44,13 @@ public static class GraphQuery
     /// <summary>
     /// Nodes whose id or label contains <paramref name="term"/>, best match first: an exact label, then a
     /// prefix, then a label substring, then id-only — so searching a type name finds the type before the
-    /// hundred members that mention it.
+    /// hundred members that mention it. This repository's own code comes before the pinned sources under
+    /// <c>external/</c> at every rank, since that is nearly always what was meant.
+    /// <para>
+    /// A dotted term — <c>ShellServices.ShowNotification</c> — is how a member is written everywhere except in an
+    /// id, which spells it <c>T:ShellServices/M:ShowNotification</c>, so it matched nothing. When nothing matches as
+    /// written, the last part is taken as the name and the parts before it as the declarations it is inside.
+    /// </para>
     /// </summary>
     public static IReadOnlyList<GraphNode> Search(KnowledgeGraph g, string term, string? type = null)
     {
@@ -54,13 +60,53 @@ public static class GraphQuery
             : n.Label.StartsWith(term, StringComparison.OrdinalIgnoreCase) ? 1
             : n.Label.Contains(term, StringComparison.OrdinalIgnoreCase) ? 2 : 3;
 
-        return [.. g.Nodes
+        var found = g.Nodes
             .Where(n => (type is null || n.Type == type)
                      && (n.Id.Contains(term, StringComparison.OrdinalIgnoreCase)
                       || (n.Label?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)))
-            .OrderBy(Rank).ThenBy(n => TypeRank(n.Type))
+            .ToList();
+        if (found.Count == 0 && term.Contains('.', StringComparison.Ordinal) && !term.Contains('/', StringComparison.Ordinal))
+            found = Dotted(g, term, type);
+
+        return [.. found
+            .OrderBy(Rank).ThenBy(IsExternal).ThenBy(n => TypeRank(n.Type))
             .ThenBy(n => n.Label?.Length ?? int.MaxValue)
             .ThenBy(n => n.Id, StringComparer.Ordinal)];
+    }
+
+    private static int IsExternal(GraphNode n) =>
+        n.FilePath?.StartsWith("external/", StringComparison.OrdinalIgnoreCase) == true ? 1 : 0;
+
+    /// <summary>
+    /// Declarations named the last part of <paramref name="term"/> that sit inside declarations named the parts before it,
+    /// in that order. A leading part that names no declaration — a namespace — is passed over, but at least one part has to
+    /// name the one it is inside, or <c>System.Dispose</c> would find every Dispose.
+    /// </summary>
+    private static List<GraphNode> Dotted(KnowledgeGraph g, string term, string? type)
+    {
+        var parts = term.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 2) return [];
+        var (name, outer) = (parts[^1], parts[..^1]);
+
+        return [.. g.Nodes.Where(n =>
+        {
+            if ((type is not null && n.Type != type) || !string.Equals(n.Label, name, StringComparison.OrdinalIgnoreCase)) return false;
+            if (n.Metadata?.GetValueOrDefault("ast") is not { Length: > 0 } ast) return false;
+
+            var enclosing = ast.Split('/')[..^1]
+                .Select(segment => segment[(segment.IndexOf(':') + 1)..].Split('#')[0])
+                .ToList();
+            var at = enclosing.Count;
+            var matched = 0;
+            for (var i = outer.Length - 1; i >= 0 && at > 0; i--)
+            {
+                var found = enclosing.FindLastIndex(at - 1, s => s.Equals(outer[i], StringComparison.OrdinalIgnoreCase));
+                if (found < 0) continue;
+                at = found;
+                matched++;
+            }
+            return matched > 0;
+        })];
     }
 
     /// <summary>What a search found: the nodes, and — when nothing was <i>named</i> the term and the source was

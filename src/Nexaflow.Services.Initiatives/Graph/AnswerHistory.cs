@@ -14,6 +14,10 @@ namespace Nexaflow.Services.Initiatives.Graph;
 /// nothing those nodes were read from has changed since, they are reused as they are; when something has, the question
 /// is asked again, so an answer can be continued but never goes stale.
 /// </para>
+/// <para>
+/// An answer too long to print whole is kept as printed, too, with how far it has been read — so <c>@3 more</c> is the
+/// next part of what was said rather than a second question that might say something different.
+/// </para>
 /// </summary>
 /// <param name="writeTime">When a repo-relative file was last written, or null when it is not there.</param>
 public sealed class AnswerHistory(Func<string, DateTime?> writeTime)
@@ -26,12 +30,16 @@ public sealed class AnswerHistory(Func<string, DateTime?> writeTime)
     private const int StampedFiles = 400;
 
     private readonly List<Entry> _entries = [];
+    private readonly Dictionary<int, PrintedAnswer> _printed = [];
     private readonly object _gate = new();
     private int _last;
 
     /// <summary>One answer: its number, the question in full, what it found, and when the files it found were written.</summary>
     internal sealed record Entry(int Number, string Question, IReadOnlyList<(string NodeId, List<(int Line, string Text)> Lines)> Found,
                                  IReadOnlyDictionary<string, DateTime?>? Written);
+
+    /// <summary>An answer that did not fit: every line it printed, how many have been shown, and the tally it ends on.</summary>
+    internal sealed record PrintedAnswer(IReadOnlyList<string> Lines, int Shown, string Tally);
 
     /// <summary>The oldest and newest answer numbers still kept — 0 and 0 before the first.</summary>
     internal (int First, int Last) Range
@@ -50,7 +58,11 @@ public sealed class AnswerHistory(Func<string, DateTime?> writeTime)
         {
             var entry = new Entry(++_last, question, [.. found.Select(f => (f.Node.Id, f.Lines))], written);
             _entries.Add(entry);
-            if (_entries.Count > Kept) _entries.RemoveAt(0);
+            if (_entries.Count > Kept)
+            {
+                _printed.Remove(_entries[0].Number);
+                _entries.RemoveAt(0);
+            }
             return entry.Number;
         }
     }
@@ -64,4 +76,24 @@ public sealed class AnswerHistory(Func<string, DateTime?> writeTime)
     /// <summary>Whether every file the answer was found in is as it was when it was found.</summary>
     internal bool IsCurrent(Entry entry) =>
         entry.Written is { } written && written.All(file => writeTime(file.Key) == file.Value);
+
+    /// <summary>Keeps what answer <paramref name="number"/> printed, <paramref name="shown"/> lines of it so far.</summary>
+    internal void Keep(int number, IReadOnlyList<string> lines, int shown, string tally)
+    {
+        lock (_gate)
+            if (_entries.Exists(e => e.Number == number)) _printed[number] = new PrintedAnswer(lines, shown, tally);
+    }
+
+    /// <summary>What answer <paramref name="number"/> printed, when it was too long to print whole.</summary>
+    internal PrintedAnswer? PageOf(int number)
+    {
+        lock (_gate) return _printed.GetValueOrDefault(number);
+    }
+
+    /// <summary>Records that answer <paramref name="number"/> has now been shown up to line <paramref name="shown"/>.</summary>
+    internal void Advance(int number, int shown)
+    {
+        lock (_gate)
+            if (_printed.TryGetValue(number, out var printed)) _printed[number] = printed with { Shown = shown };
+    }
 }

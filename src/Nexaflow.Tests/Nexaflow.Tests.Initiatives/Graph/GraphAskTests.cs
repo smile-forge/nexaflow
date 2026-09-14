@@ -188,8 +188,10 @@ public class GraphAskTests
         // node that stands for a whole file answers with its outline instead.
         var answer = Ask("node file:src/Reader.cs | source");
 
-        StringAssert.Contains(answer.Text, "code:src/Reader.cs#T:Reader");
+        StringAssert.Contains(answer.Text, "An id is code:src/Reader.cs#<path>");
+        StringAssert.Contains(answer.Text, "T:Reader");
         StringAssert.Contains(answer.Text, "M:Read");
+        StringAssert.Contains(answer.Text, "public int Read()", "each declaration with its signature");
         Assert.IsFalse(answer.Text.Contains("namespace App;"), "the outline, not the text");
     }
 
@@ -302,7 +304,8 @@ public class GraphAskTests
 
         Assert.IsTrue(answer.Ok, answer.Text);
         StringAssert.Contains(answer.Text, "code:src/Reader.cs#T:Reader/M:Read", "one call away");
-        StringAssert.Contains(answer.Text, "code:src/Caller.cs#T:Caller", "one containment away");
+        StringAssert.Contains(answer.Text, "code:src/Caller.cs#", "one containment away, listed under its file");
+        StringAssert.Contains(answer.Text, "T:Caller ", "as the type itself, not only its member");
     }
 
     [TestMethod]
@@ -443,5 +446,209 @@ public class GraphAskTests
 
         var nowhere = Ask("@ | ids");
         Assert.IsFalse(nowhere.Ok, "without a history there is nothing for @ to mean");
+    }
+
+    // ── Answers the size of their question ────────────────────────────────────
+
+    private const string LongCs = """
+        namespace App;
+
+        public class Long
+        {
+            public int Big()
+            {
+                var first = 1;
+                var b = 2;
+                var c = 3;
+                var d = 4;
+                var e = 5;
+                var needle = 42;
+                var f = 6;
+                var g = 7;
+                var h = 8;
+                var i = 9;
+                return first + needle;
+            }
+        }
+        """;
+
+    private static KnowledgeGraph LongRepo() => new()
+    {
+        Nodes =
+        [
+            FileNode("src/Long.cs"),
+            Code("src/Long.cs", "T:Long", 3, NodeType.Type),
+            Code("src/Long.cs", "T:Long/M:Big", 5),
+        ],
+        Edges =
+        [
+            E("file:src/Long.cs", "code:src/Long.cs#T:Long", EdgeRelationship.Contains),
+            E("code:src/Long.cs#T:Long", "code:src/Long.cs#T:Long/M:Big", EdgeRelationship.Contains),
+        ],
+    };
+
+    private static string[]? ReadLong(string rel) => rel == "src/Long.cs" ? LongCs.Replace("\r\n", "\n").Split('\n') : Read(rel);
+
+    [TestMethod]
+    [CoversNode("graph-ask-signatures")]
+    public void Ids_SayTheSharedFileOnce_AndGiveEachDeclarationItsSignature()
+    {
+        var answer = Ask("node code:src/Reader.cs#T:Reader | members | ids");
+
+        StringAssert.Contains(answer.Text, "code:src/Reader.cs#", "the half of the ids they share, said once");
+        Assert.AreEqual(1, answer.Text.Split("src/Reader.cs").Length - 1, "and not again on every row");
+        StringAssert.Contains(answer.Text, "T:Reader/M:Read");
+        StringAssert.Contains(answer.Text, "public int Read()", "what calling it takes, without reading its body");
+        Assert.IsFalse(answer.Text.Contains("=> Depth", StringComparison.Ordinal), "the body is the part nobody asked for");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-paging")]
+    public void GrepThenSource_IsTheMatchedLineInContext_NotTheWholeDeclaration()
+    {
+        var answer = GraphAsk.Run(LongRepo(), "grep needle | source", ReadLong);
+
+        StringAssert.Contains(answer.Text, "var needle = 42;");
+        StringAssert.Contains(answer.Text, "var e = 5;", "the line above it, so the statement it is in can be seen");
+        StringAssert.Contains(answer.Text, "var g = 7;", "and the lines below");
+        Assert.IsFalse(answer.Text.Contains("var first = 1;", StringComparison.Ordinal), "not the rest of the method");
+        StringAssert.Contains(answer.Text, "return first + needle;", "a second match is shown too, merged where they meet");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-paging")]
+    public void Blocks_IsTheWholeDeclaration_WhateverMatched() =>
+        StringAssert.Contains(GraphAsk.Run(LongRepo(), "grep needle | blocks", ReadLong).Text, "var first = 1;");
+
+    [TestMethod]
+    [CoversNode("graph-ask-paging")]
+    public void AnAnswerTooLongToRead_IsCutWhereItFits_AndMoreContinuesIt()
+    {
+        var lines = string.Join('\n', Enumerable.Range(1, 800).Select(i => $"needle {i:D4} {new string('x', 60)}"));
+        var repo  = new KnowledgeGraph { Nodes = [FileNode("docs/big.md")] };
+        string[]? ReadBig(string rel) => rel == "docs/big.md" ? lines.Split('\n') : null;
+        var history = new AnswerHistory(_ => DateTime.UnixEpoch);
+
+        var first = GraphAsk.Run(repo, "grep needle | source", ReadBig, history);
+        Assert.IsTrue(first.Text.Length < GraphAsk.PageChars + 500, $"{first.Text.Length} characters is past a page");
+        StringAssert.Contains(first.Text, "needle 0001");
+        Assert.IsFalse(first.Text.Contains("needle 0800", StringComparison.Ordinal));
+        StringAssert.Contains(first.Text, "ask '@1 more'", "a cut names the question that prints the rest");
+        StringAssert.Contains(first.Text, "800 matching line(s)", "and the tally still says what the whole answer is");
+
+        var shown = new List<string>();
+        var page  = first;
+        for (var i = 0; i < 10 && page.Text.Contains("more'", StringComparison.Ordinal); i++)
+        {
+            shown.Add(page.Text);
+            page = GraphAsk.Run(repo, "@1 more", ReadBig, history);
+            Assert.IsTrue(page.Ok, page.Text);
+        }
+        shown.Add(page.Text);
+
+        var all = string.Join('\n', shown);
+        foreach (var n in new[] { 1, 250, 500, 800 })
+            Assert.AreEqual(1, all.Split($"needle {n:D4}").Length - 1, $"line {n} is printed once across the pages");
+        StringAssert.Contains(GraphAsk.Run(repo, "@1 more", ReadBig, history).Text, "no more");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void Diagnostics_AreCreditedToTheDeclarationTheyAreIn_KeepingOnlyTheIdsAskedFor()
+    {
+        GraphAsk.Diagnose compiler = (files, projects, ids) =>
+        {
+            CollectionAssert.AreEqual(new[] { "src/Reader.cs" }, files.ToArray(), "the files the stage before it found");
+            GraphAsk.Finding[] all =
+            [
+                new("src/Reader.cs", 5, "CS0168", "warning", "declared but never used"),
+                new("src/Reader.cs", 7, "NX0002", "warning", "something else"),
+            ];
+            return ([.. all.Where(f => ids is null || ids.IsMatch(f.Id))], ["Other: not restored"]);
+        };
+
+        var answer = GraphAsk.Run(Repo(), "node file:src/Reader.cs | diagnostics CS0168 | ids", Read, diagnose: compiler);
+
+        Assert.IsTrue(answer.Ok, answer.Text);
+        StringAssert.Contains(answer.Text, "code:src/Reader.cs#T:Reader/M:Read", "the member the line is in, not its type or file");
+        StringAssert.Contains(answer.Text, "CS0168 warning: declared but never used");
+        Assert.IsFalse(answer.Text.Contains("NX0002", StringComparison.Ordinal));
+        StringAssert.Contains(answer.Text, "not checked - Other: not restored", "what could not be asked is said, not left out");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void ADiagnosticInAView_CarriesThePathThatAddressesItsElement()
+    {
+        const string view = "<UserControl x:Class=\"App.View\">\n  <Grid>\n    <Button Content=\"a\"/>\n    <Button Content=\"b\"/>\n  </Grid>\n</UserControl>\n";
+        var repo = new KnowledgeGraph
+        {
+            Nodes = [FileNode("src/View.xaml"), Code("src/View.xaml", "T:View", 1, NodeType.Type)],
+            Edges = [E("file:src/View.xaml", "code:src/View.xaml#T:View", EdgeRelationship.Contains)],
+        };
+        string[]? ReadView(string rel) => rel == "src/View.xaml" ? view.Split('\n') : null;
+        GraphAsk.Diagnose compiler = (_, _, _) => ([new("src/View.xaml", 4, "NXUI001", "warning", "no automation id")], []);
+
+        var answer = GraphAsk.Run(repo, "diagnostics --project App", ReadView, diagnose: compiler);
+
+        StringAssert.Contains(answer.Text, "--at \"/UserControl/Grid/Button[2]\"", "the answer is also where the fix goes");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void Diagnostics_WithNoCompilerToAsk_IsRefusedSayingSo()
+    {
+        var answer = Ask("diagnostics --project App");
+
+        Assert.IsFalse(answer.Ok);
+        StringAssert.Contains(answer.Text, "compiler");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask")]
+    public void AFilesMembers_AreEveryDeclarationInIt_SoOneCanBePickedOutByName()
+    {
+        var answer = Ask("node file:src/Reader.cs | members | like Depth | ids");
+
+        Assert.IsTrue(answer.Ok, answer.Text);
+        StringAssert.Contains(answer.Text, "code:src/Reader.cs#T:Reader/P:Depth", "a member, not only the types a file declares");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-signatures")]
+    public void AListOfFiles_SaysTheirProjectDirectoryOnce()
+    {
+        var repo = new KnowledgeGraph
+        {
+            Nodes = [FileNode("src/App.Core/A.cs"), FileNode("src/App.Core/B.cs"), FileNode("src/App.Core/Sub/C.cs"), FileNode("docs/x.md")],
+        };
+
+        var answer = GraphAsk.Run(repo, "node file:src/App.Core/A.cs,file:src/App.Core/B.cs,file:src/App.Core/Sub/C.cs,file:docs/x.md | files", Read);
+
+        StringAssert.Contains(answer.Text, "src/App.Core/");
+        StringAssert.Contains(answer.Text, "Sub/C.cs");
+        Assert.AreEqual(1, answer.Text.Split("src/App.Core/").Length - 1, "the directory once, not on every file in it");
+        StringAssert.Contains(answer.Text, "docs/x.md", "a file alone in its directory keeps its whole path");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-queries")]
+    public void ADottedName_FindsTheMemberInsideTheTypeItNames()
+    {
+        StringAssert.Contains(Ask("search Reader.Read | ids").Text, "code:src/Reader.cs#T:Reader/M:Read");
+        Assert.IsFalse(Ask("search Caller.Read | ids").Text.Contains("T:Reader/M:Read", StringComparison.Ordinal),
+                       "the type it is written inside has to be the one it is in");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-queries")]
+    public void ThisRepositorysOwnCode_ComesBeforeThePinnedSourcesUnderExternal()
+    {
+        var g = new KnowledgeGraph
+        {
+            Nodes = [Code("external/lib/Reader.cs", "T:Reader", 1, NodeType.Type), Code("src/Reader.cs", "T:Reader", 3, NodeType.Type)],
+        };
+
+        Assert.AreEqual("src/Reader.cs", GraphQuery.Search(g, "Reader")[0].FilePath);
     }
 }

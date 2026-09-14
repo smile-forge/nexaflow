@@ -29,6 +29,52 @@ internal static class EditCheck
     internal static CompileHost HostFor(string codeRoot) =>
         Hosts.GetOrAdd(Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)), root => new CompileHost(root));
 
+    /// <summary>
+    /// The compiler as <c>ask</c>'s <c>diagnostics</c> stage asks it: repo-relative files and projects in, findings by
+    /// repo-relative file out. A project is named as its file is (<c>Nexaflow.Features.Solver</c>), by the end of that name
+    /// (<c>Features.Solver</c>) when only one ends so, or by its path.
+    /// </summary>
+    internal static GraphAsk.Diagnose DiagnoseIn(KnowledgeGraph graph, string codeRoot) => (files, projects, ids) =>
+    {
+        var notChecked = new List<string>();
+        var paths      = new List<string>();
+        foreach (var project in projects)
+        {
+            var (full, why) = ProjectFile(graph, codeRoot, project);
+            if (full is not null) paths.Add(full);
+            else notChecked.Add($"{project}: {why}");
+        }
+
+        var report = HostFor(codeRoot).Diagnostics([.. files.Select(f => Full(codeRoot, f))], paths, ids, LoadBudget,
+                                                   RequestScope.Cancellation);
+        return ([.. report.Found.Select(d => new GraphAsk.Finding(Relative(codeRoot, d.FullPath), d.Line, d.Id, d.Severity, d.Message))],
+                [.. notChecked, .. report.NotChecked]);
+    };
+
+    /// <summary>The project file a name or path means, or why there is not exactly one.</summary>
+    private static (string? Full, string Why) ProjectFile(KnowledgeGraph graph, string codeRoot, string project)
+    {
+        var wanted = project.Replace('\\', '/');
+        if (wanted.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) && File.Exists(Full(codeRoot, wanted)))
+            return (Full(codeRoot, wanted), "");
+
+        // Only a .csproj has an extension to take off: Nexaflow.Features.Solver is a name, and "without extension" made it Nexaflow.Features.
+        var name  = wanted.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ? Path.GetFileNameWithoutExtension(wanted) : Path.GetFileName(wanted);
+        var known = graph.Nodes.Where(n => n.Type == NodeType.File && n.FilePath is { } p && p.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                               .Select(n => n.FilePath!)
+                               .Distinct(StringComparer.OrdinalIgnoreCase)
+                               .ToList();
+
+        var exact = known.Where(p => Path.GetFileNameWithoutExtension(p).Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+        var named = exact.Count > 0 ? exact
+            : known.Where(p => Path.GetFileNameWithoutExtension(p).EndsWith("." + name, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (named.Count == 0) return (null, "no project is called that");
+        if (named.Count > 1)
+            return (null, $"that could be {string.Join(" or ", named.Take(4).Select(Path.GetFileNameWithoutExtension))} - name one");
+        return File.Exists(Full(codeRoot, named[0])) ? (Full(codeRoot, named[0]), "") : (null, "its project file is not in this tree");
+    }
+
     /// <summary>One place a changed declaration is used.</summary>
     internal sealed record Use(string RelativePath, int Line, GraphNode? Owner);
 

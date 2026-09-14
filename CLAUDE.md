@@ -101,28 +101,44 @@ nfi converts `/c/…` paths in `--file` and friends itself; `/tmp/…` has no Wi
 | it, and its code | `ask 'search <term> \| source'` |
 | everything about one node | `graph context <id>` — its source, neighbours, owning feature, and the grep for that feature |
 | who uses it, and how | `ask 'node <id> \| callers \| source'` |
+| what a type or a file offers | `ask 'node <id> \| members'` — every declaration with its signature, so no body has to be read to learn one |
+| what the compiler or an analyzer reports | `ask 'diagnostics NXUI001 --project Features.Solver'` · for what you found: `ask 'node <id> \| diagnostics'` — each finding in its declaration, a XAML one with the `--at` path of its element |
 | does anything still do X, and where | `ask 'grep <regex> \| files'` · just the number: `\| count` |
 | a pattern inside one feature | `ask 'node product:<slug> \| owned \| grep <regex>'` |
 | near this code | `ask 'node <id> \| near 2 \| grep <regex>'` |
 | to narrow what you just found | `ask '@ \| like <regex> \| files'` — every answer ends with its handle; `@3` is the third |
+| the rest of a long answer | `ask '@3 more'` — an answer past a page is cut where a block ends and says so; nothing is cut without the command that shows the rest |
 | a block's text | `graph code <id> [--lines A-B]` · a file: `graph cat file:<relpath>` (past 400 lines, its outline) |
 | a whole feature from the tree | `tree <node-id> --full` · one node: `describe <node-id> --code` |
 
 `ask` chains stages with `|`, the set of nodes flowing left to right, and **only the last stage prints**: start with
-`search` / `grep [--from <id>] [--scope owned|hops] [--hops <n>]` / `node <id>[,<id>…]` / `@` / `@<n>`; narrow with
-`callers` / `callees` / `members` / `owned` / `near <n>` / `grep` / `like` / `limit <n>`; print with `ids [n]` /
-`source [n]` / `files` / `count`. One question per line, so several unrelated ones are still one call. Quote a regex
-holding a `|`. Stages are strict — an unknown flag or an id the graph lacks is refused, and a zero names the stage that
-emptied the set. An `@` answer is reused while nothing it came from has changed, and asked again when something has.
+`search` / `grep [--from <id>] [--scope owned|hops] [--hops <n>]` / `node <id>[,<id>…]` /
+`diagnostics [<id-regex>] --project <name>` / `@` / `@<n>`; narrow with `callers` / `callees` / `members` / `owned` /
+`near <n>` / `grep` / `diagnostics` / `like` / `limit <n>`; print with `ids [n]` / `source [n]` / `blocks [n]` / `files` /
+`count`. Several questions are several quoted arguments — `ask 'search A | source' 'grep B | files'` — and each gets its
+own answer in the one call. Quote a regex holding a `|`. Stages are strict — an unknown flag or an id the graph lacks is
+refused, and a zero names the stage that emptied the set. An `@` answer is reused while nothing it came from has
+changed, and asked again when something has.
+
+**An answer is the size of its question**, because every turn re-reads everything already printed:
+
+- `ids` lists declarations under the file they share (`code:src/…/GraphQuery.cs#` once, then each path), each with its
+  **signature** — what calling it takes, up to its body. `members` of a type or a file is the fastest way to learn what
+  it offers. `files` says a project's directory once.
+- `source` after a `grep` or `diagnostics` prints **the matched lines with two either side**, inside their declaration —
+  not every declaration that holds a match. `blocks` prints whole declarations; a file prints its outline.
+- Past a page (about 20,000 characters) an answer is cut where a block ends, with `ask '@3 more'` for the rest. A
+  `graph cat` or `graph grep` that stops short names the command that continues it.
 
 A search for a code *pattern* is `grep` too, never `grep -rn`: every hit comes back with the member and feature that
 owns it. With nothing before it `grep` covers the whole repository in a few seconds, and grep reads documents as well
 as code. `graph grep --limit` trims the printed list, never the search — the total is the real total, and only an
 explicit `--scan-cap` cuts a search short, loudly.
 
-**Every answer says whether it is current** (`graph: current — 6,204 files…` or `2 changed…`), from a stat of each
-file rather than a re-read; `--refresh` folds changed files in before answering. Each worktree has its own graph,
-cloned from the main checkout's on first use. `graph build` is for the cross-file passes — call resolution,
+**The graph keeps up with your tree on its own.** Files that changed since it was built are folded in before a query
+answers, from a stat of each rather than a re-read, and an answer says `graph: 2 changed…` only when it could not be —
+silence means current. Each worktree has its own graph, cloned from the main checkout's on first use and brought onto
+your branch before that first answer. `graph build` is for the cross-file passes — call resolution,
 communities — and never needed before an edit. Node ids: `product:<slug>` · `code:<relpath>#<astpath>` ·
 `file:<relpath>` · `external:<name>`. The **`nexaflow-explorer`** sub-agent drives the same exe.
 
@@ -137,7 +153,9 @@ What `nfi graph edit` guarantees, and why it is the only way files here are chan
   refused.
 - **Compiled before it is written.** A C# edit is compiled in memory against the project's own build command line,
   and the answer lists the errors it **introduced and fixed** — in its project and in every project that compiles
-  against it. Errors already there cancel out. `--must-compile` refuses the write; `--no-check` skips it.
+  against it. Errors already there cancel out. A project another references that is not built, or is older than its
+  sources, is compiled from those sources; one whose packages are not restored is named as not checked rather than
+  reported as errors. `--must-compile` refuses the write; `--no-check` skips it.
 - **What it affects is in the answer.** A declaration whose outside changed (removed, renamed, re-signed) is
   followed to what uses it, by the compiler's binding: `impact:` names each user, and XAML that names it as text.
 - **Several edits are one change.** `graph edit script` plans every command against what the ones before it left and
@@ -160,7 +178,8 @@ What `nfi graph edit` guarantees, and why it is the only way files here are chan
 | something in no declaration, or a text file | `substitute file:<relpath> --find …` |
 | a XAML element, a project file | a XAML id (`T:`/`N:`/`K:`/`A:`) takes every op; `file:<path> --at "<xpath>"` any element; `set-attribute` / `remove-attribute --name` |
 | several of the above | `graph edit script --file plan.edits` |
-| see it first | `--dry-run` (planned, checked and compiled; nothing written) · `--show` prints the result |
+| take it back | `graph edit undo` — the last edit, file for file; refused when anything changed since. An edit is planned, parsed and compiled before it is written either way, so write it, read what it printed, and undo if it is wrong: `--dry-run` only adds a call |
+| see the result | `--show` prints the declaration as it now stands |
 
 Text comes from `--text` (literal), `--text-escaped` (`\n`, `\t`, `\uXXXX`), `--file` or `--stdin`, and `--find` has the
 same four. A script is one command per line, as it would follow `graph edit`, with multi-line text in blocks beneath:
@@ -176,6 +195,9 @@ New(x, y);
 move code:src/A.cs#T:Parser --to file:src/Parsing/Parser.cs
 rename code:src/A.cs#T:A/M:Helper --to Assist --references
 ```
+
+Pass a script on stdin, so writing it and running it are one call — `@' … '@ | & $nfi graph edit script --stdin` in
+PowerShell, `nfi graph edit script --stdin <<'EOF' … EOF` in bash. A file is only worth it for a script run twice.
 
 A find matches ignoring indentation and line endings, may start and end part-way along a line, and when it is not
 there the refusal names where it is. `$1` is a backreference only with `--regex`. The `#N` in `T:C/M:Add#1` is that
