@@ -43,8 +43,10 @@ public class CompileHostTests
         // Never restored: what a fresh worktree's project is before its first build.
         Write(Path.Combine(_root, "Unrestored", "Unrestored.csproj"),
               "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>"
-            + "<ItemGroup><PackageReference Include=\"Newtonsoft.Json\" Version=\"13.0.3\" /></ItemGroup></Project>");
-        Write(Path.Combine(_root, "Unrestored", "Thing.cs"), "public class Thing { }\n");
+            + "<ItemGroup><PackageReference Include=\"Newtonsoft.Json\" Version=\"13.0.3\" />"
+            + "<ProjectReference Include=\"..\\Lib\\Lib.csproj\" /></ItemGroup></Project>");
+      Write(Path.Combine(_root, "Unrestored", "Thing.cs"), "public class Thing { }\n");
+      Write(Path.Combine(_root, "Unrestored", "Use.cs"), "public static class Use\n{\n    public static string Run() => new Lib.Greeter().Greet(\"u\");\n}\n");
 
         Write(App("App.csproj"),
               "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework>"
@@ -175,5 +177,18 @@ public class CompileHostTests
 
         var only = _host.Diagnostics([Lib("Warn.cs")], [], new Regex("CS0168"), Budget);
         Assert.AreEqual("CS0168", only.Found.Single().Id, "one file, one id");
+    }
+
+    [TestMethod]
+    public void References_AreFoundInAProjectNeverRestored_SinceAMissingPackageDoesNotStopOurOwnTypesBinding()
+    {
+        var declaration = Greeter.IndexOf("Greet(", StringComparison.Ordinal);
+        var use         = Path.Combine(_root, "Unrestored", "Use.cs");
+
+        var report = _host.FindReferences(Lib("Greeter.cs"), declaration, [use], Budget);
+
+        Assert.IsNull(report.Error, report.Error);
+        Assert.IsTrue(report.Locations.Any(l => string.Equals(l.FullPath, use, StringComparison.OrdinalIgnoreCase)),
+                      "found by binding, not left to a search by spelling: " + string.Join("; ", report.NotChecked));
     }
 }

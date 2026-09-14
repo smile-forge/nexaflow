@@ -97,7 +97,7 @@ public sealed class CompileHost
 
             var loaded = new List<(CompiledProject Project, List<SourceChange> Changes)>();
             foreach (var (csproj, list) in byProject)
-                if (Get(csproj, clock, budget, notChecked, cancellation) is { } project) loaded.Add((project, list));
+                if (Checkable(csproj, notChecked) && Get(csproj, clock, budget, notChecked, cancellation) is { } project) loaded.Add((project, list));
 
             var built  = new Dictionary<string, (CSharpCompilation Compilation, string Key)?>(StringComparer.OrdinalIgnoreCase);
             var edited = new List<(CompiledProject Project, CSharpCompilation Before, CSharpCompilation After)>();
@@ -120,7 +120,7 @@ public sealed class CompileHost
             foreach (var group in consumerFiles.GroupBy(f => ProjectOf(f) ?? "", StringComparer.OrdinalIgnoreCase))
             {
                 if (group.Key.Length == 0 || byProject.ContainsKey(group.Key) || edited.Count == 0) continue;
-                if (Get(group.Key, clock, budget, notChecked, cancellation) is not { } consumer) continue;
+                if (!Checkable(group.Key, notChecked) || Get(group.Key, clock, budget, notChecked, cancellation) is not { } consumer) continue;
 
                 // Only a project that compiles against an edited one can be broken by it; one that merely mentions a
                 // name of the same spelling is about something else.
@@ -231,7 +231,7 @@ public sealed class CompileHost
                     notChecked.Add($"{Path.GetFileName(csproj)}: there is no such project");
                     continue;
                 }
-                if (Get(csproj, clock, budget, notChecked, cancellation) is not { } project) continue;
+                if (!Checkable(csproj, notChecked) || Get(csproj, clock, budget, notChecked, cancellation) is not { } project) continue;
                 if (Current(project, clock, budget, notChecked, cancellation, built) is not { } current) continue;
 
                 var reported = project.Diagnostics(current.Compilation, current.Key, _loader, ids, cancellation);
@@ -302,6 +302,19 @@ public sealed class CompileHost
             return null;
         }
         return _projects[csproj] = project;
+    }
+
+    /// <summary>
+    /// Whether the compiler's errors for a project mean anything — not when its packages are not restored (see
+    /// <see cref="CompiledProject.Unrestored"/>). Asked only where errors are reported: finding references needs no such
+    /// trust, since a missing package does not stop this repository's own types binding, and refusing to load such a
+    /// project there turned a reference search back into a search by spelling.
+    /// </summary>
+    private static bool Checkable(string csproj, List<string> notChecked)
+    {
+        if (CompiledProject.Unrestored(csproj) is not { } why) return true;
+        notChecked.Add($"{Path.GetFileNameWithoutExtension(csproj)}: {why}");
+        return false;
     }
 
     /// <summary>How a project the loading budget ran out on is marked, until <see cref="Summarised"/> folds them into one line.</summary>

@@ -50,7 +50,7 @@ public class TestSelectionTests
              : rel.StartsWith("tests/T/", StringComparison.Ordinal) ? "tests/T/T.csproj"
              : rel.StartsWith("tests/J/", StringComparison.Ordinal) ? "tests/J/J.csproj" : null,
         project => project.StartsWith("tests/", StringComparison.Ordinal),
-        project => project == "tests/J/J.csproj",
+        (project, _) => project == "tests/J/J.csproj",
         (_, _) => null,
         coverage);
 
@@ -96,5 +96,65 @@ public class TestSelectionTests
         var selection = TestSelection.For(Graph, "code:src/Lib/Helper.cs#T:Helper", Sources(coverage: null));
 
         Assert.IsTrue(selection.Notes.Any(n => n.Contains("scan-tests", StringComparison.Ordinal)), string.Join("\n", selection.Notes));
+    }
+
+    [TestMethod]
+    public void ATestThatShowsAWindow_IsNamedForAPerson_EvenInASuiteOfOrdinaryTests()
+    {
+        var files = new Dictionary<string, string>(Files, StringComparer.Ordinal)
+        {
+            ["tests/T/WindowTests.cs"] = "class WindowTests\n{\n    [TestMethod]\n    public void ShowsDouble() => new Api().Double(3);\n}\n",
+        };
+        var graph = new KnowledgeGraph
+        {
+            Nodes = [.. Graph.Nodes, Member("code:tests/T/WindowTests.cs#T:WindowTests/M:ShowsDouble", "ShowsDouble", "tests/T/WindowTests.cs", 4, 4)],
+            Edges = Graph.Edges,
+        };
+        var sources = Sources() with
+        {
+            Read = rel => files.GetValueOrDefault(rel),
+            Files = [.. files.Keys],
+            TakesOverTheMachine = (project, file) => project == "tests/J/J.csproj" || file == "tests/T/WindowTests.cs",
+        };
+
+        var selection = TestSelection.For(graph, "code:src/Lib/Api.cs#T:Api/M:Double", sources);
+
+        CollectionAssert.AreEqual(new[] { ".ApiTests.Doubles" }, selection.Suites.Single(s => s.Project == "tests/T/T.csproj").Filters.ToArray(),
+                                  "the ordinary test in the suite runs");
+        CollectionAssert.Contains(selection.Journeys.Single(s => s.Project == "tests/T/T.csproj").Filters.ToList(), ".WindowTests.ShowsDouble",
+                                  "and the one that shows a window is named for a person, not run");
+    }
+
+    [TestMethod]
+    public void AView_FindsTheJourneyThatNamesItsIds_ThoughNothingBindsToThem()
+    {
+        var files = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["src/App/View.xaml"]      = "<UserControl>\n  <Button AutomationProperties.AutomationId=\"App_Save\"/>\n</UserControl>\n",
+            ["src/App/View.xaml.cs"]   = "class View\n{\n}\n",
+            ["tests/J/ViewJourney.cs"] = "class ViewJourney\n{\n    [TestMethod]\n    public void Saves() => Click(\"App_Save\");\n}\n",
+        };
+        var graph = new KnowledgeGraph
+        {
+            Nodes =
+            [
+                new GraphNode { Id = "code:src/App/View.xaml.cs#T:View", Type = NodeType.Type, Label = "View", FilePath = "src/App/View.xaml.cs",
+                                Metadata = new Dictionary<string, string> { ["ast"] = "T:View", ["line"] = "1", ["endLine"] = "3" } },
+                Member("code:tests/J/ViewJourney.cs#T:ViewJourney/M:Saves", "Saves", "tests/J/ViewJourney.cs", 4, 4),
+            ],
+        };
+        var sources = new TestSelection.Sources(
+            rel => files.GetValueOrDefault(rel), [.. files.Keys],
+            rel => rel[..rel.LastIndexOf('/')] + "/P.csproj",
+            project => project.StartsWith("tests/", StringComparison.Ordinal),
+            (project, _) => project == "tests/J/P.csproj",
+            (_, _) => null,
+            null);
+
+        var selection = TestSelection.For(graph, "code:src/App/View.xaml.cs#T:View", sources);
+
+        var journey = selection.Journeys.Single();
+        CollectionAssert.AreEqual(new[] { ".ViewJourney.Saves" }, journey.Filters.ToArray());
+        StringAssert.Contains(journey.Reasons.Single(), "App_Save", "and says it was the id that led there");
     }
 }

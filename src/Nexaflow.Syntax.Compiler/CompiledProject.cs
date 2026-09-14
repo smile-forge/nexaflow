@@ -78,12 +78,7 @@ internal sealed class CompiledProject
     /// </summary>
     public string? Refresh(AnalyzerLoader loader, CancellationToken cancellation)
     {
-        // Without a restore the design-time build still hands out a command line — one with no package in it. Compiled, every
-        // use of a package type is an error, and an edit adding one more use "introduces" it: a false alarm that reads exactly
-        // like a real one. Nothing about such a project can be said, so it says that instead.
-        if (!Restored())
-            return $"its packages are not restored, so nothing it uses from them can be read - `dotnet restore {Path.GetFileName(ProjectPath)}` "
-                 + "(or a build) and it is checked from then on";
+
 
         var (arguments, error) = DesignTimeBuild.For(ProjectPath, cancellation);
         if (arguments is null) return error;
@@ -109,16 +104,25 @@ internal sealed class CompiledProject
         return null;
     }
 
-    /// <summary>Whether restore has written this project's assets file, which every SDK project has once restored.</summary>
-    private bool Restored()
+    /// <summary>
+    /// Why the compiler's errors for a project cannot be trusted, or null when they can: restore has not written its assets
+    /// file, which every SDK project has once restored. Without one the design-time build still hands out a command line —
+    /// one with no package in it — so every use of a package type is an error, and an edit adding one more use "introduces"
+    /// it: a false alarm that reads exactly like a real one.
+    /// </summary>
+    public static string? Unrestored(string csproj)
     {
-        var obj = Path.Combine(Directory, "obj");
+        var obj = Path.Combine(Path.GetDirectoryName(csproj)!, "obj");
         try
         {
-            return System.IO.Directory.Exists(obj)
-                && System.IO.Directory.EnumerateFiles(obj, "project.assets.json", SearchOption.AllDirectories).Any();
+            if (System.IO.Directory.Exists(obj)
+                && System.IO.Directory.EnumerateFiles(obj, "project.assets.json", SearchOption.AllDirectories).Any())
+                return null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return true; }   // cannot tell: try it
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }   // cannot tell: trust it
+
+        return $"its packages are not restored, so nothing it uses from them can be read - `dotnet restore {Path.GetFileName(csproj)}` "
+             + "(or a build) and it is checked from then on";
     }
 
     /// <summary>

@@ -15,14 +15,19 @@ namespace Nexaflow.Services.Initiatives.Graph;
 /// A use is found by the caller's <see cref="Sources.UsesOf"/> — the compiler's binding, in the CLI — and by spelling
 /// only when that cannot answer. Spelling alone chose every suite in the repository for a helper called <c>Named</c>.
 /// </para>
+/// <para>
+/// A view is the exception to "uses". A journey reaches one through the automation ids it clicks, which are strings, so
+/// no binding leads from the view to its journey — and the one test that exercises the view was the one not found. The
+/// ids a view declares are followed by name instead.
+/// </para>
 /// </summary>
 public static class TestSelection
 {
     /// <summary>One test project to build and run, the filters that pick its tests, and why they were picked.</summary>
     public sealed record Suite(string Project, IReadOnlyList<string> Filters, IReadOnlyList<string> Reasons);
 
-    /// <param name="Journeys">Suites that use it but take over the mouse and keyboard, which are never run on the
-    /// caller's behalf — named, with their filters, for a person to run.</param>
+    /// <param name="Journeys">Tests that use it but take over the mouse and keyboard, which are never run on the caller's
+    /// behalf — named, with their filters, for a person to run.</param>
     public sealed record Selection(IReadOnlyList<Suite> Suites, IReadOnlyList<Suite> Journeys, IReadOnlyList<string> Notes);
 
     /// <summary>A declaration whose uses are wanted.</summary>
@@ -35,12 +40,13 @@ public static class TestSelection
     /// <param name="Files">The repository's source files, repo-relative.</param>
     /// <param name="ProjectOf">A source file's project, repo-relative — or null for one no project compiles.</param>
     /// <param name="IsTestProject">Whether a project is a test project.</param>
-    /// <param name="TakesOverTheMachine">Whether a test project drives the real desktop, and so must not be run for anyone.</param>
+    /// <param name="TakesOverTheMachine">Whether the tests in a file of a test project drive the real desktop, and so must
+    /// not be run for anyone. Asked per file: a suite of ordinary tests can hold a few that show a window.</param>
     /// <param name="UsesOf">The uses of a target among the candidate files that spell its name, or null when they
     /// cannot be resolved — in which case the spelling is taken as the use.</param>
     /// <param name="Coverage">What the test assemblies declare they cover, when a scan has recorded it.</param>
     public sealed record Sources(Func<string, string?> Read, IReadOnlyList<string> Files, Func<string, string?> ProjectOf,
-                                 Func<string, bool> IsTestProject, Func<string, bool> TakesOverTheMachine,
+                                 Func<string, bool> IsTestProject, Func<string, string, bool> TakesOverTheMachine,
                                  Func<Target, IReadOnlyList<string>, IReadOnlyList<Use>?> UsesOf,
                                  TestCoverageManifest? Coverage);
 
@@ -53,15 +59,20 @@ public static class TestSelection
     private static readonly Regex TestAttribute =
         new(@"\[\s*(TestMethod|DataTestMethod|Fact|Theory|Test|TestCase)\b", RegexOptions.CultureInvariant);
 
+    private static readonly Regex AutomationId =
+        new(@"AutomationProperties\.AutomationId\s*=\s*""([A-Za-z_][\w.]*)""", RegexOptions.CultureInvariant);
+
     public static Selection For(KnowledgeGraph graph, string nodeId, Sources sources)
     {
         var index = GraphQuery.Index(graph);
         var notes = new List<string>();
-        var picks = new Dictionary<string, (HashSet<string> Filters, HashSet<string> Reasons)>(StringComparer.OrdinalIgnoreCase);
+        var picks = new Dictionary<string, (string Project, bool Journey, HashSet<string> Filters, HashSet<string> Reasons)>(StringComparer.OrdinalIgnoreCase);
 
-        void Pick(string project, string filter, string reason)
+        void Pick(string project, string testFile, string filter, string reason)
         {
-            if (!picks.TryGetValue(project, out var pick)) picks[project] = pick = ([], []);
+            var journey = sources.TakesOverTheMachine(project, testFile);
+            var key     = $"{journey}|{project}";
+            if (!picks.TryGetValue(key, out var pick)) picks[key] = pick = (project, journey, [], []);
             pick.Filters.Add(filter);
             pick.Reasons.Add(reason);
         }
@@ -73,7 +84,7 @@ public static class TestSelection
             foreach (var product in products)
                 foreach (var test in coverage.Coverage.GetValueOrDefault(product) ?? [])
                     if (test.File is { Length: > 0 } file && sources.ProjectOf(file) is { } project)
-                        Pick(project, test.Method is { Length: > 0 } method ? $"{test.Class}.{method}" : $"{test.Class}.",
+                        Pick(project, file, test.Method is { Length: > 0 } method ? $"{test.Class}.{method}" : $"{test.Class}.",
                              $"declares it covers {product}");
         }
         else if (products.Count > 0)
@@ -105,7 +116,7 @@ public static class TestSelection
                     if (sources.IsTestProject(project))
                     {
                         if (owner is not null && TestFilter(owner, sources) is { } filter)
-                            Pick(project, filter, step == 1 ? $"uses {target.Name}" : $"uses {target.Name}, which uses it");
+                            Pick(project, use.RelativePath, filter, step == 1 ? $"uses {target.Name}" : $"uses {target.Name}, which uses it");
                     }
                     else if (step < Steps && owner?.FilePath is { } file && owner.Metadata?.GetValueOrDefault("ast") is { Length: > 0 } ast
                              && owner.Label is { Length: > 0 } label && seen.Add($"{file}#{ast}"))
@@ -121,12 +132,41 @@ public static class TestSelection
             frontier = next;
         }
 
-        var all = picks.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
-                       .Select(p => new Suite(p.Key, [.. p.Value.Filters.Order(StringComparer.Ordinal)],
-                                              [.. p.Value.Reasons.Order(StringComparer.Ordinal).Take(6)]))
+        // ── By name: the tests that name the automation ids of the view it is, or is the code behind ──
+        if (ViewOf(index, nodeId) is { } view && sources.Read(view) is { } markup)
+        {
+            var ids = AutomationId.Matches(markup).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).ToList();
+            var testFiles = sources.Files.Where(f => sources.ProjectOf(f) is { } p && sources.IsTestProject(p)).ToList();
+            var viewName  = view[(view.LastIndexOf('/') + 1)..];
+
+            if (ids.Count > 0)
+                foreach (var mention in GraphMentions.Of(graph, ids, testFiles, sources.Read))
+                    if (sources.ProjectOf(mention.RelativePath) is { } project
+                        && GraphMentions.OwnerOf(graph, mention.RelativePath, mention.Line) is { } owner
+                        && TestFilter(owner, sources) is { } filter)
+                        Pick(project, mention.RelativePath, filter,
+                             $"names {ids.FirstOrDefault(id => mention.Text.Contains(id, StringComparison.Ordinal)) ?? "an id"} from {viewName}");
+        }
+
+        var all = picks.Values.OrderBy(p => p.Project, StringComparer.OrdinalIgnoreCase)
+                       .Select(p => (p.Journey, Suite: new Suite(p.Project, [.. p.Filters.Order(StringComparer.Ordinal)],
+                                                                  [.. p.Reasons.Order(StringComparer.Ordinal).Take(6)])))
                        .ToList();
-        return new Selection([.. all.Where(s => !sources.TakesOverTheMachine(s.Project))],
-                             [.. all.Where(s => sources.TakesOverTheMachine(s.Project))], notes);
+        return new Selection([.. all.Where(s => !s.Journey).Select(s => s.Suite)],
+                             [.. all.Where(s => s.Journey).Select(s => s.Suite)], notes);
+    }
+
+    /// <summary>The view a node is — a <c>.xaml</c> file or something in one — or is the code behind, else null.</summary>
+    private static string? ViewOf(Dictionary<string, GraphNode> index, string nodeId)
+    {
+        var file = index.GetValueOrDefault(nodeId)?.FilePath;
+        if (nodeId.StartsWith("file:", StringComparison.Ordinal)) file = nodeId["file:".Length..];
+        else if (nodeId.StartsWith("code:", StringComparison.Ordinal) && nodeId.IndexOf('#') > 0)
+            file = nodeId["code:".Length..nodeId.IndexOf('#')];
+
+        if (file is null) return null;
+        if (file.EndsWith(".xaml.cs", StringComparison.OrdinalIgnoreCase)) return file[..^".cs".Length];
+        return file.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase) ? file : null;
     }
 
     /// <summary>The declarations a node stands for: itself, for a code node; the types it declares, for a file.</summary>

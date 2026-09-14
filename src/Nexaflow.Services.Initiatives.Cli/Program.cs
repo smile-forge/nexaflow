@@ -1028,7 +1028,8 @@ internal static class Program
             if (used > 0 && used + row.Length + 1 > GraphAsk.PageChars)
             {
                 var last = Math.Min(e0, lines.Length - 1) + 1;
-                Console.WriteLine($"… lines {i + 1}-{last} not shown: nfi graph cat {id} --lines {i + 1}-{last}");
+                Console.WriteLine($"… lines {i + 1}-{last} not shown - output stops at a page ({GraphAsk.PageChars:N0} characters), "
+                                + $"--all included; the rest: nfi graph cat {id} --lines {i + 1}-{last}");
                 break;
             }
             Console.WriteLine(row);
@@ -1114,6 +1115,9 @@ internal static class Program
         var kinds    = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         string? Read(string rel) => CodeFilePath(root, rel, main: false) is { } full ? File.ReadAllText(full) : null;
         string Kind(string csproj) => kinds.TryGetValue(csproj, out var kind) ? kind : kinds[csproj] = TestKind(EditCheck.Full(codeRoot, csproj));
+        var desktop = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        bool DrivesTheDesktop(string rel) => desktop.TryGetValue(rel, out var drives) ? drives
+            : desktop[rel] = Read(rel) is { } text && DesktopTest.IsMatch(text);
 
         // A use is what the compiler binds to the declaration, where it can be asked; spelling is the fallback, and chose
         // every suite in the repository the first time for a helper whose name was an ordinary word.
@@ -1149,7 +1153,7 @@ internal static class Program
             Read, files,
             rel => host.ProjectOf(EditCheck.Full(codeRoot, rel)) is { } csproj ? EditCheck.Relative(codeRoot, csproj) : null,
             csproj => Kind(csproj) != "",
-            csproj => Kind(csproj) == "journeys",
+            (csproj, file) => Kind(csproj) == "journeys" || DrivesTheDesktop(file),
             UsesOf,
             new ProductStore(root).LoadTestCoverage()));
 
@@ -1160,7 +1164,9 @@ internal static class Program
         }
 
         if (selection.Suites.Count == 0)
-            Console.WriteLine("tests: none — nothing uses it from a test, and no test declares it covers its feature.");
+            Console.WriteLine(selection.Journeys.Count > 0
+                ? "tests: none that nfi runs — what exercises it is the journeys below."
+                : "tests: none — nothing uses it from a test, and no test declares it covers its feature.");
         foreach (var suite in selection.Suites)
         {
             Console.WriteLine($"{suite.Project}   {suite.Filters.Count} filter(s)");
@@ -1169,7 +1175,7 @@ internal static class Program
             if (suite.Filters.Count > 30) Console.WriteLine($"  … and {suite.Filters.Count - 30} more");
         }
         PrintJourneys(selection);
-        foreach (var note in selection.Notes) Console.Error.WriteLine($"note: {note}");
+        foreach (var note in selection.Notes) Console.WriteLine($"note: {note}");
         if (selection.Suites.Count > 0) Console.WriteLine($"nfi test {id} builds these and runs them.");
         return Clean;
     }
@@ -1183,20 +1189,26 @@ internal static class Program
                             + string.Join("|", journey.Filters.Select(f => $"FullyQualifiedName~{f}")) + "\"");
     }
 
-    /// <summary>What kind of test project a project is: "" for none, "journeys" for one that drives the real desktop
-    /// (it references a UI automation library), "tests" otherwise.</summary>
+    /// <summary>
+    /// "tests" for a test project, "journeys" for the one whose every test launches the app, "" for anything else. A journey
+    /// project is known by its name: five ordinary suites here reference FlaUI too, and reading that as "drives the desktop"
+    /// named hundreds of plain unit tests as ones nobody may run. Which tests in an ordinary suite do show a window is
+    /// asked of each test's file instead (<see cref="DesktopTest"/>).
+    /// </summary>
     private static string TestKind(string csproj)
     {
         try
         {
             var text = File.ReadAllText(csproj);
             if (!Regex.IsMatch(text, @"MSTest|Microsoft\.NET\.Test\.Sdk|xunit|NUnit|EnableMSTestRunner", RegexOptions.IgnoreCase)) return "";
-            return Regex.IsMatch(text, @"FlaUI|Appium|WinAppDriver|Playwright", RegexOptions.IgnoreCase)
-                || Path.GetFileNameWithoutExtension(csproj).Contains("Journey", StringComparison.OrdinalIgnoreCase)
-                ? "journeys" : "tests";
+            return Path.GetFileNameWithoutExtension(csproj).Contains("Journey", StringComparison.OrdinalIgnoreCase) ? "journeys" : "tests";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return ""; }
     }
+
+    /// <summary>A test file that drives the real desktop: it imports FlaUI, or declares a test that shows a window.</summary>
+    private static readonly Regex DesktopTest =
+        new(@"^\s*using\s+FlaUI\b|TestCategory\(\s*""Desktop""\s*\)", RegexOptions.Multiline | RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Structural editing: <c>graph edit &lt;op&gt; &lt;node-id&gt;</c>. The graph names the declaration; the
