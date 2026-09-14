@@ -288,15 +288,16 @@ public sealed class GraphBuilder
         // moved. A build that skipped this would leave the first delta with nothing to compare.
         _hashes = ProductTreeHash.Compute(_state);
 
-        BuildProductLayer();
-        BuildSnaplinkLayer();
-        BuildCodeLayer();
-        BuildStructuredLayer();
-        BuildAssetLayer();
-        ResolveXamlPairing();
-        ResolveReferences();
-        ResolveXamlBindings();
-        ResolveFileMentions();
+        foreach (var phase in new Action[]
+                 {
+                     BuildProductLayer, BuildSnaplinkLayer, BuildCodeLayer, BuildStructuredLayer, BuildAssetLayer,
+                     ResolveXamlPairing, ResolveReferences, ResolveXamlBindings, ResolveFileMentions,
+                 })
+        {
+            _opts.Cancellation.ThrowIfCancellationRequested();
+            phase();
+        }
+        _opts.Cancellation.ThrowIfCancellationRequested();
 
         var graph = new KnowledgeGraph
         {
@@ -370,6 +371,7 @@ public sealed class GraphBuilder
         {
             if (_only is not null && !_only.Contains(id)) continue;
 
+            _opts.Cancellation.ThrowIfCancellationRequested();
             var productId = "product:" + id;
             if (node.Snaplinks is { } sl)
                 foreach (var link in sl) LinkSnaplink(productId, link, concernTag: null);
@@ -483,6 +485,7 @@ public sealed class GraphBuilder
 
         foreach (var full in files)
         {
+            _opts.Cancellation.ThrowIfCancellationRequested();
             var rel = Path.GetRelativePath(_codeRoot, full).Replace('\\', '/');
             seen.Add(rel);
             ApplyContribution(rel, GetContribution(rel, full));
@@ -713,6 +716,7 @@ public sealed class GraphBuilder
 
         foreach (var full in RepoFiles.EnumerateStructured(_codeRoot, _opts.MaxFiles))
         {
+            _opts.Cancellation.ThrowIfCancellationRequested();
             var rel = Path.GetRelativePath(_codeRoot, full).Replace('\\', '/');
             var ext = Path.GetExtension(rel).ToLowerInvariant();
             var fileId = "file:" + rel;

@@ -466,6 +466,60 @@ public class GraphEditTests
         StringAssert.Contains(result.Message, "names a file rather than a declaration");
     }
 
+    private const string Dictionary =
+        "<ResourceDictionary xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n" +
+        "    <BooleanToVisibilityConverter x:Key=\"BoolToVis\"/>\n" +
+        "</ResourceDictionary>\n";
+
+    private const string Project =
+        "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
+        "  <ItemGroup>\n" +
+        "    <ProjectReference Include=\"..\\Common\\Common.csproj\" />\n" +
+        "  </ItemGroup>\n" +
+        "</Project>\n";
+
+    /// <summary>The reported failure, through the graph: a XAML key the outline lists is an id every op takes.</summary>
+    [TestMethod]
+    public void AXamlKeyNode_IsEditableByItsGraphId()
+    {
+        var graph = GraphWith("code:src/V.xaml#K:BoolToVis", "BoolToVis", "K:BoolToVis", "src/V.xaml");
+
+        var result = GraphEdit.Plan(graph, "code:src/V.xaml#K:BoolToVis", StructuralEdit.Op.SetAttribute, "False",
+                                    Reader(Dictionary), new StructuralEdit.Options(Attribute: "x:Shared"));
+
+        StringAssert.Contains(Applied(result), "<BooleanToVisibilityConverter x:Key=\"BoolToVis\" x:Shared=\"False\"/>");
+    }
+
+    /// <summary>A project file's elements have no ids; the file's id and an element path reach them.</summary>
+    [TestMethod]
+    public void AFileIdWithAt_SetsAnAttributeInAProjectFile()
+    {
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "file:src/App/App.csproj", StructuralEdit.Op.SetAttribute, "all",
+                                    Reader(Project), new StructuralEdit.Options(At: "//ProjectReference", Attribute: "PrivateAssets"));
+
+        StringAssert.Contains(Applied(result), "<ProjectReference Include=\"..\\Common\\Common.csproj\" PrivateAssets=\"all\" />");
+    }
+
+    [TestMethod]
+    public void AtOnACodeId_IsRefused()
+    {
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "code:src/V.xaml#K:BoolToVis", StructuralEdit.Op.Delete, null,
+                                    Reader(Dictionary), new StructuralEdit.Options(At: "//BooleanToVisibilityConverter"));
+
+        Assert.IsFalse(result.Ok, "an id and a path are two answers to which element, and they could disagree");
+        StringAssert.Contains(result.Message, "file: id");
+    }
+
+    [TestMethod]
+    public void AtOnANonXmlFile_IsRefused()
+    {
+        var result = GraphEdit.Plan(new KnowledgeGraph(), "file:src/Sample.cs", StructuralEdit.Op.Delete, null,
+                                    Reader(Source), new StructuralEdit.Options(At: "//Widget"));
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "XML-family");
+    }
+
     [TestMethod]
     public void AnIdThatIsNeitherKnownNorParseable_SaysSo()
     {

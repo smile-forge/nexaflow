@@ -109,6 +109,31 @@ public sealed class DeclarationAnchors
     }
 
     /// <summary>
+    /// Where the first thing the grammar could not parse is, as a 1-based line and column — the <c>ERROR</c> node, or the
+    /// token it had to invent — or null when it parses cleanly. What turns "the edit would leave the file unparseable"
+    /// into something that can be fixed without reading the whole result back.
+    /// </summary>
+    public (int Line, int Column)? FirstError(string grammarId, string text)
+    {
+        if (string.IsNullOrEmpty(grammarId)) return null;
+        using var highlighter = CodeHighlighter.TryCreate(grammarId);
+        if (highlighter is null) return null;
+        try
+        {
+            return highlighter.WithParseTree(text, root =>
+            {
+                for (var node = root; node is not null;)
+                {
+                    if (node.IsError || node.IsMissing) return ((int, int)?)(node.StartPosition.Row + 1, node.StartPosition.Column + 1);
+                    node = node.Children.FirstOrDefault(child => child.HasError || child.IsMissing);
+                }
+                return null;
+            });
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
     /// Where the file's imports end, and where the first thing that is not one begins — the two offsets an
     /// inserted import has to choose between. Both null when the grammar has nothing to say about the file.
     /// <para>
@@ -143,6 +168,26 @@ public sealed class DeclarationAnchors
             });
         }
         catch { return (null, null); }
+    }
+
+    /// <summary>
+    /// The file's import statements as written, in order — what a declaration moved to another file needs to bring
+    /// with it.
+    /// </summary>
+    public IReadOnlyList<string> Imports(string grammarId, string text)
+    {
+        if (string.IsNullOrEmpty(grammarId) || string.IsNullOrEmpty(text)) return [];
+
+        using var highlighter = CodeHighlighter.TryCreate(grammarId);
+        if (highlighter is null) return [];
+
+        try
+        {
+            return highlighter.WithParseTree(text, root =>
+                (IReadOnlyList<string>)[.. root.NamedChildren.Where(child => IsImport(child.Type))
+                                                            .Select(child => text[child.StartIndex..child.EndIndex].Trim())]);
+        }
+        catch { return []; }
     }
 
     private static bool IsImport(string nodeType) =>
@@ -208,7 +253,7 @@ public sealed class DeclarationAnchors
     /// of the field and swallow the class.
     /// </para>
     /// </summary>
-    private static Node WholeDeclaration(Node node)
+    internal static Node WholeDeclaration(Node node)
     {
         if (!node.Type.Contains("declarator", StringComparison.Ordinal)) return node;
 
@@ -272,7 +317,7 @@ public sealed class DeclarationAnchors
     /// parameters — a wrong answer that still parses, which is the worst kind.
     /// </para>
     /// </summary>
-    private static Node? BodyOf(Node declaration, Node? parameters)
+    internal static Node? BodyOf(Node declaration, Node? parameters)
     {
         if (declaration.GetChildForField("body") is { } named) return named;
 

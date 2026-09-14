@@ -188,17 +188,27 @@ public sealed record DaemonRequest
     /// <summary>What was piped in, read by the client because only it has a console.</summary>
     public string? Stdin { get; init; }
 
+    /// <summary>
+    /// The caller's values for the few environment variables that change how its arguments arrived — the ones
+    /// saying it is a Git Bash shell, and whether that shell rewrites paths. The daemon has an environment of its
+    /// own, inherited from whichever shell started it, and answering from that told every caller of the day
+    /// what the first one's shell was. Absent variables are simply not listed.
+    /// </summary>
+    public Dictionary<string, string>? Shell { get; init; }
+
     /// <summary>Asks the daemon to shut down after answering — the explicit stop, distinct from idling out.</summary>
     public bool Stop { get; init; }
 
     public static DaemonRequest Command(string ticket, string[] args, string? codeRoot,
-                                        string workingDirectory, string? stdin) => new()
+                                        string workingDirectory, string? stdin,
+                                        Dictionary<string, string>? shell = null) => new()
     {
         Ticket           = ticket,
         Args             = args,
         CodeRoot         = codeRoot,
         WorkingDirectory = workingDirectory,
         Stdin            = stdin,
+        Shell            = shell,
     };
 
     public static DaemonRequest Status(string ticket) => new() { Ask = DaemonAsk.Status, Ticket = ticket };

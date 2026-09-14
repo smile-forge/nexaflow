@@ -44,7 +44,13 @@ public static class GraphQuery
     /// <summary>
     /// Nodes whose id or label contains <paramref name="term"/>, best match first: an exact label, then a
     /// prefix, then a label substring, then id-only — so searching a type name finds the type before the
-    /// hundred members that mention it.
+    /// hundred members that mention it. This repository's own code comes before the pinned sources under
+    /// <c>external/</c> at every rank, since that is nearly always what was meant.
+    /// <para>
+    /// A dotted term — <c>ShellServices.ShowNotification</c> — is how a member is written everywhere except in an
+    /// id, which spells it <c>T:ShellServices/M:ShowNotification</c>, so it matched nothing. When nothing matches as
+    /// written, the last part is taken as the name and the parts before it as the declarations it is inside.
+    /// </para>
     /// </summary>
     public static IReadOnlyList<GraphNode> Search(KnowledgeGraph g, string term, string? type = null)
     {
@@ -54,13 +60,88 @@ public static class GraphQuery
             : n.Label.StartsWith(term, StringComparison.OrdinalIgnoreCase) ? 1
             : n.Label.Contains(term, StringComparison.OrdinalIgnoreCase) ? 2 : 3;
 
-        return [.. g.Nodes
+        var found = g.Nodes
             .Where(n => (type is null || n.Type == type)
                      && (n.Id.Contains(term, StringComparison.OrdinalIgnoreCase)
                       || (n.Label?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)))
-            .OrderBy(Rank).ThenBy(n => TypeRank(n.Type))
+            .ToList();
+        if (found.Count == 0 && term.Contains('.', StringComparison.Ordinal) && !term.Contains('/', StringComparison.Ordinal))
+            found = Dotted(g, term, type);
+
+        return [.. found
+            .OrderBy(Rank).ThenBy(IsExternal).ThenBy(n => TypeRank(n.Type))
             .ThenBy(n => n.Label?.Length ?? int.MaxValue)
             .ThenBy(n => n.Id, StringComparer.Ordinal)];
+    }
+
+    private static int IsExternal(GraphNode n) =>
+        n.FilePath?.StartsWith("external/", StringComparison.OrdinalIgnoreCase) == true ? 1 : 0;
+
+    /// <summary>
+    /// Declarations named the last part of <paramref name="term"/> that sit inside declarations named the parts before it,
+    /// in that order. A leading part that names no declaration — a namespace — is passed over, but at least one part has to
+    /// name the one it is inside, or <c>System.Dispose</c> would find every Dispose.
+    /// </summary>
+    private static List<GraphNode> Dotted(KnowledgeGraph g, string term, string? type)
+    {
+        var parts = term.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 2) return [];
+        var (name, outer) = (parts[^1], parts[..^1]);
+
+        return [.. g.Nodes.Where(n =>
+        {
+            if ((type is not null && n.Type != type) || !string.Equals(n.Label, name, StringComparison.OrdinalIgnoreCase)) return false;
+            if (n.Metadata?.GetValueOrDefault("ast") is not { Length: > 0 } ast) return false;
+
+            var enclosing = ast.Split('/')[..^1]
+                .Select(segment => segment[(segment.IndexOf(':') + 1)..].Split('#')[0])
+                .ToList();
+            var at = enclosing.Count;
+            var matched = 0;
+            for (var i = outer.Length - 1; i >= 0 && at > 0; i--)
+            {
+                var found = enclosing.FindLastIndex(at - 1, s => s.Equals(outer[i], StringComparison.OrdinalIgnoreCase));
+                if (found < 0) continue;
+                at = found;
+                matched++;
+            }
+            return matched > 0;
+        })];
+    }
+
+    /// <summary>What a search found: the nodes, and — when nothing was <i>named</i> the term and the source was
+    /// searched for it instead — the lines that contain it.</summary>
+    public sealed record Found(IReadOnlyList<GraphNode> Nodes, IReadOnlyList<GrepHit> Lines)
+    {
+        /// <summary>True when these came from the source rather than from names, which the answer has to say:
+        /// "matched by name" and "mentioned somewhere" are different claims.</summary>
+        public bool BySource => Lines.Count > 0;
+    }
+
+    /// <summary>
+    /// <see cref="Search"/>, and when nothing is named <paramref name="term"/>, the nodes whose source contains it
+    /// — most mentions first.
+    /// <para>
+    /// A name search is right for a name, and a lot of what gets searched for is not one: a diagnostic id
+    /// (<c>NXUI001</c>), a message, a setting key. Those live in string literals and documents, where no label
+    /// will ever carry them, and "no graph nodes match" sent the caller off to grep — which is exactly the
+    /// habit the graph exists to replace, with the right answer one call away. Names still win whenever there
+    /// are any, so nothing a name search found before is found differently now.
+    /// </para>
+    /// </summary>
+    public static Found Find(KnowledgeGraph g, string term, ReadLines read, string? type = null)
+    {
+        var named = Search(g, term, type);
+        if (named.Count > 0 || string.IsNullOrWhiteSpace(term)) return new Found(named, []);
+
+        var lines = GrepNodes(type is null ? g.Nodes : g.Nodes.Where(n => n.Type == type), Regex.Escape(term), read);
+        var nodes = lines
+            .Select((hit, at) => (hit, at))
+            .GroupBy(x => x.hit.Node.Id, StringComparer.Ordinal)
+            .OrderByDescending(x => x.Count()).ThenBy(x => x.First().at)
+            .Select(x => x.First().hit.Node)
+            .ToList();
+        return new Found(nodes, lines);
     }
 
     /// <summary>Product before type before file before member — the order someone exploring wants them.</summary>
@@ -303,6 +384,13 @@ public static class GraphQuery
     /// <paramref name="limit"/> stops the scan rather than trimming the report, so a caller that needs a
     /// true total passes none - and one that only wants a screenful keeps paying for a screenful.
     /// </para>
+    /// <para>
+    /// A file node reads as the whole file. That is what makes a document searchable at all - markdown has no
+    /// declarations, so no node of it ever had a block to read - and it covers what sits outside every
+    /// declaration of a code file too: its imports, its header. Each matching line is then credited to the
+    /// innermost node in the set that holds it, once. Without that a line inside a member was also a line of
+    /// its type and of its file, and every total counted it two or three times.
+    /// </para>
     /// </summary>
     public static IReadOnlyList<GrepHit> GrepNodes(IEnumerable<GraphNode> nodes, string pattern, ReadLines read,
                                                    int limit = int.MaxValue)
@@ -316,20 +404,50 @@ public static class GraphQuery
         var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
         string[]? Read(string rel) => files.TryGetValue(rel, out var c) ? c : files[rel] = read(rel);
 
-        var hits = new List<GrepHit>();
+        // (file, line) -> the node holding it most tightly so far; and each node's place in the input.
+        var owner = new Dictionary<(string File, int Line), (GraphNode Node, int Span, string Text)>();
+        var place = new Dictionary<GraphNode, int>(ReferenceEqualityComparer.Instance);
         foreach (var node in nodes.Where(n => n.FilePath is { Length: > 0 }))
         {
-            if (hits.Count >= limit) break;
+            if (owner.Count >= limit) break;
             var rel = node.FilePath!;
             if (!interesting.TryGetValue(rel, out var any))
                 interesting[rel] = any = Read(rel) is { } all && all.Any(regex.IsMatch);
             if (!any) continue;
-            if (ReadSource(node, Read, BlockScanLines, spans) is not { } block) continue;
-            for (var i = 0; i < block.Lines.Count && hits.Count < limit; i++)
-                if (regex.IsMatch(block.Lines[i]))
-                    hits.Add(new GrepHit(node, block.StartLine + i, block.Lines[i].Trim()));
+
+            int first, span;
+            IReadOnlyList<string> lines;
+            if (node.Type == NodeType.File)
+            {
+                // A file node synthesised for an import that never resolved carries the file that REFERS to it,
+                // so reading it would credit that file's lines to a file that does not exist.
+                if (node.Source is { Length: > 0 } src && !string.Equals(src, rel, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (Read(rel) is not { } whole) continue;
+                (first, lines, span) = (1, whole, whole.Length + 1);   // a declaration as wide as its file still wins
+            }
+            else if (ReadSource(node, Read, BlockScanLines, spans) is { } block)
+                (first, lines, span) = (block.StartLine, block.Lines, block.Lines.Count + block.MoreLines);
+            else continue;
+
+            place.TryAdd(node, place.Count);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                if (!regex.IsMatch(lines[i])) continue;
+                var key = (rel, first + i);
+                if (owner.TryGetValue(key, out var held))
+                {
+                    if (held.Span <= span) continue;                 // something at least as tight holds it
+                }
+                else if (owner.Count >= limit) break;
+                owner[key] = (node, span, lines[i].Trim());
+            }
         }
-        return hits;
+
+        // In the order the nodes were given, then down the file - the order every caller printed before.
+        return [.. owner
+            .OrderBy(kv => place[kv.Value.Node]).ThenBy(kv => kv.Key.Line)
+            .Select(kv => new GrepHit(kv.Value.Node, kv.Key.Line, kv.Value.Text))];
     }
 
     // ── Shared internals ──────────────────────────────────────────────────────

@@ -45,13 +45,55 @@ internal static class DaemonServer
     /// working session, short enough that a forgotten one is not forgotten for the afternoon.</summary>
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(20);
 
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>How often the watchdog looks at what is running.</summary>
+    private static readonly TimeSpan WatchEvery = TimeSpan.FromSeconds(15);
+
+    /// <summary>A command running longer than this gets a line in the log each time the watchdog looks, so a
+    /// long one and a stuck one can be told apart afterwards — the log used to show a start and then nothing.</summary>
+    private static readonly TimeSpan Noteworthy = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// How long a command may go on running after its caller has gone before the process gives up on it.
+    /// <para>
+    /// Every long-running verb stops of its own accord once its caller leaves (see
+    /// <see cref="RequestScope.Cancellation"/>), so one still running this long afterwards is not slow, it is
+    /// stuck — and it holds its tree's lock, so every later command on that tree would wait behind it forever.
+    /// A thread cannot be stopped from outside, so the process is: it answers everything queued, writes what it
+    /// can, and exits, and the next command starts a fresh one. A command whose caller is still waiting is never
+    /// touched, however long it takes — that caller is the one who gets to decide.
+    /// </para>
+    /// </summary>
+    internal static readonly TimeSpan WedgeGrace = TimeSpan.FromSeconds(60);
+
+    /// <summary>One lock per working tree — see <see cref="Execute"/>.</summary>
+    internal static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>What has been taken and where it has got to — the only thing the status path reads, which is
     /// why it can be answered while the work it describes is holding a lock.</summary>
-    private static readonly WorkLedger Ledger = new();
+    internal static readonly WorkLedger Ledger = new();
+
+    /// <summary>The commands this process has taken and not finished with, for the watchdog.</summary>
+    private static readonly ConcurrentDictionary<string, Taken> Active = new(StringComparer.Ordinal);
+
+    /// <summary>Cancelled when the process is going down because a command wedged, so that everything still
+    /// waiting for a turn is answered rather than left waiting for a lock that will not come back.</summary>
+    private static readonly CancellationTokenSource Restarting = new();
+    private static string? _restartReason;
     private static long _lastActivityTicks = DateTime.UtcNow.Ticks;
     private static int _inFlight;
+
+    /// <summary>A command in progress: when it got its turn, and whether — and since when — its caller has gone.</summary>
+    private sealed class Taken(string ticket, string command)
+    {
+        public readonly string Ticket  = ticket;
+        public readonly string Command = command;
+        public long Started;
+        public long Left;
+
+        /// <summary>Set once the answer is being written, after which a closed connection is the ordinary end of
+        /// the exchange rather than the caller leaving.</summary>
+        public int Answering;
+    }
 
     /// <summary>Runs until idle. <paramref name="args"/> is the hidden mode argument, the pipe, and the root.</summary>
     internal static int Run(string[] args)
@@ -69,14 +111,26 @@ internal static class DaemonServer
         var root = args[2];
 
         // One per pipe, and the pipe is per root per build: two clients racing to spawn produce one daemon
-        // and one process that finds the door already answered and leaves without a word.
+        // and one process that finds the door already answered and leaves without a word. A process that died
+        // holding it leaves it abandoned, which is ours to take rather than a reason to refuse to start.
         using var only = new Mutex(initiallyOwned: false, "Local\\" + pipe, out _);
-        if (!only.WaitOne(TimeSpan.Zero)) return 0;
+        bool owned;
+        try { owned = only.WaitOne(TimeSpan.Zero); }
+        catch (AbandonedMutexException) { owned = true; }
+        if (!owned) return 0;
 
         try
         {
             DaemonLog.Open(pipe);
             DaemonLog.Say("-", "daemon", $"up for {root}");
+
+            // One resident per tree: the processes older builds started for it are asked to finish and go.
+            Succession.Claim(root, pipe);
+
+            // The one line that tells a crash from a hang afterwards. Without it both look like a start and then
+            // nothing, and the only way to tell them apart was to guess.
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+                DaemonLog.Say("-", "crash", (e.ExceptionObject?.ToString() ?? "unknown").ReplaceLineEndings(" | "));
 
             RequestScope.Install();
             using var host = new InitiativesHost(root);
@@ -87,14 +141,21 @@ internal static class DaemonServer
             Serve(pipe, host);
             return 0;
         }
-        finally { only.ReleaseMutex(); }
+        finally
+        {
+            Succession.Leave(root, pipe);
+            try { only.ReleaseMutex(); } catch (ApplicationException) { }
+        }
     }
 
-    private static void Serve(string pipe, InitiativesHost host)
+    /// <summary>The accept loop, until idle, told to stop, or restarting past a wedged command.</summary>
+    internal static void Serve(string pipe, InitiativesHost host)
     {
         using var stopping = new CancellationTokenSource();
+        using var ending   = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token, Restarting.Token);
+        using var watchdog = new Timer(_ => Watch(), null, WatchEvery, WatchEvery);
 
-        while (!stopping.IsCancellationRequested)
+        while (!ending.IsCancellationRequested)
         {
             var server = new NamedPipeServerStream(pipe, PipeDirection.InOut,
                                                    NamedPipeServerStream.MaxAllowedServerInstances,
@@ -102,10 +163,14 @@ internal static class DaemonServer
 
             // Waiting with a deadline rather than forever, so idling out is the same code path as being told
             // to stop rather than a timer racing the connection handlers for the process.
-            var connect = server.WaitForConnectionAsync(stopping.Token);
-            if (!connect.Wait(UntilIdle()))
+            bool connected;
+            try { connected = server.WaitForConnectionAsync(ending.Token).Wait(NextWait()); }
+            catch (AggregateException e) when (e.InnerException is OperationCanceledException) { connected = false; }
+
+            if (!connected)
             {
                 server.Dispose();
+                if (ending.IsCancellationRequested) break;
 
                 // Nothing knocked, but a long command may still be running: idle means idle.
                 if (Volatile.Read(ref _inFlight) > 0) continue;
@@ -116,6 +181,8 @@ internal static class DaemonServer
             _ = Task.Run(() => Handle(server, host, stopping));
         }
 
+        if (Restarting.IsCancellationRequested) Restart(host);
+
         // Let whatever is in flight finish before the state it changed goes with the process.
         var deadline = DateTime.UtcNow.AddSeconds(30);
         while (Volatile.Read(ref _inFlight) > 0 && DateTime.UtcNow < deadline) Thread.Sleep(50);
@@ -124,12 +191,17 @@ internal static class DaemonServer
         DaemonLog.Close();
     }
 
-    /// <summary>How long the accept loop may wait before the process has been idle long enough to end.</summary>
-    private static TimeSpan UntilIdle()
+    /// <summary>
+    /// How long the accept loop may wait. Until the process has been idle long enough to end — or, once it has
+    /// but something is still running, one watchdog interval: waiting "the time left", which was zero, spun the
+    /// loop creating and discarding pipes as fast as it could for as long as that command ran.
+    /// </summary>
+    private static TimeSpan NextWait()
     {
         var idle = DateTime.UtcNow - new DateTime(Volatile.Read(ref _lastActivityTicks), DateTimeKind.Utc);
         var left = IdleTimeout - idle;
-        return left < TimeSpan.Zero ? TimeSpan.Zero : left;
+        if (left > TimeSpan.Zero) return left;
+        return Volatile.Read(ref _inFlight) > 0 ? WatchEvery : TimeSpan.Zero;
     }
 
     /// <summary>
@@ -173,7 +245,15 @@ internal static class DaemonServer
 
             if (request.Stop) stopping.Cancel();
 
-            DaemonProtocol.Write(server, Execute(request, host, work));
+            var taken = Active[work.Ticket] = new Taken(work.Ticket, WorkLedger.Describe(request.Args));
+            using var gone = new CancellationTokenSource();
+            WatchForHangUp(server, gone, taken);
+
+            // Null when the caller left before its turn came: there is no one to answer.
+            if (Execute(request, host, work, taken, gone.Token) is not { } response) return;
+
+            Volatile.Write(ref taken.Answering, 1);
+            DaemonProtocol.Write(server, response);
             Settle(server);
         }
         catch (IOException) { /* the client hung up mid-exchange; no other caller is affected */ }
@@ -182,6 +262,7 @@ internal static class DaemonServer
         {
             if (work is not null)
             {
+                Active.TryRemove(work.Ticket, out _);
                 Ledger.Done(work);
                 DaemonLog.Say(work.Ticket, "done", $"{Ledger.StatusOf(work.Ticket).RanSeconds:F2}s");
             }
@@ -191,6 +272,34 @@ internal static class DaemonServer
             Volatile.Write(ref _lastActivityTicks, DateTime.UtcNow.Ticks);
             Interlocked.Decrement(ref _inFlight);
         }
+    }
+
+    /// <summary>
+    /// Notices the caller going away. After the request a client sends nothing more on a command connection, so
+    /// a read that completes at all means the other end has closed it — end of stream, or a broken pipe.
+    /// <para>
+    /// Without this, work nobody would ever read the answer to still ran. A client killed by a harness timeout
+    /// left its command queued; the retry queued behind it; and a ninety-second build retried twice was four and a
+    /// half minutes of every command on the tree looking hung. Now a queued command is dropped before it starts
+    /// and a running one is told to stop.
+    /// </para>
+    /// </summary>
+    private static void WatchForHangUp(NamedPipeServerStream server, CancellationTokenSource gone, Taken taken)
+    {
+        var one = new byte[1];
+        Task<int> read;
+        try { read = server.ReadAsync(one).AsTask(); }
+        catch (Exception e) when (e is IOException or ObjectDisposedException or InvalidOperationException) { return; }
+
+        _ = read.ContinueWith(t =>
+        {
+            if (t.IsCompletedSuccessfully && t.Result > 0) return;   // a byte nobody sends; not a hang-up
+            if (Volatile.Read(ref taken.Answering) == 1) return;     // the exchange ending, not the caller leaving
+
+            Volatile.Write(ref taken.Left, DateTime.UtcNow.Ticks);
+            DaemonLog.Say(taken.Ticket, "left", "its caller hung up before the answer - stopping it");
+            try { gone.Cancel(); } catch (ObjectDisposedException) { /* the answer went out first */ }
+        }, TaskScheduler.Default);
     }
 
     /// <summary>Gets the last frame all the way there before the connection is taken down under it.</summary>
@@ -209,7 +318,9 @@ internal static class DaemonServer
     /// different working trees to be served at once without their output landing in each other's answer.
     /// </para>
     /// </summary>
-    private static DaemonResponse Execute(DaemonRequest request, InitiativesHost host, WorkItem work)
+    /// <returns>Null when the caller left while the command was waiting for its turn.</returns>
+    private static DaemonResponse? Execute(DaemonRequest request, InitiativesHost host, WorkItem work, Taken taken,
+                                           CancellationToken gone)
     {
         var stdout = new StringWriter();
         var stderr = new StringWriter();
@@ -218,18 +329,39 @@ internal static class DaemonServer
         // one command may read while another edits. Different trees hold different graphs and proceed
         // together — and two callers on the same tree waiting for each other is the consistency, not a cost.
         var gate = Locks.GetOrAdd(request.CodeRoot ?? "", _ => new SemaphoreSlim(1, 1));
-        gate.Wait();
+        using (var waiting = CancellationTokenSource.CreateLinkedTokenSource(gone, Restarting.Token))
+        {
+            try { gate.Wait(waiting.Token); }
+            catch (OperationCanceledException)
+            {
+                if (_restartReason is { } reason)
+                {
+                    DaemonLog.Say(work.Ticket, "refused", "the process is restarting");
+                    return new DaemonResponse(2, "",
+                        $"error: nfi's resident process is restarting, because {reason}. Run the command again - it "
+                      + $"starts a fresh one.{Environment.NewLine}");
+                }
+
+                DaemonLog.Say(work.Ticket, "dropped", "its caller left while it was waiting for its turn");
+                return null;
+            }
+        }
 
         // Running rather than queued from here, which is the distinction anyone asking after this needs:
         // waiting for a turn and taking a long time are different problems with different answers.
         Ledger.Running(work);
+        Volatile.Write(ref taken.Started, DateTime.UtcNow.Ticks);
         DaemonLog.Say(work.Ticket, "start", $"waited {Ledger.StatusOf(work.Ticket).WaitedSeconds:F2}s");
 
         try
         {
-            using var scope = RequestScope.Begin(stdout, stderr, request.WorkingDirectory);
-            Program.StandardInput = request.Stdin;
-            Program.Host          = host;
+            using var scope = RequestScope.Begin(stdout, stderr, new RequestContext(request.WorkingDirectory)
+            {
+                Shell        = request.Shell,
+                Stdin        = request.Stdin,
+                Host         = host,
+                Cancellation = gone,
+            });
 
             var code = request.Args.Length == 0 ? 0 : Program.Execute(request.Args);
             return new DaemonResponse(code, stdout.ToString(), stderr.ToString());
@@ -243,14 +375,72 @@ internal static class DaemonServer
         }
         finally
         {
-            Program.StandardInput = null;
-            Program.Host          = null;
             gate.Release();
 
             // Whatever the command changed is on disk before the next caller can ask for it, so an abrupt
-            // end costs a load rather than a rebuild.
-            try { host.Flush(); } catch (IOException) { }
+            // end costs a load rather than a rebuild. This tree's alone: flushing every tree took every tree's
+            // lock, so one tree's answer waited behind whatever another tree was in the middle of.
+            try { host.Flush(request.CodeRoot); } catch (IOException) { }
         }
+    }
+
+    /// <summary>
+    /// What the watchdog does every <see cref="WatchEvery"/>: note what has been running a while, and give up on
+    /// a command that has outlived its caller by <see cref="WedgeGrace"/>.
+    /// </summary>
+    private static void Watch()
+    {
+        try
+        {
+            var now = DateTime.UtcNow.Ticks;
+            foreach (var taken in Active.Values)
+            {
+                var started = Volatile.Read(ref taken.Started);
+                if (started == 0) continue;                           // still waiting for its turn
+
+                var ran  = TimeSpan.FromTicks(now - started);
+                var left = Volatile.Read(ref taken.Left);
+                if (ran < Noteworthy) continue;
+
+                DaemonLog.Say(taken.Ticket, "running",
+                    $"{ran.TotalSeconds:F0}s" + (left > 0 ? $", its caller left {TimeSpan.FromTicks(now - left).TotalSeconds:F0}s ago" : ""));
+
+                if (left > 0 && now - left > WedgeGrace.Ticks
+                    && Interlocked.CompareExchange(ref _restartReason,
+                           $"`{taken.Command}` stopped responding ({ran.TotalSeconds:F0}s, its caller long gone)", null) is null)
+                {
+                    DaemonLog.Say(taken.Ticket, "wedged",
+                        $"{taken.Command}: still running {TimeSpan.FromTicks(now - left).TotalSeconds:F0}s after its caller "
+                      + "left - restarting the process");
+                    Restarting.Cancel();
+                    return;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            // A watchdog that takes the process down is worse than none.
+            DaemonLog.Say("-", "watchdog", e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Ends the process past a wedged command. Whatever was waiting has been answered by now or is about to be;
+    /// what can be written is written, within a bound, because flushing the wedged tree may need the very lock
+    /// its command is holding; and then the process exits rather than returning, since returning would dispose
+    /// the host and block on that same lock. The next command starts a fresh process.
+    /// </summary>
+    private static void Restart(InitiativesHost host)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline && Active.Values.Any(t => Volatile.Read(ref t.Left) == 0))
+            Thread.Sleep(50);
+
+        try { Task.Run(host.Flush).Wait(TimeSpan.FromSeconds(10)); } catch (AggregateException) { }
+
+        DaemonLog.Say("-", "daemon", $"restarting: {_restartReason}");
+        DaemonLog.Close();
+        Environment.Exit(3);
     }
 
     /// <summary>

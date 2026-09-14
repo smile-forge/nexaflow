@@ -78,6 +78,25 @@ public class GraphFreshnessTests
         StringAssert.Contains(report.Summary(), "--refresh");
     }
 
+    [TestMethod]
+    public void AFileInAProjectOnlyTheSolutionNames_IsReportedAsAdded()
+    {
+        var proj = File_("Proj.csproj", "<Project />\n");
+        var code = File_("C.cs");
+        Directory.CreateDirectory(Path.Combine(_root, "src", "New"));
+        System.IO.File.WriteAllText(Path.Combine(_root, "src", "New", "New.csproj"), "<Project />\n");
+        System.IO.File.WriteAllText(Path.Combine(_root, "src", "New", "Fresh.cs"), "public class Fresh { }\n");
+        System.IO.File.WriteAllText(Path.Combine(_root, "App.slnx"),
+            "<Solution>\n  <Project Path=\"src/Proj/Proj.csproj\" />\n  <Project Path=\"src/New/New.csproj\" />\n</Solution>\n");
+        BuiltNow();
+
+        var report = GraphFreshness.Check([proj, code], _root, _graphFile);
+
+        CollectionAssert.Contains(report.Added.ToList(), "src/New/Fresh.cs",
+                                  "the graph has never read New.csproj, and the solution names it");
+        Assert.IsFalse(report.IsCurrent, "so the graph is not current, whatever it holds");
+    }
+
     /// <summary>
     /// A file the graph knows and this tree does not is <b>reported, never acted on</b>. graph.json is
     /// shared, and a branch that runs a build publishes its own files into it — so this is as likely to be

@@ -135,6 +135,41 @@ public class FileTextEditorViewModelTests
         finally { DeleteWhenFree(path); }
     });
 
+    /// <summary>
+    /// A project file has no highlighting grammar, so the editor's structural tools used to have nothing to say
+    /// about it. It is XML to an edit, and an element path reaches the element nothing names.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("code-ai-act")]
+    public void EditDeclaration_At_EditsAProjectFile_AndRefusesAPathAndAnIdTogether() => AsyncPumpCore.Run(async () =>
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"editvm_{Guid.NewGuid():N}.csproj");
+        File.WriteAllText(path,
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <ItemGroup>\n    <PackageReference Include=\"NAudio\" Version=\"2.2.1\" />\n  </ItemGroup>\n</Project>\n",
+            new UTF8Encoding(false));
+        try
+        {
+            using var vm = new FileTextEditorViewModel(path, Shell(), Big);
+            await vm.LoadAsync();
+            var edit = vm.GetClientTools().Single(t => t.Name == "edit_declaration");
+
+            var both = await edit.InvokeAsync(new JsonObject
+            {
+                ["op"] = "delete", ["ast_path"] = "T:Project", ["at"] = "//PackageReference",
+            }, CancellationToken.None);
+            Assert.IsTrue(both.IsError, "ast_path and at each name the element; given both, they could disagree");
+
+            var set = await edit.InvokeAsync(new JsonObject
+            {
+                ["op"] = "set_attribute", ["at"] = "//PackageReference[@Include='NAudio']", ["name"] = "Version",
+                ["text"] = "3.0.0",
+            }, CancellationToken.None);
+            Assert.IsFalse(set.IsError, set.ModelText);
+            StringAssert.Contains(vm.Document.Text, "<PackageReference Include=\"NAudio\" Version=\"3.0.0\" />");
+        }
+        finally { DeleteWhenFree(path); }
+    });
+
     [TestMethod]
     [CoversNode("code-encoding")]
     public void Save_PreservesBom_WhenOriginalHadBom() => AsyncPumpCore.Run(async () =>

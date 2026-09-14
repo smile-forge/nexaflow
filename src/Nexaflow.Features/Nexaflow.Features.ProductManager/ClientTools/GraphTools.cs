@@ -139,16 +139,26 @@ public static class GraphTools
                 + "graph has never seen is still editable because the id names the file and the declaration "
                 + "outright. Do not worry about line endings, indentation or escaping - write the "
                 + "replacement flush-left with \\n and it lands correctly indented with the file's own "
-                + "endings. Use dry_run first to see the hunk.",
+                + "endings. Use dry_run first to see the hunk. 'move' lifts a declaration out and places it in a type or a file, "
+                + "bringing the imports it needs. Several edits go in 'edits' and are planned as one: each sees what the ones "
+                + "before it did, and nothing is written unless all of them succeed.",
                 [new ClientToolParameter("node_id", "The code node to edit (see graph_search / graph_context)."),
                  new ClientToolParameter("op",
-                     "replace | delete | signature | body | rename | insert_before | insert_after | append | doc. "
+                     "replace | delete | signature | body | rename | insert_before | insert_after | append | doc | "
+                     + "set_attribute | remove_attribute | move | create. 'move' takes 'to' (a type's code: id or file:<path>); "
+                     + "'create' takes the new file's path as node_id and its content as text. The attribute ops change one attribute of an XML element (its "
+                     + "name in 'name'); a XAML code: id (T:/N:/K:/A:) takes every op on its element. "
                    + "'append' targets a type and adds a member at the end of its body; 'signature' and 'body' "
                    + "each leave the other half byte-for-byte unchanged."),
                  new ClientToolParameter("text",
                      "The new code — or, for 'substitute', what to replace 'find' with. Not needed for 'delete'.",
                      Required: false),
                  new ClientToolParameter("to", "The new name, for 'rename'.", Required: false),
+                 new ClientToolParameter("at",
+                     "With a file: node_id of an XML-family file (.xaml .xml .props .csproj …): an XPath naming the one "
+                   + "element to edit - /a/b, //b, [n], [@attr], [@attr='v'], [child]. Exactly one must match unless "
+                   + "all_occurrences, which delete, set_attribute and remove_attribute accept.", Required: false),
+                 new ClientToolParameter("name", "The attribute, for 'set_attribute' and 'remove_attribute'.", Required: false),
                  new ClientToolParameter("find",
                      "For 'substitute': the text to find, searched only INSIDE this declaration so it cannot "
                    + "run away across the file. Literal unless find_is_regex, and refused unless it matches "
@@ -170,7 +180,11 @@ public static class GraphTools
                      "For 'replace', also replace the doc comment above it. Off by default, so replacing a "
                    + "method keeps its documentation.", Required: false, Type: "boolean"),
                  new ClientToolParameter("dry_run", "Report what would change and write nothing.",
-                     Required: false, Type: "boolean")],
+                     Required: false, Type: "boolean"),
+                 new ClientToolParameter("edits",
+                     "Several edits as one: an array of objects, each with this tool's own fields (node_id, op, text, find, to, ...). "
+                   + "Planned in order, each against the files as the ones before it left them, and written together or not at "
+                   + "all. When given, the top-level edit fields are ignored.", Required: false, Type: "array")],
                 ToolSafety.RequiresApproval,
                 (a, _) => Task.FromResult(Edit(productRoot, a))),
 
@@ -186,8 +200,9 @@ public static class GraphTools
         if (string.IsNullOrWhiteSpace(term)) return ToolResult.Error("Provide a 'term' to search for.");
 
         var limit = Int(a, "limit", 40);
-        var hits = GraphQuery.Search(g, term, Blank(Str(a, "type")));
-        return ToolResult.Ok($"{hits.Count} match(es)", GraphReport.Search(hits, term, limit));
+        var found = GraphQuery.Find(g, term, Reader(root), Blank(Str(a, "type")));
+        return ToolResult.Ok(found.BySource ? $"{found.Nodes.Count} node(s) contain it" : $"{found.Nodes.Count} match(es)",
+                             GraphReport.Search(found, term, limit));
     }
 
     private static ToolResult Context(string root, JsonObject a)
@@ -240,8 +255,11 @@ public static class GraphTools
             return ToolResult.Error("'scope' of 'owned' needs a 'from' node - ownership is relative to one.");
         var scope = scopeText == "owned" ? GraphQuery.GrepScope.Owned : GraphQuery.GrepScope.Hops;
 
-        var hits = GraphQuery.Grep(g, pattern, Reader(root), from, Int(a, "hops", 2), Int(a, "limit", 40), scope);
-        return ToolResult.Ok($"{hits.Count} match(es)", GraphReport.Grep(hits, pattern, from, scope));
+        // The limit trims what is printed and never the search, so the count is the real one. Passed into the scan
+        // it stopped discovery at the fortieth hit, and "nothing else does this" read straight out of the total.
+        var hits = GraphQuery.Grep(g, pattern, Reader(root), from, Int(a, "hops", 2), int.MaxValue, scope);
+        return ToolResult.Ok($"{hits.Count} match(es)",
+                             GraphReport.Grep(hits, pattern, from, scope, Int(a, "limit", 40)));
     }
 
     private static ToolResult Code(string root, JsonObject a)
@@ -312,8 +330,111 @@ public static class GraphTools
     {
         if (!TryLoad(root, out var g, out var error)) return error;
 
+        // One edit, or several planned as one: each sees what the ones before it did, and the files are written together
+        // or not at all — the same plan `nfi graph edit script` runs.
+        var steps = new List<EditPlan.Step>();
+        if (a["edits"] is JsonArray edits)
+        {
+            for (var i = 0; i < edits.Count; i++)
+            {
+                if (edits[i] is not JsonObject one) return ToolResult.Error($"edits[{i}] is not an object.");
+                if (!TryStep(one, $"edits[{i}]", out var step, out var why)) return ToolResult.Error($"edits[{i}]: {why}");
+                steps.Add(step);
+            }
+            if (steps.Count == 0) return ToolResult.Error("'edits' is empty.");
+        }
+        else
+        {
+            if (!TryStep(a, "the edit", out var step, out var why)) return ToolResult.Error(why);
+            steps.Add(step);
+        }
+
+        var outcome = EditPlan.Run(g, steps, RawReader(root), rel => SourceFile.NewlineFor(FullPath(root, rel), root));
+        if (!outcome.Ok) return ToolResult.Error(outcome.Message);
+
+        var report = new System.Text.StringBuilder();
+        foreach (var change in outcome.Steps.SelectMany(s => s.Changes))
+        {
+            report.AppendLine(change.Kind switch
+            {
+                GraphEdit.ChangeKind.Created => $"--- {change.RelativePath} (new, {change.Hunk.Added.Count} lines)",
+                GraphEdit.ChangeKind.Deleted => $"--- {change.RelativePath} (removed)",
+                _                            => $"--- {change.RelativePath}:{change.Hunk.Line}",
+            });
+            if (change.Kind == GraphEdit.ChangeKind.Deleted) continue;
+            foreach (var line in change.Hunk.Removed) report.AppendLine($"- {line}");
+            foreach (var line in change.Hunk.Added)   report.AppendLine($"+ {line}");
+        }
+        foreach (var note in outcome.Steps.SelectMany(s => s.Notes)) report.AppendLine($"note: {note}");
+
+        if (Bool(a, "dry_run"))
+        {
+            report.AppendLine("Dry run — nothing was written.");
+            return ToolResult.Ok($"would {outcome.Message}", report.ToString());
+        }
+
+        // Every file is checked against what the plan was made from before any is written, so a file changed underneath
+        // refuses the whole plan rather than leaving part of it applied.
+        foreach (var file in outcome.Files)
+        {
+            var full = FullPath(root, file.RelativePath);
+            if (file.Before is null ? System.IO.File.Exists(full) : SourceFile.Read(full)?.Text != file.Before)
+                return ToolResult.Error($"{file.RelativePath} changed while the edit was being planned; nothing was written.");
+        }
+
+        foreach (var file in outcome.Files)
+        {
+            var full = FullPath(root, file.RelativePath);
+            if (file.After is null) System.IO.File.Delete(full);
+            else if (file.Before is null)
+            {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(full)!);
+                System.IO.File.WriteAllText(full, file.After, new System.Text.UTF8Encoding(false));
+            }
+            else if (SourceFile.Read(full) is not { } raw)
+                return ToolResult.Error($"{file.RelativePath} could not be re-read before writing.");
+            else if (SourceFile.WriteIfUnchanged(full, file.Before, file.After, raw.Encoding) is { } refused)
+                return ToolResult.Error(refused);
+        }
+
+        if (Merge(root, [.. outcome.Files.Select(f => f.RelativePath)]) is { Length: > 0 } merged)
+            report.AppendLine(merged);
+        return ToolResult.Ok(outcome.Message, report.ToString());
+    }
+
+    /// <summary>One edit's arguments as a step of a plan — the single-edit call and each entry of 'edits' alike.</summary>
+    private static bool TryStep(JsonObject a, string label, out EditPlan.Step step, out string error)
+    {
+        step  = null!;
+        error = "";
+
         var id = Str(a, "node_id");
-        if (string.IsNullOrWhiteSpace(id)) return ToolResult.Error("Provide a 'node_id'.");
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            error = "Provide a 'node_id'.";
+            return false;
+        }
+
+        switch (Blank(Str(a, "op"))?.Replace('-', '_').ToLowerInvariant())
+        {
+            case "move":
+                if (Blank(Str(a, "to")) is not { } to || !(to.StartsWith("code:", StringComparison.Ordinal) || to.StartsWith("file:", StringComparison.Ordinal)))
+                {
+                    error = "'move' needs 'to': a code: node id of the type to move it into, or file:<path> for a file (created if absent).";
+                    return false;
+                }
+                step = new EditPlan.Move(label, id!, to);
+                return true;
+
+            case "create":
+                if (Str(a, "text") is not { } content)
+                {
+                    error = "'create' needs the new file's 'text'; its 'node_id' is the repo-relative path.";
+                    return false;
+                }
+                step = new EditPlan.Create(label, id!.Replace('\\', '/'), content);
+                return true;
+        }
 
         var op = Blank(Str(a, "op"))?.Replace('-', '_').ToLowerInvariant() switch
         {
@@ -328,47 +449,23 @@ public static class GraphTools
             "doc"           => StructuralEdit.Op.Doc,
             "substitute" or "sub" => StructuralEdit.Op.Substitute,
             "import" or "using"   => StructuralEdit.Op.Import,
+            "set_attribute" or "set_attr"       => StructuralEdit.Op.SetAttribute,
+            "remove_attribute" or "remove_attr" => StructuralEdit.Op.RemoveAttribute,
             _               => (StructuralEdit.Op?)null,
         };
         if (op is null)
-            return ToolResult.Error(
-                $"Unknown 'op' '{Str(a, "op")}'. Expected replace, delete, signature, body, rename, "
-              + "insert_before, insert_after, append, doc or substitute.");
-
-        var options = new StructuralEdit.Options(
-            Bool(a, "with_trivia"), Blank(Str(a, "expect")),
-            Blank(Str(a, "find")), Bool(a, "find_is_regex"), Bool(a, "all_occurrences"));
-        var result  = GraphEdit.Plan(g, id!, op.Value, Str(a, "text"), RawReader(root), options, Blank(Str(a, "to")));
-
-        if (!result.Ok) return ToolResult.Error(result.Message);
-
-        var report = new System.Text.StringBuilder();
-        foreach (var change in result.Changes)
         {
-            report.AppendLine($"--- {change.RelativePath}:{change.Hunk.Line}");
-            foreach (var line in change.Hunk.Removed) report.AppendLine($"- {line}");
-            foreach (var line in change.Hunk.Added)   report.AppendLine($"+ {line}");
-        }
-        foreach (var note in result.Notes) report.AppendLine($"note: {note}");
-
-        if (Bool(a, "dry_run"))
-        {
-            report.AppendLine("Dry run — nothing was written.");
-            return ToolResult.Ok($"would {result.Message}", report.ToString());
+            error = $"Unknown 'op' '{Str(a, "op")}'. Expected replace, delete, signature, body, rename, insert_before, insert_after, "
+                  + "append, doc, substitute, import, set_attribute, remove_attribute, move or create.";
+            return false;
         }
 
-        foreach (var change in result.Changes)
-        {
-            var full = FullPath(root, change.RelativePath);
-            if (SourceFile.Read(full) is not { } raw)
-                return ToolResult.Error($"{change.RelativePath} could not be re-read before writing.");
-            if (SourceFile.WriteIfUnchanged(full, change.OriginalText, change.NewText, raw.Encoding) is { } refused)
-                return ToolResult.Error(refused);
-        }
-
-        if (Merge(root, [.. result.Changes.Select(c => c.RelativePath)]) is { Length: > 0 } merged)
-            report.AppendLine(merged);
-        return ToolResult.Ok(result.Message, report.ToString());
+        step = new EditPlan.Edit(label, id!, op.Value, Str(a, "text"),
+                                 new StructuralEdit.Options(Bool(a, "with_trivia"), Blank(Str(a, "expect")),
+                                                            Blank(Str(a, "find")), Bool(a, "find_is_regex"), Bool(a, "all_occurrences"),
+                                                            At: Blank(Str(a, "at")), Attribute: Blank(Str(a, "name"))),
+                                 Blank(Str(a, "to")));
+        return true;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

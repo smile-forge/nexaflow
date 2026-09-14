@@ -30,6 +30,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nexaflow.Services.Initiatives\Nexaflow.Services.Initiatives.csproj" />
+    <!-- The compiler an edit is checked against. CLI-only: the app's editor surfaces keep to the parse. -->
+    <ProjectReference Include="..\Nexaflow.Syntax.Compiler\Nexaflow.Syntax.Compiler.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What a parse cannot tell you: whether the code still compiles. Tree-sitter proves an edit left the file
+    well-formed, and every mistake that costs a build is past that point - a member that no longer exists, a call
+    with the wrong arguments, a type in a namespace nobody imports. This builds the edited project's compilation in
+    memory and asks the compiler.
+
+    The compiler package only, on purpose: no MSBuild workspace, no build host. MSBuild's own design-time build
+    already produces the exact compiler command line a project is built with - sources, references, analyzers,
+    defines, language version - so this runs that once per project and hands the result to Roslyn's own command-line
+    parser. What that buys is a project loaded in about a second with nothing to install, and a check that compiles
+    precisely what the build would.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Components" />
+  </ItemGroup>
+
+</Project>

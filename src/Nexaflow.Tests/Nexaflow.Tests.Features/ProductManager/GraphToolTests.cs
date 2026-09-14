@@ -210,6 +210,19 @@ public class GraphToolTests
         StringAssert.Contains(r.ModelText, "No graph nodes match");
     }
 
+    /// <summary>Nothing is named Wobble — it is only ever called — so a name search had nothing to say about
+    /// the one place it appears. The source does, and the answer says that is where it looked.</summary>
+    [TestMethod]
+    public async Task Search_FallsBackToSource()
+    {
+        var r = await Run("graph_search", new JsonObject { ["term"] = "Wobble" });
+
+        Assert.IsFalse(r.IsError);
+        StringAssert.Contains(r.ModelText, "nothing is named 'Wobble'");
+        StringAssert.Contains(r.ModelText, "code:src/Widget.cs#T:Widget");
+        StringAssert.Contains(r.ModelText, "Wobble();");
+    }
+
     // ── Context: the one-shot view ────────────────────────────────────────────
 
     [TestMethod]
@@ -284,6 +297,18 @@ public class GraphToolTests
         Assert.IsFalse(r.IsError);
         StringAssert.Contains(r.ModelText, "Spin");
         StringAssert.Contains(r.ModelText, "src/", "each hit names the file and line it came from");
+    }
+
+    /// <summary>The limit is how much to print. Passed into the scan it stopped the search at the fortieth hit,
+    /// and the total read as the answer to "how many places do this".</summary>
+    [TestMethod]
+    public async Task Grep_TotalIsNotCappedByTheReportLimit()
+    {
+        var r = await Run("graph_grep", new JsonObject { ["pattern"] = "Filler", ["limit"] = 5 });
+
+        Assert.IsFalse(r.IsError);
+        StringAssert.Contains(r.ModelText, "420 match(es)");
+        StringAssert.Contains(r.ModelText, "showing 5");
     }
 
     [TestMethod]
@@ -428,5 +453,54 @@ public class GraphToolTests
                                   "\"no graph\" has to name the tool that makes one, or the model just retries");
         }
         finally { try { Directory.Delete(bare, recursive: true); } catch { } }
+    }
+
+    /// <summary>
+    /// The assistant's edit tool plans several edits the way the CLI's script does: a new file, then an edit to it that
+    /// only works because the create came first — and a plan with a bad step anywhere writes nothing.
+    /// </summary>
+    [TestMethod]
+    [CoversNode("graph-edit-plan")]
+    public async Task Edit_SeveralEditsAreOnePlan_WrittenTogetherOrNotAtAll()
+    {
+        var planned = await Run("graph_edit", new JsonObject
+        {
+            ["edits"] = new JsonArray
+            {
+                new JsonObject { ["op"] = "create", ["node_id"] = "src/Gear.cs", ["text"] = "namespace Demo;\n\npublic class Gear\n{\n}\n" },
+                new JsonObject { ["op"] = "append", ["node_id"] = "code:src/Gear.cs#T:Gear", ["text"] = "public int Teeth => 12;" },
+            },
+        });
+
+        Assert.IsFalse(planned.IsError, planned.ModelText);
+        StringAssert.Contains(File.ReadAllText(Path.Combine(_root, "src", "Gear.cs")), "    public int Teeth => 12;");
+
+        var refused = await Run("graph_edit", new JsonObject
+        {
+            ["edits"] = new JsonArray
+            {
+                new JsonObject { ["op"] = "create", ["node_id"] = "src/Cog.cs", ["text"] = "namespace Demo;\n\npublic class Cog\n{\n}\n" },
+                new JsonObject { ["op"] = "delete", ["node_id"] = "code:src/Widget.cs#T:Widget/M:NotThere" },
+            },
+        });
+
+        Assert.IsTrue(refused.IsError, "the second edit cannot be planned");
+        Assert.IsFalse(File.Exists(Path.Combine(_root, "src", "Cog.cs")), "so the first is not written either");
+    }
+
+    /// <summary>A move through the assistant's tool: out of one file and into a new one, with the emptied file gone.</summary>
+    [TestMethod]
+    [CoversNode("graph-edit-move")]
+    public async Task Edit_MovesADeclarationToANewFile()
+    {
+        var moved = await Run("graph_edit", new JsonObject
+        {
+            ["op"] = "move", ["node_id"] = "code:src/Widget.cs#T:Widget", ["to"] = "file:src/Parts/Widget.cs",
+        });
+
+        Assert.IsFalse(moved.IsError, moved.ModelText);
+        Assert.IsTrue(File.Exists(Path.Combine(_root, "src", "Parts", "Widget.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(_root, "src", "Widget.cs")), "a file left holding only its namespace is removed");
+        StringAssert.Contains(File.ReadAllText(Path.Combine(_root, "src", "Parts", "Widget.cs")), "namespace Demo;");
     }
 }

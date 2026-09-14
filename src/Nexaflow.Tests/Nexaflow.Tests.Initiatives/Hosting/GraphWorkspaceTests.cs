@@ -235,4 +235,34 @@ public class GraphWorkspaceTests
         Assert.AreSame(replacement, workspace.Graph,
             "what it just built is what it holds — a re-read here would swap it for a copy of itself");
     }
+
+    /// <summary>
+    /// Two processes holding the same tree's graph — the app beside the resident process, or two builds of nfi. One saves
+    /// while the other has unsaved refreshes of its own; the later save used to write its whole snapshot over the archive,
+    /// dropping what the first had added. It makes its own changes again on the newer archive instead.
+    /// </summary>
+    [TestMethod]
+    public void ASaveAfterAnotherProcessSaved_KeepsWhatThatProcessAdded()
+    {
+        Seed(2);
+        var mine   = Workspace();
+        var theirs = Workspace();
+
+        File.WriteAllText(Path.Combine(_root, "src", "Mine.cs"), "namespace N;\n\npublic class Mine\n{\n}\n");
+        var held = mine.Current()!;
+        Assert.IsTrue(GraphBuilder.RefreshFile(held.Graph, held.Cache, _root, "src/Mine.cs"));
+        mine.MarkChanged(["src/Mine.cs"]);                     // changed, not yet saved
+
+        File.WriteAllText(Path.Combine(_root, "src", "Theirs.cs"), "namespace N;\n\npublic class Theirs\n{\n}\n");
+        var other = theirs.Current()!;
+        Assert.IsTrue(GraphBuilder.RefreshFile(other.Graph, other.Cache, _root, "src/Theirs.cs"));
+        theirs.MarkChanged(["src/Theirs.cs"]);
+        theirs.Flush();                                        // they save first
+
+        mine.Flush();
+
+        var saved = GraphArchive.ReadGraph(_store.GraphFilePath)!;
+        Assert.IsTrue(saved.Nodes.Exists(n => n.Id == "code:src/Theirs.cs#T:Theirs"), "what the other process added survives");
+        Assert.IsTrue(saved.Nodes.Exists(n => n.Id == "code:src/Mine.cs#T:Mine"), "and so does what this one added");
+    }
 }

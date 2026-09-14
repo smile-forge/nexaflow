@@ -56,6 +56,11 @@ internal static class Program
             // Answered by the client rather than sent to the daemon: it is a question about that process, and
             // it has to be answerable when the process is busy, wedged, or not there at all.
             if (args[0] == "daemon") return DaemonClient.Report(productRoot, stop: args.Contains("stop"));
+
+            // Built and run here, not in the resident process: minutes of test run must not hold the tree's lock, and a Ctrl+C
+            // has to reach the run. Only the choosing of tests is asked of the resident process.
+            if (args[0] == "test" && !args.Contains("--list") && !args.Contains("--plan"))
+                return TestRunner.Run(args, productRoot, CallerWorkingTree(productRoot));
             return DaemonClient.Run(args, productRoot, CallerWorkingTree(productRoot));
         }
         catch (DaemonUnavailableException ex)
@@ -99,11 +104,12 @@ internal static class Program
     /// happens here. Writing directly in both cases would leave the warm copy describing the file it had
     /// before, which is the one way a resident process can be worse than no process at all.
     /// </summary>
-    private static void SaveGraphChange(string root, bool main, ProductStore store,
-                                        KnowledgeGraph graph, GraphCache cache)
+    private static void SaveGraphChange(string root, bool main, ProductStore store, KnowledgeGraph graph, GraphCache cache,
+                                        IEnumerable<string>? refreshed = null, IEnumerable<string>? forgotten = null)
     {
-        if (Workspace(root, main, store) is { } workspace) workspace.MarkChanged();
-        else store.SaveSnapshot(graph, cache);
+        if (Workspace(root, main, store) is not { } workspace) store.SaveSnapshot(graph, cache);
+        else if (refreshed is null) workspace.MarkChanged();
+        else workspace.MarkChanged(refreshed, forgotten);
     }
 
     /// <summary>
@@ -149,13 +155,10 @@ internal static class Program
         deferred?.ApplyTo(state);
     }
 
-    /// <summary>What a command was piped, when it is running inside the daemon and there is no console to
-    /// read it from. Null in a one-shot process, where <see cref="ReadStdin"/> reads the real thing.</summary>
-    internal static string? StandardInput { get; set; }
-
-    /// <summary>The warm host, when running inside the daemon. Null in a one-shot process, which builds its
-    /// own for the length of the command — same object, shorter life.</summary>
-    internal static InitiativesHost? Host { get; set; }
+    /// <summary>The warm host serving this request. A property of the request rather than of the process:
+    /// two callers on different trees are served at once, and a static set and cleared per command let one of
+    /// them null the other's host mid-command — which quietly fell back to a cold load, and a cold save.</summary>
+    private static InitiativesHost? Host => RequestScope.Host;
 
     /// <summary>The verb dispatch. Called by the daemon per request, and by nothing else.</summary>
     internal static int Execute(string[] args)
@@ -189,6 +192,7 @@ internal static class Program
             "pending"     => Pending(args[1..]),
             "promote"     => Promote(args[1..]),
             "ask"         => Answered(Ask(args[1..])),
+            "test"        => TestVerb(args[1..]),
             "graph"       => Graph(args[1..]),
             _ => Usage($"unknown command '{args[0]}'")
         };
@@ -227,6 +231,8 @@ internal static class Program
               nfi lint       [<root>] [--under <id>] [--json]
               nfi doctor     [<root>] [--fix]
               nfi ask        '<stage> | <stage> ...' [<root>]   several graph questions, one answer
+              nfi test       <node-id> [<root>] [--list] [--no-build]   build and run the tests that exercise a node
+              nfi test       --failed [--no-build]                      run again exactly what failed last time
               nfi graph      [<root>] [--json] [--product-anchored]   (see: graph help — build + explore)
 
             validate   Checks every snaplink still points at a real target (file exists, md heading resolves,
@@ -323,6 +329,12 @@ internal static class Program
                          ask 'search GraphGrep | source'      find it and read it, without the second call
                          ask 'grep "\.StartsWith" | files'    does anything still do this, and where
                          ask 'node <id> | callers | source'   who uses it, and what their code looks like
+                         ask '@3 | like Tests | files'        continue answer @3 - every answer ends with its handle; @ is the last
+            test       Builds and runs the tests that exercise a node: the tests that use it, the tests of what uses it
+                       (three steps out, by the compiler's binding), and the tests declaring coverage of its feature.
+                       --list shows the choice and why, without building. The choosing is the resident process's; the build
+                       and run happen here, so a long run holds no lock and Ctrl+C stops it. UI journey suites are named with
+                       the filter to run them and never run for you - they take over the machine. exit: 1 if any failed.
             graph      Builds the knowledge graph (product tree ⊕ code AST ⊕ snaplinks) → .product/graph.bin,
                        the file the Graph viewer opens. --json writes it to stdout instead of the file.
                        --product-anchored limits the code layer to snaplinked files (default: whole repo).
@@ -374,7 +386,7 @@ internal static class Program
             if (!_rootNoteShown && !PathsEqual(main, candidate))
             {
                 _rootNoteShown = true;
-                Console.Error.WriteLine(
+                Console.WriteLine(
                     $"note: the authored product tree lives in the main checkout {main}, so tree edits "
                   + "land there. The graph, and the source every other answer is read from, are this "
                   + "worktree's own.");
@@ -643,6 +655,11 @@ internal static class Program
                 Incremental = incremental,
                 CodeRoot = codeRoot,
                 GeneratedAt = DateTime.Now.ToString("o"),
+
+                // A build is a minute and a half of holding this tree's lock. When the caller has gone - a
+                // harness timeout, a Ctrl+C - nobody will read the result, and every command on the tree queues
+                // behind it until it ends. So it ends, at the next file.
+                Cancellation = RequestScope.Cancellation,
             };
             var cache = incremental ? store.LoadGraphCache() : null;   // reuse unchanged files' extraction
             var built = GraphBuilder.BuildWithCache(state, root, options, cache);
@@ -701,13 +718,26 @@ internal static class Program
               graph grep <pat> [<root>] [--from <id>] [--hops N | --scope owned] [--mode index|content] [--type t] [--limit N]
                                                                                 regex the graph (index=graph text; content=nodes' source)
               graph code   <id> [<root>] [--lines A-B]                          code:<file>#<ast> → its block; file:<relpath> → the file
-              graph edit <op> <id> [<root>] [--text T | --text-escaped T | --file F | --stdin] [--to NAME]
-                         [--expect S] [--with-trivia] [--dry-run]               structural edit, verified against the parse
+              graph edit <op> <id> [<root>] [--text T | --text-escaped T | --file F | --stdin] [--to NAME | --to ID]
+                         [--find S | --find-file F …] [--at XPATH] [--name ATTR] [--expect S] [--with-trivia]
+                         [--dry-run] [--show] [--quiet] [--no-check] [--must-compile]    structural edit, verified against the parse
+              graph edit script [<root>] (--file F | --stdin) [--dry-run]       several edits, planned together, written together
+              graph edit undo [--dry-run]                                       put back what the last edit written here replaced
 
             edit ops: replace | delete | signature | body | rename --to <name> | insert-before | insert-after
-                      | append (into a type's body) | doc | substitute --find S (a find/replace that CANNOT
-                      leave the declaration — literal unless --regex, refuses unless it matches exactly once
-                      unless --all; the safe form of `sed -i` on one member)
+                      | append (into a type's body) | doc | import (where the file keeps them) | create <relpath>
+                      | rename --to <name> --references (every use the compiler binds, overrides and implementations too)
+                      | move --to code:<file>#<type> | --to file:<path> (brings the imports it needs; a new file gets the
+                      namespace too, and a C# file left empty is removed)
+                      | substitute --find S (a find/replace that CANNOT leave the declaration — literal unless --regex,
+                      refuses unless it matches exactly once unless --all; the safe form of `sed -i` on one member)
+            script:   a command per line, written as it would follow `graph edit`, with its text in a block beneath:
+                      `<<< find` or `<<< text`, closed by `>>>` (or `<<< text END` … `END`). Each command sees what the
+                      ones before it did, and nothing is written unless every one of them plans cleanly.
+            check:    a C# edit is compiled in memory before it is written, from the project's own build command line and
+                      warm in the resident process. `compile:` lists the errors it introduces and fixes, in its project and in
+                      the projects that compile against it; `impact:` names what uses a declaration whose outside changed.
+                      --must-compile refuses a write that introduces errors; --no-check skips both.
             editing: the graph names the declaration; the parse of the file IN HAND says where it is. The edit
                   is refused unless the AST path still resolves AND the parser agrees the declaration there is
                   still the one the graph labelled — so a stale graph cannot overwrite whatever now occupies
@@ -718,6 +748,10 @@ internal static class Program
                   --dry-run prints the hunk and writes nothing. --expect S refuses unless the block still
                   contains S, for a caller pinning an edit to what it read.
 
+            xml:  a XAML id (T:View, N:Save, K:Style, A:Main_Save) takes every op above, on its element. Any XML-family
+                  file (.xaml .xml .props .targets .csproj …) takes file:<path> --at "<xpath>" to name one element:
+                  /a/b, //b, [n], [@attr], [@attr='v'], [child]. set-attribute --name N --text V | remove-attribute --name N
+                  change one attribute; --all applies delete / set-attribute / remove-attribute to every match.
             chaining:   `nfi ask '<stage> | <stage>'` asks several of these at once and prints one answer -
                   `search X | source` is search and code without the second call, `grep X | files` or
                   `| count` answers "does anything still do this" without printing every hit, and
@@ -851,8 +885,9 @@ internal static class Program
         BeginFreshness(root, a.Has("--main"), g);
         RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
-        var hits = GraphQuery.Search(g, term, a.Value("--type"));
-        Console.WriteLine(GraphReport.Search(hits, term, limit));
+        var main  = a.Has("--main");
+        var found = GraphQuery.Find(g, term, rel => TryReadLines(root, rel, main), a.Value("--type"));
+        Console.WriteLine(GraphReport.Search(found, term, limit));
         return Clean;
     }
 
@@ -956,7 +991,21 @@ internal static class Program
             // than silently falling back to whatever declaration happens to surround the graph's stale line.
             if (spans.Resolve(rel, lines, ast) is null)
             { Console.Error.WriteLine($"error: ast path '{ast}' not found in {rel} (regenerate the graph?)."); return Error; }
-            (s0, e0) = spans.Block(rel, lines, ast, 0, GraphQuery.BlockScanLines);
+        (s0, e0) = spans.Block(rel, lines, ast, 0, GraphQuery.BlockScanLines);
+
+        // --lines narrows the block, in the file's own line numbers — the ones the listing prints. It used to be ignored
+        // here, so asking for twenty lines of a large type printed all of it.
+        if (a.Value("--lines") is { } within)
+        {
+            if (!TryRange(within, out var from, out var to))
+                return VerbUsage($"--lines must be N or A-B (got '{within}')");
+            if (to - 1 < s0 || from - 1 > e0)
+            {
+                Console.Error.WriteLine($"error: lines {within} are outside {id}, which is lines {s0 + 1}-{e0 + 1}.");
+                return Error;
+            }
+            (s0, e0) = (Math.Max(s0, from - 1), Math.Min(e0, to - 1));
+        }
         }
         else if (a.Value("--lines") is { } range)   // a slice of a file
         {
@@ -969,8 +1018,23 @@ internal static class Program
         else { s0 = 0; e0 = lines.Length - 1; }   // whole file
 
         Console.WriteLine($"// {rel}:{s0 + 1}-{e0 + 1}   {id}");
+
+        // Cut where the caller can still read it, and say how to get the rest. Past about 30,000 characters a caller's tool
+        // swaps the whole output for a two-kilobyte preview, so an uncut read of a big file arrived as almost nothing.
+        var used = 0;
         for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++)
-            Console.WriteLine($"{i + 1,5}  {lines[i]}");
+        {
+            var row = $"{i + 1,5}  {lines[i]}";
+            if (used > 0 && used + row.Length + 1 > GraphAsk.PageChars)
+            {
+                var last = Math.Min(e0, lines.Length - 1) + 1;
+                Console.WriteLine($"… lines {i + 1}-{last} not shown - output stops at a page ({GraphAsk.PageChars:N0} characters), "
+                                + $"--all included; the rest: nfi graph cat {id} --lines {i + 1}-{last}");
+                break;
+            }
+            Console.WriteLine(row);
+            used += row.Length + 1;
+        }
         return Clean;
     }
 
@@ -991,11 +1055,15 @@ internal static class Program
         if (!TryLoadGraph(root, out var g, out _)) return false;
         if (!GraphQuery.Index(g).TryGetValue($"file:{rel}", out var node)) return false;
 
-        Console.Write(GraphAsk.Outline(g, node));
+        Console.Write(GraphAsk.Outline(g, node, file => TryReadLines(root, file, a.Has("--main"))));
         Console.WriteLine($"// {rel} is {lineCount} lines; this is its outline. --lines A-B for a slice, "
                         + "`graph code <id>` for one block, --all for the file itself.");
         return true;
     }
+
+    /// <summary>The answers each tree has been given in this process's life — what `@` in a question refers back to.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, AnswerHistory> Histories =
+        new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// `nfi ask '<stage> | <stage>'` - several graph questions chained into one answer.
@@ -1016,10 +1084,131 @@ internal static class Program
         RefreshStaleFiles(root, a.Has("--main"), g, forced: a.Has("--refresh"));
 
         var main = a.Has("--main");
-        var answer = GraphAsk.Run(g, a[0], rel => TryReadLines(root, rel, main));
+
+        // Kept by the process that answers, so only the resident process has a history for `@` to refer back to.
+        var history = RequestScope.Serving
+            ? Histories.GetOrAdd($"{CodeRootFor(root, main)}|{main}",
+                                 _ => new AnswerHistory(rel => CodeFilePath(root, rel, main) is { } full ? File.GetLastWriteTimeUtc(full) : null))
+            : null;
+        var questions = string.Join('\n', a.Positionals.Where(p => p.Length > 0));
+        var answer = GraphAsk.Run(g, questions, rel => TryReadLines(root, rel, main), history,
+                                  EditCheck.DiagnoseIn(g, CodeRootFor(root, main)));
         Console.WriteLine(answer.Text);
         return answer.Ok ? Clean : Error;
     }
+
+    /// <summary>
+    /// <c>test &lt;id&gt; --list | --plan</c>: which tests exercise a node. Running them is <see cref="TestRunner"/>'s, in the
+    /// caller's process; this only chooses — <c>--plan</c> as JSON for that runner, <c>--list</c> for a person.
+    /// </summary>
+    private static int TestVerb(string[] args)
+    {
+        if (!TryRead(Specs.Test, args, out var a, out var root, out var parseCode)) return parseCode;
+        if (a.Has("--failed"))
+            return VerbUsage("test --failed runs what failed last time, which nfi answers itself — run it as `nfi test --failed`");
+        if (a[0] is not { Length: > 0 } id) return VerbUsage("test needs the node whose tests to run: nfi test <node-id>");
+        if (!TryLoadGraph(root, out var graph, out var loadCode)) return loadCode;
+
+        var codeRoot = CodeRootFor(root, main: false);
+        var host     = EditCheck.HostFor(codeRoot);
+        var files    = EditCheck.SourceFiles(codeRoot).ToList();
+        var kinds    = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string? Read(string rel) => CodeFilePath(root, rel, main: false) is { } full ? File.ReadAllText(full) : null;
+        string Kind(string csproj) => kinds.TryGetValue(csproj, out var kind) ? kind : kinds[csproj] = TestKind(EditCheck.Full(codeRoot, csproj));
+        var desktop = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        bool DrivesTheDesktop(string rel) => desktop.TryGetValue(rel, out var drives) ? drives
+            : desktop[rel] = Read(rel) is { } text && DesktopTest.IsMatch(text);
+
+        // A use is what the compiler binds to the declaration, where it can be asked; spelling is the fallback, and chose
+        // every suite in the repository the first time for a helper whose name was an ordinary word.
+        IReadOnlyList<TestSelection.Use>? UsesOf(TestSelection.Target target, IReadOnlyList<string> candidates)
+        {
+            if (TreeSitterLanguages.ForEdit(target.RelativePath) != "c-sharp" || Read(target.RelativePath) is not { } text
+                || StructuralEdit.NameStartOf("c-sharp", text, target.AstPath, target.Name) is not { } position)
+                return null;
+
+            // Longer than an edit's budget: a test run takes minutes, and a suite missing because its project loaded late is a
+            // test that silently did not run.
+            var found = host.FindReferences(EditCheck.Full(codeRoot, target.RelativePath), position,
+                                            [.. candidates.Where(c => c.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                                                          .Select(c => EditCheck.Full(codeRoot, c))],
+                                            TimeSpan.FromMinutes(3), RequestScope.Cancellation);
+            if (found.Error is not null) return null;
+
+            var uses = found.Locations.Select(l => (Rel: EditCheck.Relative(codeRoot, l.FullPath), l.Start))
+                            .Where(l => !(string.Equals(l.Rel, target.RelativePath, StringComparison.OrdinalIgnoreCase) && l.Start == position))
+                            .Select(l => new TestSelection.Use(l.Rel, Read(l.Rel) is { } t ? t.AsSpan(0, Math.Min(l.Start, t.Length)).Count('\n') + 1 : 0))
+                            .ToList();
+
+            // Where a project could not be searched, the spelling stands in: a test too many beats one missed.
+            foreach (var file in (found.Unsearched ?? []).Select(f => EditCheck.Relative(codeRoot, f)))
+                if (Read(file) is { } text2)
+                    uses.AddRange(text2.Split('\n').Select((line, i) => (line, i))
+                                       .Where(l => Regex.IsMatch(l.line, $@"(?<![\w@]){Regex.Escape(target.Name)}(?!\w)"))
+                                       .Select(l => new TestSelection.Use(file, l.i + 1)));
+            return uses;
+        }
+
+        var selection = TestSelection.For(graph, id, new TestSelection.Sources(
+            Read, files,
+            rel => host.ProjectOf(EditCheck.Full(codeRoot, rel)) is { } csproj ? EditCheck.Relative(codeRoot, csproj) : null,
+            csproj => Kind(csproj) != "",
+            (csproj, file) => Kind(csproj) == "journeys" || DrivesTheDesktop(file),
+            UsesOf,
+            new ProductStore(root).LoadTestCoverage()));
+
+        if (a.Has("--plan"))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(selection));
+            return Clean;
+        }
+
+        if (selection.Suites.Count == 0)
+            Console.WriteLine(selection.Journeys.Count > 0
+                ? "tests: none that nfi runs — what exercises it is the journeys below."
+                : "tests: none — nothing uses it from a test, and no test declares it covers its feature.");
+        foreach (var suite in selection.Suites)
+        {
+            Console.WriteLine($"{suite.Project}   {suite.Filters.Count} filter(s)");
+            foreach (var reason in suite.Reasons) Console.WriteLine($"  why:  {reason}");
+            foreach (var filter in suite.Filters.Take(30)) Console.WriteLine($"  run:  {filter}");
+            if (suite.Filters.Count > 30) Console.WriteLine($"  … and {suite.Filters.Count - 30} more");
+        }
+        PrintJourneys(selection);
+        foreach (var note in selection.Notes) Console.WriteLine($"note: {note}");
+        if (selection.Suites.Count > 0) Console.WriteLine($"nfi test {id} builds these and runs them.");
+        return Clean;
+    }
+
+    /// <summary>Suites that use it but drive the real desktop: named with the filter to run them, never run for anyone.</summary>
+    internal static void PrintJourneys(TestSelection.Selection selection)
+    {
+        foreach (var journey in selection.Journeys)
+            Console.WriteLine($"journeys: {journey.Project} has {journey.Filters.Count} test(s) that use it. They take over the "
+                            + "mouse and keyboard, so they are yours to run, on a machine nobody is using: --filter \""
+                            + string.Join("|", journey.Filters.Select(f => $"FullyQualifiedName~{f}")) + "\"");
+    }
+
+    /// <summary>
+    /// "tests" for a test project, "journeys" for the one whose every test launches the app, "" for anything else. A journey
+    /// project is known by its name: five ordinary suites here reference FlaUI too, and reading that as "drives the desktop"
+    /// named hundreds of plain unit tests as ones nobody may run. Which tests in an ordinary suite do show a window is
+    /// asked of each test's file instead (<see cref="DesktopTest"/>).
+    /// </summary>
+    private static string TestKind(string csproj)
+    {
+        try
+        {
+            var text = File.ReadAllText(csproj);
+            if (!Regex.IsMatch(text, @"MSTest|Microsoft\.NET\.Test\.Sdk|xunit|NUnit|EnableMSTestRunner", RegexOptions.IgnoreCase)) return "";
+            return Path.GetFileNameWithoutExtension(csproj).Contains("Journey", StringComparison.OrdinalIgnoreCase) ? "journeys" : "tests";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return ""; }
+    }
+
+    /// <summary>A test file that drives the real desktop: it imports FlaUI, or declares a test that shows a window.</summary>
+    private static readonly Regex DesktopTest =
+        new(@"^\s*using\s+FlaUI\b|TestCategory\(\s*""Desktop""\s*\)", RegexOptions.Multiline | RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Structural editing: <c>graph edit &lt;op&gt; &lt;node-id&gt;</c>. The graph names the declaration; the
@@ -1028,12 +1217,201 @@ internal static class Program
     /// </summary>
     private static int GraphEditVerb(string[] args)
     {
+        if (args is ["script", ..]) return GraphEditScript(args[1..]);
+        if (args is ["undo", ..]) return GraphEditUndo(args[1..]);
+
         if (!TryRead(Specs.GraphEdit, args, out var a, out var root, out var parseCode)) return parseCode;
 
-        // `create` names a path that does not exist yet, so there is no node to look up and no graph to load.
-        if (a[0] is "create" or "new") return GraphCreateFile(a, root);
+        // Before `create` as well: a new file's contents arrive through the same shell as an edit's.
+        WarnIfShellRewritesArguments();
 
-        if (!TryLoadGraph(root, out var graph, out var loadCode)) return loadCode;
+        if (!TryStep(a, $"{a[0]} {a[1]}", out var step, out var stepError)) return VerbUsage(stepError);
+
+        return RunEditPlan([step], root, EditRun.From(a, show: a.Has("--show")));
+    }
+
+    /// <summary>
+    /// <c>graph edit script</c>: several edits as one — see <see cref="EditScript"/> for the format. Every command is
+    /// parsed before any is planned, every one is planned before any file is written, and the files are written together
+    /// or not at all, so a change spanning files never stops half-way.
+    /// </summary>
+    private static int GraphEditScript(string[] args)
+    {
+        if (!TryRead(Specs.GraphEditScript, args, out var a, out var root, out var parseCode)) return parseCode;
+        WarnIfShellRewritesArguments();
+
+        if (!TryPayload(a, "--text", "--text-escaped", "--file", "--stdin", out var script, out var payloadError))
+            return VerbUsage(payloadError!);
+        if (script is null) return VerbUsage("graph edit script needs the script: --file <path> or --stdin");
+
+        if (!EditScript.TryParse(script, out var commands, out var scriptError))
+        {
+            Console.Error.WriteLine($"error: {scriptError}");
+            return Error;
+        }
+
+        // What belongs to the run rather than to one of its commands: one dry run, one refresh, one place to read input.
+        string[] runWide = ["--dry-run", "--main", "--no-refresh", "--show", "--quiet", "--stdin", "--find-stdin", "--no-check",
+                            "--must-compile"];
+
+        var steps = new List<EditPlan.Step>();
+        foreach (var command in commands)
+        {
+            if (!VerbArgs.TryParse(Specs.GraphEdit.InBatch, command.Args, out var line, out var lineError))
+            {
+                Console.Error.WriteLine($"error: line {command.Line}: {lineError}");
+                return Error;
+            }
+            if (runWide.FirstOrDefault(line.Has) is { } misplaced)
+            {
+                Console.Error.WriteLine($"error: line {command.Line}: {misplaced} applies to the whole script — put it on "
+                                      + "`graph edit script`, not on one of its commands.");
+                return Error;
+            }
+            if (!TryStep(line, $"line {command.Line} ({line[0]} {line[1]})", out var step, out var stepError))
+            {
+                Console.Error.WriteLine($"error: line {command.Line}: {stepError}");
+                return Error;
+            }
+            steps.Add(step);
+        }
+
+        return RunEditPlan(steps, root, EditRun.From(a, show: false));
+    }
+
+    /// <summary>
+    /// <c>graph edit undo</c>: puts back what the last edit written to this tree replaced — every file it touched as that edit
+    /// found it, a file it created removed and one it deleted restored. Refused when any of those files has changed since the
+    /// edit left it, because that change is later work and undoing over it would lose it.
+    /// </summary>
+    private static int GraphEditUndo(string[] args)
+    {
+        if (!TryRead(Specs.GraphEditUndo, args, out var a, out var root, out var parseCode)) return parseCode;
+
+        var main     = a.Has("--main");
+        var codeRoot = CodeRootFor(root, main);
+        if (EditJournal.Last(EditJournal.DirectoryFor(codeRoot)) is not { } last)
+        {
+            Console.Error.WriteLine("error: there is no edit to undo in this tree - nothing has been written here through graph edit, "
+                                  + "or every edit that was has been undone.");
+            return Error;
+        }
+
+        var (entry, kept) = last;
+        var changed = entry.Files
+            .Where(f => !string.Equals(File.Exists(EditCheck.Full(codeRoot, f.RelativePath))
+                                           ? SourceFile.Read(EditCheck.Full(codeRoot, f.RelativePath))?.Text
+                                           : null,
+                                       f.After, StringComparison.Ordinal))
+            .Select(f => f.RelativePath)
+            .ToList();
+        if (changed.Count > 0)
+        {
+            Console.Error.WriteLine($"error: {string.Join(", ", changed)} changed after `{entry.Label}` wrote it, so undoing that edit "
+                                  + "would lose the later change - nothing was undone.");
+            return Error;
+        }
+
+        foreach (var file in entry.Files)
+            Console.WriteLine(file.Before is null ? $"  remove    {file.RelativePath}   (the edit created it)"
+                            : file.After is null  ? $"  restore   {file.RelativePath}   (the edit deleted it)"
+                            :                       $"  put back  {file.RelativePath}");
+
+        if (a.Has("--dry-run"))
+        {
+            Console.WriteLine($"dry run - undoing `{entry.Label}` would do the above; nothing written.");
+            return Clean;
+        }
+
+        // Written the way the edit was, reversed: each file from what the edit left to what it found.
+        if (WriteAll(root, main, [.. entry.Files.Select(f => new EditPlan.Written(f.RelativePath, f.After, f.Before))]) is { } refused)
+        {
+            Console.Error.WriteLine($"error: {refused}");
+            return Error;
+        }
+        EditJournal.Forget(kept);
+
+        if (TryLoadGraph(root, out var graph, out _))
+        {
+            var store     = GraphStore(root, main);
+            var cache     = EditCache(root, main, store);
+            var refreshed = entry.Files.Where(f => GraphBuilder.RefreshFile(graph, cache, root, f.RelativePath, CodeRootOrNull(root, main)))
+                                       .Select(f => f.RelativePath).ToList();
+            if (refreshed.Count > 0) SaveGraphChange(root, main, store, graph, cache, refreshed);
+        }
+
+        Console.WriteLine($"undone: `{entry.Label}` - {entry.Files.Count} file(s) back as that edit found them.");
+        return Clean;
+    }
+
+    /// <summary>How a plan is run: which source it edits, what the caller asked to see, and what the compiler is asked.</summary>
+    private sealed record EditRun(bool Main, bool DryRun, bool Quiet, bool Refresh, bool Show, bool Check, bool MustCompile)
+    {
+        public static EditRun From(VerbArgs a, bool show) =>
+            new(a.Has("--main"), a.Has("--dry-run"), a.Has("--quiet"), !a.Has("--no-refresh"), show,
+                Check: !a.Has("--no-check"), MustCompile: a.Has("--must-compile"));
+    }
+
+    /// <summary>
+    /// One <c>graph edit</c> command as a step of a plan. The command line and a script line both come through here, so
+    /// the two cannot accept different things.
+    /// </summary>
+    private static bool TryStep(VerbArgs a, string label, out EditPlan.Step step, out string error)
+    {
+        step  = null!;
+        error = "";
+
+        if (!TryEditText(a, out var text, out var textError)) { error = textError!; return false; }
+        if (!TryEditFind(a, out var find, out var findError)) { error = findError!; return false; }
+
+        switch (a[0])
+        {
+            case "create" or "new":
+            {
+                var rel = a[1].Replace('\\', '/');
+                if (Path.IsPathRooted(rel)) { error = $"give a repo-relative path, not '{rel}'"; return false; }
+                if (text is null) { error = "creating a file needs its content (--text, --file or --stdin)"; return false; }
+
+                step = new EditPlan.Create(label, rel, text);
+                return true;
+            }
+
+            case "move":
+            {
+                if (a.Value("--to") is not { } to
+                    || !(to.StartsWith("code:", StringComparison.Ordinal) || to.StartsWith("file:", StringComparison.Ordinal)))
+                {
+                    error = "move needs somewhere to go: --to code:<file>#<type path> moves it into that type, and "
+                          + "--to file:<path> to that file, which is created if it is not there";
+                    return false;
+                }
+                if (text is not null || find is not null)
+                {
+                    error = "move takes the declaration as it stands — drop --text / --find, and edit it before or after";
+                    return false;
+                }
+
+                step = new EditPlan.Move(label, a[1], to);
+                return true;
+            }
+        }
+
+        if (a.Has("--references"))
+        {
+            if (a[0] != "rename")
+            {
+                error = "--references goes with rename, which it carries to every use the compiler finds";
+                return false;
+            }
+            if (a.Value("--to") is not { } newName || !Regex.IsMatch(newName, @"^@?[\p{L}_][\p{L}\p{Nd}_]*$"))
+            {
+                error = "rename --references needs the new name, an identifier: --to <name>";
+                return false;
+            }
+
+            step = new RenameEverywhere(label, a[1], newName.TrimStart('@'));
+            return true;
+        }
 
         var op = a[0] switch
         {
@@ -1048,113 +1426,328 @@ internal static class Program
             "doc"           => StructuralEdit.Op.Doc,
             "substitute" or "sub"  => StructuralEdit.Op.Substitute,
             "import" or "using"    => StructuralEdit.Op.Import,
+            "set-attribute" or "set-attr"       => StructuralEdit.Op.SetAttribute,
+            "remove-attribute" or "remove-attr" => StructuralEdit.Op.RemoveAttribute,
             _               => (StructuralEdit.Op?)null,
         };
         if (op is null)
-            return VerbUsage($"unknown edit op '{a[0]}' — expected replace | delete | signature | body | "
-                           + "rename | insert-before | insert-after | append | doc | substitute | import");
-
-        WarnIfShellRewritesArguments();
-
-        if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
-
-        if (!TryEditFind(a, out var find, out var findError)) return VerbUsage(findError!);
-
-        
-        var main  = a.Has("--main");
-        var store = GraphStore(root, main);
-        var cache = EditCache(root, main, store);
-        var stale = !a.Has("--no-refresh");
-
-        // Bring the graph's record of the target file up to date BEFORE looking anything up. One file's
-        // parse costs milliseconds against the ninety seconds a whole-repo walk takes, and it is the
-        // difference between "the graph might be stale" being something the caller has to reason about and
-        // it not being one.
-        var dirty = stale
-                 && FileOfNodeId(a[1]) is { } target
-                 && GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, main));
-
-
-
-        var options = new StructuralEdit.Options(a.Has("--with-trivia"), a.Value("--expect"),
-                                                 find, a.Has("--regex"), a.Has("--all"));
-        var result  = GraphEdit.Plan(graph, a[1], op.Value, text, rel => ReadRaw(root, rel, main)?.Text,
-                                     options, a.Value("--to"));
-
-        if (!result.Ok)
         {
-            // The refresh above may have learned something real — the file changed — and that is worth
-            // keeping even though the edit itself is not going ahead.
-            if (dirty) SaveGraphChange(root, main, store, graph, cache);
-            Console.Error.WriteLine($"error: {result.Message}");
+            error = $"unknown edit op '{a[0]}' — expected replace | delete | signature | body | rename | insert-before | "
+                  + "insert-after | append | doc | substitute | import | set-attribute | remove-attribute | move | create";
+            return false;
+        }
+
+        // An attribute op names its attribute, and nothing else takes one - a --name on a replace would be ignored.
+        if (op is StructuralEdit.Op.SetAttribute or StructuralEdit.Op.RemoveAttribute)
+        {
+            if (a.Value("--name") is not { Length: > 0 }) { error = $"{a[0]} needs the attribute: --name <attr>"; return false; }
+            if (op is StructuralEdit.Op.SetAttribute && text is null)
+            {
+                error = "set-attribute needs the value: --text <value> (an empty one is allowed)";
+                return false;
+            }
+            if (op is StructuralEdit.Op.RemoveAttribute && text is not null)
+            {
+                error = "remove-attribute takes no value - drop --text / --file";
+                return false;
+            }
+        }
+        else if (a.Value("--name") is not null)
+        {
+            error = "--name is the attribute for set-attribute / remove-attribute; use --to to rename";
+            return false;
+        }
+
+        // A Git Bash shell rewrites a leading / into a Windows path, so an XPath arrives as C:/Program Files/Git/Project.
+        if (a.Value("--at") is { } at && CallerPath.IsMsysCaller && Regex.IsMatch(at, "^[A-Za-z]:/"))
+        {
+            error = $"--at arrived as '{at}' - Git Bash rewrote the leading / into a Windows path. Export "
+                  + "MSYS2_ARG_CONV_EXCL='*' and run it again.";
+            return false;
+        }
+
+        step = new EditPlan.Edit(label, a[1], op.Value, text,
+                                 new StructuralEdit.Options(a.Has("--with-trivia"), a.Value("--expect"), find,
+                                                            a.Has("--regex"), a.Has("--all"),
+                                                            At: a.Value("--at"), Attribute: a.Value("--name")),
+                                 a.Value("--to"));
+        return true;
+    }
+
+    /// <summary>
+    /// Plans <paramref name="steps"/>, prints what they change, and writes it — all of it or none. The graph's record of
+    /// every file involved is brought up to date before planning and again after writing, one file's parse each.
+    /// </summary>
+    private static int RunEditPlan(IReadOnlyList<EditPlan.Step> steps, string root, EditRun run)
+    {
+        // A new file names a path that does not exist yet: there is no node to look up, so a plan of nothing but new
+        // files needs no graph at all — which is also what lets one be made before any graph has been built.
+        var createOnly = steps.All(s => s is EditPlan.Create);
+
+        var graph = new KnowledgeGraph();
+        if (!createOnly && !TryLoadGraph(root, out graph, out var loadCode)) return loadCode;
+
+        var store = createOnly ? null : GraphStore(root, run.Main);
+        var cache = store is null ? null : EditCache(root, run.Main, store);
+        var dirty = false;
+        var refreshed = new List<string>();
+
+        int Refused(string message)
+        {
+            // A refresh may have learned something real — a file changed — and that is worth keeping even though the
+            // edit itself is not going ahead.
+            if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!, refreshed);
+            Console.Error.WriteLine($"error: {message}");
             return Error;
         }
 
-        // --quiet keeps the confirmation and drops the diff, for a caller that wants the outcome and not the
-        // change; --show is the opposite trade and they compose.
-        if (!a.Has("--quiet")) foreach (var change in result.Changes) PrintHunk(change);
-        foreach (var note in result.Notes) Console.Error.WriteLine($"note: {note}");
+        // Bring the graph's record of each target file up to date BEFORE looking anything up. One file's parse costs
+        // milliseconds against the ninety seconds a whole-repo walk takes, and it is the difference between "the graph
+        // might be stale" being something the caller has to reason about and it not being one.
+        if (run.Refresh && cache is not null)
+            foreach (var target in steps.SelectMany(TargetFiles).Distinct(StringComparer.Ordinal))
+                if (GraphBuilder.RefreshFile(graph, cache, root, target, CodeRootOrNull(root, run.Main)))
+                {
+                    refreshed.Add(target);
+                    dirty = true;
+                }
 
-        if (a.Has("--dry-run"))
+        var codeRoot = CodeRootFor(root, run.Main);
+        string? Read(string rel) => ReadRaw(root, rel, run.Main)?.Text;
+
+        var notes   = new List<string>();
+        var planned = new List<EditPlan.Step>();
+        foreach (var step in steps)
         {
-            Console.WriteLine($"dry run — {result.Message}; nothing written.");
+            if (step is not RenameEverywhere everywhere) planned.Add(step);
+            else if (!TryExpandRename(everywhere, graph, codeRoot, Read, planned, notes, out var why)) return Refused(why);
+        }
+
+        var outcome = EditPlan.Run(graph, planned, Read,
+                                   rel => SourceFile.NewlineFor(EditCheck.Full(codeRoot, rel), codeRoot));
+        if (!outcome.Ok) return Refused(outcome.Message);
+
+        // --quiet keeps the confirmation and drops the diff, for a caller that wants the outcome and not the change;
+        // --show is the opposite trade and they compose.
+        if (!run.Quiet)
+            foreach (var step in outcome.Steps)
+                foreach (var change in step.Changes)
+                    PrintHunk(change, brief: step.Step is EditPlan.Move or EditPlan.Rewrite);
+        foreach (var note in outcome.Steps.SelectMany(s => s.Notes).Concat(notes)) Console.WriteLine($"note: {note}");
+
+        // What the change does beyond its own lines, worked out on the planned text: the same answer for a dry run as for
+        // the edit, and in time for --must-compile to refuse before anything is written.
+        if (run.Check)
+        {
+            var findings = EditCheck.Of(graph, outcome.Files, codeRoot,
+                                        rel => CodeFilePath(root, rel, run.Main) is { } full ? File.ReadAllText(full) : null);
+            EditCheck.Print(findings, codeRoot);
+
+            if (run.MustCompile && findings.Compile is { Introduced.Count: > 0 })
+                return Refused("--must-compile was given and the edit introduces compile errors, so nothing was written.");
+        }
+
+        if (run.DryRun)
+        {
+            Console.WriteLine($"dry run — {outcome.Message}; nothing written. An edit written can be taken back with `graph edit undo`.");
             return Clean;
         }
 
-        foreach (var change in result.Changes)
-        {
-            // Re-resolved rather than remembered, so the write lands on the branch the read came from.
-            var full = CodeFilePath(root, change.RelativePath, main);
-            var raw  = full is null ? null : SourceFile.Read(full);
-            if (full is null || raw is null)
-            {
-                Console.Error.WriteLine($"error: {change.RelativePath} vanished between planning and writing.");
-                return Error;
-            }
+        if (WriteAll(root, run.Main, outcome.Files) is { } refused) return Refused(refused);
+        EditJournal.Record(EditJournal.DirectoryFor(codeRoot),
+                           steps.Count == 1 ? steps[0].Label
+                                            : $"{steps.Count} edits ({string.Join("; ", steps.Take(3).Select(s => s.Label))}{(steps.Count > 3 ? "; …" : "")})",
+                           outcome.Files);
 
-            if (SourceFile.WriteIfUnchanged(full, change.OriginalText, change.NewText, raw.Value.Encoding) is { } refused)
-            {
-                Console.Error.WriteLine($"error: {refused}");
-                return Error;
-            }
-        }
+        // …and again afterwards, so the graph describes what was just written. Both refreshes share one save, and neither
+        // costs more than parsing the files that changed. Deliberately no "now rebuild the graph": the files just edited
+        // have already been merged back in, and saying it anyway only teaches the caller to distrust the tool between
+        // builds. A full `graph build` is for the cross-file passes, not for editing.
+        if (run.Refresh && cache is not null)
+            foreach (var file in outcome.Files)
+                if (GraphBuilder.RefreshFile(graph, cache, root, file.RelativePath, CodeRootOrNull(root, run.Main)))
+                {
+                    refreshed.Add(file.RelativePath);
+                    dirty = true;
+                }
+        if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!, refreshed);
 
-        // …and again afterwards, so the graph describes what was just written. Both refreshes share one
-        // save, and neither costs more than parsing the file that changed.
-        foreach (var change in result.Changes)
-            if (stale) dirty |= GraphBuilder.RefreshFile(graph, cache, root, change.RelativePath,
-                                                        CodeRootOrNull(root, main));
-        if (dirty)
-        {
-            SaveGraphChange(root, main, store, graph, cache);
-        }
-
-        // Deliberately no "now rebuild the graph": the file just edited has already been merged back in, and
-        // saying it anyway only teaches the caller to distrust the tool between builds. A full `graph build`
-        // is for the cross-file passes (call and inheritance resolution), not for editing.
-        // The declaration as it now stands, so that checking an edit is part of making it rather than the next
-        // command. Not for a delete or a rename — there is nothing at that id any more — and not for a
-        // file-level target, where "the declaration" is the whole file.
-        if (a.Has("--show") && op is not (StructuralEdit.Op.Delete or StructuralEdit.Op.Rename)
-                            && a[1].StartsWith("code:", StringComparison.Ordinal))
+        // The declaration as it now stands, so that checking an edit is part of making it rather than the next command.
+        // Not for a delete or a rename — there is nothing at that id any more — and not for a file-level target, where
+        // "the declaration" is the whole file.
+        if (run.Show && steps is [EditPlan.Edit { Op: not (StructuralEdit.Op.Delete or StructuralEdit.Op.Rename) } shown]
+                     && shown.NodeId.StartsWith("code:", StringComparison.Ordinal))
         {
             Console.WriteLine();
-            GraphCode(a.Has("--main") ? [a[1], "--main"] : [a[1]]);
+            GraphCode(run.Main ? [shown.NodeId, "--main"] : [shown.NodeId]);
             Console.WriteLine();
         }
 
-        Console.WriteLine($"{result.Message}.");
+        Console.WriteLine(steps is [EditPlan.Create created]
+            ? $"{outcome.Message}. It is editable straight away — code:{created.RelativePath}#<astpath> works without a graph build."
+            : $"{outcome.Message}.");
         return Clean;
+    }
+
+    /// <summary><c>rename --references</c>: a rename carried to every use of the declaration, resolved by the compiler.</summary>
+    private sealed record RenameEverywhere(string Label, string NodeId, string NewName) : EditPlan.Step(Label);
+
+    /// <summary>
+    /// Turns a <see cref="RenameEverywhere"/> into one rewrite per file: the declaration and every reference, override and
+    /// implementation the compiler binds to it, in its own project and in each project that compiles against it. Found by
+    /// binding rather than spelling, so a different member that happens to share the name is left alone; and planned like
+    /// any other step, so the files are written together or not at all.
+    /// </summary>
+    private static bool TryExpandRename(RenameEverywhere step, KnowledgeGraph graph, string codeRoot, GraphEdit.ReadText read,
+                                        List<EditPlan.Step> into, List<string> notes, out string error)
+    {
+        error = "";
+        if (GraphEdit.Address(graph, step.NodeId, read, out var why) is not { } address)
+        {
+            error = why;
+            return false;
+        }
+
+        var (rel, astPath, name) = address;
+        if (TreeSitterLanguages.ForEdit(rel) != "c-sharp")
+        {
+            error = $"--references asks the C# compiler where {name} is used, and {rel} is not C#. Rename it without --references.";
+            return false;
+        }
+        if (read(rel) is not { } source || StructuralEdit.NameStartOf("c-sharp", source, astPath, name) is not { } position)
+        {
+            error = $"'{name}' could not be found in {rel}.";
+            return false;
+        }
+
+        var mentions   = GraphMentions.Of(graph, [name], EditCheck.SourceFiles(codeRoot), r => read(r));
+        var candidates = mentions.Where(m => m.RelativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                                 .Select(m => EditCheck.Full(codeRoot, m.RelativePath))
+                                 .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        var found = EditCheck.HostFor(codeRoot).FindReferences(EditCheck.Full(codeRoot, rel), position, candidates,
+                                                               EditCheck.LoadBudget, RequestScope.Cancellation);
+        if (found.Error is { } unresolved)
+        {
+            error = $"the compiler could not resolve '{name}' in {rel}: {unresolved}";
+            return false;
+        }
+
+        foreach (var file in found.Locations.GroupBy(l => EditCheck.Relative(codeRoot, l.FullPath), StringComparer.OrdinalIgnoreCase))
+        {
+            if (read(file.Key) is not { } before)
+            {
+                error = $"{file.Key} could not be read.";
+                return false;
+            }
+
+            var after = before;
+            foreach (var at in file.OrderByDescending(l => l.Start))
+            {
+                if (at.Start + at.Length > after.Length || string.CompareOrdinal(after, at.Start, name, 0, name.Length) != 0)
+                {
+                    error = $"{file.Key} changed while the compiler was reading it — run the rename again.";
+                    return false;
+                }
+                after = after[..at.Start] + step.NewName + after[(at.Start + at.Length)..];
+            }
+
+            into.Add(new EditPlan.Rewrite($"{step.Label} ({file.Key})", file.Key, before, after,
+                                          $"rename {name} to {step.NewName} ({file.Count()} place(s))"));
+        }
+
+        if (into.OfType<EditPlan.Rewrite>().All(r => !string.Equals(r.RelativePath, rel, StringComparison.OrdinalIgnoreCase)))
+        {
+            error = $"the compiler found no declaration of '{name}' at {rel}, so nothing was renamed.";
+            return false;
+        }
+
+        if (mentions.Where(m => m.RelativePath.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)).ToList() is { Count: > 0 } views)
+            notes.Add($"{views.Count} XAML line(s) name '{name}' and were left alone — a binding or handler names it as text, "
+                    + "which the compiler does not resolve: " + string.Join(", ", views.Take(5).Select(v => $"{v.RelativePath}:{v.Line}")));
+        foreach (var reason in found.NotChecked)
+            notes.Add($"uses of '{name}' there were not searched for: {reason}");
+        return true;
+    }
+
+    /// <summary>The files a step reads before it can plan — the ones whose graph record is worth refreshing first.</summary>
+    private static IEnumerable<string> TargetFiles(EditPlan.Step step) => step switch
+    {
+        EditPlan.Edit e => FileOfNodeId(e.NodeId) is { } file ? [file] : [],
+        EditPlan.Move m => new[] { FileOfNodeId(m.NodeId), FileOfNodeId(m.Destination) }.OfType<string>(),
+        RenameEverywhere r => FileOfNodeId(r.NodeId) is { } renamed ? [renamed] : [],
+        _               => [],
+    };
+
+    /// <summary>
+    /// Writes a plan's files, or none of them. Every file is checked against the text the plan was made from before any is
+    /// written, so a file changed underneath the plan refuses the whole of it rather than leaving the rest applied.
+    /// </summary>
+    private static string? WriteAll(string root, bool main, IReadOnlyList<EditPlan.Written> files)
+    {
+        var codeRoot = CodeRootFor(root, main);
+        var ready    = new List<(EditPlan.Written File, string Full, Encoding? Encoding)>();
+
+        foreach (var file in files)
+        {
+            if (file.Before is null)
+            {
+                var target = Path.Combine(codeRoot, file.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(target)) return $"{file.RelativePath} appeared while the edit was planned; nothing was written.";
+                ready.Add((file, target, null));
+                continue;
+            }
+
+            // Re-resolved rather than remembered, so the write lands on the branch the read came from.
+            var full = CodeFilePath(root, file.RelativePath, main);
+            if (full is null || SourceFile.Read(full) is not { } raw)
+                return $"{file.RelativePath} vanished between planning and writing; nothing was written.";
+            if (!string.Equals(raw.Text, file.Before, StringComparison.Ordinal))
+                return $"{file.RelativePath} changed while the edit was planned; nothing was written. Run it again.";
+            ready.Add((file, full, raw.Encoding));
+        }
+
+        foreach (var (file, full, encoding) in ready)
+        {
+            try
+            {
+                if (file.After is null)
+                    File.Delete(full);
+                else if (encoding is null)
+                {
+                    if (Path.GetDirectoryName(full) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
+                    File.WriteAllText(full, file.After, new UTF8Encoding(false));
+                }
+                else if (SourceFile.WriteIfUnchanged(full, file.Before!, file.After, encoding) is { } refused)
+                    return refused;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return $"could not write {file.RelativePath}: {ex.Message}";
+            }
+        }
+        return null;
     }
 
     // ── Is the graph still describing what is on disk? ──────────────────────
 
     /// <summary>
     /// The freshness check for this invocation, started before the graph is even loaded so its ~0.7s runs
-    /// against the query's own work rather than after it. A CLI process answers one question, so a single
-    /// static is the whole lifetime.
+    /// against the query's own work rather than after it.
+    /// <para>
+    /// Per request, not per process. This was a static from when a process answered one question, and the
+    /// resident process answers several at once: a query on one tree picked up the report another tree's query
+    /// had just started, refreshed its graph from the wrong list of stale files, and printed the other tree's
+    /// verdict as its own.
+    /// </para>
     /// </summary>
-    private static Task<GraphFreshness.Report>? _freshness;
+    private static readonly AsyncLocal<Task<GraphFreshness.Report>?> Freshness = new();
+
+    private static Task<GraphFreshness.Report>? FreshnessCheck
+    {
+        get => Freshness.Value;
+        set => Freshness.Value = value;
+    }
 
     /// <summary>
     /// Kicks the check off against the graph the verb has already loaded, so it costs a stat per known file
@@ -1168,7 +1761,7 @@ internal static class Program
         var known     = KnownFiles(graph);
         var graphFile = GraphStore(root, main).GraphFilePath;
 
-        _freshness = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
+        FreshnessCheck = Task.Run(() => GraphFreshness.Check(known, codeRoot, graphFile));
     }
 
     /// <summary>
@@ -1206,17 +1799,18 @@ internal static class Program
     }
 
     /// <summary>
-    /// Prints the verdict — to stderr, because it is a note about the answer rather than part of it, and a
-    /// caller piping results should not have to strip it. Always says something definite: either the graph
-    /// is current or these files have moved on. Leaving it unsaid is what makes a reader assume the worst.
+    /// Says when the graph does not describe this tree — and only then. "current" printed after every answer was a line
+    /// the reader learned to skip, which is the reflex that makes the one line that matters get skipped too; and on
+    /// stderr it landed wherever the caller's shell happened to merge it, in the middle of a list as often as not. So it
+    /// is part of the answer, at its end, when there is something to say.
     /// </summary>
     private static void EndFreshness()
     {
-        if (_freshness is null) return;
+        if (FreshnessCheck is null) return;
         try
         {
-            var report = _freshness.Result;
-            if (report.Available) Console.Error.WriteLine(report.Summary());
+            var report = FreshnessCheck.Result;
+            if (report.Available && !report.IsCurrent) Console.WriteLine(report.Summary());
         }
         catch { }   // a freshness check that fails must never fail the query it was describing
     }
@@ -1245,12 +1839,15 @@ internal static class Program
     /// </summary>
     private static void RefreshStaleFiles(string root, bool main, KnowledgeGraph graph, bool forced = true)
     {
-        if (_freshness is null) return;
+        if (FreshnessCheck is null) return;
 
         GraphFreshness.Report report;
-        try { report = _freshness.Result; } catch { return; }
+        try { report = FreshnessCheck.Result; } catch { return; }
         if (!report.Available || report.IsCurrent) return;
-        if (!forced && report.Stale.Count > AutoRefreshLimit) return;
+        // A worktree's own graph is refreshed however far behind it is. Nobody else reads it, and the alternative is the
+        // answer a clone gave on its first use: the main checkout's code, thousands of files out, a note saying so, and a
+        // zero where the branch had the thing searched for.
+        if (!forced && report.Stale.Count > AutoRefreshLimit && !GraphIsLocal(root, main)) return;
 
         var store = GraphStore(root, main);
         var cache = EditCache(root, main, store);
@@ -1262,23 +1859,27 @@ internal static class Program
         var dirty = report.Stale.Count > 0;
 
         foreach (var rel in report.Stale)
+        {
+            RequestScope.Cancellation.ThrowIfCancellationRequested();   // nobody is waiting for the answer
             GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
+        }
 
         // Files the graph names that this tree does not have. Dropping them is only safe because the graph
         // being updated is this tree's own — from a shared one they could as easily be a parallel branch's
         // work in progress, and pruning would delete it.
-        var pruned = 0;
+        var forgotten = new List<string>();
         if (GraphIsLocal(root, main))
             foreach (var rel in report.Absent)
-                if (GraphBuilder.ForgetFile(graph, cache, rel)) { pruned++; dirty = true; }
+                if (GraphBuilder.ForgetFile(graph, cache, rel)) { forgotten.Add(rel); dirty = true; }
+        var pruned = forgotten.Count;
 
         if (!dirty) return;
 
-        SaveGraphChange(root, main, store, graph, cache);
-        Console.Error.WriteLine(
+        SaveGraphChange(root, main, store, graph, cache, report.Stale, forgotten);
+        Console.WriteLine(
             $"graph: refreshed {report.Stale.Count} file(s)"
           + (pruned > 0 ? $" and dropped {pruned} not in this tree" : "") + " before answering.");
-        _freshness = null;                       // the report it would print is now out of date itself
+        FreshnessCheck = null;                       // the report it would print is now out of date itself
     }
 
     /// <summary>
@@ -1304,8 +1905,8 @@ internal static class Program
         var cache = EditCache(root, main, store);
         if (!GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main))) return;
 
-        SaveGraphChange(root, main, store, graph, cache);
-        Console.Error.WriteLine($"graph: {rel} was not in the graph — added it, so queries can find it too.");
+        SaveGraphChange(root, main, store, graph, cache, [rel]);
+        Console.WriteLine($"graph: {rel} was not in the graph — added it, so queries can find it too.");
     }
 
     /// <summary>The repo-relative file a node id names, or null when the id names neither.</summary>
@@ -1357,9 +1958,9 @@ internal static class Program
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(scoped.GraphFilePath)!);
                 File.Copy(shared.GraphFilePath, scoped.GraphFilePath);
-                Console.Error.WriteLine(
-                    "graph: this worktree had none, so the main checkout's was cloned for it — `--refresh` "
-                  + "brings it onto your branch, and nothing here writes to the shared one.");
+                Console.WriteLine(
+                    "graph: this worktree had none, so the main checkout's was cloned for it and is brought onto your branch "
+                  + "before this answer; nothing here writes to the shared one.");
             }
         }
         catch { }   // a failed clone just means an empty local graph, which the next build fills
@@ -1371,65 +1972,6 @@ internal static class Program
     /// from the tree pruned out of it.</summary>
     private static bool GraphIsLocal(string productRoot, bool main) =>
         !main && CodeRootOrNull(productRoot, main) is { } here && !PathsEqual(here, productRoot);
-
-    /// <summary>
-    /// Writes a new file. It belongs on this verb rather than being left to whatever else can write a file,
-    /// because the same two things should be true of a created file as of an edited one: it has to parse, and
-    /// it is written with the line endings the repository uses rather than the caller's. An existing file is
-    /// refused — overwriting one is an edit, and there are nine operations for that.
-    /// </summary>
-    private static int GraphCreateFile(VerbArgs a, string root)
-    {
-        var rel = a[1].Replace('\\', '/');
-        if (Path.IsPathRooted(rel)) return VerbUsage($"give a repo-relative path, not '{rel}'");
-
-        if (!TryEditText(a, out var text, out var textError)) return VerbUsage(textError!);
-        if (text is null) return VerbUsage("creating a file needs its content (--text, --file or --stdin)");
-
-        var target = Path.Combine(CodeRootFor(root, a.Has("--main")),
-                                  rel.Replace('/', Path.DirectorySeparatorChar));
-        if (File.Exists(target))
-        {
-            Console.Error.WriteLine($"error: {rel} already exists — use an edit op to change it.");
-            return Error;
-        }
-
-        // Same bar as an edit: a file that does not parse must not be written, because the next tool to read
-        // it sees a root ERROR node and every declaration in it vanishes from the graph.
-        var grammar = TreeSitterLanguages.ForEdit(rel);
-        if (grammar is { Length: > 0 } && !new DeclarationAnchors().ParsesCleanly(grammar, text))
-        {
-            Console.Error.WriteLine($"error: that content does not parse as {grammar}, so {rel} was not created.");
-            return Error;
-        }
-
-        // A new file has no endings of its own, so it takes its neighbours' rather than the machine's.
-        var newline = SourceFile.NewlineFor(target, CodeRootFor(root, a.Has("--main")));
-        var body    = string.Join(newline, SourceText.BlockOf(text)) + newline;
-
-        if (a.Has("--dry-run"))
-        {
-            Console.WriteLine($"--- {rel} (new, {SourceText.Of(body).Lines.Count} lines)");
-            foreach (var line in SourceText.Of(body).Lines) Console.WriteLine("+ " + line);
-            Console.WriteLine("dry run — nothing written.");
-            return Clean;
-        }
-
-        try
-        {
-            if (Path.GetDirectoryName(target) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
-            File.WriteAllText(target, body, new UTF8Encoding(false));
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"error: could not create {rel}: {ex.Message}");
-            return Error;
-        }
-
-        Console.WriteLine($"created {rel} ({SourceText.Of(body).Lines.Count} lines). It is editable straight "
-                        + $"away — code:{rel}#<astpath> works without a graph build.");
-        return Clean;
-    }
 
     /// <summary>The root a new file should be created under — the caller's working tree, so a file created
     /// from a worktree lands on that branch.</summary>
@@ -1497,8 +2039,9 @@ internal static class Program
     /// </summary>
     private static void WarnIfShellRewritesArguments()
     {
-        if (Environment.GetEnvironmentVariable("MSYSTEM") is not { Length: > 0 }) return;
-        if (Environment.GetEnvironmentVariable("MSYS2_ARG_CONV_EXCL") is { Length: > 0 }) return;
+        // The caller's shell, not the daemon's: the process serving this inherited whichever shell started it.
+        if (!CallerPath.IsMsysCaller) return;
+        if (RequestScope.CallerVariable("MSYS2_ARG_CONV_EXCL") is { Length: > 0 }) return;
 
         Console.Error.WriteLine(
             "note: this is a Git Bash / MSYS shell, which rewrites arguments that look like POSIX paths — a "
@@ -1570,7 +2113,7 @@ internal static class Program
             // Caller-relative: a payload is nearly always named as a path from where the command was typed, and
             // the resident process serving it stands somewhere else entirely.
             var full = CallerPath.Of(path);
-            if (!File.Exists(full)) { error = $"no such file: {path}"; return false; }
+            if (!File.Exists(full)) { error = $"no such file: {path}{CallerPath.PosixPathHint(path)}"; return false; }
             text = File.ReadAllText(full);
         }
         else if (a.Has(stdinOpt)) text = ReadStdin();
@@ -1586,8 +2129,10 @@ internal static class Program
     /// </summary>
     private static string ReadStdin()
     {
-        // Inside the daemon there is no console to open: the client read the pipe's worth and carried it.
-        if (StandardInput is { } carried) return carried;
+        // Inside the daemon there is no console to open: the client read the pipe's worth and carried it. And
+        // when it carried nothing, there is nothing — the daemon's own standard input is a handle nobody
+        // inherited, and reading it blocked a command forever while it held its tree's lock.
+        if (RequestScope.Serving) return RequestScope.Stdin ?? "";
 
         using var reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         return reader.ReadToEnd();
@@ -1627,11 +2172,33 @@ internal static class Program
 
     /// <summary>The changed lines, the way a diff shows them — enough to see what an edit did without
     /// re-reading the file.</summary>
-    private static void PrintHunk(GraphEdit.FileChange change)
+    /// <param name="brief">For a move: the lines that left one place are the lines that arrived in the other, so each
+    /// side shows where and how much, and a few lines to recognise it by, rather than the declaration twice over.</param>
+    private static void PrintHunk(GraphEdit.FileChange change, bool brief = false)
     {
-        Console.WriteLine($"--- {change.RelativePath}:{change.Hunk.Line}");
-        foreach (var line in change.Hunk.Removed) Console.WriteLine($"- {line}");
-        foreach (var line in change.Hunk.Added)   Console.WriteLine($"+ {line}");
+        switch (change.Kind)
+        {
+            case GraphEdit.ChangeKind.Created:
+                Console.WriteLine($"--- {change.RelativePath} (new, {change.Hunk.Added.Count} lines)");
+                break;
+            case GraphEdit.ChangeKind.Deleted:
+                Console.WriteLine($"--- {change.RelativePath} (removed, {change.Hunk.Removed.Count} lines)");
+                return;
+            default:
+                Console.WriteLine($"--- {change.RelativePath}:{change.Hunk.Line}");
+                break;
+        }
+
+        const int Glimpse = 3;
+        Print("-", change.Hunk.Removed);
+        Print("+", change.Hunk.Added);
+
+        void Print(string sign, IReadOnlyList<string> lines)
+        {
+            var shown = brief ? lines.Take(Glimpse).ToList() : lines;
+            foreach (var line in shown) Console.WriteLine($"{sign} {line}");
+            if (lines.Count > shown.Count) Console.WriteLine($"{sign} … {lines.Count - shown.Count} more line(s)");
+        }
     }
 
     private static bool TryRange(string s, out int a, out int b)
@@ -1693,7 +2260,10 @@ internal static class Program
     {
         if (!TryRead(Specs.GraphGrep, args, out var a, out var root, out var parseCode)) return parseCode;
         var pattern = a[0];
-        if (!TryIntOpt(a, "--hops", 2, out var hops)) return Error;
+        // Zero hops is the node itself: the one way to grep a single declaration or file, and it used to be refused.
+        var hops = 2;
+        if (a.Value("--hops") is { } hopsText && (!int.TryParse(hopsText, out hops) || hops < 0))
+            return VerbUsage($"--hops must be 0 or more (got '{hopsText}')");
 
         // --hops and --scope owned are two different answers to "what counts as near", so taking both would
         // mean silently ignoring one. Strict beats convenient here, as everywhere else in this parser.
@@ -1748,28 +2318,20 @@ internal static class Program
 
         if (mode == "content")
         {
-            var codeNodes = searched.Where(n => n.FilePath is { Length: > 0 } && n.Metadata != null
-                                             && n.Metadata.ContainsKey("line") && n.Metadata.ContainsKey("ast"))
+            // Declarations, and the files themselves - a file is where a document's text lives, and where what
+            // sits outside every declaration of a code file does. Each matching line is credited once, to the
+            // innermost of these that holds it (GraphQuery.GrepNodes), so the totals are lines, not echoes.
+            var codeNodes = searched.Where(n => n.FilePath is { Length: > 0 }
+                                             && (n.Type == NodeType.File
+                                                 || (n.Metadata != null && n.Metadata.ContainsKey("line")
+                                                     && n.Metadata.ContainsKey("ast"))))
                                  .OrderBy(n => n.Id, StringComparer.Ordinal).ToList();
-            // A file is read once, regex-tested once as a whole, and parsed at most once. The whole-file test
-            // comes first because it is the cheap half: a file with no matching line anywhere cannot hold a
-            // matching block, so every node in it is dismissed without a parse - and most files match nothing.
-            var fileCache = new Dictionary<string, string[]?>(StringComparer.Ordinal);
-            var interesting = new Dictionary<string, bool>(StringComparer.Ordinal);
-            var spans = new SourceSpans();
-            List<(int Line, string Text)> HitsIn(GraphNode n)
-            {
-                var none = new List<(int, string)>();
-                if (!fileCache.TryGetValue(n.FilePath!, out var lines)) fileCache[n.FilePath!] = lines = TryReadLines(root, n.FilePath!, a.Has("--main"));
-                if (lines is null || !int.TryParse(n.Metadata!["line"], out var startLine)) return none;
-                if (!interesting.TryGetValue(n.FilePath!, out var any))
-                    interesting[n.FilePath!] = any = lines.Any(rx.IsMatch);
-                if (!any) return none;
-                var (s0, e0) = spans.Block(n.FilePath!, lines, n.Metadata!["ast"], startLine - 1, GraphQuery.BlockScanLines);
-                var hits = new List<(int Line, string Text)>();
-                for (var i = Math.Max(0, s0); i <= e0 && i < lines.Length; i++) if (rx.IsMatch(lines[i])) hits.Add((i + 1, lines[i]));
-                return hits;
-            }
+
+            var main = a.Has("--main");
+            var byNode = GraphQuery.GrepNodes(codeNodes.Take(scanCap), pattern, rel => TryReadLines(root, rel, main))
+                .GroupBy(h => h.Node.Id, StringComparer.Ordinal)
+                .ToDictionary(x => x.Key, x => x.Select(h => (h.Line, h.Text)).ToList(), StringComparer.Ordinal);
+            List<(int Line, string Text)> HitsIn(GraphNode n) => byNode.GetValueOrDefault(n.Id) ?? [];
 
             var tally = ScanContent(codeNodes, limit, scanCap, HitsIn, (n, hits) =>
             {
@@ -1777,7 +2339,9 @@ internal static class Program
                 // and a sweep printing forty of these pays for the second line forty times over.
                 Console.WriteLine($"  {n.Id}");
                 foreach (var (line, text) in hits.Take(4)) Console.WriteLine($"      {line,5}: {text.Trim()}");
-                if (hits.Count > 4) Console.WriteLine($"      … +{hits.Count - 4} more matching line(s)");
+                // The rest are named with the question that prints them - a count with no way to the lines is a second search.
+                if (hits.Count > 4)
+                    Console.WriteLine($"      … +{hits.Count - 4} more matching line(s): nfi ask 'node {n.Id} | grep \"{pattern.Replace("\"", "\\\"")}\" | source'");
             });
 
             // Say plainly when the answer is partial. "Raise --limit to see more" reads as pagination, and a
@@ -2333,10 +2897,18 @@ internal static class Program
 
             using var p = System.Diagnostics.Process.Start(psi);
             if (p is null) return null;
-            var stdout = p.StandardOutput.ReadToEnd();
-            p.StandardError.ReadToEnd();
-            p.WaitForExit();
-            return p.ExitCode == 0 ? [.. stdout.Split('\n').Select(l => l.TrimEnd('\r'))] : null;
+            // Both streams at once, and within a bound. Reading stdout to its end first let git block on a full
+            // stderr pipe that nothing was reading - and inside the resident process a git that never returns
+            // holds its tree's lock for every command after it.
+            var stdout = p.StandardOutput.ReadToEndAsync();
+            var stderr = p.StandardError.ReadToEndAsync();
+            if (!p.WaitForExit(TimeSpan.FromMinutes(2)))
+            {
+                try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                return null;
+            }
+            Task.WaitAll(stdout, stderr);
+            return p.ExitCode == 0 ? [.. stdout.Result.Split('\n').Select(l => l.TrimEnd('\r'))] : null;
         }
         catch { return null; }   // git absent, or not a repo
     }
@@ -2679,18 +3251,30 @@ internal static class Program
         public static readonly VerbSpec GraphCode = new("graph code", 1, ["--lines"], ["--main", "--refresh", "--all"],
             "graph code <id> [<root>] [--lines A-B] [--all] [--main] [--refresh]");
 
-        // One positional, and it is the whole question - a pipeline typed inline. Nothing here reads a file:
-        // a question you have to write to disk before you can ask it is one that gets asked with grep instead.
-        public static readonly VerbSpec Ask = new("ask", 1, None, ["--main", "--refresh"],
-            "ask '<stage> | <stage> ...' [<root>] [--main] [--refresh]");
+        // Each positional is a whole question - a pipeline typed inline - so several are several answers in one call. No
+        // <root>: nfi finds its tree from where it runs, and a trailing root would read the last question as a path. Nothing
+        // here reads a file: a question you have to write to disk before you can ask it is one that gets asked with grep.
+        public static readonly VerbSpec Ask = new("ask", 32, None, ["--main", "--refresh"],
+            "ask '<stage> | <stage> ...' ['<another question>' ...] [--main] [--refresh]", TakesRoot: false, MinPositionals: 1);
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
-            ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file"],
+            ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file",
+             "--at", "--name"],
             ["--stdin", "--find-stdin", "--with-trivia", "--regex", "--all", "--dry-run", "--main", "--no-refresh",
-             "--show", "--quiet"],
+             "--show", "--quiet", "--no-check", "--must-compile", "--references"],
             "graph edit <op> <node-id> [<root>] [--text T | --text-escaped T | --file F | --stdin] "
           + "[--to NAME] [--find S | --find-escaped S | --find-file F | --find-stdin] [--regex] [--all] "
-          + "[--expect S] [--with-trivia] "
-          + "[--dry-run] [--main] [--show] [--quiet]");
+          + "[--at XPATH] [--name ATTR] [--expect S] [--with-trivia] "
+          + "[--dry-run] [--main] [--show] [--quiet] [--no-check] [--must-compile] [--references]");
+
+        public static readonly VerbSpec GraphEditScript = new("graph edit script", 0, ["--file"],
+            ["--stdin", "--dry-run", "--main", "--no-refresh", "--quiet", "--no-check", "--must-compile"],
+            "graph edit script [<root>] (--file F | --stdin) [--dry-run] [--quiet] [--main] [--no-refresh]");
+
+        public static readonly VerbSpec GraphEditUndo = new("graph edit undo", 0, None, ["--dry-run", "--main"],
+            "graph edit undo [--dry-run] [--main]");
+
+        public static readonly VerbSpec Test = new("test", 1, None, ["--list", "--plan", "--failed", "--no-build"],
+            "test <node-id> [<root>] [--list] [--no-build] | test --failed [--no-build]", MinPositionals: 0);
     }
 
     /// <summary>

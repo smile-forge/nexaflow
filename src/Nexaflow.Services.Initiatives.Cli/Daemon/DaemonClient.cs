@@ -48,7 +48,8 @@ internal static class DaemonClient
     internal static int Run(string[] args, string productRoot, string? codeRoot)
     {
         var request = DaemonRequest.Command(DaemonRequest.NewTicket(), args, codeRoot,
-                                            Directory.GetCurrentDirectory(), ReadStdinIfWanted(args));
+                                            Directory.GetCurrentDirectory(), ReadStdinIfWanted(args),
+                                            CallerShell());
 
         var pipe  = DaemonProtocol.PipeName(productRoot, DaemonProtocol.BuildStamp());
         var reply = Send(pipe, request, connectMs: 200)
@@ -57,6 +58,26 @@ internal static class DaemonClient
         Console.Out.Write(reply.Out);
         Console.Error.Write(reply.Error);
         return reply.ExitCode;
+    }
+
+    /// <summary>Runs <paramref name="args"/> on the daemon and hands back its answer instead of printing it — for a verb
+    /// that asks the resident process one question and then does its own work with the answer.</summary>
+    internal static DaemonResponse Capture(string[] args, string productRoot, string? codeRoot)
+    {
+        var request = DaemonRequest.Command(DaemonRequest.NewTicket(), args, codeRoot, Directory.GetCurrentDirectory(), null,
+                                            CallerShell());
+        var pipe    = DaemonProtocol.PipeName(productRoot, DaemonProtocol.BuildStamp());
+        return Send(pipe, request, connectMs: 200) ?? StartThenSend(pipe, productRoot, request);
+    }
+
+    /// <summary>This shell's values for the variables the daemon has to judge by the caller's environment
+    /// rather than its own — see <see cref="RequestScope.ShellVariables"/>.</summary>
+    private static Dictionary<string, string> CallerShell()
+    {
+        var shell = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var name in RequestScope.ShellVariables)
+            if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } value) shell[name] = value;
+        return shell;
     }
 
     /// <summary>
@@ -147,9 +168,16 @@ internal static class DaemonClient
             return null;
         }
 
+        var acknowledged = false;
         try
         {
-            DaemonProtocol.Write(client, request);
+            // Bounded like the acknowledgement: a request bigger than the pipe's buffer — a large --stdin payload —
+            // blocks here until the other end reads it, and a process that has stopped reading would hold this
+            // write, and the caller, forever.
+            if (Within(() => { DaemonProtocol.Write(client, request); return (object?)true; }, AckBudget) is null)
+                Fail($"nfi's resident process took the connection but did not read '{Describe(request)}' within "
+                   + $"{AckBudget.TotalSeconds:F0}s. It is running and no longer accepting work; end that process "
+                   + "and run the command again.");
 
             var ack = Within(() => DaemonProtocol.Read<DaemonAck>(client), AckBudget);
             if (ack is null)
@@ -160,12 +188,20 @@ internal static class DaemonClient
             if (!ack.Accepted)
                 Fail($"nfi's resident process declined the command: {ack.Reason ?? "no reason given"}.");
 
+            acknowledged = true;
             return Await(pipe, client, request);
         }
         catch (Exception e) when (e is IOException or ObjectDisposedException)
         {
-            // Torn down mid-exchange. On the first attempt of the day this races an idling daemon closing its
-            // pipe, and the caller's next move — start one and ask again — is the right one either way.
+            // Torn down before the command was taken. On the first attempt of the day this races an idling daemon
+            // closing its pipe, and the caller's next move — start one and ask again — is the right one.
+            //
+            // Torn down AFTER it was taken is a different thing: the command may have run, and sending it again
+            // ran it twice. An edit applied twice, a snaplink added twice. So that is said, not retried.
+            if (!acknowledged) return null;
+            Fail($"nfi's resident process hung up while running '{Describe(request)}' (ticket {request.Ticket}) "
+               + "without answering. It was not sent again, because it may already have run — check before "
+               + "repeating anything that changes files.");
             return null;
         }
         finally { client.Dispose(); }
@@ -280,7 +316,16 @@ internal static class DaemonClient
     private static T? Within<T>(Func<T?> read, TimeSpan budget) where T : class
     {
         var task = Task.Run(read);
-        if (task.Wait(budget)) return task.Result;
+        try
+        {
+            if (task.Wait(budget)) return task.Result;
+        }
+        catch (AggregateException e) when (e.InnerException is { } inner)
+        {
+            // The pipe's own failure, as itself: wrapped, it slipped past every handler written for an IOException
+            // and ended the client with a stack trace instead of the message that handler would have given.
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(inner).Throw();
+        }
 
         _ = task.ContinueWith(static t => _ = t.Exception, TaskScheduler.Default);
         return null;
@@ -304,32 +349,59 @@ internal static class DaemonClient
         if (exe is not { Length: > 0 })
             Fail("nfi cannot locate its own executable, so it cannot start its resident process.");
 
-        Process? spawned = null;
-        var      said    = new StringBuilder();
+        return StartThenSend(pipe, request, () => DaemonServer.StartDetached(DaemonServer.SpawnInfo(exe!, pipe, productRoot)));
+    }
 
-        try
+    /// <summary>
+    /// Starts a process and keeps offering it the request until one answers. How a process is started is handed in,
+    /// so the race this has to survive — a start that finds another already holds the pipe and leaves — can be staged
+    /// without starting a real one.
+    /// </summary>
+    internal static DaemonResponse StartThenSend(string pipe, DaemonRequest request, Func<Process?> start)
+    {
+        var said = new StringBuilder();
+
+        Process? Launch()
         {
-            spawned = DaemonServer.StartDetached(DaemonServer.SpawnInfo(exe!, pipe, productRoot));
+            var process = start();
+            if (process is null) return null;
 
             // Drain both streams, or a child that prints anything blocks on a full pipe buffer and stops
             // answering with nothing to show for it. Kept only so a death can be explained.
-            if (spawned is not null)
-            {
-                spawned.OutputDataReceived += (_, e) => Keep(said, e.Data);
-                spawned.ErrorDataReceived  += (_, e) => Keep(said, e.Data);
-                spawned.BeginOutputReadLine();
-                spawned.BeginErrorReadLine();
-            }
+            process.OutputDataReceived += (_, e) => Keep(said, e.Data);
+            process.ErrorDataReceived  += (_, e) => Keep(said, e.Data);
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            return process;
         }
+
+        Process? spawned = null;
+        try { spawned = Launch(); }
         catch (Exception ex)
         {
             Fail($"nfi could not start its resident process ({ex.GetType().Name}: {ex.Message}).");
         }
 
-        var deadline = DateTime.UtcNow + StartupBudget;
+        var deadline  = DateTime.UtcNow + StartupBudget;
+        var spawnedAt = DateTime.UtcNow;
         while (DateTime.UtcNow < deadline)
         {
             if (Send(pipe, request, connectMs: 250) is { } reply) return reply;
+
+            // Exit 0 is not a death: it is the process finding another already holds this pipe's lock — a client
+            // racing this one to start it, or one on its way out after a restart. Neither is a reason to fail. The
+            // first answers shortly; the second leaves, so every couple of seconds it is worth starting one again.
+            if (spawned is { HasExited: true, ExitCode: 0 })
+            {
+                if (DateTime.UtcNow - spawnedAt > TimeSpan.FromSeconds(2))
+                {
+                    try { spawned = Launch(); }
+                    catch (Exception) { /* the next pass tries again, or the deadline says why not */ }
+                    spawnedAt = DateTime.UtcNow;
+                }
+                Thread.Sleep(100);
+                continue;
+            }
 
             // It died rather than declined: say what it said, which is the only place the reason exists.
             if (spawned is { HasExited: true })
@@ -361,7 +433,15 @@ internal static class DaemonClient
     private static string? ReadStdinIfWanted(string[] args)
     {
         if (!args.Any(a => a is "--stdin" or "--find-stdin")) return null;
-        return Console.In.ReadToEnd();
+
+        // A terminal is not a pipe: reading one to its end waits for a Ctrl+Z nobody knows to type, before the
+        // command has even been sent — which is a hang with nothing anywhere to say what it is waiting for.
+        if (!Console.IsInputRedirected)
+            Fail("--stdin and --find-stdin read what is piped in, and nothing is — this is a terminal. Pipe the "
+               + "text in, or pass it with --text / --file instead.");
+
+        using var reader = new StreamReader(Console.OpenStandardInput(), new System.Text.UTF8Encoding(false));
+        return reader.ReadToEnd();
     }
 }
 

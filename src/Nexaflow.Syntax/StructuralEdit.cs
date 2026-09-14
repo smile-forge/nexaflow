@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace Nexaflow.Syntax;
 
@@ -21,7 +22,7 @@ namespace Nexaflow.Syntax;
 /// headless CLI addressing a node id, and the assistant doing either.
 /// </para>
 /// </summary>
-public static class StructuralEdit
+public static partial class StructuralEdit
 {
     public enum Op
     {
@@ -48,6 +49,10 @@ public static class StructuralEdit
         /// <summary>Add an import to the file. File-level: see <see cref="AddImport"/>, which is what
         /// implements it — this member exists so a caller with one <c>op</c> parameter can ask for it.</summary>
         Import,
+        /// <summary>Set an attribute of an XML element (<see cref="Options.Attribute"/>), adding it if absent.</summary>
+        SetAttribute,
+        /// <summary>Remove an attribute of an XML element (<see cref="Options.Attribute"/>).</summary>
+        RemoveAttribute,
     }
 
     /// <param name="WithTrivia">For <see cref="Op.Replace"/>, also replace the attached doc comments and
@@ -60,8 +65,13 @@ public static class StructuralEdit
     /// <c>(</c> in that fragment silently matching something else is the whole hazard of doing this with sed.</param>
     /// <param name="AllOccurrences">Allow more than one match. Off by default, so an ambiguous substitution
     /// is an error rather than a silent multi-edit.</param>
+    /// <param name="At">An element path (<see cref="XmlPath"/>) naming the element of an XML file to edit — see
+    /// <see cref="ApplyAt"/>.</param>
+    /// <param name="Attribute">For <see cref="Op.SetAttribute"/> and <see cref="Op.RemoveAttribute"/>, the
+    /// attribute's name.</param>
     public sealed record Options(bool WithTrivia = false, string? Expect = null, string? Find = null,
-                                 bool FindIsRegex = false, bool AllOccurrences = false);
+                                 bool FindIsRegex = false, bool AllOccurrences = false, string? At = null,
+                                 string? Attribute = null);
 
     /// <summary>The changed region, for display.</summary>
     public sealed record Hunk(int Line, IReadOnlyList<string> Removed, IReadOnlyList<string> Added);
@@ -137,7 +147,7 @@ public static class StructuralEdit
 
         var anchors = new DeclarationAnchors();
         if (anchors.ParsesCleanly(grammarId, source) && !anchors.ParsesCleanly(grammarId, text!))
-            return Result.Fail("The edit would leave the file unparseable, so it has not been applied.");
+            return Result.Fail(Unparseable("The edit", grammarId, text!, anchors));
 
         return new Result(true, "substitute in the file", text, HunkOf(source, text!), notes,
                           ChangeOf(source, text!));
@@ -198,7 +208,12 @@ public static class StructuralEdit
 
         int at;
         string trailing;
-        if (lastImportEnd is { } end)
+        if (SortedPlace(grammarId, source, wanted) is { } sorted)
+        {
+            at       = sorted;
+            trailing = "";                    // it joins an existing block, in the order that block already keeps
+        }
+        else if (lastImportEnd is { } end)
         {
             at       = Math.Min(LineEndInclusive(source, end) + 1, source.Length);
             trailing = "";                    // it joins an existing block; no blank line inside one
@@ -219,10 +234,47 @@ public static class StructuralEdit
 
         var anchors = new DeclarationAnchors();
         if (anchors.ParsesCleanly(grammarId, source) && !anchors.ParsesCleanly(grammarId, updated))
-            return Result.Fail("Adding that import would leave the file unparseable, so it was not applied.");
+            return Result.Fail(Unparseable("Adding that import", grammarId, updated, anchors));
 
         return new Result(true, $"import {wanted}", updated, HunkOf(source, updated), [],
                           ChangeOf(source, updated));
+    }
+
+    /// <summary>
+    /// Where <paramref name="wanted"/> goes to keep a block of imports in the order it is already in — alphabetical, or
+    /// alphabetical with <c>System</c> first, as C# files are kept — or null when the block keeps no order to follow, or the
+    /// import is not one plain kind with the rest. Added at the end, <c>using System.Windows.Automation.Peers;</c> landed
+    /// after <c>using System.Windows.Media;</c>, and the next edit was a reorder.
+    /// </summary>
+    private static int? SortedPlace(string grammarId, string source, string wanted)
+    {
+        static bool Plain(string import) =>
+            import.StartsWith("using ", StringComparison.Ordinal) && !import.Contains('=') && !import.StartsWith("using static ", StringComparison.Ordinal)
+            && !import.StartsWith("global using", StringComparison.Ordinal);
+
+        var imports = new DeclarationAnchors().Imports(grammarId, source);
+        if (imports.Count < 2 || !Plain(wanted) || !imports.All(Plain)) return null;
+
+        static string Key(string import) => import["using ".Length..].TrimEnd(';').Trim();
+        static int SystemFirst(string a, string b)
+        {
+            static bool IsSystem(string n) => n == "System" || n.StartsWith("System.", StringComparison.Ordinal);
+            var (sa, sb) = (IsSystem(a), IsSystem(b));
+            return sa != sb ? (sa ? -1 : 1) : string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+        static int Alphabetical(string a, string b) => string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+
+        var keys = imports.Select(Key).ToList();
+        Comparison<string>? order = keys.Zip(keys.Skip(1)).All(p => SystemFirst(p.First, p.Second) <= 0) ? SystemFirst
+                                  : keys.Zip(keys.Skip(1)).All(p => Alphabetical(p.First, p.Second) <= 0) ? Alphabetical
+                                  : null;
+        if (order is null) return null;
+
+        var before = imports.FirstOrDefault(i => order(Key(wanted), Key(i)) < 0);
+        if (before is null) return null;   // it sorts last: the end of the block is already the place
+
+        var lineAt = source.IndexOf(before, StringComparison.Ordinal);
+        return lineAt < 0 ? null : LineStart(source, lineAt);
     }
 
     /// <summary>
@@ -274,7 +326,7 @@ public static class StructuralEdit
             ? " A constructor is addressed by its type's own name — M:TypeName, not M:.ctor."
             : "";
 
-    private static string? NameInPath(string astPath)
+    public static string? NameInPath(string astPath)
     {
         if (string.IsNullOrEmpty(astPath)) return null;
 
@@ -301,37 +353,22 @@ public static class StructuralEdit
         if (string.IsNullOrEmpty(grammarId))
             return Result.Fail("No tree-sitter grammar covers this file, so an edit cannot be verified.");
 
+        if (op is Op.SetAttribute or Op.RemoveAttribute && !TreeSitterLanguages.IsXml(grammarId))
+            return Result.Fail($"Attributes belong to XML elements, and this file parses as {grammarId}.");
+        if (o.At is { Length: > 0 })
+            return Result.Fail("An element path (--at) finds the element itself, so it goes with a file: id - this id "
+                             + "already names a declaration.");
+
         var notes     = new List<string>();
         var extractor = new CodeStructureExtractor();
-        var resolved  = extractor.ResolveSpan(grammarId, source, astPath);
+        if (Resolve(grammarId, source, ref astPath, expectedName, extractor, notes, out var span) is { } unresolved)
+            return Result.Fail(unresolved);
 
-        if (resolved is null)
-        {
-            // The recorded path is stale — the declaration moved between types, or its container was
-            // renamed. Treat that as ordinary rather than as a failure: the record this came from was built
-            // from a checkout that is not this working tree, and refreshing it takes a minute and a half.
-            // The NAME is the durable half of the record, so re-find by that and carry on. What is never
-            // guessed is which of several same-named declarations was meant.
-            var candidates = Declarations(grammarId, source).Where(d => d.Name == expectedName).ToList();
+        // An XML element's identity is an attribute's value, not a name the grammar marks, so it is found by the
+        // walk that gave out its id rather than by the name field every other language is found by.
+        if (TreeSitterLanguages.IsXml(grammarId))
+            return ApplyXml(grammarId, source, astPath, expectedName, op, text, o, renameTo, notes);
 
-            if (candidates.Count == 0)
-                return Result.Fail(
-                    $"Nothing named '{expectedName}' is declared in this file.{ConstructorHint(expectedName)} "
-                  + "It has been renamed or "
-                  + "removed. List the declarations to see what is there now.");
-
-            if (candidates.Count > 1)
-                return Result.Fail(
-                    $"'{astPath}' no longer resolves and '{expectedName}' is declared {candidates.Count} "
-                  + $"times here ({string.Join(", ", candidates.Select(d => d.AstPath))}) — name one of those.");
-
-            notes.Add($"'{astPath}' had moved; '{expectedName}' was re-found at '{candidates[0].AstPath}' "
-                    + "and edited there.");
-            astPath  = candidates[0].AstPath;
-            resolved = (candidates[0].Line, candidates[0].EndLine);
-        }
-
-        var span    = resolved.Value;
         var anchors = new DeclarationAnchors();
         var anchor  = anchors.Find(grammarId, source, expectedName, span.Line, span.EndLine);
         if (anchor is null)
@@ -377,8 +414,11 @@ public static class StructuralEdit
         // would then aim `#1` at what used to be `#2` — the one way a sequence of edits to one file can go
         // wrong without anything refusing, since the name check still passes. Say so rather than assume the
         // caller knows the path format.
+        // Counted rather than assumed from the op: an insert beside an overload that is not itself one renumbers nothing,
+        // and saying it did taught the note to be ignored.
         if (astPath.Contains('#', StringComparison.Ordinal)
-            && op is Op.Delete or Op.InsertBefore or Op.InsertAfter or Op.Replace)
+            && Declarations(grammarId, source).Count(d => d.Name == expectedName)
+               != Declarations(grammarId, updated).Count(d => d.Name == expectedName))
             notes.Add($"'{expectedName}' is overloaded, and the #N in an ast path is its position among the "
                     + "overloads — this edit renumbers the others. List the declarations again before making "
                     + "further edits to this file.");
@@ -389,6 +429,43 @@ public static class StructuralEdit
 
         return new Result(true, $"{Describe(op)} {expectedName}", updated, HunkOf(source, updated), notes,
                           ChangeOf(source, updated));
+    }
+
+    /// <summary>
+    /// Where the declaration <paramref name="astPath"/> names sits in <paramref name="source"/>: its line span, and the
+    /// path it was actually found at. Returns why it could not be found, or null.
+    /// <para>
+    /// A recorded path that no longer resolves is ordinary rather than a failure — the declaration moved between types,
+    /// or its container was renamed, and the record came from a checkout that is not this text. The NAME is the durable
+    /// half of the record, so it is re-found by that, and the path updated and noted. What is never guessed is which of
+    /// several same-named declarations was meant.
+    /// </para>
+    /// </summary>
+    private static string? Resolve(string grammarId, string source, ref string astPath, string expectedName,
+                                   CodeStructureExtractor extractor, List<string> notes, out (int Line, int EndLine) span)
+    {
+        span = default;
+        if (extractor.ResolveSpan(grammarId, source, astPath) is { } resolved)
+        {
+            span = resolved;
+            return null;
+        }
+
+        var candidates = Declarations(grammarId, source).Where(d => d.Name == expectedName).ToList();
+
+        if (candidates.Count == 0)
+            return $"Nothing named '{expectedName}' is declared in this file.{ConstructorHint(expectedName)} "
+                 + "It has been renamed or removed. List the declarations to see what is there now.";
+
+        if (candidates.Count > 1)
+            return $"'{astPath}' no longer resolves and '{expectedName}' is declared {candidates.Count} "
+                 + $"times here ({string.Join(", ", candidates.Select(d => d.AstPath))}) — name one of those.";
+
+        notes.Add($"'{astPath}' had moved; '{expectedName}' was re-found at '{candidates[0].AstPath}' "
+                + "and edited there.");
+        astPath = candidates[0].AstPath;
+        span    = (candidates[0].Line, candidates[0].EndLine);
+        return null;
     }
 
     /// <summary>
@@ -423,13 +500,40 @@ public static class StructuralEdit
         // supply one" means. When the replacement DOES open with one, keeping the old one too produces two,
         // which is never what was meant and compiles fine, so only reading the file catches it.
         var bringsOwnDoc = !withTrivia && a.TriviaStart < a.Start && OpensWithComment(grammarId, text);
-        if (bringsOwnDoc)
+        if (bringsOwnDoc && SummaryKept(src, a, text, newline) is { } merged)
+        {
+            // …except a doc comment with no summary in it, which is adding a <param> or a <remarks> to the one that is there,
+            // not replacing it. Taken whole, it deleted the summary every time, and nothing refused.
+            text = merged;
+            notes.Add("the replacement's doc comment had no <summary>, so the existing one was kept above it.");
+        }
+        else if (bringsOwnDoc)
             notes.Add("the replacement opens with a comment, so it replaced the existing doc comment rather "
                     + "than being added above it.");
 
         var replaceTrivia = withTrivia || bringsOwnDoc;
         var from = replaceTrivia ? LineStart(src, a.TriviaStart) : a.Start;
         return (Splice(src, from, a.End, Block(text, indent, newline, indentFirst: replaceTrivia)), null);
+    }
+
+    /// <summary>
+    /// The replacement with the declaration's existing <c>&lt;summary&gt;</c> put back in front of it, when the existing
+    /// doc comment has one and the replacement's has none. Null when there is nothing to keep.
+    /// </summary>
+    private static string? SummaryKept(string src, DeclarationAnchor a, string text, string newline)
+    {
+        var existing = SourceText.Of(src[LineStart(src, a.TriviaStart)..a.Start]).Lines.Select(l => l.TrimStart()).ToList();
+        var incoming = SourceText.BlockOf(text);
+        var leading  = incoming.TakeWhile(l => l.TrimStart().StartsWith("///", StringComparison.Ordinal)).ToList();
+
+        if (leading.Count == 0 || leading.Any(l => l.Contains("<summary>", StringComparison.Ordinal))) return null;
+
+        var open  = existing.FindIndex(l => l.StartsWith("///", StringComparison.Ordinal) && l.Contains("<summary>", StringComparison.Ordinal));
+        var close = open < 0 ? -1 : existing.FindIndex(open, l => l.Contains("</summary>", StringComparison.Ordinal));
+        if (open < 0 || close < 0) return null;
+
+        return string.Join(newline, [.. existing.Skip(open).Take(close - open + 1), .. incoming.Select(l => l.TrimStart()
+            is var trimmed && trimmed.StartsWith("///", StringComparison.Ordinal) ? trimmed : l)]);
     }
 
     /// <summary>Whether a block of replacement text begins with a comment in this language.</summary>
@@ -504,6 +608,7 @@ public static class StructuralEdit
                                                               string indent, string newline)
     {
         if (text is null) return (null, "Text to insert is required.");
+        text = WithoutBlankEnds(text);
         var at = LineStart(src, a.TriviaStart);   // above the doc comment, not between it and its declaration
         return (src[..at] + Block(text, indent, newline) + newline + newline + src[at..], null);
     }
@@ -512,14 +617,30 @@ public static class StructuralEdit
                                                              string indent, string newline)
     {
         if (text is null) return (null, "Text to insert is required.");
+        text = WithoutBlankEnds(text);
         var at = Math.Min(LineEndInclusive(src, a.End) + 1, src.Length);
         return (src[..at] + newline + Block(text, indent, newline) + newline + src[at..], null);
+    }
+
+    /// <summary>
+    /// The text without blank lines at either end. How far an inserted declaration sits from its neighbours is the edit's to
+    /// decide, and it already separates one with a blank line — so a payload that brought its own, as one copied with the
+    /// line above it does, came out with two.
+    /// </summary>
+    private static string WithoutBlankEnds(string text)
+    {
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var first = Array.FindIndex(lines, l => l.Trim().Length > 0);
+        if (first < 0) return "";
+        var last = Array.FindLastIndex(lines, l => l.Trim().Length > 0);
+        return string.Join('\n', lines[first..(last + 1)]);
     }
 
     private static (string? Text, string? Error) Append(string src, DeclarationAnchor a, string? text,
                                                         string indent, string newline, SourceText shape)
     {
         if (text is null) return (null, "Text to append is required.");
+        text = WithoutBlankEnds(text);
         if (a.BodyStart is not { } bodyStart)
             return (null, $"The parser gives this {a.NodeType} no body, so there is nothing to append into. "
                         + "Append targets a type; use insert-after for a free-standing declaration.");
@@ -561,42 +682,80 @@ public static class StructuralEdit
     /// <param name="astPath">The declaration being edited, so a "not found" message can rule it out when
     /// suggesting where the text does live. Empty for a whole-file substitution.</param>
     private static (string? Text, string? Error) Substitute(string grammarId, string src, DeclarationAnchor a,
-                                                            string? replacement, Options o, string newline,
-                                                            string astPath, List<string> notes)
+                                                             string? replacement, Options o, string newline,
+                                                             string astPath, List<string> notes)
     {
-        if (o.Find is not { Length: > 0 } find) return (null, "Text to find is required for a substitution.");
+        if (o.Find is not { Length: > 0 } rawFind) return (null, "Text to find is required for a substitution.");
         if (replacement is null) return (null, "Replacement text is required (use an empty string to delete).");
 
-        var body = src[a.Start..a.End];
+        var attempt = SubstituteFrom(grammarId, src, a, a.Start, rawFind, replacement, o, newline, notes);
+
+        // The doc comment and attributes above a declaration are part of it — a parameter renamed in the signature is
+        // renamed in its <param> as well — and they were out of reach. Searched only when the declaration itself does not
+        // have the text, so nothing that matched exactly once before can now match twice.
+        if (attempt.Missing && a.TriviaStart < a.Start
+            && SubstituteFrom(grammarId, src, a, a.TriviaStart, rawFind, replacement, o, newline, notes) is { Missing: false } wider)
+        {
+            notes.Add("found in the doc comment or attributes above the declaration");
+            return (wider.Text, wider.Error);
+        }
+
+        return attempt.Missing
+            ? (null, NotFound(grammarId, src, a, o.FindIsRegex ? rawFind : rawFind.Replace("\r\n", "\n"), astPath))
+            : (attempt.Text, attempt.Error);
+    }
+
+    /// <summary>The substitution over the declaration from <paramref name="from"/> to its end — its start, or the start of
+    /// the doc comment above it. <c>Missing</c> when the text is not there, which the caller may try wider.</summary>
+    private static (string? Text, string? Error, bool Missing) SubstituteFrom(string grammarId, string src, DeclarationAnchor a,
+                                                                              int from, string rawFind, string replacement,
+                                                                              Options o, string newline, List<string> notes)
+    {
+        // Matched with every line break read as LF, whatever the file keeps, and spliced back into the text as
+        // it is. A search typed on a command line arrives LF, and this checkout keeps CRLF: matched raw, no
+        // fragment spanning two lines could ever be found, and the refusal blamed the fragment. Everything
+        // below works in LF and the splice gives the replacement the file's own endings.
+        // From the start of its line when only indentation comes before it. Sliced at the declaration - or at the comment above
+        // it - the first line had no indentation to take, so a replacement matched there lost every level of it on every line.
+        var lineStart = LineStart(src, from);
+        if (string.IsNullOrWhiteSpace(src[lineStart..from])) from = lineStart;
+
+        var view  = LineBreakView.Of(src[from..a.End]);
+        var body  = view.Text;
+        var edits = new List<(int Start, int End, string Text)>();
 
         if (o.FindIsRegex)
         {
             Regex regex;
-            try { regex = new Regex(find, RegexOptions.None, TimeSpan.FromSeconds(2)); }
-            catch (ArgumentException ex) { return (null, $"'{find}' is not a valid regular expression: {ex.Message}"); }
+            try { regex = new Regex(rawFind, RegexOptions.None, TimeSpan.FromSeconds(2)); }
+            catch (ArgumentException ex) { return (null, $"'{rawFind}' is not a valid regular expression: {ex.Message}", false); }
 
-            var matches = regex.Matches(body).Count;
-            if (matches == 0) return (null, NotFound(grammarId, src, a, find, astPath));
-            if (matches > 1 && !o.AllOccurrences) return (null, Ambiguous(find, matches));
-            if (matches > 1) notes.Add($"replaced {matches} occurrences");
+            var matches = regex.Matches(body);
+            if (matches.Count == 0) return (null, null, true);
+            if (matches.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(rawFind, matches.Count), false);
+            if (matches.Count > 1) notes.Add($"replaced {matches.Count} occurrences");
 
-            NoteIfInsideString(grammarId, src, a.Start + regex.Match(body).Index, notes);
+            NoteIfInsideString(grammarId, src, from + view.ToOriginal(matches[0].Index), notes);
 
-            var replaced = regex.Replace(body, m => Indented(body, m.Index, m.Result(replacement), newline),
-                                         o.AllOccurrences ? int.MaxValue : 1);
-            return (src[..a.Start] + replaced + src[a.End..], null);
+            foreach (Match m in matches)
+                edits.Add((m.Index, m.Index + m.Length, Expanded(body, m, replacement)));
+            return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
         }
+
+        var find = rawFind.Replace("\r\n", "\n");
 
         // Exact first, so a caller who reproduced the text byte-for-byte gets the match it asked for, at
         // character granularity.
-        var exact = Occurrences(body, find);
-        if (exact > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact));
-        if (exact > 0)
+        var exact = Positions(body, find);
+        if (exact.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, exact.Count), false);
+        if (exact.Count > 0)
         {
-            if (exact > 1) notes.Add($"replaced {exact} occurrences");
-            NoteIfInsideString(grammarId, src, a.Start + body.IndexOf(find, StringComparison.Ordinal), notes);
-            return (src[..a.Start] + ReplaceIndented(body, find, replacement, o.AllOccurrences, newline)
-                  + src[a.End..], null);
+            if (exact.Count > 1) notes.Add($"replaced {exact.Count} occurrences");
+            NoteIfInsideString(grammarId, src, from + view.ToOriginal(exact[0]), notes);
+
+            foreach (var at in exact)
+                edits.Add((at, at + find.Length, Placed(body, at, at + find.Length, find, replacement)));
+            return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
         }
 
         // Then ignoring indentation. Everywhere else this tool promises the caller does not handle
@@ -604,24 +763,152 @@ public static class StructuralEdit
         // A fragment copied out of a listing has whatever indentation it had there, or none, and failing on
         // that is a papercut with no upside. Exact still wins, so nothing that used to work changes.
         var loose = LooseMatches(body, find);
-        if (loose.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, loose.Count));
-        if (loose.Count == 0) return (null, NotFound(grammarId, src, a, find, astPath));
+        if (loose.Count > 1 && !o.AllOccurrences) return (null, Ambiguous(find, loose.Count), false);
+        if (loose.Count == 0) return (null, null, true);
 
         notes.Add(loose.Count == 1
             ? "matched ignoring indentation"
             : $"replaced {loose.Count} occurrences, matched ignoring indentation");
 
-        NoteIfInsideString(grammarId, src, a.Start + loose[0].Item1, notes);
+        NoteIfInsideString(grammarId, src, from + view.ToOriginal(loose[0].Start), notes);
 
-        // Back to front, so an earlier match's offsets are still valid after a later one is replaced.
-        var edited = body;
-        foreach (var (start, end) in loose.AsEnumerable().Reverse())
-        {
-            var indent = SourceText.IndentOf(edited[start..]);
-            edited = edited[..start] + Block(replacement, indent, newline) + edited[end..];
-        }
-        return (src[..a.Start] + edited + src[a.End..], null);
+        foreach (var (start, end) in loose)
+            edits.Add((start, end, Placed(body, start, end, find, replacement)));
+        return (src[..from] + view.Splice(edits, newline) + src[a.End..], null, false);
     }
+
+    /// <summary>
+    /// A literal replacement for the text between <paramref name="start"/> and <paramref name="end"/>, indented
+    /// to line up with the lines it replaces.
+    /// <para>
+    /// The indentation a replacement gets is the file's for the search's own margin — the depth that the
+    /// shallowest line of the search sits at in the file. That used to be simply the depth of the line the
+    /// match began on, which is the same thing for a block of code starting at its own statement, and wrong for
+    /// a fragment that begins part-way along a line: there the first line's depth says nothing about the lines
+    /// after it. A XAML attribute aligned under the first one (32 spaces, on a 24-space element) came back at
+    /// 24, and so did every continuation aligned under an <c>=</c>.
+    /// </para>
+    /// <para>
+    /// Part-way along a line, the first line's own indentation is hidden, so it takes no part in deciding the
+    /// margin. The same goes for the replacement when the search was written with its continuation lines
+    /// indented, as copied: the replacement is then read the same way. Written flush-left, both keep the rule
+    /// they always had, where every line is relative to the first.
+    /// </para>
+    /// </summary>
+    private static string Placed(string body, int start, int end, string find, string replacement)
+    {
+        var lineStart   = LineStart(body, start);
+        var indentFirst = start == lineStart;
+        var searched    = SourceText.BlockOf(find);
+
+        // The file's lines under the match, each beside the search line that matched it.
+        var fileLines = new List<string>();
+        for (var at = lineStart; at <= end && at <= body.Length;)
+        {
+            var next = body.IndexOf('\n', at);
+            fileLines.Add(next < 0 ? body[at..] : body[at..next]);
+            if (next < 0 || next >= end) break;
+            at = next + 1;
+        }
+
+        var considered = Enumerable.Range(0, Math.Min(fileLines.Count, searched.Count))
+            .Where(k => (indentFirst || k > 0) && fileLines[k].Trim().Length > 0 && searched[k].Trim().Length > 0)
+            .ToList();
+        if (considered.Count == 0) return Indented(body, start, replacement, "\n");
+
+        var searchMargin = SourceText.CommonIndent([.. considered.Select(k => searched[k])]).Length;
+
+        // The file's indentation at the search's margin, taken from whichever line puts that margin shallowest.
+        string? margin = null;
+        foreach (var k in considered)
+        {
+            var fileIndent = SourceText.IndentOf(fileLines[k]);
+            var deeper     = SourceText.IndentOf(searched[k]).Length - searchMargin;
+            if (deeper > fileIndent.Length) continue;
+            var here = fileIndent[..(fileIndent.Length - deeper)];
+            if (margin is null || here.Length < margin.Length) margin = here;
+        }
+        if (margin is null) return Indented(body, start, replacement, "\n");
+
+        var copied = !indentFirst && searchMargin > 0;
+        return Block(replacement, margin, "\n", indentFirst, commonFromSecond: copied);
+    }
+
+    /// <summary>
+    /// A regular-expression replacement for one match, indented for where it lands — with what the groups
+    /// captured left exactly as the file had it.
+    /// <para>
+    /// Expanding <c>$1</c> first and indenting the result treated text lifted out of the file as though the
+    /// caller had typed it flush-left: a capture spanning lines had the destination's indentation added on top
+    /// of its own (24 spaces became 56), and one that was the indentation got it twice. The template is what
+    /// the caller wrote, so the template is what gets indented. A line that begins inside a capture begins with
+    /// the file's own text and is kept as it came; a line that begins with the caller's text is indented like
+    /// any other payload.
+    /// </para>
+    /// </summary>
+    private static string Expanded(string body, Match m, string template)
+    {
+        template = template.Replace("\r\n", "\n");
+
+        var text     = new StringBuilder();
+        var captured = new List<(int Start, int End)>();
+        var from     = 0;
+        foreach (Match token in Substitution.Matches(template))
+        {
+            text.Append(template, from, token.Index - from);
+            from = token.Index + token.Length;
+
+            if (token.Value == "$$") { text.Append('$'); continue; }
+
+            var value = m.Result(token.Value);
+            if (value == token.Value) { text.Append(value); continue; }   // not a group this pattern has
+
+            captured.Add((text.Length, text.Length + value.Length));
+            text.Append(value);
+        }
+        text.Append(template, from, template.Length - from);
+
+        var expanded = text.ToString();
+
+        // No capture, or a single line the caller began with whitespace: exactly what a literal replacement
+        // does, including its one rule for a line whose indentation can only mean "put it here".
+        if (captured.Count == 0 || (!expanded.Contains('\n') && captured[0].Start > 0 && expanded[0] is ' ' or '\t'))
+            return Indented(body, m.Index, expanded, "\n");
+
+        var lineStart   = LineStart(body, m.Index);
+        var indent      = SourceText.IndentOf(body[lineStart..]);
+        var indentFirst = m.Index == lineStart;
+
+        // Each line, and whether its first character is the file's (inside a capture) or the caller's.
+        var lines = new List<(string Text, bool FromFile)>();
+        for (var start = 0; ;)
+        {
+            var end  = expanded.IndexOf('\n', start);
+            var line = end < 0 ? expanded[start..] : expanded[start..end];
+            lines.Add((line, line.Length > 0 && captured.Exists(c => start >= c.Start && start < c.End)));
+            if (end < 0) break;
+            start = end + 1;
+        }
+
+        var common = SourceText.CommonIndent([.. lines.Where(l => !l.FromFile).Select(l => l.Text)]);
+        var result = new List<string>(lines.Count);
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var (line, fromFile) = lines[i];
+            if (fromFile)                { result.Add(line); continue; }
+            if (line.Trim().Length == 0) { result.Add(i == 0 ? line : ""); continue; }
+
+            var own = line.StartsWith(common, StringComparison.Ordinal) ? line[common.Length..] : line.TrimStart();
+            // The first line starts wherever the match did. Part-way along a line, the indentation in front of
+            // it is already in the file.
+            result.Add(i == 0 && !indentFirst ? own : indent + own);
+        }
+        return string.Join("\n", result);
+    }
+
+    /// <summary>A substitution in a .NET replacement pattern: <c>$1</c>, <c>${name}</c>, <c>$$</c>,
+    /// <c>$&amp;</c>, <c>$`</c>, <c>$'</c>, <c>$+</c>, <c>$_</c>.</summary>
+    private static readonly Regex Substitution = new(@"\$(?:\d+|\{[^{}]+\}|[$&`'+_])", RegexOptions.CultureInvariant);
 
     /// <summary>
     /// Says so when a substitution lands inside a string literal, because the payload means something different
@@ -643,6 +930,10 @@ public static class StructuralEdit
     /// </summary>
     private static void NoteIfInsideString(string grammarId, string source, int at, List<string> notes)
     {
+        // XML colours every attribute value as a string, and an attribute value is not a literal whose indentation
+        // means something different from the file's - the note would be on every edit and true of none.
+        if (TreeSitterLanguages.IsXml(grammarId)) return;
+
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
         if (highlighter is null) return;
 
@@ -710,29 +1001,25 @@ public static class StructuralEdit
         return Block(replacement, SourceText.IndentOf(body[lineStart..]), newline, indentFirst: at == lineStart);
     }
 
-    /// <summary>Literal replacement, each occurrence indented for the line it lands on. Back to front, so an
-    /// earlier match's offset is still valid after a later one is replaced.</summary>
-    private static string ReplaceIndented(string body, string find, string replacement, bool all, string newline)
+    /// <summary>Where each non-overlapping occurrence of <paramref name="needle"/> starts.</summary>
+    private static List<int> Positions(string haystack, string needle)
     {
         var at = new List<int>();
-        for (var i = body.IndexOf(find, StringComparison.Ordinal); i >= 0;
-             i = body.IndexOf(find, i + find.Length, StringComparison.Ordinal))
-        {
+        for (var i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
             at.Add(i);
-            if (!all) break;
-        }
-
-        var edited = body;
-        foreach (var start in at.AsEnumerable().Reverse())
-            edited = edited[..start] + Indented(edited, start, replacement, newline)
-                   + edited[(start + find.Length)..];
-        return edited;
+        return at;
     }
 
     /// <summary>
-    /// Whole-line ranges within <paramref name="body"/> whose content matches <paramref name="find"/> once
-    /// each line's own indentation is set aside. Line-granular by nature: what is being matched is lines,
-    /// so what is replaced is lines.
+    /// Ranges within <paramref name="body"/> whose content matches <paramref name="find"/> once each line's own
+    /// indentation is set aside.
+    /// <para>
+    /// A one-line search matches whole lines. A longer one may also begin part-way along its first line and
+    /// end part-way along its last — a fragment is copied from wherever the interesting part starts, which is
+    /// seldom a line start, and the lines in between are what indentation could have made different. The ends
+    /// stay character-exact, so what was after the fragment on its last line is left where it was.
+    /// </para>
     /// </summary>
     private static List<(int Start, int End)> LooseMatches(string body, string find)
     {
@@ -741,15 +1028,44 @@ public static class StructuralEdit
         if (pattern.Count == 0) return found;
 
         var lines = LineSpans(body);
+        var last  = pattern.Count - 1;
         for (var i = 0; i + pattern.Count <= lines.Count; i++)
         {
+            int? start = null, end = null;
             var matched = true;
             for (var k = 0; k < pattern.Count && matched; k++)
-                matched = body[lines[i + k].Start..lines[i + k].End].Trim() == pattern[k];
+            {
+                var (lineStart, lineEnd) = lines[i + k];
+                var line    = body[lineStart..lineEnd];
+                var trimmed = line.Trim();
+
+                if (trimmed == pattern[k])
+                {
+                    if (k == 0) start = lineStart;
+                    if (k == last) end = lineEnd;
+                    continue;
+                }
+
+                // Only the ends of a multi-line fragment may be partial, and only by what a copy leaves off:
+                // the start of its first line, the end of its last. A blank search line is never partial.
+                if (pattern.Count > 1 && pattern[k].Length > 0 && k == 0
+                    && line.TrimEnd().EndsWith(pattern[k], StringComparison.Ordinal))
+                {
+                    start = lineStart + line.TrimEnd().Length - pattern[k].Length;
+                    continue;
+                }
+                if (pattern.Count > 1 && pattern[k].Length > 0 && k == last
+                    && line.TrimStart().StartsWith(pattern[k], StringComparison.Ordinal))
+                {
+                    end = lineStart + (line.Length - line.TrimStart().Length) + pattern[k].Length;
+                    continue;
+                }
+                matched = false;
+            }
 
             if (!matched) continue;
-            found.Add((lines[i].Start, lines[i + pattern.Count - 1].End));
-            i += pattern.Count - 1;                       // matches never overlap
+            found.Add((start!.Value, end!.Value));
+            i += last;                                     // matches never overlap
         }
         return found;
     }
@@ -780,6 +1096,15 @@ public static class StructuralEdit
     /// </summary>
     private static string NotFound(string grammarId, string src, DeclarationAnchor a, string find, string astPath)
     {
+        // A whole-file substitution has no declaration to talk about, and saying "this declaration" to someone
+        // who addressed a file sent them looking for one.
+        if (astPath.Length == 0) return NotFoundInFile(src, find);
+
+        // Only when more than its first line agrees: a first line alone ("{", a common call) says little about
+        // whether this is the declaration meant, and the check below may know one that holds all of it.
+        if (NearestMiss(src, a.Start, a.End, find, minimum: 2) is { } nearest)
+            return $"{Quote(find)} does not occur in this declaration, so nothing was changed. {nearest}";
+
         var probe = SourceText.BlockOf(find).FirstOrDefault()?.Trim();
         if (probe is { Length: > 0 })
         {
@@ -819,6 +1144,63 @@ public static class StructuralEdit
 
         return $"{Quote(find)} does not occur in this declaration, so nothing was changed. Indentation is "
              + "ignored when matching, so the difference is in the text itself — re-read the declaration.";
+    }
+
+    private static string NotFoundInFile(string src, string find)
+    {
+        if (NearestMiss(src, 0, src.Length, find) is { } nearest)
+            return $"{Quote(find)} does not occur in this file, so nothing was changed. {nearest}";
+
+        return $"{Quote(find)} does not occur in this file, so nothing was changed. Indentation and line endings "
+             + "are ignored when matching, so the difference is in the text itself — re-read the file.";
+    }
+
+    /// <summary>
+    /// For a search of several lines, where the file comes closest to it: the line its first line is on, how
+    /// many lines match from there, and the first that does not — the search's version beside the file's.
+    /// Null for a one-line search, or when fewer than <paramref name="minimum"/> of its lines match anywhere.
+    /// <para>
+    /// "Not found" for a ten-line fragment leaves the caller diffing ten lines by eye. Almost always one line
+    /// is different — a renamed variable, a comment edited since it was read — and naming it is the next call.
+    /// </para>
+    /// </summary>
+    private static string? NearestMiss(string src, int from, int to, string find, int minimum = 1)
+    {
+        var pattern = SourceText.BlockOf(find).Select(l => l.Trim()).ToList();
+        if (pattern.Count < 2 || pattern[0].Length == 0) return null;
+
+        var lines = LineSpans(src);
+        (int Line, int Matched)? best = null;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var (start, end) = lines[i];
+            if (start < from || end > to) continue;
+            if (!src[start..end].Contains(pattern[0], StringComparison.Ordinal)) continue;
+
+            var matched = 1;
+            while (matched < pattern.Count && i + matched < lines.Count
+                   && src[lines[i + matched].Start..lines[i + matched].End].Trim() is var line
+                   && (line == pattern[matched]
+                       || (matched == pattern.Count - 1 && pattern[matched].Length > 0
+                           && line.StartsWith(pattern[matched], StringComparison.Ordinal))))
+                matched++;
+
+            if (best is null || matched > best.Value.Matched) best = (i, matched);
+        }
+
+        if (best is not { } b || b.Matched < minimum) return null;
+
+        if (b.Matched == pattern.Count)
+            return $"Its lines are all at line {b.Line + 1} onwards, but its first line does not end where line "
+                 + $"{b.Line + 1} does — a search across several lines must run on from the end of each one.";
+
+        var fileLine = b.Line + b.Matched < lines.Count
+            ? src[lines[b.Line + b.Matched].Start..lines[b.Line + b.Matched].End].Trim()
+            : null;
+        return $"The closest is line {b.Line + 1}: the first {b.Matched} line(s) of the search match there, and "
+             + $"line {b.Matched + 1} of the search is {Quote(pattern[b.Matched])} where the file has "
+             + (fileLine is null ? "nothing (the text ends)" : $"{Quote(fileLine)} (line {b.Line + b.Matched + 1})")
+             + ".";
     }
 
     /// <summary>At most this many line numbers before the message stops being one.</summary>
@@ -871,8 +1253,7 @@ public static class StructuralEdit
         // and refusing to touch it would make the one tool that could fix it unusable.
         if (extractor.Extract(grammar, updated).ParseFailed
             || (anchors.ParsesCleanly(grammar, original) && !anchors.ParsesCleanly(grammar, updated)))
-            return "The edit would leave the file unparseable, so it has not been applied. The replacement "
-                 + "text is probably unbalanced.";
+            return Unparseable("The edit", grammar, updated, anchors);
 
         switch (op)
         {
@@ -907,6 +1288,17 @@ public static class StructuralEdit
                 break;
         }
         return null;
+    }
+
+    /// <summary>The refusal for an edit whose result does not parse, naming the line it breaks on and what is there.</summary>
+    private static string Unparseable(string what, string grammar, string updated, DeclarationAnchors anchors)
+    {
+        if (anchors.FirstError(grammar, updated) is not { } at) return $"{what} would leave the file unparseable, so it has not been applied.";
+
+        var lines = updated.Split('\n');
+        var text  = at.Line <= lines.Length ? lines[at.Line - 1].Trim() : "";
+        return $"{what} would leave the file unparseable - it stops parsing at line {at.Line}, column {at.Column}: "
+             + $"`{(text.Length > 120 ? text[..119] + "…" : text)}` - so it has not been applied.";
     }
 
     /// <summary>
@@ -979,7 +1371,11 @@ public static class StructuralEdit
     /// ambiguous, so only it changed.
     /// </para>
     /// </summary>
-    private static string Block(string text, string indent, string newline, bool indentFirst = true)
+    /// <param name="commonFromSecond">Measure the block's own margin from its second line on, leaving the first
+    /// as written — for a block that begins part-way along a line and was written with the indentation its
+    /// later lines have in the file, where the first line's lack of any says nothing.</param>
+    private static string Block(string text, string indent, string newline, bool indentFirst = true,
+                                bool commonFromSecond = false)
     {
         var block = SourceText.BlockOf(text);
 
@@ -988,6 +1384,9 @@ public static class StructuralEdit
             // file in front of it — so drop that much of what the caller wrote and let the two add up to
             // exactly the line they asked for, rather than to both.
             return !indentFirst && only.StartsWith(indent, StringComparison.Ordinal) ? only[indent.Length..] : only;
+
+        if (commonFromSecond && block.Count > 1)
+            return string.Join(newline, [block[0], .. SourceText.Reindent([.. block.Skip(1)], indent)]);
 
         var lines = SourceText.Reindent(block, indent);
         if (!indentFirst && lines.Count > 0 && lines[0].StartsWith(indent, StringComparison.Ordinal))
@@ -1090,14 +1489,15 @@ public static class StructuralEdit
         Op.Replace => "replace",   Op.Delete       => "delete",        Op.Signature  => "re-sign",
         Op.Body    => "re-body",   Op.Rename       => "rename",        Op.Doc        => "document",
         Op.Append  => "append to", Op.InsertBefore => "insert before", Op.Substitute => "substitute in",
-        Op.Import  => "import",    _               => "insert after",
+        Op.Import  => "import",    Op.SetAttribute => "set attribute on", Op.RemoveAttribute => "remove attribute from",
+        _          => "insert after",
     };
 
     // ── Diff ────────────────────────────────────────────────────────────────
 
     /// <summary>The changed region, found by trimming the common head and tail. The edit's own offsets would
     /// be cheaper, but a hunk derived from the two texts cannot disagree with what will be written.</summary>
-    private static Hunk HunkOf(string before, string after)
+    public static Hunk HunkOf(string before, string after)
     {
         var a = SourceText.Of(before).Lines;
         var b = SourceText.Of(after).Lines;
