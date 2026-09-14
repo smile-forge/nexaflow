@@ -87,7 +87,8 @@ shell.
 - **print** — `ids [n]` / `source [n]` / `blocks [n]` / `files` / `count`
 
 Several questions are several quoted arguments — `ask 'search A | source' 'grep B | files'` — each answered in the one
-call. Quote a regex holding a `|`. Stages are strict: an unknown flag or an id the graph lacks is refused, and a zero
+call. Quote a regex holding a `|`; inside it a backslash keeps a quote or a bar literal (`grep "say \"hi\""`), and a
+question awkward to quote goes on stdin (`@' … '@ | & $nfi ask --stdin`, one per line). Stages are strict: an unknown flag or an id the graph lacks is refused, and a zero
 names the stage that emptied the set.
 
 **An answer is the size of its question**, because every turn re-reads everything already printed. `ids` gives each
@@ -138,9 +139,11 @@ Text comes from `--text` (literal), `--text-escaped` (`\n`, `\t`, `\uXXXX`), `--
 the same four. An edit is planned, parsed and compiled before it is written either way, so write it, read what it
 printed, and `undo` if it is wrong — `--dry-run` only adds a call.
 
-A script is one command per line, as it would follow `graph edit`, with multi-line text in blocks beneath — pass it on
-stdin so writing and running it are one call (`@' … '@ | & $nfi graph edit script --stdin` in PowerShell,
-`<<'EOF' … EOF` in bash):
+A script is one command per line, as it would follow `graph edit`, with multi-line text in blocks beneath, and a quoted
+value's own quote written `\"`. Pass it on stdin so writing and running it are one call — with the PowerShell tool,
+`@' … '@ | & $nfi graph edit script --stdin`. Not a bash heredoc: the Bash tool can run a command through `eval`, where a
+heredoc holding an apostrophe fails to parse (`unexpected EOF while looking for matching '`). Failing both, write the
+script to the scratchpad and pass `--file`:
 
 ```
 substitute code:src/A.cs#T:A/M:Run

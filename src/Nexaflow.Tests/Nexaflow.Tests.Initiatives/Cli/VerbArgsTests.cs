@@ -166,4 +166,10 @@ public class VerbArgsTests
         => CollectionAssert.AreEqual(
             new[] { "move", "a", "b" },
             Program.Tokenize("  move   a \t b  ").ToArray());
+
+    [TestMethod]
+    public void Tokenize_AQuoteInsideAQuotedValue_IsWrittenWithABackslash_AndAPathKeepsItsOwn()
+        => CollectionAssert.AreEqual(
+            new[] { "set-attribute", "--text", "It's a \"copy\" button", "--file", @"C:\dir\x.cs" },
+            Program.Tokenize("""set-attribute --text "It's a \"copy\" button" --file C:\dir\x.cs""").ToArray());
 }

@@ -651,4 +651,23 @@ public class GraphAskTests
 
         Assert.AreEqual("src/Reader.cs", GraphQuery.Search(g, "Reader")[0].FilePath);
     }
+
+    [TestMethod]
+    [CoversNode("graph-ask")]
+    public void AQuoteOrABarInsideAPattern_IsWrittenWithABackslash()
+    {
+        var repo = new KnowledgeGraph { Nodes = [FileNode("docs/q.md")] };
+        string[]? ReadQ(string rel) => rel == "docs/q.md" ? ["say \"hi\" to it's owner", "a | b", "plain"] : null;
+
+        var quoted = GraphAsk.Run(repo, "grep \"say \\\"hi\\\"\" | count", ReadQ);
+        Assert.IsTrue(quoted.Ok, quoted.Text);
+        StringAssert.Contains(quoted.Text, "1 matching line(s)", "a double quote inside a double-quoted pattern");
+
+        StringAssert.Contains(GraphAsk.Run(repo, "grep 'it\\'s' | count", ReadQ).Text, "1 matching line(s)",
+                              "an apostrophe inside a single-quoted pattern");
+        StringAssert.Contains(GraphAsk.Run(repo, "grep a\\ \\|\\ b | count", ReadQ).Text, "1 matching line(s)",
+                              "a bar that is part of the pattern rather than the end of the stage");
+        StringAssert.Contains(GraphAsk.Run(repo, "search \"say \\\"hi\\\"\" | count", ReadQ).Text, "1 matching line(s)",
+                              "and a literal search term has the escape taken back out");
+    }
 }
