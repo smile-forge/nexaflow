@@ -1,0 +1,42 @@
+{
+  "branch": "claude/optimize-claude-md-turns-ba88e4",
+  "nodes": {
+    "data-model": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Services/ProductStore.cs",
+          "class": "ProductStore",
+          "method": "Load"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Model/ProductNode.cs",
+          "class": "ProductNode"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Services.Initiatives/Product/Model/ProductDocument.cs",
+          "class": "ProductDocument"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/product-graph.md",
+          "title_path": [
+            "The product graph",
+            "Where it is heading: the Product Manager cycle"
+          ]
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "data-model"
+  ]
+}

@@ -257,7 +257,7 @@ Options_Toggle
 # src/Nexaflow.Core/Controls/RibbonEditor.xaml
 # The per-row editors sit Visibility="Collapsed" until a card is selected, and a card cannot be selected
 # through UIA: cards are Borders built in code-behind, so they create no automation peer. Putting an id on
-# the Border was tried and does not resolve — the unpredictable case CLAUDE.md describes, where TabStrip's
+# the Border was tried and does not resolve — the unpredictable case docs/wpf-gotchas.md describes, where TabStrip's
 # equivalent happens to work and this one does not — and reshaping a card into a Control just to host an id
 # is what that same note says not to do. Needs a journey that can reach a card another way.
 RibbonEditor_DeleteSeparator

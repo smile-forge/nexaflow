@@ -3,6 +3,176 @@
 How the Nexaflow test suite is structured, how the shared sample-file dataset works, and how to
 add coverage for a new viewer or fixture.
 
+## What a feature's tests look like
+
+Tests back the product tree: each node's `tests` concern names the test that proves it, so the tree stays an honest,
+mechanically-checkable map of **what exists** and **what's tested**. How the tree itself is shaped — the UI /
+Functionality / AI backbone, panels and state nodes, concerns by role, granularity — is
+[product-graph.md](product-graph.md); this section is the tests that back it.
+
+Two tiers, matching the two node roles:
+
+1. **One UI journey per feature**, tagged `[CoversNode("<the feature's UI node>")]`. It launches the app once
+   (amortising the ~20 s start) and drives the interactive controls in a single pass — the *integration* test
+   at the UI level. See `TextJourneyTests` and `UiJourneyTestBase` (soft `CheckPresent`/`CheckInvoke`/`Check`
+   so one broken control doesn't hide the rest). Interactive-desktop only (`TestCategory=UI`), and it lives in
+   `Nexaflow.Tests.UIJourneys`.
+2. **One unit test per leaf control**, tagged `[CoversNode("<leaf-id>")]`, driving the **view-model** command
+   or state behind the control (NOT a UI test). One method may cover several leaves — tag each. This is where
+   the real per-control assertions live; the journey just proves the wiring holds end-to-end.
+
+**Functionality** behaviours are VM unit tests too — everything under `Functionality` should be unit-testable,
+or explicitly declared `shouldnt`.
+
+### Before declaring a leaf untestable, look for the pure seam
+
+The commonest reason a leaf "can't be tested" is that its *rule* is buried inside a WPF control alongside the
+caret, the selection and the document rebuild — not that the rule is untestable. Lifting the rule out is
+usually a few lines and leaves the control thinner:
+
+- **Markdown's formatting mini-toolbar** — the heading / bold / quote / code-fence text rule is
+  `MarkdownBlockFormat` (pure `(block, …) → (newBlock, caret)`); `InlineMarkdownEditor` keeps only the caret and
+  the rebuild.
+- **Markdown's scroll-to-heading deep link** — the interesting part is matching a `>`-joined heading path
+  against the block list (so duplicate names under different parents stay distinct), not the
+  `ScrollToVerticalOffset`, so it is `MarkdownBlocks.FindHeadingBlock`.
+- **Code's `.xshd` theming** — the name→role heuristic is in `SyntaxTokenMap` beside the tree-sitter
+  capture→role map, not in `XshdTheming`. One role palette, both engines, both testable.
+- **SysInfo's health colouring** — `StatusToBrushConverter.Convert` exposes the status→`TextSwatch.*` mapping as
+  `ResourceKey`, so "every status resolves to a semantic token, and an unknown one paints as plain text rather
+  than implying a verdict" is assertable without an `Application`.
+- **Block-level undo** — no seam to extract, but `Undo()` is `public` (as `TextBox.Undo()` is), so the step
+  *granularity* — one step per block session, not per keystroke — is assertable.
+- **3D camera moves** — orbit / turn / roll / zoom / pan and the authored-view framing are `CameraMath`, pure
+  `CameraPose → CameraPose`; `Model3DView`'s code-behind only reads the camera, applies, and writes it back. Every
+  gesture and AI camera tool is assertable without a viewport.
+- **Pan/zoom canvases with an overview minimap** — cursor-anchored zoom, centring, and the canvas↔minimap
+  mapping and its inverse live in `Visuals.Common`'s `PanZoomMiniMap`, shared by `ImageView` and
+  `ScratchpadView`. "Zooming keeps the point under the cursor still", "the minimap only appears when something
+  is off-screen" and "clicking the minimap centres the viewport there" are asserted once, for both.
+- **Resizing a rotated post-it** — the rule is that the corner you are *not* dragging stays put, which needs
+  the drag projected onto the note's own axes: `PostItGeometry.Resize`, outside `PostItControl`. Unrotated
+  resizing is arithmetic nobody gets wrong; the rotated case is what the tests are for.
+- **Fitting content into a viewport** — the DICOM stage cannot lean on WPF's `Stretch`, because the
+  measurement overlay is drawn in *screen* space (so strokes stay one width at any zoom) and the view
+  therefore owns the matrix; the SVG canvas cannot either, because it re-tessellates rather than scaling a
+  bitmap. `Visuals.Common`'s `ViewportFit` holds fit, actual-size and cursor-anchored zoom for both. Its tests
+  are about the edges: fit letterboxes rather than crops, 1:1 lets oversized content overflow rather than being
+  clamped, and a viewport layout has not measured yet yields the identity instead of an infinite scale.
+- **Where a typed line goes when you press Enter** — the terminal's one genuinely consequential decision. Its
+  inputs are trivial (is the cursor on a prompt, what was typed, what this shell calls a built-in), so
+  `TerminalEnterRouting.Decide` takes them directly instead of reading state only a live pseudo-console sets.
+  The third case is the one worth having a test for — mid-program there is no prompt, and the line belongs to
+  whatever is reading stdin whatever it looks like.
+- **A panel's listing order** — the terminal's Files panel deliberately lists files *before* folders, the
+  opposite of Explorer, because the panel exists to drag a path onto the console. That inversion is the kind
+  of thing a later "fix" quietly reverts, so it is pinned in `TerminalFileList.Enumerate`.
+- **An editor's rename semantics** — the console environments editor pins folders to an environment *by
+  name*, so a rename is the moment every pin can silently stop resolving. `ConsoleEnvironmentEditing` holds
+  the three rules that fail without a symptom: pins follow a rename unless another environment still owns the
+  old name, a new environment must not collide, and the last one cannot be removed.
+
+Reach for this before reaching for `shouldnt`. Prefer changing the abstraction's shape over adding a
+test-only hook — and when the *second* feature needs the same seam, that is the signal it belongs in
+`Visuals.Common` rather than twice over in two code-behinds.
+
+A **device** is not automatically an excuse either. Audio's engine only exists after the first play, so
+"every transport command is safe before it exists" — the half that actually breaks — is unit-testable even
+though playing a sound is not. Split the leaf's rule from the device call and test the half you can.
+
+Some leaves are only reachable through the real control (a rendered `RichTextBox`, a live AvalonEdit
+selection). Those get a control-level test in an off-screen window (`MarkdownEditorHarness`) tagged
+`TestCategory=UI` — still one test per leaf, just not headless.
+
+### When a node genuinely can't be unit-tested
+
+**`tests=shouldnt` + a `note` saying why and who covers it.** Recurring cases:
+- **WPF `ApplicationCommands` forwarders** (cut/copy/paste, a right-click menu) — need a *focused* control;
+  no VM state to assert. Covered by the UI journey's presence check.
+- **Passive displays** with no distinct VM behaviour.
+- **Live-pipeline / STA-render tools** — WebView2 capture/scroll, `PngBitmapEncoder`/`RenderTargetBitmap`
+  image capture, a live media/3D viewport, a live PTY/`cmd.exe`. Test the graceful *no-surface* error path if
+  there is one; declare the real behaviour `shouldnt`.
+
+Don't loop trying to test the genuinely-hard ones — mark `shouldnt` + note and move on.
+
+### Testing a feature that acts on the machine
+
+Processes, SysInfo, Installed Apps and Win Registry all kill, uninstall, reconfigure or overwrite real
+system state, so "drive the control and assert the outcome" is not available. The pattern that replaces it:
+**assert the gate, not the effect.**
+
+- Every destructive leaf's test declines its confirmation (or its UAC prompt) and asserts that *nothing*
+  reached the bridge / the background queue — a passing test therefore proves the guard exists, and it can
+  never damage the machine it runs on.
+- Where the action goes through `IShellServices.RunElevatedAsync`, assert the **request**: the right
+  operation name carrying the right target (`service.stop` on `Spooler`, `env.set` with `Target=Machine`).
+  That pins the wiring without a privileged run.
+- A **declined** elevation must be silent and a **failed** one must surface — assert both; they're easy to
+  collapse into one path by accident.
+- The UI journey stays on the read-only controls and says in its summary why the rest are excluded.
+
+### The feature pass
+
+Every feature gets the same pass — model it in the tree, then back each node with the right kind of test:
+
+1. `add-node` the backbone: `UI`, `Functionality`, `<feature>-ai` (+ `-ai-context` / `-ai-act` / `-ai-preview`).
+2. Read the view. `add-node` a **panel** per visual region; a **control** leaf per button/display; a **state**
+   node for a state-gated group of controls.
+3. `add-node` the **Functionality** behaviours (the non-UI / non-AI logic).
+4. Set concerns by role ([product-graph.md → Concerns, by role](product-graph.md#concerns-by-role)): panels
+   `theming`; leaves `theming`+`tests`; state nodes none; `AI Ready` only on the feature root. `remove-concern`
+   anything that auto-attached wrongly.
+5. Give every command-bound control in the view an `AutomationProperties.AutomationId` — the journey can
+   only reach a control by its id, and an untagged button is invisible to it (see *Automation ids* below).
+6. Write the **one UI journey** (`[CoversNode("<ui>")]`) + **a unit test per leaf/behaviour**
+   (`[CoversNode("<leaf>")]`); extract the pure seam where one is hiding; `shouldnt` + note the rest.
+7. Snaplink each `done` leaf → its **unit** test; `ui` → the **journey**.
+8. `doctor` + `validate` + `lint --under <feature>`; build + run the feature's unit tests (and the UI
+   journey on a desktop).
+
+One thing the pass keeps turning up, so look for it: a node claiming `tests=done` (or a `theming=done` over
+a hard-coded colour) that nothing actually backs. The lint's `TestsDoneWithoutSnaplink` finds the first kind;
+the second only shows up by reading the view. Both are worth fixing while you are in the feature — that is
+the point of the pass. A feature without the backbone also tends to carry generic ids and stray duplicate
+roots — see [product-graph.md → The shape of a feature subtree](product-graph.md#the-shape-of-a-feature-subtree).
+
+The features below all follow the model and lint clean — read whichever is closest in shape to the feature you're
+working on:
+
+| Reference | Read it for |
+|-----------|-------------|
+| **Text Viewer** | the canonical shape: many toolbar controls, a state-gated group (`Edit_mode`), pop-over panels |
+| **Code** | a feature whose UI lives in a *shared* control (`Nexaflow.Visuals.Text.Editor`) — the panels/leaves are modelled on the Code tab even though the XAML is elsewhere |
+| **Tabular** | the widest UI: five panels, a state node for the header context menu, and a Functionality subtree (detection/parsing) deeper than the UI one |
+| **Markdown** | the smallest UI over the largest shared control — and the worked example of *extracting a pure seam* so a leaf becomes unit-testable |
+| **Processes** | a feature spanning **two tabs** (the list and the per-process details page) under one UI node, plus a Functionality subtree for the sampling/reconciliation/tree-building behind the grid |
+| **SysInfo** | a feature spanning **three tabs** (Dashboard / Services / Environment Variables) — one panel per page — over a system-probe layer |
+| **Installed Apps** | the shape of a *destructive* row menu: the safety gate is the leaf's test, and the journey never opens the menu at all |
+| **Win Registry** | a feature where every write routes through an in-tab overlay — the overlays are their own panel, and the leaves are tested at "the right prompt opened, seeded correctly, and the guard fired" |
+| **Log Viewer** | a *live* surface: the file watcher, pause and follow are three separate leaves because their test states differ, and the status bar is a panel of one-line readouts |
+| **Images** | four mutually-exclusive content surfaces, each its own panel under one UI node, with the shared floating tools as a fifth — and the collage's pan/zoom maths pulled out as a pure seam |
+| **Audio** | the shape of a feature over a *device*: the readouts either side of playback are unit-tested, the device-bound half is `shouldnt` with a note naming what covers the rest |
+| **3D Model** | the same again for a live viewport — the camera maths is `CameraMath`, outside the code-behind, so every gesture and AI camera tool is assertable without a rendered scene |
+| **Video** | what to do when the whole feature sits on a native engine: the window *before* the engine exists is the tested one, because that is where the tab is actually exposed |
+| **Scratchpad** | a canvas rather than a document, whose pan/zoom seam is shared with Images in `Visuals.Common` |
+| **Projects** | two tabs plus two file-explorer viewlets under one UI node, over an operations layer that carries most of the tests |
+| **Notebook** | the smallest complete example — two panels, four behaviours |
+| **Win Search** | a feature whose core (the index query) genuinely cannot run headlessly, so everything either side of it is what carries the tests |
+| **AI Chat** | the hardest `shouldnt` calls: approvals and interjections only exist inside a running agent turn, so the note has to say what covers them instead |
+| **DICOM** | the retrofit reference — read it for the feature-prefixed ids and single root a feature brought onto the backbone has to establish |
+| **Console** | a feature whose logic almost all lives in shared libraries (`Visuals.Terminal`, `IO.Terminal`), so its leaves snaplink outward, and its one irreducible decision — where a typed line goes — sits outside the live PTY so it is testable at all |
+| **Win File System** | the largest subtree, and the reference for an action strip: most buttons end in a shell call or the clipboard, so the tests sit on the *gate* and the `shouldnt` notes have to say where each rule is actually asserted |
+| **Hex** | one AI test per tool, so each of eight act leaves names its own method rather than one omnibus test |
+| **Json** | where the guard is the whole story: the document is held windowed, so Save and Format have to refuse while any part is unread, and that refusal is what the leaf's test asserts |
+| **SVG** | the smallest complete example — one canvas, three toolbar controls — sharing the fit/zoom seam (`ViewportFit`) with DICOM |
+| **Email** | a UI subtree built by reading the view, over a parse / VFS / AI layer |
+| **Virtual Disk** | the reference for a viewer that deliberately opens nothing — content is reached by browsing the image, so a file inside has one open path rather than two |
+| **Compressed** | the widest Functionality subtree — one backend assembly per container family — and an action bar where every destructive action goes through a choice or password overlay, so the leaf tests are all "cancelling leaves the archive byte-for-byte as it was" |
+| **Product** | the multi-view reference: three views (five planned) as panels under one UI node, one shared Functionality subtree, and *one* AI node — because the views are views of one tree. Also where `get_context` splits per view while the tool set stays shared |
+
+---
+
 ## Projects
 
 All under `src/Nexaflow.Tests/`:
@@ -17,17 +187,16 @@ All under `src/Nexaflow.Tests/`:
 | `Nexaflow.Tests.Features.Viewers` | same | Every viewer/editor/player — Audio…Video, plus the sample-file corpus. A feature registering no page is not a viewer: the Git and Dotnet viewlets live in `.Features` | the viewer feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.WindowsOS` | same | The features that inspect and drive Windows: file system, registry, search index, installed apps, processes, system info | those feature projects + `.Common` + `Nexaflow.Tests.Fixtures` |
 | `Nexaflow.Tests.Features.Architecture` | same | The whole-repo guards: reference/dispatcher rules, add-a-feature touch points, solution membership, XAML keys, `[CoversNode]` declarations | the suites above **and** `Tests.Initiatives` (for their **output**, not their API) |
-| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts. The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures` | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
+| `Nexaflow.Tests.Features.Common` | `net10.0-windows10.0.19041.0` class library | **Shared support.** Not a test project — `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts | FlaUI + `Features.Common` + `Nexaflow.Search` + `Nexaflow.Tests.Fixtures` — **no feature** |
 | `Nexaflow.Tests.IO` | `net10.0-windows`, MSTest exe | `Nexaflow.IO.*` — the WPF-free IO leaves: `IO.Common`, `IO.Protocol` (DynamicProtocol + the ten-protocol corpus), `IO.Network` | those three + `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Initiatives` | `net10.0`, MSTest exe | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the knowledge graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser | `Services.Initiatives`, `Services.Initiatives.Cli`, `Nexaflow.Tests.Fixtures` — **nothing else** |
 | `Nexaflow.Tests.Maths` | `net10.0`, MSTest exe | `Nexaflow.Maths` — the LaTeX parse tree, its printer, the command table, grids. Runs the 238k-formula corpus in seconds because nothing here is drawn | `Nexaflow.Maths`, `Nexaflow.Tests.Fixtures`, and AngouriMath **as an oracle** (it writes LaTeX and knows what structure it wrote) |
 | `Nexaflow.Tests.Providers` | MSTest exe | Provider clients — network-free provider surface, config round-trips, `PromptComposer`, `LlmAttachment`, Aria wire protocol | the provider projects |
 | `Nexaflow.Tests.Fixtures` | `net10.0` class library | **Generates the sample dataset**, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Not a test project — no MSTest, no `[TestClass]` | nothing (deliberately dependency-free) |
 
-**TeX's own layout rules are tested in `Nexaflow.Tests.Visuals`, under `Markdown/Latex/Typesetting/`.** They came with the
-engine as an F# approval suite that recorded the atom and box trees its old parser built; with the atoms gone those trees
-no longer exist, so the rules they pinned — where an integral's limits go, which face a letter comes from, how far a
-sized delimiter grows — are measured on what the builder sets instead, and run in CI with the rest of the suite.
+**TeX's own layout rules are tested in `Nexaflow.Tests.Visuals`, under `Markdown/Latex/Typesetting/`** — where an
+integral's limits go, which face a letter comes from, how far a sized delimiter grows — measured on what the builder
+sets, and run in CI with the rest of the suite.
 
 No `Nexaflow.Tests.Features*` suite references Core (they mirror the architectural rule that features
 don't depend on Core). The sample-data generator therefore lives in its own dependency-free library,
@@ -36,14 +205,12 @@ don't depend on Core). The sample-data generator therefore lives in its own depe
 
 ### Why the feature tests are four projects
 
-One project referencing ~50 feature assemblies meant editing a single viewer test rebuilt everything.
-The suites are split by **subject**, so a viewer change rebuilds only `Viewers`. Two consequences worth
-knowing:
+The feature suites are split by **subject**, so a viewer change rebuilds only `Viewers` — one project referencing
+~50 feature assemblies would rebuild everything for any test edit. Two consequences worth knowing:
 
-- **`Search/` was split with them.** It is one `<Feature>SearchableTests.cs` per feature, and keeping it
-  whole would have left its project referencing nearly the entire graph — which is exactly the cost the
-  split exists to remove. Each file follows its feature; only the feature-agnostic ones (query syntax,
-  term parsing, the conformance guard) stayed behind.
+- **`Search/` follows the split.** It is one `<Feature>SearchableTests.cs` per feature, each in its feature's suite,
+  because a single search folder would reference nearly the entire graph — exactly the cost the split exists to
+  remove. Only the feature-agnostic ones (query syntax, term parsing, the conformance guard) sit together.
 - **`Architecture` is the heaviest project on purpose.** Its guards reflect over every
   `Nexaflow.Features.*.dll` *and* every suite DLL matching `FeatureTestSuites.Patterns`, so it references
   the suites to bring both sets into its output directory rather than guessing at sibling `bin` paths that
@@ -51,27 +218,21 @@ knowing:
   feature. **A new suite must be added to `Patterns`** — that is the one place the discovery is spelled out,
   and a suite missing from it silently drops out of the `[CoversNode]` guard.
 
-Namespaces did **not** change: a test in `Viewers` is still `Nexaflow.Tests.Features.Audio`. That keeps the
-folder→feature convention `CoverageGuardTests` enforces readable across all four assemblies, and meant no
-`using` churn when files moved.
+Namespaces don't follow the project: a test in `Viewers` is `Nexaflow.Tests.Features.Audio`. That keeps the
+folder→feature convention `CoverageGuardTests` enforces readable across all four assemblies.
 
 **Which project a test belongs in is decided by its subject, not its imports.** A test whose subject is an
 IO library goes in `Tests.IO`; one that merely reaches through an IO library on its way to a feature —
 `Text` opening a file via `EncodingDetector`, `Compressed` browsing through the VFS — stays with the
-feature. The rule is worth stating because the second kind is far more common, and moving those would drag
-the whole feature graph back into a project whose value is that it has none of it.
+feature. The rule is worth stating because the second kind is far more common, and placing those in `Tests.IO`
+would drag the whole feature graph into a project whose value is that it has none of it.
 
-**The same rule put `Tests.Initiatives` where it is.** Its 265 tests used to sit in
-`Tests.Features\ProductManager\`, where they were hosted in a `UseWPF` project and needed a desktop session
-— despite referencing nothing but `Services.Initiatives`, its CLI and `Tests.Fixtures`. Their subject is a
-WPF-free backend library, exactly like `Tests.IO`'s, so the suite is one too: plain `net10.0`, no shell, no
-desktop. What stayed behind in `Tests.Features` is the ProductManager *feature* — the view-models, the AI
-client tools, the graph viewer — which genuinely needs WPF. A test belongs in `Tests.Initiatives` when its
-subject is `Nexaflow.Services.Initiatives(.Cli)`; one that reaches it through the feature stays with the
-feature.
-
-That split also made the `initiatives` mutation target cheap and safe to run — see
-[Mutation testing](#mutation-testing-strykernet).
+**The same rule places `Tests.Initiatives`.** Its subject is a WPF-free backend library, like `Tests.IO`'s, so the
+suite is plain `net10.0` — no shell, no desktop — which also keeps the `initiatives`
+[mutation target](#mutation-testing-strykernet) cheap and safe to run. The ProductManager *feature* — the
+view-models, the AI client tools, the graph viewer — genuinely needs WPF and is tested in `Tests.Features`. A test
+belongs in `Tests.Initiatives` when its subject is `Nexaflow.Services.Initiatives(.Cli)`; one that reaches it through
+the feature stays with the feature.
 
 ## Running
 
@@ -86,6 +247,28 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
 & $exe --filter "FullyQualifiedName~SampleFileDetection" # one class
 ```
 
+### Fast inner loop
+
+Features don't depend on Core, so feature work never needs the solution build: build only the feature csproj you
+touched, then the one suite that owns it, and run it with `--filter "FullyQualifiedName~<Class>"` — the suites are split
+by subject, so editing a viewer test rebuilds only its own suite. `nfi test <node-id>` chooses and runs the tests for you
+(CLAUDE.md → *Prove*). Output is under `bin/x64/<Config>/` — the solution is pinned x64, so a
+`bin/<Config>/` without `x64` is not this build's output; delete it.
+
+After any change touching `Nexaflow.Core`, run its unit tests before committing:
+
+```powershell
+dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
+src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
+```
+
+UI journeys are never part of the inner loop — they take over the mouse and keyboard. Run them last, on a machine you
+are not using, and after the other suites (which build the fixtures they open):
+
+```powershell
+src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.UIJourneys.exe
+```
+
 ### Categories
 
 - **Unit / non-UI** — fast, headless, no desktop. The default for CI.
@@ -97,21 +280,17 @@ $exe = "src/Nexaflow.Tests/Nexaflow.Tests.Features/bin/x64/Debug/net10.0-windows
   enforces this — a class whose source shows a window must declare the category and opt out of
   parallelism. It reads **both** suites' sources, because the resource is machine-wide: a guard scoped to
   the assembly it happens to sit in would pass over the other one and read green while testing nothing.
-- **`TestCategory("UI")`** — two different things now, which is why CI no longer filters on the category
-  and excludes `Nexaflow.Tests.UIJourneys` as a whole assembly instead. In `Tests.Visuals` and `Tests.Core`
-  it means only *renders WPF off-screen* — an STA thread, no window, safe to parallelise, and safe on a
-  runner; those had never run in CI purely because they shared a category name with the journeys.
-  Elsewhere, two kinds, and the split is the point:
-  - **`Nexaflow.Tests.UIJourneys`** drives the real `Nexaflow.exe` via FlaUI. Each test launches a fresh
-    app against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp dir), so it neither
-    depends on nor pollutes the developer's real `%APPDATA%` config. See `UITestBase`.
-  - The remainder, in `Tests.Visuals`, render WPF controls off-screen. They want a desktop session but
-    launch nothing and touch no pointer, so they stay beside their subject.
+- **`TestCategory("UI")`** — means two different things by suite, so CI excludes `Nexaflow.Tests.UIJourneys` as a
+  whole assembly rather than filtering on the category. In `Tests.Visuals` and `Tests.Core` it means only *renders
+  WPF off-screen* — an STA thread, no window, safe to parallelise and safe on a runner, so those run in CI. In
+  **`Nexaflow.Tests.UIJourneys`** it means driving the real `Nexaflow.exe` via FlaUI: each test launches a fresh app
+  against an **isolated config root** (`NEXAFLOW_CONFIG_DIR` → a throwaway temp dir), so it neither depends on nor
+  pollutes the developer's real `%APPDATA%` config. See `UITestBase`.
 
-  They live in one assembly because they used to be spread over four, and a whole-suite run then started
-  four test hosts: each asked for the machine separately, and each launched its own app, so the instances
-  stole one another's clicks. One assembly is one launcher and one prompt; `UiTestGate` adds a
-  machine-wide semaphore so even a concurrent host cannot put a second app on screen.
+  The journeys live in one assembly so a run has one launcher and one prompt: separate assemblies would start
+  separate test hosts, each asking for the machine and launching its own app, and the instances would steal one
+  another's clicks. `UiTestGate` adds a machine-wide semaphore so even a concurrent host cannot put a second app on
+  screen.
 
   **They reference nothing but the built app.** A journey that constructed its own input would be linking
   the assembly it is meant to drive through the UI — preparing and asserting with the same code. So
@@ -171,8 +350,7 @@ prompt to look and decide, which is the step that is easy to skip without someth
 
 Reach for it whenever a change touches shared rendering rather than one diagram type. The unit tests assert
 what a renderer was *asked* to draw; they cannot see a label drawn behind a box, a legend appended below the
-visible area, or a group dropped before it reached the canvas. All three of those shipped through a green
-suite during the C4 work and were caught this way.
+visible area, or a group dropped before it reached the canvas — a before/after render can.
 
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
@@ -182,8 +360,21 @@ for tests that map to no single node (the `Architecture/` guards, `Fixtures/` sa
 test bases need no attribute. This is enforced at author time by the `Nexaflow.Analyzers.Coverage` analyzer
 (NXCOV001 = missing declaration, NXCOV002 = stale id) and in CI by `CoverageDeclarationGuardTests` (one per
 test assembly). `dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests . --suggest-attributes`
-prints the starter set derived from the tree's existing `tests` snaplinks. See CLAUDE.md → *Test coverage is
-declared on the test* for the full loop (scan-tests → manifest → Integrity-page reconcile → Add link).
+prints the starter set derived from the tree's existing `tests` snaplinks.
+
+Put a `[CoversNode]` at **class level** only when the whole class covers that node (usually a container with
+children); a specific behaviour (a leaf node) goes on the individual `[TestMethod]`(s) — the manifest then carries
+precise class+method links. NXCOV003 flags a class-level leaf that over-claims because the class covers other nodes
+too. Which node a capability's test declares — the Shared one, not the use case — is in
+[product-graph.md → Features and Common / Shared](product-graph.md#features-and-common--shared-are-different-kinds-of-list).
+
+The tree stays authoritative; the attributes are a cross-check with a one-click reconcile. `scan-tests` reflects the
+built test DLLs (metadata-only, via `MetadataLoadContext` + the portable PDB for the source path) into the derived
+**coverage manifest** (`.product/test-coverage.json`). The Integrity page reconciles that manifest against the tree
+and shows each *declared-but-unlinked* test as a **non-gating advisory** with an **Add link** button (writes the
+`tests`-concern `code` snaplink for you) — a separate channel from the gating snaplink issues, so advisories never
+fail the installer. Id validity is checked against the live `.product/tree.json` (gitignored → absent in CI, where
+the guard degrades to presence-only).
 
 ### Automation ids (`NXUI001` / `AutomationIdJourneyCoverageTests`)
 
@@ -201,8 +392,8 @@ Two gates, at opposite ends of the same rule:
 - **`AutomationIdJourneyCoverageTests`** (in `Tests.Features.Architecture`) requires every id declared in a
   view to be named somewhere in `Nexaflow.Tests.UIJourneys`. Matching is loose — the id appearing anywhere in
   the journey sources counts — because a journey may hold it in a constant or pass it to a helper, and the
-  failure worth catching is an id no journey mentions at all. It is a **ratchet**: the ids that predate the
-  rule live in `Architecture/automation-ids-without-a-journey.txt`, and the two tests pull opposite ways — a
+  failure worth catching is an id no journey mentions at all. It is a **ratchet**: the ids no journey names
+  yet are listed in `Architecture/automation-ids-without-a-journey.txt`, and the two tests pull opposite ways — a
   new unreferenced id fails until it is covered or listed, and a listed id fails once it *is* covered or its
   view stops declaring it. The list can only shrink, and it cannot rot into a permanent allowlist.
 
@@ -221,18 +412,14 @@ ship without being held to the same rules, and a rule added to the base applies 
 | `ISearchable` — a page may decline regex, but never *appear* to support it | `Search/SearchableConformance.cs` (two tiers: with and without seeded content) | every searchable page |
 | viewer `IFileAction` — `PerformAction(p)` and `PerformAction([p])` are the same user intent | `FileActions/FileActionConformance.cs` | every action with `OpensViewer => true` |
 
-Both were written after the same discovery: the rule *was* asserted by hand in some features and not in
-others, and the features missing it were the ones that had drifted. The file-action contract found six
-actions whose two overloads disagreed — four (`ShowAudioAction`, `OpenAsEmailAction`, `ShowImageAction`,
-`ShowHtmlAction`) filtered the selection overload by file type but not the single-file one, so "As
-Audio" on a text file queued it from the file list and silently refused the very same file as a one-item
-selection; two (`OpenAsArchiveAction`, `OpenAsDiskAction`) returned `true` for an *empty* selection and
-opened a tab per file while declaring `SupportsMultipleFiles => false`.
+Each rule is one a hand-written test would assert in some features and not others — and the features that skip it
+are the ones that drift. The file-action contract holds the two overloads to one answer: filtering by file type
+applies to a one-item selection exactly as to a single file, an empty selection returns `false`, and an action
+declaring `SupportsMultipleFiles => false` never opens a tab per file.
 
 What the base deliberately does **not** test is the metadata half — that `StaticExperienceId` is declared
-and the experience is mapped in the bundled file map. Reflection over every feature assembly already covers
-that in `FeatureTouchPointTests`; what reflection cannot do is *invoke* the action, which was the half that
-had rotted.
+and the experience is mapped in the bundled file map. Reflection over every feature assembly covers that in
+`FeatureTouchPointTests`; what reflection cannot do is *invoke* the action, which is the half this base covers.
 
 Adding an action to the contract costs six lines:
 
@@ -273,7 +460,7 @@ component node:
   [product/PRODUCT.md](product/PRODUCT.md).
 
 When you add (or remove) tests for a component, update that node's `tests` concern in the product
-tree — that is the maintenance step that replaces editing a table here.
+tree — that is the maintenance step.
 
 `Features.Common` (contracts) has no test folder of its own; its client-tool wire-protocol parser
 (`ClientBlockParser`) and the agent loop are tested in `Tests.Core` (`Unit/ClientTools/`).
@@ -292,7 +479,7 @@ and agent loop, the `?` search route (`SearchQueryHandler`, `SearchClientTools`)
 
 `Tests.Core` is the one suite that references Core, and Core hard-references every feature and provider
 assembly (they must land in its output for `FeatureCatalog` to scan). So building it builds the whole
-solution — which is why everything that does **not** need Core has been moved out, below.
+solution — which is why everything that does **not** need Core lives in the suites below.
 
 ### Visuals (`Nexaflow.Tests.Visuals`)
 
@@ -302,7 +489,7 @@ LaTeX formula tree/layout/caret model, the music engraver, the inline markdown e
 editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
 
 Its two WPF categories are split by what they *need*, not what they touch — see
-[Two kinds of WPF test](#two-kinds-of-wpf-test) below. `DesktopTestCategoryGuardTests` lives here and
+[Categories](#categories) above. `DesktopTestCategoryGuardTests` lives here and
 scans both this suite and `Tests.Core`, because focus is machine-wide and the rule is not per-assembly.
 
 ### Component leaves (`Nexaflow.Tests.Components`)
@@ -412,8 +599,8 @@ Every sample file is opened through the real shell and asserted to load in the e
 coverage — no per-file wiring.
 
 It runs as **three** tests, not one per file and not one for the lot: `MarkdownSamples_…`,
-`ImageSamples_…` and `OtherSamples_…`. One app launch per test amortises the ~110 fixtures (a test per
-file was the original shape and was far slower), while the two heaviest families — markdown at a third
+`ImageSamples_…` and `OtherSamples_…`. One app launch per test amortises the whole corpus (a test per
+file would pay a launch per file), while the two heaviest families — markdown at a third
 of the corpus, images at a fifth — are pulled out so the suite has no single multi-minute block, a
 failure names which group broke, and a crash in one group leaves the others' results intact.
 
@@ -510,12 +697,11 @@ Reports land in `artifacts/mutation/<target>/reports/` (gitignored) — read the
 **Validators and parsers whose failure mode is silence.** Every one of `SnaplinkValidator`'s 32 tests hands
 it something broken and checks that it complains, so none of them can detect a change that makes it *stop*
 complaining — and it gates the installer build (`nexaflowSetup.wixproj` → `ValidateSnaplinks`). A validator
-that quietly fails open looks exactly like a clean tree. The first run of that target found four such
-mutants alive: `&&` → `||` on a null guard, a dropped `!`, `Concat` → `Except` on the candidate set, and
-`Any` → `All` on a member lookup.
+that quietly fails open looks exactly like a clean tree, and those are the survivors to look for: `&&` → `||` on a
+null guard, a dropped `!`, `Concat` → `Except` on a candidate set, `Any` → `All` on a member lookup.
 
-Contrast the search target's first run, which is the reassuring case: of the mutants planted in code the
-tests actually execute, **all 163 were killed**. Where a test ran, it noticed.
+Read survivors against coverage: a mutant that survives in code the tests execute is a finding; one in code no test
+executes is a coverage gap first.
 
 ### Four things that will bite you
 
@@ -540,7 +726,7 @@ tests actually execute, **all 163 were killed**. Where a test ran, it noticed.
 ### What is deliberately not mutated
 
 Feature ViewModels and anything WPF. Most of their mutable surface is binding glue and property plumbing,
-their tests need a pumped UI context, Stryker's project analysis already fails on several `net10.0-windows`
+their tests need a pumped UI context, Stryker's project analysis fails on several `net10.0-windows`
 feature projects, and the desktop-heap hazard above is worst there. Mutation testing here is a tool for
 **leaf logic**, not for the shell.
 
