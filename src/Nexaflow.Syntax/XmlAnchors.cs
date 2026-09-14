@@ -130,6 +130,17 @@ internal static class XmlAnchors
     public static int CountElements(string grammarId, string text) =>
         Parse(grammarId, text, root => AllElements(root).Count());
 
+    /// <summary>Every element as a <see cref="DeclarationSignature"/>: its start tag on one line, and the path that
+    /// addresses it — what a listing of a view shows, and what a diagnostic in one is placed by.</summary>
+    internal static IReadOnlyList<DeclarationSignature> Signatures(string grammarId, string text) =>
+        Parse(grammarId, text, root => (IReadOnlyList<DeclarationSignature>)[.. AllElements(root).Select(e =>
+        {
+            var tag = CodeStructureExtractor.FirstChild(e, "STag", "EmptyElemTag") ?? e;
+            return new DeclarationSignature(e.StartPosition.Row + 1, e.EndPosition.Row + 1, XmlPath.RawName(e),
+                                            DeclarationSignatures.OneLine(text[tag.StartIndex..tag.EndIndex]),
+                                            XmlPath: CanonicalPath(e));
+        })]) ?? [];
+
     private static IEnumerable<Node> AllElements(Node root)
     {
         foreach (var top in XmlPath.ChildElements(root))

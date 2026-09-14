@@ -147,7 +147,7 @@ public static partial class StructuralEdit
 
         var anchors = new DeclarationAnchors();
         if (anchors.ParsesCleanly(grammarId, source) && !anchors.ParsesCleanly(grammarId, text!))
-            return Result.Fail("The edit would leave the file unparseable, so it has not been applied.");
+            return Result.Fail(Unparseable("The edit", grammarId, text!, anchors));
 
         return new Result(true, "substitute in the file", text, HunkOf(source, text!), notes,
                           ChangeOf(source, text!));
@@ -208,7 +208,12 @@ public static partial class StructuralEdit
 
         int at;
         string trailing;
-        if (lastImportEnd is { } end)
+        if (SortedPlace(grammarId, source, wanted) is { } sorted)
+        {
+            at       = sorted;
+            trailing = "";                    // it joins an existing block, in the order that block already keeps
+        }
+        else if (lastImportEnd is { } end)
         {
             at       = Math.Min(LineEndInclusive(source, end) + 1, source.Length);
             trailing = "";                    // it joins an existing block; no blank line inside one
@@ -229,10 +234,47 @@ public static partial class StructuralEdit
 
         var anchors = new DeclarationAnchors();
         if (anchors.ParsesCleanly(grammarId, source) && !anchors.ParsesCleanly(grammarId, updated))
-            return Result.Fail("Adding that import would leave the file unparseable, so it was not applied.");
+            return Result.Fail(Unparseable("Adding that import", grammarId, updated, anchors));
 
         return new Result(true, $"import {wanted}", updated, HunkOf(source, updated), [],
                           ChangeOf(source, updated));
+    }
+
+    /// <summary>
+    /// Where <paramref name="wanted"/> goes to keep a block of imports in the order it is already in — alphabetical, or
+    /// alphabetical with <c>System</c> first, as C# files are kept — or null when the block keeps no order to follow, or the
+    /// import is not one plain kind with the rest. Added at the end, <c>using System.Windows.Automation.Peers;</c> landed
+    /// after <c>using System.Windows.Media;</c>, and the next edit was a reorder.
+    /// </summary>
+    private static int? SortedPlace(string grammarId, string source, string wanted)
+    {
+        static bool Plain(string import) =>
+            import.StartsWith("using ", StringComparison.Ordinal) && !import.Contains('=') && !import.StartsWith("using static ", StringComparison.Ordinal)
+            && !import.StartsWith("global using", StringComparison.Ordinal);
+
+        var imports = new DeclarationAnchors().Imports(grammarId, source);
+        if (imports.Count < 2 || !Plain(wanted) || !imports.All(Plain)) return null;
+
+        static string Key(string import) => import["using ".Length..].TrimEnd(';').Trim();
+        static int SystemFirst(string a, string b)
+        {
+            static bool IsSystem(string n) => n == "System" || n.StartsWith("System.", StringComparison.Ordinal);
+            var (sa, sb) = (IsSystem(a), IsSystem(b));
+            return sa != sb ? (sa ? -1 : 1) : string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+        static int Alphabetical(string a, string b) => string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+
+        var keys = imports.Select(Key).ToList();
+        Comparison<string>? order = keys.Zip(keys.Skip(1)).All(p => SystemFirst(p.First, p.Second) <= 0) ? SystemFirst
+                                  : keys.Zip(keys.Skip(1)).All(p => Alphabetical(p.First, p.Second) <= 0) ? Alphabetical
+                                  : null;
+        if (order is null) return null;
+
+        var before = imports.FirstOrDefault(i => order(Key(wanted), Key(i)) < 0);
+        if (before is null) return null;   // it sorts last: the end of the block is already the place
+
+        var lineAt = source.IndexOf(before, StringComparison.Ordinal);
+        return lineAt < 0 ? null : LineStart(source, lineAt);
     }
 
     /// <summary>
@@ -566,6 +608,7 @@ public static partial class StructuralEdit
                                                               string indent, string newline)
     {
         if (text is null) return (null, "Text to insert is required.");
+        text = WithoutBlankEnds(text);
         var at = LineStart(src, a.TriviaStart);   // above the doc comment, not between it and its declaration
         return (src[..at] + Block(text, indent, newline) + newline + newline + src[at..], null);
     }
@@ -574,14 +617,30 @@ public static partial class StructuralEdit
                                                              string indent, string newline)
     {
         if (text is null) return (null, "Text to insert is required.");
+        text = WithoutBlankEnds(text);
         var at = Math.Min(LineEndInclusive(src, a.End) + 1, src.Length);
         return (src[..at] + newline + Block(text, indent, newline) + newline + src[at..], null);
+    }
+
+    /// <summary>
+    /// The text without blank lines at either end. How far an inserted declaration sits from its neighbours is the edit's to
+    /// decide, and it already separates one with a blank line — so a payload that brought its own, as one copied with the
+    /// line above it does, came out with two.
+    /// </summary>
+    private static string WithoutBlankEnds(string text)
+    {
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var first = Array.FindIndex(lines, l => l.Trim().Length > 0);
+        if (first < 0) return "";
+        var last = Array.FindLastIndex(lines, l => l.Trim().Length > 0);
+        return string.Join('\n', lines[first..(last + 1)]);
     }
 
     private static (string? Text, string? Error) Append(string src, DeclarationAnchor a, string? text,
                                                         string indent, string newline, SourceText shape)
     {
         if (text is null) return (null, "Text to append is required.");
+        text = WithoutBlankEnds(text);
         if (a.BodyStart is not { } bodyStart)
             return (null, $"The parser gives this {a.NodeType} no body, so there is nothing to append into. "
                         + "Append targets a type; use insert-after for a free-standing declaration.");
@@ -656,6 +715,11 @@ public static partial class StructuralEdit
         // it is. A search typed on a command line arrives LF, and this checkout keeps CRLF: matched raw, no
         // fragment spanning two lines could ever be found, and the refusal blamed the fragment. Everything
         // below works in LF and the splice gives the replacement the file's own endings.
+        // From the start of its line when only indentation comes before it. Sliced at the declaration - or at the comment above
+        // it - the first line had no indentation to take, so a replacement matched there lost every level of it on every line.
+        var lineStart = LineStart(src, from);
+        if (string.IsNullOrWhiteSpace(src[lineStart..from])) from = lineStart;
+
         var view  = LineBreakView.Of(src[from..a.End]);
         var body  = view.Text;
         var edits = new List<(int Start, int End, string Text)>();
@@ -1189,8 +1253,7 @@ public static partial class StructuralEdit
         // and refusing to touch it would make the one tool that could fix it unusable.
         if (extractor.Extract(grammar, updated).ParseFailed
             || (anchors.ParsesCleanly(grammar, original) && !anchors.ParsesCleanly(grammar, updated)))
-            return "The edit would leave the file unparseable, so it has not been applied. The replacement "
-                 + "text is probably unbalanced.";
+            return Unparseable("The edit", grammar, updated, anchors);
 
         switch (op)
         {
@@ -1225,6 +1288,17 @@ public static partial class StructuralEdit
                 break;
         }
         return null;
+    }
+
+    /// <summary>The refusal for an edit whose result does not parse, naming the line it breaks on and what is there.</summary>
+    private static string Unparseable(string what, string grammar, string updated, DeclarationAnchors anchors)
+    {
+        if (anchors.FirstError(grammar, updated) is not { } at) return $"{what} would leave the file unparseable, so it has not been applied.";
+
+        var lines = updated.Split('\n');
+        var text  = at.Line <= lines.Length ? lines[at.Line - 1].Trim() : "";
+        return $"{what} would leave the file unparseable - it stops parsing at line {at.Line}, column {at.Column}: "
+             + $"`{(text.Length > 120 ? text[..119] + "…" : text)}` - so it has not been applied.";
     }
 
     /// <summary>

@@ -1471,4 +1471,61 @@ public class StructuralEditTests
         StringAssert.Contains(result.NewText,
             "    /// <summary>Adds two numbers.</summary>\n    /// <param name=\"c\">A third.</param>\n    public int Add(int a, int b, int c)");
     }
+
+    [TestMethod]
+    public void InsertAfter_APayloadThatBringsItsOwnBlankLine_StillLeavesOneBetween()
+    {
+        var text  = Applied(StructuralEdit.Apply("c-sharp", Widget, "T:Widget/P:Count", StructuralEdit.Op.InsertAfter,
+                                                 "\npublic int Twice => _count * 2;\n\n"));
+        var lines = SourceText.Of(text).Lines.ToList();
+        var at    = lines.IndexOf("    public int Twice => _count * 2;");
+
+        Assert.AreEqual("", lines[at - 1]);
+        Assert.AreEqual("    }", lines[at - 2], "one blank line above it, not two");
+        Assert.AreEqual("", lines[at + 1]);
+        Assert.AreEqual("    public void Add(int n)", lines[at + 2], "and one below");
+    }
+
+    [TestMethod]
+    public void Import_JoinsASortedBlock_WhereItSorts()
+    {
+        const string file = "using System;\nusing System.IO;\nusing System.Text;\n\nnamespace N;\n\npublic class A { }\n";
+
+        var lines = SourceText.Of(Applied(StructuralEdit.AddImport("c-sharp", file, "using System.Linq;"))).Lines.ToList();
+
+        Assert.AreEqual(lines.IndexOf("using System.IO;") + 1, lines.IndexOf("using System.Linq;"));
+        Assert.AreEqual(lines.IndexOf("using System.Linq;") + 1, lines.IndexOf("using System.Text;"));
+    }
+
+    [TestMethod]
+    public void Import_IntoABlockKeptInNoOrder_GoesAtItsEnd()
+    {
+        const string file = "using Zed;\nusing Alpha;\n\nnamespace N;\n\npublic class A { }\n";
+
+        var lines = SourceText.Of(Applied(StructuralEdit.AddImport("c-sharp", file, "using Beta;"))).Lines.ToList();
+
+        Assert.AreEqual(lines.IndexOf("using Alpha;") + 1, lines.IndexOf("using Beta;"));
+    }
+
+    [TestMethod]
+    public void AnEditThatBreaksTheParse_SaysTheLineItStopsParsingAt()
+    {
+        var result = StructuralEdit.Apply("c-sharp", Widget, "T:Widget/M:Add", StructuralEdit.Op.Replace,
+                                          "public void Add(int n)\n{\n    _count += n;\n");
+
+        Assert.IsFalse(result.Ok);
+        StringAssert.Contains(result.Message, "stops parsing at line", "where to look, not only that something is wrong");
+    }
+
+    [TestMethod]
+    public void Substitute_StartingInTheCommentAboveADeclaration_IndentsEveryLineItWrites()
+    {
+        const string src = "public class A\n{\n    // old note\n    public int X = 1;\n}\n";
+
+        var text = Applied(Sub(src, "T:A/F:X", "// old note\npublic int X = 1;", "// new note\n// second line\npublic int X = 2;"));
+
+        AssertLine(text, "    // new note");
+        AssertLine(text, "    // second line");
+        AssertLine(text, "    public int X = 2;");
+    }
 }
